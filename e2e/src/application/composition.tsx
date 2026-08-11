@@ -23,6 +23,7 @@ import type {
 } from "@sillymaker/ui";
 import {
   Button,
+  createAnimationFramePresentationClockV1,
   defineWorkspaceOverlayV1,
   GameAudioV1,
   playerInputActionIdsV1,
@@ -52,6 +53,11 @@ import {
 } from "../presentation.ts";
 import { labUiTextV1 } from "./ui-text.ts";
 import { LabNarrativePlayerV1 } from "./narrative-ui.tsx";
+import {
+  createLabNarrativeConformanceV1,
+  LabNarrativeConformanceSlotV1,
+  type LabNarrativeConformanceV1,
+} from "./narrative-conformance.tsx";
 import {
   LabBarrierRecoveryV1,
   LabHudV1,
@@ -230,12 +236,14 @@ export function createLabUiSlotsV1(input: {
   readonly playerProfile: PlayerProfileStoreV1;
   readonly playerClock?: PresentationClockV1;
   readonly overlayConformance?: LabOverlayConformanceV1;
+  readonly narrativeConformance?: LabNarrativeConformanceV1;
 }): DefaultGameRootSlotsV1<LabUiPublicationV1, LabSemanticPortV1, LabUiOverlayIdV1> {
   const voiceReplayRef: { current: (() => boolean) | null } = { current: null };
   const registerReplay = (replay: (() => boolean) | null): void => {
     voiceReplayRef.current = replay;
   };
   const replayVoice = (): boolean => voiceReplayRef.current?.() ?? false;
+  const registerNarrativeReplay = input.narrativeConformance?.registerReplayVoice ?? registerReplay;
   const overlayConformance = input.overlayConformance ??
     createLabOverlayConformanceV1({ enabled: false });
   const slots: DefaultGameRootSlotsV1<LabUiPublicationV1, LabSemanticPortV1, LabUiOverlayIdV1> = {
@@ -253,20 +261,29 @@ export function createLabUiSlotsV1(input: {
           createHost={input.createAudioHost}
           selectIntent={selectLabAudioIntentV1}
           resolveEffectAsset={resolveLabEffectAssetV1}
-          registerReplayVoice={registerReplay}
+          registerReplayVoice={registerNarrativeReplay}
         />
         {context.publication.view.procedurePhase === "complete"
           ? <p data-lab-narrative="complete">{labUiTextV1("text.e2e.lab.narrative.completed")}</p>
           : null}
         <LabBarrierRecoveryV1 publication={context.publication} semantic={context.semantic} />
-        <LabNarrativePlayerV1
-          publication={context.publication}
-          semantic={context.semantic}
-          profile={input.playerProfile}
-          input={context.input}
-          {...(input.playerClock === undefined ? {} : { clock: input.playerClock })}
-          replayVoice={replayVoice}
-        />
+        {input.narrativeConformance === undefined
+          ? (
+            <LabNarrativePlayerV1
+              publication={context.publication}
+              semantic={context.semantic}
+              profile={input.playerProfile}
+              input={context.input}
+              {...(input.playerClock === undefined ? {} : { clock: input.playerClock })}
+              replayVoice={replayVoice}
+            />
+          )
+          : (
+            <LabNarrativeConformanceSlotV1
+              conformance={input.narrativeConformance}
+              inputRouter={context.input}
+            />
+          )}
       </div>
     ),
     systemMenuExtras: (context) => (
@@ -404,6 +421,32 @@ export const labSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
   }),
 });
 
+function createLabUiDisposeV1(
+  narrativeConformance: LabNarrativeConformanceV1 | undefined,
+  overlayConformance: LabOverlayConformanceV1,
+): () => void {
+  let disposed = false;
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    let firstFailure: unknown;
+    let failed = false;
+    try {
+      narrativeConformance?.dispose();
+    } catch (error) {
+      failed = true;
+      firstFailure = error;
+    }
+    try {
+      overlayConformance.dispose();
+    } catch (error) {
+      if (!failed) firstFailure = error;
+      failed = true;
+    }
+    if (failed) throw firstFailure;
+  };
+}
+
 /**
  * The complete Engine Lab browser application: one declaration consumed by
  * `startWebGameApplicationV1`. The Story supplies the core definition, the
@@ -437,13 +480,24 @@ export const labGameApplicationV1: WebGameApplicationV1<
   ui: ({
     instance,
     playerProfile,
+    reportFailure,
   }: {
     readonly instance: LabApplicationInstanceV1;
     readonly playerProfile: PlayerProfileStoreV1;
+    reportFailure(code: string, error: unknown): void;
   }) => {
-    const overlayConformanceEnabled = new URLSearchParams(globalThis.location?.search ?? "").has(
-      "overlay_conformance",
-    );
+    const applicationSearch = new URLSearchParams(globalThis.location?.search ?? "");
+    const narrativeConformanceEnabled = applicationSearch.get("narrative_conformance") === "1";
+    const narrativeConformance = narrativeConformanceEnabled
+      ? createLabNarrativeConformanceV1({
+        instance,
+        playerProfile,
+        presentationClock: createAnimationFramePresentationClockV1(),
+        reportFailure: (error: unknown): void =>
+          reportFailure("ui.narrative_conformance_runtime_fault", error),
+      })
+      : undefined;
+    const overlayConformanceEnabled = applicationSearch.has("overlay_conformance");
     const overlayConformance = createLabOverlayConformanceV1({
       enabled: overlayConformanceEnabled,
       eventTarget: globalThis.window,
@@ -456,6 +510,7 @@ export const labGameApplicationV1: WebGameApplicationV1<
         instance,
         playerProfile,
         overlayConformance,
+        ...(narrativeConformance === undefined ? {} : { narrativeConformance }),
         createAudioHost: () =>
           createWebAudioHostV1({
             manifest: labAudioManifestV1,
@@ -475,7 +530,7 @@ export const labGameApplicationV1: WebGameApplicationV1<
         import("./dev-dock.tsx").then((module) =>
           module.createLabDevDockContributionsV1({ instance })
         ),
-      dispose: overlayConformance.dispose,
+      dispose: createLabUiDisposeV1(narrativeConformance, overlayConformance),
     });
   },
 });

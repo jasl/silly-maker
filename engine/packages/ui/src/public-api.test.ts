@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, expectTypeOf, it } from "vitest";
 
+import * as conformanceUiV1 from "@sillymaker/ui/conformance";
 import * as internalUiV1 from "./internal.ts";
 import * as publicUiV1 from "./index.ts";
 import type {
@@ -816,9 +817,46 @@ import type { RegisterNarrativeSurfaceHostPhysicalIngressInputInternalV1 as Forb
 import type { registerNarrativeSurfaceHostPhysicalIngressInternalV1 as ForbiddenPublicNarrativeSurfaceHostPhysicalIngressRegistrationV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative Host physical-ingress registration.
 import type { registerNarrativeSurfaceHostPhysicalIngressInternalV1 as ForbiddenInternalNarrativeSurfaceHostPhysicalIngressRegistrationV1 } from "./internal.ts";
+// @ts-expect-error The dedicated conformance factory is not a package-root authoring API.
+import type { createNarrativeConformanceRigV1 as ForbiddenPublicNarrativeConformanceRigFactoryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose the conformance factory.
+import type { createNarrativeConformanceRigV1 as ForbiddenInternalNarrativeConformanceRigFactoryV1 } from "./internal.ts";
+// @ts-expect-error Conformance snapshots stay on the dedicated conformance entry.
+import type { NarrativeConformanceSnapshotV1 as ForbiddenPublicNarrativeConformanceSnapshotV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose conformance snapshots.
+import type { NarrativeConformanceSnapshotV1 as ForbiddenInternalNarrativeConformanceSnapshotV1 } from "./internal.ts";
+// @ts-expect-error Conformance resolution requests stay on the dedicated conformance entry.
+import type { NarrativeConformanceResolutionRequestV1 as ForbiddenPublicNarrativeConformanceResolutionRequestV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose conformance resolution requests.
+import type { NarrativeConformanceResolutionRequestV1 as ForbiddenInternalNarrativeConformanceResolutionRequestV1 } from "./internal.ts";
+// @ts-expect-error Conformance factory inputs stay on the dedicated conformance entry.
+import type { CreateNarrativeConformanceRigInputV1 as ForbiddenPublicNarrativeConformanceRigInputV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose conformance factory inputs.
+import type { CreateNarrativeConformanceRigInputV1 as ForbiddenInternalNarrativeConformanceRigInputV1 } from "./internal.ts";
+// @ts-expect-error Conformance creation results stay on the dedicated conformance entry.
+import type { NarrativeConformanceRigCreationResultV1 as ForbiddenPublicNarrativeConformanceRigCreationResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose conformance creation results.
+import type { NarrativeConformanceRigCreationResultV1 as ForbiddenInternalNarrativeConformanceRigCreationResultV1 } from "./internal.ts";
+// @ts-expect-error Conformance Host props stay on the dedicated conformance entry.
+import type { NarrativeConformanceHostPropsV1 as ForbiddenPublicNarrativeConformanceHostPropsV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose conformance Host props.
+import type { NarrativeConformanceHostPropsV1 as ForbiddenInternalNarrativeConformanceHostPropsV1 } from "./internal.ts";
+// @ts-expect-error Conformance rigs stay on the dedicated conformance entry.
+import type { NarrativeConformanceRigV1 as ForbiddenPublicNarrativeConformanceRigV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose conformance rigs.
+import type { NarrativeConformanceRigV1 as ForbiddenInternalNarrativeConformanceRigV1 } from "./internal.ts";
 /* oxlint-enable no-unused-vars */
 
 describe("@sillymaker/ui public managed System surface", () => {
+  it("keeps Narrative conformance on its dedicated single-factory entry", () => {
+    expect(Object.keys(conformanceUiV1)).toEqual([
+      "createNarrativeConformanceRigV1",
+    ]);
+    expect(conformanceUiV1.createNarrativeConformanceRigV1).toBeTypeOf(
+      "function",
+    );
+  });
+
   it("keeps the composition-backed Host and launchers without standalone lifecycle hosts", () => {
     type DormantRuntimeSpellingV1 =
       | "ManagedSurfaceRuntimeStateInstallParticipantInternalV1"
@@ -830,6 +868,13 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "NarrativeSurfaceHostPhysicalIngressContextInternalV1"
       | "RegisterNarrativeSurfaceHostPhysicalIngressInputInternalV1"
       | "registerNarrativeSurfaceHostPhysicalIngressInternalV1"
+      | "createNarrativeConformanceRigV1"
+      | "NarrativeConformanceSnapshotV1"
+      | "NarrativeConformanceResolutionRequestV1"
+      | "CreateNarrativeConformanceRigInputV1"
+      | "NarrativeConformanceRigCreationResultV1"
+      | "NarrativeConformanceHostPropsV1"
+      | "NarrativeConformanceRigV1"
       | "createNarrativeManagedSurfaceFamilyContractInternalV1"
       | "createNarrativeStablePublisherBridgeInternalV1"
       | "deriveManagedSurfaceReducerTopologyProjectionInternalV1"
@@ -926,8 +971,14 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "mode"
       | "pending"
       | "visualConfig"
+      | "observeNarrative"
+      | "subscribeNarrative"
+      | "dispatchResolution"
       | "playerProfile"
+      | "presentationClock"
       | "textResolver"
+      | "voiceReplay"
+      | "reportFailure"
       | "playerObservation"
       | "playerView"
       | "quickMenuContribution"
@@ -965,6 +1016,13 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "portalShell"
       | "initialFocusTarget"
       | "readyCommit"
+      | "revision"
+      | "expectedOccurrenceId"
+      | "resolution"
+      | "rig"
+      | "code"
+      | "Host"
+      | "dispose"
       | "getReadinessSnapshotInternalV1"
       | "getSnapshotInternalV1"
       | "subscribeInternalV1"
@@ -1133,6 +1191,13 @@ describe("@sillymaker/ui public managed System surface", () => {
         "NarrativeSurfaceHostPhysicalIngressContextInternalV1",
         "RegisterNarrativeSurfaceHostPhysicalIngressInputInternalV1",
         "registerNarrativeSurfaceHostPhysicalIngressInternalV1",
+        "createNarrativeConformanceRigV1",
+        "NarrativeConformanceSnapshotV1",
+        "NarrativeConformanceResolutionRequestV1",
+        "CreateNarrativeConformanceRigInputV1",
+        "NarrativeConformanceRigCreationResultV1",
+        "NarrativeConformanceHostPropsV1",
+        "NarrativeConformanceRigV1",
         "claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1",
         "createManagedSurfaceStableReadyRuntimeBindingInternalV1",
         "createManagedSurfaceStablePreparingRuntimeBindingInternalV1",
@@ -1241,8 +1306,14 @@ describe("@sillymaker/ui public managed System surface", () => {
         "mode",
         "pending",
         "visualConfig",
+        "observeNarrative",
+        "subscribeNarrative",
+        "dispatchResolution",
         "playerProfile",
+        "presentationClock",
         "textResolver",
+        "voiceReplay",
+        "reportFailure",
         "playerObservation",
         "playerView",
         "quickMenuContribution",
@@ -1280,6 +1351,13 @@ describe("@sillymaker/ui public managed System surface", () => {
         "portalShell",
         "initialFocusTarget",
         "readyCommit",
+        "revision",
+        "expectedOccurrenceId",
+        "resolution",
+        "rig",
+        "code",
+        "Host",
+        "dispose",
         "getReadinessSnapshotInternalV1",
         "getSnapshotInternalV1",
         "subscribeInternalV1",

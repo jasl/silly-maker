@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./assets": "./src/assets/index.ts",
+    "./conformance": "./src/conformance/index.tsx",
     "./debug": "./src/debug/index.ts",
     "./diagnostics": "./src/diagnostics/index.ts",
     "./internal": "./src/internal.ts",
