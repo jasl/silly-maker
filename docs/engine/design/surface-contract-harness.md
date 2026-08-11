@@ -5613,25 +5613,32 @@ commit → action/input/focus publication → no-throw family listener flush →
 
 `.1a`只实现DOM-free family/session、frame/action admission、public additive `whole_canvas` input context、router/parser precedence与boundedness proof；否则
 exact definition recipe无法在本批独立parse/compile。它不接Web/React Host/live composition、不公开Story factory/application source或root type。Exact
-source/test allowlist为十一文件，未需
+exact-parent transient-child preparation/readiness/lifecycle/action claim同时从per-kernel singleton校正为per-kernel + per-`exactClaimant` weak partition：
+`exactClaimant`就是package-internal family identity，同一object幂等取得同一authority，不同family object在同一shared kernel各自取得隔离authority；candidate/
+ready-instance provenance必须记录该identity，任何cross-family readiness/lifecycle/action调用均fail closed且zero delta。Partition只能弱持有family identity，不得引入
+随claim churn增长的strong map/tombstone。Exact source/test allowlist为十四文件，未需
 修改者允许zero-diff但不得以inventory外文件补洞：
 
 1. `engine/packages/ui/src/whole-canvas/whole-canvas-managed-surface-family.ts`（new）
 2. `engine/packages/ui/src/whole-canvas/whole-canvas-managed-surface-family.test.ts`（new）
 3. `engine/packages/ui/src/whole-canvas/whole-canvas-managed-surface-session.ts`（new）
 4. `engine/packages/ui/src/whole-canvas/whole-canvas-managed-surface-session.test.ts`（new）
-5. `engine/packages/ui/src/input/contracts.ts`
-6. `engine/packages/ui/src/input/input-router.ts`
-7. `engine/packages/ui/src/input/input-router.test.ts`
-8. `engine/packages/ui/src/managed-surfaces/managed-surface-definition.ts`
-9. `engine/packages/ui/src/managed-surfaces/managed-surface-action-route.ts`
-10. `engine/packages/ui/src/managed-surfaces/managed-surface-action-route.test.ts`
-11. `engine/packages/ui/src/public-api.test.ts`
+5. `engine/packages/ui/src/managed-surfaces/managed-surface-stable-composite-state.ts`
+6. `engine/packages/ui/src/managed-surfaces/managed-surface-stable-composite-state.test.ts`
+7. `engine/packages/ui/src/input/contracts.ts`
+8. `engine/packages/ui/src/input/input-router.ts`
+9. `engine/packages/ui/src/input/input-router.test.ts`
+10. `engine/packages/ui/src/managed-surfaces/managed-surface-definition.ts`
+11. `engine/packages/ui/src/managed-surfaces/managed-surface-action-route.ts`
+12. `engine/packages/ui/src/managed-surfaces/managed-surface-action-route.test.ts`
+13. `engine/packages/ui/src/public-api.test.ts`
+14. `engine/packages/ui/type-tests/input-public.test-d.ts`
 
 Mutation-sensitive RED必须先证明：exact owner/slot/definition/layer recipe和package-internal target/action admission rejection zero delta；empty→A、equal A、A→B、A→empty→A
 occurrence/instance规则；same-target internal frame/action churn保留identity但旋转source/frame；one stable desired-source reconcile model；detail exact-parent depth-one
 open/equal/replace/close与primary cascade retire；readiness initial/replacement/detail success/failure/cancel/retry；current/default action route、disabled rejection、primary cancel
-consume、detail四路close；immutable frame与stale action/gesture/readiness/focus/lifecycle；exact router order和higher-context isolation/restore；notification/reentry/throw；dispose/
+consume、detail四路close；同一shared kernel中Narrative/WholeCanvas两个exact claimant均可幂等claim四类child authority并只操作本family candidate，cross-family token调用
+fail closed/zero delta；immutable frame与stale action/gesture/readiness/focus/lifecycle；exact router order和higher-context isolation/restore；notification/reentry/throw；dispose/
 successor；10,000 mixed source/detail/action churn retained state为`O(owners + live + pending + bounded cursors)`。所有新增10,000-churn test必须在test declaration
 末参显式使用`30_000` ms timeout，不提高global `testTimeout`、不减少step count。至少一项mutation删掉source fence、一项把detail parent
 降为definition-only、一项让primary cancel fallthrough、一项复用closed occurrence时必须RED。
