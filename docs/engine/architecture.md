@@ -1,6 +1,6 @@
 # SillyMaker architecture
 
-状态：持续维护的现状文档。最后结构性复核：2026-08-10。
+状态：持续维护的现状文档。最后结构性复核：2026-08-11。
 
 本文描述当前实现的主要边界和数据流。它不是冻结 ABI；修改包职责、权威状态、Story
 组合、持久化格式或公开入口时，应同时更新本文、相应类型和行为测试。
@@ -33,7 +33,7 @@ Story；UI 和 Web 可以依赖 Base；具体 Story/application 可以依赖三�
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@sillymaker/base`      | `.`, `./authoring`, `./runtime`, `./story`, `./testkit` + testkit subentries; workspace-only `./runtime/internal` | Contracts, the Story prelude and authoring kit, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, the agent port, and reusable behavior-test helpers.                                                                               |
 | `@sillymaker/tooling`   | `.`, `./project` + subentries, `./vite` + subentries, `./identity/*`                                              | Non-browser project and Story CLI, Vite assembly, build identity, JSONL agent protocol/client, and package-internal Desktop preview packaging/local-server tools. Never imported by Base or browser bundles.                                                                        |
-| `@sillymaker/ui`        | `.`, `./assets`, `./debug`, `./diagnostics`, `./styles.css`; workspace-only `./internal`                          | React shell, GameViewport, UI composition and default GameRoot, stage, characters, assets, interaction/input, overlays, narrative, settings, semantic/presentation bridges, recovery UI, and the published global theme stylesheet.                                                 |
+| `@sillymaker/ui`        | `.`, `./assets`, `./conformance`, `./debug`, `./diagnostics`, `./styles.css`; workspace-only `./internal`         | React shell, GameViewport, UI composition and default GameRoot, stage, characters, assets, interaction/input, overlays, narrative, settings, semantic/presentation bridges, recovery UI, the Engine-Lab-only dormant conformance seam, and the published global theme stylesheet.   |
 | `@sillymaker/web`       | `.`                                                                                                               | Browser Host, IndexedDB record storage, files/images, Desktop-channel HTTP record/file adapters, `startWebGameApplicationV1`, mounting, routing, pointer input, capabilities, automation, Loader, and HMR rebootstrap.                                                              |
 | `@sillymaker/story-e2e` | `.`                                                                                                               | The neutral Engine Conformance Story (Engine Lab, `e2e/`): gameplay modules, narrative script, presentation catalogs, semantic actions, and application composition used to validate engine contracts.                                                                              |
 | Story packages          | `.` per package                                                                                                   | `template/` (the minimal starter, MIT) and `examples/*` (bookshop, cat-cafe, silly-os) each compose one self-contained application project (`sillymaker.config.ts` + `vite.config.ts`); the root `project.config.ts` only lists their directories for repository-level aggregation. |
@@ -58,6 +58,12 @@ audience policy.
 uses it to inject the realm-stable Managed Surface epoch allocator; Stories use
 the ordinary UI exports and cannot reach Overlay lifecycle internals through
 the public composition facade.
+
+`@sillymaker/ui/conformance` is a dedicated Engine-Lab-only dormant entry. It
+exports the closed Narrative rig factory and its high-level input/result/Host
+types; it is not a Story-authoring contract and those names remain absent from
+the UI root and `./internal`. Raw family, session, bridge, controller, lease,
+source, attempt, and readiness authorities remain package-private.
 
 Implementation anchors:
 
@@ -1588,8 +1594,34 @@ formatting, lint, style lint, typecheck, determinism, assets, all Story checks,
 and the e2e production build. Browser `101 / 101`, examples
 `45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior evidence
 and were not rerun because this Host path remains dormant. S4.2.4.3 is
-complete. Current/next is S4.2.5, the dormant Engine Lab conformance exact
-entry before RED, followed by S4.3 and S4b.
+complete. S4.2.5.1c is also complete; current/next is S4.3 atomic live cutover
+and promotion, followed by S4b.
+
+S4.2.5.1c now wires the dormant Narrative runtime into Engine Lab through the
+dedicated `@sillymaker/ui/conformance` entry. Application composition reads the
+exact `narrative_conformance=1` opt-in once before React mount and selects
+exactly one Narrative writer: the created rig Host or the legacy
+`LabNarrativePlayerV1`, never both. Rig creation failure stays on the
+conformance branch and fails closed rather than falling back; without the exact
+query, the legacy writer and default Engine Lab behavior are unchanged. This is
+conformance characterization, not the S4.3 tracked-consumer promotion.
+
+Each rig claims one exact observation/subscription source pair, admits one Host
+owner, and owns one private authenticated action authority. Duplicate claims or
+Hosts cannot create a second writer. Terminal failure or idempotent disposal
+fences late source, clock, player, semantic, and input work and releases the
+source claim and lifecycle owners through bounded weak/O(1) bookkeeping; no
+source or Host history becomes a growing authority.
+
+Commit `a926b8c` kept the exact seven-file boundary: the UI package export map,
+conformance source/test pair and public-API negative test, plus the Engine Lab
+adapter, composition, and conformance test. HEAD verification passed focused
+`3 files / 42 tests`, UI `84 files / 1511 tests`, Engine Lab
+`26 files / 132 tests`, and canonical `259 files / 4447 tests`; formatting
+covered `953 files`, with lint, styles, typecheck, determinism, assets, all five
+Stories, and the E2E production build green. Browser, examples, and prebuilt
+Player results remain prior-only evidence and were not rerun for this dormant
+opt-in.
 
 ## 9. Changing the architecture
 
@@ -1682,7 +1714,7 @@ above. S4.2.4.3 adds the
 cached safe observation and resolver, keyed `useSyncExternalStore` Host child,
 current History profile projection, fault-boundary handoff, focus-preserving
 same-frame lifecycle, and bounded terminal fencing described above.
-Current/next is S4.2.5, the dormant Engine Lab conformance exact entry before
-RED, followed by S4.3 and S4b. Live renderer migration remains planned work;
-the source-relative Host does not alter the live Host data flow until those
-slices and their behavior tests land.
+S4.2.5.1c is complete. Current/next is S4.3 atomic live cutover and promotion,
+followed by S4b. Live renderer migration remains planned work; the dormant
+opt-in does not alter the default live Host data flow until S4.3 and its
+behavior tests land.
