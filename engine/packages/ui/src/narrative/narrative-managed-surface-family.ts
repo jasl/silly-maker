@@ -13,7 +13,7 @@ import {
   type PendingInteractionV1,
   type RuntimeSchemaV1,
 } from "@sillymaker/base";
-import type { PlayerProfileV1 } from "@sillymaker/base/runtime";
+import { defaultPlayerProfileV1, type PlayerProfileV1 } from "@sillymaker/base/runtime";
 import type { ElementType } from "react";
 
 import {
@@ -276,21 +276,31 @@ export interface NarrativeStableHistoryRenderObservationInternalV1 {
   subscribeInternalV1(listener: () => void): () => void;
 }
 
+export type NarrativeStableDialoguePlayerTextResolverInternalV1 = (
+  textId: string,
+) => string;
+
+export interface NarrativeStableDialoguePlayerObservationInternalV1 {
+  getSnapshotInternalV1(): NarrativeStableDialoguePlayerSnapshotInternalV1;
+  subscribeInternalV1(listener: () => void): () => void;
+}
+
 export interface NarrativeStableDialogueRendererPropsInternalV1 {
   readonly kind: "dialogue";
   readonly pending: DeepReadonly<PendingInteractionV1>;
   readonly visualConfig: Readonly<object>;
-  readonly playerProfile: NarrativeStableCapturedDialoguePlayerProfilePortInternalV1;
-  readonly textResolver: NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1;
+  readonly playerProfile: DeepReadonly<PlayerProfileV1>;
+  readonly textResolver: NarrativeStableDialoguePlayerTextResolverInternalV1;
   readonly quickMenuContribution: object | ((...args: never[]) => unknown) | null;
+  readonly playerView: NarrativeStableDialoguePlayerSnapshotInternalV1;
 }
 
 export interface NarrativeStableHistoryRendererPropsInternalV1 {
   readonly kind: "history";
   readonly history: DeepReadonly<NarrativeHistoryV1>;
   readonly visualConfig: Readonly<object>;
-  readonly playerProfile: NarrativeStableCapturedDialoguePlayerProfilePortInternalV1;
-  readonly textResolver: NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1;
+  readonly playerProfile: DeepReadonly<PlayerProfileV1>;
+  readonly textResolver: NarrativeStableDialoguePlayerTextResolverInternalV1;
 }
 
 export type NarrativeStableRendererPropsInternalV1 =
@@ -1037,11 +1047,30 @@ interface NarrativeStableDialoguePlayerControllerRecordInternalV1 {
   pauseExpiryController: NarrativeStablePauseExpiryControllerInternalV1 | null;
   active: boolean;
   rawUnsubscribe: (() => void) | null;
+  materialization: NarrativeStableDialoguePlayerMaterializationRecordInternalV1 | null;
   readonly listeners: Set<() => void>;
   readonly listenerHolders: Set<{
     record: NarrativeStableDialoguePlayerControllerRecordInternalV1 | null;
     listener: (() => void) | null;
   }>;
+}
+
+interface NarrativeStableDialoguePlayerMaterializationRecordInternalV1 {
+  controllerRecord: NarrativeStableDialoguePlayerControllerRecordInternalV1 | null;
+  readonly observation: NarrativeStableDialoguePlayerObservationInternalV1;
+  readonly textResolver: NarrativeStableDialoguePlayerTextResolverInternalV1;
+  snapshot: NarrativeStableDialoguePlayerSnapshotInternalV1;
+  notifiedSnapshot: NarrativeStableDialoguePlayerSnapshotInternalV1;
+  controllerUnsubscribe: (() => void) | null;
+  active: boolean;
+  readonly listeners: Set<() => void>;
+  readonly listenerHolders: Set<{ listener: (() => void) | null }>;
+  readonly resolverHolder: {
+    materialization: NarrativeStableDialoguePlayerMaterializationRecordInternalV1 | null;
+  };
+  fault: TypeError | null;
+  faultTarget: ManagedSurfaceStableAdmittedTargetInternalV1 | null;
+  faultFrame: NarrativeStableAdmittedFrameInternalV1 | null;
 }
 
 const narrativeStableDialoguePlayerControllerRecordsInternalV1 = new WeakMap<
@@ -1055,6 +1084,14 @@ const narrativeStableDialoguePlayerControllersByTargetInternalV1 = new WeakMap<
 const narrativeStableDialoguePlayerControllerClaimsByTargetInternalV1 = new WeakMap<
   ManagedSurfaceStableAdmittedTargetInternalV1,
   object
+>();
+const narrativeStableDialoguePlayerObservationRecordsInternalV1 = new WeakMap<
+  NarrativeStableDialoguePlayerObservationInternalV1,
+  NarrativeStableDialoguePlayerMaterializationRecordInternalV1
+>();
+const narrativeStableDialoguePlayerFaultMaterializationsByTargetInternalV1 = new WeakMap<
+  ManagedSurfaceStableAdmittedTargetInternalV1,
+  NarrativeStableDialoguePlayerMaterializationRecordInternalV1
 >();
 type NarrativeStableDialoguePlayerAutomaticAttemptInternalV1 =
   | NarrativeStableSayPlayerAutoAttemptInternalV1
@@ -3018,9 +3055,6 @@ export function createNarrativeStablePublisherBridgeInternalV1(
         : createNarrativePlaybackModeStateInternalV1("normal");
       bridgeActive = false;
       if (bridgeRecord !== undefined) bridgeRecord.active = false;
-      if (bridgeRecord !== undefined) {
-        terminalizeNarrativeStableSessionInternalV1(bridgeRecord);
-      }
       if (
         bridgeRecord !== undefined && predecessorModeState !== null &&
         terminalModeState !== null
@@ -3035,9 +3069,15 @@ export function createNarrativeStablePublisherBridgeInternalV1(
       if (recoveryGeneration !== undefined && recoveryGeneration !== null) {
         retireNarrativeBarrierRecoveryGenerationInternalV1(recoveryGeneration);
       }
-      return Reflect.apply(disposeStablePublisherLease, compositeRuntimeKernel, [
-        publisherLease,
-      ]);
+      try {
+        return Reflect.apply(disposeStablePublisherLease, compositeRuntimeKernel, [
+          publisherLease,
+        ]);
+      } finally {
+        if (bridgeRecord !== undefined) {
+          terminalizeNarrativeStableSessionInternalV1(bridgeRecord);
+        }
+      }
     },
 
     inspectAdmittedTargetFrameInternalV1(
@@ -3166,6 +3206,7 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
         legacyToDispose: NarrativeStableSayRevealControllerInternalV1 | null;
         pauseToDispose: NarrativeStablePauseExpiryControllerInternalV1 | null;
         rawUnsubscribeToCall: (() => void) | null;
+        terminalObservationDelivery: (() => void) | null;
         committedGeneration: object | null;
       }> = [];
       for (const target of targets) {
@@ -3225,6 +3266,7 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
           legacyToDispose: null,
           pauseToDispose: null,
           rawUnsubscribeToCall: null,
+          terminalObservationDelivery: null,
           committedGeneration: null,
         });
       }
@@ -3405,6 +3447,8 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
                 playbackMode: "normal" as const,
                 playerProfile: record.profile,
               });
+              plan.terminalObservationDelivery =
+                retireNarrativeStableDialoguePlayerMaterializationInternalV1(record);
               continue;
             }
             if (record.snapshot.kind === "say") {
@@ -3418,6 +3462,9 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
                 ...record.snapshot,
                 phase: nextPhase,
               });
+            }
+            if (record.materialization?.active) {
+              record.materialization.snapshot = record.snapshot;
             }
           }
         },
@@ -3476,6 +3523,15 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
               } catch {
                 // Logical retirement already fenced raw profile ingress.
               }
+            }
+            const deliverTerminalObservation = plan.terminalObservationDelivery;
+            plan.terminalObservationDelivery = null;
+            if (deliverTerminalObservation !== null) {
+              applyNarrativePhysicalActionInternalV1(
+                deliverTerminalObservation,
+                undefined,
+                [],
+              );
             }
             const record = plan.record;
             if (
@@ -4207,6 +4263,32 @@ function deriveNarrativeStableDialogueRenderEntryInternalV1(
   }
   const frame = targetRecord.frame;
   const previous = findPreviousNarrativeStableHostRenderEntryInternalV1(record, attempt);
+  const previousMaterialization = previous?.kind === "dialogue" &&
+      narrativeStableHostRenderEntryRecordsInternalV1.get(previous)?.frame === frame
+    ? narrativeStableDialoguePlayerObservationRecordsInternalV1.get(
+      previous.playerObservation,
+    ) ?? null
+    : null;
+  let materialization = previousMaterialization;
+  if (materialization === null) {
+    try {
+      materialization = createNarrativeStableDialoguePlayerMaterializationInternalV1(
+        createNarrativeStableDialoguePlayerControllerInternalV1(
+          freezeNarrativePhysicalActionDataInternalV1({
+            bridge: record.bridge,
+            target: attempt.desiredTarget.admittedTarget,
+            frame,
+          }),
+        ),
+      );
+    } catch {
+      materialization = createNarrativeStableDialoguePlayerFaultMaterializationInternalV1(
+        attempt.desiredTarget.admittedTarget,
+        frame,
+        phase,
+      );
+    }
+  }
   const actionBindingGeneration = findNarrativeStableHostActionBindingRecordInternalV1(
     record,
     attempt,
@@ -4218,6 +4300,7 @@ function deriveNarrativeStableDialogueRenderEntryInternalV1(
   if (
     previous?.kind === "dialogue" && previous.phase === phase &&
     previous.preparation === preparation &&
+    previous.playerObservation === materialization.observation &&
     narrativeStableHostRenderEntryRecordsInternalV1.get(previous)?.frame === frame &&
     narrativeStableHostRenderEntryRecordsInternalV1.get(previous)?.actionBindingGeneration ===
       actionBindingGeneration
@@ -4225,14 +4308,15 @@ function deriveNarrativeStableDialogueRenderEntryInternalV1(
     return previous;
   }
   const rendererProps = previous?.kind === "dialogue" &&
-      narrativeStableHostRenderEntryRecordsInternalV1.get(previous)?.frame === frame
+      narrativeStableHostRenderEntryRecordsInternalV1.get(previous)?.frame === frame &&
+      previous.playerObservation === materialization.observation
     ? previous.rendererProps
     : freezeNarrativePhysicalActionDataInternalV1({
       kind: "dialogue" as const,
       pending: frame.pending,
       visualConfig: frame.candidateSnapshot.visualConfig,
-      playerProfile: frame.candidateSnapshot.playerProfile,
-      textResolver: frame.candidateSnapshot.textResolver,
+      playerProfile: materialization.snapshot.playerProfile,
+      textResolver: materialization.textResolver,
       quickMenuContribution: frame.candidateSnapshot.quickMenuContribution,
     });
   const focusPolicy = dialogueDefinitionInternalV1.focusPolicy;
@@ -4245,6 +4329,7 @@ function deriveNarrativeStableDialogueRenderEntryInternalV1(
     initialFocusTargetId: focusPolicy.initialTargetId,
     rendererComponent: frame.candidateSnapshot.rendererComponent,
     rendererProps,
+    playerObservation: materialization.observation,
   });
   narrativeStableHostRenderEntryRecordsInternalV1.set(entry, {
     sessionRecord: record,
@@ -4472,20 +4557,26 @@ function deriveNarrativeStableHistoryRenderEntryInternalV1(
     narrativeStableHostRenderEntryRecordsInternalV1.get(entry)?.frame === frame
   );
   if (parent?.kind !== "dialogue") return null;
+  const parentPlayerProfile = parent.playerObservation.getSnapshotInternalV1().playerProfile;
+  const parentTextResolver = parent.rendererProps.textResolver;
   if (
     previous?.kind === "history" && previous.phase === phase &&
     previous.preparation === preparation && previous.parentRenderKey === parent.renderKey &&
     previous.controller === preparationRecord.controller &&
+    previous.rendererProps.playerProfile === parentPlayerProfile &&
+    previous.rendererProps.textResolver === parentTextResolver &&
     narrativeStableHostRenderEntryRecordsInternalV1.get(previous)?.actionBindingGeneration ===
       actionBindingGeneration
   ) return previous;
-  const rendererProps = previous?.kind === "history"
+  const rendererProps = previous?.kind === "history" &&
+      previous.rendererProps.playerProfile === parentPlayerProfile &&
+      previous.rendererProps.textResolver === parentTextResolver
     ? previous.rendererProps
     : freezeNarrativePhysicalActionDataInternalV1({
       kind: "history" as const,
       visualConfig: frame.candidateSnapshot.visualConfig,
-      playerProfile: frame.candidateSnapshot.playerProfile,
-      textResolver: frame.candidateSnapshot.textResolver,
+      playerProfile: parentPlayerProfile,
+      textResolver: parentTextResolver,
     });
   const historyObservation = previous?.kind === "history"
     ? previous.historyObservation
@@ -4895,6 +4986,19 @@ function refreshNarrativeStableHostRenderSnapshotInternalV1(
           controllerRecord.preparationRecord = null;
         }
       }
+      if (
+        previous.kind === "dialogue" &&
+        !entries.some((entry) =>
+          entry.kind === "dialogue" && entry.playerObservation === previous.playerObservation
+        )
+      ) {
+        const materialization = narrativeStableDialoguePlayerObservationRecordsInternalV1.get(
+          previous.playerObservation,
+        );
+        if (materialization?.fault !== null && materialization?.fault !== undefined) {
+          retireNarrativeStableDialoguePlayerFaultMaterializationInternalV1(materialization);
+        }
+      }
       narrativeStableHostRenderEntryRecordsInternalV1.delete(previous);
     }
   }
@@ -5169,6 +5273,16 @@ function terminalizeNarrativeStableSessionInternalV1(
       );
       if (controllerRecord?.preparationRecord?.controller === entry.controller) {
         controllerRecord.preparationRecord = null;
+      }
+    } else {
+      const materialization = narrativeStableDialoguePlayerObservationRecordsInternalV1.get(
+        entry.playerObservation,
+      );
+      const controllerRecord = materialization?.controllerRecord ?? null;
+      if (controllerRecord !== null) {
+        disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(controllerRecord);
+      } else if (materialization?.fault !== null && materialization?.fault !== undefined) {
+        retireNarrativeStableDialoguePlayerFaultMaterializationInternalV1(materialization);
       }
     }
     narrativeStableHostRenderEntryRecordsInternalV1.delete(entry);
@@ -6460,6 +6574,376 @@ function notifyNarrativeStableDialoguePlayerControllerInternalV1(
   }
 }
 
+function isNarrativeStableDialoguePlayerMaterializationCurrentInternalV1(
+  materialization: NarrativeStableDialoguePlayerMaterializationRecordInternalV1,
+  controllerRecord: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+  generation: object,
+): boolean {
+  const target = controllerRecord.target;
+  const frame = controllerRecord.frame;
+  const bridgeRecord = controllerRecord.bridgeRecord;
+  return materialization.active && materialization.controllerRecord === controllerRecord &&
+    controllerRecord.active && controllerRecord.materialization === materialization &&
+    controllerRecord.phaseGeneration === generation && target !== null && frame !== null &&
+    bridgeRecord !== null && bridgeRecord.active &&
+    narrativeStableDialoguePlayerControllersByTargetInternalV1.get(target) === controllerRecord &&
+    narrativeTargetFrameRecordsInternalV1.get(target)?.frame === frame &&
+    captureNarrativeDialoguePlayerTargetPhaseInternalV1(bridgeRecord, target) ===
+      controllerRecord.snapshot.phase;
+}
+
+function publishNarrativeStableDialoguePlayerMaterializationInternalV1(
+  materialization: NarrativeStableDialoguePlayerMaterializationRecordInternalV1,
+): void {
+  const controllerRecord = materialization.controllerRecord;
+  if (controllerRecord === null || !materialization.active) return;
+  const generation = controllerRecord.phaseGeneration;
+  if (
+    !isNarrativeStableDialoguePlayerMaterializationCurrentInternalV1(
+      materialization,
+      controllerRecord,
+      generation,
+    )
+  ) return;
+  const snapshot = controllerRecord.snapshot;
+  const previousSnapshot = materialization.snapshot;
+  if (snapshot !== previousSnapshot) materialization.snapshot = snapshot;
+  if (snapshot === materialization.notifiedSnapshot) return;
+  materialization.notifiedSnapshot = snapshot;
+  if (snapshot.playerProfile !== previousSnapshot.playerProfile) {
+    const bridgeRecord = controllerRecord.bridgeRecord;
+    const session = bridgeRecord?.session ?? null;
+    const sessionRecord = session === null
+      ? null
+      : narrativeStableSessionRecordsInternalV1.get(session) ?? null;
+    if (
+      bridgeRecord !== null && session !== null && sessionRecord !== null &&
+      !sessionRecord.terminal && sessionRecord.bridgeRecord === bridgeRecord &&
+      isNarrativeStableDialoguePlayerMaterializationCurrentInternalV1(
+        materialization,
+        controllerRecord,
+        generation,
+      )
+    ) {
+      notifyNarrativeStableHostRenderStateInternalV1(session, sessionRecord);
+    }
+  }
+  const listenerHolders = freezeNarrativePhysicalActionDataInternalV1([
+    ...materialization.listenerHolders,
+  ]);
+  for (const holder of listenerHolders) {
+    const listener = holder.listener;
+    if (listener === null) continue;
+    if (
+      !isNarrativeStableDialoguePlayerMaterializationCurrentInternalV1(
+        materialization,
+        controllerRecord,
+        generation,
+      ) || materialization.snapshot !== snapshot
+    ) break;
+    try {
+      applyNarrativePhysicalActionInternalV1(listener, undefined, []);
+    } catch {
+      // Dialogue player observation subscribers are isolated after the cached update.
+    }
+  }
+}
+
+function retireNarrativeStableDialoguePlayerMaterializationInternalV1(
+  controllerRecord: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+): (() => void) | null {
+  const materialization = controllerRecord.materialization;
+  if (materialization === null) return null;
+  controllerRecord.materialization = null;
+  if (!materialization.active) return null;
+  materialization.snapshot = controllerRecord.snapshot;
+  materialization.notifiedSnapshot = controllerRecord.snapshot;
+  const listenerHolders = freezeNarrativePhysicalActionDataInternalV1([
+    ...materialization.listenerHolders,
+  ]);
+  materialization.active = false;
+  materialization.controllerRecord = null;
+  materialization.resolverHolder.materialization = null;
+  materialization.listeners.clear();
+  const unsubscribe = materialization.controllerUnsubscribe;
+  materialization.controllerUnsubscribe = null;
+  if (unsubscribe !== null) {
+    try {
+      applyNarrativePhysicalActionInternalV1(unsubscribe, undefined, []);
+    } catch {
+      // The materialization is already logically fenced when cleanup is hostile.
+    }
+  }
+  let pendingHolders: readonly { listener: (() => void) | null }[] | null = listenerHolders;
+  return freezeNarrativePhysicalActionDataInternalV1((): void => {
+    const retained = pendingHolders;
+    pendingHolders = null;
+    if (retained === null) return;
+    for (const holder of retained) {
+      const listener = holder.listener;
+      holder.listener = null;
+      materialization.listenerHolders.delete(holder);
+      if (listener === null) continue;
+      try {
+        applyNarrativePhysicalActionInternalV1(listener, undefined, []);
+      } catch {
+        // Terminal observation subscribers are isolated after logical retirement.
+      }
+    }
+    materialization.listenerHolders.clear();
+  });
+}
+
+function createNarrativeStableDialoguePlayerMaterializationInternalV1(
+  controller: NarrativeStableDialoguePlayerControllerInternalV1,
+): NarrativeStableDialoguePlayerMaterializationRecordInternalV1 {
+  const controllerRecord = narrativeStableDialoguePlayerControllerRecordsInternalV1.get(
+    controller,
+  );
+  if (controllerRecord === undefined || !controllerRecord.active) {
+    throw new TypeError("ui.narrative_stable_dialogue_player_observation_invalid");
+  }
+  const retained = controllerRecord.materialization;
+  if (retained !== null && retained.active) return retained;
+
+  let materialization!: NarrativeStableDialoguePlayerMaterializationRecordInternalV1;
+  let observation!: NarrativeStableDialoguePlayerObservationInternalV1;
+  const resolverHolder: {
+    materialization: NarrativeStableDialoguePlayerMaterializationRecordInternalV1 | null;
+  } = { materialization: null };
+  const textResolver = freezeNarrativePhysicalActionDataInternalV1(
+    ((textId: string): string => {
+      const current = resolverHolder.materialization;
+      const currentControllerRecord = current?.controllerRecord ?? null;
+      if (current === null || currentControllerRecord === null || typeof textId !== "string") {
+        throw new TypeError("ui.narrative_stable_dialogue_player_text_resolver_invalid");
+      }
+      const generation = currentControllerRecord.phaseGeneration;
+      const binding = currentControllerRecord.textBinding;
+      if (
+        binding === null ||
+        !isNarrativeStableDialoguePlayerMaterializationCurrentInternalV1(
+          current,
+          currentControllerRecord,
+          generation,
+        )
+      ) {
+        throw new TypeError("ui.narrative_stable_dialogue_player_text_resolver_invalid");
+      }
+      let resolved: unknown;
+      try {
+        resolved = applyNarrativePhysicalActionInternalV1(
+          binding.resolveText,
+          binding.receiver,
+          [textId],
+        );
+      } catch {
+        throw new TypeError("ui.narrative_stable_dialogue_player_text_resolver_invalid");
+      }
+      if (
+        !isNarrativeStableDialoguePlayerMaterializationCurrentInternalV1(
+          current,
+          currentControllerRecord,
+          generation,
+        ) || currentControllerRecord.textBinding !== binding || typeof resolved !== "string"
+      ) {
+        throw new TypeError("ui.narrative_stable_dialogue_player_text_resolver_invalid");
+      }
+      return resolved;
+    }) satisfies NarrativeStableDialoguePlayerTextResolverInternalV1,
+  );
+  observation = freezeNarrativePhysicalActionDataInternalV1({
+    getSnapshotInternalV1(
+      this: NarrativeStableDialoguePlayerObservationInternalV1,
+    ): NarrativeStableDialoguePlayerSnapshotInternalV1 {
+      const current = this === observation
+        ? narrativeStableDialoguePlayerObservationRecordsInternalV1.get(observation)
+        : undefined;
+      if (current !== materialization) {
+        throw new TypeError("ui.narrative_stable_dialogue_player_observation_invalid");
+      }
+      if (current.active && current.fault !== null) throw current.fault;
+      return current.snapshot;
+    },
+    subscribeInternalV1(
+      this: NarrativeStableDialoguePlayerObservationInternalV1,
+      listener: () => void,
+    ): () => void {
+      const current = this === observation
+        ? narrativeStableDialoguePlayerObservationRecordsInternalV1.get(observation)
+        : undefined;
+      if (current !== materialization || typeof listener !== "function") {
+        throw new TypeError("ui.narrative_stable_dialogue_player_observation_invalid");
+      }
+      if (!current.active) return narrativeStableDialoguePlayerLateUnsubscribeInternalV1;
+      const holder: { listener: (() => void) | null } = { listener };
+      current.listeners.add(listener);
+      current.listenerHolders.add(holder);
+      return freezeNarrativePhysicalActionDataInternalV1((): void => {
+        const retainedListener = holder.listener;
+        holder.listener = null;
+        current.listenerHolders.delete(holder);
+        if (retainedListener !== null) current.listeners.delete(retainedListener);
+      });
+    },
+  });
+  materialization = {
+    controllerRecord,
+    observation,
+    textResolver,
+    snapshot: controllerRecord.snapshot,
+    notifiedSnapshot: controllerRecord.snapshot,
+    controllerUnsubscribe: null,
+    active: true,
+    listeners: new Set(),
+    listenerHolders: new Set(),
+    resolverHolder,
+    fault: null,
+    faultTarget: null,
+    faultFrame: null,
+  };
+  resolverHolder.materialization = materialization;
+  controllerRecord.materialization = materialization;
+  narrativeStableDialoguePlayerObservationRecordsInternalV1.set(observation, materialization);
+  try {
+    materialization.controllerUnsubscribe = applyNarrativePhysicalActionInternalV1(
+      controller.subscribeInternalV1,
+      controller,
+      [() => publishNarrativeStableDialoguePlayerMaterializationInternalV1(materialization)],
+    ) as () => void;
+  } catch {
+    retireNarrativeStableDialoguePlayerMaterializationInternalV1(controllerRecord);
+    throw new TypeError("ui.narrative_stable_dialogue_player_observation_invalid");
+  }
+  if (
+    !materialization.active || controllerRecord.materialization !== materialization ||
+    materialization.controllerUnsubscribe === null
+  ) {
+    retireNarrativeStableDialoguePlayerMaterializationInternalV1(controllerRecord);
+    throw new TypeError("ui.narrative_stable_dialogue_player_observation_invalid");
+  }
+  publishNarrativeStableDialoguePlayerMaterializationInternalV1(materialization);
+  return materialization;
+}
+
+function retireNarrativeStableDialoguePlayerFaultMaterializationInternalV1(
+  materialization: NarrativeStableDialoguePlayerMaterializationRecordInternalV1,
+): void {
+  if (!materialization.active || materialization.fault === null) return;
+  const target = materialization.faultTarget;
+  if (
+    target !== null &&
+    narrativeStableDialoguePlayerFaultMaterializationsByTargetInternalV1.get(target) ===
+      materialization
+  ) {
+    narrativeStableDialoguePlayerFaultMaterializationsByTargetInternalV1.delete(target);
+  }
+  materialization.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+    kind: "passive" as const,
+    phase: "suspended" as const,
+    playbackMode: "normal" as const,
+    playerProfile: materialization.snapshot.playerProfile,
+  });
+  materialization.notifiedSnapshot = materialization.snapshot;
+  materialization.active = false;
+  materialization.fault = null;
+  materialization.faultTarget = null;
+  materialization.faultFrame = null;
+  materialization.resolverHolder.materialization = null;
+  materialization.listeners.clear();
+  for (const holder of materialization.listenerHolders) holder.listener = null;
+  materialization.listenerHolders.clear();
+}
+
+function createNarrativeStableDialoguePlayerFaultMaterializationInternalV1(
+  target: ManagedSurfaceStableAdmittedTargetInternalV1,
+  frame: NarrativeStableAdmittedFrameInternalV1,
+  phase: "preparing" | "active" | "suspended",
+): NarrativeStableDialoguePlayerMaterializationRecordInternalV1 {
+  const retained = narrativeStableDialoguePlayerFaultMaterializationsByTargetInternalV1.get(
+    target,
+  );
+  if (retained?.active && retained.fault !== null && retained.faultFrame === frame) {
+    return retained;
+  }
+  if (retained !== undefined) {
+    retireNarrativeStableDialoguePlayerFaultMaterializationInternalV1(retained);
+  }
+  const snapshot = freezeNarrativePhysicalActionDataInternalV1({
+    kind: "passive" as const,
+    phase,
+    playbackMode: "normal" as const,
+    playerProfile: defaultPlayerProfileV1,
+  });
+  let materialization!: NarrativeStableDialoguePlayerMaterializationRecordInternalV1;
+  let observation!: NarrativeStableDialoguePlayerObservationInternalV1;
+  const resolverHolder: {
+    materialization: NarrativeStableDialoguePlayerMaterializationRecordInternalV1 | null;
+  } = { materialization: null };
+  const textResolver = freezeNarrativePhysicalActionDataInternalV1(
+    ((_textId: string): string => {
+      throw new TypeError("ui.narrative_stable_dialogue_player_text_resolver_invalid");
+    }) satisfies NarrativeStableDialoguePlayerTextResolverInternalV1,
+  );
+  observation = freezeNarrativePhysicalActionDataInternalV1({
+    getSnapshotInternalV1(
+      this: NarrativeStableDialoguePlayerObservationInternalV1,
+    ): NarrativeStableDialoguePlayerSnapshotInternalV1 {
+      const current = this === observation
+        ? narrativeStableDialoguePlayerObservationRecordsInternalV1.get(observation)
+        : undefined;
+      if (current !== materialization) {
+        throw new TypeError("ui.narrative_stable_dialogue_player_observation_invalid");
+      }
+      if (current.active && current.fault !== null) throw current.fault;
+      return current.snapshot;
+    },
+    subscribeInternalV1(
+      this: NarrativeStableDialoguePlayerObservationInternalV1,
+      listener: () => void,
+    ): () => void {
+      const current = this === observation
+        ? narrativeStableDialoguePlayerObservationRecordsInternalV1.get(observation)
+        : undefined;
+      if (current !== materialization || typeof listener !== "function") {
+        throw new TypeError("ui.narrative_stable_dialogue_player_observation_invalid");
+      }
+      if (!current.active) return narrativeStableDialoguePlayerLateUnsubscribeInternalV1;
+      const holder: { listener: (() => void) | null } = { listener };
+      current.listeners.add(listener);
+      current.listenerHolders.add(holder);
+      return freezeNarrativePhysicalActionDataInternalV1((): void => {
+        const retainedListener = holder.listener;
+        holder.listener = null;
+        current.listenerHolders.delete(holder);
+        if (retainedListener !== null) current.listeners.delete(retainedListener);
+      });
+    },
+  });
+  materialization = {
+    controllerRecord: null,
+    observation,
+    textResolver,
+    snapshot,
+    notifiedSnapshot: snapshot,
+    controllerUnsubscribe: null,
+    active: true,
+    listeners: new Set(),
+    listenerHolders: new Set(),
+    resolverHolder,
+    fault: new TypeError("ui.narrative_stable_dialogue_player_observation_invalid"),
+    faultTarget: target,
+    faultFrame: frame,
+  };
+  resolverHolder.materialization = materialization;
+  narrativeStableDialoguePlayerObservationRecordsInternalV1.set(observation, materialization);
+  narrativeStableDialoguePlayerFaultMaterializationsByTargetInternalV1.set(
+    target,
+    materialization,
+  );
+  return materialization;
+}
+
 function publishNarrativeStableDialoguePlayerModeInternalV1(
   record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
   mode: NarrativeStablePlaybackModeInternalV1,
@@ -7246,6 +7730,9 @@ function disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(
     playbackMode: "normal" as const,
     playerProfile: profile,
   });
+  const terminalObservationDelivery = retireNarrativeStableDialoguePlayerMaterializationInternalV1(
+    record,
+  );
   record.listeners.clear();
   for (const holder of record.listenerHolders) {
     holder.record = null;
@@ -7296,6 +7783,9 @@ function disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(
     } catch {
       // Logical retirement remains complete when Pause cleanup is hostile.
     }
+  }
+  if (terminalObservationDelivery !== null) {
+    applyNarrativePhysicalActionInternalV1(terminalObservationDelivery, undefined, []);
   }
 }
 
@@ -7532,6 +8022,7 @@ export function createNarrativeStableDialoguePlayerControllerInternalV1(
     pauseExpiryController: null,
     active: true,
     rawUnsubscribe: null,
+    materialization: null,
     listeners: new Set(),
     listenerHolders: new Set(),
   };

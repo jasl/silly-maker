@@ -7,7 +7,7 @@ import {
   parseNonNegativeSafeInteger,
   type NarrativeHistoryV1,
 } from "@sillymaker/base";
-import { defaultPlayerProfileV1 } from "@sillymaker/base/runtime";
+import { defaultPlayerProfileV1, type PlayerProfileV1 } from "@sillymaker/base/runtime";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { Component, StrictMode, useSyncExternalStore, type ErrorInfo, type ReactNode } from "react";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
@@ -56,6 +56,7 @@ import {
   NarrativeSurfaceHostInternalV1,
   type NarrativeSurfaceHostPropsInternalV1,
 } from "./narrative-surface-host.tsx";
+import type { NarrativeStableDialoguePlayerSnapshotInternalV1 } from "./dialogue-player-controller.ts";
 import { GameStageV1, type GameStageLayersV1 } from "../shell/game-stage.tsx";
 
 const applicationEpochV1 = parseNonNegativeSafeInteger(211);
@@ -134,6 +135,78 @@ function mutableHistoryObservationV1(): MutableHistoryObservationV1 {
   };
 }
 
+interface MutableDialoguePlayerObservationV1 {
+  readonly port: Readonly<{
+    getSnapshotInternalV1(): NarrativeStableDialoguePlayerSnapshotInternalV1;
+    subscribeInternalV1(listener: () => void): () => void;
+  }>;
+  readonly started: () => number;
+  readonly active: () => number;
+  failReads(error: unknown): void;
+  failSubscriptions(error: unknown): void;
+  publish(snapshot: NarrativeStableDialoguePlayerSnapshotInternalV1): void;
+}
+
+function passiveDialoguePlayerViewV1(
+  phase: "preparing" | "active" | "suspended",
+  playerProfile = defaultPlayerProfileV1,
+): NarrativeStableDialoguePlayerSnapshotInternalV1 {
+  return Object.freeze({
+    kind: "passive" as const,
+    phase,
+    playbackMode: "normal" as const,
+    playerProfile,
+  });
+}
+
+function mutableDialoguePlayerObservationV1(
+  initialSnapshot: NarrativeStableDialoguePlayerSnapshotInternalV1 = passiveDialoguePlayerViewV1(
+    "preparing",
+  ),
+): MutableDialoguePlayerObservationV1 {
+  let snapshot = initialSnapshot;
+  let readFailed = false;
+  let readError: unknown;
+  let subscribeFailed = false;
+  let subscribeError: unknown;
+  let started = 0;
+  const listeners = new Set<() => void>();
+  const port = Object.freeze({
+    getSnapshotInternalV1: () => {
+      if (readFailed) throw readError;
+      return snapshot;
+    },
+    subscribeInternalV1(listener: () => void): () => void {
+      started += 1;
+      if (subscribeFailed) throw subscribeError;
+      listeners.add(listener);
+      let subscribed = true;
+      return () => {
+        if (!subscribed) return;
+        subscribed = false;
+        listeners.delete(listener);
+      };
+    },
+  });
+  return {
+    port,
+    started: () => started,
+    active: () => listeners.size,
+    failReads(error: unknown): void {
+      readFailed = true;
+      readError = error;
+    },
+    failSubscriptions(error: unknown): void {
+      subscribeFailed = true;
+      subscribeError = error;
+    },
+    publish(nextSnapshot): void {
+      snapshot = nextSnapshot;
+      for (const listener of [...listeners]) listener();
+    },
+  };
+}
+
 function hostHarnessV1(
   rendererComponent: (props: NarrativeStableRendererPropsInternalV1) => unknown,
   historyObservation = mutableHistoryObservationV1(),
@@ -162,14 +235,28 @@ function hostHarnessV1(
   const semanticDispatchPort = Object.freeze({
     dispatchResolutionInternalV1: (_request: unknown) => Promise.resolve(undefined),
   }) satisfies NarrativeStableSemanticResolutionPortInternalV1;
+  let currentPlayerProfile: PlayerProfileV1 = defaultPlayerProfileV1;
+  const playerProfileListeners = new Set<() => void>();
   const playerProfile = Object.freeze({
-    getSnapshotInternalV1: () => defaultPlayerProfileV1,
-    subscribeInternalV1: (_listener: () => void) => Object.freeze(() => {}),
+    getSnapshotInternalV1: () => currentPlayerProfile,
+    subscribeInternalV1: (listener: () => void) => {
+      playerProfileListeners.add(listener);
+      let active = true;
+      return Object.freeze(() => {
+        if (!active) return;
+        active = false;
+        playerProfileListeners.delete(listener);
+      });
+    },
     markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
   });
+  let tickRequests = 0;
   const presentationClock = Object.freeze({
     nowInternalV1: () => 0,
-    requestTickInternalV1: (_callback: (nowMs: number) => void) => Object.freeze(() => {}),
+    requestTickInternalV1: (_callback: (nowMs: number) => void) => {
+      tickRequests += 1;
+      return Object.freeze(() => {});
+    },
     prefersReducedMotionInternalV1: () => false,
   });
   const textResolver = Object.freeze({
@@ -220,8 +307,13 @@ function hostHarnessV1(
     inputRouter: createInputRouterV1(),
     isGestureCurrent,
     kernel,
+    publishPlayerProfile: (nextProfile: PlayerProfileV1): void => {
+      currentPlayerProfile = nextProfile;
+      for (const listener of [...playerProfileListeners]) listener();
+    },
     session,
     stateNotificationCount: () => stateNotifications,
+    tickRequestCount: () => tickRequests,
   };
 }
 
@@ -355,6 +447,7 @@ function syntheticDialogueRenderEntryV1(
     readonly phase: SyntheticDialogueRenderEntryV1["phase"];
     readonly preparation: NarrativeStableRootPreparationInternalV1 | null;
     readonly rendererComponent: SyntheticDialogueRenderEntryV1["rendererComponent"];
+    readonly playerObservation?: MutableDialoguePlayerObservationV1["port"];
   }>,
 ): SyntheticDialogueRenderEntryV1 {
   return Object.freeze({
@@ -370,10 +463,11 @@ function syntheticDialogueRenderEntryV1(
       kind: "dialogue",
       pending: pendingSayV1(),
       visualConfig: Object.freeze({ skin: "synthetic-repair" }),
-      playerProfile: Object.freeze({ locale: "en" }),
-      textResolver: Object.freeze({ kind: "synthetic-text" }),
+      playerProfile: defaultPlayerProfileV1,
+      textResolver: (textId: string) => textId,
       quickMenuContribution: null,
     }),
+    playerObservation: input.playerObservation ?? mutableDialoguePlayerObservationV1().port,
   }) as unknown as SyntheticDialogueRenderEntryV1;
 }
 
@@ -399,6 +493,34 @@ function mutableHostRenderSourceV1(
       for (const listener of [...listeners]) listener();
     },
   });
+}
+
+function syntheticHostRuntimeV1(
+  initialEntry: NarrativeStableHostRenderEntryInternalV1,
+): Readonly<{
+  readonly runtime: NarrativeStableHostRuntimeInternalV1;
+  readonly renderSource: ReturnType<typeof mutableHostRenderSourceV1>;
+  readonly settleReady: ReturnType<typeof vi.fn>;
+  readonly settleFailed: ReturnType<typeof vi.fn>;
+  readonly release: ReturnType<typeof vi.fn>;
+}> {
+  const renderSource = mutableHostRenderSourceV1(initialEntry);
+  const settleReady = vi.fn(() => Object.freeze({ kind: "settled" as const, completion: null }));
+  const settleFailed = vi.fn(() => Object.freeze({ kind: "settled" as const, completion: null }));
+  const release = vi.fn();
+  const runtime = Object.freeze({
+    attachment: Object.freeze({
+      settleRootReadinessReadyInternalV1: settleReady,
+      settleRootReadinessFailedInternalV1: settleFailed,
+      settleHistoryReadinessReadyInternalV1: vi.fn(),
+      settleHistoryReadinessFailedInternalV1: vi.fn(),
+      releaseInternalV1: release,
+    }),
+    renderSource: renderSource.source,
+  }) as unknown as NarrativeStableHostRuntimeInternalV1;
+  vi.spyOn(narrativeFamilyModuleV1, "createNarrativeStableHostRuntimeInternalV1")
+    .mockReturnValue(runtime);
+  return Object.freeze({ runtime, renderSource, settleReady, settleFailed, release });
 }
 
 class CapturedErrorBoundaryV1 extends Component<
@@ -489,6 +611,19 @@ describe("NarrativeSurfaceHostInternalV1", () => {
       portalShell: focusScope,
       initialFocusTarget: focusScope,
     }));
+    const preparingEntry = readyMint.mock.calls[0]?.[0].renderEntry;
+    if (preparingEntry?.kind !== "dialogue") throw new Error("expected preparing Dialogue entry");
+    expect(Reflect.ownKeys(preparingEntry).map(String).sort()).toEqual([
+      "initialFocusTargetId",
+      "kind",
+      "phase",
+      "playerObservation",
+      "preparation",
+      "renderKey",
+      "rendererComponent",
+      "rendererProps",
+    ]);
+    expect(Object.isFrozen(preparingEntry.playerObservation)).toBe(true);
 
     await flushHostMicrotasksV1();
 
@@ -514,10 +649,228 @@ describe("NarrativeSurfaceHostInternalV1", () => {
       "playerProfile",
       "textResolver",
       "quickMenuContribution",
+      "playerView",
     ]);
+    expect("playerObservation" in (rendererProps.at(-1) ?? {})).toBe(false);
 
     view.unmount();
     await flushHostMicrotasksV1();
+    portalContainer.remove();
+  });
+
+  it("materializes the exact passive player view through one keyed Dialogue subscription", () => {
+    const currentProfile = Object.freeze({
+      ...defaultPlayerProfileV1,
+      preferences: Object.freeze({
+        ...defaultPlayerProfileV1.preferences,
+        locale: "zh-Hans",
+      }),
+    });
+    const initialView = passiveDialoguePlayerViewV1("active", currentProfile);
+    const playerObservation = mutableDialoguePlayerObservationV1(initialView);
+    const renderedProps: NarrativeStableRendererPropsInternalV1[] = [];
+    const Renderer = (props: NarrativeStableRendererPropsInternalV1) => {
+      renderedProps.push(props);
+      return <output data-testid="player-view-dialogue">Dialogue</output>;
+    };
+    const entry = syntheticDialogueRenderEntryV1({
+      phase: "active",
+      preparation: null,
+      rendererComponent: Renderer,
+      playerObservation: playerObservation.port,
+    });
+    const runtime = syntheticHostRuntimeV1(entry);
+    vi.spyOn(narrativeFamilyModuleV1, "prepareNarrativeStableHostReadyCommitInternalV1")
+      .mockReturnValue(Object.freeze({ kind: "reattached" as const, completion: null }));
+    const portalContainer = document.createElement("div");
+    document.body.append(portalContainer);
+
+    const view = render(
+      <NarrativeSurfaceHostInternalV1
+        session={Object.freeze({}) as unknown as NarrativeStableSessionInternalV1}
+        portalContainer={portalContainer}
+        inputRouter={createInputRouterV1()}
+        isGestureCurrent={() => true}
+      />,
+    );
+
+    const renderer = portalContainer.querySelector('[data-testid="player-view-dialogue"]');
+    const firstProps = renderedProps.at(-1);
+    if (firstProps?.kind !== "dialogue") throw new Error("expected Dialogue props");
+    const firstPlayerView = (firstProps as unknown as {
+      readonly playerView: NarrativeStableDialoguePlayerSnapshotInternalV1;
+    }).playerView;
+    expect(Reflect.ownKeys(firstProps)).toEqual([
+      "kind",
+      "pending",
+      "visualConfig",
+      "playerProfile",
+      "textResolver",
+      "quickMenuContribution",
+      "playerView",
+    ]);
+    expect(firstPlayerView).toBe(initialView);
+    expect(firstProps.playerProfile).toBe(currentProfile);
+    expect(firstProps.textResolver("text.player-view")).toBe("text.player-view");
+    expect("playerObservation" in firstProps).toBe(false);
+    expect(playerObservation.started()).toBe(1);
+    expect(playerObservation.active()).toBe(1);
+
+    const rendersBeforeEqualPublication = renderedProps.length;
+    act(() => playerObservation.publish(initialView));
+    expect(renderedProps).toHaveLength(rendersBeforeEqualPublication);
+
+    const suspendedView = passiveDialoguePlayerViewV1("suspended", currentProfile);
+    act(() => {
+      playerObservation.publish(suspendedView);
+      runtime.renderSource.publish(syntheticDialogueRenderEntryV1({
+        phase: "suspended",
+        preparation: null,
+        rendererComponent: Renderer,
+        playerObservation: playerObservation.port,
+      }));
+    });
+    const suspendedProps = renderedProps.at(-1);
+    if (suspendedProps?.kind !== "dialogue") throw new Error("expected suspended Dialogue props");
+    expect((suspendedProps as unknown as { readonly playerView: unknown }).playerView).toBe(
+      suspendedView,
+    );
+    expect(portalContainer.querySelector('[data-testid="player-view-dialogue"]')).toBe(renderer);
+    expect(playerObservation.started()).toBe(1);
+    expect(playerObservation.active()).toBe(1);
+
+    const resumedView = passiveDialoguePlayerViewV1("active", currentProfile);
+    act(() => {
+      playerObservation.publish(resumedView);
+      runtime.renderSource.publish(syntheticDialogueRenderEntryV1({
+        phase: "active",
+        preparation: null,
+        rendererComponent: Renderer,
+        playerObservation: playerObservation.port,
+      }));
+    });
+    expect((renderedProps.at(-1) as unknown as { readonly playerView: unknown }).playerView).toBe(
+      resumedView,
+    );
+    expect(playerObservation.started()).toBe(1);
+
+    let finalView = resumedView;
+    act(() => {
+      for (let index = 0; index < 10_000; index += 1) {
+        finalView = passiveDialoguePlayerViewV1("active", currentProfile);
+        playerObservation.publish(finalView);
+      }
+    });
+    const finalProps = renderedProps.at(-1);
+    if (finalProps?.kind !== "dialogue") throw new Error("expected final Dialogue props");
+    expect((finalProps as unknown as { readonly playerView: unknown }).playerView).toBe(finalView);
+    expect(finalProps.playerProfile).toBe(currentProfile);
+    expect(portalContainer.querySelector('[data-testid="player-view-dialogue"]')).toBe(renderer);
+    expect(playerObservation.started()).toBe(1);
+    expect(playerObservation.active()).toBe(1);
+
+    view.unmount();
+    expect(runtime.release).toHaveBeenCalledOnce();
+    expect(playerObservation.active()).toBe(0);
+    portalContainer.remove();
+  });
+
+  it.each(["read", "subscribe"] as const)(
+    "settles a pre-ready Dialogue observation %s fault exactly once, including throw null",
+    async (faultKind) => {
+      const preparation = Object.freeze({}) as unknown as NarrativeStableRootPreparationInternalV1;
+      const playerObservation = mutableDialoguePlayerObservationV1();
+      if (faultKind === "read") {
+        playerObservation.failReads(null);
+      } else {
+        playerObservation.failSubscriptions(null);
+      }
+      const entry = syntheticDialogueRenderEntryV1({
+        phase: "preparing",
+        preparation,
+        rendererComponent: () => <output>unreachable</output>,
+        playerObservation: playerObservation.port,
+      });
+      const runtime = syntheticHostRuntimeV1(entry);
+      const readyMint = vi.spyOn(
+        narrativeFamilyModuleV1,
+        "prepareNarrativeStableHostReadyCommitInternalV1",
+      );
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+      const portalContainer = document.createElement("div");
+      document.body.append(portalContainer);
+
+      const view = render(
+        <NarrativeSurfaceHostInternalV1
+          session={Object.freeze({}) as unknown as NarrativeStableSessionInternalV1}
+          portalContainer={portalContainer}
+          inputRouter={createInputRouterV1()}
+          isGestureCurrent={() => true}
+        />,
+      );
+      await flushHostMicrotasksV1();
+
+      expect(runtime.settleFailed).toHaveBeenCalledOnce();
+      expect(runtime.settleFailed).toHaveBeenCalledWith(preparation);
+      expect(runtime.settleReady).not.toHaveBeenCalled();
+      if (faultKind === "read") {
+        expect(readyMint).not.toHaveBeenCalled();
+      } else {
+        expect(readyMint).toHaveBeenCalledOnce();
+      }
+      expect(playerObservation.active()).toBe(0);
+      expect(portalContainer).toBeEmptyDOMElement();
+      expect(consoleError).toHaveBeenCalled();
+
+      view.unmount();
+      expect(runtime.release).toHaveBeenCalledOnce();
+      portalContainer.remove();
+    },
+  );
+
+  it("rethrows an accepted-ready Dialogue observation fault to the outer diagnostics owner", async () => {
+    const acceptedError = null;
+    const playerObservation = mutableDialoguePlayerObservationV1(
+      passiveDialoguePlayerViewV1("active"),
+    );
+    const entry = syntheticDialogueRenderEntryV1({
+      phase: "active",
+      preparation: null,
+      rendererComponent: () => <output data-testid="accepted-player-view">Dialogue</output>,
+      playerObservation: playerObservation.port,
+    });
+    const runtime = syntheticHostRuntimeV1(entry);
+    vi.spyOn(narrativeFamilyModuleV1, "prepareNarrativeStableHostReadyCommitInternalV1")
+      .mockReturnValue(Object.freeze({ kind: "reattached" as const, completion: null }));
+    const captured: unknown[] = [];
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const portalContainer = document.createElement("div");
+    document.body.append(portalContainer);
+
+    const view = render(
+      <CapturedErrorBoundaryV1 onError={(error) => captured.push(error)}>
+        <NarrativeSurfaceHostInternalV1
+          session={Object.freeze({}) as unknown as NarrativeStableSessionInternalV1}
+          portalContainer={portalContainer}
+          inputRouter={createInputRouterV1()}
+          isGestureCurrent={() => true}
+        />
+      </CapturedErrorBoundaryV1>,
+    );
+    expect(playerObservation.active()).toBe(1);
+
+    playerObservation.failReads(acceptedError);
+    act(() => playerObservation.publish(passiveDialoguePlayerViewV1("active")));
+    await flushHostMicrotasksV1();
+
+    expect(captured).toEqual([acceptedError]);
+    expect(runtime.settleFailed).not.toHaveBeenCalled();
+    expect(runtime.settleReady).not.toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalled();
+    expect(playerObservation.active()).toBe(0);
+
+    view.unmount();
+    expect(runtime.release).toHaveBeenCalledOnce();
     portalContainer.remove();
   });
 
@@ -707,6 +1060,110 @@ describe("NarrativeSurfaceHostInternalV1", () => {
       "visualConfig",
     ]);
     expect("controller" in latestHistoryProps).toBe(false);
+
+    view.unmount();
+    await flushHostMicrotasksV1();
+    portalContainer.remove();
+  });
+
+  it("keeps descendant History focus while profile churn refreshes same-key renderer props", async () => {
+    const createRuntime = vi.spyOn(
+      narrativeFamilyModuleV1,
+      "createNarrativeStableHostRuntimeInternalV1",
+    );
+    const readyMint = vi.spyOn(
+      narrativeFamilyModuleV1,
+      "prepareNarrativeStableHostReadyCommitInternalV1",
+    );
+    const renderedHistoryProps: NarrativeStableRendererPropsInternalV1[] = [];
+    const Renderer = (props: NarrativeStableRendererPropsInternalV1) => {
+      if (props.kind === "dialogue") {
+        return <button type="button" data-testid="profile-focus-opener">Open</button>;
+      }
+      renderedHistoryProps.push(props);
+      return (
+        <button
+          type="button"
+          data-testid="profile-focus-history"
+          data-profile-locale={props.playerProfile.preferences.locale ?? "default"}
+        >
+          History
+        </button>
+      );
+    };
+    const harness = hostHarnessV1(Renderer);
+    expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1())).toMatchObject({
+      kind: "applied",
+    });
+    const portalContainer = document.createElement("div");
+    document.body.append(portalContainer);
+    const view = render(
+      <NarrativeSurfaceHostInternalV1
+        session={harness.session}
+        portalContainer={portalContainer}
+        inputRouter={harness.inputRouter}
+        isGestureCurrent={harness.isGestureCurrent}
+      />,
+    );
+    await flushHostMicrotasksV1();
+
+    const runtime = createRuntime.mock.results.at(-1)?.value as
+      | NarrativeStableHostRuntimeInternalV1
+      | undefined;
+    const committedGestureCurrent = createRuntime.mock.calls.at(-1)?.[0].isGestureCurrent;
+    if (runtime === undefined || committedGestureCurrent === undefined) {
+      throw new Error("expected current Host runtime");
+    }
+    act(() => openHistoryV1(harness, "profile-focus", committedGestureCurrent));
+    await flushHostMicrotasksV1();
+
+    const focusedControl = portalContainer.querySelector<HTMLButtonElement>(
+      '[data-testid="profile-focus-history"]',
+    );
+    if (focusedControl === null) throw new Error("expected History focus control");
+    expect(focusedControl).toHaveAttribute("data-profile-locale", "default");
+    focusedControl.focus();
+    expect(document.activeElement).toBe(focusedControl);
+    const entryBeforeProfile = currentHistoryRenderEntryV1(runtime);
+    const propsBeforeProfile = entryBeforeProfile.rendererProps;
+    const controllerBeforeProfile = entryBeforeProfile.controller;
+    const observationBeforeProfile = entryBeforeProfile.historyObservation;
+    const readyMintsBeforeProfile = readyMint.mock.calls.length;
+    const stateNotificationsBeforeProfile = harness.stateNotificationCount();
+    const tickRequestsBeforeProfile = harness.tickRequestCount();
+    const renderedPropsBeforeProfile = renderedHistoryProps.length;
+    const nextProfile = Object.freeze({
+      ...defaultPlayerProfileV1,
+      preferences: Object.freeze({
+        ...defaultPlayerProfileV1.preferences,
+        locale: "ja",
+      }),
+    });
+
+    act(() => harness.publishPlayerProfile(nextProfile));
+
+    const entryAfterProfile = currentHistoryRenderEntryV1(runtime);
+    const latestHistoryProps = renderedHistoryProps.at(-1);
+    if (latestHistoryProps?.kind !== "history") {
+      throw new Error("expected refreshed History props");
+    }
+    expect(entryAfterProfile).not.toBe(entryBeforeProfile);
+    expect(entryAfterProfile.renderKey).toBe(entryBeforeProfile.renderKey);
+    expect(entryAfterProfile.rendererProps).not.toBe(propsBeforeProfile);
+    expect(entryAfterProfile.rendererProps.playerProfile).toBe(nextProfile);
+    expect(entryAfterProfile.controller).toBe(controllerBeforeProfile);
+    expect(entryAfterProfile.historyObservation).toBe(observationBeforeProfile);
+    expect(renderedHistoryProps.length).toBeGreaterThan(renderedPropsBeforeProfile);
+    expect(latestHistoryProps.playerProfile).toBe(nextProfile);
+    expect(focusedControl).toHaveAttribute("data-profile-locale", "ja");
+    expect(portalContainer.querySelector('[data-testid="profile-focus-history"]')).toBe(
+      focusedControl,
+    );
+    expect(document.activeElement).toBe(focusedControl);
+    expect(readyMint).toHaveBeenCalledTimes(readyMintsBeforeProfile);
+    expect(createRuntime).toHaveBeenCalledOnce();
+    expect(harness.stateNotificationCount()).toBe(stateNotificationsBeforeProfile);
+    expect(harness.tickRequestCount()).toBe(tickRequestsBeforeProfile);
 
     view.unmount();
     await flushHostMicrotasksV1();
@@ -1340,6 +1797,9 @@ describe("NarrativeSurfaceHostInternalV1", () => {
             type="button"
             data-render-kind="max-three-dialogue"
             data-occurrence-id={props.pending.occurrenceId}
+            data-player-phase={(props as unknown as {
+              readonly playerView: NarrativeStableDialoguePlayerSnapshotInternalV1;
+            }).playerView?.phase}
           >
             Dialogue
           </button>
@@ -1369,6 +1829,8 @@ describe("NarrativeSurfaceHostInternalV1", () => {
       '[data-occurrence-id="interaction-occurrence.1"]',
     );
     if (rootRenderer === null) throw new Error("expected retained root renderer");
+    expect(rootRenderer).toHaveAttribute("data-player-phase", "active");
+    expect(harness.tickRequestCount()).toBe(1);
     rootRenderer.focus();
 
     act(() => openHistoryV1(harness, "max-three-open", committedGestureCurrent));
@@ -1381,6 +1843,8 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     const rootFocusScope = narrativeFocusScopeV1(rootRenderer);
     const historyFocusScope = narrativeFocusScopeV1(historyRenderer);
     expect(rootShell).toHaveAttribute("inert");
+    expect(rootRenderer).toHaveAttribute("data-player-phase", "suspended");
+    expect(harness.tickRequestCount()).toBe(1);
     expect(historyShell).not.toHaveAttribute("inert");
     expect(rootFocusScope).toHaveAttribute("inert");
     expect(historyFocusScope).not.toHaveAttribute("inert");
@@ -1409,6 +1873,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     expect(historyShell?.style.pointerEvents).not.toBe("none");
     expect(historyShell?.style.visibility).not.toBe("hidden");
     expect(failedReplacementShell).toHaveAttribute("inert");
+    expect(failedReplacementRenderer).toHaveAttribute("data-player-phase", "preparing");
     expect(failedReplacementShell).toHaveAttribute("aria-hidden", "true");
     expect(failedReplacementShell).toHaveStyle({
       visibility: "hidden",
@@ -1418,6 +1883,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     expect(failedReplacementFocusScope).toHaveAttribute("aria-hidden", "true");
     expect(failedReplacementFocusScope).toHaveStyle({ pointerEvents: "none" });
     expect(failedReplacementFocusScope.style.visibility).not.toBe("hidden");
+    expect(harness.tickRequestCount()).toBe(1);
 
     const failedReplacement = runtime.renderSource.getSnapshotInternalV1().entries.find((entry) =>
       entry.kind === "dialogue" && entry.phase === "preparing" &&
@@ -1436,12 +1902,14 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     expect(portalContainer.children).toHaveLength(2);
     expect(rootRenderer?.parentElement).toBe(rootShell);
     expect(rootRenderer?.isConnected).toBe(true);
+    expect(rootRenderer).toHaveAttribute("data-player-phase", "suspended");
     expect(rootShell).toHaveAttribute("inert");
     expect(historyRenderer?.parentElement).toBe(historyShell);
     expect(historyRenderer?.isConnected).toBe(true);
     expect(historyShell).not.toHaveAttribute("inert");
     expect(failedReplacementRenderer?.isConnected).toBe(false);
     expect(document.activeElement).toBe(historyFocusScope);
+    expect(harness.tickRequestCount()).toBe(1);
 
     act(() => {
       expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1(3))).toMatchObject({
@@ -1455,6 +1923,8 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     const successorFocusScope = narrativeFocusScopeV1(successorRenderer);
     expect(portalContainer.children).toHaveLength(3);
     expect(successorShell).toHaveStyle({ visibility: "hidden", pointerEvents: "none" });
+    expect(successorRenderer).toHaveAttribute("data-player-phase", "preparing");
+    expect(harness.tickRequestCount()).toBe(1);
     expect(successorFocusScope).toHaveAttribute("inert");
     expect(successorFocusScope.style.visibility).not.toBe("hidden");
 
@@ -1463,6 +1933,8 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     expect(portalContainer.children).toHaveLength(1);
     expect(successorRenderer?.parentElement).toBe(successorShell);
     expect(successorRenderer?.isConnected).toBe(true);
+    expect(successorRenderer).toHaveAttribute("data-player-phase", "active");
+    expect(harness.tickRequestCount()).toBe(2);
     expect(successorShell).not.toHaveAttribute("inert");
     expect(successorShell).not.toHaveAttribute("aria-hidden");
     expect(successorShell?.style.visibility).not.toBe("hidden");
@@ -1569,13 +2041,29 @@ describe("NarrativeSurfaceHostInternalV1", () => {
       createRuntime.mock.calls[0]?.[0].hostIdentity,
     );
     expect(createRuntime.mock.calls[1]?.[0].portalContainer).toBe(portalContainer);
+    const firstRuntime = createRuntime.mock.results[0]?.value as
+      | NarrativeStableHostRuntimeInternalV1
+      | undefined;
     const runtime = createRuntime.mock.results.at(-1)?.value as
       | NarrativeStableHostRuntimeInternalV1
       | undefined;
     const committedGestureCurrent = createRuntime.mock.calls.at(-1)?.[0].isGestureCurrent;
-    if (runtime === undefined || committedGestureCurrent === undefined) {
+    if (
+      firstRuntime === undefined || runtime === undefined || committedGestureCurrent === undefined
+    ) {
       throw new Error("expected StrictMode Host runtime");
     }
+    const firstDialogueEntry = firstRuntime.renderSource.getSnapshotInternalV1().entries.find((
+      entry,
+    ) => entry.kind === "dialogue");
+    const currentDialogueEntry = runtime.renderSource.getSnapshotInternalV1().entries.find((
+      entry,
+    ) => entry.kind === "dialogue");
+    if (firstDialogueEntry?.kind !== "dialogue" || currentDialogueEntry?.kind !== "dialogue") {
+      throw new Error("expected StrictMode Dialogue entries");
+    }
+    expect(currentDialogueEntry.playerObservation).toBe(firstDialogueEntry.playerObservation);
+    expect(harness.tickRequestCount()).toBe(1);
     act(() => openHistoryV1(harness, "strict-fallback", committedGestureCurrent));
     expect(currentHistoryRenderEntryV1(runtime).phase).toBe("preparing");
     const notificationsBeforeClose = harness.stateNotificationCount();

@@ -17,7 +17,7 @@ import {
   type StageTransitionCatalogV1,
   type StageTransitionDefinitionV1,
 } from "@sillymaker/base";
-import { defaultPlayerProfileV1 } from "@sillymaker/base/runtime";
+import { defaultPlayerProfileV1, type PlayerProfileV1 } from "@sillymaker/base/runtime";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import type { ElementType } from "react";
 
@@ -47,6 +47,7 @@ import {
   type NarrativeStableDialoguePlayerClockPortInternalV1,
   type NarrativeStableDialoguePlayerControllerInternalV1,
   type NarrativeStableDialoguePlayerProfilePortInternalV1,
+  type NarrativeStableDialoguePlayerSnapshotInternalV1,
   type NarrativeStableDialoguePlayerTextResolverPortInternalV1,
 } from "./dialogue-player-controller.ts";
 import {
@@ -108,6 +109,8 @@ import {
   type NarrativeStableCapturedHistoryAvailabilityPortInternalV1,
   type NarrativeStableCapturedHistoryObservationPortInternalV1,
   type NarrativeStableDialogueRendererPropsInternalV1,
+  type NarrativeStableDialoguePlayerObservationInternalV1,
+  type NarrativeStableDialoguePlayerTextResolverInternalV1,
   type NarrativeStableHistoryAvailabilityPortInternalV1,
   type NarrativeStableHistoryObservationPortInternalV1,
   type NarrativeStableHistoryRendererPropsInternalV1,
@@ -2025,6 +2028,14 @@ describe("Narrative stable Managed Surface family", () => {
     expectTypeOf<keyof NarrativeStableHistoryRenderObservationInternalV1>().toEqualTypeOf<
       "getSnapshotInternalV1" | "subscribeInternalV1"
     >();
+    expectTypeOf<keyof NarrativeStableDialoguePlayerObservationInternalV1>().toEqualTypeOf<
+      "getSnapshotInternalV1" | "subscribeInternalV1"
+    >();
+    expectTypeOf<
+      NarrativeStableDialoguePlayerObservationInternalV1["getSnapshotInternalV1"]
+    >().returns.toEqualTypeOf<NarrativeStableDialoguePlayerSnapshotInternalV1>();
+    expectTypeOf<NarrativeStableDialoguePlayerTextResolverInternalV1>()
+      .toEqualTypeOf<(textId: string) => string>();
     expectTypeOf<keyof NarrativeStableDialogueRendererPropsInternalV1>().toEqualTypeOf<
       | "kind"
       | "pending"
@@ -2032,10 +2043,21 @@ describe("Narrative stable Managed Surface family", () => {
       | "playerProfile"
       | "textResolver"
       | "quickMenuContribution"
+      | "playerView"
     >();
+    expectTypeOf<NarrativeStableDialogueRendererPropsInternalV1["playerProfile"]>()
+      .toEqualTypeOf<DeepReadonly<PlayerProfileV1>>();
+    expectTypeOf<NarrativeStableDialogueRendererPropsInternalV1["textResolver"]>()
+      .toEqualTypeOf<NarrativeStableDialoguePlayerTextResolverInternalV1>();
+    expectTypeOf<NarrativeStableDialogueRendererPropsInternalV1["playerView"]>()
+      .toEqualTypeOf<NarrativeStableDialoguePlayerSnapshotInternalV1>();
     expectTypeOf<keyof NarrativeStableHistoryRendererPropsInternalV1>().toEqualTypeOf<
       "kind" | "history" | "visualConfig" | "playerProfile" | "textResolver"
     >();
+    expectTypeOf<NarrativeStableHistoryRendererPropsInternalV1["playerProfile"]>()
+      .toEqualTypeOf<DeepReadonly<PlayerProfileV1>>();
+    expectTypeOf<NarrativeStableHistoryRendererPropsInternalV1["textResolver"]>()
+      .toEqualTypeOf<NarrativeStableDialoguePlayerTextResolverInternalV1>();
     expectTypeOf<NarrativeStableRendererPropsInternalV1>().toEqualTypeOf<
       NarrativeStableDialogueRendererPropsInternalV1 | NarrativeStableHistoryRendererPropsInternalV1
     >();

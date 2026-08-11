@@ -52,6 +52,7 @@ import {
   prepareNarrativeStableHostReadyCommitInternalV1,
   type NarrativeManagedSurfaceFamilyContractInternalV1,
   type NarrativeStableCandidatePreflightInternalV1,
+  type NarrativeStableDialoguePlayerObservationInternalV1,
   type NarrativeStableHistoryChildControllerInternalV1,
   type NarrativeStableHistoryChildLifecycleInternalV1,
   type NarrativeStableHistoryChildLifecycleResultInternalV1,
@@ -389,6 +390,9 @@ interface NarrativeHostFixtureV1 {
 
 function createNarrativeHostFixtureV1(input: {
   readonly historyObservationPort?: NarrativeStableHistoryObservationPortInternalV1;
+  readonly playerProfile?: unknown;
+  readonly presentationClock?: unknown;
+  readonly textResolver?: unknown;
 } = {}): NarrativeHostFixtureV1 {
   const historyObservationPort = input.historyObservationPort ?? defaultHistoryObservationPortV1;
   const harness = createSessionHarnessV1(Object.freeze({
@@ -398,6 +402,10 @@ function createNarrativeHostFixtureV1(input: {
         candidateSnapshot: Object.freeze({
           ...defaultCandidateSnapshotV1,
           historyObservationPort,
+          playerProfile: input.playerProfile ?? defaultCandidateSnapshotV1.playerProfile,
+          presentationClock: input.presentationClock ??
+            defaultCandidateSnapshotV1.presentationClock,
+          textResolver: input.textResolver ?? defaultCandidateSnapshotV1.textResolver,
         }),
       }),
   }));
@@ -443,6 +451,26 @@ type NarrativeStableHistoryHostRenderEntryV1 = Extract<
   NarrativeStableHostRenderEntryInternalV1,
   { readonly kind: "history" }
 >;
+
+type NarrativeStableDialogueHostRenderEntryV1 = Extract<
+  NarrativeStableHostRenderEntryInternalV1,
+  { readonly kind: "dialogue" }
+>;
+
+function currentDialogueEntryV1(
+  runtime: NarrativeStableHostRuntimeInternalV1,
+  phase?: "preparing" | "active" | "suspended",
+): NarrativeStableDialogueHostRenderEntryV1 {
+  const entry = runtime.renderSource.getSnapshotInternalV1().entries.find((candidate) =>
+    candidate.kind === "dialogue" && (phase === undefined || candidate.phase === phase)
+  );
+  if (entry?.kind !== "dialogue") {
+    throw new Error(
+      phase === undefined ? "expected current Dialogue entry" : `expected ${phase} Dialogue entry`,
+    );
+  }
+  return entry;
+}
 
 function currentHistoryEntryV1(
   runtime: NarrativeStableHostRuntimeInternalV1,
@@ -695,6 +723,18 @@ describe("Narrative stable session", () => {
       "preparing" | "active" | "suspended"
     >();
     expectTypeOf<NarrativeStableHostRenderKeyInternalV1>().toMatchTypeOf<string>();
+    expectTypeOf<keyof NarrativeStableDialogueHostRenderEntryV1>().toEqualTypeOf<
+      | "kind"
+      | "phase"
+      | "renderKey"
+      | "preparation"
+      | "initialFocusTargetId"
+      | "rendererComponent"
+      | "rendererProps"
+      | "playerObservation"
+    >();
+    expectTypeOf<NarrativeStableDialogueHostRenderEntryV1["playerObservation"]>()
+      .toEqualTypeOf<NarrativeStableDialoguePlayerObservationInternalV1>();
     expectTypeOf<keyof NarrativeStableHistoryHostRenderEntryV1>().toEqualTypeOf<
       | "kind"
       | "phase"
@@ -841,6 +881,623 @@ describe("Narrative stable session", () => {
       runtime.attachment.settleRootReadinessReadyInternalV1(root.preparation, readyCommit),
     ).toEqual({ kind: "stale", completion: null });
     fixture.disposePortal();
+  });
+
+  it("keeps one safe Dialogue player materialization through phase churn and fences fresh frames", () => {
+    let currentProfile = defaultPlayerProfileV1;
+    const profileListeners = new Set<() => void>();
+    const rawProfileSubscribe = vi.fn((listener: () => void) => {
+      profileListeners.add(listener);
+      let active = true;
+      return Object.freeze(() => {
+        if (!active) return;
+        active = false;
+        profileListeners.delete(listener);
+      });
+    });
+    const playerProfile = Object.freeze({
+      getSnapshotInternalV1: () => currentProfile,
+      subscribeInternalV1: rawProfileSubscribe,
+      markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
+    });
+    const rawResolveText = vi.fn(function (this: unknown, textId: string): string {
+      expect(this).toBe(textResolver);
+      return `resolved:${textId}`;
+    });
+    const textResolver = {
+      resolveTextInternalV1: rawResolveText,
+    };
+    const fixture = createNarrativeHostFixtureV1({ playerProfile, textResolver });
+    expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 1)))
+      .toMatchObject({ kind: "applied" });
+
+    const preparing = currentDialogueEntryV1(fixture.runtime, "preparing");
+    const observation = preparing.playerObservation;
+    const safeTextResolver = preparing.rendererProps.textResolver;
+    expectFrozenOwnMethodsV1(observation, [
+      "getSnapshotInternalV1",
+      "subscribeInternalV1",
+    ]);
+    expect(Reflect.ownKeys(preparing)).toEqual([
+      "kind",
+      "phase",
+      "renderKey",
+      "preparation",
+      "initialFocusTargetId",
+      "rendererComponent",
+      "rendererProps",
+      "playerObservation",
+    ]);
+    expect(Reflect.ownKeys(preparing.rendererProps)).toEqual([
+      "kind",
+      "pending",
+      "visualConfig",
+      "playerProfile",
+      "textResolver",
+      "quickMenuContribution",
+    ]);
+    expect(preparing.rendererProps.playerProfile).toBe(defaultPlayerProfileV1);
+    expect(preparing.rendererProps.playerProfile).not.toBe(playerProfile);
+    expect(typeof safeTextResolver).toBe("function");
+    expect(Object.isFrozen(safeTextResolver)).toBe(true);
+    expect(safeTextResolver("text.test.extra")).toBe("resolved:text.test.extra");
+    expect(preparing.rendererProps).not.toHaveProperty("playerView");
+    expect(observation.getSnapshotInternalV1()).toMatchObject({
+      kind: "say",
+      phase: "preparing",
+      resolvedSpeakerText: "resolved:text.test.speaker",
+      resolvedText: "resolved:text.test.line",
+      playerProfile: defaultPlayerProfileV1,
+    });
+    expect(rawProfileSubscribe).toHaveBeenCalledOnce();
+
+    const observed: unknown[] = [];
+    const unsubscribe = observation.subscribeInternalV1(() => {
+      observed.push(observation.getSnapshotInternalV1());
+    });
+    if (preparing.preparation === null) throw new Error("expected root preparation");
+    expect(fixture.runtime.attachment.settleRootReadinessReadyInternalV1(
+      preparing.preparation,
+      prepareReadyCommitV1(fixture.runtime, preparing, fixture.portalContainer),
+    )).toEqual({ kind: "settled", completion: null });
+    const active = currentDialogueEntryV1(fixture.runtime, "active");
+    expect(active.renderKey).toBe(preparing.renderKey);
+    expect(active.playerObservation).toBe(observation);
+    expect(active.rendererProps).toBe(preparing.rendererProps);
+    expect(observation.getSnapshotInternalV1()).toMatchObject({ phase: "active" });
+
+    const notificationsBeforeEqualProfile = observed.length;
+    for (const listener of [...profileListeners]) listener();
+    expect(observed).toHaveLength(notificationsBeforeEqualProfile);
+    const nextProfile = Object.freeze({
+      ...defaultPlayerProfileV1,
+      preferences: Object.freeze({
+        ...defaultPlayerProfileV1.preferences,
+        autoWaitMs: defaultPlayerProfileV1.preferences.autoWaitMs + 1,
+      }),
+    });
+    currentProfile = nextProfile;
+    for (const listener of [...profileListeners]) listener();
+    expect(observation.getSnapshotInternalV1().playerProfile).toBe(nextProfile);
+    expect(observed).toHaveLength(notificationsBeforeEqualProfile + 1);
+
+    const phasesAtKernelNotification: string[] = [];
+    const unsubscribeState = fixture.harness.kernel.subscribeStateInternalV1(() => {
+      phasesAtKernelNotification.push(observation.getSnapshotInternalV1().phase);
+    });
+    setCurrentRootPhaseV1(fixture.harness, "suspended");
+    const suspended = currentDialogueEntryV1(fixture.runtime, "suspended");
+    expect(suspended.renderKey).toBe(preparing.renderKey);
+    expect(suspended.playerObservation).toBe(observation);
+    expect(suspended.rendererProps).toBe(preparing.rendererProps);
+    expect(observation.getSnapshotInternalV1()).toMatchObject({ phase: "suspended" });
+    expect(phasesAtKernelNotification.at(-1)).toBe("suspended");
+    setCurrentRootPhaseV1(fixture.harness, "active");
+    expect(currentDialogueEntryV1(fixture.runtime, "active").playerObservation).toBe(
+      observation,
+    );
+    expect(observation.getSnapshotInternalV1()).toMatchObject({ phase: "active" });
+    expect(phasesAtKernelNotification.at(-1)).toBe("active");
+    unsubscribeState();
+
+    let kernelObservedReplacement = false;
+    const replacementOrder: string[] = [];
+    let unsubscribeBeforeTerminalDelivery = (): void => {};
+    const unsubscribeReplacementState = fixture.harness.kernel.subscribeStateInternalV1(() => {
+      kernelObservedReplacement = true;
+      replacementOrder.push("kernel");
+      expect(observation.getSnapshotInternalV1()).toMatchObject({
+        kind: "passive",
+        phase: "suspended",
+      });
+      unsubscribeBeforeTerminalDelivery();
+    });
+    const terminalObservationListener = vi.fn(() => {
+      expect(kernelObservedReplacement).toBe(true);
+      replacementOrder.push("observation");
+      expect(observation.getSnapshotInternalV1()).toMatchObject({
+        kind: "passive",
+        phase: "suspended",
+      });
+    });
+    const unsubscribeTerminalObservation = observation.subscribeInternalV1(
+      terminalObservationListener,
+    );
+    const staleTerminalListener = vi.fn();
+    unsubscribeBeforeTerminalDelivery = observation.subscribeInternalV1(
+      staleTerminalListener,
+    );
+    expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 2)))
+      .toMatchObject({ kind: "applied" });
+    expect(terminalObservationListener).toHaveBeenCalledOnce();
+    expect(staleTerminalListener).not.toHaveBeenCalled();
+    expect(replacementOrder).toEqual(["kernel", "observation"]);
+    unsubscribeReplacementState();
+    unsubscribeTerminalObservation();
+    unsubscribeTerminalObservation();
+    expect(
+      fixture.runtime.renderSource.getSnapshotInternalV1().entries.map((entry) => [
+        entry.kind,
+        entry.phase,
+      ]),
+    ).toEqual([
+      ["dialogue", "active"],
+      ["dialogue", "preparing"],
+    ]);
+    const retained = currentDialogueEntryV1(fixture.runtime, "active");
+    const replacement = currentDialogueEntryV1(fixture.runtime, "preparing");
+    expect(retained.playerObservation).toBe(observation);
+    expect(replacement.playerObservation).not.toBe(observation);
+    expect(replacement.renderKey).not.toBe(preparing.renderKey);
+    const predecessorFinal = observation.getSnapshotInternalV1();
+    expect(predecessorFinal).toMatchObject({ kind: "passive", phase: "suspended" });
+    expect(observation.getSnapshotInternalV1()).toBe(predecessorFinal);
+    expect(() => safeTextResolver("text.test.retained")).toThrowError(TypeError);
+    const replacementObservation = replacement.playerObservation;
+    const replacementResolver = replacement.rendererProps.textResolver;
+    if (replacement.preparation === null) throw new Error("expected replacement preparation");
+    expect(fixture.runtime.attachment.settleRootReadinessFailedInternalV1(
+      replacement.preparation,
+    )).toEqual({ kind: "settled", completion: null });
+    const recovered = currentDialogueEntryV1(fixture.runtime, "active");
+    expect(recovered.renderKey).toBe(preparing.renderKey);
+    expect(recovered.playerObservation).toBe(observation);
+    expect(recovered.rendererProps).toBe(preparing.rendererProps);
+    expect(recovered.playerObservation.getSnapshotInternalV1()).toMatchObject({
+      kind: "passive",
+      phase: "suspended",
+      playerProfile: nextProfile,
+    });
+    const rawReadsAfterRecovery = rawResolveText.mock.calls.length;
+    const replacementFinal = replacementObservation.getSnapshotInternalV1();
+    expect(replacementObservation.getSnapshotInternalV1()).toBe(replacementFinal);
+    const lateReplacementListener = vi.fn();
+    const lateReplacementUnsubscribe = replacementObservation.subscribeInternalV1(
+      lateReplacementListener,
+    );
+    expect(Object.isFrozen(lateReplacementUnsubscribe)).toBe(true);
+    lateReplacementUnsubscribe();
+    lateReplacementUnsubscribe();
+    expect(lateReplacementListener).not.toHaveBeenCalled();
+    expect(() => replacementResolver("text.test.retired")).toThrowError(TypeError);
+    expect(rawResolveText).toHaveBeenCalledTimes(rawReadsAfterRecovery);
+
+    expect(fixture.harness.bridge.disposeInternalV1()).toMatchObject({ kind: "applied" });
+    const finalSnapshot = recovered.playerObservation.getSnapshotInternalV1();
+    expect(recovered.playerObservation.getSnapshotInternalV1()).toBe(finalSnapshot);
+    const lateListener = vi.fn();
+    const lateUnsubscribe = recovered.playerObservation.subscribeInternalV1(lateListener);
+    expect(Object.isFrozen(lateUnsubscribe)).toBe(true);
+    lateUnsubscribe();
+    lateUnsubscribe();
+    expect(lateListener).not.toHaveBeenCalled();
+    expect(() => recovered.rendererProps.textResolver("text.test.terminal"))
+      .toThrowError(TypeError);
+    unsubscribe();
+    unsubscribe();
+    fixture.disposePortal();
+  });
+
+  it("refreshes History safe props from the current Dialogue profile without raw handles", () => {
+    let currentProfile = defaultPlayerProfileV1;
+    const profileListeners = new Set<() => void>();
+    const playerProfile = Object.freeze({
+      getSnapshotInternalV1: () => currentProfile,
+      subscribeInternalV1: (listener: () => void) => {
+        profileListeners.add(listener);
+        return Object.freeze(() => profileListeners.delete(listener));
+      },
+      markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
+    });
+    const fixture = createNarrativeHostFixtureV1({ playerProfile });
+    expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 1)))
+      .toMatchObject({ kind: "applied" });
+    const rootPreparing = currentDialogueEntryV1(fixture.runtime, "preparing");
+    if (rootPreparing.preparation === null) throw new Error("expected root preparation");
+    expect(fixture.runtime.attachment.settleRootReadinessReadyInternalV1(
+      rootPreparing.preparation,
+      prepareReadyCommitV1(fixture.runtime, rootPreparing, fixture.portalContainer),
+    )).toEqual({ kind: "settled", completion: null });
+    const minted = mintHistoryIntentV1(
+      fixture.harness,
+      "current-profile",
+      fixture.inputRouter,
+      fixture.isGestureCurrent,
+    );
+    const prepared = fixture.session.getHistoryChildLifecycleInternalV1()
+      .redeemHistoryOpenIntentInternalV1(minted.intent);
+    minted.dispose();
+    if (prepared.kind !== "preparing") throw new Error("expected History preparation");
+    const parentBefore = currentDialogueEntryV1(fixture.runtime, "suspended");
+    const historyBefore = currentHistoryEntryV1(fixture.runtime, "preparing");
+    expect(historyBefore.rendererProps.playerProfile).toBe(defaultPlayerProfileV1);
+    expect(historyBefore.rendererProps.playerProfile).not.toBe(playerProfile);
+    expect(historyBefore.rendererProps.textResolver).toBe(
+      parentBefore.rendererProps.textResolver,
+    );
+    const renderNotifications = vi.fn();
+    const unsubscribeRender = fixture.runtime.renderSource.subscribeInternalV1(
+      renderNotifications,
+    );
+
+    const nextProfile = Object.freeze({
+      ...defaultPlayerProfileV1,
+      preferences: Object.freeze({
+        ...defaultPlayerProfileV1.preferences,
+        skipPolicy: "skip_all" as const,
+      }),
+    });
+    currentProfile = nextProfile;
+    for (const listener of [...profileListeners]) listener();
+    expect(renderNotifications).toHaveBeenCalledOnce();
+    const parentAfter = currentDialogueEntryV1(fixture.runtime, "suspended");
+    const historyAfter = currentHistoryEntryV1(fixture.runtime, "preparing");
+    expect(parentAfter).toBe(parentBefore);
+    expect(parentAfter.playerObservation.getSnapshotInternalV1().playerProfile).toBe(
+      nextProfile,
+    );
+    expect(historyAfter).not.toBe(historyBefore);
+    expect(historyAfter.renderKey).toBe(historyBefore.renderKey);
+    expect(historyAfter.controller).toBe(historyBefore.controller);
+    expect(historyAfter.historyObservation).toBe(historyBefore.historyObservation);
+    expect(historyAfter.rendererProps).not.toBe(historyBefore.rendererProps);
+    expect(historyAfter.rendererProps.playerProfile).toBe(nextProfile);
+    expect(historyAfter.rendererProps.textResolver).toBe(
+      parentAfter.rendererProps.textResolver,
+    );
+    expect(historyAfter.rendererProps.playerProfile).not.toBe(playerProfile);
+
+    const snapshotAfter = fixture.runtime.renderSource.getSnapshotInternalV1();
+    for (const listener of [...profileListeners]) listener();
+    expect(renderNotifications).toHaveBeenCalledOnce();
+    expect(fixture.runtime.renderSource.getSnapshotInternalV1()).toBe(snapshotAfter);
+
+    const thirdProfile = Object.freeze({
+      ...nextProfile,
+      preferences: Object.freeze({
+        ...nextProfile.preferences,
+        autoWaitMs: nextProfile.preferences.autoWaitMs + 1,
+      }),
+    });
+    const fourthProfile = Object.freeze({
+      ...thirdProfile,
+      preferences: Object.freeze({
+        ...thirdProfile.preferences,
+        autoWaitMs: thirdProfile.preferences.autoWaitMs + 1,
+      }),
+    });
+    let nestedProfilePublication = false;
+    const reentrantObservationListener = vi.fn(() => {
+      if (nestedProfilePublication) return;
+      nestedProfilePublication = true;
+      currentProfile = fourthProfile;
+      for (const listener of [...profileListeners]) listener();
+    });
+    const laterObservationListener = vi.fn();
+    const unsubscribeReentrant = parentAfter.playerObservation.subscribeInternalV1(
+      reentrantObservationListener,
+    );
+    const unsubscribeLater = parentAfter.playerObservation.subscribeInternalV1(
+      laterObservationListener,
+    );
+    currentProfile = thirdProfile;
+    for (const listener of [...profileListeners]) listener();
+    expect(reentrantObservationListener).toHaveBeenCalledTimes(2);
+    expect(laterObservationListener).toHaveBeenCalledOnce();
+    expect(renderNotifications).toHaveBeenCalledTimes(3);
+    expect(currentHistoryEntryV1(fixture.runtime, "preparing").rendererProps.playerProfile)
+      .toBe(fourthProfile);
+    expect(parentAfter.playerObservation.getSnapshotInternalV1().playerProfile)
+      .toBe(fourthProfile);
+    unsubscribeReentrant();
+    unsubscribeLater();
+
+    unsubscribeRender();
+    unsubscribeRender();
+    expect(fixture.harness.bridge.disposeInternalV1()).toMatchObject({ kind: "applied" });
+    fixture.disposePortal();
+  });
+
+  it("terminal-notifies an isolated controller fault after scrubbing every renderer capability", () => {
+    let rawProfile: unknown = defaultPlayerProfileV1;
+    const profileListeners = new Set<() => void>();
+    const playerProfile = Object.freeze({
+      getSnapshotInternalV1: () => rawProfile,
+      subscribeInternalV1: (listener: () => void) => {
+        profileListeners.add(listener);
+        return Object.freeze(() => profileListeners.delete(listener));
+      },
+      markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
+    });
+    const fixture = createNarrativeHostFixtureV1({ playerProfile });
+    expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 1)))
+      .toMatchObject({ kind: "applied" });
+    const preparing = currentDialogueEntryV1(fixture.runtime, "preparing");
+    if (preparing.preparation === null) throw new Error("expected root preparation");
+    expect(fixture.runtime.attachment.settleRootReadinessReadyInternalV1(
+      preparing.preparation,
+      prepareReadyCommitV1(fixture.runtime, preparing, fixture.portalContainer),
+    )).toEqual({ kind: "settled", completion: null });
+    const active = currentDialogueEntryV1(fixture.runtime, "active");
+    const observation = active.playerObservation;
+    const safeResolver = active.rendererProps.textResolver;
+    const state = fixture.harness.kernel.getStateInternalV1();
+    const renderSnapshot = fixture.runtime.renderSource.getSnapshotInternalV1();
+    const renderListener = vi.fn();
+    const unsubscribeRender = fixture.runtime.renderSource.subscribeInternalV1(renderListener);
+    const observedFinal: unknown[] = [];
+    const observationListener = vi.fn(() => {
+      observedFinal.push(observation.getSnapshotInternalV1());
+    });
+    const unsubscribeObservation = observation.subscribeInternalV1(observationListener);
+
+    rawProfile = Object.freeze({});
+    for (const listener of [...profileListeners]) listener();
+
+    expect(observationListener).toHaveBeenCalledOnce();
+    expect(observedFinal).toHaveLength(1);
+    expect(observedFinal[0]).toMatchObject({
+      kind: "passive",
+      phase: "suspended",
+      playbackMode: "normal",
+      playerProfile: defaultPlayerProfileV1,
+    });
+    expect(observation.getSnapshotInternalV1()).toBe(observedFinal[0]);
+    expect(profileListeners.size).toBe(0);
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
+    expect(renderSnapshot.entries).toContain(active);
+    expect(fixture.runtime.renderSource.getSnapshotInternalV1()).toBe(renderSnapshot);
+    expect(renderListener).not.toHaveBeenCalled();
+    expect(() => safeResolver("text.test.faulted")).toThrowError(TypeError);
+    const lateListener = vi.fn();
+    const lateUnsubscribe = observation.subscribeInternalV1(lateListener);
+    lateUnsubscribe();
+    lateUnsubscribe();
+    expect(lateListener).not.toHaveBeenCalled();
+
+    unsubscribeObservation();
+    unsubscribeObservation();
+    unsubscribeRender();
+    unsubscribeRender();
+    expect(fixture.harness.bridge.disposeInternalV1()).toMatchObject({ kind: "applied" });
+    expect(observationListener).toHaveBeenCalledOnce();
+    fixture.disposePortal();
+  });
+
+  it.each(
+    [
+      "profile get",
+      "reduced motion",
+      "text resolve",
+      "profile subscribe",
+    ] as const,
+  )(
+    "publishes and permanently fences a preparing Dialogue factory fault at %s",
+    (faultSeam) => {
+      const rawProfileGet = vi.fn(() => {
+        if (faultSeam === "profile get") throw new Error("hostile profile get");
+        return defaultPlayerProfileV1;
+      });
+      const rawProfileSubscribe = vi.fn((_listener: () => void) => {
+        if (faultSeam === "profile subscribe") {
+          throw new Error("hostile profile subscribe");
+        }
+        return Object.freeze(() => {});
+      });
+      const rawReducedMotion = vi.fn(() => {
+        if (faultSeam === "reduced motion") throw new Error("hostile reduced motion");
+        return false;
+      });
+      const rawResolveText = vi.fn((textId: string) => {
+        if (faultSeam === "text resolve") throw new Error("hostile text resolve");
+        return textId;
+      });
+      const playerProfile = Object.freeze({
+        getSnapshotInternalV1: rawProfileGet,
+        subscribeInternalV1: rawProfileSubscribe,
+        markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
+      });
+      const presentationClock = Object.freeze({
+        nowInternalV1: () => 0,
+        requestTickInternalV1: (_callback: (nowMs: number) => void) => Object.freeze(() => {}),
+        prefersReducedMotionInternalV1: rawReducedMotion,
+      });
+      const textResolver = Object.freeze({
+        resolveTextInternalV1: rawResolveText,
+      });
+      const fixture = createNarrativeHostFixtureV1({
+        playerProfile,
+        presentationClock,
+        textResolver,
+      });
+      const rawIngressCount = (): number =>
+        rawProfileGet.mock.calls.length + rawProfileSubscribe.mock.calls.length +
+        rawReducedMotion.mock.calls.length + rawResolveText.mock.calls.length;
+
+      expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 91)))
+        .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+      const faultSnapshot = fixture.runtime.renderSource.getSnapshotInternalV1();
+      const faultEntry = currentDialogueEntryV1(fixture.runtime, "preparing");
+      expect(fixture.runtime.renderSource.getSnapshotInternalV1()).toBe(faultSnapshot);
+      expect(currentDialogueEntryV1(fixture.runtime, "preparing")).toBe(faultEntry);
+      expect(faultEntry.rendererProps.playerProfile).toBe(defaultPlayerProfileV1);
+      expect(faultEntry.preparation).not.toBeNull();
+      expectTypeErrorV1(
+        () => faultEntry.playerObservation.getSnapshotInternalV1(),
+        "ui.narrative_stable_dialogue_player_observation_invalid",
+      );
+      expectTypeErrorV1(
+        () => faultEntry.rendererProps.textResolver("text.test.factory-fault"),
+        "ui.narrative_stable_dialogue_player_text_resolver_invalid",
+      );
+      if (faultEntry.preparation === null) throw new Error("expected fault preparation");
+      expect(fixture.runtime.attachment.settleRootReadinessFailedInternalV1(
+        faultEntry.preparation,
+      )).toEqual({ kind: "settled", completion: null });
+      expect(fixture.runtime.renderSource.getSnapshotInternalV1().entries).toEqual([]);
+
+      const rawCallsAfterRetirement = rawIngressCount();
+      const finalSnapshot = faultEntry.playerObservation.getSnapshotInternalV1();
+      expect(Object.isFrozen(finalSnapshot)).toBe(true);
+      expect(finalSnapshot).toMatchObject({
+        kind: "passive",
+        phase: "suspended",
+        playbackMode: "normal",
+        playerProfile: defaultPlayerProfileV1,
+      });
+      expect(faultEntry.playerObservation.getSnapshotInternalV1()).toBe(finalSnapshot);
+      const lateListener = vi.fn();
+      const lateUnsubscribe = faultEntry.playerObservation.subscribeInternalV1(lateListener);
+      expect(Object.isFrozen(lateUnsubscribe)).toBe(true);
+      lateUnsubscribe();
+      lateUnsubscribe();
+      expect(lateListener).not.toHaveBeenCalled();
+      expectTypeErrorV1(
+        () => faultEntry.rendererProps.textResolver("text.test.retired-fault"),
+        "ui.narrative_stable_dialogue_player_text_resolver_invalid",
+      );
+      expect(rawIngressCount()).toBe(rawCallsAfterRetirement);
+
+      expect(fixture.harness.bridge.retryCurrentPendingInternalV1()).toMatchObject({
+        kind: "applied",
+        code: "surface.stable_publication_applied",
+      });
+      const retried = currentDialogueEntryV1(fixture.runtime, "preparing");
+      expect(retried).not.toBe(faultEntry);
+      expect(retried.renderKey).not.toBe(faultEntry.renderKey);
+      expect(retried.playerObservation).not.toBe(faultEntry.playerObservation);
+      expectTypeErrorV1(
+        () => retried.playerObservation.getSnapshotInternalV1(),
+        "ui.narrative_stable_dialogue_player_observation_invalid",
+      );
+      const rawCallsAfterRetry = rawIngressCount();
+      expect(fixture.harness.bridge.disposeInternalV1()).toMatchObject({ kind: "applied" });
+      const retriedFinal = retried.playerObservation.getSnapshotInternalV1();
+      expect(retriedFinal).toMatchObject({ kind: "passive", phase: "suspended" });
+      expect(retried.playerObservation.getSnapshotInternalV1()).toBe(retriedFinal);
+      expect(() => fixture.harness.bridge.disposeInternalV1()).not.toThrow();
+      expect(rawIngressCount()).toBe(rawCallsAfterRetry);
+      fixture.disposePortal();
+    },
+  );
+
+  it("terminal-fences a preparing Dialogue factory fault before readiness settlement", () => {
+    const rawProfileGet = vi.fn(() => {
+      throw new Error("hostile pre-ready profile get");
+    });
+    const fixture = createNarrativeHostFixtureV1({
+      playerProfile: Object.freeze({
+        getSnapshotInternalV1: rawProfileGet,
+        subscribeInternalV1: (_listener: () => void) => Object.freeze(() => {}),
+        markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
+      }),
+    });
+    expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 92)))
+      .toMatchObject({ kind: "applied" });
+    const entry = currentDialogueEntryV1(fixture.runtime, "preparing");
+    const observation = entry.playerObservation;
+    const safeResolver = entry.rendererProps.textResolver;
+    expectTypeErrorV1(
+      () => observation.getSnapshotInternalV1(),
+      "ui.narrative_stable_dialogue_player_observation_invalid",
+    );
+    const rawCallsBeforeDisposal = rawProfileGet.mock.calls.length;
+
+    expect(fixture.harness.bridge.disposeInternalV1()).toMatchObject({ kind: "applied" });
+    const finalSnapshot = observation.getSnapshotInternalV1();
+    expect(finalSnapshot).toMatchObject({
+      kind: "passive",
+      phase: "suspended",
+      playerProfile: defaultPlayerProfileV1,
+    });
+    expect(observation.getSnapshotInternalV1()).toBe(finalSnapshot);
+    const lateListener = vi.fn();
+    const lateUnsubscribe = observation.subscribeInternalV1(lateListener);
+    expect(Object.isFrozen(lateUnsubscribe)).toBe(true);
+    lateUnsubscribe();
+    lateUnsubscribe();
+    expect(lateListener).not.toHaveBeenCalled();
+    expectTypeErrorV1(
+      () => safeResolver("text.test.terminal-fault"),
+      "ui.narrative_stable_dialogue_player_text_resolver_invalid",
+    );
+    expect(() => fixture.harness.bridge.disposeInternalV1()).not.toThrow();
+    expect(rawProfileGet).toHaveBeenCalledTimes(rawCallsBeforeDisposal);
+    fixture.disposePortal();
+  });
+
+  it("publishes an active late-factory fault for the outer render boundary", () => {
+    const rawProfileGet = vi.fn(() => {
+      throw new Error("hostile active profile get");
+    });
+    const harness = createSessionHarnessV1(Object.freeze({
+      preflightCandidateInternalV1: () =>
+        Object.freeze({
+          kind: "captured" as const,
+          candidateSnapshot: Object.freeze({
+            ...defaultCandidateSnapshotV1,
+            playerProfile: Object.freeze({
+              getSnapshotInternalV1: rawProfileGet,
+              subscribeInternalV1: (_listener: () => void) => Object.freeze(() => {}),
+              markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
+            }),
+          }),
+        }),
+    }));
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say", 93)))
+      .toMatchObject({ kind: "applied" });
+    settleCurrentRootReadyV1(harness);
+    const session = createNarrativeStableSessionInternalV1({ bridge: harness.bridge });
+    const portalContainer = document.createElement("div");
+    document.body.append(portalContainer);
+    const runtime = createNarrativeStableHostRuntimeInternalV1(Object.freeze({
+      session,
+      hostIdentity: Object.freeze({ host: "active-factory-fault" }),
+      portalContainer,
+      inputRouter: createInputRouterV1(),
+      isGestureCurrent: () => true,
+    }));
+
+    const renderSnapshot = runtime.renderSource.getSnapshotInternalV1();
+    const entry = currentDialogueEntryV1(runtime, "active");
+    expect(entry.preparation).toBeNull();
+    expect(runtime.renderSource.getSnapshotInternalV1()).toBe(renderSnapshot);
+    expect(currentDialogueEntryV1(runtime, "active")).toBe(entry);
+    expectTypeErrorV1(
+      () => entry.playerObservation.getSnapshotInternalV1(),
+      "ui.narrative_stable_dialogue_player_observation_invalid",
+    );
+    expectTypeErrorV1(
+      () => entry.rendererProps.textResolver("text.test.active-fault"),
+      "ui.narrative_stable_dialogue_player_text_resolver_invalid",
+    );
+    const rawCallsBeforeDisposal = rawProfileGet.mock.calls.length;
+    expect(harness.bridge.disposeInternalV1()).toMatchObject({ kind: "applied" });
+    const finalSnapshot = entry.playerObservation.getSnapshotInternalV1();
+    expect(finalSnapshot).toMatchObject({ kind: "passive", phase: "suspended" });
+    expect(entry.playerObservation.getSnapshotInternalV1()).toBe(finalSnapshot);
+    expect(rawProfileGet).toHaveBeenCalledTimes(rawCallsBeforeDisposal);
+    portalContainer.remove();
   });
 
   it("preclaims and commits the exact root input binding before the first ready listener", () => {
@@ -2069,16 +2726,31 @@ describe("Narrative stable session", () => {
       kind: "history",
       visualConfig: defaultCandidateSnapshotV1.visualConfig,
     });
+    const suspendedParent = rootAndPreparingHistory.entries[0];
+    if (suspendedParent?.kind !== "dialogue") throw new Error("expected suspended parent");
+    expect(historyPreparing.rendererProps.playerProfile).toBe(
+      suspendedParent.playerObservation.getSnapshotInternalV1().playerProfile,
+    );
     expect(historyPreparing.rendererProps.playerProfile).not.toBe(
       defaultCandidateSnapshotV1.playerProfile,
     );
     expect(Object.isFrozen(historyPreparing.rendererProps.playerProfile)).toBe(true);
-    expect(Reflect.ownKeys(historyPreparing.rendererProps.playerProfile)).toEqual([]);
+    expect(Reflect.ownKeys(historyPreparing.rendererProps.playerProfile)).toEqual([
+      "profileRevision",
+      "seen",
+      "meta",
+      "preferences",
+    ]);
+    expect(historyPreparing.rendererProps.textResolver).toBe(
+      suspendedParent.rendererProps.textResolver,
+    );
     expect(historyPreparing.rendererProps.textResolver).not.toBe(
       defaultCandidateSnapshotV1.textResolver,
     );
+    expect(typeof historyPreparing.rendererProps.textResolver).toBe("function");
     expect(Object.isFrozen(historyPreparing.rendererProps.textResolver)).toBe(true);
-    expect(Reflect.ownKeys(historyPreparing.rendererProps.textResolver as object)).toEqual([]);
+    expect(historyPreparing.rendererProps.textResolver("text.test.history"))
+      .toBe("text.test.history");
     expect(Object.hasOwn(historyPreparing.rendererProps, "history")).toBe(false);
     const renderObservation = historyPreparing.historyObservation;
     expectFrozenOwnMethodsV1(renderObservation, [

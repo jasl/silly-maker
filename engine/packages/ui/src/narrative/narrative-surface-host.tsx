@@ -264,6 +264,30 @@ class NarrativeSurfaceEntryBoundaryInternalV1 extends Component<
   }
 }
 
+function NarrativeDialogueEntryRendererInternalV1(
+  { entry }: Readonly<{
+    readonly entry: Extract<
+      NarrativeStableHostRenderEntryInternalV1,
+      { readonly kind: "dialogue" }
+    >;
+  }>,
+): ReactElement {
+  const subscribe = useCallback(
+    (listener: () => void) => entry.playerObservation.subscribeInternalV1(listener),
+    [entry.playerObservation],
+  );
+  const getSnapshot = useCallback(
+    () => entry.playerObservation.getSnapshotInternalV1(),
+    [entry.playerObservation],
+  );
+  const playerView = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  return createElement(entry.rendererComponent, {
+    ...entry.rendererProps,
+    playerProfile: playerView.playerProfile,
+    playerView,
+  });
+}
+
 function NarrativeHistoryEntryRendererInternalV1(
   { entry }: Readonly<{
     readonly entry: Extract<
@@ -311,19 +335,22 @@ function NarrativeSurfaceEntryShellInternalV1(
   const shellRef = useRef<HTMLDivElement | null>(null);
   const mountGeneration = useRef(0);
   const backdropPointer = useRef<number | null>(null);
+  const entryKind = entry.kind;
+  const entryRenderKey = entry.renderKey;
+  const historyParentRenderKey = entry.kind === "history" ? entry.parentRenderKey : null;
   const setShell = useCallback((shell: HTMLDivElement | null): void => {
     shellRef.current = shell;
     if (shell === null) {
-      lifecycle.shells.delete(entry.renderKey);
+      lifecycle.shells.delete(entryRenderKey);
     } else {
-      lifecycle.shells.set(entry.renderKey, shell);
+      lifecycle.shells.set(entryRenderKey, shell);
     }
-  }, [entry.renderKey, lifecycle]);
+  }, [entryRenderKey, lifecycle]);
   useLayoutEffect(() => {
     if (!focusOwner) return;
     const shell = shellRef.current;
     if (shell === null || !shell.isConnected) return;
-    if (entry.kind === "dialogue") {
+    if (entryKind === "dialogue") {
       if (lifecycle.rootPreviousOwner.current === null) {
         const ownerDocument = shell.ownerDocument;
         const activeElement = ownerDocument.activeElement;
@@ -338,12 +365,12 @@ function NarrativeSurfaceEntryShellInternalV1(
             : null,
         });
       }
-    } else if (lifecycle.historyOpener.current?.renderKey !== entry.renderKey) {
-      const parentShell = lifecycle.shells.get(entry.parentRenderKey);
+    } else if (lifecycle.historyOpener.current?.renderKey !== entryRenderKey) {
+      const parentShell = lifecycle.shells.get(historyParentRenderKey!);
       const activeElement = shell.ownerDocument.activeElement;
       lifecycle.historyOpener.current = {
-        renderKey: entry.renderKey,
-        parentRenderKey: entry.parentRenderKey,
+        renderKey: entryRenderKey,
+        parentRenderKey: historyParentRenderKey!,
         opener: parentShell !== undefined &&
             isEligibleNarrativeHistoryOpenerInternalV1(activeElement, parentShell)
           ? activeElement
@@ -351,12 +378,19 @@ function NarrativeSurfaceEntryShellInternalV1(
       };
     }
     lifecycle.owner.current = {
-      renderKey: entry.renderKey,
-      kind: entry.kind,
+      renderKey: entryRenderKey,
+      kind: entryKind,
       shell,
     };
     if (!suppressImmediateFocus) focusNarrativeSurfaceElementInternalV1(shell);
-  }, [entry, focusOwner, lifecycle, suppressImmediateFocus]);
+  }, [
+    entryKind,
+    entryRenderKey,
+    focusOwner,
+    historyParentRenderKey,
+    lifecycle,
+    suppressImmediateFocus,
+  ]);
   useLayoutEffect(() => {
     const generation = mountGeneration.current + 1;
     mountGeneration.current = generation;
@@ -427,7 +461,7 @@ function NarrativeSurfaceEntryShellInternalV1(
   const preparing = entry.phase === "preparing";
   const focusScopeInactive = !focusOwner;
   const renderer = entry.kind === "dialogue"
-    ? createElement(entry.rendererComponent, entry.rendererProps)
+    ? <NarrativeDialogueEntryRendererInternalV1 key={entry.renderKey} entry={entry} />
     : <NarrativeHistoryEntryRendererInternalV1 entry={entry} />;
   return (
     <div

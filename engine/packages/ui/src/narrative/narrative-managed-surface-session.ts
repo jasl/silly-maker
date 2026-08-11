@@ -6,6 +6,7 @@ import type {
 } from "../managed-surfaces/managed-surface-contracts.ts";
 import type {
   NarrativeStableDialogueRendererPropsInternalV1,
+  NarrativeStableDialoguePlayerObservationInternalV1,
   NarrativeStableHistoryChildLifecycleInternalV1,
   NarrativeStableHistoryChildControllerInternalV1,
   NarrativeStableHistoryChildPreparationInternalV1,
@@ -67,7 +68,8 @@ export type NarrativeStableHostRenderEntryInternalV1 =
     readonly preparation: NarrativeStableRootPreparationInternalV1 | null;
     readonly initialFocusTargetId: ManagedSurfaceFocusTargetIdV1;
     readonly rendererComponent: NarrativeStableRendererComponentInternalV1;
-    readonly rendererProps: NarrativeStableDialogueRendererPropsInternalV1;
+    readonly rendererProps: Omit<NarrativeStableDialogueRendererPropsInternalV1, "playerView">;
+    readonly playerObservation: NarrativeStableDialoguePlayerObservationInternalV1;
   }>
   | Readonly<{
     readonly kind: "history";

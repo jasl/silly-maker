@@ -280,6 +280,14 @@ import type { NarrativeStableDialoguePlayerControllerInternalV1 as ForbiddenInte
 import type { createNarrativeStableDialoguePlayerControllerInternalV1 as ForbiddenPublicNarrativeDialoguePlayerControllerFactoryV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative Dialogue player controller construction.
 import type { createNarrativeStableDialoguePlayerControllerInternalV1 as ForbiddenInternalNarrativeDialoguePlayerControllerFactoryV1 } from "./internal.ts";
+// @ts-expect-error Narrative Dialogue player text-resolver callables remain source-relative.
+import type { NarrativeStableDialoguePlayerTextResolverInternalV1 as ForbiddenPublicNarrativeDialoguePlayerTextResolverV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Dialogue player text-resolver callables.
+import type { NarrativeStableDialoguePlayerTextResolverInternalV1 as ForbiddenInternalNarrativeDialoguePlayerTextResolverV1 } from "./internal.ts";
+// @ts-expect-error Narrative Dialogue player observations remain source-relative.
+import type { NarrativeStableDialoguePlayerObservationInternalV1 as ForbiddenPublicNarrativeDialoguePlayerObservationV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Dialogue player observations.
+import type { NarrativeStableDialoguePlayerObservationInternalV1 as ForbiddenInternalNarrativeDialoguePlayerObservationV1 } from "./internal.ts";
 // @ts-expect-error Narrative Say player-auto attempts remain source-relative.
 import type { NarrativeStableSayPlayerAutoAttemptInternalV1 as ForbiddenPublicNarrativeSayPlayerAutoAttemptV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative Say player-auto attempts.
@@ -828,6 +836,8 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "CreateNarrativeStableDialoguePlayerControllerInputInternalV1"
       | "NarrativeStableDialoguePlayerControllerInternalV1"
       | "createNarrativeStableDialoguePlayerControllerInternalV1"
+      | "NarrativeStableDialoguePlayerTextResolverInternalV1"
+      | "NarrativeStableDialoguePlayerObservationInternalV1"
       | "NarrativeStableSayPlayerAutoAttemptInternalV1"
       | "NarrativeStableSaySkipAttemptInternalV1"
       | "NarrativeStablePlaybackModeResetAttemptInternalV1"
@@ -898,6 +908,8 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "visualConfig"
       | "playerProfile"
       | "textResolver"
+      | "playerObservation"
+      | "playerView"
       | "quickMenuContribution"
       | "history"
       | "phase"
@@ -1136,6 +1148,8 @@ describe("@sillymaker/ui public managed System surface", () => {
         "CreateNarrativeStableDialoguePlayerControllerInputInternalV1",
         "NarrativeStableDialoguePlayerControllerInternalV1",
         "createNarrativeStableDialoguePlayerControllerInternalV1",
+        "NarrativeStableDialoguePlayerTextResolverInternalV1",
+        "NarrativeStableDialoguePlayerObservationInternalV1",
         "NarrativeStableSayPlayerAutoAttemptInternalV1",
         "NarrativeStableSaySkipAttemptInternalV1",
         "NarrativeStablePlaybackModeResetAttemptInternalV1",
@@ -1205,6 +1219,8 @@ describe("@sillymaker/ui public managed System surface", () => {
         "visualConfig",
         "playerProfile",
         "textResolver",
+        "playerObservation",
+        "playerView",
         "quickMenuContribution",
         "history",
         "phase",
