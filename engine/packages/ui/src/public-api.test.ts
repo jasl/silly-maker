@@ -320,6 +320,98 @@ import type { NarrativeStableSessionInternalV1 as ForbiddenInternalNarrativeStab
 import type { createNarrativeStableSessionInternalV1 as ForbiddenPublicNarrativeStableSessionFactoryV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative stable-session construction.
 import type { createNarrativeStableSessionInternalV1 as ForbiddenInternalNarrativeStableSessionFactoryV1 } from "./internal.ts";
+// @ts-expect-error Narrative History observation ports remain source-relative until Host promotion.
+import type { NarrativeStableHistoryObservationPortInternalV1 as ForbiddenPublicNarrativeHistoryObservationPortV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative History observation ports.
+import type { NarrativeStableHistoryObservationPortInternalV1 as ForbiddenInternalNarrativeHistoryObservationPortV1 } from "./internal.ts";
+// @ts-expect-error Captured Narrative History observation ports remain source-relative.
+import type { NarrativeStableCapturedHistoryObservationPortInternalV1 as ForbiddenPublicNarrativeCapturedHistoryObservationPortV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose captured Narrative History observation ports.
+import type { NarrativeStableCapturedHistoryObservationPortInternalV1 as ForbiddenInternalNarrativeCapturedHistoryObservationPortV1 } from "./internal.ts";
+// @ts-expect-error Narrative History render observations remain source-relative.
+import type { NarrativeStableHistoryRenderObservationInternalV1 as ForbiddenPublicNarrativeHistoryRenderObservationV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative History render observations.
+import type { NarrativeStableHistoryRenderObservationInternalV1 as ForbiddenInternalNarrativeHistoryRenderObservationV1 } from "./internal.ts";
+// @ts-expect-error Narrative dialogue renderer props remain source-relative.
+import type { NarrativeStableDialogueRendererPropsInternalV1 as ForbiddenPublicNarrativeDialogueRendererPropsV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative dialogue renderer props.
+import type { NarrativeStableDialogueRendererPropsInternalV1 as ForbiddenInternalNarrativeDialogueRendererPropsV1 } from "./internal.ts";
+// @ts-expect-error Narrative History renderer props remain source-relative.
+import type { NarrativeStableHistoryRendererPropsInternalV1 as ForbiddenPublicNarrativeHistoryRendererPropsV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative History renderer props.
+import type { NarrativeStableHistoryRendererPropsInternalV1 as ForbiddenInternalNarrativeHistoryRendererPropsV1 } from "./internal.ts";
+// @ts-expect-error Narrative renderer props remain source-relative.
+import type { NarrativeStableRendererPropsInternalV1 as ForbiddenPublicNarrativeRendererPropsV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative renderer props.
+import type { NarrativeStableRendererPropsInternalV1 as ForbiddenInternalNarrativeRendererPropsV1 } from "./internal.ts";
+// @ts-expect-error Narrative renderer components remain source-relative.
+import type { NarrativeStableRendererComponentInternalV1 as ForbiddenPublicNarrativeRendererComponentV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative renderer components.
+import type { NarrativeStableRendererComponentInternalV1 as ForbiddenInternalNarrativeRendererComponentV1 } from "./internal.ts";
+// @ts-expect-error Narrative Host render keys remain source-relative.
+import type { NarrativeStableHostRenderKeyInternalV1 as ForbiddenPublicNarrativeHostRenderKeyV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Host render keys.
+import type { NarrativeStableHostRenderKeyInternalV1 as ForbiddenInternalNarrativeHostRenderKeyV1 } from "./internal.ts";
+// @ts-expect-error Narrative Host render phases remain source-relative.
+import type { NarrativeStableHostRenderPhaseInternalV1 as ForbiddenPublicNarrativeHostRenderPhaseV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Host render phases.
+import type { NarrativeStableHostRenderPhaseInternalV1 as ForbiddenInternalNarrativeHostRenderPhaseV1 } from "./internal.ts";
+// @ts-expect-error Narrative Host render entries remain source-relative.
+import type { NarrativeStableHostRenderEntryInternalV1 as ForbiddenPublicNarrativeHostRenderEntryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Host render entries.
+import type { NarrativeStableHostRenderEntryInternalV1 as ForbiddenInternalNarrativeHostRenderEntryV1 } from "./internal.ts";
+// @ts-expect-error Narrative Host render snapshots remain source-relative.
+import type { NarrativeStableHostRenderSnapshotInternalV1 as ForbiddenPublicNarrativeHostRenderSnapshotV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Host render snapshots.
+import type { NarrativeStableHostRenderSnapshotInternalV1 as ForbiddenInternalNarrativeHostRenderSnapshotV1 } from "./internal.ts";
+// @ts-expect-error Narrative Host render sources remain source-relative.
+import type { NarrativeStableHostRenderSourceInternalV1 as ForbiddenPublicNarrativeHostRenderSourceV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Host render sources.
+import type { NarrativeStableHostRenderSourceInternalV1 as ForbiddenInternalNarrativeHostRenderSourceV1 } from "./internal.ts";
+// @ts-expect-error Narrative Host runtime inputs remain source-relative.
+import type { CreateNarrativeStableHostRuntimeInputInternalV1 as ForbiddenPublicNarrativeHostRuntimeInputV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Host runtime inputs.
+import type { CreateNarrativeStableHostRuntimeInputInternalV1 as ForbiddenInternalNarrativeHostRuntimeInputV1 } from "./internal.ts";
+// @ts-expect-error Narrative Host runtimes remain source-relative.
+import type { NarrativeStableHostRuntimeInternalV1 as ForbiddenPublicNarrativeHostRuntimeV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Host runtimes.
+import type { NarrativeStableHostRuntimeInternalV1 as ForbiddenInternalNarrativeHostRuntimeV1 } from "./internal.ts";
+// @ts-expect-error Narrative Host runtime construction remains source-relative.
+import type { createNarrativeStableHostRuntimeInternalV1 as ForbiddenPublicNarrativeHostRuntimeFactoryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Host runtime construction.
+import type { createNarrativeStableHostRuntimeInternalV1 as ForbiddenInternalNarrativeHostRuntimeFactoryV1 } from "./internal.ts";
+// @ts-expect-error Narrative readiness settlement results remain source-relative.
+import type { NarrativeStableReadinessSettlementResultInternalV1 as ForbiddenPublicNarrativeReadinessSettlementResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative readiness settlement results.
+import type { NarrativeStableReadinessSettlementResultInternalV1 as ForbiddenInternalNarrativeReadinessSettlementResultV1 } from "./internal.ts";
+// @ts-expect-error Narrative Host attachments remain source-relative.
+import type { NarrativeStableHostAttachmentInternalV1 as ForbiddenPublicNarrativeHostAttachmentV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Host attachments.
+import type { NarrativeStableHostAttachmentInternalV1 as ForbiddenInternalNarrativeHostAttachmentV1 } from "./internal.ts";
+// @ts-expect-error Narrative Host ready-commit tokens remain source-relative.
+import type { NarrativeStableHostReadyCommitInternalV1 as ForbiddenPublicNarrativeHostReadyCommitV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Host ready-commit tokens.
+import type { NarrativeStableHostReadyCommitInternalV1 as ForbiddenInternalNarrativeHostReadyCommitV1 } from "./internal.ts";
+// @ts-expect-error Narrative Host ready-commit preparation inputs remain source-relative.
+import type { PrepareNarrativeStableHostReadyCommitInputInternalV1 as ForbiddenPublicNarrativeHostReadyCommitInputV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Host ready-commit preparation inputs.
+import type { PrepareNarrativeStableHostReadyCommitInputInternalV1 as ForbiddenInternalNarrativeHostReadyCommitInputV1 } from "./internal.ts";
+// @ts-expect-error Narrative Host ready-commit preparation results remain source-relative.
+import type { NarrativeStableHostReadyCommitPreparationResultInternalV1 as ForbiddenPublicNarrativeHostReadyCommitPreparationResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Host ready-commit preparation results.
+import type { NarrativeStableHostReadyCommitPreparationResultInternalV1 as ForbiddenInternalNarrativeHostReadyCommitPreparationResultV1 } from "./internal.ts";
+// @ts-expect-error Narrative Host ready-commit preparation remains source-relative.
+import type { prepareNarrativeStableHostReadyCommitInternalV1 as ForbiddenPublicNarrativeHostReadyCommitFactoryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative Host ready-commit preparation.
+import type { prepareNarrativeStableHostReadyCommitInternalV1 as ForbiddenInternalNarrativeHostReadyCommitFactoryV1 } from "./internal.ts";
+// @ts-expect-error Dormant Narrative Surface Host props remain source-relative.
+import type { NarrativeSurfaceHostPropsInternalV1 as ForbiddenPublicNarrativeSurfaceHostPropsV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose dormant Narrative Surface Host props.
+import type { NarrativeSurfaceHostPropsInternalV1 as ForbiddenInternalNarrativeSurfaceHostPropsV1 } from "./internal.ts";
+// @ts-expect-error Dormant Narrative Surface Host construction remains source-relative.
+import type { NarrativeSurfaceHostInternalV1 as ForbiddenPublicNarrativeSurfaceHostV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose dormant Narrative Surface Host construction.
+import type { NarrativeSurfaceHostInternalV1 as ForbiddenInternalNarrativeSurfaceHostV1 } from "./internal.ts";
 // @ts-expect-error Stage acknowledged-run proofs remain source-relative.
 import type { StageAcknowledgedRunProofInternalV1 as ForbiddenPublicStageAcknowledgedRunProofV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Stage acknowledged-run proofs.
@@ -633,11 +725,68 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "NarrativeStableHostLeaseInternalV1"
       | "NarrativeStableSessionInternalV1"
       | "createNarrativeStableSessionInternalV1"
+      | "NarrativeStableHistoryObservationPortInternalV1"
+      | "NarrativeStableCapturedHistoryObservationPortInternalV1"
+      | "NarrativeStableHistoryRenderObservationInternalV1"
+      | "NarrativeStableDialogueRendererPropsInternalV1"
+      | "NarrativeStableHistoryRendererPropsInternalV1"
+      | "NarrativeStableRendererPropsInternalV1"
+      | "NarrativeStableRendererComponentInternalV1"
+      | "NarrativeStableHostRenderKeyInternalV1"
+      | "NarrativeStableHostRenderPhaseInternalV1"
+      | "NarrativeStableHostRenderEntryInternalV1"
+      | "NarrativeStableHostRenderSnapshotInternalV1"
+      | "NarrativeStableHostRenderSourceInternalV1"
+      | "CreateNarrativeStableHostRuntimeInputInternalV1"
+      | "NarrativeStableHostRuntimeInternalV1"
+      | "createNarrativeStableHostRuntimeInternalV1"
+      | "NarrativeStableReadinessSettlementResultInternalV1"
+      | "NarrativeStableHostAttachmentInternalV1"
+      | "NarrativeStableHostReadyCommitInternalV1"
+      | "PrepareNarrativeStableHostReadyCommitInputInternalV1"
+      | "NarrativeStableHostReadyCommitPreparationResultInternalV1"
+      | "prepareNarrativeStableHostReadyCommitInternalV1"
+      | "NarrativeSurfaceHostPropsInternalV1"
+      | "NarrativeSurfaceHostInternalV1"
+      | "attachment"
+      | "renderSource"
+      | "kind"
+      | "completion"
+      | "pending"
+      | "visualConfig"
+      | "playerProfile"
+      | "textResolver"
+      | "quickMenuContribution"
+      | "history"
+      | "phase"
+      | "renderKey"
+      | "preparation"
+      | "initialFocusTargetId"
+      | "rendererComponent"
+      | "rendererProps"
+      | "parentRenderKey"
+      | "historyObservation"
+      | "entries"
+      | "session"
+      | "hostIdentity"
+      | "portalContainer"
+      | "inputRouter"
+      | "isGestureCurrent"
+      | "hostRuntime"
+      | "renderEntry"
+      | "portalShell"
+      | "initialFocusTarget"
+      | "readyCommit"
       | "getReadinessSnapshotInternalV1"
+      | "getSnapshotInternalV1"
       | "subscribeInternalV1"
       | "getHistoryChildLifecycleInternalV1"
       | "attachHostInternalV1"
       | "isCurrentInternalV1"
+      | "settleRootReadinessReadyInternalV1"
+      | "settleRootReadinessFailedInternalV1"
+      | "settleHistoryReadinessReadyInternalV1"
+      | "settleHistoryReadinessFailedInternalV1"
       | "releaseInternalV1"
       | "redeemHistoryOpenIntentInternalV1"
       | "readHistoryAvailabilityInternalV1"
@@ -826,11 +975,68 @@ describe("@sillymaker/ui public managed System surface", () => {
         "NarrativeStableHostLeaseInternalV1",
         "NarrativeStableSessionInternalV1",
         "createNarrativeStableSessionInternalV1",
+        "NarrativeStableHistoryObservationPortInternalV1",
+        "NarrativeStableCapturedHistoryObservationPortInternalV1",
+        "NarrativeStableHistoryRenderObservationInternalV1",
+        "NarrativeStableDialogueRendererPropsInternalV1",
+        "NarrativeStableHistoryRendererPropsInternalV1",
+        "NarrativeStableRendererPropsInternalV1",
+        "NarrativeStableRendererComponentInternalV1",
+        "NarrativeStableHostRenderKeyInternalV1",
+        "NarrativeStableHostRenderPhaseInternalV1",
+        "NarrativeStableHostRenderEntryInternalV1",
+        "NarrativeStableHostRenderSnapshotInternalV1",
+        "NarrativeStableHostRenderSourceInternalV1",
+        "CreateNarrativeStableHostRuntimeInputInternalV1",
+        "NarrativeStableHostRuntimeInternalV1",
+        "createNarrativeStableHostRuntimeInternalV1",
+        "NarrativeStableReadinessSettlementResultInternalV1",
+        "NarrativeStableHostAttachmentInternalV1",
+        "NarrativeStableHostReadyCommitInternalV1",
+        "PrepareNarrativeStableHostReadyCommitInputInternalV1",
+        "NarrativeStableHostReadyCommitPreparationResultInternalV1",
+        "prepareNarrativeStableHostReadyCommitInternalV1",
+        "NarrativeSurfaceHostPropsInternalV1",
+        "NarrativeSurfaceHostInternalV1",
+        "attachment",
+        "renderSource",
+        "kind",
+        "completion",
+        "pending",
+        "visualConfig",
+        "playerProfile",
+        "textResolver",
+        "quickMenuContribution",
+        "history",
+        "phase",
+        "renderKey",
+        "preparation",
+        "initialFocusTargetId",
+        "rendererComponent",
+        "rendererProps",
+        "parentRenderKey",
+        "historyObservation",
+        "entries",
+        "session",
+        "hostIdentity",
+        "portalContainer",
+        "inputRouter",
+        "isGestureCurrent",
+        "hostRuntime",
+        "renderEntry",
+        "portalShell",
+        "initialFocusTarget",
+        "readyCommit",
         "getReadinessSnapshotInternalV1",
+        "getSnapshotInternalV1",
         "subscribeInternalV1",
         "getHistoryChildLifecycleInternalV1",
         "attachHostInternalV1",
         "isCurrentInternalV1",
+        "settleRootReadinessReadyInternalV1",
+        "settleRootReadinessFailedInternalV1",
+        "settleHistoryReadinessReadyInternalV1",
+        "settleHistoryReadinessFailedInternalV1",
         "releaseInternalV1",
         "redeemHistoryOpenIntentInternalV1",
         "readHistoryAvailabilityInternalV1",

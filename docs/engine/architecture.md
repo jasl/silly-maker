@@ -745,8 +745,8 @@ seam remains source-relative and has no live Host/Story claimant, public or
 authority. Verification passed focused `8 files / 216 tests`, UI
 `79 files / 1028 tests`, full `253 files / 3958 tests`, `deno task check`, engine
 browser `101 / 101`, examples browser `45 passed / 2 skipped`, and prebuilt
-Player `38 / 38`. S4.1b.1b.1b.2a is complete; current/next is
-S4.1b.1b.1b.2b remaining Say/barrier/player adjudication.
+Player `38 / 38`. At that checkpoint, S4.1b.1b.1b.2a was complete and
+current/next was S4.1b.1b.1b.2b remaining Say/barrier/player adjudication.
 
 S4.1b.1b.1b.2b.1a now adds the dormant physical Say reveal-first vertical.
 A bridge-private reveal controller descriptor-captures one exact plain-data
@@ -793,7 +793,7 @@ verification passed focused `7 files / 226 tests`, UI `79 files / 1044 tests`,
 full `253 files / 3974 tests`, and `deno task check` (including the E2E Story
 build). Browser `101 / 101`, examples `45 passed / 2 skipped`, and prebuilt
 Player `38 / 38` remain prior evidence and were not rerun for this dormant
-slice. S4.1b.1b.1b.2b.1a is complete; current/next is
+slice. At that checkpoint, S4.1b.1b.1b.2b.1a was complete and current/next was
 S4.1b.1b.1b.2b.1b, the clock-free content-auto Say controller-attempt floor.
 
 S4.1b.1b.1b.2b.1b now extends that same dormant per-frame reveal controller
@@ -829,8 +829,9 @@ player Auto/Skip, Host/React/live claimant, package-barrel, or generic result
 edge. Verification passed focused `7 files / 236 tests`, UI `79 files / 1054
 tests`, full `253 files / 3984 tests`, and `deno task check`. Browser `101 / 101`,
 examples `45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior
-evidence and were not rerun. S4.1b.1b.1b.2b.1b is complete; current/next is
-S4.1b.1b.1b.2b.2, the presentation-barrier acknowledgment/recovery floor.
+evidence and were not rerun. At that checkpoint, S4.1b.1b.1b.2b.1b was
+complete and current/next was S4.1b.1b.1b.2b.2, the presentation-barrier
+acknowledgment/recovery floor.
 
 S4.1b.1b.1b.2b.2a now implements the normal Stage-to-Narrative Barrier
 acknowledgment path. Stage owns a source-relative acknowledged-run authority
@@ -1217,9 +1218,9 @@ full `254 files / 4152 tests`, and the complete `deno task check`. Browser
 `101 / 101`, examples `45 passed / 2 skipped`, and prebuilt Player `38 / 38`
 remain prior evidence and were not rerun. S4.2.2.0 and S4.2.2.1 are complete.
 At that checkpoint, current/next was S4.2.2.2, whose own exact
-React/renderer/input/readiness entry still had to land before RED. That entry
-and its generic atomic substrate are now complete; current/next is
-S4.2.2.2.2, followed by S4.2.3, S4.2.4, S4.2.5, S4.3, and S4b.
+React/renderer/input/readiness entry still had to land before RED. At the next
+checkpoint, that entry and its generic atomic substrate were complete, and
+current/next was S4.2.2.2.2, followed by S4.2.3, S4.2.4, S4.2.5, S4.3, and S4b.
 
 S4.2.2.2.1 now implements the DOM-free generic Host-commit atomic substrate
 defined by the completed S4.2.2.2.0 exact entry. Contract-bound action routing
@@ -1275,8 +1276,81 @@ renderer, focus, timer, or live Story graph. Verification passed focused
 `254 files / 4174 tests`, and the complete `deno task check`. Browser
 `101 / 101`, examples `45 passed / 2 skipped`, and prebuilt Player `38 / 38`
 remain prior evidence and were not rerun. S4.2.2.2.0 and S4.2.2.2.1 are
-complete. Current/next is S4.2.2.2.2, the dormant Narrative React Host slice,
-followed by S4.2.3, S4.2.4, S4.2.5, S4.3, and S4b.
+complete. At that checkpoint, current/next was S4.2.2.2.2, the dormant
+Narrative React Host slice, followed by S4.2.3, S4.2.4, S4.2.5, S4.3, and S4b.
+
+S4.2.2.2.2 now implements that dormant Narrative React Host as a
+source-relative `@sillymaker/ui` vertical without changing a public barrel,
+package export, live Story composition, GameStage, CSS, or legacy Dialogue/VN
+Host. Narrative candidate preflight descriptor-captures the exact two-method
+History observation port into a frozen zero-key handle while keeping History
+availability separate. The family-private render observation parses each raw
+snapshot into canonical immutable `NarrativeHistoryV1` data, reuses identity
+for equal canonical bytes, publishes a fresh copy for changed bytes, and owns
+one captured raw subscription for the live History entry. Structural retirement
+and terminal disposal unsubscribe once and fence caller-retained observation
+handles without re-reading the raw port.
+
+Each bridge-retained session now owns one shared cached Host render source in
+addition to the earlier preparation-only readiness snapshot. The render source
+derives its root-before-child order from the existing whole-composite state and
+family provenance; it is not a second topology store. It preserves stable
+render keys and entry identities across unchanged phases, retains the exact
+root plus History subtree while a replacement prepares or fails, and publishes
+at most the retained root, its History child, and one successor candidate.
+Ready entries remain renderable after their preparation token retires, while
+entry, observation, and action records are scrubbed as their structural
+instances retire.
+
+`createNarrativeStableHostRuntimeInternalV1` binds one exact session Host
+generation to an explicit portal, InputRouter, and stable gesture callback. A
+candidate root or History entry receives an inert prepared contract-bound
+action binding and authenticated consumer before readiness. Its frozen
+zero-key ready token prebuilds the exact per-entry focus registration outside
+the transition. The existing guarded root settlement or separately claimed
+History settlement then commits the prepared input contract, per-entry Host
+generation, and the single current focus-ownership pointer before Surface state
+assignment and synchronous notification. Failure restores the retained root
+binding in the same guarded install and fresh-repairs any still-current sibling
+candidate whose expected input pointer moved.
+
+The dormant `NarrativeSurfaceHostInternalV1` renders only through the explicit
+portal. It uses one module-level keyed History child and
+`useSyncExternalStore` for both the shared render source and each History
+observation. Preparing shells are layout-mounted but hidden, inert, and
+pointer-disabled; suspended roots stay mounted and inert while the active
+History child remains interactive. Renderer, observation, ref, layout, portal,
+or ready-mint faults before accepted readiness settle that exact candidate
+failed once. Faults after accepted readiness or a successful reattach are
+re-thrown to the existing outer diagnostics owner.
+
+StrictMode cleanup fences the old ready, action-consumer, and per-entry focus
+generation synchronously while retaining only the logical binding and focus
+target identities through one coalesced session microtask. A same-Host,
+same-portal successor installs fresh per-entry attachments and returns
+`reattached` without another readiness settlement, topology revision, input
+publication, or notification. If no successor appears, cleanup fails any
+preparing root first and History second, rechecking after each synchronous
+notification, then terminal-fences the session, render source, action/focus
+ingress, and caller-retained runtime handles before disposing the captured
+bridge. Ready History `ui.cancel` and `player.toggle_history` remain
+stable-consumed no-ops with exact zero topology change; S4.2.3 still owns their
+future close/dismiss behavior and real focus transfer/restore.
+
+All Host, ready-token, render-entry, observation, action, and focus provenance
+remains WeakMap-authenticated with bounded current strong slots. A real 10,000
+round release/reattach test rotates full Host runtimes while retaining one
+render source and active snapshot, proving old runtime callbacks stale, old
+attachments inert, and topology/notification identity unchanged before final
+terminal cleanup. Root and `./internal` negative inventories reject every new
+top-level and member spelling. Verification passed focused
+`4 files / 238 tests`, UI `81 files / 1273 tests`, full
+`255 files / 4203 tests`, typecheck, lint, formatting, diff checks, and the
+complete `deno task check`. Browser `101 / 101`, examples
+`45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior evidence
+because this path is dormant and does not enter the live composition graph.
+S4.2.2.2.2 is complete. Current/next is S4.2.3, whose own exact entry must land
+before RED, followed by S4.2.4, S4.2.5, S4.3, and S4b.
 
 ## 9. Changing the architecture
 
@@ -1348,8 +1422,11 @@ S4.2.2.0 then freezes the Narrative session/readiness split, and S4.2.2.1 adds
 the retained DOM-free session, opaque preparation snapshot, single Host lease,
 and terminal fencing described above. S4.2.2.2.0 then freezes the Host-commit
 split, and S4.2.2.2.1 adds the prepared action binding, guarded root/History
-readiness, cross-axis generic fence, and stable dispatcher described above.
-Current/next is S4.2.2.2.2, followed by S4.2.3, S4.2.4, S4.2.5, S4.3, and S4b.
-Host integration and the Narrative live migration remain planned work; the
-implemented source-relative claimant does not alter the live Host data flow
-until that migration and its behavior tests land.
+readiness, cross-axis generic fence, and stable dispatcher described above;
+S4.2.2.2.2 adds the dormant Narrative Host, canonical History observation,
+cached render source, guarded action/focus commit, and StrictMode-safe portal
+lifecycle described above. Current/next is S4.2.3, whose own exact entry must
+land before RED, followed by S4.2.4, S4.2.5, S4.3, and S4b. History
+close/dismiss/focus behavior and the Narrative live migration remain planned
+work; the source-relative Host does not alter the live Host data flow until
+those slices and their behavior tests land.

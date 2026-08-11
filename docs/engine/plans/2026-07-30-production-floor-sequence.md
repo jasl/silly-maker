@@ -57,8 +57,9 @@ historical chain；原`S4.2` broad checkpoint也已由completed docs-only `S4.2.
 History atomic cross-axis preparation现也已关闭；原`S4.2.2` broad checkpoint又由completed docs-only
 `S4.2.2.0`细分，`S4.2.2.1` DOM-free Narrative session/readiness attachment floor现也已关闭；
 原`S4.2.2.2` broad dormant Host又由completed docs-only `S4.2.2.2.0`重切；linear core
-`.2.2.2.1` DOM-free generic Host-commit atomic substrate现也已关闭；current/next与implementation gate现为
-`S4.2.2.2.2` dormant Narrative React Host，随后依次为`S4.2.3 -> S4.2.4 -> S4.2.5 -> S4.3 -> S4b`。
+`.2.2.2.1` DOM-free generic Host-commit atomic substrate与`.2.2.2.2` dormant Narrative React Host现也已关闭并转为
+historical。current/next、core slice与implementation gate现为 **S4.2.3 History close/dismiss/input/focus lifecycle
+own exact entry before RED**，随后依次为`S4.2.4 -> S4.2.5 -> S4.3 -> S4b`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
@@ -95,8 +96,9 @@ S4.1b.1b.1b.2b.3d.1 History exact-parent open intent implementation也已关闭�
 historical chain；原S4.2 broad checkpoint也已由completed docs-only S4.2.0重切，S4.2.1 History atomic
 cross-axis preparation与S4.2.2.1 DOM-free Narrative session/readiness attachment floor现也已完成；原S4.2.2 broad
 checkpoint又由completed docs-only S4.2.2.0细分；原S4.2.2.2 broad dormant Host现也由completed docs-only
-S4.2.2.2.0重切，S4.2.2.2.1 DOM-free generic Host-commit atomic substrate现也已关闭。下一独立切片与
-implementation gate均为S4.2.2.2.2，随后依次为S4.2.3、S4.2.4、S4.2.5、S4.3与S4b。
+S4.2.2.2.0重切，S4.2.2.2.1 DOM-free generic Host-commit atomic substrate与S4.2.2.2.2 dormant Narrative React
+Host现也已关闭。下一独立切片、current/next、core slice与implementation gate均为 **S4.2.3 own exact entry before
+RED**，随后依次为S4.2.4、S4.2.5、S4.3与S4b。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -1005,8 +1007,8 @@ Surface pilot 通过后按 family 分开合并：
 35. S4.2.2.2：dormant React Narrative Host（superseded broad checkpoint）；
 36. S4.2.2.2.0：guarded readiness/input与Narrative Host exact entry（docs-only，已完成）；
 37. S4.2.2.2.1：DOM-free generic Host-commit atomic substrate（已完成）；
-38. S4.2.2.2.2：dormant Narrative React Host（当前）；
-39. S4.2.3：History close/dismiss/input/focus lifecycle；
+38. S4.2.2.2.2：dormant Narrative React Host（已完成）；
+39. S4.2.3：History close/dismiss/input/focus lifecycle（当前；own exact entry before RED）；
 40. S4.2.4：controller timers与History suspension/resume；
 41. S4.2.5：dormant Engine Lab conformance；
 42. S4.3：atomic live cutover and promotion；
@@ -2284,7 +2286,7 @@ session/readiness observation、React Host、ready/fail、focus与ready前action
    Narrative session、root/History readiness preparation observation与single logical Host lease；不settle ready/fail，不准备action/input/
    focus，不接React/DOM/portal/renderer props；
 3. **S4.2.2.2（superseded broad checkpoint）**：已由`.2.2.2.0–.2`重切，不能再作为implementation gate；
-4. **S4.2.2.2.0（docs-only，completed）→ .2.2.2.1（当前）→ .2.2.2.2**：先冻结exact generic/
+4. **S4.2.2.2.0（docs-only，completed）→ .2.2.2.1（completed）→ .2.2.2.2（completed）**：先冻结exact generic/
    Narrative/React boundary，再分别交付DOM-free generic Host-commit atomic substrate与dormant Narrative React Host；
 5. **S4.2.3 → S4.2.4 → S4.2.5 → S4.3 → S4b**：依次保持History close/dismiss/input/focus、controller timers/
    suspension、dormant Engine Lab、atomic live cutover及whole-canvas family。
@@ -2471,8 +2473,8 @@ zero expansion。验证通过focused **3 files / 209 tests**、UI package **80 f
 `deno fmt --check`与`git diff --check`。本source-relative dormant delivery未重跑browser/examples/prebuilt；先前Engine browser
 `101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior evidence，不冒充本delivery
 HEAD新验证。该delivery当时把current推进到原 **S4.2.2.2 dormant React Narrative Host own docs-only exact entry
-before RED**；该entry随后由下述`.2.2.2.0`关闭并重切，当时的唯一implementation gate为`.2.2.2.1`；该`.1`
-gate现亦已由下述delivery关闭，当前唯一implementation gate为`.2.2.2.2`。
+before RED**；该entry随后由下述`.2.2.2.0`关闭并重切，当时的唯一implementation gate为`.2.2.2.1`；该`.1`与
+`.2.2.2.2` gate现亦已由下述delivery关闭，当前唯一implementation gate为 **S4.2.3 own exact entry before RED**。
 
 **PF4/S4.2.2.2.0 dormant React Narrative Host exact entry（docs-only，completed）：** 原S4.2.2.2把generic
 prepared action binding、root/History guarded readiness、cross-axis action fence、immutable Narrative render source、React portal Host、
@@ -2483,10 +2485,10 @@ S4.2.2.1 readiness snapshot都不能冒充ready前atomic handoff或ready/retaine
 2. **S4.2.2.2.1 DOM-free generic Host-commit atomic substrate（已完成）**：只改action-route pair、stable-composite pair与
    `public-api.test.ts`共五文件，交付prepared action binding、guarded root/History readiness、cross-axis child action authority与generic
    bypass fence；不接Narrative/React/DOM/portal/renderer；
-3. **S4.2.2.2.2 dormant Narrative React Host（当前）**：只改family pair、session pair、new Host pair与`public-api.test.ts`共七文件，
+3. **S4.2.2.2.2 dormant Narrative React Host（completed）**：只改family pair、session pair、new Host pair与`public-api.test.ts`共七文件，
    交付immutable renderer/History observation、Host runtime/component、explicit portal、layout acknowledgment、prepared binding与
    Host-local focus registration、StrictMode generation、pre-ready error boundary及real-detach terminal cleanup；
-4. 后续固定为 **S4.2.3 → S4.2.4 → S4.2.5 → S4.3 → S4b**；actual DOM focus/History close、timer、
+4. 后续固定为 **S4.2.3 own exact entry before RED（当前）→ S4.2.4 → S4.2.5 → S4.3 → S4b**；actual DOM focus/History close、timer、
    Engine Lab与live cutover不得提前并入。
 
 `.2.2.2.1`新增source-relative
@@ -2746,9 +2748,42 @@ UI root与`./internal`对全部new top-level/member spelling的type/runtime nega
 验证通过focused **3 files / 119 tests**、UI package **80 files / 1244 tests**、full
 **254 files / 4174 tests**与完整`deno task check`（含format、lint、styles、typecheck、determinism、assets、all Story checks及e2e build）。
 本source-relative delivery未重跑browser/examples/prebuilt；先前Engine browser `101 / 101`、examples browser
-`45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior evidence。`.2.2.2.0/.1`现均为completed historical checkpoints；
-唯一current/next、core slice与implementation gate现为 **S4.2.2.2.2 dormant Narrative React Host**，随后为
-**S4.2.3 → S4.2.4 → S4.2.5 → S4.3 → S4b**。
+`45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior evidence。`.2.2.2.0/.1/.2`现均为completed historical
+checkpoints；唯一current/next、core slice与implementation gate现为 **S4.2.3 own exact entry before RED**，随后为
+**S4.2.4 → S4.2.5 → S4.3 → S4b**。
+
+**PF4/S4.2.2.2.2 dormant Narrative React Host delivery（completed）：** implementation与primary RED严格落在
+family source/test、session source/test、new Host source/test及`public-api.test.ts`七文件，全部保持source-relative、
+package-internal与dormant。UI barrel/package export、generic Coordinator/runtime-kernel/Surface contract、Base/Web/CSS、GameStage/
+composer/`DefaultGameRootV1`、Engine Lab/template/examples、legacy `DialoguePanelV1`/`VnLayerV1`及live application wiring均无扩张。
+
+History observation现在descriptor-capture exact raw port，只发布canonical-byte比较后的frozen copy与identity-stable snapshot；每个active
+observation最多one raw subscription，只在canonical bytes变化时通知，retire先exact-once unsubscribe并清除raw binding/listener holder，late raw
+callback为zero ingress，caller-retained observation只返回最后cached canonical identity。Immutable render source按parent-before-child、
+retained-before-successor发布cardinality `0..3`的initial/replacement root与History entry，同vector/phase复用exact entry/snapshot identity；removed/
+terminal entry同步删除preparation、History observation与render-record强链接，terminal source固定返回one cached empty snapshot且late subscribe为
+frozen idempotent no-op。
+
+Narrative Host runtime与React Host只面向explicit `HTMLDivElement` portal；preparing、suspended与active shell保持各自hidden-with-layout/
+inert/visible语义。Root与History都经zero-key ready token、prepared action binding及guarded readiness完成atomic ready/fail handoff；每个render
+entry的focus target、portal shell、runtime generation与action generation一起重验并在same commit安装。Same logical Host + same exact portal可在one
+coalesced microtask内以fresh runtime generation reattach exact render identity与per-entry focus，old attachment/ready mint/action/focus callback立即
+stale；real detach按root-first、History-second drain pending，并在captured bridge dispose前terminal-fence session、render source、subscriber、
+binding/focus及全部late callback。History的two exact actions在preparing、ready与Host-fenced窗口保持stable consumed/no-op，不重开generic bypass。
+
+Production strong state只保留one current Host runtime/attachment/render source、one active subscriber set、one cleanup microtask、max-three render
+entries、scalar render-key high-water与per-current-candidate action/focus/ready records；release、successor、partial construction failure与external
+terminal共享scrub/delete路径，不积累generation、renderer、preparation、timer或tombstone history。Mutation-sensitive bounded row以真实
+`createNarrativeStableHostRuntimeInternalV1`完成`10,000`轮release → same-host/same-portal create → active-entry `reattached`，同时锁old runtime
+ready-mint `stale`、old attachment settlement no-op、shared render source/snapshot identity与final detach terminal empty。UI root、`./internal`及package
+runtime/type inventory对全部new top-level与member spelling保持negative guard，未形成public API或live wiring。
+
+验证通过focused **4 files / 238 tests**、UI package **81 files / 1273 tests**、full **255 files / 4203 tests**，以及完整
+`deno task check`、`deno task typecheck`、`deno task lint`、相关文件`deno fmt --check`与`git diff --check`。本HEAD未重跑
+browser/examples/prebuilt；先前Engine browser `101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior
+evidence。S4.2.2.2.2据此转为completed historical checkpoint；linear core/current/next与implementation gate现统一推进到
+**S4.2.3 History close/dismiss/input/focus lifecycle own exact entry before RED**，后续exact scope与顺序仍为
+**S4.2.4 → S4.2.5 → S4.3 → S4b**。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family

@@ -2,12 +2,15 @@
 import {
   canonicalJsonBytes,
   createSemanticStageStateV1,
+  emptyNarrativeHistoryV1,
   parseNonNegativeSafeInteger,
   parsePendingInteractionV1,
   parseStageTransitionDefinitionV1,
   projectStageRenderTargetV1,
   reduceStageMutationsV1,
   type AssetId,
+  type DeepReadonly,
+  type NarrativeHistoryV1,
   type SemanticStageStateV1,
   type StageContentCatalogV1,
   type StageRenderTargetV1,
@@ -15,6 +18,7 @@ import {
   type StageTransitionDefinitionV1,
 } from "@sillymaker/base";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
+import type { ElementType } from "react";
 
 import { inputHandledV1, playerInputActionIdsV1 } from "../input/contracts.ts";
 import { createInputRouterV1 } from "../input/input-router.ts";
@@ -89,7 +93,12 @@ import {
   type NarrativeStableBarrierTerminalDispatchResultInternalV1,
   type NarrativeStableCustomActionAttemptInternalV1,
   type NarrativeStableCapturedHistoryAvailabilityPortInternalV1,
+  type NarrativeStableCapturedHistoryObservationPortInternalV1,
+  type NarrativeStableDialogueRendererPropsInternalV1,
   type NarrativeStableHistoryAvailabilityPortInternalV1,
+  type NarrativeStableHistoryObservationPortInternalV1,
+  type NarrativeStableHistoryRendererPropsInternalV1,
+  type NarrativeStableHistoryRenderObservationInternalV1,
   type NarrativeStableHistoryOpenActionAttemptInternalV1,
   type NarrativeStableHistoryChildLifecycleInternalV1,
   type NarrativeStableHistoryChildPreparationInternalV1,
@@ -107,6 +116,8 @@ import {
   type NarrativeStablePlaybackModeToggleDispatchResultInternalV1,
   type NarrativeStablePublisherBridgeInternalV1,
   type NarrativeStablePublisherBridgeResultInternalV1,
+  type NarrativeStableRendererComponentInternalV1,
+  type NarrativeStableRendererPropsInternalV1,
   type NarrativeStableRequiredPortIdInternalV1,
   type NarrativeStableSayActivationAttemptInternalV1,
   type NarrativeStableSayContentAutoAttemptInternalV1,
@@ -156,11 +167,15 @@ const defaultSemanticDispatchPortV1 = Object.freeze({
 const defaultHistoryAvailabilityPortV1 = Object.freeze({
   readHistoryAvailabilityInternalV1: () => true,
 }) satisfies NarrativeStableHistoryAvailabilityPortInternalV1;
+const defaultHistoryObservationPortV1 = Object.freeze({
+  getSnapshotInternalV1: () => emptyNarrativeHistoryV1,
+  subscribeInternalV1: (_listener: () => void) => Object.freeze(() => {}),
+}) satisfies NarrativeStableHistoryObservationPortInternalV1;
 const defaultCandidateSnapshotV1 = Object.freeze({
   rendererComponent: Object.freeze({ kind: "dialogue-renderer" }),
   visualConfig: Object.freeze({ skin: "test" }),
   semanticDispatchPort: defaultSemanticDispatchPortV1,
-  historyObservationPort: Object.freeze({ kind: "history-observation" }),
+  historyObservationPort: defaultHistoryObservationPortV1,
   historyAvailabilityPort: defaultHistoryAvailabilityPortV1,
   playerProfile: Object.freeze({ locale: "en" }),
   presentationClock: Object.freeze({ kind: "manual-clock" }),
@@ -1440,6 +1455,7 @@ describe("Narrative stable Managed Surface family", () => {
       ...defaultCandidateSnapshotV1,
       semanticDispatchPort: captured?.semanticDispatchPort,
       historyAvailabilityPort: captured?.historyAvailabilityPort,
+      historyObservationPort: captured?.historyObservationPort,
     });
     expect(Object.isFrozen(captured)).toBe(true);
     expect(captured?.rendererComponent).toBe(defaultCandidateSnapshotV1.rendererComponent);
@@ -1452,6 +1468,12 @@ describe("Narrative stable Managed Surface family", () => {
     >();
     expect(Object.isFrozen(captured?.historyAvailabilityPort)).toBe(true);
     expect(Reflect.ownKeys(captured?.historyAvailabilityPort as object)).toEqual([]);
+    expect(captured?.historyObservationPort).not.toBe(defaultHistoryObservationPortV1);
+    expectTypeOf(captured?.historyObservationPort).toEqualTypeOf<
+      NarrativeStableCapturedHistoryObservationPortInternalV1 | undefined
+    >();
+    expect(Object.isFrozen(captured?.historyObservationPort)).toBe(true);
+    expect(Reflect.ownKeys(captured?.historyObservationPort as object)).toEqual([]);
 
     const missing = harnessV1({
       candidatePreflight: Object.freeze({
@@ -1703,7 +1725,158 @@ describe("Narrative stable Managed Surface family", () => {
     }
   });
 
-  it("retains the original History availability callable and receiver without observing History content", () => {
+  it("freezes the exact History observation and renderer type surface", () => {
+    expectTypeOf<keyof NarrativeStableHistoryObservationPortInternalV1>().toEqualTypeOf<
+      "getSnapshotInternalV1" | "subscribeInternalV1"
+    >();
+    expectTypeOf<keyof NarrativeStableHistoryRenderObservationInternalV1>().toEqualTypeOf<
+      "getSnapshotInternalV1" | "subscribeInternalV1"
+    >();
+    expectTypeOf<keyof NarrativeStableDialogueRendererPropsInternalV1>().toEqualTypeOf<
+      | "kind"
+      | "pending"
+      | "visualConfig"
+      | "playerProfile"
+      | "textResolver"
+      | "quickMenuContribution"
+    >();
+    expectTypeOf<keyof NarrativeStableHistoryRendererPropsInternalV1>().toEqualTypeOf<
+      "kind" | "history" | "visualConfig" | "playerProfile" | "textResolver"
+    >();
+    expectTypeOf<NarrativeStableRendererPropsInternalV1>().toEqualTypeOf<
+      NarrativeStableDialogueRendererPropsInternalV1 | NarrativeStableHistoryRendererPropsInternalV1
+    >();
+    expectTypeOf<NarrativeStableRendererComponentInternalV1>().toEqualTypeOf<
+      ElementType<NarrativeStableRendererPropsInternalV1>
+    >();
+    expectTypeOf<
+      NarrativeStableHistoryObservationPortInternalV1["getSnapshotInternalV1"]
+    >().returns.toEqualTypeOf<DeepReadonly<NarrativeHistoryV1>>();
+  });
+
+  it("descriptor-captures the raw History observation and maps malformed ports to exact preflight fault", () => {
+    let rawPort!: NarrativeStableHistoryObservationPortInternalV1;
+    const getSnapshot = vi.fn(function (this: unknown) {
+      expect(this).toBe(rawPort);
+      return emptyNarrativeHistoryV1;
+    });
+    const subscribe = vi.fn(function (this: unknown, listener: () => void) {
+      expect(this).toBe(rawPort);
+      expect(listener).toEqual(expect.any(Function));
+      return Object.freeze(() => {});
+    });
+    rawPort = {
+      getSnapshotInternalV1: getSnapshot,
+      subscribeInternalV1: subscribe,
+    };
+    const accepted = harnessV1({
+      candidatePreflight: Object.freeze({
+        preflightCandidateInternalV1: () =>
+          capturedCandidatePreflightResultV1(Object.freeze({
+            ...defaultCandidateSnapshotV1,
+            historyObservationPort: rawPort,
+          })),
+      }),
+    });
+    expect(accepted.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    const baseline = narrativeBaselineV1(accepted);
+    if (baseline.kind !== "accepted") throw new Error("expected accepted baseline");
+    const captured = accepted.bridge.inspectAdmittedTargetFrameInternalV1(
+      baseline.targets[0]!,
+    )?.candidateSnapshot.historyObservationPort;
+    expect(captured).not.toBe(rawPort);
+    expect(Object.isFrozen(captured)).toBe(true);
+    expect(Reflect.ownKeys(captured as object)).toEqual([]);
+    expect(getSnapshot).not.toHaveBeenCalled();
+    expect(subscribe).not.toHaveBeenCalled();
+
+    let accessorReads = 0;
+    const accessor = Object.defineProperties({}, {
+      getSnapshotInternalV1: {
+        enumerable: true,
+        get() {
+          accessorReads += 1;
+          return () => emptyNarrativeHistoryV1;
+        },
+      },
+      subscribeInternalV1: {
+        enumerable: true,
+        value: () => Object.freeze(() => {}),
+      },
+    });
+    const malformedPorts: readonly unknown[] = Object.freeze([
+      null,
+      [],
+      () => emptyNarrativeHistoryV1,
+      Object.create(null),
+      Object.create({
+        getSnapshotInternalV1: () => emptyNarrativeHistoryV1,
+        subscribeInternalV1: () => Object.freeze(() => {}),
+      }),
+      accessor,
+      Object.freeze({
+        getSnapshotInternalV1: () => emptyNarrativeHistoryV1,
+        subscribeInternalV1: () => Object.freeze(() => {}),
+        extra: true,
+      }),
+      Object.freeze({
+        getSnapshotInternalV1: () => emptyNarrativeHistoryV1,
+        subscribeInternalV1: () => Object.freeze(() => {}),
+        [Symbol("extra")]: true,
+      }),
+      Object.freeze({
+        getSnapshotInternalV1: true,
+        subscribeInternalV1: () => Object.freeze(() => {}),
+      }),
+      new Proxy(
+        Object.freeze({
+          getSnapshotInternalV1: () => emptyNarrativeHistoryV1,
+          subscribeInternalV1: () => Object.freeze(() => {}),
+        }),
+        {
+          getOwnPropertyDescriptor() {
+            throw new Error("descriptor trap");
+          },
+        },
+      ),
+      new Proxy(
+        Object.freeze({
+          getSnapshotInternalV1: () => emptyNarrativeHistoryV1,
+          subscribeInternalV1: () => Object.freeze(() => {}),
+        }),
+        {
+          getPrototypeOf() {
+            throw new Error("prototype trap");
+          },
+        },
+      ),
+    ]);
+    for (const historyObservationPort of malformedPorts) {
+      const fixture = harnessV1({
+        candidatePreflight: Object.freeze({
+          preflightCandidateInternalV1: () =>
+            capturedCandidatePreflightResultV1(Object.freeze({
+              ...defaultCandidateSnapshotV1,
+              historyObservationPort,
+            })),
+        }),
+      });
+      const state = fixture.kernel.getStateInternalV1();
+      expectZeroResultV1(
+        fixture.bridge.reconcilePendingInternalV1(pendingV1("say")),
+        "faulted",
+        "narrative.candidate_preflight_faulted",
+      );
+      expect(fixture.kernel.getStateInternalV1()).toBe(state);
+      expect(fixture.stateNotificationCount()).toBe(0);
+    }
+    expect(accessorReads).toBe(0);
+  });
+
+  it("retains the original History availability callable and keeps captured observation dormant", () => {
     let rawPort!: NarrativeStableHistoryAvailabilityPortInternalV1;
     const original = vi.fn(function (this: unknown, ...args: readonly unknown[]) {
       expect(this).toBe(rawPort);
@@ -1714,24 +1887,15 @@ describe("Narrative stable Managed Surface family", () => {
     rawPort = {
       readHistoryAvailabilityInternalV1: original,
     };
-    const observationReads = vi.fn();
-    const opaqueObservation = new Proxy(Object.freeze({}), {
-      get() {
-        observationReads();
-        throw new Error("History content observation must stay opaque");
-      },
-      getPrototypeOf() {
-        observationReads();
-        throw new Error("History content observation must stay opaque");
-      },
-      ownKeys() {
-        observationReads();
-        throw new Error("History content observation must stay opaque");
-      },
-    });
+    const observationReads = vi.fn(() => emptyNarrativeHistoryV1);
+    const observationSubscriptions = vi.fn(() => Object.freeze(() => {}));
+    const observationPort = Object.freeze({
+      getSnapshotInternalV1: observationReads,
+      subscribeInternalV1: observationSubscriptions,
+    }) satisfies NarrativeStableHistoryObservationPortInternalV1;
     const fixture = physicalHistoryHarnessV1({
       historyAvailabilityPort: rawPort,
-      historyObservationPort: opaqueObservation,
+      historyObservationPort: observationPort,
     });
     const baseline = narrativeBaselineV1(fixture.harness);
     if (baseline.kind !== "accepted") throw new Error("expected History baseline");
@@ -1760,6 +1924,7 @@ describe("Narrative stable Managed Surface family", () => {
     expect(original).toHaveBeenCalledOnce();
     expect(replacement).not.toHaveBeenCalled();
     expect(observationReads).not.toHaveBeenCalled();
+    expect(observationSubscriptions).not.toHaveBeenCalled();
     fixture.admission.disposeInternalV1();
   });
 
@@ -2029,6 +2194,7 @@ describe("Narrative stable Managed Surface family", () => {
         ...defaultCandidateSnapshotV1,
         semanticDispatchPort: frame?.candidateSnapshot.semanticDispatchPort,
         historyAvailabilityPort: frame?.candidateSnapshot.historyAvailabilityPort,
+        historyObservationPort: frame?.candidateSnapshot.historyObservationPort,
       },
     });
     expect(Object.isFrozen(frame)).toBe(true);
