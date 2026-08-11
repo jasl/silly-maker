@@ -130,8 +130,9 @@ S4.2.2.2.1 DOM-free generic Host-commit atomic substrate与S4.2.2.2.2 dormant Na
 generic exact History-child lifecycle substrate与S4.2.3.2 dormant Narrative close/input/root + History focus Host lifecycle现也均已交付。
 原S4.2.4 broad controller checkpoint又已由completed docs-only S4.2.4.0 exact entry重切，S4.2.4.1 generic prepared
 state-install participant substrate、S4.2.4.2 DOM-free Narrative DialoguePlayerController core与S4.2.4.3 dormant Host
-player-view integration现也均已交付。当前active execution pointer的current/next、core slice与direct entry gate均为
-**S4.2.5 dormant Engine Lab conformance exact entry（RED前）**；其后依次为**S4.3 → S4b**。
+player-view integration现也均已交付。原S4.2.5 broad checkpoint已由completed docs-only `.5.0`细分并转为historical；当前active
+execution pointer的current/next、core slice与direct RED/implementation gate均为
+**S4.2.5.1 dormant Engine Lab Narrative conformance implementation**；其后依次为**S4.3 → S4b**。
 R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0、S4.1a、S4.1b.0、S4.1b.1a、S4.1b.1b.0与
 S4.1b.1b.1a、S4.1b.1b.1b.1、S4.1b.1b.1b.2a、S4.1b.1b.1b.2b.0与
 S4.1b.1b.1b.2b.1a、S4.1b.1b.1b.2b.1b、S4.1b.1b.1b.2b.2a、
@@ -139,9 +140,9 @@ S4.1b.1b.1b.2b.2b.0、S4.1b.1b.1b.2b.2b.1、S4.1b.1b.1b.2b.3.0与
 S4.1b.1b.1b.2b.3a、S4.1b.1b.1b.2b.3b.0、S4.1b.1b.1b.2b.3b.1与
 S4.1b.1b.1b.2b.3c.0、S4.1b.1b.1b.2b.3c.1、S4.1b.1b.1b.2b.3d.0与
 S4.1b.1b.1b.2b.3d.1、S4.2.0、S4.2.1、S4.2.2.0、S4.2.2.1、S4.2.2.2.0与
-S4.2.2.2.1、S4.2.2.2.2、S4.2.3.0、S4.2.3.1、S4.2.3.2、S4.2.4.0、S4.2.4.1、S4.2.4.2与S4.2.4.3只作为completed
+S4.2.2.2.1、S4.2.2.2.2、S4.2.3.0、S4.2.3.1、S4.2.3.2、S4.2.4.0、S4.2.4.1、S4.2.4.2、S4.2.4.3与S4.2.5.0只作为completed
 delivery/checkpoint保留；S4.1b.1b.1b.2b.3d、原S4.2、原S4.2.2与原S4.2.2.2 broad entry只作为已被细分的
-历史checkpoint保留。
+历史checkpoint保留，原S4.2.5 broad checkpoint同样只作为已被`.5.0`细分的historical entry。
 Stable implementation仍保持dormant/source-relative；R5只解除S4 entry gate，S4.0也没有把任何stable family
 提前写成live capability。
 当前 live 能力仍以
@@ -1389,8 +1390,9 @@ S4.2.3.2 dormant Narrative close/input/root + History focus Host lifecycle（已
 S4.2.4.0 exact Dialogue player timing/suspension entry（docs-only，已完成）→
 S4.2.4.1 generic prepared state-install participant substrate（已完成）→
 S4.2.4.2 DOM-free Narrative DialoguePlayerController core（已完成）→
-S4.2.4.3 dormant Host player-view integration（已完成）→
-S4.2.5 dormant Engine Lab conformance exact entry（当前，RED前）→ S4.3 → S4b。
+S4.2.4.3 dormant Host player-view integration（已完成）→ S4.2.5 broad checkpoint（已由`.5.0`细分的historical entry）→
+S4.2.5.0 dormant Engine Lab Narrative conformance exact entry（docs-only，已完成）→
+S4.2.5.1 dormant Engine Lab Narrative conformance implementation（当前）→ S4.3 → S4b。
 若Say需要把raw reveal/controller authority交给renderer、Barrier replay
 必须在没有exact replay descriptor/capability时推进、player control要求fully hidden focus-trapped root，或任一路径要求
 扩大generic/public receipt/result，立即停止并修订合同。
@@ -1441,7 +1443,8 @@ broad Host checkpoint又已由S4.2.2.2.0 exact entry细分，S4.2.2.2.1 DOM-free
 S4.2.3.0又已冻结close/input/focus exact entry，S4.2.3.1已交付DOM-free generic lifecycle substrate，S4.2.3.2也已交付dormant
 Narrative close/input/root + History focus Host lifecycle；原S4.2.4 broad checkpoint已由completed docs-only `.4.0`重切，
 S4.2.4.1 generic prepared state-install participant substrate、`.4.2` DOM-free controller core与`.4.3` dormant Host
-player-view integration现也均已交付。当前进入S4.2.5 dormant Engine Lab conformance exact entry（RED前）；
+player-view integration现也均已交付；原S4.2.5 broad checkpoint已由completed `.5.0` exact entry细分并转为historical，当前进入
+S4.2.5.1 dormant Engine Lab Narrative conformance implementation；
 S4.3在一个cutover中迁移全部tracked consumers、删除旧writers并完成headless/browser/prebuilt promotion。若exact-parent
 History不能与stable root共用composite authority、root/History不能原子retain/retire、同一semantic occurrence确实允许
 上述identity boundary漂移、三类设备不能共用双fence、或cutover必须保留direct resolve/local bool/standalone host双写，
@@ -1558,7 +1561,7 @@ S4.1b.1b.1a验证通过focused `7 files / 192 tests`、UI `79 files / 1010 tests
 `253 files / 3938 tests`与`deno task check` green。本批未重跑browser/examples/prebuilt；`101 / 101`、
 `45 passed / 2 skipped`与`38 / 38`仅是先前已有证据，不冒充本批HEAD验证。
 该checkpoint当时的current/next是S4.1b.1b.1b.2a；现已由上述.2a delivery推进。
-Active current/next、core slice与direct entry gate现均为S4.2.5 dormant Engine Lab conformance exact entry（RED前）；
+Active current/next、core slice与direct RED/implementation gate现均为S4.2.5.1 dormant Engine Lab Narrative conformance implementation；
 后续顺序保持S4.3 → S4b。
 
 **S4.1b.1b.1b.2b.1 execution-order amendment：** Say先拆成两个vertical。`.1a`沿用既有
@@ -1992,15 +1995,15 @@ mergeable source-relative切片推进，禁止把catalog corrective、optional c
    child readiness/input/focus/dismiss或React-local boolean；actual History child open/close与`ui.cancel` integration仍归S4.2。该checkpoint
    已由`.2b.3d.0` docs-only exact entry与`.2b.3d.1` implementation线性取代。
 
-线性顺序固定为`.2b.3a → .2b.3b.0 → .2b.3b.1 → .2b.3c.0 → .2b.3c.1 → .2b.3d.0 → .2b.3d.1 → S4.2.0 → S4.2.1 → S4.2.2.0 → S4.2.2.1 → S4.2.2.2.0 → S4.2.2.2.1 → S4.2.2.2.2 → S4.2.3.0（已完成） → S4.2.3.1（已完成） → S4.2.3.2（已完成） → S4.2.4.0（docs-only，已完成） → S4.2.4.1（已完成） → S4.2.4.2（已完成） → S4.2.4.3（已完成） → S4.2.5（当前，RED前） → S4.3 → S4b`；
+线性顺序固定为`.2b.3a → .2b.3b.0 → .2b.3b.1 → .2b.3c.0 → .2b.3c.1 → .2b.3d.0 → .2b.3d.1 → S4.2.0 → S4.2.1 → S4.2.2.0 → S4.2.2.1 → S4.2.2.2.0 → S4.2.2.2.1 → S4.2.2.2.2 → S4.2.3.0（已完成） → S4.2.3.1（已完成） → S4.2.3.2（已完成） → S4.2.4.0（docs-only，已完成） → S4.2.4.1（已完成） → S4.2.4.2（已完成） → S4.2.4.3（已完成） → S4.2.5 broad checkpoint（historical） → S4.2.5.0（docs-only，已完成） → S4.2.5.1（当前） → S4.3 → S4b`；
 `.3b.1`已按`.3b.0`冻结的exact optional callable/attempt/result完成，`.3c.1`也已按`.3c.0`冻结的mode exact
 entry完成，`.3d` broad checkpoint也已由`.3d.0`与`.3d.1`线性取代并完成；S4.2 broad entry又已由
 S4.2.0 exact execution split取代，S4.2.1与S4.2.2.1也已由下述delivery关闭；原S4.2.2又由下述`.2.2.0`细分，
 原S4.2.2.2 broad Host checkpoint再由`.2.2.2.0`细分，S4.2.2.2.1 DOM-free generic Host-commit atomic
 substrate与S4.2.2.2.2 dormant Narrative React Host也已交付，S4.2.3.0 exact entry与S4.2.3.1 DOM-free
 generic lifecycle substrate、S4.2.3.2 dormant Narrative close/input/root + History focus Host lifecycle及S4.2.4.3 dormant Host
-player-view integration又已完成；active current/next、core slice与direct entry gate均为S4.2.5 dormant Engine Lab conformance exact
-entry（RED前）。`.3d.1`若
+player-view integration又已完成；原S4.2.5 broad checkpoint已由completed `.5.0`细分，active current/next、core slice与direct
+RED/implementation gate均为S4.2.5.1 dormant Engine Lab Narrative conformance implementation。`.3d.1`若
 必须在intent slice直接修改topology，或任一切片要求删除generic input ID、修改legacy live characterization、扩generic/public
 contract或提前接Host/React/Web/live Story，均立即停止并修订设计。
 
@@ -2285,8 +2288,8 @@ S4.2.1与S4.2.2.1又已由下述delivery关闭，原S4.2.2再由下述`.2.2.0`�
 checkpoint又由`.2.2.2.0`细分，S4.2.2.2.1 DOM-free generic Host-commit atomic substrate与
 S4.2.2.2.2 dormant Narrative React Host现也均已交付，S4.2.3.0 exact entry与S4.2.3.1 DOM-free generic
 lifecycle substrate、S4.2.3.2 dormant Narrative close/input/root + History focus Host lifecycle及S4.2.4.3 dormant Host
-player-view integration又已完成；active current/next、core slice与direct entry gate现已推进为S4.2.5 dormant Engine Lab
-conformance exact entry（RED前）。
+player-view integration又已完成；原S4.2.5 broad checkpoint已由completed `.5.0`细分，active current/next、core slice与direct
+RED/implementation gate现已推进为S4.2.5.1 dormant Engine Lab Narrative conformance implementation。
 
 **S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode implementation delivery（已完成）：**
 Narrative bridge现以一个fresh frozen、own key exact only `mode`的private state identity作为Auto/Skip唯一writer；fresh
@@ -2334,8 +2337,9 @@ scheduling。
 `.2b.3c.1`完成时，active current/next曾推进为**S4.1b.1b.1b.2b.3d History exact-parent open intent floor**；
 该broad checkpoint随后由下述`.3d.0` exact entry与`.3d.1` implementation线性取代并完成；原S4.2.4 broad checkpoint
 又由completed docs-only `.4.0` exact entry重切，`.4.1` generic prepared state-install participant substrate、`.4.2` DOM-free
-controller与`.4.3` dormant Host player-view integration现也均已完成。active current/next、core slice与direct entry gate现均为
-S4.2.5 dormant Engine Lab conformance exact entry（RED前），随后依次为S4.3与S4b。
+controller与`.4.3` dormant Host player-view integration现也均已完成；原S4.2.5 broad checkpoint已由completed `.5.0`细分。
+Active current/next、core slice与direct RED/implementation gate现均为S4.2.5.1 dormant Engine Lab Narrative conformance
+implementation，随后依次为S4.3与S4b。
 
 **S4.1b.1b.1b.2b.3d.0 History exact-parent open intent entry contract（docs-only，已完成的历史checkpoint）：**
 `.2b.3d` broad floor只作为已细分的历史checkpoint保留；actual delivery线性拆为本`.3d.0` exact contract与
@@ -2523,7 +2527,7 @@ checkpoint；该delivery当时把active current/next推进为**S4.2.1**，该poi
 implementation delivery、S4.2.2.2.0 exact entry及S4.2.2.2.2 implementation delivery历史化。当前有效顺序为
 **S4.2.3.0（已完成）→ S4.2.3.1（已完成）→ S4.2.3.2（已完成）→
 S4.2.4.0（docs-only，已完成）→ S4.2.4.1（已完成）→ S4.2.4.2（已完成）→ S4.2.4.3（已完成）→
-S4.2.5（当前，RED前）→ S4.3 → S4b**。
+S4.2.5 broad checkpoint（historical）→ S4.2.5.0（docs-only，已完成）→ S4.2.5.1（当前）→ S4.3 → S4b**。
 
 **S4.2.0 dormant Narrative execution split（docs-only，已完成）：** 原S4.2只作为已被本exact
 entry细分的historical broad checkpoint保留，不再是可直接进入RED或implementation的delivery。唯一线性顺序冻结为：
@@ -2550,8 +2554,10 @@ entry细分的historical broad checkpoint保留，不再是可直接进入RED或
 16. **S4.2.4.1 generic prepared state-install participant substrate（已完成）**：交付generic assignment participant；
 17. **S4.2.4.2 DOM-free Narrative DialoguePlayerController core（已完成）**：交付clock、policy、reveal、automatic dispatch与remaining core；
 18. **S4.2.4.3 dormant Host player-view integration（已完成）**：交付Host observation、renderer player-view materialization与真实suspend/resume；
-19. **S4.2.5（当前，RED前）**：冻结dormant Engine Lab conformance exact entry；
-20. **S4.3**：tracked live cutover；随后才是**S4b**。
+19. **S4.2.5 broad checkpoint（已由`.5.0`细分的historical entry）**：不再直接进入RED；
+20. **S4.2.5.0（docs-only，已完成）**：冻结dormant Engine Lab Narrative conformance exact entry；
+21. **S4.2.5.1（当前）**：交付dormant Engine Lab Narrative conformance implementation；
+22. **S4.3**：tracked live cutover；随后才是**S4b**。
 
 S4.2.1严格只把`.3d.1`已mint的one-use History intent原子兑换为一个History transient child的
 `preparing`安装；不创建Narrative Host/session/lease，不settle ready/fail，不close/dismiss，不接managed input/focus，
@@ -2700,7 +2706,7 @@ Coordinator/readiness exposure、publisher bridge redemption method、physical a
 若History preparation、parent suspension、publication/topology/install/notification不能成为one composite transition，或
 retain/failure/cutover/empty/dispose cascade不能whole-reflow闭合，同样停止；不得借机实现S4.2.2.1 session/lease、S4.2.2.2.1
 readiness/input core、S4.2.2.2.2 Host、S4.2.3
-close/input/focus、S4.2.4 timer/controller、S4.2.5 Engine Lab、S4.3 live cutover，亦不修改legacy/public barrel、Base、
+close/input/focus、S4.2.4 timer/controller、S4.2.5.1 Engine Lab、S4.3 live cutover，亦不修改legacy/public barrel、Base、
 PlayerProfile、Save/Persistence/canonical/digest/replay/wire或S4b。
 
 本S4.2.0 amendment严格为docs-only：没有source、test、runtime、Host/live claimant、browser/examples/prebuilt或product delivery
@@ -2764,7 +2770,7 @@ action-binding factory会立即替换router current binding，不能在retained 
 6. **S4.2.2.2.2 dormant Narrative React Host（已完成）**：交付renderer/History observation、Host commit与terminal cleanup；
 7. **S4.2.3.0（docs-only，已完成）→ S4.2.3.1（已完成）→ S4.2.3.2（已完成）→
    S4.2.4.0（docs-only，已完成）→ S4.2.4.1（已完成）→ S4.2.4.2（已完成）→ S4.2.4.3（已完成）→
-   S4.2.5（当前，RED前）→ S4.3 → S4b**：
+   S4.2.5 broad checkpoint（historical）→ S4.2.5.0（docs-only，已完成）→ S4.2.5.1（当前）→ S4.3 → S4b**：
    `.3.0`已冻结History close/dismiss/input/focus/opener exact contract；`.3.1`与`.3.2`依次交付DOM-free lifecycle substrate与
    dormant Host lifecycle；`.4.0`冻结player timing/suspension exact split，`.4.1`已交付generic participant，`.4.2`与`.4.3`也已依次交付
    DOM-free controller core及dormant Host player-view integration；随后进入Engine Lab conformance exact entry、live cutover与whole-canvas family。
@@ -2943,7 +2949,7 @@ action/focus/renderer/Host seam，而把唯一顺序冻结为：
    prepared binding/focus registration、StrictMode generation、pre-ready error boundary及real-detach terminal cleanup；
 4. 后续现为 **S4.2.3.0（已完成）→ S4.2.3.1（已完成）→ S4.2.3.2（已完成）→
    S4.2.4.0（docs-only，已完成）→ S4.2.4.1（已完成）→ S4.2.4.2（已完成）→ S4.2.4.3（已完成）→
-   S4.2.5（当前，RED前）→ S4.3 → S4b**；
+   S4.2.5 broad checkpoint（historical）→ S4.2.5.0（docs-only，已完成）→ S4.2.5.1（当前）→ S4.3 → S4b**；
    `.3.1`已交付DOM-free lifecycle substrate，`.3.2`已交付actual DOM focus/History close，`.4.0`已冻结player
    timing/suspension exact split，`.4.1`已交付generic participant，`.4.2`与`.4.3`也已交付controller及Host view；Engine Lab exact entry与
    live cutover不得越序合并。
@@ -3544,7 +3550,7 @@ bounded dispatcher、claimed History readiness/action与generic applied-only fen
 立即停止并修订。`.2`若需要raw/mutable History state、Coordinator/evidence renderer props、parallel session/Host/topology store、async renderer promise/
 stream、ready-then-effect input/focus、different-portal same-session successor、或真实detach后保留ready无Host，也立即停止并修订。
 
-Actual DOM focus/trap/restore/opener与History close/dismiss仍归S4.2.3；clock/reveal/Auto/Skip/suspension归S4.2.4；Engine Lab rig归S4.2.5；
+Actual DOM focus/trap/restore/opener与History close/dismiss仍归S4.2.3；clock/reveal/Auto/Skip/suspension归S4.2.4；Engine Lab rig归S4.2.5.1；
 GameStage portal/composer、tracked Story migration、legacy writer/export deletion与browser/prebuilt promotion归S4.3。本design amendment严格docs-only，
 本次只修改本文件，并与另两份owning plan的独立docs-only amendment同步；没有source/test/runtime/architecture/Host/public/live diff，也不引用既有focused/UI/full/check/browser/examples/
 prebuilt作为本entry新证据。验证只要求target docs `deno fmt --check`与`git diff --check`。本entry完成后唯一current/next、core slice与
@@ -3631,10 +3637,10 @@ public/package export、generic Surface/Input contract、Web/Base/CSS/GameStage/
 `git diff --check`与完整`deno task check`。本批因Host仍dormant且没有live graph diff而未重跑browser、examples或prebuilt；既有结果只作
 prior evidence，不冒充本delivery的HEAD验证。
 
-S4.2.2.2.2、S4.2.3.0、S4.2.3.1、S4.2.3.2、S4.2.4.0、S4.2.4.1、S4.2.4.2与S4.2.4.3现只作为completed
-historical checkpoint保留；原S4.2.4 broad checkpoint也只作为已被`.4.0`细分的historical entry。唯一active current/next、core
-slice与direct entry gate现为**S4.2.5 dormant Engine Lab conformance exact entry（RED前）**；唯一有效后续顺序为
-**S4.2.5 → S4.3 → S4b**。
+S4.2.2.2.2、S4.2.3.0、S4.2.3.1、S4.2.3.2、S4.2.4.0、S4.2.4.1、S4.2.4.2、S4.2.4.3与S4.2.5.0现只作为
+completed historical checkpoint保留；原S4.2.4 broad checkpoint及原S4.2.5 broad checkpoint也分别只作为已被`.4.0`与`.5.0`细分的
+historical entry。唯一active current/next、core slice与direct RED/implementation gate现为
+**S4.2.5.1 dormant Engine Lab Narrative conformance implementation**；唯一有效后续顺序为**S4.2.5.1 → S4.3 → S4b**。
 
 **S4.2.3.0 History close/dismiss/input/focus lifecycle exact entry（docs-only，已完成）：** 原
 S4.2.3把generic exact-child topology lifecycle、Narrative routed action、preparing fallback与React Host
@@ -3646,7 +3652,7 @@ focus/opener/physical dismiss混成一个checkpoint；它现只作superseded bro
 3. **S4.2.3.2 dormant Narrative close/input/root + History focus Host lifecycle（已完成）**：一次性交付candidate-bound
    History controller、preparing/active close、managed input、Dialogue root与History actual focus/trap/restore及physical dismiss；
 4. **S4.2.4.0（docs-only，已完成）→ S4.2.4.1（已完成）→ S4.2.4.2（已完成）→ S4.2.4.3（已完成）→
-   S4.2.5（当前，RED前）→ S4.3 → S4b**：`.4.0`已冻结player timing/suspension exact split，`.4.1`已交付generic participant，
+   S4.2.5 broad checkpoint（historical）→ S4.2.5.0（docs-only，已完成）→ S4.2.5.1（当前）→ S4.3 → S4b**：`.4.0`已冻结player timing/suspension exact split，`.4.1`已交付generic participant，
    `.4.2`与`.4.3`也已依次交付DOM-free controller core及dormant Host player-view integration；随后才进入Engine Lab exact entry、live
    cutover与whole-canvas family。
 
@@ -3893,7 +3899,8 @@ entry。唯一有效顺序冻结为：
    bridge-owned mode reset、same-transition first-win与History/higher-blocker remaining；
 4. **S4.2.4.3 dormant Host player-view integration（已完成）**：最后把cached immutable player observation接入existing session/render source/React Host，
    renderer只取得passive view data；
-5. **S4.2.5（当前，RED前）→ S4.3 → S4b**：随后才进入dormant Engine Lab conformance exact entry、live atomic cutover与whole-canvas family。
+5. **S4.2.5 broad checkpoint（historical）→ S4.2.5.0（docs-only，已完成）→ S4.2.5.1（当前）→ S4.3 → S4b**：
+   随后依次进入dormant Engine Lab Narrative conformance implementation、live atomic cutover与whole-canvas family。
 
 `.4.1`新增的generic runtime exact contract为：
 
@@ -4301,8 +4308,216 @@ UI `83 files / 1442 tests`与full canonical check `257 files / 4372 tests`；for
 全部green。本批未重跑browser、examples或prebuilt；Engine browser `101 / 101`、examples `45 passed / 2 skipped`与prebuilt Player
 `38 / 38`只作为prior evidence，不冒充本delivery的HEAD验证。
 
-S4.2.4.0、S4.2.4.1、S4.2.4.2与S4.2.4.3现只作为completed historical checkpoint保留；唯一live current/next、core slice与direct
-entry/RED gate现为**S4.2.5 dormant Engine Lab conformance exact entry（RED前）**，后续唯一顺序为**S4.2.5 → S4.3 → S4b**。
+S4.2.4.0、S4.2.4.1、S4.2.4.2与S4.2.4.3现只作为completed historical checkpoint保留；原S4.2.5 broad
+checkpoint也只作为已被`.5.0`细分的historical entry。唯一live current/next、core slice与direct RED gate现为
+**S4.2.5.1 dormant Engine Lab Narrative conformance implementation**，后续唯一顺序为**S4.2.5.1 → S4.3 → S4b**。
+
+**S4.2.5.0 dormant Engine Lab Narrative conformance exact entry（docs-only，已完成）：** 原S4.2.5把production-clean
+conformance package entry、high-level rig、real Engine Lab semantic adapter、React Host、mutually-exclusive legacy opt-in、boundedness与
+promotion boundary留成一句broad checkpoint，不能直接进入RED或implementation。该broad checkpoint只作superseded historical entry；唯一有效
+执行顺序冻结为：
+
+1. **S4.2.5 broad checkpoint（已由`.5.0`细分的historical entry）**：不再作为implementation gate；
+2. **S4.2.5.0（本entry，docs-only，已完成）**：只冻结下述exact API、result、single-writer protocol、RED、seven-file scope与stop；
+3. **S4.2.5.1 dormant Engine Lab Narrative conformance implementation（当前）**：只交付production-clean conformance seam与
+   dormant Engine Lab opt-in，不切换tracked live writer；
+4. **S4.3 atomic live cutover and promotion**：同批迁移Engine Lab、template、Cat Cafe与Bookshop，删除legacy
+   lifecycle writers/standalone public path，并完成headless/browser/prebuilt promotion；
+5. **S4b whole-canvas primary/detail family**：保持后续独立family boundary。
+
+#### S4.2.5.1 exact production-clean conformance seam
+
+UI新增唯一dedicated production-clean package entry **`@sillymaker/ui/conformance`**，manifest exact指向
+`./src/conformance/index.tsx`。该entry只服务neutral Engine Lab dormant conformance，不是Story authoring API；application import closure可以静态消费
+`/conformance/` production source。不得命名为或落入`/testkit/`、`/testing/`：Story BuildIdentity的production-path gate会拒绝这两类path，不能以
+dynamic import、scanner exception或deep import绕过。该entry唯一runtime export exact为：
+
+```ts
+export function createNarrativeConformanceRigV1(
+  input: CreateNarrativeConformanceRigInputV1,
+): NarrativeConformanceRigCreationResultV1;
+```
+
+`CreateNarrativeConformanceRigInputV1`的exact own-data key set只有下列八项；全部必须由factory在任何subscription、claim、bridge、session、
+Host identity或timer allocation前descriptor-capture，accessor、missing/extra key、borrowed receiver、non-callable或thenable同步返回一条closed creation
+failure，不得部分安装：
+
+```ts
+export interface NarrativeConformanceSnapshotV1 {
+  readonly revision: NonNegativeSafeInteger;
+  readonly pending: DeepReadonly<PendingInteractionV1> | null;
+  readonly history: DeepReadonly<NarrativeHistoryV1>;
+}
+
+export interface NarrativeConformanceResolutionRequestV1 {
+  readonly expectedOccurrenceId: string;
+  readonly resolution: DeepReadonly<InteractionResolutionV1>;
+}
+
+export interface CreateNarrativeConformanceRigInputV1 {
+  readonly observeNarrative: () => NarrativeConformanceSnapshotV1;
+  readonly subscribeNarrative: (listener: () => void) => () => void;
+  readonly dispatchResolution: (
+    request: NarrativeConformanceResolutionRequestV1,
+  ) => Promise<unknown>;
+  readonly playerProfile: PlayerProfileStoreV1;
+  readonly presentationClock: PresentationClockV1;
+  readonly textResolver: (textId: string) => string;
+  readonly voiceReplay: (() => boolean) | null;
+  readonly reportFailure: (error: unknown) => void;
+}
+```
+
+`NarrativeConformanceSnapshotV1` own keys exact为`revision`、`pending`、`history`；
+`NarrativeConformanceResolutionRequestV1` own keys exact为`expectedOccurrenceId`、`resolution`。`observeNarrative`每个exact revision返回cached
+frozen snapshot identity；`subscribeNarrative`只允许one current synchronous source subscription并返回one idempotent unsubscribe。
+`dispatchResolution`的Promise必须在semantic dispatch触发的同步source notification与对应bridge reconcile完成后才settle；raw throw规范化为rejected
+Promise，late settlement仍受source/frame/terminal fence。`playerProfile`、`presentationClock`与`textResolver`只经既有safe capture/materialization；
+`voiceReplay`是exact callable或`null`；`reportFailure`只接收当前runtime fault，不得成为第二lifecycle writer或保留raw error history。
+
+Creation result是下列closed frozen union；created branch own keys exact为`kind`、`rig`，全部failure branch own keys exact为`kind`、`code`，不携带
+raw error、authority、receipt或delta：
+
+```ts
+export type NarrativeConformanceRigCreationResultV1 =
+  | Readonly<{
+    readonly kind: "created";
+    readonly rig: NarrativeConformanceRigV1;
+  }>
+  | Readonly<{
+    readonly kind: "rejected";
+    readonly code: "narrative.conformance_input_invalid";
+  }>
+  | Readonly<{
+    readonly kind: "rejected";
+    readonly code: "narrative.conformance_source_claimed";
+  }>
+  | Readonly<{
+    readonly kind: "faulted";
+    readonly code: "narrative.conformance_creation_faulted";
+  }>;
+
+export interface NarrativeConformanceHostPropsV1 {
+  readonly inputRouter: InputRouterV1;
+}
+
+export interface NarrativeConformanceRigV1 {
+  readonly Host: ComponentType<NarrativeConformanceHostPropsV1>;
+  dispose(): void;
+}
+```
+
+Creation precedence固定为：**descriptor/input validation → exact source-pair claim → initial observe/setup → created**。Descriptor/input validation不调用
+`observeNarrative`、`subscribeNarrative`、`dispatchResolution`或任一raw profile/clock/text/voice/failure callable；任一shape/descriptor/callable/thenable
+invalid直接返回`narrative.conformance_input_invalid`且source claim/subscription/runtime/timer delta全零。Validation通过后才对exact
+`(observeNarrative, subscribeNarrative)` pair执行one atomic claim；duplicate返回`narrative.conformance_source_claimed`，并保持observe/subscribe
+call count与全部runtime delta为零。只有fresh claim成功后才允许initial observe、snapshot validation、bridge/session/Host source setup与subscription；该阶段任一
+throw、invalid snapshot/result、synchronous callback/reentry或partial setup fault都返回`narrative.conformance_creation_faulted`，且必须terminal-fence并完整
+rollback已建subscription/tick/Host/runtime、释放fresh source claim，不保留raw error或partial rig。只有initial reconcile/setup全部成功才返回`created`；failure
+rollback后的fresh retry可以claim，但predecessor late callback不能命中retry。
+
+Rig exact own keys只有`Host`、`dispose`；`Host` props exact own-data key只有`inputRouter`。`Host`必须消费existing
+`DefaultGameRoot` Narrative slot提供的exact `inputRouter`，不得创建、返回、包装或claim第二个router；component可用internal ref mint自己的explicit portal
+container、Host identity与gesture fence。Rig内建neutral `say | choice | pause | custom | presentation_barrier` renderer、fixed frozen visual
+config、`null` quick-menu contribution；History availability exact派生为`history.entries.length > 0`。Renderer的button、pointer、keyboard与gamepad操作必须
+经rig-private authenticated physical admission、exact envelope/attempt及existing managed route进入同一router；禁止裸调用
+`inputRouter.route(action)`、直接semantic dispatch或把attempt/envelope/route authority放进renderer props。同一captured
+`(observeNarrative, subscribeNarrative)` source pair最多one current rig claim；duplicate active rig返回
+`narrative.conformance_source_claimed`且零subscription/Host/runtime/timer mutation。`dispose()`为idempotent terminal `void`：先永久fence source/frame/
+Host ingress，再取消source subscription、tick与Host attachment并释放exact source claim；disposed Host render、late callback、late Promise settlement与
+unsubscribe reentry全部inert，不可ABA命中successor rig。
+
+Factory/rig/Host、上述conformance types，以及任何raw stable family/session/bridge/controller/lease/source revision/attempt/readiness spelling均不得从UI root或
+`@sillymaker/ui/internal`导出。`@sillymaker/ui/conformance` runtime inventory除single factory外保持empty；type exports只表达上述high-level
+input/result/Host contract，不开放renderer replacement、raw topology、Coordinator或generic authoring入口。
+
+#### Mutually-exclusive Engine Lab opt-in and single writer
+
+Engine Lab application使用static production-clean `@sillymaker/ui/conformance` import，并只以exact value flag
+`new URLSearchParams(globalThis.location?.search ?? "").get("narrative_conformance") === "1"`在`labGameApplicationV1.ui`的React mount前作
+**互斥二选一**。Query只读取一次；只有exact value `1` branch在返回UI declaration前exact-once创建并订阅rig，再把created rig交给
+`createLabUiSlotsV1`，不得在React render/effect/StrictMode probe中重复factory或subscription；absent、empty、duplicate解析后的非`1`或任何其他value
+都进入legacy branch且不创建rig。不得另加truthy/presence/boolean alias。Application UI `dispose`把rig terminal fence/dispose与既有overlay
+conformance dispose组合为independent exact-once cleanup，一个cleanup throw/reentry不得
+阻止另一个：
+
+- flag结果不是exact `true`时只mount existing `LabNarrativePlayerV1`；不得调用conformance factory或安装其source claim/subscription；
+- exact value `1`且creation result为`created`时只mount该exact conformance rig `Host`，并把slot existing `context.input`作为唯一`inputRouter`传入；不得
+  construct legacy `TextRevealV1`/`PlaybackControllerV1`、register legacy ordinary Narrative input，
+  或保留legacy local History/hidden/topology writer；
+- exact value `1`但creation result不是`created`时fail closed为一个read-only conformance diagnostic，不mount legacy fallback、Host或第二writer；
+- `GameAudioV1`与`LabBarrierRecoveryV1`可以保留，因为它们不是Narrative lifecycle/player writer；同一semantic source、InputRouter与portal lifetime内
+  禁止legacy/new rig并挂以作对照；
+- branch-before-mount与duplicate-source claim共同证明one writer。Legacy path没有conformance claim，因此不能用claim result替代exact branch test；
+- default `labGameApplicationV1`行为、tracked live writer与其他Stories保持不变。本opt-in是dormant Engine Lab characterization，不是S4.3 live
+  promotion；只有S4.3可迁移default/tracked consumers并删除legacy owner/export。
+
+Story-private `e2e/src/application/narrative-conformance.tsx`只把real `LabApplicationInstanceV1.semantic`投影为上述八项high-level input，使用actual
+authoritative `pending`/`history`与existing `{ kind: "resolve", expectedOccurrenceId, resolution }` dispatch，并提供只读creation failure
+diagnostic；它不拥有router。不得deep import UI `src/**`、复制stable runtime、创建第二semantic/history/profile authority或以fixture state代替real
+Engine Lab instance。
+
+#### S4.2.5.1 RED, bounds, file scope, and stops
+
+RED必须先在下列exact seven-file scope成立，implementation不得越界：
+
+1. `engine/packages/ui/package.json`；
+2. `engine/packages/ui/src/conformance/index.tsx`；
+3. `engine/packages/ui/src/conformance/index.test.tsx`；
+4. `engine/packages/ui/src/public-api.test.ts`；
+5. `e2e/src/application/narrative-conformance.tsx`；
+6. `e2e/src/application/composition.tsx`；
+7. `e2e/src/test/narrative-conformance.test.tsx`。
+
+Existing generic Engine Lab import-boundary test自动覆盖package-export-only消费，不为freeze file inventory而修改。Base、Web、template、examples、CSS、
+GameStage、public/live docs与legacy player source保持zero diff。RED matrix至少覆盖：
+
+1. `@sillymaker/ui/conformance` single runtime factory positive inventory，以及UI root/`./internal`对factory、types、rig member与全部raw stable
+   spelling的type/runtime exact negatives；
+2. eight-key input、snapshot/request/result/rig/Host exact own-key与frozen descriptor，missing/extra/accessor/proxy/foreign/borrowed/throw/thenable及
+   creation precedence：input validation的source callable call count为zero，duplicate claim的observe/subscribe call count为zero，fresh claim后的
+   observe/setup fault完整rollback/unclaim且fresh retry可创建；所有non-created result保持zero retained subscription、claim、Host、runtime、notification与timer
+   delta；
+3. real Engine Lab instance依次覆盖`null`及`say | choice | pause | custom | presentation_barrier`五种pending，manual/automatic resolution、
+   empty、same occurrence/equal revision、fresh occurrence/source replacement、retry与stale late completion；
+4. manual clock下reveal、Auto、Skip、Pause expiry、seen/profile/text churn、voice replay，History authoritative entries、availability、open/close、
+   parent suspend/resume、focus/opener、pointer/keyboard/gamepad input与higher blocker remaining；button与physical action同时证明private authenticated
+   admission/envelope/attempt被消费；rig renderer/control直接裸调用`inputRouter.route(action)`必须为zero，existing device-adapter raw ingress与
+   managed binding内部route保持允许并须最终消费authenticated continuation；
+5. pre-ready renderer/source/profile/text/clock fault、accepted-ready fault handoff、`reportFailure` throw/reentry、StrictMode effect probe、same-host
+   reattach、real detach、dispose/terminal、post-dispose Host与late subscription/Promise/tick callback；
+6. `labGameApplicationV1.ui` React mount前absent/empty/non-`1` flag证明legacy-only且conformance factory/source claim为zero；exact value `1`证明
+   factory/subscription exact-once、rig-only、slot existing router exact identity且legacy player/controller/reveal/input registration为zero；creation failure不fallback，UI dispose
+   组合cleanup仍双方exact-once；
+7. 10,000 publication/replacement/retry/Host attach-dispose/StrictMode/History/timer/fault churn证明per source最多one rig claim、one source
+   subscription、one logical Host lease、one current controller/tick/cancel、render topology最多three entries，且没有strong array、tombstone、attempt/
+   result/callback history；production retained state为bounded **O(1)**；
+8. canonical Story build证明`/conformance/`是production-clean application closure，且closure中没有`/testkit/`、`/testing/`、test source或engine
+   `src/**` deep import。
+
+`.5.1`验证至少运行focused UI conformance + Engine Lab tests、UI package、Engine Lab package/full canonical `deno task check`、seven-file
+`deno fmt --check`与scoped `git diff --check`；canonical check中的format、lint、styles、typecheck、determinism、assets、Stories与E2E production build都必须
+green。Default/browser/examples/prebuilt promotion仍归S4.3；若本dormant opt-in未改变对应tracked route，可以保留其先前结果为prior-only，但不得冒充
+`.5.1` HEAD新证据。
+
+出现以下任一条件，`.5.1`立即停止并回到exact entry修订，不得用compatibility escape hatch扩 scope：
+
+- 需要从UI root或`./internal`公开factory/rig/raw stable authority，或需要renderer/session/Host/controller/lease/source revision/readiness成为Story
+  authoring API；
+- 需要`/testkit/`、`/testing/`、dynamic scanner bypass或engine `src/**` deep import才能进入Engine Lab application closure；
+- 需要legacy与new rig同mount、让legacy参与source claim，或不能在branch-before-mount时证明exactly one Narrative lifecycle/player writer；
+- 需要Host创建/返回第二InputRouter、替换slot router，或renderer/button必须裸调用`inputRouter.route(action)`而不能通过private authenticated
+  admission/envelope/attempt；
+- 需要改变default tracked writer、GameStage/composer/Web/template/examples、删除legacy source/export或完成browser/prebuilt promotion；这些全部归S4.3；
+- 需要新增Base semantic/wire/Save/Persistence/public receipt合同，或不能用real Engine Lab authoritative source覆盖五种pending；
+- 不能保持terminal-before-physical-cleanup、late callback successor fence、max-three topology或10,000 churn bounded O(1)；
+- 需要引入whole-canvas primary/detail topology、owner或family；这些全部归S4b。
+
+本`.5.0`严格docs-only，只修改本design与两份owning plans；不交付source、test、runtime、architecture、roadmap、features、development、website、
+Host/public/live capability，也不复用`.4.3` focused/UI/full/browser/examples/prebuilt evidence冒充本entry新验证。Verification只有三份target docs的
+`deno fmt --check`与scoped `git diff --check`。本entry完成后原S4.2.5 broad checkpoint转为historical；唯一live current/next、core slice与direct
+RED/implementation gate为**S4.2.5.1 dormant Engine Lab Narrative conformance implementation**，唯一后续顺序为
+**S4.2.5.1 → S4.3 → S4b**。
 
 ### 3.3 Runtime session
 
