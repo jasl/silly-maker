@@ -69,6 +69,23 @@ type ManagedInputRegistrarV1 = (
 ) => () => void;
 
 const managedInputRegistrarsV1 = new WeakMap<InputRouterV1, ManagedInputRegistrarV1>();
+const directManagedInputRegistrarsV1 = new WeakMap<InputRouterV1, ManagedInputRegistrarV1>();
+const managedInputRouterFacadeTerminalInternalV1 = Object.freeze({ kind: "terminal" as const });
+const managedInputRouterFacadeNoopInternalV1 = Object.freeze((): void => {});
+
+interface ManagedInputRouterFacadeRecordInternalV1 {
+  active: boolean;
+  facade: InputRouterV1 | null;
+  target: InputRouterV1 | null;
+  isIngressOpen: (() => boolean) | null;
+  registrar: ManagedInputRegistrarV1 | null;
+  readonly cleanup: () => void;
+}
+
+const managedInputRouterFacadeRecordsInternalV1 = new WeakMap<
+  InputRouterV1,
+  ManagedInputRouterFacadeRecordInternalV1 | typeof managedInputRouterFacadeTerminalInternalV1
+>();
 
 function isInputContextIdV1(value: unknown): value is InputContextIdV1 {
   return typeof value === "string" && inputContextIdsV1.has(value as InputContextIdV1);
@@ -89,6 +106,55 @@ function hasExactOwnKeysV1(
     actualKeys.length === expectedKeys.length &&
     expectedKeys.every((expectedKey) => Object.hasOwn(value, expectedKey))
   );
+}
+
+function isCallableWithoutThenV1(value: unknown): value is (...args: never[]) => unknown {
+  if (typeof value !== "function") return false;
+  try {
+    if (Reflect.get(value, "then") !== undefined) return false;
+    const visited = new Set<object>();
+    let current: object | null = value;
+    while (current !== null) {
+      if (visited.has(current)) return false;
+      visited.add(current);
+      if (Reflect.getOwnPropertyDescriptor(current, "then") !== undefined) return false;
+      current = Reflect.getPrototypeOf(current);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function captureFrozenExactOwnDataV1(
+  value: unknown,
+  expectedKeys: readonly string[],
+): Readonly<Record<string, unknown>> | null {
+  try {
+    if (
+      !isRecordV1(value) || Reflect.getPrototypeOf(value) !== Object.prototype ||
+      !Object.isFrozen(value)
+    ) return null;
+    const ownKeys = Reflect.ownKeys(value);
+    if (
+      ownKeys.length !== expectedKeys.length ||
+      ownKeys.some((key) => typeof key !== "string" || !expectedKeys.includes(key))
+    ) return null;
+    const captured: Record<string, unknown> = Object.create(null);
+    for (const key of expectedKeys) {
+      const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
+      if (
+        descriptor === undefined || !("value" in descriptor) ||
+        descriptor.enumerable !== true || descriptor.configurable !== false ||
+        descriptor.writable !== false
+      ) return null;
+      if (Reflect.get(value, key) !== descriptor.value) return null;
+      captured[key] = descriptor.value;
+    }
+    return captured;
+  } catch {
+    return null;
+  }
 }
 
 function isNonNegativeSafeIntegerV1(value: unknown): boolean {
@@ -199,6 +265,105 @@ export function registerManagedInputHandlerV1(
   return registrar(registration);
 }
 
+export function bindManagedInputRouterFacadeInternalV1(
+  input: Readonly<{
+    readonly facade: InputRouterV1;
+    readonly target: InputRouterV1;
+    readonly isIngressOpen: () => boolean;
+  }>,
+): () => void {
+  const invalid = (): never => {
+    throw new TypeError("ui.managed_input_router_facade_invalid");
+  };
+  const capturedInput = captureFrozenExactOwnDataV1(input, [
+    "facade",
+    "target",
+    "isIngressOpen",
+  ]);
+  if (capturedInput === null) return invalid();
+  const facade = capturedInput.facade as InputRouterV1;
+  const target = capturedInput.target as InputRouterV1;
+  const isIngressOpen = capturedInput.isIngressOpen;
+  const capturedFacade = captureFrozenExactOwnDataV1(facade, [
+    "register",
+    "route",
+    "clearTransientInput",
+  ]);
+  const targetRegistrar = directManagedInputRegistrarsV1.get(target);
+  if (
+    capturedFacade === null || facade === target ||
+    directManagedInputRegistrarsV1.has(facade) || targetRegistrar === undefined ||
+    !isCallableWithoutThenV1(isIngressOpen) ||
+    !isCallableWithoutThenV1(capturedFacade.register) ||
+    !isCallableWithoutThenV1(capturedFacade.route) ||
+    !isCallableWithoutThenV1(capturedFacade.clearTransientInput)
+  ) return invalid();
+
+  const predecessor = managedInputRouterFacadeRecordsInternalV1.get(facade);
+  if (predecessor !== undefined) {
+    if (
+      "active" in predecessor && predecessor.active && predecessor.target === target &&
+      predecessor.isIngressOpen === isIngressOpen
+    ) return predecessor.cleanup;
+    return invalid();
+  }
+
+  let record!: ManagedInputRouterFacadeRecordInternalV1;
+  const isCurrent = (): boolean => {
+    const currentFacade = record.facade;
+    return record.active && currentFacade !== null &&
+      managedInputRouterFacadeRecordsInternalV1.get(currentFacade) === record;
+  };
+  const managedRegistrar: ManagedInputRegistrarV1 = (registration) => {
+    if (!isCurrent()) return managedInputRouterFacadeNoopInternalV1;
+    const gate = record.isIngressOpen;
+    let open: unknown;
+    try {
+      open = gate === null ? false : Reflect.apply(gate, undefined, []);
+    } catch {
+      return invalid();
+    }
+    if (open === false) return managedInputRouterFacadeNoopInternalV1;
+    if (open !== true) return invalid();
+    if (!isCurrent()) return managedInputRouterFacadeNoopInternalV1;
+    const registrar = record.registrar;
+    if (registrar === null) return managedInputRouterFacadeNoopInternalV1;
+    const unregister = registrar(registration);
+    if (isCurrent()) return unregister;
+    try {
+      unregister();
+    } catch {
+      // A stale physical registration is already logically fenced. Cleanup is best effort.
+    }
+    return managedInputRouterFacadeNoopInternalV1;
+  };
+  const cleanup = Object.freeze((): void => {
+    if (!isCurrent()) return;
+    const currentFacade = record.facade!;
+    record.active = false;
+    record.facade = null;
+    record.target = null;
+    record.isIngressOpen = null;
+    record.registrar = null;
+    managedInputRegistrarsV1.delete(currentFacade);
+    managedInputRouterFacadeRecordsInternalV1.set(
+      currentFacade,
+      managedInputRouterFacadeTerminalInternalV1,
+    );
+  });
+  record = {
+    active: true,
+    facade,
+    target,
+    isIngressOpen: isIngressOpen as () => boolean,
+    registrar: targetRegistrar,
+    cleanup,
+  };
+  managedInputRouterFacadeRecordsInternalV1.set(facade, record);
+  managedInputRegistrarsV1.set(facade, managedRegistrar);
+  return cleanup;
+}
+
 export function createInputRouterV1(): InputRouterV1 {
   const registrations = new Map<InputContextIdV1, InputHandlerRegistrationV1[]>();
   const managedRegistrations = new Map<InputContextIdV1, InputHandlerRegistrationV1[]>();
@@ -257,9 +422,9 @@ export function createInputRouterV1(): InputRouterV1 {
       route(focusLossEventV1);
     },
   });
-  managedInputRegistrarsV1.set(
-    router,
-    (registration) => registerIntoV1(managedRegistrations, registration),
-  );
+  const managedRegistrar = (registration: ManagedInputHandlerRegistrationV1) =>
+    registerIntoV1(managedRegistrations, registration);
+  directManagedInputRegistrarsV1.set(router, managedRegistrar);
+  managedInputRegistrarsV1.set(router, managedRegistrar);
   return router;
 }

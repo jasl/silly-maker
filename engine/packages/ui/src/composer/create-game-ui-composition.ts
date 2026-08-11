@@ -10,7 +10,10 @@ import { parseContentMaturityFlagsV1 } from "@sillymaker/base";
 
 import { inputIgnoredV1 } from "../input/contracts.ts";
 import type { InputRouterV1 } from "../input/contracts.ts";
-import { createInputRouterV1 } from "../input/input-router.ts";
+import {
+  bindManagedInputRouterFacadeInternalV1,
+  createInputRouterV1,
+} from "../input/input-router.ts";
 import type { InteractionSessionStoreV1 } from "../interaction/interaction-session-store.ts";
 import {
   createInteractionSessionStoreV1,
@@ -479,6 +482,13 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
       if (ingressOpen()) inputRouter.clearTransientInput();
     },
   });
+  const releaseManagedInputRouterFacadeInternalV1 = bindManagedInputRouterFacadeInternalV1(
+    Object.freeze({
+      facade: publicInputRouter,
+      target: inputRouter,
+      isIngressOpen: ingressOpen,
+    }),
+  );
 
   const anchorQueue: GameUiPresentationAnchorEventInternalV1[] = [];
   let anchorTransitionActive = false;
@@ -493,6 +503,7 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
   const sealTerminalInternalV1 = (): void => {
     if (terminal) return;
     terminal = true;
+    noThrowV1(releaseManagedInputRouterFacadeInternalV1);
     anchorQueue.splice(0);
     cueController = null;
     noThrowV1(unsubscribeAnchor);
@@ -625,6 +636,7 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
     dispose: () => {
       if (disposed) return;
       disposed = true;
+      noThrowV1(releaseManagedInputRouterFacadeInternalV1);
       noThrowV1(unsubscribeAnchor);
       overlayInternal.detachRuntimeInternalV1();
       managedSystemDialogInternal.detachRuntimeInternalV1();

@@ -10,7 +10,11 @@ import {
   type InputEventV1,
   type InputHandlerResultV1,
 } from "./contracts.ts";
-import { createInputRouterV1, registerManagedInputHandlerV1 } from "./input-router.ts";
+import {
+  bindManagedInputRouterFacadeInternalV1,
+  createInputRouterV1,
+  registerManagedInputHandlerV1,
+} from "./input-router.ts";
 
 const precedenceV1 = Object.freeze(
   [
@@ -474,5 +478,355 @@ describe("createInputRouterV1", () => {
 
     expect(() => router.route(actionEventV1())).toThrowError("ui.invalid_input_handler_result");
     expect(lower).not.toHaveBeenCalled();
+  });
+});
+
+function createInputRouterFacadeV1(target: ReturnType<typeof createInputRouterV1>) {
+  return Object.freeze({
+    register: target.register,
+    route: target.route,
+    clearTransientInput: target.clearTransientInput,
+  });
+}
+
+describe("bindManagedInputRouterFacadeInternalV1", () => {
+  it("binds one exact facade tuple to the direct managed vector with retained cleanup identity", () => {
+    const target = createInputRouterV1();
+    const facade = createInputRouterFacadeV1(target);
+    const isIngressOpen = vi.fn(() => true);
+    const firstInput = Object.freeze({ facade, target, isIngressOpen });
+    const cleanup = bindManagedInputRouterFacadeInternalV1(firstInput);
+    const repeated = bindManagedInputRouterFacadeInternalV1(
+      Object.freeze({ facade, target, isIngressOpen }),
+    );
+    const calls: string[] = [];
+    facade.register({
+      context: "narrative",
+      handle: () => {
+        calls.push("ordinary");
+        return inputHandledV1;
+      },
+    });
+    const unregisterManaged = registerManagedInputHandlerV1(facade, {
+      context: "narrative",
+      handle: () => {
+        calls.push("managed");
+        return inputIgnoredV1;
+      },
+    });
+
+    expect(repeated).toBe(cleanup);
+    expect(Object.isFrozen(cleanup)).toBe(true);
+    expect(Reflect.ownKeys(facade)).toEqual([
+      "register",
+      "route",
+      "clearTransientInput",
+    ]);
+    expect(facade.route(actionEventV1())).toEqual({
+      kind: "handled",
+      context: "narrative",
+    });
+    expect(calls).toEqual(["managed", "ordinary"]);
+    expect(isIngressOpen).toHaveBeenCalledOnce();
+
+    unregisterManaged();
+    cleanup();
+  });
+
+  it("returns one frozen noop without reading registration when ingress is closed", () => {
+    const target = createInputRouterV1();
+    const facade = createInputRouterFacadeV1(target);
+    const isIngressOpen = vi.fn(() => false);
+    const cleanup = bindManagedInputRouterFacadeInternalV1(
+      Object.freeze({ facade, target, isIngressOpen }),
+    );
+    const readContext = vi.fn(() => "narrative" as const);
+    const readHandle = vi.fn(() => () => inputHandledV1);
+    const registration = Object.defineProperties({}, {
+      context: { enumerable: true, get: readContext },
+      handle: { enumerable: true, get: readHandle },
+    });
+
+    const first = registerManagedInputHandlerV1(facade, registration as never);
+    const second = registerManagedInputHandlerV1(facade, registration as never);
+
+    expect(first).toBe(second);
+    expect(Object.isFrozen(first)).toBe(true);
+    expect(isIngressOpen).toHaveBeenCalledTimes(2);
+    expect(readContext).not.toHaveBeenCalled();
+    expect(readHandle).not.toHaveBeenCalled();
+    cleanup();
+  });
+
+  it.each([
+    {
+      label: "throw",
+      gate: () => {
+        throw new Error("gate failed");
+      },
+    },
+    { label: "non-boolean", gate: () => "yes" },
+  ])("normalizes a $label gate before reading registration", ({ gate }) => {
+    const target = createInputRouterV1();
+    const facade = createInputRouterFacadeV1(target);
+    const cleanup = bindManagedInputRouterFacadeInternalV1(
+      Object.freeze({ facade, target, isIngressOpen: gate as unknown as () => boolean }),
+    );
+    const readContext = vi.fn(() => "narrative" as const);
+    const registration = Object.defineProperties({}, {
+      context: { enumerable: true, get: readContext },
+      handle: { enumerable: true, value: () => inputHandledV1 },
+    });
+
+    expect(() => registerManagedInputHandlerV1(facade, registration as never)).toThrowError(
+      "ui.managed_input_router_facade_invalid",
+    );
+    expect(readContext).not.toHaveBeenCalled();
+    cleanup();
+  });
+
+  it("rolls back a raw registration when its getter releases the facade", () => {
+    const target = createInputRouterV1();
+    const facade = createInputRouterFacadeV1(target);
+    const cleanup = bindManagedInputRouterFacadeInternalV1(
+      Object.freeze({ facade, target, isIngressOpen: () => true }),
+    );
+    const handle = vi.fn(() => inputHandledV1);
+    const registration = Object.defineProperties({}, {
+      context: {
+        enumerable: true,
+        get: () => {
+          cleanup();
+          return "narrative";
+        },
+      },
+      handle: { enumerable: true, get: () => handle },
+    });
+
+    const unregister = registerManagedInputHandlerV1(facade, registration as never);
+
+    expect(Object.isFrozen(unregister)).toBe(true);
+    expect(target.route(actionEventV1())).toBe(inputIgnoredV1);
+    expect(handle).not.toHaveBeenCalled();
+    expect(() => unregister()).not.toThrow();
+    expect(() =>
+      registerManagedInputHandlerV1(facade, {
+        context: "narrative",
+        handle,
+      })
+    ).toThrowError("ui.managed_input_router_required");
+  });
+
+  it("returns the shared noop when the open gate releases its own generation", () => {
+    const target = createInputRouterV1();
+    const facade = createInputRouterFacadeV1(target);
+    let cleanup!: () => void;
+    const isIngressOpen = vi.fn(() => {
+      cleanup();
+      return true;
+    });
+    cleanup = bindManagedInputRouterFacadeInternalV1(
+      Object.freeze({ facade, target, isIngressOpen }),
+    );
+    const readContext = vi.fn(() => "narrative" as const);
+    const registration = Object.defineProperties({}, {
+      context: { enumerable: true, get: readContext },
+      handle: { enumerable: true, value: () => inputHandledV1 },
+    });
+
+    const unregister = registerManagedInputHandlerV1(facade, registration as never);
+
+    expect(Object.isFrozen(unregister)).toBe(true);
+    expect(isIngressOpen).toHaveBeenCalledOnce();
+    expect(readContext).not.toHaveBeenCalled();
+    expect(target.route(actionEventV1())).toBe(inputIgnoredV1);
+  });
+
+  it("permanently fences release, conflicts, native facades, and facade chains", () => {
+    const target = createInputRouterV1();
+    const secondTarget = createInputRouterV1();
+    const facade = createInputRouterFacadeV1(target);
+    const gate = () => true;
+    const cleanup = bindManagedInputRouterFacadeInternalV1(
+      Object.freeze({ facade, target, isIngressOpen: gate }),
+    );
+
+    expect(() =>
+      bindManagedInputRouterFacadeInternalV1(
+        Object.freeze({ facade, target: secondTarget, isIngressOpen: gate }),
+      )
+    ).toThrowError("ui.managed_input_router_facade_invalid");
+    expect(() =>
+      bindManagedInputRouterFacadeInternalV1(
+        Object.freeze({ facade: target, target, isIngressOpen: gate }),
+      )
+    ).toThrowError("ui.managed_input_router_facade_invalid");
+    expect(() =>
+      bindManagedInputRouterFacadeInternalV1(
+        Object.freeze({
+          facade: createInputRouterFacadeV1(target),
+          target: facade,
+          isIngressOpen: gate,
+        }),
+      )
+    ).toThrowError("ui.managed_input_router_facade_invalid");
+
+    cleanup();
+    cleanup();
+    expect(() =>
+      bindManagedInputRouterFacadeInternalV1(
+        Object.freeze({ facade, target, isIngressOpen: gate }),
+      )
+    ).toThrowError("ui.managed_input_router_facade_invalid");
+    expect(() =>
+      registerManagedInputHandlerV1(facade, {
+        context: "narrative",
+        handle: () => inputHandledV1,
+      })
+    ).toThrowError("ui.managed_input_router_required");
+  });
+
+  it("rejects malformed descriptor inputs before touching a direct target", () => {
+    const target = createInputRouterV1();
+    const facade = createInputRouterFacadeV1(target);
+    const gate = vi.fn(() => true);
+    const accessorInput = Object.freeze(
+      Object.defineProperties({}, {
+        facade: { enumerable: true, get: () => facade },
+        target: { enumerable: true, value: target },
+        isIngressOpen: { enumerable: true, value: gate },
+      }),
+    );
+
+    const accessorFacade = Object.freeze(Object.defineProperties({}, {
+      register: { enumerable: true, get: () => facade.register },
+      route: { enumerable: true, value: facade.route },
+      clearTransientInput: { enumerable: true, value: facade.clearTransientInput },
+    }));
+    const { proxy: revokedFacade, revoke } = Proxy.revocable(facade, {});
+    revoke();
+    const trappingInput = new Proxy(
+      Object.freeze({ facade, target, isIngressOpen: gate }),
+      {
+        get: () => {
+          throw new Error("reachable_proxy_trap");
+        },
+      },
+    );
+    const trappingFacade = new Proxy(facade, {
+      get: () => {
+        throw new Error("reachable_facade_proxy_trap");
+      },
+    });
+    /* oxlint-disable unicorn/no-thenable -- hostile inherited-then contract fixture */
+    const inheritedThenGate = Object.setPrototypeOf(
+      () => true,
+      Object.freeze({ then: () => undefined }),
+    ) as () => boolean;
+    /* oxlint-enable unicorn/no-thenable */
+    const malformedInputs = [
+      accessorInput,
+      trappingInput,
+      { facade, target, isIngressOpen: gate },
+      Object.freeze({ facade, target }),
+      Object.freeze({ facade, target, isIngressOpen: gate, extra: true }),
+      Object.freeze(Object.assign(Object.create(null), { facade, target, isIngressOpen: gate })),
+      Object.freeze({ facade, target, isIngressOpen: true }),
+      Object.freeze({ facade, target, isIngressOpen: inheritedThenGate }),
+      Object.freeze({
+        facade: Object.freeze({ ...facade, extra: true }),
+        target,
+        isIngressOpen: gate,
+      }),
+      Object.freeze({ facade: accessorFacade, target, isIngressOpen: gate }),
+      Object.freeze({ facade: trappingFacade, target, isIngressOpen: gate }),
+      Object.freeze({ facade: revokedFacade, target, isIngressOpen: gate }),
+      Object.freeze({
+        facade,
+        target: createInputRouterFacadeV1(target),
+        isIngressOpen: gate,
+      }),
+    ];
+    for (const malformed of malformedInputs) {
+      expect(() => bindManagedInputRouterFacadeInternalV1(malformed as never)).toThrowError(
+        "ui.managed_input_router_facade_invalid",
+      );
+    }
+    expect(gate).not.toHaveBeenCalled();
+    expect(() => registerManagedInputHandlerV1(facade, {} as never)).toThrowError(
+      "ui.managed_input_router_required",
+    );
+  });
+
+  it.each([
+    {
+      label: "callable then",
+      gate: new Proxy(() => true, {
+        get(target, property, receiver) {
+          if (property === "then") return () => undefined;
+          return Reflect.get(target, property, receiver);
+        },
+      }),
+    },
+    {
+      label: "throwing then trap",
+      gate: new Proxy(() => true, {
+        get(target, property, receiver) {
+          if (property === "then") throw new Error("fixture.raw_then_trap");
+          return Reflect.get(target, property, receiver);
+        },
+      }),
+    },
+  ])("normalizes a $label gate Proxy without touching its direct target", ({ gate }) => {
+    const target = createInputRouterV1();
+    const facade = createInputRouterFacadeV1(target);
+    let thrown: unknown;
+
+    try {
+      bindManagedInputRouterFacadeInternalV1(
+        Object.freeze({ facade, target, isIngressOpen: gate }),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(TypeError);
+    expect((thrown as Error).message).toBe("ui.managed_input_router_facade_invalid");
+    expect(target.route(actionEventV1())).toBe(inputIgnoredV1);
+    expect(() =>
+      registerManagedInputHandlerV1(facade, {
+        context: "narrative",
+        handle: () => inputHandledV1,
+      })
+    ).toThrowError("ui.managed_input_router_required");
+  });
+
+  it("bounds 10,000 fresh facade generations without accumulating dispatch paths", () => {
+    let handled = 0;
+    for (let index = 0; index < 10_000; index += 1) {
+      const target = createInputRouterV1();
+      const facade = createInputRouterFacadeV1(target);
+      const isIngressOpen = () => true;
+      const cleanup = bindManagedInputRouterFacadeInternalV1(
+        Object.freeze({ facade, target, isIngressOpen }),
+      );
+      const repeated = bindManagedInputRouterFacadeInternalV1(
+        Object.freeze({ facade, target, isIngressOpen }),
+      );
+      if (repeated !== cleanup) throw new Error("facade cleanup identity changed");
+      const unregister = registerManagedInputHandlerV1(facade, {
+        context: "narrative",
+        handle: () => {
+          handled += 1;
+          return inputHandledV1;
+        },
+      });
+      const result = facade.route(actionEventV1());
+      if (result.kind !== "handled") throw new Error("facade dispatch path was lost");
+      unregister();
+      cleanup();
+      cleanup();
+    }
+    expect(handled).toBe(10_000);
   });
 });

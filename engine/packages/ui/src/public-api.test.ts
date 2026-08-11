@@ -800,6 +800,10 @@ import type { ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInt
 import type { claimManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1 as ForbiddenPublicStableExactParentTransientChildLifecycleAuthorityClaimV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose stable exact-parent transient-child lifecycle authority claims.
 import type { claimManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1 as ForbiddenInternalStableExactParentTransientChildLifecycleAuthorityClaimV1 } from "./internal.ts";
+// @ts-expect-error Managed InputRouter facade bindings stay source-relative.
+import type { bindManagedInputRouterFacadeInternalV1 as ForbiddenPublicManagedInputRouterFacadeBindingV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose managed InputRouter facade bindings.
+import type { bindManagedInputRouterFacadeInternalV1 as ForbiddenInternalManagedInputRouterFacadeBindingV1 } from "./internal.ts";
 /* oxlint-enable no-unused-vars */
 
 describe("@sillymaker/ui public managed System surface", () => {
@@ -810,6 +814,7 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "claimManagedSurfaceRuntimeStateInstallParticipantInternalV1"
       | "ManagedSurfaceStableCompositeStateInstallParticipantInternalV1"
       | "claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1"
+      | "bindManagedInputRouterFacadeInternalV1"
       | "createNarrativeManagedSurfaceFamilyContractInternalV1"
       | "createNarrativeStablePublisherBridgeInternalV1"
       | "deriveManagedSurfaceReducerTopologyProjectionInternalV1"
@@ -1109,6 +1114,7 @@ describe("@sillymaker/ui public managed System surface", () => {
         "createManagedSurfaceStableCompositeRuntimeKernelInternalV1",
         "ManagedSurfaceStableCompositeStateInstallParticipantInternalV1",
         "claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1",
+        "bindManagedInputRouterFacadeInternalV1",
         "claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1",
         "createManagedSurfaceStableReadyRuntimeBindingInternalV1",
         "createManagedSurfaceStablePreparingRuntimeBindingInternalV1",

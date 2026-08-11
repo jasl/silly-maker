@@ -3,6 +3,11 @@ import { parseInteractionSurfaceId, parseNonNegativeSafeInteger } from "@sillyma
 import { describe, expect, it, vi } from "vitest";
 
 import { parseManagedSurfaceActionIdV1 } from "../managed-surfaces/managed-surface-contracts.ts";
+import { inputHandledV1, inputIgnoredV1, parseInputActionIdV1 } from "../input/contracts.ts";
+import {
+  registerManagedInputHandlerV1,
+  type ManagedInputHandlerRegistrationV1,
+} from "../input/input-router.ts";
 import {
   defineWorkspaceOverlayV1,
   resolveWorkspaceOverlaySessionInternalV1,
@@ -210,6 +215,235 @@ function createHostedCompositionFixtureV1(
   });
   return Object.freeze({ composition, allocatedEpochs });
 }
+
+function createInputCompositionFixtureV1(onAnchorUnsubscribe: () => void = () => undefined) {
+  const initialAnchor = Object.freeze({ epoch: 0, origin: "managed-input-fixture" });
+  return createGameUiCompositionV1({
+    semantic: Object.freeze({
+      observe: () => Object.freeze({ revision: 0 }),
+      subscribe: () => () => undefined,
+    }),
+    anchor: Object.freeze({
+      current: () => initialAnchor,
+      subscribe: () => {
+        let active = true;
+        return () => {
+          if (!active) return;
+          active = false;
+          onAnchorUnsubscribe();
+        };
+      },
+    }),
+    projector: Object.freeze({
+      resolvedCatalog: Object.freeze({}),
+      initialUiState: Object.freeze({}),
+      project: () =>
+        Object.freeze({
+          view: Object.freeze({}),
+          requiredAssetIds: Object.freeze([]),
+        }),
+    }),
+  });
+}
+
+function expectManagedFacadeReleasedV1(error: unknown): void {
+  expect(error).toBeInstanceOf(TypeError);
+  expect((error as TypeError).message).toBe("ui.managed_input_router_required");
+}
+
+const managedFacadeActionEventV1 = Object.freeze({
+  kind: "action" as const,
+  actionId: parseInputActionIdV1("ui.composer_managed_facade"),
+});
+
+describe("Game UI composition managed InputRouter facade", () => {
+  it("admits managed registration through the public facade before ordinary handlers", () => {
+    const composition = createInputCompositionFixtureV1();
+    const calls: string[] = [];
+    const unregisterOrdinary = composition.input.register({
+      context: "narrative",
+      handle: () => {
+        calls.push("ordinary");
+        return inputHandledV1;
+      },
+    });
+    const unregisterManaged = registerManagedInputHandlerV1(composition.input, {
+      context: "narrative",
+      handle: () => {
+        calls.push("managed");
+        return inputIgnoredV1;
+      },
+    });
+
+    try {
+      expect(Object.isFrozen(composition.input)).toBe(true);
+      expect(Reflect.ownKeys(composition.input)).toEqual([
+        "register",
+        "route",
+        "clearTransientInput",
+      ]);
+      expect(composition.input.route(managedFacadeActionEventV1)).toEqual({
+        kind: "handled",
+        context: "narrative",
+      });
+      expect(calls).toEqual(["managed", "ordinary"]);
+    } finally {
+      unregisterManaged();
+      unregisterOrdinary();
+      composition.dispose();
+    }
+  });
+
+  it("releases managed registration before hosted terminal physical cleanup", () => {
+    const readContext = vi.fn(() => "narrative" as const);
+    const readHandle = vi.fn(() => () => inputHandledV1);
+    const lateRegistration = Object.defineProperties({}, {
+      context: { configurable: true, enumerable: true, get: readContext },
+      handle: { configurable: true, enumerable: true, get: readHandle },
+    }) as ManagedInputHandlerRegistrationV1;
+    let cleanupRegistrationError: unknown;
+    let composition!: ReturnType<typeof createInputCompositionFixtureV1>;
+    composition = createInputCompositionFixtureV1(() => {
+      try {
+        registerManagedInputHandlerV1(composition.input, lateRegistration);
+      } catch (error) {
+        cleanupRegistrationError = error;
+      }
+    });
+    const managed = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
+    const unregisterManaged = registerManagedInputHandlerV1(composition.input, {
+      context: "narrative",
+      handle: () => inputHandledV1,
+    });
+
+    managed.sealTerminalInternalV1();
+
+    expect(managed.isTerminalInternalV1()).toBe(true);
+    expect(composition.isDisposed()).toBe(false);
+    expectManagedFacadeReleasedV1(cleanupRegistrationError);
+    expect(composition.input.route(managedFacadeActionEventV1)).toBe(inputIgnoredV1);
+    expect(() => registerManagedInputHandlerV1(composition.input, lateRegistration)).toThrowError(
+      "ui.managed_input_router_required",
+    );
+    expect(readContext).not.toHaveBeenCalled();
+    expect(readHandle).not.toHaveBeenCalled();
+    expect(() => {
+      unregisterManaged();
+      unregisterManaged();
+      composition.dispose();
+    }).not.toThrow();
+  });
+
+  it("releases managed registration before ordinary composition cleanup", () => {
+    const readContext = vi.fn(() => "narrative" as const);
+    const readHandle = vi.fn(() => () => inputHandledV1);
+    const lateRegistration = Object.defineProperties({}, {
+      context: { configurable: true, enumerable: true, get: readContext },
+      handle: { configurable: true, enumerable: true, get: readHandle },
+    }) as ManagedInputHandlerRegistrationV1;
+    let cleanupRegistrationError: unknown;
+    let composition!: ReturnType<typeof createInputCompositionFixtureV1>;
+    composition = createInputCompositionFixtureV1(() => {
+      try {
+        registerManagedInputHandlerV1(composition.input, lateRegistration);
+      } catch (error) {
+        cleanupRegistrationError = error;
+      }
+    });
+    const unregisterManaged = registerManagedInputHandlerV1(composition.input, {
+      context: "narrative",
+      handle: () => inputHandledV1,
+    });
+
+    composition.dispose();
+    composition.dispose();
+
+    expect(composition.isDisposed()).toBe(true);
+    expectManagedFacadeReleasedV1(cleanupRegistrationError);
+    expect(composition.input.route(managedFacadeActionEventV1)).toBe(inputIgnoredV1);
+    expect(() => registerManagedInputHandlerV1(composition.input, lateRegistration)).toThrowError(
+      "ui.managed_input_router_required",
+    );
+    expect(readContext).not.toHaveBeenCalled();
+    expect(readHandle).not.toHaveBeenCalled();
+    expect(() => {
+      unregisterManaged();
+      unregisterManaged();
+    }).not.toThrow();
+  });
+
+  it("rolls back a managed registration whose getter disposes the composition", () => {
+    const composition = createInputCompositionFixtureV1();
+    const handle = vi.fn(() => inputHandledV1);
+    const readContext = vi.fn(() => {
+      composition.dispose();
+      return "narrative" as const;
+    });
+    const readHandle = vi.fn(() => handle);
+    const hostileRegistration = Object.defineProperties({}, {
+      context: { configurable: true, enumerable: true, get: readContext },
+      handle: { configurable: true, enumerable: true, get: readHandle },
+    }) as ManagedInputHandlerRegistrationV1;
+
+    const unregisterManaged = registerManagedInputHandlerV1(
+      composition.input,
+      hostileRegistration,
+    );
+
+    expect(composition.isDisposed()).toBe(true);
+    expect(readContext).toHaveBeenCalled();
+    expect(readHandle).toHaveBeenCalled();
+    expect(handle).not.toHaveBeenCalled();
+    expect(composition.input.route(managedFacadeActionEventV1)).toBe(inputIgnoredV1);
+    expect(() => {
+      unregisterManaged();
+      unregisterManaged();
+    }).not.toThrow();
+    expect(() =>
+      registerManagedInputHandlerV1(composition.input, {
+        context: "narrative",
+        handle,
+      })
+    ).toThrowError("ui.managed_input_router_required");
+  });
+
+  it("keeps managed registration isolated across distinct compositions", () => {
+    const first = createInputCompositionFixtureV1();
+    const second = createInputCompositionFixtureV1();
+    const firstManaged = resolveGameUiManagedSurfaceCompositionInternalV1(first);
+    const firstHandler = vi.fn(() => inputHandledV1);
+    const secondHandler = vi.fn(() => inputHandledV1);
+    const unregisterFirst = registerManagedInputHandlerV1(first.input, {
+      context: "narrative",
+      handle: firstHandler,
+    });
+    const unregisterSecond = registerManagedInputHandlerV1(second.input, {
+      context: "narrative",
+      handle: secondHandler,
+    });
+
+    firstManaged.sealTerminalInternalV1();
+
+    expect(first.input).not.toBe(second.input);
+    expect(() =>
+      registerManagedInputHandlerV1(first.input, {
+        context: "narrative",
+        handle: firstHandler,
+      })
+    ).toThrowError("ui.managed_input_router_required");
+    expect(second.input.route(managedFacadeActionEventV1)).toEqual({
+      kind: "handled",
+      context: "narrative",
+    });
+    expect(firstHandler).not.toHaveBeenCalled();
+    expect(secondHandler).toHaveBeenCalledOnce();
+
+    unregisterFirst();
+    unregisterSecond();
+    first.dispose();
+    second.dispose();
+  });
+});
 
 describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () => {
   it("publishes the managed opaque System facade as the only composition lifecycle authority", () => {
