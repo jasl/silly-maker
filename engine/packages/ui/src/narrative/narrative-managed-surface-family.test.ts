@@ -36,7 +36,6 @@ import type {
   StagePresentationGenerationRetargetResultInternalV1,
   StageReconcilerV1,
   StageRetargetInputV1,
-  StageTransitionAcknowledgmentV1,
 } from "../stage/stage-reconciler.ts";
 import {
   createNarrativeStableDialoguePlayerControllerInternalV1,
@@ -505,7 +504,6 @@ function createBarrierStageHarnessV1(input: {
   readonly nextContents?: readonly string[];
   readonly prefersReducedMotion?: () => boolean;
   readonly assetsReady?: (assetIds: readonly AssetId[]) => boolean;
-  readonly onAcknowledgment?: (acknowledgment: StageTransitionAcknowledgmentV1) => void;
 }): BarrierStageHarnessV1 {
   const clock = createManualPresentationClockV1();
   const transition = input.transition ?? barrierTransitionDefinitionV1();
@@ -519,7 +517,6 @@ function createBarrierStageHarnessV1(input: {
       ? {}
       : { prefersReducedMotion: input.prefersReducedMotion }),
     ...(input.assetsReady === undefined ? {} : { assetsReady: input.assetsReady }),
-    ...(input.onAcknowledgment === undefined ? {} : { onAcknowledgment: input.onAcknowledgment }),
   });
   const initialTarget = barrierStageTargetV1(
     ...(input.initialContents ?? ["content.test.barrier-a"]),
@@ -1014,7 +1011,6 @@ function narrativeBarrierHarnessV1(input: {
   readonly settleReady?: boolean;
   readonly prefersReducedMotion?: () => boolean;
   readonly assetsReady?: (assetIds: readonly AssetId[]) => boolean;
-  readonly onAcknowledgment?: (acknowledgment: StageTransitionAcknowledgmentV1) => void;
 } = {}): NarrativeBarrierHarnessV1 {
   const semanticDispatchPort = input.semanticDispatchPort ?? defaultSemanticDispatchPortV1;
   const harness = harnessV1({
@@ -1045,7 +1041,6 @@ function narrativeBarrierHarnessV1(input: {
       ? {}
       : { prefersReducedMotion: input.prefersReducedMotion }),
     ...(input.assetsReady === undefined ? {} : { assetsReady: input.assetsReady }),
-    ...(input.onAcknowledgment === undefined ? {} : { onAcknowledgment: input.onAcknowledgment }),
   });
   const controllerInput = Object.freeze({
     bridge: harness.bridge,
@@ -8722,7 +8717,6 @@ describe("Narrative stable Managed Surface family", () => {
       durationMs: 0,
     });
     let firstResolution = true;
-    const publicAcknowledgments = vi.fn();
     const dispatchResolution = vi.fn(() => Promise.resolve("old-terminal-drained"));
     const fixture = narrativeBarrierHarnessV1({
       transition: animated,
@@ -8736,7 +8730,6 @@ describe("Narrative stable Managed Surface family", () => {
       semanticDispatchPort: Object.freeze({
         dispatchResolutionInternalV1: dispatchResolution,
       }),
-      onAcknowledgment: publicAcknowledgments,
     });
 
     expect(
@@ -8756,9 +8749,6 @@ describe("Narrative stable Managed Surface family", () => {
       ),
     ).toEqual({ kind: "stale", completion: null });
 
-    expect(publicAcknowledgments).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ outcome: "interrupted" }),
-    );
     expect(fixture.stage.reconciler.frame().settled).toBe(true);
     expect(fixture.stage.reconciler.frame().layers[0]?.entries[0]?.entry.contentId).toBe(
       "content.test.barrier-b",
@@ -8828,7 +8818,7 @@ describe("Narrative stable Managed Surface family", () => {
     successor.disposeInternalV1();
   });
 
-  it("defers public Stage callback flushes until the terminal stack exits", () => {
+  it("defers Stage subscriber flushes until the terminal stack exits", () => {
     const dispatchResolution = vi.fn(() => Promise.resolve("drained"));
     const nestedResults: Array<
       NarrativeStableBarrierTerminalDispatchResultInternalV1 | null
@@ -8839,11 +8829,6 @@ describe("Narrative stable Managed Surface family", () => {
       semanticDispatchPort: Object.freeze({
         dispatchResolutionInternalV1: dispatchResolution,
       }),
-      onAcknowledgment: () => {
-        if (controller !== null) {
-          nestedResults.push(controller.flushRetainedTerminalInternalV1());
-        }
-      },
     });
     controller = fixture.controller;
     const unsubscribe = fixture.stage.reconciler.subscribe(() => {
@@ -8857,10 +8842,7 @@ describe("Narrative stable Managed Surface family", () => {
         barrierRetargetInputV1(fixture.stage.nextTarget, 2),
       ),
     ).toEqual({ kind: "armed", completion: null });
-    expect(nestedResults).toEqual([
-      { kind: "retained", completion: null },
-      { kind: "retained", completion: null },
-    ]);
+    expect(nestedResults).toEqual([{ kind: "retained", completion: null }]);
     expect(dispatchResolution).not.toHaveBeenCalled();
 
     expect(fixture.controller.flushRetainedTerminalInternalV1()).toMatchObject({
@@ -8881,11 +8863,6 @@ describe("Narrative stable Managed Surface family", () => {
       semanticDispatchPort: Object.freeze({
         dispatchResolutionInternalV1: dispatchResolution,
       }),
-      onAcknowledgment: () => {
-        if (controller !== null) {
-          nestedResults.push(controller.flushRetainedTerminalInternalV1());
-        }
-      },
     });
     controller = fixture.controller;
     const unsubscribe = fixture.stage.reconciler.subscribe(() => {
@@ -8903,10 +8880,7 @@ describe("Narrative stable Managed Surface family", () => {
     nestedResults.length = 0;
 
     fixture.stage.clock.advance(100);
-    expect(nestedResults).toEqual([
-      { kind: "retained", completion: null },
-      { kind: "retained", completion: null },
-    ]);
+    expect(nestedResults).toEqual([{ kind: "retained", completion: null }]);
     expect(dispatchResolution).not.toHaveBeenCalled();
 
     expect(fixture.controller.flushRetainedTerminalInternalV1()).toMatchObject({
@@ -11529,6 +11503,56 @@ describe("Narrative stable Managed Surface family", () => {
     fixture.admission.disposeInternalV1();
   });
 
+  it("resumes the exact current unread Say after skip_read resets to normal", () => {
+    const clock = controlledDialoguePlayerClockV1();
+    let controller!: NarrativeStableDialoguePlayerControllerInternalV1;
+    const fixture = physicalHistoryHarnessV1({
+      presentationClock: clock.port,
+      textResolver: Object.freeze({
+        resolveTextInternalV1: (textId: string) =>
+          textId === "text.test.speaker" ? "Speaker" : "AB",
+      }),
+      beforeSettleReady: (harness) => {
+        controller = createDialoguePlayerControllerV1(harness);
+      },
+    });
+    const skipAttempt = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("skip");
+    expect(
+      routePlaybackModeToggleV1(
+        fixture.admission,
+        "skip",
+        skipAttempt,
+        "dialogue-player-unread-reset",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "skip", completion: null });
+    expect(clock.requestTick).toHaveBeenCalledOnce();
+
+    clock.latestTick()(1_040);
+
+    expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
+    expect(controller.getSnapshotInternalV1()).toMatchObject({
+      kind: "say",
+      phase: "active",
+      playbackMode: "normal",
+      revealedCharacters: 0,
+      revealComplete: false,
+    });
+    expect(clock.requestTick).toHaveBeenCalledTimes(2);
+
+    clock.latestTick()(1_065);
+
+    expect(controller.getSnapshotInternalV1()).toMatchObject({
+      kind: "say",
+      phase: "active",
+      playbackMode: "normal",
+      revealedCharacters: 1,
+      revealComplete: false,
+    });
+    expect(clock.requestTick).toHaveBeenCalledTimes(3);
+    controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
   it("logically suspends the Dialogue player before a higher blocker and preserves mode", () => {
     const clock = controlledDialoguePlayerClockV1();
     const semanticDispatch = vi.fn((_request: unknown) => Promise.resolve("advanced"));
@@ -11554,10 +11578,20 @@ describe("Narrative stable Managed Surface family", () => {
     });
     const controller = createDialoguePlayerControllerV1(parts.harness);
     settleCurrentNarrativeReadyV1(parts.harness);
+    const inputRouter = createInputRouterV1();
+    const isGestureCurrent = () => true;
     const admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
       bridge: parts.harness.bridge,
-      inputRouter: createInputRouterV1(),
-      isGestureCurrent: () => true,
+      inputRouter,
+      isGestureCurrent,
+    });
+    const predecessorAttempt = admission.issueSayActivationAttemptInternalV1(controller);
+    expect(predecessorAttempt).not.toBeNull();
+    const predecessorEnvelope = admission.createEnvelopeInternalV1({
+      actionId: narrativeAdvanceActionIdV1,
+      gestureId: parseManagedSurfaceGestureIdV1(
+        "gesture.narrative.dialogue-player-blocker-predecessor",
+      ),
     });
     const autoAttempt = admission.issuePlaybackModeToggleAttemptInternalV1("auto");
     expect(
@@ -11574,7 +11608,7 @@ describe("Narrative stable Managed Surface family", () => {
       phasesAtInstallNotification.push(controller.getSnapshotInternalV1().phase);
     });
 
-    openNonBlockingSurfaceV1(
+    const blocker = openNonBlockingSurfaceV1(
       parts.harness,
       parts.nonBlockingDefinition,
       "suspended",
@@ -11594,9 +11628,53 @@ describe("Narrative stable Managed Surface family", () => {
     oldTick(1_040);
     expect(semanticDispatch).not.toHaveBeenCalled();
     expect(clock.requestTick).toHaveBeenCalledOnce();
+
+    const blockerPublication = parts.harness.kernel.getStateInternalV1().transientState.publication;
+    expect(parts.harness.kernel.transitionTransientInternalV1({
+      kind: "close_expected",
+      evidence: Object.freeze({
+        applicationEpoch: blockerPublication.applicationEpoch,
+        topologyRevision: blockerPublication.topologyRevision,
+        surfaceInstanceId: blocker.surfaceInstanceId,
+      }),
+    })).toMatchObject({ kind: "applied", code: "surface.closed" });
+    expect(controller.getSnapshotInternalV1()).toMatchObject({
+      kind: "say",
+      phase: "active",
+      playbackMode: "auto",
+    });
+    clock.latestTick()(2_000);
+    expect(controller.getSnapshotInternalV1()).toMatchObject({
+      kind: "say",
+      phase: "active",
+      revealComplete: true,
+    });
+    expect(
+      admission.routeInternalV1(predecessorEnvelope, predecessorAttempt).consumerResult,
+    ).toBeNull();
+    expect(admission.issueSayActivationAttemptInternalV1(controller)).toBeNull();
+    admission.disposeInternalV1();
+    const resumedAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: parts.harness.bridge,
+      inputRouter,
+      isGestureCurrent,
+    });
+    const activateAttempt = resumedAdmission.issueSayActivationAttemptInternalV1(controller);
+    expect(activateAttempt).not.toBeNull();
+    const activateResult = resumedAdmission.routeInternalV1(
+      resumedAdmission.createEnvelopeInternalV1(Object.freeze({
+        actionId: narrativeAdvanceActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1(
+          "gesture.narrative.dialogue-player-blocker-resume",
+        ),
+      })),
+      activateAttempt,
+    );
+    expect(activateResult.consumerResult).toMatchObject({ kind: "dispatched" });
+    expect(semanticDispatch).toHaveBeenCalledOnce();
     unsubscribe();
     controller.disposeInternalV1();
-    admission.disposeInternalV1();
+    resumedAdmission.disposeInternalV1();
   });
 
   it.each(["generation", "mode_aba"] as const)(

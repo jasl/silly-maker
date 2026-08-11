@@ -38,6 +38,8 @@ import {
   createNarrativeSurfaceCompositeKernelBundleInternalV1,
   createNarrativeSurfaceCompositionDefinitionInternalV1,
   createNarrativeSurfaceCompositionRuntimeInternalV1,
+  defineNarrativeSurfaceV1,
+  type NarrativeSurfaceRendererPropsV1,
   type NarrativeSurfaceCompositeKernelBundleInternalV1,
   type NarrativeSurfaceCompositionDefinitionInternalV1,
   type NarrativeSurfaceChoiceAvailabilityInternalV1,
@@ -430,6 +432,86 @@ function deferredV1<T>() {
 }
 
 describe("Narrative Surface composition definition", () => {
+  it("mints the public five-key Story definition as a frozen opaque identity", () => {
+    const valid = Object.freeze({
+      selectNarrative: (publication: SemanticFixturePublicationV1) => publication.selection,
+      dispatchResolution: async () => undefined,
+      renderer: (_props: NarrativeSurfaceRendererPropsV1) => null,
+      resolveText: (locale: string | null, textId: string) => `${locale ?? "default"}:${textId}`,
+      replayCurrentVoice: null,
+    });
+    const definition = defineNarrativeSurfaceV1(valid);
+
+    expect(Object.keys(definition)).toEqual([]);
+    expect(Object.isFrozen(definition)).toBe(true);
+    expect(() =>
+      defineNarrativeSurfaceV1(Object.freeze({
+        selectNarrative: (publication: SemanticFixturePublicationV1) => publication.selection,
+        dispatchResolution: async () => undefined,
+        renderer: (_props: NarrativeSurfaceRendererPropsV1) => null,
+        resolveText: (_locale: string | null, textId: string) => textId,
+        replayCurrentVoice: null,
+        extra: true,
+      }) as never)
+    ).toThrowError(new TypeError("ui.narrative_surface_definition_invalid"));
+
+    const accessor = Object.freeze(Object.defineProperties({}, {
+      selectNarrative: { enumerable: true, get: () => valid.selectNarrative },
+      dispatchResolution: { enumerable: true, value: valid.dispatchResolution },
+      renderer: { enumerable: true, value: valid.renderer },
+      resolveText: { enumerable: true, value: valid.resolveText },
+      replayCurrentVoice: { enumerable: true, value: null },
+    }));
+    const inherited = Object.freeze(Object.create(valid));
+    const nullPrototype = Object.create(null) as Record<string, unknown>;
+    Object.defineProperties(
+      nullPrototype,
+      Object.fromEntries(
+        Object.entries(valid).map(([key, value]) => [key, {
+          enumerable: true,
+          value,
+        }]),
+      ),
+    );
+    Object.freeze(nullPrototype);
+    const revoked = Proxy.revocable(valid, {});
+    revoked.revoke();
+    const trapping = new Proxy(valid, {
+      getPrototypeOf() {
+        throw new Error("fixture.public-definition-prototype-trap");
+      },
+    });
+    const thenableRenderer = valid.renderer as typeof valid.renderer & { then?: () => void };
+    // oxlint-disable-next-line unicorn/no-thenable -- deliberate hostile callable fixture
+    Object.defineProperty(thenableRenderer, "then", { value: () => undefined });
+    for (
+      const malformed of [
+        Object.freeze({ ...valid, renderer: thenableRenderer }),
+        Object.freeze({
+          selectNarrative: valid.selectNarrative,
+          dispatchResolution: valid.dispatchResolution,
+          renderer: (_props: NarrativeSurfaceRendererPropsV1) => null,
+          resolveText: valid.resolveText,
+        }),
+        { ...valid },
+        accessor,
+        inherited,
+        nullPrototype,
+        revoked.proxy,
+        trapping,
+      ]
+    ) {
+      let thrown: unknown = null;
+      try {
+        defineNarrativeSurfaceV1(malformed as never);
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(TypeError);
+      expect((thrown as Error).message).toBe("ui.narrative_surface_definition_invalid");
+    }
+  });
+
   it("rejects malformed, accessor, extra-key, and thenable-callable definitions", () => {
     const valid = Object.freeze({
       selectNarrativeInternalV1: (publication: SemanticFixturePublicationV1) =>
@@ -1057,6 +1139,14 @@ describe("Narrative Surface stable composite runtime", () => {
     }));
     expect(stage.clock.pendingTickCount()).toBe(1);
     expect(dispatchResolution).not.toHaveBeenCalled();
+    stage.driver.retargetInternalV1(Object.freeze({
+      target: barrierStageTargetV1("content.test.barrier-b"),
+      revision: 2,
+      epoch: parseNonNegativeSafeInteger(7),
+    }));
+    expect(stage.clock.pendingTickCount()).toBe(1);
+    expect(dispatchResolution).not.toHaveBeenCalled();
+    expect(harness.composition.getCurrentSessionInternalV1()).not.toBeNull();
 
     const successorPending = barrierPendingV1(11);
     const successor = harness.successor(selectionV1({ pending: successorPending }));

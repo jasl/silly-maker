@@ -161,9 +161,6 @@ export interface DefaultGameRootSlotsV1<TPublication, TSemantic, TOverlayId exte
     context: DefaultGameRootSlotContextV1<TPublication, TSemantic, TOverlayId>,
   ): ReactNode;
   hud?(context: DefaultGameRootSlotContextV1<TPublication, TSemantic, TOverlayId>): ReactNode;
-  narrative?(
-    context: DefaultGameRootSlotContextV1<TPublication, TSemantic, TOverlayId>,
-  ): ReactNode;
   systemMenuExtras?(
     context: DefaultGameRootSlotContextV1<TPublication, TSemantic, TOverlayId>,
   ): ReactNode;
@@ -636,7 +633,7 @@ export function DefaultGameRootV1<
           inputRouter={props.composition.input}
         />
       )
-      : slots.narrative?.(slotContext) ?? null,
+      : null,
     system: (
       <SystemDialogHostV1
         inputRouter={props.composition.input}

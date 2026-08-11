@@ -28,6 +28,7 @@ import {
 import { registerManagedInputHandlerV1 } from "../input/input-router.ts";
 import {
   claimManagedSurfacePreparedAuthenticatedActionRouteInternalV1,
+  captureManagedSurfacePreparedInputBindingContractInternalV1,
   claimManagedSurfaceAuthenticatedActionRouteInternalV1,
   createManagedSurfaceContractBoundActionBindingInternalV1,
   equalManagedSurfaceInputBindingContractV1,
@@ -4284,6 +4285,13 @@ function deriveNarrativeStableDialogueRenderEntryInternalV1(
     ) ?? null
     : null;
   let materialization = previousMaterialization;
+  if (
+    materialization?.fault !== null && materialization?.fault !== undefined &&
+    previous?.phase !== phase
+  ) {
+    retireNarrativeStableDialoguePlayerFaultMaterializationInternalV1(materialization);
+    materialization = null;
+  }
   if (materialization === null) {
     try {
       materialization = createNarrativeStableDialoguePlayerMaterializationInternalV1(
@@ -4916,6 +4924,7 @@ function refreshNarrativeStableHostRenderSnapshotInternalV1(
   session: NarrativeStableSessionInternalV1,
   record: NarrativeStableSessionRecordInternalV1,
 ): boolean {
+  const previousSnapshot = record.currentRenderSnapshot;
   const entries: NarrativeStableHostRenderEntryInternalV1[] = [];
   if (!record.terminal && record.bridgeRecord.active) {
     const state = record.bridgeRecord.compositeRuntimeKernel.getStateInternalV1();
@@ -4956,7 +4965,7 @@ function refreshNarrativeStableHostRenderSnapshotInternalV1(
       if (parentIndex >= 0) entries.splice(parentIndex + 1, 0, history);
     }
   }
-  const previousEntries = record.currentRenderSnapshot.entries;
+  const previousEntries = previousSnapshot.entries;
   if (
     previousEntries.length === entries.length &&
     previousEntries.every((entry, index) => entry === entries[index])
@@ -5017,7 +5026,91 @@ function refreshNarrativeStableHostRenderSnapshotInternalV1(
     }
   }
   record.currentRenderSnapshot = createNarrativeStableHostRenderSnapshotInternalV1(entries);
+  const runtimeRecord = record.currentHostRuntime;
+  if (
+    runtimeRecord !== null && runtimeRecord.active &&
+    rotateResumedNarrativeStableHostRootActionBindingInternalV1(
+      runtimeRecord,
+      previousSnapshot,
+    )
+  ) {
+    refreshNarrativeStableHostRenderSnapshotInternalV1(session, record);
+  }
   return true;
+}
+
+function rotateResumedNarrativeStableHostRootActionBindingInternalV1(
+  runtimeRecord: NarrativeStableHostRuntimeRecordInternalV1,
+  previousSnapshot: NarrativeStableHostRenderSnapshotInternalV1,
+): boolean {
+  const sessionRecord = runtimeRecord.sessionRecord;
+  const resumed = sessionRecord.currentRenderSnapshot.entries.find((entry) => {
+    if (entry.kind !== "dialogue" || entry.phase !== "active") return false;
+    return previousSnapshot.entries.some((previous) =>
+      previous.kind === "dialogue" && previous.phase === "suspended" &&
+      previous.renderKey === entry.renderKey
+    );
+  });
+  if (resumed?.kind !== "dialogue") return false;
+  const resumedRecord = narrativeStableHostRenderEntryRecordsInternalV1.get(resumed);
+  if (resumedRecord === undefined) return false;
+  const predecessor = findNarrativeStableHostActionBindingRecordInternalV1(
+    sessionRecord,
+    resumedRecord.attempt,
+  );
+  const authority = predecessor?.kind === "root"
+    ? predecessor.authority as ManagedSurfaceStableActionRouteAuthorityInternalV1 | null
+    : null;
+  if (
+    authority === null || predecessor === null || !predecessor.active ||
+    !predecessor.committed || predecessor.runtimeRecord !== runtimeRecord ||
+    sessionRecord.bridgeRecord.currentHostRootActionBinding !== predecessor
+  ) return false;
+
+  let successor: NarrativeStableHostCandidateActionBindingRecordInternalV1 | null = null;
+  try {
+    const currentTarget = sessionRecord.bridgeRecord.captureCurrentTargetInternalV1();
+    const current = authority.captureCurrentStableInputInternalV1();
+    const ready = current.kind === "captured" && current.directTarget !== null
+      ? authority.captureReadyActiveStableTargetInternalV1(current.directTarget)
+      : null;
+    if (
+      currentTarget === null || current.kind !== "captured" || current.directTarget === null ||
+      current.sourceRevision === null || current.targetProof === null ||
+      current.directTarget !== currentTarget.target ||
+      current.sourceRevision !== currentTarget.sourceRevision ||
+      currentTarget.frame !== resumedRecord.frame || ready?.kind !== "captured" ||
+      ready.directTarget !== current.directTarget ||
+      ready.sourceRevision !== current.sourceRevision ||
+      !authority.isCurrentDirectTargetInternalV1(current.targetProof) ||
+      !authority.isCurrentReadyActiveStableTargetInternalV1(ready.proof)
+    ) return false;
+    const contract = captureManagedSurfacePreparedInputBindingContractInternalV1(
+      current.contract,
+    );
+    successor = prepareNarrativeStableHostCandidateActionBindingInternalV1(
+      runtimeRecord,
+      "root",
+      resumedRecord.attempt,
+      true,
+    );
+    if (
+      !commitNarrativeStableHostCandidateActionBindingInternalV1(
+        runtimeRecord,
+        successor,
+        contract,
+      )
+    ) {
+      retireNarrativeStableHostCandidateActionBindingInternalV1(successor);
+      return false;
+    }
+    return true;
+  } catch {
+    if (successor !== null) {
+      retireNarrativeStableHostCandidateActionBindingInternalV1(successor);
+    }
+    return false;
+  }
 }
 
 function notifyNarrativeStableHostRenderStateInternalV1(
@@ -7321,7 +7414,12 @@ function processNarrativeStableDialoguePlayerSkipTickInternalV1(
       record,
       "mode_reset",
     ) as NarrativeStablePlaybackModeResetAttemptInternalV1 | null;
-    if (attempt !== null) dispatchNarrativeStableDialoguePlayerModeResetInternalV1(record, attempt);
+    if (
+      attempt !== null &&
+      dispatchNarrativeStableDialoguePlayerModeResetInternalV1(record, attempt).kind === "reset"
+    ) {
+      requestNarrativeStableDialoguePlayerTickInternalV1(record, generation);
+    }
     return;
   }
   if (profile !== record.profile) {

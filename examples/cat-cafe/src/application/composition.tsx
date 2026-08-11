@@ -2,14 +2,17 @@ import type { AssetId, DeepReadonly, AudioIntentV1 } from "@sillymaker/base";
 import { projectStageRenderTarget } from "@sillymaker/base/story";
 import type {
   DefaultGameRootSlotsV1,
+  DefineNarrativeSurfaceInputV1,
   GameUiProjectorV1,
   KeyboardActionMapV1,
+  NarrativeSurfaceSelectionV1,
   AudioHostV1,
   RuntimeAssetLoaderV1,
   PointerActionMapV1,
 } from "@sillymaker/ui";
 import {
   createAssetRegistryV1,
+  defineNarrativeSurfaceV1,
   defineWorkspaceOverlayV1,
   GameAudioV1,
   systemInputActionIdsV1,
@@ -59,7 +62,7 @@ import type {
 } from "../simulation.ts";
 import { catcafeAudioManifestV1, resolveCatcafeEffectAssetV1 } from "../features/audio/index.ts";
 import { catcafeStageContentCatalogV1, catcafeTextForLocaleV1 } from "../presentation.ts";
-import { CatcafeHudV1, CatcafeNarrativePanelV1, CatcafeSettingsV1 } from "./ui.tsx";
+import { CatcafeHudV1, CatcafeNarrativeRendererV1, CatcafeSettingsV1 } from "./ui.tsx";
 
 export const catcafeViewportCanvasV1 = Object.freeze({ width: 1280, height: 720 });
 
@@ -88,6 +91,32 @@ const projectorDefinitionV1: GameUiProjectorV1<
 };
 
 export const catcafeUiProjectorV1 = Object.freeze(projectorDefinitionV1);
+
+const noNarrativeChoiceReasonsV1: readonly string[] = Object.freeze([]);
+
+/** Pure Story projection consumed by the public Narrative definition. */
+export function projectCatcafeNarrativeSurfaceSelectionV1(
+  publication: DeepReadonly<CatcafeSemanticPublicationV1>,
+): NarrativeSurfaceSelectionV1 {
+  const narrative = publication.narrative;
+  const choiceAvailability = narrative.choiceOptions === null ? null : Object.freeze(
+    narrative.choiceOptions.map((option) => {
+      if (!option.enabled || option.blockedBy !== null) {
+        throw new TypeError("catcafe.narrative_choice_availability_inconsistent");
+      }
+      return Object.freeze({
+        choiceId: option.choiceId,
+        status: "enabled" as const,
+        reasonTextIds: noNarrativeChoiceReasonsV1,
+      });
+    }),
+  );
+  return Object.freeze({
+    pending: narrative.pending,
+    history: narrative.history,
+    choiceAvailability,
+  });
+}
 
 /** The continuous audio intent comes from the game view; the host is created lazily (first user gesture unlocks playback). */
 const selectCatcafeAudioIntentV1 = (publication: unknown): AudioIntentV1 =>
@@ -140,13 +169,6 @@ export function createCatcafeUiSlotsV1(input: {
             )}
         />
       </>
-    ),
-    narrative: (context) => (
-      <CatcafeNarrativePanelV1
-        publication={context.publication}
-        semantic={context.semantic}
-        playerProfile={input.playerProfile}
-      />
     ),
     settingsSections: () => [
       <CatcafeSettingsV1 key="catcafe-settings" playerProfile={input.playerProfile} />,
@@ -250,6 +272,24 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
         }),
       }),
       projector: catcafeUiProjectorV1,
+      narrative: defineNarrativeSurfaceV1<CatcafeSemanticPublicationV1>(
+        Object.freeze(
+          {
+            selectNarrative: projectCatcafeNarrativeSurfaceSelectionV1,
+            dispatchResolution: (request) =>
+              instance.semantic.dispatch(
+                Object.freeze({
+                  kind: "resolve" as const,
+                  expectedOccurrenceId: request.expectedOccurrenceId,
+                  resolution: request.resolution,
+                }) as never,
+              ),
+            renderer: CatcafeNarrativeRendererV1,
+            resolveText: catcafeTextForLocaleV1,
+            replayCurrentVoice: null,
+          } satisfies DefineNarrativeSurfaceInputV1<CatcafeSemanticPublicationV1>,
+        ),
+      ),
       overlayDefinitions: Object.freeze([
         defineWorkspaceOverlayV1({ id: "overlay.catcafe.album", contractRevision: 1 }),
       ]),

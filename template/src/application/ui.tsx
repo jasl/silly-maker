@@ -3,12 +3,11 @@
 // Application binding, projector, slots, and labels live in `composition.tsx`.
 import type { ReactElement } from "react";
 
-import type { DeepReadonly, NarrativeHistoryV1, PendingInteractionV1 } from "@sillymaker/base";
-import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
-import type { DialogueResolutionV1 } from "@sillymaker/ui";
-import { Button, DialoguePanelV1 } from "@sillymaker/ui";
+import type { DeepReadonly } from "@sillymaker/base";
+import type { NarrativeSurfaceRendererPropsV1 } from "@sillymaker/ui";
+import { Button } from "@sillymaker/ui";
 
-import type { TemplateActionIdV1, TemplateInvocationV1 } from "./semantic.ts";
+import type { TemplateActionIdV1 } from "./semantic.ts";
 import type { TemplateApplicationInstanceV1 } from "./core-definition.ts";
 import type { TemplateUiPublicationV1 } from "./composition.tsx";
 import { templateUiTextV1 } from "./composition.tsx";
@@ -20,74 +19,150 @@ const actionTextIdsV1: Readonly<Record<TemplateActionIdV1, string>> = Object.fre
   "template.earn_coin": "text.template.action.earn",
 });
 
-function resolveV1(
-  semantic: TemplateSemanticPortV1,
-  expectedOccurrenceId: string,
-  resolution: DeepReadonly<TemplateInvocationV1> extends never ? never : unknown,
-): void {
-  void semantic.dispatch(
-    Object.freeze({
-      kind: "resolve" as const,
-      expectedOccurrenceId,
-      resolution,
-    }) as never,
-  );
-}
+const templateNarrativePanelStyleV1 = Object.freeze({
+  position: "absolute" as const,
+  insetInline: "160px",
+  insetBlockEnd: "48px",
+  padding: "24px 32px",
+  borderRadius: "16px",
+  background: "rgba(16, 20, 26, 0.82)",
+  color: "#f2efe8",
+  fontSize: "22px",
+  lineHeight: 1.6,
+});
 
-/**
- * The minimal narrative panel: renders the pending say or choice from the
- * published narrative view and dispatches semantic resolutions. The Engine
- * Lab's player (`e2e/src/application/narrative-ui.tsx`) shows
- * the full version with typewriter, auto/skip, history, and voice replay.
- */
-export function TemplateNarrativePanelV1(props: {
-  readonly publication: DeepReadonly<TemplateUiPublicationV1>;
-  readonly semantic: TemplateSemanticPortV1;
-  readonly playerProfile: PlayerProfileStoreV1;
-}): ReactElement | null {
-  const narrative = props.publication.semantic.narrative;
-  const pending = narrative.pending;
-  const panelStyle = {
-    position: "absolute" as const,
-    insetInline: "160px",
-    insetBlockEnd: "48px",
-    padding: "24px 32px",
-    borderRadius: "16px",
-    background: "rgba(16, 20, 26, 0.82)",
-    color: "#f2efe8",
-    fontSize: "22px",
-    lineHeight: 1.6,
-  };
-
-  if (pending === null) {
-    if (narrative.phase !== "completed") return null;
+/** Passive product skin for the composition-owned Narrative runtime. */
+export function TemplateNarrativeRendererV1(
+  props: NarrativeSurfaceRendererPropsV1,
+): ReactElement | null {
+  if (props.kind === "history") {
     return (
-      <div data-template-narrative="completed" style={panelStyle}>
-        {templateUiTextV1("text.template.narrative.completed")}
+      <section
+        data-template-narrative="history"
+        data-dialogue-history="true"
+        style={templateNarrativePanelStyleV1}
+      >
+        <header style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+          <strong>{props.resolveText("text.template.playback.history.title")}</strong>
+          <Button data-dialogue-history-close="true" onClick={props.onCloseHistory}>
+            {props.resolveText("text.template.playback.history.close")}
+          </Button>
+        </header>
+        {props.history.entries.length === 0
+          ? <p>{props.resolveText("text.template.playback.history.empty")}</p>
+          : (
+            <ol style={{ display: "grid", gap: "10px", paddingInlineStart: "24px" }}>
+              {props.history.entries.map((entry) => (
+                <li key={entry.occurrenceId} data-dialogue-history-entry={entry.kind}>
+                  {entry.speakerTextId === null
+                    ? null
+                    : <strong>{props.resolveText(entry.speakerTextId)}：</strong>}
+                  {props.resolveText(entry.textId)}
+                </li>
+              ))}
+            </ol>
+          )}
+      </section>
+    );
+  }
+
+  const pending = props.pending;
+  if (pending.kind === "say") {
+    const playerView = props.playerView.kind === "say" ? props.playerView : null;
+    const resolvedSpeakerText = playerView?.resolvedSpeakerText ??
+      (pending.speakerTextId === null ? null : props.resolveText(pending.speakerTextId));
+    const resolvedText = playerView?.resolvedText ?? props.resolveText(pending.textId);
+    const revealedCharacters = playerView?.revealedCharacters ?? 0;
+    const revealComplete = playerView?.revealComplete ?? false;
+    return (
+      <div
+        data-template-narrative="say"
+        data-dialogue="say"
+        data-dialogue-occurrence={pending.occurrenceId}
+        data-dialogue-reveal={revealComplete ? "complete" : "revealing"}
+        style={templateNarrativePanelStyleV1}
+      >
+        {resolvedSpeakerText === null
+          ? null
+          : (
+            <strong style={{ display: "block", color: "#ffd9a0" }}>
+              {resolvedSpeakerText}
+            </strong>
+          )}
+        <p style={{ margin: "8px 0 16px", minBlockSize: "1.6em" }}>
+          {resolvedText.slice(0, revealedCharacters)}
+        </p>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <Button data-dialogue-advance="true" onClick={props.onActivate}>
+            {props.resolveText("text.template.narrative.advance")}
+          </Button>
+          <Button
+            data-dialogue-playback="auto"
+            aria-pressed={props.playerView.playbackMode === "auto"}
+            onClick={props.onToggleAuto}
+          >
+            {props.resolveText("text.template.playback.auto")}
+          </Button>
+          <Button
+            data-dialogue-playback="skip"
+            aria-pressed={props.playerView.playbackMode === "skip"}
+            onClick={props.onToggleSkip}
+          >
+            {props.resolveText("text.template.playback.skip")}
+          </Button>
+          <Button data-dialogue-history-open="true" onClick={props.onOpenHistory}>
+            {props.resolveText("text.template.playback.history")}
+          </Button>
+        </div>
       </div>
     );
   }
 
-  return (
-    <DialoguePanelV1
-      pending={pending as PendingInteractionV1}
-      history={narrative.history as NarrativeHistoryV1}
-      playerProfile={props.playerProfile}
-      uiText={templateUiTextV1}
-      onResolve={(occurrenceId: string, resolution: DialogueResolutionV1) =>
-        resolveV1(props.semantic, occurrenceId, resolution as never)}
-      labels={{
-        advanceLabel: templateUiTextV1("text.template.narrative.advance"),
-        autoLabel: templateUiTextV1("text.template.playback.auto"),
-        skipLabel: templateUiTextV1("text.template.playback.skip"),
-        historyLabel: templateUiTextV1("text.template.playback.history"),
-        historyTitle: templateUiTextV1("text.template.playback.history.title"),
-        historyEmptyText: templateUiTextV1("text.template.playback.history.empty"),
-        historyCloseLabel: templateUiTextV1("text.template.playback.history.close"),
-      }}
-      panelStyle={panelStyle}
-    />
-  );
+  if (pending.kind === "choice") {
+    return (
+      <div
+        data-template-narrative="choice"
+        data-dialogue="choice"
+        data-dialogue-occurrence={pending.occurrenceId}
+        style={templateNarrativePanelStyleV1}
+      >
+        <p style={{ margin: "0 0 16px" }}>{props.resolveText(pending.promptTextId)}</p>
+        <div role="group" style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          {pending.options.map((option, index) => {
+            const availability = props.choiceAvailability?.[index];
+            const enabled = availability?.choiceId === option.choiceId &&
+              availability.status === "enabled";
+            const reasonId = `template-choice-reason-${String(index)}`;
+            return (
+              <span key={option.choiceId} style={{ display: "grid", gap: "4px" }}>
+                <Button
+                  data-dialogue-choice={option.choiceId}
+                  disabled={!enabled}
+                  aria-describedby={enabled ? undefined : reasonId}
+                  onClick={() => {
+                    if (enabled) props.onChoose(option.choiceId);
+                  }}
+                >
+                  {props.resolveText(option.textId)}
+                </Button>
+                {enabled
+                  ? null
+                  : (
+                    <small id={reasonId} data-dialogue-choice-reason={option.choiceId}>
+                      {(availability?.reasonTextIds ?? []).map((textId) =>
+                        props.resolveText(textId)
+                      ).join(" · ")}
+                    </small>
+                  )}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 export function TemplateHudV1(props: {
@@ -100,6 +175,13 @@ export function TemplateHudV1(props: {
         {templateUiTextV1("text.template.hud.coins")}
         {String(props.publication.view.coins)}
       </span>
+      {props.publication.semantic.narrative.phase === "completed"
+        ? (
+          <span data-template-narrative="completed">
+            {templateUiTextV1("text.template.narrative.completed")}
+          </span>
+        )
+        : null}
       {props.publication.semantic.actions.map((action) => (
         <Button
           key={action.actionId}

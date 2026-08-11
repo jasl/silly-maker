@@ -23,17 +23,21 @@ test.describe("engine input actions", () => {
       "aria-pressed",
       "false",
     );
-    await page.keyboard.press("KeyH");
-    await expect(page.locator("[data-lab-player='history-panel']")).toBeAttached();
-    await page.keyboard.press("KeyH");
-    await expect(page.locator("[data-lab-player='history-panel']")).toHaveCount(0);
 
-    // Keyboard advance: wait for the natural reveal, then Enter resolves
-    // the say — identical semantics to clicking 继续. The beta line follows
-    // before the choice.
+    // History is intentionally unavailable until at least one line has
+    // completed. Finish the first Say, then exercise the raw shortcut while
+    // the beta line is current and the public History port is available.
     await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
     await page.keyboard.press("Enter");
     await expect(page.getByText("样本读数稳定，可以开始校准。")).toBeVisible();
+    await page.keyboard.press("KeyH");
+    const history = page.locator("[data-lab-player='history-panel']");
+    await expect(history).toContainText("需要校准信标，请跟我来。");
+    await page.keyboard.press("KeyH");
+    await expect(history).toHaveCount(0);
+
+    // Keyboard advance: wait for the natural reveal, then Enter resolves the
+    // beta line — identical semantics to clicking 继续.
     await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
     await page.keyboard.press("Enter");
     await expect(page.locator("[data-lab-interaction='choice']")).toBeVisible();
@@ -72,23 +76,25 @@ test.describe("engine input actions", () => {
     await page.getByRole("button", { name: "开始校准" }).click();
     await expect(page.locator("[data-lab-interaction='say']")).toBeVisible();
 
-    const pressPad = async (index: number): Promise<void> => {
-      await page.evaluate((buttonIndex) => {
-        const set = (window as unknown as Record<string, unknown>).sillymakerSetPadButton as (
-          index: number,
-          pressed: boolean,
-        ) => void;
-        set(buttonIndex, true);
-      }, index);
-      // Release after the loop has observed the edge.
-      await page.waitForTimeout(80);
-      await page.evaluate((buttonIndex) => {
-        const set = (window as unknown as Record<string, unknown>).sillymakerSetPadButton as (
-          index: number,
-          pressed: boolean,
-        ) => void;
-        set(buttonIndex, false);
-      }, index);
+    const setPadButton = async (index: number, pressed: boolean): Promise<void> => {
+      await page.evaluate(
+        ({ buttonIndex, nextPressed }) => {
+          const set = (window as unknown as Record<string, unknown>).sillymakerSetPadButton as (
+            index: number,
+            pressed: boolean,
+          ) => void;
+          set(buttonIndex, nextPressed);
+        },
+        { buttonIndex: index, nextPressed: pressed },
+      );
+    };
+    const waitForPadPoll = async (): Promise<void> => {
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+          }),
+      );
     };
 
     // Wait for the natural reveal, then button A advances the say — the
@@ -97,15 +103,23 @@ test.describe("engine input actions", () => {
     // keyboard and jsdom suites; the router is device-agnostic, so the
     // unique gamepad claim is the poll loop's rising edge itself.)
     await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
-    await pressPad(0);
+    await setPadButton(0, true);
     await expect(page.getByText("样本读数稳定，可以开始校准。")).toBeVisible();
+    await setPadButton(0, false);
+    await waitForPadPoll();
     await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
-    await pressPad(0);
+    await setPadButton(0, true);
     await expect(page.locator("[data-lab-interaction='choice']")).toBeVisible();
+    await setPadButton(0, false);
+    await waitForPadPoll();
 
-    // Holding or re-pressing at the choice forms no stray intent.
-    await pressPad(0);
+    // Holding across multiple poll ticks forms one ignored edge and no
+    // repeated intent at the Choice boundary.
+    await setPadButton(0, true);
+    await waitForPadPoll();
     await expect(page.locator("[data-lab-interaction='choice']")).toBeVisible();
+    await setPadButton(0, false);
+    await waitForPadPoll();
   });
 
   test("choice cancel on pointerup fences the leftover synthesized click", async ({ page }) => {
@@ -147,8 +161,8 @@ test.describe("engine input actions", () => {
     });
 
     // Real pointer gesture on 先返回: the Lab resolves the cancel on
-    // pointerup (the dismiss idiom), the menu unmounts, and the browser
-    // still synthesizes a click at the same coordinates.
+    // pointerup (the dismiss idiom) and the menu unmounts. Browsers may
+    // suppress the corresponding click because pointerup was prevented.
     const cancel = page.locator("[data-lab-choice-cancel]");
     const box = await cancel.boundingBox();
     expect(box).not.toBeNull();
@@ -159,6 +173,25 @@ test.describe("engine input actions", () => {
     // When Cancel re-presents the same choice at exactly the next
     // occurrence — a leaked click would have activated the re-rendered
     // control underneath and advanced it twice.
+    await expect(choice).toHaveAttribute(
+      "data-lab-occurrence",
+      `interaction-occurrence.${String(sequenceBefore + 1)}`,
+    );
+
+    // Preventing pointerup is allowed to suppress the browser-generated click
+    // entirely. Inject the residual primary click deterministically at the
+    // re-presented control so every engine proves the still-armed Stage fence
+    // consumes it before React or document bubbling can resolve again.
+    await cancel.evaluate((target) => {
+      target.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          button: 0,
+          detail: 1,
+        }),
+      );
+    });
     await expect(choice).toHaveAttribute(
       "data-lab-occurrence",
       `interaction-occurrence.${String(sequenceBefore + 1)}`,

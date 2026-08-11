@@ -7,7 +7,7 @@ import type {
   StoryId,
 } from "@sillymaker/base";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
-import type { PointerActionMapV1 } from "@sillymaker/ui";
+import type { NarrativeSurfaceDefinitionV1, PointerActionMapV1 } from "@sillymaker/ui";
 import {
   createRuntimeCapabilitySessionOverlayV1,
   createWebContentPreferencePortV1,
@@ -28,6 +28,13 @@ type WebInputMapsV1 = NonNullable<
 const webInputMapsV1: WebInputMapsV1 = { pointer: pointerActionMapV1 };
 const publicPointerActionMapV1: PointerActionMapV1 | undefined = webInputMapsV1.pointer;
 void publicPointerActionMapV1;
+
+declare const narrativeSurfaceDefinitionV1: NarrativeSurfaceDefinitionV1<unknown>;
+type WebNarrativeDefinitionV1 = NonNullable<
+  WebGameUiDefinitionV1<unknown, unknown, unknown, unknown, unknown, string, unknown>["narrative"]
+>;
+const webNarrativeDefinitionV1: WebNarrativeDefinitionV1 = narrativeSurfaceDefinitionV1;
+void webNarrativeDefinitionV1;
 
 const injectedRecordsV1 = createMemoryHostRecordStoreV1();
 createWebHostV1({ databaseName: "sillymaker.type-test.runtime" });

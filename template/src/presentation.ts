@@ -41,6 +41,7 @@ export const templateTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.template.choice.prompt", text: "接下来做什么？" },
         { textId: "text.template.choice.look", text: "去看看檐下的动静" },
         { textId: "text.template.choice.inside", text: "先回屋里" },
+        { textId: "text.template.choice.insufficient-coins", text: "硬币不足" },
         { textId: "text.template.line.cat", text: "看，檐角下躲着一只小猫，毛都淋湿了。" },
         { textId: "text.template.line.inside", text: "你转身回屋，把伞立在门边。" },
         {
@@ -52,6 +53,27 @@ export const templateTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
     },
   ],
 });
+
+/** Locale-aware Story text with a deterministic fallback to the default catalog. */
+export function templateTextForLocaleV1(locale: string | null, textId: string): string {
+  const visited: string[] = [];
+  let cursor: string | null = locale ?? templateTextCatalogsV1.defaultLocale;
+  while (cursor !== null && !visited.includes(cursor)) {
+    visited.push(cursor);
+    const catalog = templateTextCatalogsV1.catalogs.find(
+      (candidate) => candidate.locale === cursor,
+    );
+    const entry = catalog?.entries.find((candidate) => candidate.textId === textId);
+    if (entry !== undefined) return entry.text;
+    cursor = catalog?.fallbackLocale ?? null;
+  }
+  const fallback = templateTextCatalogsV1.catalogs.find(
+    (candidate) => candidate.locale === templateTextCatalogsV1.defaultLocale,
+  );
+  const entry = fallback?.entries.find((candidate) => candidate.textId === textId);
+  if (entry === undefined) throw new TypeError(`template.text_missing:${textId}`);
+  return entry.text;
+}
 
 /**
  * The stage content catalog: the only place that knows renderer IDs and

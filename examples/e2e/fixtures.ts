@@ -5,6 +5,20 @@ import { expect, test as base } from "@playwright/test";
 
 const hostV1 = "127.0.0.1";
 
+/** Starter Template: the copyable Story skeleton and its production Narrative declaration. */
+export const templateTargetV1 = Object.freeze({ host: hostV1, port: 41733 });
+
+export function templateTargetUrlV1(query = ""): string {
+  return `http://${templateTargetV1.host}:${String(templateTargetV1.port)}/${query}`;
+}
+
+/** Bookshop: scripted Choice availability changing within one Narrative occurrence. */
+export const bookshopTargetV1 = Object.freeze({ host: hostV1, port: 41735 });
+
+export function bookshopTargetUrlV1(query = ""): string {
+  return `http://${bookshopTargetV1.host}:${String(bookshopTargetV1.port)}/${query}`;
+}
+
 /** Cat cafe: stage hit regions, dialogue playback, save safepoints, rollback. */
 export const catcafeTargetV1 = Object.freeze({ host: hostV1, port: 41737 });
 

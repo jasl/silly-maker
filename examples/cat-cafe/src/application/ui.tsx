@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // PascalCase React presentation (Vite Fast Refresh–safe).
 // Application binding, projector, slots, and labels live in `composition.tsx`.
-import { useCallback, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 
-import type { DeepReadonly, NarrativeHistoryV1, PendingInteractionV1 } from "@sillymaker/base";
+import type { DeepReadonly } from "@sillymaker/base";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
-import { Button, DialoguePanelV1 } from "@sillymaker/ui";
-import type { DialogueResolutionV1 } from "@sillymaker/ui";
+import type { NarrativeSurfaceRendererPropsV1 } from "@sillymaker/ui";
+import { Button } from "@sillymaker/ui";
 
 import type { CatcafeActionIdV1 } from "./semantic.ts";
 import type { CatcafeApplicationInstanceV1 } from "./core-definition.ts";
@@ -50,46 +50,156 @@ const actionTextIdsV1: Readonly<Record<CatcafeActionIdV1, string>> = Object.free
   "cc.enter_postgame": "text.cc.ending.continue",
 });
 
-/**
- * Dialogue panel: a thin adapter over the engine's DialoguePanelV1 — typewriter,
- * auto/skip, seen markers, history, click surface, and the shortcut bar all come
- * from the engine; this wires only the semantic port, text catalog, and the rollback button.
- */
-export function CatcafeNarrativePanelV1(props: {
-  readonly publication: DeepReadonly<CatcafeUiPublicationV1>;
-  readonly semantic: CatcafeSemanticPortV1;
-  readonly playerProfile: PlayerProfileStoreV1;
-}): ReactElement | null {
-  const uiText = useCatcafeTextV1(props.playerProfile);
-  const narrative = props.publication.semantic.narrative;
-  const semantic = props.semantic;
-  const onResolve = useCallback(
-    (occurrenceId: string, resolution: DialogueResolutionV1) =>
-      dispatchV1(semantic, {
-        kind: "resolve",
-        expectedOccurrenceId: occurrenceId,
-        resolution,
-      } as never),
-    [semantic],
-  );
-  return (
-    <DialoguePanelV1
-      pending={narrative.pending as PendingInteractionV1 | null}
-      history={narrative.history as NarrativeHistoryV1}
-      playerProfile={props.playerProfile}
-      uiText={uiText}
-      onResolve={onResolve}
-      labels={{
-        advanceLabel: uiText("text.cc.narrative.advance"),
-        autoLabel: uiText("text.cc.playback.auto"),
-        skipLabel: uiText("text.cc.playback.skip"),
-        historyLabel: uiText("text.cc.playback.history"),
-        historyTitle: uiText("text.cc.playback.history.title"),
-        historyEmptyText: uiText("text.cc.playback.history.empty"),
-        historyCloseLabel: uiText("text.cc.playback.history.close"),
-      }}
-    />
-  );
+const catcafeNarrativePanelStyleV1 = Object.freeze({
+  position: "absolute" as const,
+  insetInline: "min(160px, 6%)",
+  insetBlockEnd: "min(48px, 4%)",
+  maxBlockSize: "70%",
+  overflowY: "auto" as const,
+  padding: "clamp(8px, 3%, 32px)",
+  borderRadius: "16px",
+  background: "rgba(16, 20, 26, 0.82)",
+  color: "#f2efe8",
+  fontSize: "clamp(14px, 2.5vw, 22px)",
+  lineHeight: 1.6,
+});
+
+/** Passive Cat Cafe skin for the composition-owned Narrative runtime. */
+export function CatcafeNarrativeRendererV1(
+  props: NarrativeSurfaceRendererPropsV1,
+): ReactElement | null {
+  if (props.kind === "history") {
+    return (
+      <section
+        data-cc-narrative="history"
+        data-dialogue-history="true"
+        style={catcafeNarrativePanelStyleV1}
+      >
+        <header style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+          <strong>{props.resolveText("text.cc.playback.history.title")}</strong>
+          <Button
+            data-dialogue-history-close="true"
+            data-panel-close="true"
+            onClick={props.onCloseHistory}
+          >
+            {props.resolveText("text.cc.playback.history.close")}
+          </Button>
+        </header>
+        {props.history.entries.length === 0
+          ? <p>{props.resolveText("text.cc.playback.history.empty")}</p>
+          : (
+            <ol style={{ display: "grid", gap: "10px", paddingInlineStart: "24px" }}>
+              {props.history.entries.map((entry) => (
+                <li key={entry.occurrenceId} data-dialogue-history-entry={entry.kind}>
+                  {entry.speakerTextId === null
+                    ? null
+                    : <strong>{props.resolveText(entry.speakerTextId)}：</strong>}
+                  {props.resolveText(entry.textId)}
+                </li>
+              ))}
+            </ol>
+          )}
+      </section>
+    );
+  }
+
+  const pending = props.pending;
+  if (pending.kind === "say") {
+    const playerView = props.playerView.kind === "say" ? props.playerView : null;
+    const resolvedSpeakerText = playerView?.resolvedSpeakerText ??
+      (pending.speakerTextId === null ? null : props.resolveText(pending.speakerTextId));
+    const resolvedText = playerView?.resolvedText ?? props.resolveText(pending.textId);
+    const revealedCharacters = playerView?.revealedCharacters ?? 0;
+    const revealComplete = playerView?.revealComplete ?? false;
+    return (
+      <div
+        data-cc-narrative="say"
+        data-dialogue="say"
+        data-dialogue-occurrence={pending.occurrenceId}
+        data-dialogue-reveal={revealComplete ? "complete" : "revealing"}
+        style={catcafeNarrativePanelStyleV1}
+      >
+        {resolvedSpeakerText === null
+          ? null
+          : (
+            <strong style={{ display: "block", color: "#ffd9a0" }}>
+              {resolvedSpeakerText}
+            </strong>
+          )}
+        <p style={{ margin: "8px 0 16px", minBlockSize: "1.6em" }}>
+          {resolvedText.slice(0, revealedCharacters)}
+        </p>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <Button data-dialogue-advance="true" onClick={props.onActivate}>
+            {props.resolveText("text.cc.narrative.advance")}
+          </Button>
+          <Button
+            data-dialogue-playback="auto"
+            aria-pressed={props.playerView.playbackMode === "auto"}
+            onClick={props.onToggleAuto}
+          >
+            {props.resolveText("text.cc.playback.auto")}
+          </Button>
+          <Button
+            data-dialogue-playback="skip"
+            aria-pressed={props.playerView.playbackMode === "skip"}
+            onClick={props.onToggleSkip}
+          >
+            {props.resolveText("text.cc.playback.skip")}
+          </Button>
+          <Button data-dialogue-history-open="true" onClick={props.onOpenHistory}>
+            {props.resolveText("text.cc.playback.history")}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (pending.kind === "choice") {
+    return (
+      <div
+        data-cc-narrative="choice"
+        data-dialogue="choice"
+        data-dialogue-occurrence={pending.occurrenceId}
+        style={catcafeNarrativePanelStyleV1}
+      >
+        <p style={{ margin: "0 0 16px" }}>{props.resolveText(pending.promptTextId)}</p>
+        <div role="group" style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          {pending.options.map((option, index) => {
+            const availability = props.choiceAvailability?.[index];
+            const enabled = availability?.choiceId === option.choiceId &&
+              availability.status === "enabled";
+            const reasonId = `catcafe-choice-reason-${String(index)}`;
+            return (
+              <span key={option.choiceId} style={{ display: "grid", gap: "4px" }}>
+                <Button
+                  data-dialogue-choice={option.choiceId}
+                  disabled={!enabled}
+                  aria-describedby={enabled ? undefined : reasonId}
+                  onClick={() => {
+                    if (enabled) props.onChoose(option.choiceId);
+                  }}
+                >
+                  {props.resolveText(option.textId)}
+                </Button>
+                {enabled
+                  ? null
+                  : (
+                    <small id={reasonId} data-dialogue-choice-reason={option.choiceId}>
+                      {(availability?.reasonTextIds ?? []).map((textId) =>
+                        props.resolveText(textId)
+                      ).join(" · ")}
+                    </small>
+                  )}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 /** Player rollback: a bounded checkpoint ring; contest start / ending confirmation are hard barriers (policy in core-definition). */

@@ -71,6 +71,7 @@ export const bookshopTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.bookshop.choice.second-prompt", text: "后院门廊上，还摊着那本诗集。" },
         { textId: "text.bookshop.choice.buy", text: "花一枚硬币买下它" },
         { textId: "text.bookshop.choice.leave-book", text: "只是摸了摸封面，先不买" },
+        { textId: "text.bookshop.choice.insufficient-coins", text: "硬币不足" },
         {
           textId: "text.bookshop.line.after-buy",
           text: "收好。别再弄湿了——书皮已经卷边了。",
@@ -91,6 +92,27 @@ export const bookshopTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
     },
   ],
 });
+
+/** Locale-aware Story text with a deterministic fallback to the default catalog. */
+export function bookshopTextForLocaleV1(locale: string | null, textId: string): string {
+  const visited: string[] = [];
+  let cursor: string | null = locale ?? bookshopTextCatalogsV1.defaultLocale;
+  while (cursor !== null && !visited.includes(cursor)) {
+    visited.push(cursor);
+    const catalog = bookshopTextCatalogsV1.catalogs.find(
+      (candidate) => candidate.locale === cursor,
+    );
+    const entry = catalog?.entries.find((candidate) => candidate.textId === textId);
+    if (entry !== undefined) return entry.text;
+    cursor = catalog?.fallbackLocale ?? null;
+  }
+  const fallback = bookshopTextCatalogsV1.catalogs.find(
+    (candidate) => candidate.locale === bookshopTextCatalogsV1.defaultLocale,
+  );
+  const entry = fallback?.entries.find((candidate) => candidate.textId === textId);
+  if (entry === undefined) throw new TypeError(`bookshop.text_missing:${textId}`);
+  return entry.text;
+}
 
 /**
  * The stage content catalog: the only place that knows renderer IDs and

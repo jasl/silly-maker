@@ -13,29 +13,29 @@ import {
   createGameUiCompositionV1,
 } from "@sillymaker/ui";
 import type { SystemDialogCustomSavesV1 } from "@sillymaker/ui";
+import { createWebHostV1, startWebGameApplicationV1 } from "@sillymaker/web";
 
 import { createLabApplicationInstanceV1 } from "../application/core-application.ts";
+import type { LabApplicationInstanceV1 } from "../application/core-definition.ts";
 import {
+  createLabGameUiDefinitionV1,
   createLabUiSlotsV1,
+  labGameApplicationV1,
   labRootLabelsV1,
   labUiProjectorV1,
   labViewportCanvasV1,
   labWorkspaceOverlayDefinitionsV1,
 } from "../application/composition.tsx";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  document.body.innerHTML = "";
+});
 
 const debugVocabularyV1 = /debug|semantic|revision|replay|fixture|diagnostic/iu;
 
 async function composeLabUiV1() {
   const instance = await createLabApplicationInstanceV1();
-  const playerProfile = await createPlayerProfileStoreV1({
-    records: createMemoryHostRecordStoreV1(),
-    storyId: "story.e2e.engine-lab",
-  });
-  // Instant text keeps the existing single-click flows deterministic; the
-  // dedicated typewriter test drives a manual clock instead.
-  await playerProfile.updatePreferences({ textRevealCharsPerSecond: 0 });
   const composition = createGameUiCompositionV1({
     semantic: instance.semantic,
     projector: labUiProjectorV1,
@@ -45,7 +45,45 @@ async function composeLabUiV1() {
     }),
     overlayDefinitions: labWorkspaceOverlayDefinitionsV1,
   });
-  return { instance, composition, playerProfile };
+  return { instance, composition };
+}
+
+async function startHostedLabUiV1() {
+  globalThis.window.history.replaceState({}, "", "/");
+  const records = createMemoryHostRecordStoreV1();
+  const profile = await createPlayerProfileStoreV1({
+    records,
+    storyId: "story.e2e.engine-lab",
+  });
+  await profile.updatePreferences({ textRevealCharsPerSecond: 0 });
+  let instance: LabApplicationInstanceV1 | null = null;
+  const application = Object.freeze({
+    ...labGameApplicationV1,
+    ui(input: Parameters<typeof labGameApplicationV1.ui>[0]) {
+      instance = input.instance;
+      return createLabGameUiDefinitionV1({
+        instance: input.instance,
+        createAudioHost: createFakeAudioHostV1,
+      });
+    },
+  });
+  const root = document.createElement("div");
+  document.body.append(root);
+  const started = await startWebGameApplicationV1(application, {
+    rootElement: root,
+    host: createWebHostV1({
+      records,
+      seeds: [20260812],
+      uuids: ["bd4018a2-2fea-4359-95c6-96c634b7de8a"],
+    }),
+    capabilitySearch: "",
+    registerPageLifecycle: false,
+  });
+  await waitFor(() => {
+    expect(screen.getByRole("application", { name: "引擎实验室" })).toBeInTheDocument();
+  });
+  if (instance === null) throw new TypeError("e2e.default_ui_host_capture_missing");
+  return Object.freeze({ started, instance: instance as LabApplicationInstanceV1 });
 }
 
 function renderLabRootV1(
@@ -64,7 +102,6 @@ function renderLabRootV1(
       slots={createLabUiSlotsV1({
         instance: input.instance,
         createAudioHost: createFakeAudioHostV1,
-        playerProfile: input.playerProfile,
       })}
     />,
   );
@@ -167,117 +204,119 @@ describe("Engine Lab default UI", () => {
   });
 
   it("plays the calibration narrative through interaction boundaries in the UI", async () => {
-    const labUi = await composeLabUiV1();
-    const { instance, composition } = labUi;
-    renderLabRootV1(labUi);
-    const user = userEvent.setup();
+    const lab = await startHostedLabUiV1();
+    try {
+      const user = userEvent.setup();
 
-    // Begin: the say boundary appears with its stable occurrence.
-    await user.click(screen.getByRole("button", { name: "开始校准" }));
-    await waitFor(() => {
-      expect(document.querySelector("[data-lab-interaction='say']")).toBeInTheDocument();
-    });
-    expect(screen.getByText("需要校准信标，请跟我来。")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "开始校准" }));
+      await waitFor(() => {
+        expect(document.querySelector("[data-lab-interaction='say']")).toBeInTheDocument();
+      });
+      expect(screen.getByText("需要校准信标，请跟我来。")).toBeInTheDocument();
 
-    // Advance through the beta researcher's line to the choice; the beacon
-    // and both character stage nodes ran on the way.
-    await user.click(screen.getByRole("button", { name: "继续" }));
-    await waitFor(() => {
-      expect(screen.getByText("样本读数稳定，可以开始校准。")).toBeInTheDocument();
-    });
-    await user.click(screen.getByRole("button", { name: "继续" }));
-    await waitFor(() => {
-      expect(document.querySelector("[data-lab-interaction='choice']")).toBeInTheDocument();
-    });
-    expect(
-      document.querySelector('[data-stage-key="layer.e2e.props:tag.e2e.beacon"]'),
-    ).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "继续" }));
+      await waitFor(() => {
+        expect(screen.getByText("样本读数稳定，可以开始校准。")).toBeInTheDocument();
+      });
+      await user.click(screen.getByRole("button", { name: "继续" }));
+      await waitFor(() => {
+        expect(document.querySelector("[data-lab-interaction='choice']")).toBeInTheDocument();
+      });
+      expect(
+        document.querySelector('[data-stage-key="layer.e2e.props:tag.e2e.beacon"]'),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "精密校准" })).toBeDisabled();
 
-    // The sample-gated option renders disabled by the shared evaluator.
-    expect(screen.getByRole("button", { name: "精密校准" })).toBeDisabled();
-
-    // Choosing flips the background; the acknowledged crossfade confirms
-    // the presentation barrier, then the pause auto-resumes, reaching the
-    // custom surface without any bespoke callback plumbing.
-    await user.click(screen.getByRole("button", { name: "直接校准" }));
-    await waitFor(
-      () => {
+      await user.click(screen.getByRole("button", { name: "直接校准" }));
+      await waitFor(
+        () => {
+          expect(document.querySelector("[data-lab-interaction='pause']")).toBeInTheDocument();
+        },
+        { timeout: 4000 },
+      );
+      await user.click(screen.getByRole("button", { name: "跳过等待" }));
+      await waitFor(() => {
         expect(document.querySelector("[data-lab-interaction='custom']")).toBeInTheDocument();
-      },
-      { timeout: 4000 },
-    );
+      });
 
-    // Resolve the schema-registered surface and finish the script.
-    await user.click(screen.getByRole("button", { name: "2" }));
-    await waitFor(() => {
-      expect(document.querySelector("[data-lab-interaction='say']")).toBeInTheDocument();
-    });
-    await user.click(screen.getByRole("button", { name: "继续" }));
-    await waitFor(() => {
-      expect(document.querySelector("[data-lab-narrative='calibrated']")).toBeInTheDocument();
-    });
-    expect(instance.semantic.observe().narrative).toMatchObject({
-      phase: "completed",
-      calibration: 2,
-    });
-
-    composition.dispose();
-    await instance.dispose();
+      await user.click(screen.getByRole("button", { name: "2" }));
+      await waitFor(() => {
+        expect(document.querySelector("[data-lab-interaction='say']")).toBeInTheDocument();
+      });
+      await user.click(screen.getByRole("button", { name: "继续" }));
+      await waitFor(() => {
+        expect(document.querySelector("[data-lab-narrative='calibrated']")).toBeInTheDocument();
+      });
+      expect(lab.instance.semantic.observe().narrative).toMatchObject({
+        phase: "completed",
+        calibration: 2,
+      });
+    } finally {
+      await lab.started.dispose();
+    }
   }, 15_000);
 
   it(
     "settles a load-restored presentation barrier instead of replaying its transition",
     async () => {
-      const labUi = await composeLabUiV1();
-      const { instance, composition } = labUi;
-      renderLabRootV1(labUi);
+      const lab = await startHostedLabUiV1();
       const user = userEvent.setup();
+      try {
+        // Reach the barrier and save exactly there. The save runs on the queue
+        // long before the ~400ms crossfade acknowledgment can resolve it.
+        await user.click(screen.getByRole("button", { name: "开始校准" }));
+        await user.click(await screen.findByRole("button", { name: "继续" }));
+        await user.click(await screen.findByRole("button", { name: "继续" }));
+        await user.click(await screen.findByRole("button", { name: "直接校准" }));
+        await waitFor(() => {
+          expect(document.querySelector("[data-lab-interaction='barrier']")).toBeInTheDocument();
+        });
+        const barrierOccurrence = document
+          .querySelector("[data-lab-interaction='barrier']")
+          ?.getAttribute("data-lab-occurrence");
+        await expect(lab.instance.persistence.save("manual.1")).resolves.toMatchObject({
+          kind: "saved",
+        });
 
-      // Reach the barrier and save exactly there. The save runs on the queue
-      // long before the ~400ms crossfade acknowledgment can resolve it.
-      await user.click(screen.getByRole("button", { name: "开始校准" }));
-      await user.click(await screen.findByRole("button", { name: "继续" }));
-      await user.click(await screen.findByRole("button", { name: "继续" }));
-      await user.click(await screen.findByRole("button", { name: "直接校准" }));
-      await waitFor(() => {
-        expect(document.querySelector("[data-lab-interaction='barrier']")).toBeInTheDocument();
-      });
-      const barrierOccurrence = document
-        .querySelector("[data-lab-interaction='barrier']")
-        ?.getAttribute("data-lab-occurrence");
-      await expect(instance.persistence.save("manual.1")).resolves.toMatchObject({ kind: "saved" });
-
-      // Let the live run finish normally all the way to completion.
-      await waitFor(
-        () => {
+        // Let the live run finish normally all the way to completion.
+        await waitFor(
+          () => {
+            expect(document.querySelector("[data-lab-interaction='pause']")).toBeInTheDocument();
+          },
+          { timeout: 4000 },
+        );
+        await user.click(screen.getByRole("button", { name: "跳过等待" }));
+        await waitFor(() => {
           expect(document.querySelector("[data-lab-interaction='custom']")).toBeInTheDocument();
-        },
-        { timeout: 4000 },
-      );
-      await user.click(screen.getByRole("button", { name: "2" }));
-      await user.click(await screen.findByRole("button", { name: "继续" }));
-      await waitFor(() => {
-        expect(document.querySelector("[data-lab-narrative='calibrated']")).toBeInTheDocument();
-      });
+        });
+        await user.click(screen.getByRole("button", { name: "2" }));
+        await user.click(await screen.findByRole("button", { name: "继续" }));
+        await waitFor(() => {
+          expect(document.querySelector("[data-lab-narrative='calibrated']")).toBeInTheDocument();
+        });
 
-      // Load back to the barrier: the epoch advances, no transition replays,
-      // and the settle recovery policy acknowledges the restored occurrence
-      // through the ordinary semantic command. Play continues to the custom
-      // surface without re-choosing anything.
-      await expect(instance.persistence.load("manual.1")).resolves.toMatchObject({
-        kind: "loaded",
-      });
-      await waitFor(
-        () => {
+        // Load back to the barrier: the epoch advances, no transition replays,
+        // and the settle recovery policy acknowledges the restored occurrence
+        // through the ordinary semantic command. Play continues to the custom
+        // surface without re-choosing anything.
+        await expect(lab.instance.persistence.load("manual.1")).resolves.toMatchObject({
+          kind: "loaded",
+        });
+        await waitFor(
+          () => {
+            expect(document.querySelector("[data-lab-interaction='pause']")).toBeInTheDocument();
+          },
+          { timeout: 4000 },
+        );
+        await user.click(screen.getByRole("button", { name: "跳过等待" }));
+        await waitFor(() => {
           expect(document.querySelector("[data-lab-interaction='custom']")).toBeInTheDocument();
-        },
-        { timeout: 4000 },
-      );
-      expect(barrierOccurrence).toMatch(/^interaction-occurrence\./u);
-      expect(instance.semantic.observe().narrative.pending).toMatchObject({ kind: "custom" });
-
-      composition.dispose();
-      await instance.dispose();
+        });
+        expect(barrierOccurrence).toMatch(/^interaction-occurrence\./u);
+        expect(lab.instance.semantic.observe().narrative.pending).toMatchObject({ kind: "custom" });
+      } finally {
+        await lab.started.dispose();
+      }
     },
     15_000,
   );

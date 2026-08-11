@@ -7,8 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { InteractionResolutionV1 } from "@sillymaker/base";
 import { lintNarrativeGraphV1, predictNarrativeDependenciesV1 } from "@sillymaker/base";
-import { createPlayerProfileStoreV1 } from "@sillymaker/base/runtime";
-import { createGameHarnessV1, createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
+import { createGameHarnessV1 } from "@sillymaker/base/testkit";
 import {
   DefaultGameRootV1,
   createFakeAudioHostV1,
@@ -212,11 +211,6 @@ describe("canary: semantic shop overlay", () => {
 
   it("renders from the publication and dispatches ordinary semantic intents", async () => {
     const instance = await createLabApplicationInstanceV1();
-    const records = createMemoryHostRecordStoreV1();
-    const playerProfile = await createPlayerProfileStoreV1({
-      records,
-      storyId: "story.e2e.engine-lab",
-    });
     const composition = createGameUiCompositionV1({
       semantic: instance.semantic,
       projector: labUiProjectorV1,
@@ -237,7 +231,6 @@ describe("canary: semantic shop overlay", () => {
         slots={createLabUiSlotsV1({
           instance,
           createAudioHost: () => createFakeAudioHostV1(),
-          playerProfile,
         })}
       />,
     );

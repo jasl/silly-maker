@@ -486,15 +486,13 @@ describe("SemanticStageV1", () => {
     expect(reconciler!.frame().settled).toBe(true);
   });
 
-  it("plays committed edges, acknowledges, and disposes cleanly on unmount", async () => {
+  it("plays committed edges and disposes cleanly on unmount", async () => {
     const clock = createManualPresentationClockV1();
-    const onAcknowledgment = vi.fn();
     const stageProps = {
       catalog: transitionCatalogV1,
       renderers: { "renderer.test.box": rendererV1 },
       accessibleName: "组件舞台",
       clock,
-      onAcknowledgment,
     };
 
     const { container, rerender, unmount } = render(
@@ -533,9 +531,6 @@ describe("SemanticStageV1", () => {
     });
     expect(root()?.getAttribute("data-stage-settled")).toBe("true");
     expect(container.querySelector("[data-stage-exiting]")).toBeNull();
-    expect(onAcknowledgment).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ transitionId: "transition.test.fade", outcome: "completed" }),
-    );
 
     // Re-render with the same revision: commit-only, nothing replays.
     rerender(

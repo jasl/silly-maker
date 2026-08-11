@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 // PascalCase React shell widgets (Vite Fast Refresh–safe).
-// Narrative player lives in `narrative-ui.tsx`; application binding in `composition.tsx`.
+// Narrative rendering is a passive Story skin; composition owns its lifecycle and actions.
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 
-import type { DeepReadonly, InteractionResolutionV1 } from "@sillymaker/base";
+import type { DeepReadonly } from "@sillymaker/base";
 import type { DefaultGameRootSlotsV1, SemanticStageEntryRendererV1 } from "@sillymaker/ui";
 import { Button, SemanticStageV1 } from "@sillymaker/ui";
 
@@ -90,16 +90,6 @@ export const labStageRenderersV1: Readonly<Record<string, SemanticStageEntryRend
     ),
   });
 
-function labResolveV1(
-  semantic: LabSemanticPortV1,
-  expectedOccurrenceId: string,
-  resolution: InteractionResolutionV1,
-): void {
-  void semantic.dispatch(
-    Object.freeze({ kind: "resolve" as const, expectedOccurrenceId, resolution }),
-  );
-}
-
 /**
  * The player rollback control (R7): availability comes from the instance
  * ring on every publication render, and the action is the instance port —
@@ -125,46 +115,6 @@ export function LabRollbackControlV1(props: {
       {labUiTextV1("text.e2e.lab.player.rollback")}
     </Button>
   );
-}
-
-/**
- * Presentation-barrier load recovery. A barrier restored by a load, refresh,
- * or rebootstrap arrives on a fresh presentation epoch (or a fresh mount);
- * its transition will never replay, so the `settle` policy acknowledges it
- * immediately through the ordinary semantic command. Barriers created
- * in-session keep waiting for the real transition acknowledgment, and any
- * late pre-load callback was already dropped by the reconciler's epoch
- * fence.
- */
-export function LabBarrierRecoveryV1(props: {
-  readonly publication: DeepReadonly<LabUiPublicationV1>;
-  readonly semantic: LabSemanticPortV1;
-}): null {
-  const pending = props.publication.semantic.narrative.pending;
-  const epoch = props.publication.view.anchorEpoch;
-  const { semantic } = props;
-  const barrier = pending?.kind === "presentation_barrier" ? pending : null;
-  const barrierOccurrenceId = barrier?.occurrenceId ?? null;
-  const barrierTransitionId = barrier?.expectedTransitionId ?? null;
-  const loadRecovery = barrier?.loadRecovery ?? null;
-  const seenEpochRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const freshEpoch = seenEpochRef.current !== epoch;
-    seenEpochRef.current = epoch;
-    if (!freshEpoch || barrierOccurrenceId === null || barrierTransitionId === null) return;
-    // The Engine Lab ships the `settle` policy; a future `replay` policy
-    // would re-run the transition before acknowledging.
-    if (loadRecovery === "settle") {
-      labResolveV1(
-        semantic,
-        barrierOccurrenceId,
-        Object.freeze({ kind: "barrier_completed" as const, transitionId: barrierTransitionId }),
-      );
-    }
-  }, [semantic, epoch, barrierOccurrenceId, barrierTransitionId, loadRecovery]);
-
-  return null;
 }
 
 export function LabHudV1(props: {
@@ -216,7 +166,6 @@ export function LabStageV1(props: {
   >[0];
 }): ReactElement {
   const { context } = props;
-  const pending = context.publication.semantic.narrative.pending;
   const calibration = context.publication.semantic.narrative.calibration;
   const [lastCueEvent, setLastCueEvent] = useState<string | null>(null);
   const previousCalibrationRef = useRef(calibration);
@@ -248,27 +197,6 @@ export function LabStageV1(props: {
         timelines={labTimelineCatalogV1}
         cues={context.cues}
         onTimelineEvent={(eventId) => setLastCueEvent(eventId)}
-        onAcknowledgment={(acknowledgment) => {
-          // A completed acknowledged transition confirms a pending
-          // presentation barrier through an ordinary semantic command.
-          // Mismatched or late acknowledgments dispatch nothing here, and
-          // anything stale that still slips through is rejected at the
-          // queue front by the occurrence fence.
-          if (
-            pending?.kind === "presentation_barrier" &&
-            acknowledgment.outcome !== "cancelled" &&
-            acknowledgment.transitionId === pending.expectedTransitionId
-          ) {
-            labResolveV1(
-              context.semantic,
-              pending.occurrenceId,
-              Object.freeze({
-                kind: "barrier_completed" as const,
-                transitionId: acknowledgment.transitionId,
-              }),
-            );
-          }
-        }}
       />
     </section>
   );

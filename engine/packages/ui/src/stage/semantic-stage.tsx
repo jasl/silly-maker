@@ -20,7 +20,6 @@ import type {
   StageAcknowledgedRunAuthorityInternalV1,
   StageReconcilerV1,
   StageRetargetInputV1,
-  StageTransitionAcknowledgmentV1,
 } from "./stage-reconciler.ts";
 import {
   claimStageAcknowledgedRunAuthorityInternalV1,
@@ -349,7 +348,6 @@ export interface SemanticStagePropsV1 {
   onTimelineEvent?(eventId: string): void;
   /** Content hit-region activations (pointer or keyboard). */
   onHitRegionActivate?: Parameters<typeof SemanticStageHostV1>[0]["onHitRegionActivate"];
-  onAcknowledgment?(acknowledgment: StageTransitionAcknowledgmentV1): void;
   reportDiagnostic?(diagnostic: SemanticStageHostDiagnosticV1): void;
   reportFailure?(code: string, detail: string): void;
 }
@@ -359,10 +357,8 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
   const compositionBinding = useContext(SemanticStageCompositionClaimantContextInternalV1);
   const [version, setVersion] = useState(0);
   const reducedMotionRef = useRef(readReducedMotionV1());
-  const acknowledgmentRef = useRef(props.onAcknowledgment);
   const failureRef = useRef(props.reportFailure);
   const timelineEventRef = useRef(props.onTimelineEvent);
-  acknowledgmentRef.current = props.onAcknowledgment;
   failureRef.current = props.reportFailure;
   timelineEventRef.current = props.onTimelineEvent;
 
@@ -397,7 +393,6 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
       clock,
       catalog: props.catalog,
       prefersReducedMotion: () => reducedMotionRef.current,
-      onAcknowledgment: (acknowledgment) => acknowledgmentRef.current?.(acknowledgment),
       reportFailure: (code, detail) => failureRef.current?.(code, detail),
     })
   );

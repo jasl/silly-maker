@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: MIT
 // Composition layer: assembles the script, rules, and UI into a bootable game
 // application (browser and desktop webview share one declaration); orchestration only, owns no gameplay.
-import type { AssetId } from "@sillymaker/base";
-import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
+import type { AssetId, DeepReadonly } from "@sillymaker/base";
 import type { StageRenderTarget } from "@sillymaker/base/story";
 import { projectStageRenderTarget } from "@sillymaker/base/story";
 import type {
   DefaultGameRootLabelsV1,
   DefaultGameRootSlotsV1,
+  DefineNarrativeSurfaceInputV1,
   GameUiProjectorV1,
   KeyboardActionMapV1,
+  NarrativeSurfaceSelectionV1,
   RuntimePresentationPublicationV1,
   SaveOverlayLabelsV1,
   SemanticStageEntryRendererV1,
 } from "@sillymaker/ui";
-import { SemanticStageV1, systemInputActionIdsV1 } from "@sillymaker/ui";
+import { defineNarrativeSurfaceV1, SemanticStageV1, systemInputActionIdsV1 } from "@sillymaker/ui";
 import type { WebGameApplicationV1 } from "@sillymaker/web";
 
 import type {
@@ -34,10 +35,11 @@ import type {
 import {
   bookshopStageContentCatalogV1,
   bookshopStageTransitionCatalogV1,
+  bookshopTextForLocaleV1,
   bookshopTextCatalogsV1,
 } from "../presentation.ts";
 
-import { BookshopNarrativePanelV1, BookshopHudV1 } from "./ui.tsx";
+import { BookshopHudV1, BookshopNarrativeRendererV1 } from "./ui.tsx";
 
 /** The logical canvas: a 16:9 design resolution the viewport letterboxes. */
 export const bookshopViewportCanvasV1 = Object.freeze({ width: 1600, height: 900 });
@@ -56,6 +58,37 @@ type BookshopSemanticPublicationV1 = ReturnType<
   BookshopApplicationInstanceV1["semantic"]["observe"]
 >;
 type BookshopSemanticPortV1 = BookshopApplicationInstanceV1["semantic"];
+
+const noNarrativeChoiceReasonsV1: readonly string[] = Object.freeze([]);
+const bookshopInsufficientCoinsReasonsV1: readonly string[] = Object.freeze([
+  "text.bookshop.choice.insufficient-coins",
+]);
+
+/** Pure Story projection consumed by the public Narrative definition. */
+export function projectBookshopNarrativeSurfaceSelectionV1(
+  publication: DeepReadonly<BookshopSemanticPublicationV1>,
+): NarrativeSurfaceSelectionV1 {
+  const narrative = publication.narrative;
+  const choiceAvailability = narrative.choiceOptions === null ? null : Object.freeze(
+    narrative.choiceOptions.map((option) => {
+      if (option.enabled !== (option.blockedBy === null)) {
+        throw new TypeError("bookshop.narrative_choice_availability_inconsistent");
+      }
+      return Object.freeze({
+        choiceId: option.choiceId,
+        status: option.enabled ? ("enabled" as const) : ("disabled" as const),
+        reasonTextIds: option.blockedBy === null
+          ? noNarrativeChoiceReasonsV1
+          : bookshopInsufficientCoinsReasonsV1,
+      });
+    }),
+  );
+  return Object.freeze({
+    pending: narrative.pending,
+    history: narrative.history,
+    choiceAvailability,
+  });
+}
 
 export interface BookshopPresentationViewV1 {
   readonly coins: number;
@@ -142,9 +175,11 @@ export const bookshopStageRenderersV1: Readonly<Record<string, SemanticStageEntr
     ),
   });
 
-function createBookshopUiSlotsV1(
-  playerProfile: PlayerProfileStoreV1,
-): DefaultGameRootSlotsV1<BookshopUiPublicationV1, BookshopSemanticPortV1, BookshopUiOverlayIdV1> {
+function createBookshopUiSlotsV1(): DefaultGameRootSlotsV1<
+  BookshopUiPublicationV1,
+  BookshopSemanticPortV1,
+  BookshopUiOverlayIdV1
+> {
   return {
     background: (context) => (
       <section data-bookshop-stage="true" aria-label={bookshopUiTextV1("text.bookshop.stage.name")}>
@@ -160,13 +195,6 @@ function createBookshopUiSlotsV1(
     ),
     hud: (context) => (
       <BookshopHudV1 publication={context.publication} semantic={context.semantic} />
-    ),
-    narrative: (context) => (
-      <BookshopNarrativePanelV1
-        publication={context.publication}
-        semantic={context.semantic}
-        playerProfile={playerProfile}
-      />
     ),
   };
 }
@@ -308,7 +336,7 @@ export const bookshopGameApplicationV1: WebGameApplicationV1<
     maxScale: 4,
   }),
   core: bookshopCoreApplicationDefinitionV1,
-  ui: ({ playerProfile }: { readonly playerProfile: PlayerProfileStoreV1 }) =>
+  ui: ({ instance }: { readonly instance: BookshopApplicationInstanceV1 }) =>
     Object.freeze({
       titleScreen: Object.freeze({
         title: "打烊前的旧书店",
@@ -321,7 +349,25 @@ export const bookshopGameApplicationV1: WebGameApplicationV1<
         }),
       }),
       projector: bookshopUiProjectorV1,
-      slots: createBookshopUiSlotsV1(playerProfile),
+      narrative: defineNarrativeSurfaceV1<BookshopSemanticPublicationV1>(
+        Object.freeze(
+          {
+            selectNarrative: projectBookshopNarrativeSurfaceSelectionV1,
+            dispatchResolution: (request) =>
+              instance.semantic.dispatch(
+                Object.freeze({
+                  kind: "resolve" as const,
+                  expectedOccurrenceId: request.expectedOccurrenceId,
+                  resolution: request.resolution,
+                }) as never,
+              ),
+            renderer: BookshopNarrativeRendererV1,
+            resolveText: bookshopTextForLocaleV1,
+            replayCurrentVoice: null,
+          } satisfies DefineNarrativeSurfaceInputV1<BookshopSemanticPublicationV1>,
+        ),
+      ),
+      slots: createBookshopUiSlotsV1(),
       labels: bookshopRootLabelsV1,
       saveLabels: bookshopSaveOverlayLabelsV1,
       inputMaps: Object.freeze({ keyboard: bookshopKeyboardMapV1 }),

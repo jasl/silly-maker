@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: MIT
 // Composition layer: assembles the script, rules, and UI into a bootable game
 // application (browser and desktop webview share one declaration); orchestration only, owns no gameplay.
-import type { AssetId } from "@sillymaker/base";
-import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
+import type { AssetId, DeepReadonly } from "@sillymaker/base";
 import type { StageRenderTarget } from "@sillymaker/base/story";
 import { projectStageRenderTarget } from "@sillymaker/base/story";
 import type {
   DefaultGameRootLabelsV1,
   DefaultGameRootSlotsV1,
+  DefineNarrativeSurfaceInputV1,
   GameUiProjectorV1,
   KeyboardActionMapV1,
+  NarrativeSurfaceSelectionV1,
   RuntimePresentationPublicationV1,
   SaveOverlayLabelsV1,
   SemanticStageEntryRendererV1,
 } from "@sillymaker/ui";
-import { SemanticStageV1, systemInputActionIdsV1 } from "@sillymaker/ui";
+import { defineNarrativeSurfaceV1, SemanticStageV1, systemInputActionIdsV1 } from "@sillymaker/ui";
 import type { WebGameApplicationV1 } from "@sillymaker/web";
 
 import type {
@@ -34,10 +35,11 @@ import type {
 import {
   templateStageContentCatalogV1,
   templateStageTransitionCatalogV1,
+  templateTextForLocaleV1,
   templateTextCatalogsV1,
 } from "../presentation.ts";
 
-import { TemplateNarrativePanelV1, TemplateHudV1 } from "./ui.tsx";
+import { TemplateHudV1, TemplateNarrativeRendererV1 } from "./ui.tsx";
 
 /** The logical canvas: a 16:9 design resolution the viewport letterboxes. */
 export const templateViewportCanvasV1 = Object.freeze({ width: 1600, height: 900 });
@@ -56,6 +58,37 @@ type TemplateSemanticPublicationV1 = ReturnType<
   TemplateApplicationInstanceV1["semantic"]["observe"]
 >;
 type TemplateSemanticPortV1 = TemplateApplicationInstanceV1["semantic"];
+
+const noNarrativeChoiceReasonsV1: readonly string[] = Object.freeze([]);
+const templateInsufficientCoinsReasonsV1: readonly string[] = Object.freeze([
+  "text.template.choice.insufficient-coins",
+]);
+
+/** Pure Story projection consumed by the public Narrative definition. */
+export function projectTemplateNarrativeSurfaceSelectionV1(
+  publication: DeepReadonly<TemplateSemanticPublicationV1>,
+): NarrativeSurfaceSelectionV1 {
+  const narrative = publication.narrative;
+  const choiceAvailability = narrative.choiceOptions === null ? null : Object.freeze(
+    narrative.choiceOptions.map((option) => {
+      if (option.enabled !== (option.blockedBy === null)) {
+        throw new TypeError("template.narrative_choice_availability_inconsistent");
+      }
+      return Object.freeze({
+        choiceId: option.choiceId,
+        status: option.enabled ? ("enabled" as const) : ("disabled" as const),
+        reasonTextIds: option.blockedBy === null
+          ? noNarrativeChoiceReasonsV1
+          : templateInsufficientCoinsReasonsV1,
+      });
+    }),
+  );
+  return Object.freeze({
+    pending: narrative.pending,
+    history: narrative.history,
+    choiceAvailability,
+  });
+}
 
 export interface TemplatePresentationViewV1 {
   readonly coins: number;
@@ -140,9 +173,11 @@ export const templateStageRenderersV1: Readonly<Record<string, SemanticStageEntr
     ),
   });
 
-function createTemplateUiSlotsV1(
-  playerProfile: PlayerProfileStoreV1,
-): DefaultGameRootSlotsV1<TemplateUiPublicationV1, TemplateSemanticPortV1, TemplateUiOverlayIdV1> {
+function createTemplateUiSlotsV1(): DefaultGameRootSlotsV1<
+  TemplateUiPublicationV1,
+  TemplateSemanticPortV1,
+  TemplateUiOverlayIdV1
+> {
   return {
     background: (context) => (
       <section data-template-stage="true" aria-label={templateUiTextV1("text.template.stage.name")}>
@@ -158,13 +193,6 @@ function createTemplateUiSlotsV1(
     ),
     hud: (context) => (
       <TemplateHudV1 publication={context.publication} semantic={context.semantic} />
-    ),
-    narrative: (context) => (
-      <TemplateNarrativePanelV1
-        publication={context.publication}
-        semantic={context.semantic}
-        playerProfile={playerProfile}
-      />
     ),
   };
 }
@@ -306,11 +334,29 @@ export const templateGameApplicationV1: WebGameApplicationV1<
     maxScale: 4,
   }),
   core: templateCoreApplicationDefinitionV1,
-  ui: ({ playerProfile }: { readonly playerProfile: PlayerProfileStoreV1 }) =>
+  ui: ({ instance }: { readonly instance: TemplateApplicationInstanceV1 }) =>
     Object.freeze({
       titleScreen: Object.freeze({ title: "SillyMaker Starter" }),
       projector: templateUiProjectorV1,
-      slots: createTemplateUiSlotsV1(playerProfile),
+      narrative: defineNarrativeSurfaceV1<TemplateSemanticPublicationV1>(
+        Object.freeze(
+          {
+            selectNarrative: projectTemplateNarrativeSurfaceSelectionV1,
+            dispatchResolution: (request) =>
+              instance.semantic.dispatch(
+                Object.freeze({
+                  kind: "resolve" as const,
+                  expectedOccurrenceId: request.expectedOccurrenceId,
+                  resolution: request.resolution,
+                }) as never,
+              ),
+            renderer: TemplateNarrativeRendererV1,
+            resolveText: templateTextForLocaleV1,
+            replayCurrentVoice: null,
+          } satisfies DefineNarrativeSurfaceInputV1<TemplateSemanticPublicationV1>,
+        ),
+      ),
+      slots: createTemplateUiSlotsV1(),
       labels: templateRootLabelsV1,
       saveLabels: templateSaveOverlayLabelsV1,
       inputMaps: Object.freeze({ keyboard: templateKeyboardMapV1 }),

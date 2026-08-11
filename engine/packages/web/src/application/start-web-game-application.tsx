@@ -31,6 +31,7 @@ import type {
   GameUiProjectorV1,
   KeyboardActionMapV1,
   NativeBehaviorResetConfigV1,
+  NarrativeSurfaceDefinitionV1,
   PointerActionMapV1,
   RuntimeAssetLoaderV1,
   RuntimePresentationPublicationV1,
@@ -40,7 +41,11 @@ import type {
   WorkspaceOverlayPortBindingV1,
 } from "@sillymaker/ui";
 import type { DevDockContributionSetV1, DevDockOpenStateV1 } from "@sillymaker/ui/debug";
-import { DefaultGameRootV1, installNativeBehaviorResetV1 } from "@sillymaker/ui";
+import {
+  createAnimationFramePresentationClockV1,
+  DefaultGameRootV1,
+  installNativeBehaviorResetV1,
+} from "@sillymaker/ui";
 import {
   createHostedGameUiCompositionInternalV1,
   sealHostedGameUiCompositionTerminalInternalV1,
@@ -103,6 +108,8 @@ export interface WebGameUiDefinitionV1<
     TView,
     TAssetId
   >;
+  /** The composition-owned production Narrative surface, when this Story has one. */
+  readonly narrative?: NarrativeSurfaceDefinitionV1<TSemanticPublication>;
   readonly overlayDefinitions?: readonly WorkspaceOverlayDefinitionV1<TOverlayId>[];
   readonly overlayPorts?: readonly WorkspaceOverlayPortBindingV1[];
   /** Cue IDs the presentation intent router accepts for play_cue. */
@@ -588,49 +595,60 @@ export async function startWebGameApplicationV1<
       TView,
       TAssetId,
       TOverlayId
-    >({
-      semantic: instance.semantic,
-      projector: uiDefinition.projector,
-      ...(uiDefinition.contentPreference === undefined
-        ? {}
-        : { contentPreference: uiDefinition.contentPreference }),
-      ...(uiDefinition.overlayDefinitions === undefined
-        ? {}
-        : { overlayDefinitions: uiDefinition.overlayDefinitions }),
-      ...(uiDefinition.overlayPorts === undefined
-        ? {}
-        : { overlayPorts: uiDefinition.overlayPorts }),
-      ...(uiDefinition.cueIds === undefined ? {} : { cueIds: uiDefinition.cueIds }),
-      ...(uiDefinition.interactionSurfaceIds === undefined
-        ? {}
-        : { interactionSurfaceIds: uiDefinition.interactionSurfaceIds }),
-      reportFailure: (failure) => reportFailure(failure.code, new Error(failure.summary)),
-    }, {
-      managedSurfaceEpochAllocator: createManagedSurfaceApplicationEpochAllocatorInternalV1({
-        applicationId: application.applicationId,
+    >(
+      {
+        semantic: instance.semantic,
+        projector: uiDefinition.projector,
+        ...(uiDefinition.contentPreference === undefined
+          ? {}
+          : { contentPreference: uiDefinition.contentPreference }),
+        ...(uiDefinition.overlayDefinitions === undefined
+          ? {}
+          : { overlayDefinitions: uiDefinition.overlayDefinitions }),
+        ...(uiDefinition.overlayPorts === undefined
+          ? {}
+          : { overlayPorts: uiDefinition.overlayPorts }),
+        ...(uiDefinition.cueIds === undefined ? {} : { cueIds: uiDefinition.cueIds }),
+        ...(uiDefinition.interactionSurfaceIds === undefined
+          ? {}
+          : { interactionSurfaceIds: uiDefinition.interactionSurfaceIds }),
+        reportFailure: (failure) => reportFailure(failure.code, new Error(failure.summary)),
+      },
+      {
+        managedSurfaceEpochAllocator: createManagedSurfaceApplicationEpochAllocatorInternalV1({
+          applicationId: application.applicationId,
+        }),
+        anchorEvents: Object.freeze({
+          current: () => instance.presentationAnchor(),
+          subscribe: (listener: (event: GameUiPresentationAnchorEventInternalV1) => void) =>
+            subscribeCoreApplicationPresentationAnchorEventsInternalV1(
+              instance,
+              (event) => {
+                if (event.publicationContext !== null) {
+                  successorAcknowledgments.bindExpected(
+                    event.publicationContext,
+                    event.anchor,
+                  );
+                }
+                listener(Object.freeze({
+                  anchor: event.anchor,
+                  token: event.publicationContext,
+                }));
+              },
+            ),
+        }),
+        successorProducer: successorAcknowledgments.producer,
+        reportFailure,
+      },
+      uiDefinition.narrative === undefined ? null : Object.freeze({
+        definition: uiDefinition.narrative,
+        playerProfile,
+        presentationClock: createAnimationFramePresentationClockV1(),
+        prefersReducedMotion: () =>
+          typeof globalThis.window.matchMedia === "function" &&
+          globalThis.window.matchMedia("(prefers-reduced-motion: reduce)").matches,
       }),
-      anchorEvents: Object.freeze({
-        current: () => instance.presentationAnchor(),
-        subscribe: (listener: (event: GameUiPresentationAnchorEventInternalV1) => void) =>
-          subscribeCoreApplicationPresentationAnchorEventsInternalV1(
-            instance,
-            (event) => {
-              if (event.publicationContext !== null) {
-                successorAcknowledgments.bindExpected(
-                  event.publicationContext,
-                  event.anchor,
-                );
-              }
-              listener(Object.freeze({
-                anchor: event.anchor,
-                token: event.publicationContext,
-              }));
-            },
-          ),
-      }),
-      successorProducer: successorAcknowledgments.producer,
-      reportFailure,
-    });
+    );
 
     automation = installBrowserAutomationBridgeV1({
       semantic: instance.semantic,

@@ -1,12 +1,22 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, expectTypeOf, it } from "vitest";
 
-import * as conformanceUiV1 from "@sillymaker/ui/conformance";
 import * as internalUiV1 from "./internal.ts";
 import * as publicUiV1 from "./index.ts";
 import type {
+  CreateStageReconcilerOptionsV1,
   DefaultGameRootPropsV1,
+  DefaultGameRootSlotsV1,
+  DefineNarrativeSurfaceInputV1,
   GameUiCompositionV1,
+  NarrativeChoiceAvailabilityV1,
+  NarrativeSurfaceDefinitionV1,
+  NarrativeSurfaceDialogueRendererPropsV1,
+  NarrativeSurfaceHistoryRendererPropsV1,
+  NarrativeSurfacePlayerViewV1,
+  NarrativeSurfaceRendererPropsV1,
+  NarrativeSurfaceResolutionRequestV1,
+  NarrativeSurfaceSelectionV1,
   SaveOverlayGuardV1,
   SaveOverlayLabelsV1,
   SaveOverlayPortV1,
@@ -28,6 +38,20 @@ import type {
 } from "./index.ts";
 
 /* oxlint-disable no-unused-vars -- compile-time negative package-export assertions */
+// @ts-expect-error The temporary Narrative qualification subpath was removed at promotion.
+import type { createNarrativeConformanceRigV1 as RemovedNarrativeConformanceSubpathV1 } from "@sillymaker/ui/conformance";
+// @ts-expect-error Legacy Narrative lifecycle writers were removed at promotion.
+import type { AdvanceSurfaceV1 as RemovedAdvanceSurfaceV1 } from "./index.ts";
+// @ts-expect-error Legacy Narrative lifecycle writers were removed at promotion.
+import type { DialoguePanelV1 as RemovedDialoguePanelV1 } from "./index.ts";
+// @ts-expect-error Legacy Narrative lifecycle writers were removed at promotion.
+import type { VnLayerV1 as RemovedVnLayerV1 } from "./index.ts";
+// @ts-expect-error Superseded public text-reveal utilities were removed at promotion.
+import type { createTextRevealV1 as RemovedTextRevealFactoryV1 } from "./index.ts";
+// @ts-expect-error Superseded public playback utilities were removed at promotion.
+import type { createPlaybackControllerV1 as RemovedPlaybackFactoryV1 } from "./index.ts";
+// @ts-expect-error Stage acknowledgment proof is package-private after promotion.
+import type { StageTransitionAcknowledgmentV1 as RemovedStageAcknowledgmentV1 } from "./index.ts";
 // @ts-expect-error Standalone Settings lifecycle props are no longer public.
 import type { SettingsDialogPropsV1 as RemovedSettingsDialogPropsV1 } from "./index.ts";
 // @ts-expect-error Standalone confirmation lifecycle props are no longer public.
@@ -896,44 +920,76 @@ import type { RegisterNarrativeSurfaceHostPhysicalIngressInputInternalV1 as Forb
 import type { registerNarrativeSurfaceHostPhysicalIngressInternalV1 as ForbiddenPublicNarrativeSurfaceHostPhysicalIngressRegistrationV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative Host physical-ingress registration.
 import type { registerNarrativeSurfaceHostPhysicalIngressInternalV1 as ForbiddenInternalNarrativeSurfaceHostPhysicalIngressRegistrationV1 } from "./internal.ts";
-// @ts-expect-error The dedicated conformance factory is not a package-root authoring API.
+// @ts-expect-error The removed conformance factory is not a package-root authoring API.
 import type { createNarrativeConformanceRigV1 as ForbiddenPublicNarrativeConformanceRigFactoryV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose the conformance factory.
 import type { createNarrativeConformanceRigV1 as ForbiddenInternalNarrativeConformanceRigFactoryV1 } from "./internal.ts";
-// @ts-expect-error Conformance snapshots stay on the dedicated conformance entry.
+// @ts-expect-error Removed conformance snapshots are not public authoring API.
 import type { NarrativeConformanceSnapshotV1 as ForbiddenPublicNarrativeConformanceSnapshotV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose conformance snapshots.
 import type { NarrativeConformanceSnapshotV1 as ForbiddenInternalNarrativeConformanceSnapshotV1 } from "./internal.ts";
-// @ts-expect-error Conformance resolution requests stay on the dedicated conformance entry.
+// @ts-expect-error Removed conformance resolution requests are not public authoring API.
 import type { NarrativeConformanceResolutionRequestV1 as ForbiddenPublicNarrativeConformanceResolutionRequestV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose conformance resolution requests.
 import type { NarrativeConformanceResolutionRequestV1 as ForbiddenInternalNarrativeConformanceResolutionRequestV1 } from "./internal.ts";
-// @ts-expect-error Conformance factory inputs stay on the dedicated conformance entry.
+// @ts-expect-error Removed conformance factory inputs are not public authoring API.
 import type { CreateNarrativeConformanceRigInputV1 as ForbiddenPublicNarrativeConformanceRigInputV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose conformance factory inputs.
 import type { CreateNarrativeConformanceRigInputV1 as ForbiddenInternalNarrativeConformanceRigInputV1 } from "./internal.ts";
-// @ts-expect-error Conformance creation results stay on the dedicated conformance entry.
+// @ts-expect-error Removed conformance creation results are not public authoring API.
 import type { NarrativeConformanceRigCreationResultV1 as ForbiddenPublicNarrativeConformanceRigCreationResultV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose conformance creation results.
 import type { NarrativeConformanceRigCreationResultV1 as ForbiddenInternalNarrativeConformanceRigCreationResultV1 } from "./internal.ts";
-// @ts-expect-error Conformance Host props stay on the dedicated conformance entry.
+// @ts-expect-error Removed conformance Host props are not public authoring API.
 import type { NarrativeConformanceHostPropsV1 as ForbiddenPublicNarrativeConformanceHostPropsV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose conformance Host props.
 import type { NarrativeConformanceHostPropsV1 as ForbiddenInternalNarrativeConformanceHostPropsV1 } from "./internal.ts";
-// @ts-expect-error Conformance rigs stay on the dedicated conformance entry.
+// @ts-expect-error Removed conformance rigs are not public authoring API.
 import type { NarrativeConformanceRigV1 as ForbiddenPublicNarrativeConformanceRigV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose conformance rigs.
 import type { NarrativeConformanceRigV1 as ForbiddenInternalNarrativeConformanceRigV1 } from "./internal.ts";
 /* oxlint-enable no-unused-vars */
 
 describe("@sillymaker/ui public managed System surface", () => {
-  it("keeps Narrative conformance on its dedicated single-factory entry", () => {
-    expect(Object.keys(conformanceUiV1)).toEqual([
-      "createNarrativeConformanceRigV1",
-    ]);
-    expect(conformanceUiV1.createNarrativeConformanceRigV1).toBeTypeOf(
-      "function",
-    );
+  it("exports only the high-level opaque Narrative definition and renderer contract", () => {
+    expect(publicUiV1.defineNarrativeSurfaceV1).toBeTypeOf("function");
+    expectTypeOf<Extract<keyof NarrativeSurfaceDefinitionV1<unknown>, string>>()
+      .toEqualTypeOf<never>();
+    expectTypeOf<keyof NarrativeSurfaceSelectionV1>().toEqualTypeOf<
+      "pending" | "history" | "choiceAvailability"
+    >();
+    expectTypeOf<keyof NarrativeChoiceAvailabilityV1>().toEqualTypeOf<
+      "choiceId" | "status" | "reasonTextIds"
+    >();
+    expectTypeOf<keyof NarrativeSurfaceResolutionRequestV1>().toEqualTypeOf<
+      "expectedOccurrenceId" | "resolution"
+    >();
+    expectTypeOf<NarrativeSurfaceRendererPropsV1>().toEqualTypeOf<
+      NarrativeSurfaceDialogueRendererPropsV1 | NarrativeSurfaceHistoryRendererPropsV1
+    >();
+    expectTypeOf<NarrativeSurfacePlayerViewV1>().not.toBeNever();
+    expectTypeOf<keyof DefineNarrativeSurfaceInputV1<unknown>>().toEqualTypeOf<
+      | "selectNarrative"
+      | "dispatchResolution"
+      | "renderer"
+      | "resolveText"
+      | "replayCurrentVoice"
+    >();
+    expectTypeOf<Extract<keyof DefaultGameRootSlotsV1<unknown, unknown, string>, "narrative">>()
+      .toEqualTypeOf<never>();
+    expectTypeOf<Extract<keyof SemanticStagePropsV1, "onAcknowledgment">>()
+      .toEqualTypeOf<never>();
+    expectTypeOf<Extract<keyof CreateStageReconcilerOptionsV1, "onAcknowledgment">>()
+      .toEqualTypeOf<never>();
+    for (
+      const removedExport of [
+        "AdvanceSurfaceV1",
+        "DialoguePanelV1",
+        "VnLayerV1",
+        "createTextRevealV1",
+        "createPlaybackControllerV1",
+      ] as const
+    ) expect(publicUiV1).not.toHaveProperty(removedExport);
   });
 
   it("keeps the composition-backed Host and launchers without standalone lifecycle hosts", () => {

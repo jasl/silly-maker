@@ -134,6 +134,24 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
     await started.dispose();
   });
 
+  it("uses the production Narrative writer by default without a query opt-in", async () => {
+    globalThis.window.history.replaceState({}, "", "/");
+    const started = await startLabV1("");
+    try {
+      await waitFor(() => {
+        expect(screen.getByRole("application", { name: "引擎实验室" })).toBeInTheDocument();
+      });
+      await userEvent.setup().click(screen.getByRole("button", { name: "开始校准" }));
+      await waitFor(() => {
+        expect(
+          document.querySelector('[data-narrative-surface-render-shell="dialogue"]'),
+        ).toBeInTheDocument();
+      });
+    } finally {
+      await started.dispose();
+    }
+  });
+
   it("keeps Managed Surface epochs monotonic across HMR-like Web start successors", async () => {
     const host = createWebHostV1({
       records: createMemoryHostRecordStoreV1(),

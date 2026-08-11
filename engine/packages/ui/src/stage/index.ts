@@ -18,7 +18,6 @@ export type {
   StageReconcilerV1,
   StageRenderFrameV1,
   StageRetargetInputV1,
-  StageTransitionAcknowledgmentV1,
 } from "./stage-reconciler.ts";
 export { createTimelinePlayerV1 } from "./timeline-player.ts";
 export type {

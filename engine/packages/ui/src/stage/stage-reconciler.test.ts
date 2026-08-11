@@ -234,48 +234,8 @@ describe("createStageReconcilerV1", () => {
     reconciler.dispose();
   });
 
-  it("acknowledges exactly once for acknowledge transitions, never for others", () => {
-    const clock = createManualPresentationClockV1();
-    const onAcknowledgment = vi.fn();
-    const reconciler = createStageReconcilerV1({
-      clock,
-      catalog: catalogV1((kind) =>
-        kind === "replace"
-          ? definitionV1({ transitionId: "transition.test.ack", acknowledge: true })
-          : definitionV1({ transitionId: "transition.test.silent" })
-      ),
-      onAcknowledgment,
-    });
-
-    reconciler.retarget({ target: targetOfV1([showBackV1]), revision: 1, epoch: 0 });
-    reconciler.retarget({
-      target: targetOfV1([
-        { ...showBackV1, contentId: "content.test.b" },
-        {
-          kind: "show",
-          layerId: "layer.test.front",
-          tag: "tag.test.new",
-          contentId: "content.test.c",
-        },
-      ]),
-      revision: 2,
-      epoch: 0,
-    });
-    clock.advance(100);
-    expect(onAcknowledgment).toHaveBeenCalledExactlyOnceWith({
-      occurrenceId: expect.stringMatching(/^stage-transition\.0\./u),
-      transitionId: "transition.test.ack",
-      epoch: 0,
-      outcome: "completed",
-    });
-    clock.advance(100);
-    expect(onAcknowledgment).toHaveBeenCalledTimes(1);
-    reconciler.dispose();
-  });
-
   it("settle_and_retarget interrupts instantly and never flashes the old target", () => {
     const clock = createManualPresentationClockV1();
-    const onAcknowledgment = vi.fn();
     const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1(() =>
@@ -285,7 +245,6 @@ describe("createStageReconcilerV1", () => {
           interruption: "settle_and_retarget",
         })
       ),
-      onAcknowledgment,
     });
 
     reconciler.retarget({ target: targetOfV1([showBackV1]), revision: 1, epoch: 0 });
@@ -301,26 +260,19 @@ describe("createStageReconcilerV1", () => {
       epoch: 0,
     });
 
-    // The interrupted run acknowledged; the new edge runs from B, not A.
-    expect(onAcknowledgment).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ outcome: "interrupted" }),
-    );
+    // The new edge runs from B, not A.
     const frame = reconciler.frame();
     const contents = frame.layers[0]?.entries.map((entry) => entry.entry.contentId);
     expect(contents).toEqual(["content.test.c", "content.test.b"]);
     expect(contents).not.toContain("content.test.a");
 
     clock.advance(100);
-    expect(onAcknowledgment).toHaveBeenCalledTimes(2);
-    expect(onAcknowledgment).toHaveBeenLastCalledWith(
-      expect.objectContaining({ outcome: "completed" }),
-    );
+    expect(reconciler.frame().settled).toBe(true);
     reconciler.dispose();
   });
 
   it("cancel_to_target drops the run and jumps the entry straight to the target", () => {
     const clock = createManualPresentationClockV1();
-    const onAcknowledgment = vi.fn();
     const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1(() =>
@@ -330,7 +282,6 @@ describe("createStageReconcilerV1", () => {
           interruption: "cancel_to_target",
         })
       ),
-      onAcknowledgment,
     });
 
     reconciler.retarget({ target: targetOfV1([showBackV1]), revision: 1, epoch: 0 });
@@ -346,9 +297,6 @@ describe("createStageReconcilerV1", () => {
       epoch: 0,
     });
 
-    expect(onAcknowledgment).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ outcome: "cancelled" }),
-    );
     const frame = reconciler.frame();
     expect(frame.settled).toBe(true);
     expect(entryKeysV1(frame)).toEqual(["layer.test.back:tag.test.bg"]);
@@ -356,15 +304,13 @@ describe("createStageReconcilerV1", () => {
     reconciler.dispose();
   });
 
-  it("epoch changes restore a stable target with no edges and no late acks", () => {
+  it("epoch changes restore a stable target with no edges and no late ticks", () => {
     const clock = createManualPresentationClockV1();
-    const onAcknowledgment = vi.fn();
     const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1(() =>
         definitionV1({ transitionId: "transition.test.epoch", acknowledge: true })
       ),
-      onAcknowledgment,
     });
 
     reconciler.retarget({ target: targetOfV1([showBackV1]), revision: 1, epoch: 0 });
@@ -381,14 +327,12 @@ describe("createStageReconcilerV1", () => {
     expect(frame.settled).toBe(true);
     expect(entryKeysV1(frame)).toEqual(["layer.test.back:tag.test.bg"]);
     clock.advance(500);
-    expect(onAcknowledgment).not.toHaveBeenCalled();
     expect(clock.pendingTickCount()).toBe(0);
     reconciler.dispose();
   });
 
   it("reflects input policies and skips all runs on demand", () => {
     const clock = createManualPresentationClockV1();
-    const onAcknowledgment = vi.fn();
     const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1((kind) =>
@@ -400,7 +344,6 @@ describe("createStageReconcilerV1", () => {
             acknowledge: true,
           })
       ),
-      onAcknowledgment,
     });
 
     reconciler.retarget({ target: targetOfV1([showBackV1]), revision: 1, epoch: 0 });
@@ -423,15 +366,11 @@ describe("createStageReconcilerV1", () => {
     const frame = reconciler.frame();
     expect(frame.settled).toBe(true);
     expect(frame.inputGate).toEqual({ blocked: false, skipOnInput: false });
-    expect(onAcknowledgment).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ outcome: "skipped" }),
-    );
     reconciler.dispose();
   });
 
-  it("instant settles still emit the completion acknowledgment", () => {
+  it("reduced-motion settle transitions commit an instant stable frame", () => {
     const clock = createManualPresentationClockV1();
-    const onAcknowledgment = vi.fn();
     const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1(() =>
@@ -442,7 +381,6 @@ describe("createStageReconcilerV1", () => {
         })
       ),
       prefersReducedMotion: () => true,
-      onAcknowledgment,
     });
 
     reconciler.retarget({ target: targetOfV1([showBackV1]), revision: 1, epoch: 0 });
@@ -452,15 +390,8 @@ describe("createStageReconcilerV1", () => {
       epoch: 0,
     });
 
-    // No run played, but the acknowledged edge completed instantly: the
-    // frame is settled and the acknowledgment fired exactly once.
+    // No run played; the frame still commits as settled.
     expect(reconciler.frame().settled).toBe(true);
-    expect(onAcknowledgment).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({
-        transitionId: "transition.test.ack-reduced",
-        outcome: "completed",
-      }),
-    );
     reconciler.dispose();
   });
 
@@ -623,15 +554,13 @@ describe("createStageReconcilerV1", () => {
     reconciler.dispose();
   });
 
-  it("dispose leaves no ticks and drops late acknowledgments", () => {
+  it("dispose leaves no ticks", () => {
     const clock = createManualPresentationClockV1();
-    const onAcknowledgment = vi.fn();
     const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1(() =>
         definitionV1({ transitionId: "transition.test.dispose", acknowledge: true })
       ),
-      onAcknowledgment,
     });
 
     reconciler.retarget({ target: targetOfV1([showBackV1]), revision: 1, epoch: 0 });
@@ -644,7 +573,6 @@ describe("createStageReconcilerV1", () => {
     reconciler.dispose();
     expect(clock.pendingTickCount()).toBe(0);
     clock.advance(500);
-    expect(onAcknowledgment).not.toHaveBeenCalled();
   });
 });
 
@@ -1238,15 +1166,13 @@ describe("Stage presentation-generation authority", () => {
 });
 
 describe("Stage acknowledged-run authority", () => {
-  it("preserves the unclaimed raw contract and makes one exact claimant the sole writer", () => {
+  it("preserves unclaimed raw mutations and makes one exact claimant the sole writer", () => {
     const rawClock = createManualPresentationClockV1();
-    const rawAcknowledgments = vi.fn();
     const raw = createStageReconcilerV1({
       clock: rawClock,
       catalog: catalogV1(() =>
         definitionV1({ transitionId: "transition.test.raw", acknowledge: true })
       ),
-      onAcknowledgment: rawAcknowledgments,
     });
     raw.retarget({ target: targetOfV1([showBackV1]), revision: 1, epoch: 0 });
     raw.retarget({
@@ -1256,9 +1182,6 @@ describe("Stage acknowledged-run authority", () => {
     });
     raw.skipAll();
     expect(raw.frame().settled).toBe(true);
-    expect(rawAcknowledgments).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ outcome: "skipped" }),
-    );
 
     const clock = createManualPresentationClockV1();
     const terminalInputs: StageAcknowledgedTerminalInputV1[] = [];
@@ -1535,7 +1458,6 @@ it("matches the logical transition while preserving the effective fallback ackno
     durationMs: 10,
     acknowledge: true,
   });
-  const publicAcknowledgments = vi.fn();
   const terminalInputs: StageAcknowledgedTerminalInputV1[] = [];
   const reconciler = createStageReconcilerV1({
     clock,
@@ -1549,7 +1471,6 @@ it("matches the logical transition while preserving the effective fallback ackno
       { [fallbackId]: fallback },
     ),
     prefersReducedMotion: () => true,
-    onAcknowledgment: publicAcknowledgments,
   });
   const authority = claimStageAcknowledgedRunAuthorityInternalV1(
     reconciler,
@@ -1593,9 +1514,6 @@ it("matches the logical transition while preserving the effective fallback ackno
   if (logicalAttempt.kind !== "armed") throw new Error("logical attempt must arm");
   expect(terminalInputs[0]).toEqual({ proof: logicalAttempt.proof, outcome: "completed" });
   expect(Object.isFrozen(terminalInputs[0])).toBe(true);
-  expect(publicAcknowledgments).toHaveBeenCalledExactlyOnceWith(
-    expect.objectContaining({ transitionId: fallbackId, outcome: "completed" }),
-  );
   authority.disposeInternalV1();
 });
 
@@ -1735,20 +1653,11 @@ it("authenticates only the exact proof while its terminal callback stack is acti
   const clock = createManualPresentationClockV1();
   const transitionId = "transition.test.terminal-stack-proof";
   const privateObservations: boolean[][] = [];
-  const publicObservations: boolean[] = [];
   const subscriberObservations: boolean[] = [];
-  let expectedProof: unknown = null;
   let authority!: StageAcknowledgedRunAuthorityInternalV1;
   const reconciler = createStageReconcilerV1({
     clock,
     catalog: catalogV1(() => definitionV1({ transitionId, acknowledge: true })),
-    onAcknowledgment: () => {
-      if (expectedProof !== null) {
-        publicObservations.push(
-          authority.isAcknowledgedRunTerminalStackActiveInternalV1(expectedProof),
-        );
-      }
-    },
   });
   authority = claimStageAcknowledgedRunAuthorityInternalV1(
     reconciler,
@@ -1774,7 +1683,6 @@ it("authenticates only the exact proof while its terminal callback stack is acti
     }),
   });
   if (result.kind !== "armed") throw new Error("animated transition must arm");
-  expectedProof = result.proof;
   const unsubscribe = reconciler.subscribe(() => {
     subscriberObservations.push(
       authority.isAcknowledgedRunTerminalStackActiveInternalV1(result.proof),
@@ -1784,7 +1692,6 @@ it("authenticates only the exact proof while its terminal callback stack is acti
   expect(authority.isAcknowledgedRunTerminalStackActiveInternalV1(result.proof)).toBe(false);
   clock.advance(100);
   expect(privateObservations).toEqual([[true, false, false]]);
-  expect(publicObservations).toEqual([true]);
   expect(subscriberObservations).toEqual([true]);
   expect(authority.isAcknowledgedRunTerminalStackActiveInternalV1(result.proof)).toBe(false);
 
@@ -1845,7 +1752,6 @@ it("seals a readiness terminal once and isolates every throwing observer in its 
   const transitionId = "transition.test.throwing-readiness-observers";
   const events: string[] = [];
   const privateStackStates: boolean[] = [];
-  const publicStackStates: boolean[] = [];
   const diagnosticStackStates: boolean[] = [];
   const subscriberStackStates: boolean[] = [];
   let assetsReady = true;
@@ -1861,14 +1767,6 @@ it("seals a readiness terminal once and isolates every throwing observer in its 
       })
     ),
     assetsReady: () => assetsReady,
-    onAcknowledgment: () => {
-      if (expectedProof === null) return;
-      events.push("public");
-      publicStackStates.push(
-        authority.isAcknowledgedRunTerminalStackActiveInternalV1(expectedProof),
-      );
-      throw new Error("public acknowledgment failed");
-    },
     reportFailure: () => {
       if (expectedProof === null) return;
       events.push("diagnostic");
@@ -1917,13 +1815,11 @@ it("seals a readiness terminal once and isolates every throwing observer in its 
   expect(() => clock.advance(50)).not.toThrow();
   expect(events).toEqual([
     "private",
-    "public",
     "subscriber",
     "diagnostic",
     "subscriber",
   ]);
   expect(privateStackStates).toEqual([true]);
-  expect(publicStackStates).toEqual([true]);
   expect(diagnosticStackStates).toEqual([true]);
   expect(subscriberStackStates).toEqual([true, true]);
   expect(terminalCount).toBe(1);
@@ -1938,21 +1834,16 @@ it("seals a readiness terminal once and isolates every throwing observer in its 
   authority.disposeInternalV1();
 });
 
-it.each(["public", "subscriber"] as const)(
-  "contains a throwing $case observer and still reaches the next interruption guard",
-  (throwingObserver) => {
+it(
+  "contains a throwing subscriber and still reaches the next interruption guard",
+  () => {
     const clock = createManualPresentationClockV1();
-    const transitionId = `transition.test.throwing-${throwingObserver}`;
+    const transitionId = "transition.test.throwing-subscriber";
     const events: string[] = [];
     let outerOperation = false;
     const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1(() => definitionV1({ transitionId, acknowledge: true })),
-      onAcknowledgment: () => {
-        if (!outerOperation) return;
-        events.push("public");
-        if (throwingObserver === "public") throw new Error("public observer failed");
-      },
     });
     const authority = claimStageAcknowledgedRunAuthorityInternalV1(
       reconciler,
@@ -1973,7 +1864,7 @@ it.each(["public", "subscriber"] as const)(
     const unsubscribe = reconciler.subscribe(() => {
       if (!outerOperation) return;
       events.push("subscriber");
-      if (throwingObserver === "subscriber") throw new Error("subscriber failed");
+      throw new Error("subscriber failed");
     });
     let guardCalls = 0;
     outerOperation = true;
@@ -1992,10 +1883,9 @@ it.each(["public", "subscriber"] as const)(
 
     expect(result.kind).toBe("armed");
     expect(guardCalls).toBe(2);
-    expect(events.slice(0, 5)).toEqual([
+    expect(events.slice(0, 4)).toEqual([
       "guard-1",
       "private",
-      "public",
       "subscriber",
       "guard-2",
     ]);
@@ -2007,7 +1897,6 @@ it.each(["public", "subscriber"] as const)(
 it("does not let a planning callback complete an old run before the first guard", () => {
   const clock = createManualPresentationClockV1();
   const transitionId = "transition.test.planning-clock";
-  const publicAcknowledgments = vi.fn();
   const oldTerminals = vi.fn();
   let advanceClockDuringPlan = false;
   const reconciler = createStageReconcilerV1({
@@ -2016,7 +1905,6 @@ it("does not let a planning callback complete an old run before the first guard"
       if (advanceClockDuringPlan) clock.advance(100);
       return definitionV1({ transitionId, acknowledge: true });
     }),
-    onAcknowledgment: publicAcknowledgments,
   });
   const authority = claimStageAcknowledgedRunAuthorityInternalV1(
     reconciler,
@@ -2052,7 +1940,6 @@ it("does not let a planning callback complete an old run before the first guard"
 
   expect(result).toEqual({ kind: "stale", proof: null });
   expect(oldTerminals).not.toHaveBeenCalled();
-  expect(publicAcknowledgments).not.toHaveBeenCalled();
   expect(notificationCount).toBe(0);
   expect(reconciler.frame().settled).toBe(false);
   expect(clock.pendingTickCount()).toBe(1);
@@ -2352,169 +2239,6 @@ it("does not leak an acknowledged proof through a planning-time WeakMap.set repl
   expect(notificationCount).toBe(0);
   expect(reconciler.frame()).toEqual(before);
   unsubscribe();
-  authority.disposeInternalV1();
-});
-
-it.each(["stale", "faulted"] as const)(
-  "rechecks an old terminal public callback and gives $case the documented precedence",
-  (expectedKind) => {
-    const clock = createManualPresentationClockV1();
-    const transitionId = "transition.test.old-terminal-guard";
-    const events: string[] = [];
-    let outerOperation = false;
-    let guardCurrent = true;
-    let authority!: StageAcknowledgedRunAuthorityInternalV1;
-    const reconciler = createStageReconcilerV1({
-      clock,
-      catalog: catalogV1(() => definitionV1({ transitionId, acknowledge: true })),
-      onAcknowledgment: () => {
-        if (!outerOperation) return;
-        events.push("public");
-        guardCurrent = expectedKind !== "stale";
-        authority.retargetInternalV1({
-          target: targetOfV1([{ ...showBackV1, contentId: "content.test.nested" }]),
-          revision: 99,
-          epoch: 0,
-        });
-      },
-    });
-    authority = claimStageAcknowledgedRunAuthorityInternalV1(
-      reconciler,
-      Object.freeze({}),
-    );
-    installPresentationGenerationV1(authority, {
-      target: targetOfV1([showBackV1]),
-      revision: 1,
-      epoch: 0,
-    });
-    const oldRun = acknowledgedRetargetV1(authority, {
-      target: targetOfV1([{ ...showBackV1, contentId: "content.test.b" }]),
-      revision: 2,
-      expectedTransitionId: transitionId,
-      terminalPort: terminalPortV1(() => events.push("private")),
-    });
-    expect(oldRun.kind).toBe("armed");
-    const unsubscribe = reconciler.subscribe(() => events.push("subscriber"));
-    let guardCalls = 0;
-    outerOperation = true;
-    const result = acknowledgedRetargetV1(authority, {
-      target: targetOfV1([{ ...showBackV1, contentId: "content.test.c" }]),
-      revision: 3,
-      expectedTransitionId: transitionId,
-      commitGuard: commitGuardV1(() => {
-        guardCalls += 1;
-        events.push(`guard-${String(guardCalls)}`);
-        return guardCurrent;
-      }),
-    });
-    outerOperation = false;
-
-    expect(result).toEqual(
-      expectedKind === "stale" ? { kind: "stale", proof: null } : {
-        kind: "faulted",
-        code: "stage.acknowledged_run_faulted",
-        proof: null,
-      },
-    );
-    expect(events).toEqual([
-      "guard-1",
-      "private",
-      "public",
-      "subscriber",
-      "guard-2",
-    ]);
-    expect(reconciler.frame().settled).toBe(true);
-    expect(reconciler.frame().layers[0]?.entries[0]?.entry.contentId).toBe(
-      "content.test.b",
-    );
-    expect(clock.pendingTickCount()).toBe(0);
-    unsubscribe();
-    authority.disposeInternalV1();
-  },
-);
-
-it("defers a second old clock terminal until the first interruption guard completes", () => {
-  const clock = createManualPresentationClockV1();
-  const expectedTransitionId = "transition.test.ordered-old-run";
-  const otherTransitionId = "transition.test.ordered-other";
-  const events: string[] = [];
-  let outerOperation = false;
-  let advancedClock = false;
-  const reconciler = createStageReconcilerV1({
-    clock,
-    catalog: {
-      resolveTransition: (change) =>
-        definitionV1({
-          transitionId: change.layerId === "layer.test.back"
-            ? expectedTransitionId
-            : otherTransitionId,
-          acknowledge: true,
-        }),
-      resolveTransitionById: () => null,
-    },
-    onAcknowledgment: (acknowledgment) => {
-      events.push(
-        `public:${acknowledgment.transitionId}:${acknowledgment.outcome}`,
-      );
-      if (outerOperation && !advancedClock) {
-        advancedClock = true;
-        clock.advance(100);
-      }
-    },
-  });
-  const authority = claimStageAcknowledgedRunAuthorityInternalV1(
-    reconciler,
-    Object.freeze({}),
-  );
-  const target = (backContentId: string, frontContentId: string) =>
-    targetOfV1([
-      { ...showBackV1, contentId: backContentId },
-      {
-        kind: "show",
-        layerId: "layer.test.front",
-        tag: "tag.test.front",
-        contentId: frontContentId,
-      },
-    ]);
-  installPresentationGenerationV1(authority, {
-    target: target("content.test.a", "content.test.x"),
-    revision: 1,
-    epoch: 0,
-  });
-  const oldRun = acknowledgedRetargetV1(authority, {
-    target: target("content.test.b", "content.test.y"),
-    revision: 2,
-    expectedTransitionId,
-    terminalPort: terminalPortV1((input) => events.push(`private:${input.outcome}`)),
-  });
-  expect(oldRun.kind).toBe("armed");
-  clock.advance(30);
-  events.length = 0;
-  let guardCalls = 0;
-  outerOperation = true;
-
-  const result = acknowledgedRetargetV1(authority, {
-    target: target("content.test.c", "content.test.z"),
-    revision: 3,
-    expectedTransitionId,
-    commitGuard: commitGuardV1(() => {
-      guardCalls += 1;
-      events.push(`guard-${String(guardCalls)}`);
-      return true;
-    }),
-  });
-  outerOperation = false;
-
-  expect(result.kind).toBe("armed");
-  expect(events).toEqual([
-    "guard-1",
-    "private:interrupted",
-    `public:${expectedTransitionId}:interrupted`,
-    "guard-2",
-    `public:${otherTransitionId}:interrupted`,
-    "guard-3",
-  ]);
-  expect(clock.pendingTickCount()).toBe(2);
   authority.disposeInternalV1();
 });
 

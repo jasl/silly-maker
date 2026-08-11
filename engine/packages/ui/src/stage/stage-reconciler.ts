@@ -66,13 +66,6 @@ export interface StageRenderFrameV1 {
   readonly inputGate: StageInputGateV1;
 }
 
-export interface StageTransitionAcknowledgmentV1 {
-  readonly occurrenceId: string;
-  readonly transitionId: string;
-  readonly epoch: number;
-  readonly outcome: PresentationRunOutcomeV1;
-}
-
 export interface StageRetargetInputV1 {
   readonly target: StageRenderTargetV1;
   readonly revision: number;
@@ -86,7 +79,6 @@ export interface CreateStageReconcilerOptionsV1 {
   readonly prefersReducedMotion?: () => boolean;
   /** Readiness probe for wait_for_assets transitions; defaults to ready. */
   readonly assetsReady?: (assetIds: readonly AssetId[]) => boolean;
-  onAcknowledgment?(acknowledgment: StageTransitionAcknowledgmentV1): void;
   reportFailure?(code: string, detail: string): void;
 }
 
@@ -561,30 +553,6 @@ export function createStageReconcilerV1(
     }
   };
 
-  const acknowledge = (transition: ActiveTransitionV1, outcome: PresentationRunOutcomeV1): void => {
-    if (disposed || !transition.definition.acknowledge) return;
-    if (transition.run.epoch !== currentEpoch) return;
-    options.onAcknowledgment?.(
-      Object.freeze({
-        occurrenceId: transition.occurrenceId,
-        transitionId: transition.definition.transitionId,
-        epoch: transition.run.epoch,
-        outcome,
-      }),
-    );
-  };
-
-  const acknowledgeContained = (
-    transition: ActiveTransitionV1,
-    outcome: PresentationRunOutcomeV1,
-  ): void => {
-    try {
-      acknowledge(transition, outcome);
-    } catch {
-      // Public acknowledgment observers are outside the private proof path.
-    }
-  };
-
   const reportFailureContained = (code: string, detail: string): void => {
     try {
       options.reportFailure?.(code, detail);
@@ -742,10 +710,8 @@ export function createStageReconcilerV1(
               deliverAcknowledgedTerminal(acknowledgedRecord, outcome);
             }
             if (shouldContainTransitionObservers(transition)) {
-              acknowledgeContained(transition, outcome);
               notifyContained();
             } else {
-              acknowledge(transition, outcome);
               notify();
             }
           } finally {
@@ -914,27 +880,6 @@ export function createStageReconcilerV1(
       if (resolved === null) continue;
       const definition = resolveReducedMotionLegacyV1(resolved);
       if (definition === null || definition.kind === "cut" || definition.durationMs <= 0) {
-        // Instant settles (cut, zero duration, reduced-motion settle) still
-        // owe their completion acknowledgment: a presentation barrier must
-        // resolve whether or not any animation played.
-        if (resolved.acknowledge && !disposed) {
-          occurrenceCounter += 1;
-          const acknowledgment = Object.freeze({
-            occurrenceId: `stage-transition.${String(input.epoch)}.${String(occurrenceCounter)}`,
-            transitionId: resolved.transitionId,
-            epoch: input.epoch,
-            outcome: "completed" as const,
-          });
-          if (contained) {
-            try {
-              options.onAcknowledgment?.(acknowledgment);
-            } catch {
-              // Claimed public observers are contained.
-            }
-          } else {
-            options.onAcknowledgment?.(acknowledgment);
-          }
-        }
         continue;
       }
       startTransitionLegacy(change, definition, input.epoch);
@@ -1467,17 +1412,6 @@ export function createStageReconcilerV1(
               synchronousTerminalRecord = proofRecord;
               enterAcknowledgedTerminalStack(proofRecord);
               deliverAcknowledgedTerminal(proofRecord, "completed");
-            }
-            const acknowledgment = freezeStageAcknowledgedRunDataInternalV1({
-              occurrenceId: edge.occurrenceId,
-              transitionId: edge.logicalDefinition.transitionId,
-              epoch: retarget.epoch,
-              outcome: "completed" as const,
-            });
-            try {
-              options.onAcknowledgment?.(acknowledgment);
-            } catch {
-              // The private terminal is already sealed and delivered.
             }
           }
           if (edge.diagnostic !== null) {

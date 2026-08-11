@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 import { expect, gotoLabV1, test } from "./fixtures.ts";
 
+const automationKeyV1 = "__SILLYMAKER_AUTOMATION_V1__";
+
 test.describe("engine pending interactions", () => {
   test("@smoke plays the calibration narrative through every boundary", async ({ page }) => {
-    await gotoLabV1(page);
+    await gotoLabV1(page, "?capability=automation_bridge");
 
     // Begin: the say boundary appears with a stable occurrence marker.
     await page.getByRole("button", { name: "开始校准" }).click();
@@ -40,6 +42,7 @@ test.describe("engine pending interactions", () => {
     const choice = page.locator("[data-lab-interaction='choice']");
     await expect(choice).toBeVisible();
     await expect(page.locator("[data-lab-interaction='say']")).toHaveCount(0);
+    const choiceOccurrence = await choice.getAttribute("data-lab-occurrence");
 
     // The pure stage node showed the beacon on the way to the choice.
     await expect(page.locator('[data-stage-key="layer.e2e.props:tag.e2e.beacon"]')).toBeVisible();
@@ -47,8 +50,18 @@ test.describe("engine pending interactions", () => {
     // Availability from the shared evaluator: precise needs a sample.
     await expect(page.getByRole("button", { name: "精密校准" })).toBeDisabled();
 
-    // Collecting a sample re-evaluates availability live.
-    await page.getByRole("button", { name: "采集样本" }).click();
+    // Narrative owns focus and pointer ingress while the Choice is current,
+    // so the managed automation facade dispatches the same semantic action
+    // without bypassing the surface's inert authority.
+    const collected = await page.evaluate(async (key) => {
+      const automation = Reflect.get(globalThis, key) as
+        | Readonly<{ dispatch(invocation: unknown): Promise<unknown> }>
+        | undefined;
+      if (automation === undefined) throw new TypeError("automation bridge unavailable");
+      return await automation.dispatch({ kind: "invoke", actionId: "lab.collect_sample" });
+    }, automationKeyV1);
+    expect(collected).toMatchObject({ kind: "ok", value: { kind: "committed" } });
+    await expect(choice).toHaveAttribute("data-lab-occurrence", choiceOccurrence ?? "");
     await expect(page.getByRole("button", { name: "精密校准" })).toBeEnabled();
 
     // Choose; the acknowledged background crossfade confirms the barrier,

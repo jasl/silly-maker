@@ -103,15 +103,20 @@ export type {
   PresentationIntentRouterV1,
   PresentationOverlayWriterV1,
 } from "./interaction/index.ts";
-export { AdvanceSurfaceV1, DialoguePanelV1, VnLayerV1 } from "./narrative/index.ts";
+export { defineNarrativeSurfaceV1 } from "./narrative/narrative-surface-composition.tsx";
 export type {
-  DialoguePanelLabelsV1,
-  DialoguePanelPropsV1,
-  DialogueResolutionV1,
-} from "./narrative/index.ts";
+  DefineNarrativeSurfaceInputV1,
+  NarrativeChoiceAvailabilityV1,
+  NarrativeSurfaceDefinitionV1,
+  NarrativeSurfaceDialogueRendererPropsV1,
+  NarrativeSurfaceHistoryRendererPropsV1,
+  NarrativeSurfacePlayerViewV1,
+  NarrativeSurfaceRendererPropsV1,
+  NarrativeSurfaceResolutionRequestV1,
+  NarrativeSurfaceSelectionV1,
+} from "./narrative/narrative-surface-composition.tsx";
 export { useLocaleTextV1 } from "./system/use-locale-text.ts";
 export { useReducedMotionV1 } from "./system/use-reduced-motion.ts";
-export type { VnChoiceV1, VnLayerPropsV1 } from "./narrative/index.ts";
 export { defineWorkspaceOverlayV1, maximumOverlayDetailDepthV1 } from "./overlays/index.ts";
 export type {
   DefineWorkspaceOverlayInputV1,
@@ -215,7 +220,6 @@ export type {
   StageReconcilerV1,
   StageRenderFrameV1,
   StageRetargetInputV1,
-  StageTransitionAcknowledgmentV1,
 } from "./stage/index.ts";
 export {
   audioBusForChannelV1,
@@ -240,16 +244,6 @@ export type {
   GameAudioPropsV1,
   ResolvedEffectAssetV1,
 } from "./audio/index.ts";
-export { createPlaybackControllerV1, createTextRevealV1 } from "./player/index.ts";
-export type {
-  CreatePlaybackControllerOptionsV1,
-  CreateTextRevealOptionsV1,
-  PlaybackBoundaryV1,
-  PlaybackControllerV1,
-  PlaybackModeV1,
-  PlaybackPolicyInputV1,
-  TextRevealV1,
-} from "./player/index.ts";
 export {
   createAnimationFramePresentationClockV1,
   createManualPresentationClockV1,

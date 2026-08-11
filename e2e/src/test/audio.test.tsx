@@ -13,10 +13,13 @@ import {
   createFakeAudioHostV1,
   createGameUiCompositionV1,
 } from "@sillymaker/ui";
+import { createWebHostV1, startWebGameApplicationV1 } from "@sillymaker/web";
 
 import { createLabApplicationInstanceV1 } from "../application/core-application.ts";
 import {
+  createLabGameUiDefinitionV1,
   createLabUiSlotsV1,
+  labGameApplicationV1,
   labRootLabelsV1,
   labUiProjectorV1,
   labViewportCanvasV1,
@@ -24,16 +27,14 @@ import {
 } from "../application/composition.tsx";
 import { labAudioAssetIdsV1 } from "../gameplay/audio.ts";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  document.body.innerHTML = "";
+});
 
 async function composeAudioLabV1() {
   const instance = await createLabApplicationInstanceV1();
   const host = createFakeAudioHostV1();
-  const playerProfile = await createPlayerProfileStoreV1({
-    records: createMemoryHostRecordStoreV1(),
-    storyId: "story.e2e.engine-lab",
-  });
-  await playerProfile.updatePreferences({ textRevealCharsPerSecond: 0 });
   const composition = createGameUiCompositionV1({
     semantic: instance.semantic,
     projector: labUiProjectorV1,
@@ -51,7 +52,7 @@ async function composeAudioLabV1() {
       applicationId="e2e"
       viewport={{ canvas: labViewportCanvasV1, fallbackSize: { width: 1600, height: 1000 } }}
       labels={labRootLabelsV1}
-      slots={createLabUiSlotsV1({ instance, createAudioHost: () => host, playerProfile })}
+      slots={createLabUiSlotsV1({ instance, createAudioHost: () => host })}
     />,
   );
   const dispose = async () => {
@@ -60,6 +61,42 @@ async function composeAudioLabV1() {
     await instance.dispose();
   };
   return { instance, host, dispose };
+}
+
+async function startHostedAudioLabV1() {
+  globalThis.window.history.replaceState({}, "", "/");
+  const records = createMemoryHostRecordStoreV1();
+  const profile = await createPlayerProfileStoreV1({
+    records,
+    storyId: "story.e2e.engine-lab",
+  });
+  await profile.updatePreferences({ textRevealCharsPerSecond: 0 });
+  const host = createFakeAudioHostV1();
+  const application = Object.freeze({
+    ...labGameApplicationV1,
+    ui(input: Parameters<typeof labGameApplicationV1.ui>[0]) {
+      return createLabGameUiDefinitionV1({
+        instance: input.instance,
+        createAudioHost: () => host,
+      });
+    },
+  });
+  const root = document.createElement("div");
+  document.body.append(root);
+  const started = await startWebGameApplicationV1(application, {
+    rootElement: root,
+    host: createWebHostV1({
+      records,
+      seeds: [20260812],
+      uuids: ["4bfcba6f-d25c-4aca-8ca4-a6bbad298cf9"],
+    }),
+    capabilitySearch: "",
+    registerPageLifecycle: false,
+  });
+  await waitFor(() => {
+    expect(screen.getByRole("application", { name: "引擎实验室" })).toBeInTheDocument();
+  });
+  return Object.freeze({ started, host });
 }
 
 describe("Engine Lab audio presentation", () => {
@@ -140,21 +177,23 @@ describe("Engine Lab audio presentation", () => {
   });
 
   it("ties the voice line to the say occurrence and stops it on advance", async () => {
-    const { host, dispose } = await composeAudioLabV1();
-    const user = userEvent.setup();
+    const lab = await startHostedAudioLabV1();
+    try {
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "开始校准" }));
+      await waitFor(() => {
+        expect(lab.host.channel("voice")).toMatchObject({
+          assetId: labAudioAssetIdsV1.voiceIntro,
+        });
+      });
 
-    await user.click(screen.getByRole("button", { name: "开始校准" }));
-    await waitFor(() => {
-      expect(host.channel("voice")).toMatchObject({ assetId: labAudioAssetIdsV1.voiceIntro });
-    });
-
-    // Advancing the say stops the stop_on_advance voice line.
-    await user.click(await screen.findByRole("button", { name: "继续" }));
-    await waitFor(() => {
-      expect(host.channel("voice")).toBeNull();
-    });
-
-    await dispose();
+      await user.click(await screen.findByRole("button", { name: "继续" }));
+      await waitFor(() => {
+        expect(lab.host.channel("voice")).toBeNull();
+      });
+    } finally {
+      await lab.started.dispose();
+    }
   });
 
   it("keeps the audio intent when a corrupt import is rejected", async () => {

@@ -32,12 +32,11 @@ import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 
 import { createInputRouterV1 } from "../input/input-router.ts";
-import { parseInputActionIdV1, systemInputActionIdsV1 } from "../input/contracts.ts";
-import type { NarrativeStableRendererPropsInternalV1 } from "../narrative/narrative-managed-surface-family.ts";
+import { systemInputActionIdsV1 } from "../input/contracts.ts";
 import {
-  createNarrativeSurfaceCompositionDefinitionInternalV1,
-  useNarrativeSurfaceCompositionBoundActionInternalV1,
+  defineNarrativeSurfaceV1,
   type NarrativeSurfaceChoiceAvailabilityInternalV1,
+  type NarrativeSurfaceRendererPropsV1,
   type NarrativeSurfaceSelectionInternalV1,
 } from "../narrative/narrative-surface-composition.tsx";
 import {
@@ -58,6 +57,7 @@ import type {
   SaveUiWritableSlotIdV1,
 } from "../persistence/save-overlay.tsx";
 import { createManualPresentationClockV1 } from "../presentation-run/presentation-clock.ts";
+import type { PresentationClockV1 } from "../presentation-run/presentation-clock.ts";
 import { SemanticStageV1 } from "../stage/semantic-stage.tsx";
 import { systemDialogManagedContractInternalV1 } from "../system/system-dialog-managed-contract.ts";
 import {
@@ -204,12 +204,11 @@ function deferredV1() {
 function StageLifetimeProbeV1(props: {
   readonly onMount: () => void;
   readonly onUnmount: () => void;
-  readonly onAcknowledgment?: () => void;
   readonly epoch: number;
   readonly clock: ReturnType<typeof createManualPresentationClockV1>;
   readonly cues?: GameUiCueRegistryV1;
 }): ReactElement {
-  const { onMount, onUnmount, onAcknowledgment, epoch, clock, cues } = props;
+  const { onMount, onUnmount, epoch, clock, cues } = props;
   const [contentGeneration, setContentGeneration] = useState(0);
   useEffect(() => {
     onMount();
@@ -231,7 +230,6 @@ function StageLifetimeProbeV1(props: {
         accessibleName="Stage lifetime probe"
         clock={clock}
         timelines={stageLifetimeTimelinesV1}
-        {...(onAcknowledgment === undefined ? {} : { onAcknowledgment })}
         {...(cues === undefined ? {} : { cues })}
       />
     </div>
@@ -578,8 +576,6 @@ function createExactLifecycleAnchorSourceV1() {
   });
 }
 
-const narrativeChooseActionIdInternalV1 = parseInputActionIdV1("narrative.choose");
-
 function choicePendingInternalV1(sequence: number): PendingInteractionV1 {
   return parsePendingInteractionV1({
     kind: "choice",
@@ -614,6 +610,22 @@ function choiceSelectionInternalV1(sequence: number): NarrativeSurfaceSelectionI
   });
 }
 
+function saySelectionInternalV1(sequence: number): NarrativeSurfaceSelectionInternalV1 {
+  return Object.freeze({
+    pending: parsePendingInteractionV1({
+      kind: "say",
+      definitionId: "narrative.test.default-root-say",
+      seenRevision: 1,
+      occurrenceId: `interaction-occurrence.${String(sequence + 1_000)}`,
+      speakerTextId: null,
+      textId: "text.test.default-root-say",
+      advancePolicy: "confirm",
+    }),
+    history: emptyNarrativeHistoryV1,
+    choiceAvailability: null,
+  });
+}
+
 function strictBarrierSelectionInternalV1(
   pending: PendingInteractionV1 | null = parsePendingInteractionV1({
     kind: "presentation_barrier",
@@ -644,6 +656,8 @@ function renderCompositionOwnedNarrativeRootInternalV1(
       readonly onUnmount: () => void;
       readonly onDispatch?: () => void;
     };
+    readonly initialSay?: boolean;
+    readonly narrativeClock?: PresentationClockV1;
     readonly strictMode?: boolean;
   } = {},
 ) {
@@ -654,13 +668,15 @@ function renderCompositionOwnedNarrativeRootInternalV1(
   let occurrenceSequence = 1;
   let semanticPublication: SemanticPublicationInternalV1 = Object.freeze({
     selection: options.initialStrictBarrier === undefined
-      ? choiceSelectionInternalV1(occurrenceSequence)
+      ? options.initialSay === true
+        ? saySelectionInternalV1(occurrenceSequence)
+        : choiceSelectionInternalV1(occurrenceSequence)
       : strictBarrierSelectionInternalV1(),
   });
   const callbacks: Array<
     Readonly<{
       readonly occurrenceId: string;
-      readonly callback: () => boolean;
+      readonly callback: () => void;
     }>
   > = [];
   const dispatches: Array<
@@ -681,20 +697,38 @@ function renderCompositionOwnedNarrativeRootInternalV1(
     for (const listener of [...semanticListeners]) listener();
   };
   const ChoiceRendererInternalV1 = Object.freeze(
-    function ChoiceRendererInternalV1(
-      props: NarrativeStableRendererPropsInternalV1,
-    ): ReactElement {
+    function ChoiceRendererInternalV1(props: NarrativeSurfaceRendererPropsV1): ReactElement {
       const pending = props.kind === "dialogue" ? props.pending : null;
       const occurrenceId = pending?.occurrenceId ?? "history";
       const choiceId = pending?.kind === "choice" ? pending.options[0]?.choiceId : undefined;
-      const onChoose = useNarrativeSurfaceCompositionBoundActionInternalV1({
-        actionId: narrativeChooseActionIdInternalV1,
-        ...(choiceId === undefined ? {} : { choiceId }),
-      });
       useEffect(() => {
-        if (choiceId === undefined) return;
-        callbacks.push(Object.freeze({ occurrenceId, callback: onChoose }));
-      }, [choiceId, occurrenceId, onChoose]);
+        if (props.kind !== "dialogue") return;
+        if (pending?.kind === "say") {
+          callbacks.push(Object.freeze({ occurrenceId, callback: props.onActivate }));
+          return;
+        }
+        if (choiceId !== undefined) {
+          callbacks.push(Object.freeze({
+            occurrenceId,
+            callback: () => props.onChoose(choiceId),
+          }));
+        }
+      }, [choiceId, occurrenceId, pending?.kind, props]);
+      if (pending?.kind === "say" && props.kind === "dialogue") {
+        return (
+          <output
+            data-testid="default-root-narrative-say"
+            data-player-kind={props.playerView.kind}
+            data-player-phase={props.playerView.phase}
+            data-revealed-characters={props.playerView.kind === "say"
+              ? props.playerView.revealedCharacters
+              : 0}
+            data-reveal-complete={props.playerView.kind === "say"
+              ? String(props.playerView.revealComplete)
+              : "false"}
+          />
+        );
+      }
       return choiceId === undefined
         ? <output data-testid="default-root-narrative-history" />
         : (
@@ -702,91 +736,64 @@ function renderCompositionOwnedNarrativeRootInternalV1(
             type="button"
             data-testid="default-root-narrative-choice"
             data-occurrence-id={occurrenceId}
-            onClick={() => onChoose()}
+            onClick={() => props.kind === "dialogue" && props.onChoose(choiceId)}
           >
             Choose first
           </button>
         );
     },
   );
-  const definition = createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
-    selectNarrativeInternalV1: (
+  const definition = defineNarrativeSurfaceV1(Object.freeze({
+    selectNarrative: (
       publication: DeepReadonly<SemanticPublicationInternalV1>,
     ) => publication.selection,
-    preflightCandidateInternalV1: (
-      _pending: PendingInteractionV1,
-      _rendererKey: string,
-      selection: NarrativeSurfaceSelectionInternalV1,
-    ) =>
-      Object.freeze({
-        kind: "captured" as const,
-        candidateSnapshot: Object.freeze({
-          rendererComponent: ChoiceRendererInternalV1,
-          visualConfig: Object.freeze({}),
-          semanticDispatchPort: Object.freeze({
-            dispatchResolutionInternalV1: (
-              request: Readonly<{
-                readonly expectedOccurrenceId: string;
-                readonly resolution: unknown;
-              }>,
-            ) => {
-              dispatches.push(request);
-              if (options.initialStrictBarrier !== undefined) {
-                options.initialStrictBarrier.onDispatch?.();
-                publishSelection(strictBarrierSelectionInternalV1(null));
-                return Promise.resolve();
-              }
-              switch (options.completionMode ?? "publish_resolved") {
-                case "reject_current":
-                  return Promise.reject(new Error("current Choice completion rejected"));
-                case "resolve_without_publication":
-                  return Promise.resolve();
-                case "publish_pending": {
-                  const completion = new Promise<void>((_resolve, reject) => {
-                    rejectPendingCompletion = reject;
-                  });
-                  occurrenceSequence += 1;
-                  publishSelection(choiceSelectionInternalV1(occurrenceSequence));
-                  return completion;
-                }
-                case "publish_resolved":
-                  occurrenceSequence += 1;
-                  publishSelection(choiceSelectionInternalV1(occurrenceSequence));
-                  return Promise.resolve();
-              }
-              throw new TypeError("unexpected Narrative completion fixture mode");
-            },
-          }),
-          historyObservationPort: Object.freeze({
-            getSnapshotInternalV1: () => semanticPublication.selection.history,
-            subscribeInternalV1(listener: () => void) {
-              semanticListeners.add(listener);
-              return Object.freeze(() => semanticListeners.delete(listener));
-            },
-          }),
-          historyAvailabilityPort: Object.freeze({
-            readHistoryAvailabilityInternalV1: () => selection.history.entries.length > 0,
-          }),
-          playerProfile: Object.freeze({
-            getSnapshotInternalV1: () => defaultPlayerProfileV1,
-            subscribeInternalV1: () => Object.freeze(() => undefined),
-            markSeenInternalV1: () => undefined,
-          }),
-          presentationClock: Object.freeze({
-            nowInternalV1: () => 0,
-            requestTickInternalV1: () => Object.freeze(() => undefined),
-            prefersReducedMotionInternalV1: () => false,
-          }),
-          textResolver: Object.freeze({
-            resolveTextInternalV1: (textId: string) => textId,
-          }),
-          voiceReplayPort: null,
-          quickMenuContribution: null,
-        }),
-      }),
+    dispatchResolution: (
+      request: Readonly<{
+        readonly expectedOccurrenceId: string;
+        readonly resolution: unknown;
+      }>,
+    ) => {
+      dispatches.push(request);
+      if (options.initialStrictBarrier !== undefined) {
+        options.initialStrictBarrier.onDispatch?.();
+        publishSelection(strictBarrierSelectionInternalV1(null));
+        return Promise.resolve();
+      }
+      switch (options.completionMode ?? "publish_resolved") {
+        case "reject_current":
+          return Promise.reject(new Error("current Choice completion rejected"));
+        case "resolve_without_publication":
+          return Promise.resolve();
+        case "publish_pending": {
+          const completion = new Promise<void>((_resolve, reject) => {
+            rejectPendingCompletion = reject;
+          });
+          occurrenceSequence += 1;
+          publishSelection(choiceSelectionInternalV1(occurrenceSequence));
+          return completion;
+        }
+        case "publish_resolved":
+          occurrenceSequence += 1;
+          publishSelection(choiceSelectionInternalV1(occurrenceSequence));
+          return Promise.resolve();
+      }
+      throw new TypeError("unexpected Narrative completion fixture mode");
+    },
+    renderer: ChoiceRendererInternalV1,
+    resolveText: (_locale: string | null, textId: string) => textId,
+    replayCurrentVoice: null,
   }));
   const anchorEvents = createExactLifecycleAnchorSourceV1();
   let managedEpoch = 0;
+  const narrativePlayerProfile = Object.freeze({
+    current: () => defaultPlayerProfileV1,
+    subscribe: () => Object.freeze(() => undefined),
+    markSeen: async () => undefined,
+    markMeta: async () => undefined,
+    updatePreferences: async () => undefined,
+  }) satisfies PlayerProfileStoreV1;
+  const narrativeClock = options.narrativeClock ?? options.initialStrictBarrier?.clock ??
+    createManualPresentationClockV1();
   const composition = createGameUiCompositionWithEpochAllocatorInternalV1(
     {
       semantic: Object.freeze({
@@ -822,8 +829,12 @@ function renderCompositionOwnedNarrativeRootInternalV1(
       }),
     }),
     definition,
+    Object.freeze({
+      playerProfile: narrativePlayerProfile,
+      presentationClock: narrativeClock,
+      prefersReducedMotion: () => false,
+    }),
   );
-  const legacyNarrative = vi.fn(() => <output data-testid="legacy-narrative-writer" />);
   const initialStrictBarrier = options.initialStrictBarrier;
   const root = (
     <DefaultGameRootV1
@@ -833,7 +844,10 @@ function renderCompositionOwnedNarrativeRootInternalV1(
       applicationId="composition-narrative-fixture"
       viewport={undefined as never}
       inputMaps={Object.freeze({
-        keyboard: Object.freeze({ KeyN: systemInputActionIdsV1.confirm }),
+        keyboard: Object.freeze({
+          Escape: systemInputActionIdsV1.cancel,
+          KeyN: systemInputActionIdsV1.confirm,
+        }),
         gamepad: Object.freeze({ 0: systemInputActionIdsV1.confirm }),
       })}
       slots={Object.freeze({
@@ -847,7 +861,6 @@ function renderCompositionOwnedNarrativeRootInternalV1(
             />
           ),
         }),
-        narrative: legacyNarrative,
       })}
     />
   );
@@ -859,7 +872,6 @@ function renderCompositionOwnedNarrativeRootInternalV1(
     composition,
     dispatches,
     failures,
-    legacyNarrative,
     rejectPendingCompletion(error: unknown): void {
       const reject = rejectPendingCompletion;
       if (reject === null) throw new Error("expected a pending Narrative completion");
@@ -871,12 +883,10 @@ function renderCompositionOwnedNarrativeRootInternalV1(
 
 function renderHostedLifecycleRootV1(
   options: {
-    readonly narrativeSlot?: () => ReactElement;
     readonly withSaveUi?: boolean;
     readonly stageLifetime?: {
       readonly onMount: () => void;
       readonly onUnmount: () => void;
-      readonly onAcknowledgment?: () => void;
       readonly clock: ReturnType<typeof createManualPresentationClockV1>;
     };
     readonly strictMode?: boolean;
@@ -1016,17 +1026,11 @@ function renderHostedLifecycleRootV1(
         : {})}
       titleScreen={Object.freeze({ title: "Hosted lifecycle fixture" })}
       slots={Object.freeze({
-        ...(options.narrativeSlot === undefined ? {} : {
-          narrative: options.narrativeSlot,
-        }),
         ...(options.stageLifetime === undefined ? {} : {
           background: (context: DefaultGameRootSlotContextV1<unknown, unknown>) => (
             <StageLifetimeProbeV1
               onMount={options.stageLifetime!.onMount}
               onUnmount={options.stageLifetime!.onUnmount}
-              {...(options.stageLifetime!.onAcknowledgment === undefined
-                ? {}
-                : { onAcknowledgment: options.stageLifetime!.onAcknowledgment })}
               epoch={(context.publication as { readonly view: { readonly anchorEpoch: number } })
                 .view.anchorEpoch}
               clock={options.stageLifetime!.clock}
@@ -1137,8 +1141,6 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
         '[data-default-narrative-surface-portal="true"]',
       );
       expect(portal).not.toBeNull();
-      expect(fixture.legacyNarrative).not.toHaveBeenCalled();
-      expect(screen.queryByTestId("legacy-narrative-writer")).toBeNull();
 
       await userEvent.setup().click(firstChoice);
       await currentChoice(2);
@@ -1194,7 +1196,8 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
         ).toBe(true)
       );
 
-      expect(oldPointerCallback()).toBe(false);
+      oldPointerCallback();
+      expect(fixture.dispatches).toHaveLength(3);
       // The predecessor gamepad press remains physically held across the
       // successor; polling it again must not replay that old rising edge.
       await runGamepadFrame();
@@ -1209,7 +1212,7 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       if (freshPointerCallback === undefined) {
         throw new Error("expected the successor renderer callback");
       }
-      expect(freshPointerCallback()).toBe(true);
+      freshPointerCallback();
       await currentChoice(5);
       expect(fixture.dispatches).toHaveLength(4);
 
@@ -1264,6 +1267,121 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       } else {
         Object.defineProperty(globalThis, "cancelAnimationFrame", cancelAnimationFrameDescriptor);
       }
+    }
+  });
+
+  it("normalizes a browser frame timestamp through the live Narrative clock", async () => {
+    let currentNow = 783.5;
+    const ticks: Array<{
+      active: boolean;
+      readonly callback: (nowMs: number) => void;
+    }> = [];
+    const clock = Object.freeze({
+      now: () => currentNow,
+      requestTick(callback: (nowMs: number) => void): () => void {
+        const tick = { active: true, callback };
+        ticks.push(tick);
+        return Object.freeze((): void => {
+          tick.active = false;
+        });
+      },
+    }) satisfies PresentationClockV1;
+    const fixture = renderCompositionOwnedNarrativeRootInternalV1({
+      initialSay: true,
+      narrativeClock: clock,
+    });
+    try {
+      await waitFor(() => {
+        expect(screen.getByTestId("default-root-narrative-say")).toHaveAttribute(
+          "data-player-phase",
+          "active",
+        );
+      });
+      const tick = ticks.findLast((candidate) => candidate.active);
+      if (tick === undefined) throw new Error("expected one active Narrative tick");
+
+      currentNow = 808.5;
+      await act(() => tick.callback(783.4));
+
+      await waitFor(() => {
+        const player = screen.getByTestId("default-root-narrative-say");
+        expect(player).toHaveAttribute("data-player-kind", "say");
+        expect(player).toHaveAttribute("data-player-phase", "active");
+        expect(player).toHaveAttribute("data-revealed-characters", "1");
+      });
+    } finally {
+      fixture.unmount();
+      fixture.composition.dispose();
+    }
+  });
+
+  it("resumes the current revealed Say after a higher System dialog and advances exactly once", async () => {
+    const clock = createManualPresentationClockV1();
+    const fixture = renderCompositionOwnedNarrativeRootInternalV1({
+      initialSay: true,
+      narrativeClock: clock,
+    });
+    try {
+      const user = userEvent.setup();
+      await waitFor(() => {
+        expect(screen.getByTestId("default-root-narrative-say")).toHaveAttribute(
+          "data-player-phase",
+          "active",
+        );
+      });
+      expect(fixture.composition.systemDialogSession.openSettings()).toEqual({
+        kind: "preparing",
+        code: "system_dialog.preparation_started",
+      });
+      expect(await screen.findByRole("dialog", { name: "Settings" })).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByTestId("default-root-narrative-say")).toHaveAttribute(
+          "data-player-phase",
+          "suspended",
+        );
+      });
+      await user.keyboard("{Escape}");
+      await waitFor(() => {
+        expect(screen.queryByRole("dialog", { name: "Settings" })).toBeNull();
+        expect(screen.getByTestId("default-root-narrative-say")).toHaveAttribute(
+          "data-player-phase",
+          "active",
+        );
+      });
+
+      act(() => clock.advance(10_000));
+      await waitFor(() => {
+        expect(screen.getByTestId("default-root-narrative-say")).toHaveAttribute(
+          "data-reveal-complete",
+          "true",
+        );
+      });
+      const activate = fixture.callbacks.findLast((capture) =>
+        capture.occurrenceId === "interaction-occurrence.1001"
+      )?.callback;
+      if (activate === undefined) throw new Error("expected current Say activation callback");
+
+      act(() => {
+        activate();
+      });
+      await waitFor(() => expect(fixture.dispatches).toHaveLength(1));
+      act(() => {
+        activate();
+        activate();
+      });
+      expect(fixture.dispatches).toEqual([{
+        expectedOccurrenceId: "interaction-occurrence.1001",
+        resolution: { kind: "advance" },
+      }]);
+      await waitFor(() => {
+        expect(screen.getByTestId("default-root-narrative-choice")).toHaveAttribute(
+          "data-occurrence-id",
+          "interaction-occurrence.1002",
+        );
+      });
+    } finally {
+      fixture.unmount();
+      fixture.composition.dispose();
     }
   });
 
@@ -1397,12 +1515,9 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     }
   });
 
-  it("keeps the Story narrative slot for a composition with no Narrative definition", () => {
-    const narrativeSlot = vi.fn(() => <output data-testid="default-root-legacy-null-narrative" />);
-    const fixture = renderHostedLifecycleRootV1({ narrativeSlot });
+  it("renders no Narrative writer for a composition with no Narrative definition", () => {
+    const fixture = renderHostedLifecycleRootV1();
 
-    expect(screen.getByTestId("default-root-legacy-null-narrative")).toBeInTheDocument();
-    expect(narrativeSlot).toHaveBeenCalledTimes(1);
     expect(
       document.querySelector('[data-default-narrative-surface-portal="true"]'),
     ).toBeNull();
@@ -1413,10 +1528,9 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
   it("keeps the mounted Stage subtree across application epoch successors", async () => {
     const onMount = vi.fn();
     const onUnmount = vi.fn();
-    const onAcknowledgment = vi.fn();
     const clock = createManualPresentationClockV1();
     const fixture = renderHostedLifecycleRootV1({
-      stageLifetime: Object.freeze({ onMount, onUnmount, onAcknowledgment, clock }),
+      stageLifetime: Object.freeze({ onMount, onUnmount, clock }),
       strictMode: true,
     });
 
@@ -1425,7 +1539,6 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     expect(clock.pendingTickCount()).toBe(1);
 
     act(() => clock.advance(100));
-    expect(onAcknowledgment).toHaveBeenCalledOnce();
     expect(clock.pendingTickCount()).toBe(0);
 
     await act(async () => {
