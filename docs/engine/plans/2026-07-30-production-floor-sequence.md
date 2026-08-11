@@ -3376,7 +3376,8 @@ export type NarrativeStablePlaybackModeResetDispatchResultInternalV1 =
   | Readonly<{ kind: "faulted"; completion: null }>;
 ```
 
-三个attempt都是fresh frozen zero-key private-brand capability。Content-owned auto继续只接受
+三个attempt都是fresh frozen zero-key private-brand capability；它们的issue/dispatch完全module-private，不新增controller member或top-level
+function，RED只通过captured tick、exact result row、semantic dispatch与bridge mode effect观测。Content-owned auto继续只接受
 `advancePolicy: "auto"`；player Auto对`confirm | auto`都等full reveal再用captured `autoWaitMs`；Skip优先于两种auto并绕过reveal wait。
 Player-auto/Skip/manual/content-auto必须复用existing per-frame `sayCallbackClaim`与`saySemanticInFlightClaim`，Pause继续复用existing
 Pause-expiry attempt；不得建立第二semantic claim。Manual/timer/skip/History/blocker在同一composition transition中first-win：suspension logical
@@ -3393,13 +3394,17 @@ mode重建。
 
 `.4.2` RED覆盖raw/captured descriptors、policy/text/profile faults、clock monotonic/reentry/cancel、UTF-16/remainder、instant reveal、manual first-win、
 content auto/player auto/Skip/Pause、seen/reset、History/higher blocker、replacement/retry/empty/terminal、Promise/ABA与10,000 timer/controller churn。
-Implementation精确只有：
+Implementation精确为以下七files；其中session与Host只做test fixture/oracle迁移，production source保持zero diff：
 
 - new `engine/packages/ui/src/narrative/dialogue-player-controller.ts`及同名`.test.ts`；
 - `engine/packages/ui/src/narrative/narrative-managed-surface-family.ts`及同名`.test.ts`；
+- `engine/packages/ui/src/narrative/narrative-managed-surface-session.test.ts`与
+  `engine/packages/ui/src/narrative/narrative-surface-host.test.tsx`，只把旧opaque profile/clock/text fixture换成exact raw ports并把interim
+  renderer expectations改为captured zero-key handles；
 - `engine/packages/ui/src/public-api.test.ts` negative guards。
 
-若DOM-free core还必须读取React/DOM、修改session/Host、复用legacy `TextRevealV1`/`PlaybackControllerV1`、扩generic receipt/Base/Save、调用
+若DOM-free core还必须读取React/DOM、修改session/Host production source、让上述两份test-only migration承载新runtime authority、复用legacy
+`TextRevealV1`/`PlaybackControllerV1`、扩generic receipt/Base/Save、调用
 `Date.now`/`setTimeout`、把profile/clock/controller交给renderer，或无法复用existing claims，`.4.2`立即停止。
 
 `.4.3`新增只读proxy：
