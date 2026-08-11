@@ -131,9 +131,9 @@ generic exact History-child lifecycle substrate与S4.2.3.2 dormant Narrative clo
 原S4.2.4 broad controller checkpoint又已由completed docs-only S4.2.4.0 exact entry重切，S4.2.4.1 generic prepared
 state-install participant substrate、S4.2.4.2 DOM-free Narrative DialoguePlayerController core与S4.2.4.3 dormant Host
 player-view integration现也均已交付。原S4.2.5 broad checkpoint已由completed docs-only `.5.0`细分并转为historical；原`.5.1`
-implementation checkpoint也已由`.5.1a`–`.5.1c`细分并转为historical。当前active execution pointer的current/next、core slice与direct
-RED/implementation gate均为**S4.2.5.1a managed InputRouter facade corrective**；其后依次为
-**S4.2.5.1b → S4.2.5.1c → S4.3 → S4b**。
+implementation checkpoint也已由`.5.1a`–`.5.1c`细分并转为historical，`.5.1a`现亦已交付。当前active execution pointer的
+current/next、core slice与direct RED/implementation gate均为**S4.2.5.1b Host physical ingress corrective**；其后依次为
+**S4.2.5.1c → S4.3 → S4b**。
 R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0、S4.1a、S4.1b.0、S4.1b.1a、S4.1b.1b.0与
 S4.1b.1b.1a、S4.1b.1b.1b.1、S4.1b.1b.1b.2a、S4.1b.1b.1b.2b.0与
 S4.1b.1b.1b.2b.1a、S4.1b.1b.1b.2b.1b、S4.1b.1b.1b.2b.2a、
@@ -141,7 +141,8 @@ S4.1b.1b.1b.2b.2b.0、S4.1b.1b.1b.2b.2b.1、S4.1b.1b.1b.2b.3.0与
 S4.1b.1b.1b.2b.3a、S4.1b.1b.1b.2b.3b.0、S4.1b.1b.1b.2b.3b.1与
 S4.1b.1b.1b.2b.3c.0、S4.1b.1b.1b.2b.3c.1、S4.1b.1b.1b.2b.3d.0与
 S4.1b.1b.1b.2b.3d.1、S4.2.0、S4.2.1、S4.2.2.0、S4.2.2.1、S4.2.2.2.0与
-S4.2.2.2.1、S4.2.2.2.2、S4.2.3.0、S4.2.3.1、S4.2.3.2、S4.2.4.0、S4.2.4.1、S4.2.4.2、S4.2.4.3与S4.2.5.0只作为completed
+S4.2.2.2.1、S4.2.2.2.2、S4.2.3.0、S4.2.3.1、S4.2.3.2、S4.2.4.0、S4.2.4.1、S4.2.4.2、S4.2.4.3、S4.2.5.0与
+S4.2.5.1a只作为completed
 delivery/checkpoint保留；S4.1b.1b.1b.2b.3d、原S4.2、原S4.2.2与原S4.2.2.2 broad entry只作为已被细分的
 历史checkpoint保留，原S4.2.5 broad checkpoint同样只作为已被`.5.0`细分的historical entry，原S4.2.5.1 broad implementation
 checkpoint只作为已被`.5.1a`–`.5.1c`细分的historical entry。
@@ -1395,7 +1396,7 @@ S4.2.4.2 DOM-free Narrative DialoguePlayerController core（已完成）→
 S4.2.4.3 dormant Host player-view integration（已完成）→ S4.2.5 broad checkpoint（已由`.5.0`细分的historical entry）→
 S4.2.5.0 dormant Engine Lab Narrative conformance exact entry correction（docs-only，已完成）→
 S4.2.5.1 broad implementation checkpoint（已由`.5.1a`–`.5.1c`细分的historical entry）→
-S4.2.5.1a managed InputRouter facade corrective（当前）→ S4.2.5.1b Host physical ingress corrective →
+S4.2.5.1a managed InputRouter facade corrective（已完成）→ S4.2.5.1b Host physical ingress corrective（当前）→
 S4.2.5.1c dormant Engine Lab Narrative conformance implementation → S4.3 → S4b。
 若Say需要把raw reveal/controller authority交给renderer、Barrier replay
 必须在没有exact replay descriptor/capability时推进、player control要求fully hidden focus-trapped root，或任一路径要求
@@ -1448,7 +1449,8 @@ S4.2.3.0又已冻结close/input/focus exact entry，S4.2.3.1已交付DOM-free ge
 Narrative close/input/root + History focus Host lifecycle；原S4.2.4 broad checkpoint已由completed docs-only `.4.0`重切，
 S4.2.4.1 generic prepared state-install participant substrate、`.4.2` DOM-free controller core与`.4.3` dormant Host
 player-view integration现也均已交付；原S4.2.5 broad checkpoint已由completed `.5.0` exact entry细分并转为historical，原`.5.1`也已由
-`.5.1a`–`.5.1c`细分并转为historical，当前进入S4.2.5.1a managed InputRouter facade corrective；
+`.5.1a`–`.5.1c`细分并转为historical；S4.2.5.1a managed InputRouter facade corrective现亦已完成，当前进入
+S4.2.5.1b Host physical ingress corrective；
 S4.3在一个cutover中迁移全部tracked consumers、删除旧writers并完成headless/browser/prebuilt promotion。若exact-parent
 History不能与stable root共用composite authority、root/History不能原子retain/retire、同一semantic occurrence确实允许
 上述identity boundary漂移、三类设备不能共用双fence、或cutover必须保留direct resolve/local bool/standalone host双写，
@@ -1565,8 +1567,8 @@ S4.1b.1b.1a验证通过focused `7 files / 192 tests`、UI `79 files / 1010 tests
 `253 files / 3938 tests`与`deno task check` green。本批未重跑browser/examples/prebuilt；`101 / 101`、
 `45 passed / 2 skipped`与`38 / 38`仅是先前已有证据，不冒充本批HEAD验证。
 该checkpoint当时的current/next是S4.1b.1b.1b.2a；现已由上述.2a delivery推进。
-Active current/next、core slice与direct RED/implementation gate现均为S4.2.5.1a managed InputRouter facade corrective；
-后续顺序保持S4.2.5.1b → S4.2.5.1c → S4.3 → S4b。
+Active current/next、core slice与direct RED/implementation gate现均为S4.2.5.1b Host physical ingress corrective；
+后续顺序保持S4.2.5.1c → S4.3 → S4b。
 
 **S4.1b.1b.1b.2b.1 execution-order amendment：** Say先拆成两个vertical。`.1a`沿用既有
 composition-owned physical admission交付两种alias的reveal-first路径：Host提供一个exact plain-data
@@ -1999,15 +2001,15 @@ mergeable source-relative切片推进，禁止把catalog corrective、optional c
    child readiness/input/focus/dismiss或React-local boolean；actual History child open/close与`ui.cancel` integration仍归S4.2。该checkpoint
    已由`.2b.3d.0` docs-only exact entry与`.2b.3d.1` implementation线性取代。
 
-线性顺序固定为`.2b.3a → .2b.3b.0 → .2b.3b.1 → .2b.3c.0 → .2b.3c.1 → .2b.3d.0 → .2b.3d.1 → S4.2.0 → S4.2.1 → S4.2.2.0 → S4.2.2.1 → S4.2.2.2.0 → S4.2.2.2.1 → S4.2.2.2.2 → S4.2.3.0（已完成） → S4.2.3.1（已完成） → S4.2.3.2（已完成） → S4.2.4.0（docs-only，已完成） → S4.2.4.1（已完成） → S4.2.4.2（已完成） → S4.2.4.3（已完成） → S4.2.5 broad checkpoint（historical） → S4.2.5.0（docs-only，已完成） → S4.2.5.1 broad checkpoint（historical） → S4.2.5.1a（当前） → S4.2.5.1b → S4.2.5.1c → S4.3 → S4b`；
+线性顺序固定为`.2b.3a → .2b.3b.0 → .2b.3b.1 → .2b.3c.0 → .2b.3c.1 → .2b.3d.0 → .2b.3d.1 → S4.2.0 → S4.2.1 → S4.2.2.0 → S4.2.2.1 → S4.2.2.2.0 → S4.2.2.2.1 → S4.2.2.2.2 → S4.2.3.0（已完成） → S4.2.3.1（已完成） → S4.2.3.2（已完成） → S4.2.4.0（docs-only，已完成） → S4.2.4.1（已完成） → S4.2.4.2（已完成） → S4.2.4.3（已完成） → S4.2.5 broad checkpoint（historical） → S4.2.5.0（docs-only，已完成） → S4.2.5.1 broad checkpoint（historical） → S4.2.5.1a（已完成） → S4.2.5.1b（当前） → S4.2.5.1c → S4.3 → S4b`；
 `.3b.1`已按`.3b.0`冻结的exact optional callable/attempt/result完成，`.3c.1`也已按`.3c.0`冻结的mode exact
 entry完成，`.3d` broad checkpoint也已由`.3d.0`与`.3d.1`线性取代并完成；S4.2 broad entry又已由
 S4.2.0 exact execution split取代，S4.2.1与S4.2.2.1也已由下述delivery关闭；原S4.2.2又由下述`.2.2.0`细分，
 原S4.2.2.2 broad Host checkpoint再由`.2.2.2.0`细分，S4.2.2.2.1 DOM-free generic Host-commit atomic
 substrate与S4.2.2.2.2 dormant Narrative React Host也已交付，S4.2.3.0 exact entry与S4.2.3.1 DOM-free
 generic lifecycle substrate、S4.2.3.2 dormant Narrative close/input/root + History focus Host lifecycle及S4.2.4.3 dormant Host
-player-view integration又已完成；原S4.2.5 broad checkpoint已由completed `.5.0`细分，原`.5.1`又已由`.5.1a`–`.5.1c`细分，active
-current/next、core slice与direct RED/implementation gate均为S4.2.5.1a managed InputRouter facade corrective。`.3d.1`若
+player-view integration又已完成；原S4.2.5 broad checkpoint已由completed `.5.0`细分，原`.5.1`又已由`.5.1a`–`.5.1c`细分，`.5.1a`也已完成；active
+current/next、core slice与direct RED/implementation gate均为S4.2.5.1b Host physical ingress corrective。`.3d.1`若
 必须在intent slice直接修改topology，或任一切片要求删除generic input ID、修改legacy live characterization、扩generic/public
 contract或提前接Host/React/Web/live Story，均立即停止并修订设计。
 
@@ -2292,8 +2294,8 @@ S4.2.1与S4.2.2.1又已由下述delivery关闭，原S4.2.2再由下述`.2.2.0`�
 checkpoint又由`.2.2.2.0`细分，S4.2.2.2.1 DOM-free generic Host-commit atomic substrate与
 S4.2.2.2.2 dormant Narrative React Host现也均已交付，S4.2.3.0 exact entry与S4.2.3.1 DOM-free generic
 lifecycle substrate、S4.2.3.2 dormant Narrative close/input/root + History focus Host lifecycle及S4.2.4.3 dormant Host
-player-view integration又已完成；原S4.2.5 broad checkpoint已由completed `.5.0`细分，原`.5.1`又已由`.5.1a`–`.5.1c`细分，active
-current/next、core slice与direct RED/implementation gate现已推进为S4.2.5.1a managed InputRouter facade corrective。
+player-view integration又已完成；原S4.2.5 broad checkpoint已由completed `.5.0`细分，原`.5.1`又已由`.5.1a`–`.5.1c`细分，`.5.1a`也已完成；active
+current/next、core slice与direct RED/implementation gate现已推进为S4.2.5.1b Host physical ingress corrective。
 
 **S4.1b.1b.1b.2b.3c.1 bridge-owned Auto/Skip transient mode implementation delivery（已完成）：**
 Narrative bridge现以一个fresh frozen、own key exact only `mode`的private state identity作为Auto/Skip唯一writer；fresh
@@ -2342,8 +2344,8 @@ scheduling。
 该broad checkpoint随后由下述`.3d.0` exact entry与`.3d.1` implementation线性取代并完成；原S4.2.4 broad checkpoint
 又由completed docs-only `.4.0` exact entry重切，`.4.1` generic prepared state-install participant substrate、`.4.2` DOM-free
 controller与`.4.3` dormant Host player-view integration现也均已完成；原S4.2.5 broad checkpoint已由completed `.5.0`细分，原`.5.1`又已由
-`.5.1a`–`.5.1c`细分。Active current/next、core slice与direct RED/implementation gate现均为S4.2.5.1a managed InputRouter facade
-corrective，随后依次为S4.2.5.1b、S4.2.5.1c、S4.3与S4b。
+`.5.1a`–`.5.1c`细分，`.5.1a`也已完成。Active current/next、core slice与direct RED/implementation gate现均为
+S4.2.5.1b Host physical ingress corrective，随后依次为S4.2.5.1c、S4.3与S4b。
 
 **S4.1b.1b.1b.2b.3d.0 History exact-parent open intent entry contract（docs-only，已完成的历史checkpoint）：**
 `.2b.3d` broad floor只作为已细分的历史checkpoint保留；actual delivery线性拆为本`.3d.0` exact contract与
@@ -2532,7 +2534,7 @@ implementation delivery、S4.2.2.2.0 exact entry及S4.2.2.2.2 implementation del
 **S4.2.3.0（已完成）→ S4.2.3.1（已完成）→ S4.2.3.2（已完成）→
 S4.2.4.0（docs-only，已完成）→ S4.2.4.1（已完成）→ S4.2.4.2（已完成）→ S4.2.4.3（已完成）→
 S4.2.5 broad checkpoint（historical）→ S4.2.5.0（docs-only，已完成）→ S4.2.5.1 broad checkpoint（historical）→
-S4.2.5.1a（当前）→ S4.2.5.1b → S4.2.5.1c → S4.3 → S4b**。
+S4.2.5.1a（已完成）→ S4.2.5.1b（当前）→ S4.2.5.1c → S4.3 → S4b**。
 
 **S4.2.0 dormant Narrative execution split（docs-only，已完成）：** 原S4.2只作为已被本exact
 entry细分的historical broad checkpoint保留，不再是可直接进入RED或implementation的delivery。唯一线性顺序冻结为：
@@ -2562,8 +2564,8 @@ entry细分的historical broad checkpoint保留，不再是可直接进入RED或
 19. **S4.2.5 broad checkpoint（已由`.5.0`细分的historical entry）**：不再直接进入RED；
 20. **S4.2.5.0（docs-only，已完成）**：冻结dormant Engine Lab Narrative conformance exact entry；
 21. **S4.2.5.1 broad implementation checkpoint（已由`.5.1a`–`.5.1c`细分的historical entry）**：不再直接进入RED；
-22. **S4.2.5.1a managed InputRouter facade corrective（当前）**：交付exact public-facade managed registrar link；
-23. **S4.2.5.1b Host physical ingress corrective**：交付Host exact stable gesture callback handoff；
+22. **S4.2.5.1a managed InputRouter facade corrective（已完成）**：交付exact public-facade managed registrar link；
+23. **S4.2.5.1b Host physical ingress corrective（当前）**：交付Host exact stable gesture callback handoff；
 24. **S4.2.5.1c dormant Engine Lab Narrative conformance implementation**：交付dormant rig与Engine Lab opt-in；
 25. **S4.3**：tracked live cutover；随后才是**S4b**。
 
@@ -2779,7 +2781,7 @@ action-binding factory会立即替换router current binding，不能在retained 
 7. **S4.2.3.0（docs-only，已完成）→ S4.2.3.1（已完成）→ S4.2.3.2（已完成）→
    S4.2.4.0（docs-only，已完成）→ S4.2.4.1（已完成）→ S4.2.4.2（已完成）→ S4.2.4.3（已完成）→
    S4.2.5 broad checkpoint（historical）→ S4.2.5.0（docs-only，已完成）→ S4.2.5.1 broad checkpoint（historical）→
-   S4.2.5.1a（当前）→ S4.2.5.1b → S4.2.5.1c → S4.3 → S4b**：
+   S4.2.5.1a（已完成）→ S4.2.5.1b（当前）→ S4.2.5.1c → S4.3 → S4b**：
    `.3.0`已冻结History close/dismiss/input/focus/opener exact contract；`.3.1`与`.3.2`依次交付DOM-free lifecycle substrate与
    dormant Host lifecycle；`.4.0`冻结player timing/suspension exact split，`.4.1`已交付generic participant，`.4.2`与`.4.3`也已依次交付
    DOM-free controller core及dormant Host player-view integration；随后进入Engine Lab conformance exact entry、live cutover与whole-canvas family。
@@ -2959,7 +2961,7 @@ action/focus/renderer/Host seam，而把唯一顺序冻结为：
 4. 后续现为 **S4.2.3.0（已完成）→ S4.2.3.1（已完成）→ S4.2.3.2（已完成）→
    S4.2.4.0（docs-only，已完成）→ S4.2.4.1（已完成）→ S4.2.4.2（已完成）→ S4.2.4.3（已完成）→
    S4.2.5 broad checkpoint（historical）→ S4.2.5.0（docs-only，已完成）→ S4.2.5.1 broad checkpoint（historical）→
-   S4.2.5.1a（当前）→ S4.2.5.1b → S4.2.5.1c → S4.3 → S4b**；
+   S4.2.5.1a（已完成）→ S4.2.5.1b（当前）→ S4.2.5.1c → S4.3 → S4b**；
    `.3.1`已交付DOM-free lifecycle substrate，`.3.2`已交付actual DOM focus/History close，`.4.0`已冻结player
    timing/suspension exact split，`.4.1`已交付generic participant，`.4.2`与`.4.3`也已交付controller及Host view；Engine Lab exact entry与
    live cutover不得越序合并。
@@ -3647,11 +3649,11 @@ public/package export、generic Surface/Input contract、Web/Base/CSS/GameStage/
 `git diff --check`与完整`deno task check`。本批因Host仍dormant且没有live graph diff而未重跑browser、examples或prebuilt；既有结果只作
 prior evidence，不冒充本delivery的HEAD验证。
 
-S4.2.2.2.2、S4.2.3.0、S4.2.3.1、S4.2.3.2、S4.2.4.0、S4.2.4.1、S4.2.4.2、S4.2.4.3与S4.2.5.0现只作为
+S4.2.2.2.2、S4.2.3.0、S4.2.3.1、S4.2.3.2、S4.2.4.0、S4.2.4.1、S4.2.4.2、S4.2.4.3、S4.2.5.0与S4.2.5.1a现只作为
 completed historical checkpoint保留；原S4.2.4 broad checkpoint及原S4.2.5 broad checkpoint也分别只作为已被`.4.0`与`.5.0`细分的
 historical entry，原`.5.1`只作为已被`.5.1a`–`.5.1c`细分的historical broad entry。唯一active current/next、core slice与direct
-RED/implementation gate现为**S4.2.5.1a managed InputRouter facade corrective**；唯一有效后续顺序为
-**S4.2.5.1a → S4.2.5.1b → S4.2.5.1c → S4.3 → S4b**。
+RED/implementation gate现为**S4.2.5.1b Host physical ingress corrective**；唯一有效后续顺序为
+**S4.2.5.1b → S4.2.5.1c → S4.3 → S4b**。
 
 **S4.2.3.0 History close/dismiss/input/focus lifecycle exact entry（docs-only，已完成）：** 原
 S4.2.3把generic exact-child topology lifecycle、Narrative routed action、preparing fallback与React Host
@@ -3664,7 +3666,7 @@ focus/opener/physical dismiss混成一个checkpoint；它现只作superseded bro
    History controller、preparing/active close、managed input、Dialogue root与History actual focus/trap/restore及physical dismiss；
 4. **S4.2.4.0（docs-only，已完成）→ S4.2.4.1（已完成）→ S4.2.4.2（已完成）→ S4.2.4.3（已完成）→
    S4.2.5 broad checkpoint（historical）→ S4.2.5.0（docs-only，已完成）→ S4.2.5.1 broad checkpoint（historical）→
-   S4.2.5.1a（当前）→ S4.2.5.1b → S4.2.5.1c → S4.3 → S4b**：`.4.0`已冻结player timing/suspension exact split，`.4.1`已交付generic participant，
+   S4.2.5.1a（已完成）→ S4.2.5.1b（当前）→ S4.2.5.1c → S4.3 → S4b**：`.4.0`已冻结player timing/suspension exact split，`.4.1`已交付generic participant，
    `.4.2`与`.4.3`也已依次交付DOM-free controller core及dormant Host player-view integration；随后才进入Engine Lab exact entry、live
    cutover与whole-canvas family。
 
@@ -3912,7 +3914,7 @@ entry。唯一有效顺序冻结为：
 4. **S4.2.4.3 dormant Host player-view integration（已完成）**：最后把cached immutable player observation接入existing session/render source/React Host，
    renderer只取得passive view data；
 5. **S4.2.5 broad checkpoint（historical）→ S4.2.5.0（docs-only，已完成）→ S4.2.5.1 broad checkpoint（historical）→
-   S4.2.5.1a（当前）→ S4.2.5.1b → S4.2.5.1c → S4.3 → S4b**：随后依次进入managed facade corrective、Host physical ingress、
+   S4.2.5.1a（已完成）→ S4.2.5.1b（当前）→ S4.2.5.1c → S4.3 → S4b**：随后依次进入Host physical ingress、
    dormant Engine Lab Narrative conformance implementation、live atomic cutover与whole-canvas family。
 
 `.4.1`新增的generic runtime exact contract为：
@@ -4324,9 +4326,9 @@ UI `83 files / 1442 tests`与full canonical check `257 files / 4372 tests`；for
 S4.2.4.0、S4.2.4.1、S4.2.4.2与S4.2.4.3现只作为completed historical checkpoint保留；原S4.2.5 broad
 checkpoint也只作为已被`.5.0`细分的historical entry。2026-08-11 live RED又证明原`.5.1`把public InputRouter facade、Host exact
 gesture callback与完整conformance rig误并为一个thirteen-file implementation checkpoint；该`.5.1`现只作为已被`.5.1a`–`.5.1c`细分的
-historical broad entry。唯一live current/next、core slice与direct RED gate现为
-**S4.2.5.1a managed InputRouter facade corrective**，后续唯一顺序为
-**S4.2.5.1a → S4.2.5.1b → S4.2.5.1c → S4.3 → S4b**。
+historical broad entry；`.5.1a`也已交付并转为completed historical checkpoint。唯一live current/next、core slice与direct RED gate现为
+**S4.2.5.1b Host physical ingress corrective**，后续唯一顺序为
+**S4.2.5.1b → S4.2.5.1c → S4.3 → S4b**。
 
 **S4.2.5.0 dormant Engine Lab Narrative conformance exact entry correction（docs-only，已完成）：** 原S4.2.5把production-clean
 conformance package entry、high-level rig、real Engine Lab semantic adapter、React Host、mutually-exclusive legacy opt-in、boundedness与
@@ -4336,9 +4338,9 @@ promotion boundary留成一句broad checkpoint，不能直接进入RED或impleme
 1. **S4.2.5 broad checkpoint（已由`.5.0`细分的historical entry）**：不再作为implementation gate；
 2. **S4.2.5.0（docs-only，已完成）**：冻结conformance high-level API、single-writer protocol与promotion stop；
 3. **S4.2.5.1 broad implementation checkpoint（已由`.5.1a`–`.5.1c`细分的historical entry）**：不再直接进入RED；
-4. **S4.2.5.1a managed InputRouter facade corrective（当前）**：只交付public facade到existing raw managed registrar的
+4. **S4.2.5.1a managed InputRouter facade corrective（已完成）**：已交付public facade到existing raw managed registrar的
    source-relative exact link；
-5. **S4.2.5.1b Host physical ingress corrective**：只交付Host-owned stable gesture callback的package-private current-generation handoff；
+5. **S4.2.5.1b Host physical ingress corrective（当前）**：只交付Host-owned stable gesture callback的package-private current-generation handoff；
 6. **S4.2.5.1c dormant Engine Lab Narrative conformance implementation**：才交付production-clean conformance seam与dormant Engine Lab
    opt-in，不切换tracked live writer；
 7. **S4.3 atomic live cutover and promotion**：同批迁移Engine Lab、template、Cat Cafe与Bookshop，删除legacy
@@ -4394,6 +4396,34 @@ ordinary precedence、gate false registration unread、gate throw/nonboolean、g
 registration existing error、old cleanup/successor ABA与10,000 create/dispose bounded O(1)。UI root与`@sillymaker/ui/internal`只新增
 `bindManagedInputRouterFacadeInternalV1` helper spelling的type/runtime exact negative；public `InputRouterV1`仍只有three methods，禁止新增named input type、
 target、registrar、cleanup或gate member。
+
+**2026-08-11 S4.2.5.1a managed InputRouter facade corrective delivery（commit `0f41e41`，已完成）：** 本delivery
+精确只修改`engine/packages/ui/src/input/input-router.ts`及同名`.test.ts`、
+`engine/packages/ui/src/composer/create-game-ui-composition.ts`及同名`.test.ts`与
+`engine/packages/ui/src/public-api.test.ts`五文件；没有修改Host、Narrative family/session、public/package barrel、Base/Web/CSS、GameStage、
+Story writer、legacy player或live application wiring。
+
+`createInputRouterV1()`现把exact direct raw router及其managed registrar只登记在package-private `WeakMap` provenance中；facade、foreign duck、
+native router facade与facade chain均不能冒充target。`bindManagedInputRouterFacadeInternalV1()`先descriptor-capture frozen plain exact three-key
+inline input与frozen exact three-method facade，再用contained `Reflect.get("then")`及cycle-safe own/prototype descriptor walk拒绝inherited/synthesized
+thenable、throwing/revoked/trapping callable Proxy。Malformed/accessor、active facade换target或gate均保持zero registrar/handler/callback delta；same exact
+active tuple重复bind只返回同一个frozen cleanup identity，不创建第二router、record或registrar。
+
+Facade managed registrar先验证weak current record，再执行captured ingress gate；gate false返回shared frozen noop且不读取registration，gate throw或
+non-boolean统一为exact invalid。Gate释放自身generation后revalidation返回noop；raw registration getter reentry触发release时，outer registrar在raw
+install后重新验证并立即调用fresh unregister回滚，因此managed-before-ordinary precedence不引入late handler、old cleanup或successor ABA。Ordinary
+dispose与hosted terminal均先关闭existing ingress predicate、release facade link，再执行既有managed runtime physical cleanup；late managed registration
+恢复existing `ui.managed_input_router_required`。
+
+Cleanup按token exact-once先fence active record，再scrub facade/target/raw registrar/gate strong refs并删除public registrar，最后只留下shared weak terminal
+sentinel；terminal facade永久禁止rebind。Mutation-sensitive churn以10,000个fresh target/facade generation逐个执行bind、same-tuple identity、register、route、
+unregister与idempotent cleanup，保持one dispatch path与bounded O(1) retained state。
+
+`public-api.test.ts`只为`bindManagedInputRouterFacadeInternalV1` spelling新增UI root与`./internal` compile-time negative及type/runtime forbidden
+inventory；public `InputRouterV1`继续只有`{ register, route, clearTransientInput }`，raw target、registrar、gate、cleanup与named input type均未泄漏。
+验证通过focused `3 files / 80 tests`、UI `83 files / 1458 tests`、canonical `257 files / 4388 tests`与完整`deno task check`；format、lint、
+styles、typecheck、determinism、tests、assets、stories及e2e build全部green。本批未重跑browser、examples或prebuilt；Engine browser `101 / 101`、
+examples `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作为prior evidence，不冒充本delivery的HEAD验证。
 
 #### S4.2.5.1b Host physical ingress corrective
 
@@ -4662,9 +4692,9 @@ green。Default/browser/examples/prebuilt promotion仍归S4.3；prior result不�
 本`.5.0`及本次`.5.1` corrective split严格docs-only，只修改本design与两份owning plans；不交付source、test、runtime、architecture、roadmap、
 features、development、website、Host/public/live capability，也不复用`.4.3` focused/UI/full/browser/examples/prebuilt evidence冒充新验证。Docs-only
 verification只有三份target docs的`deno fmt --check`与scoped `git diff --check`。`.5.0`保持completed correction，原`.5.1`只作historical broad
-entry；唯一live current/next、core slice与direct RED/implementation gate为
-**S4.2.5.1a managed InputRouter facade corrective**，唯一后续顺序为
-**S4.2.5.1a → S4.2.5.1b → S4.2.5.1c → S4.3 → S4b**。
+entry；`.5.1a`现已交付并转为completed historical checkpoint。唯一live current/next、core slice与direct RED/implementation gate为
+**S4.2.5.1b Host physical ingress corrective**，唯一后续顺序为
+**S4.2.5.1b → S4.2.5.1c → S4.3 → S4b**。
 
 ### 3.3 Runtime session
 
