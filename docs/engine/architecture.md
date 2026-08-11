@@ -44,26 +44,21 @@ when no other package should consume it.
 
 `@sillymaker/base/runtime/internal` is the narrow cross-package seam for
 engine-owned implementation that cannot use `src/**` imports. Web consumes its
-Host composition seams, while UI's dormant source-relative stable-vector
-admission module consumes only the bounded canonical projection seam; the
-composite registration/context seam consumes that same UI admission authority.
-The Base seam is absent from ordinary Base/runtime barrels and guarded by
-negative consumer type tests. The dormant UI admission module is likewise
-absent from the UI public and `./internal` barrels and is not wired to the
-Coordinator or any live Surface family. These internal paths are not Story
-APIs; before any npm publication, internal export visibility needs an explicit
-audience policy.
+Host composition seams, while UI consumes only the bounded canonical projection
+needed by the composition-owned Managed Surface kernel. The Base seam is absent
+from ordinary Base/runtime barrels and guarded by negative consumer type tests.
+These internal paths are not Story APIs; before any npm publication, internal
+export visibility needs an explicit audience policy.
 
 `@sillymaker/ui/internal` is the equivalent Host-only composition seam. Web
-uses it to inject the realm-stable Managed Surface epoch allocator; Stories use
-the ordinary UI exports and cannot reach Overlay lifecycle internals through
-the public composition facade.
-
-`@sillymaker/ui/conformance` is a dedicated Engine-Lab-only dormant entry. It
-exports the closed Narrative rig factory and its high-level input/result/Host
-types; it is not a Story-authoring contract and those names remain absent from
-the UI root and `./internal`. Raw family, session, bridge, controller, lease,
-source, attempt, and readiness authorities remain package-private.
+uses it to inject the realm-stable Managed Surface epoch allocator and the
+validated hosted Narrative environment. Stories use the ordinary UI exports:
+`NarrativeSurfaceDefinitionV1`, `defineNarrativeSurfaceV1`, and their renderer
+types. They cannot reach Overlay/Narrative lifecycle internals through the
+public composition facade. The former `@sillymaker/ui/conformance` entry was
+removed at production promotion; raw family, session, bridge, player, lease,
+source, attempt, readiness, Host, and Stage-binding authorities remain
+package-private.
 
 Implementation anchors:
 
@@ -469,19 +464,23 @@ Story presentation code maps its immutable semantic publication and catalogs
 into these generic surfaces. Missing assets or renderer contributions can
 degrade to a visible fallback without changing authoritative gameplay.
 
-Workspace Overlay and System dialogs are the live transient Managed Surface
-families. They share one composition-owned Coordinator, application epoch,
-immutable publication, input/focus ownership, and successor lifetime. A Story
-declares validated Overlay definitions and a renderer resolver, then sends
-`openPrimary`, `pushDetail`, `closeTop`, or `closeAll` intents through the
-composition facade. System Settings and Saves share one root slot; a load,
-clear, or import confirmation is the exact-parent child of the current Saves
-root. The composition creates an opaque System session, and the required
-`SystemDialogHostV1` mounts the standard or custom Saves component without
-creating a fallback store. Neither facade exposes Coordinator, epoch, instance,
-readiness, or writable topology evidence.
+Workspace Overlay, System dialogs, and Narrative/History are the live Managed
+Surface families. They share one composition-owned kernel and Coordinator,
+application epoch, immutable publication, input/focus ownership, and successor
+lifetime. A Story declares validated Overlay definitions and a renderer
+resolver, then sends `openPrimary`, `pushDetail`, `closeTop`, or `closeAll`
+intents through the composition facade. System Settings and Saves share one
+root slot; a load, clear, or import confirmation is the exact-parent child of
+the current Saves root. Narrative Stories construct one
+`NarrativeSurfaceDefinitionV1` with `defineNarrativeSurfaceV1`; Web binds its
+definition, player profile, presentation clock, and live reduced-motion query
+before allocating the composition. `DefaultGameRootV1` mounts the one current
+Narrative Host and binds it to the composition's Semantic Stage authority. It
+does not accept an arbitrary narrative slot or expose a second writer. None of
+these public facades exposes Coordinator, epoch, instance, readiness, or
+writable topology evidence.
 
-The live transient Coordinator remains the sole lifecycle facade through which
+The composition-owned Coordinator remains the sole lifecycle facade through which
 topology, input, focus, instance, and readiness are writable. Its only state
 owner is one composition-owned runtime authority and generic kernel: the exact
 reducer state, mutation/reentry fence, captured-listener delivery, and
@@ -512,6 +511,13 @@ first-terminal prepare/gate seam is triggered only by the reducer's exact
 complete successor and notification vectors before a repository-owned commit
 gate, then assigns the captured state without an intervening lookup. Adapters
 without the terminal seam retain the exact prior reducer behavior.
+
+### Historical Managed Surface delivery record
+
+The following delivery trail records the incremental dormant and
+source-relative steps that preceded the production Narrative cutover. Its
+checkpoint pointers describe those historical commits, not the current public
+surface or execution lane.
 
 A dormant, source-relative stable composite seam now reuses that same internal
 kernel. It binds admitted targets to exact registry/configuration provenance,
@@ -1593,25 +1599,28 @@ passed focused `4 files / 296 tests`, UI `83 files / 1442 tests`, full
 formatting, lint, style lint, typecheck, determinism, assets, all Story checks,
 and the e2e production build. Browser `101 / 101`, examples
 `45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior evidence
-and were not rerun because this Host path remains dormant. S4.2.4.3 is
-complete. S4.2.5.1c is also complete; current/next is S4.3 atomic live cutover
-and promotion, followed by S4b.
+and were not rerun because this Host path remained dormant. At that checkpoint,
+S4.2.4.3 and S4.2.5.1c were complete, and the recorded next lane was S4.3
+atomic live cutover and promotion followed by S4b.
 
-S4.2.5.1c now wires the dormant Narrative runtime into Engine Lab through the
-dedicated `@sillymaker/ui/conformance` entry. Application composition reads the
-exact `narrative_conformance=1` opt-in once before React mount and selects
-exactly one Narrative writer: the created rig Host or the legacy
-`LabNarrativePlayerV1`, never both. Rig creation failure stays on the
-conformance branch and fails closed rather than falling back; without the exact
-query, the legacy writer and default Engine Lab behavior are unchanged. This is
-conformance characterization, not the S4.3 tracked-consumer promotion.
+#### Historical S4.2.5.1c dormant opt-in
 
-Each rig claims one exact observation/subscription source pair, admits one Host
-owner, and owns one private authenticated action authority. Duplicate claims or
-Hosts cannot create a second writer. Terminal failure or idempotent disposal
-fences late source, clock, player, semantic, and input work and releases the
-source claim and lifecycle owners through bounded weak/O(1) bookkeeping; no
-source or Host history becomes a growing authority.
+At that checkpoint, S4.2.5.1c wired the dormant Narrative runtime into Engine
+Lab through the dedicated `@sillymaker/ui/conformance` entry. Application
+composition read the exact `narrative_conformance=1` opt-in once before React
+mount and selected exactly one Narrative writer: the created rig Host or the
+legacy `LabNarrativePlayerV1`, never both. Rig creation failure stayed on the
+conformance branch and failed closed rather than falling back; without the
+exact query, the legacy writer and default Engine Lab behavior remained
+unchanged. This was conformance characterization, not the S4.3 tracked-consumer
+promotion.
+
+Each rig claimed one exact observation/subscription source pair, admitted one
+Host owner, and owned one private authenticated action authority. Duplicate
+claims or Hosts could not create a second writer. Terminal failure or
+idempotent disposal fenced late source, clock, player, semantic, and input work
+and released the source claim and lifecycle owners through bounded weak/O(1)
+bookkeeping; no source or Host history became a growing authority.
 
 Commit `a926b8c` kept the exact seven-file boundary: the UI package export map,
 conformance source/test pair and public-API negative test, plus the Engine Lab
@@ -1620,8 +1629,24 @@ adapter, composition, and conformance test. HEAD verification passed focused
 `26 files / 132 tests`, and canonical `259 files / 4447 tests`; formatting
 covered `953 files`, with lint, styles, typecheck, determinism, assets, all five
 Stories, and the E2E production build green. Browser, examples, and prebuilt
-Player results remain prior-only evidence and were not rerun for this dormant
+Player results were prior-only evidence and were not rerun for that dormant
 opt-in.
+
+### S4.3.1b production Narrative promotion
+
+Commit `a3a918e` replaces the dormant conformance path with the production
+composition-owned Narrative surface. The public authoring seam is
+`NarrativeSurfaceDefinitionV1` plus `defineNarrativeSurfaceV1`; the renderer
+receives immutable selection, player view/profile, text resolution, and bounded
+actions while the shared kernel, Host, and Semantic Stage retain lifecycle,
+input, focus, timing, and completion authority. Engine Lab, the starter
+template, Bookshop, and Cat Cafe use this path. SillyOS intentionally omits the
+definition. The former `@sillymaker/ui/conformance` entry,
+`DialoguePanelV1`, `VnLayerV1`, advance surface, and raw playback-controller
+exports were removed instead of leaving parallel authorities. Headless, UI,
+Story, production-browser, and build promotion gates are green. S4.3.1b is
+complete; S4b whole-canvas primary/detail migration is the current Surface
+lane.
 
 ## 9. Changing the architecture
 
@@ -1641,9 +1666,16 @@ Implemented portions of the [AI authoring design](design/ai-authoring.md),
 [E2E engine validation design](design/e2e-engine-validation.md), and
 [VN presentation runtime design](design/vn-presentation-runtime.md) are
 described above and in [features](features.md). Further accepted evolution is
-tracked in the [engine roadmap](roadmap.md). The
-[Managed Surface lifecycle and contract harness](design/surface-contract-harness.md)
-has a package-internal S1-T kernel for transient topology, action provenance,
+tracked in the [engine roadmap](roadmap.md). The current Managed Surface
+architecture has one composition-owned authority for Workspace Overlay, System,
+and Narrative/History. Narrative is authored through the public definition
+factory, rendered by one production Host, and reconciled through the same
+Semantic Stage binding; S4b is the current Surface lane.
+
+### Historical S4 delivery trail
+
+The [Managed Surface lifecycle and contract harness](design/surface-contract-harness.md)
+historically began with a package-internal S1-T kernel for transient topology, action provenance,
 application-epoch fencing, and transition-kind readiness. Workspace Overlay and
 System dialogs are its live transient adopters: their public facades expose only
 definitions/configuration, structured intents, and read-only views while one
@@ -1714,7 +1746,6 @@ above. S4.2.4.3 adds the
 cached safe observation and resolver, keyed `useSyncExternalStore` Host child,
 current History profile projection, fault-boundary handoff, focus-preserving
 same-frame lifecycle, and bounded terminal fencing described above.
-S4.2.5.1c is complete. Current/next is S4.3 atomic live cutover and promotion,
-followed by S4b. Live renderer migration remains planned work; the dormant
-opt-in does not alter the default live Host data flow until S4.3 and its
-behavior tests land.
+At the S4.2.5.1c checkpoint, current/next was S4.3 atomic live cutover and
+promotion followed by S4b. The production migration described above supersedes
+that dormant pointer and default-path characterization.

@@ -1,10 +1,21 @@
 # VN presentation runtime design
 
+状态：S4.3.1b 已完成生产 Narrative cutover。Story 以
+`defineNarrativeSurfaceV1` 构造 composition-owned
+`NarrativeSurfaceDefinitionV1`；一个 shared kernel、Narrative Host 与 Semantic Stage
+authority 统一处理 Say/Choice/Pause/Barrier/History、player timing、输入、focus/inert、
+恢复与 stale fencing。Engine Lab、template、Bookshop、Cat Cafe 已迁移，SillyOS 显式
+省略，production browser promotion 已通过。旧 conformance entry、
+`DialoguePanelV1`、`VnLayerV1`、advance surface 和 raw playback exports 已删除。S4b
+whole-canvas primary/detail 是当前 Surface lane。
+
+### S4.3.1b 前的历史实现记录
+
 状态：2026-07-19 接受的目标设计。§3 的 Semantic Stage V2 合同、纯 mutation reducer 和 StageRenderTarget 投影已在 Base 实现并由 Engine Conformance Story 使用（integer 逻辑坐标/permille 缩放，保持 canonical JSON 约束）；stage 已进入 semantic publication，`SemanticStageHostV1` 以稳定 `layerId:tag` 身份渲染投影目标，settled asset demand 精确跟随当前 target，（首个 PoC 已退役；Engine Lab 是唯一消费方。）§4 的 Transition 执行已实现：plain `StageTransitionDefinitionV1`/catalog、可注入 Presentation Clock、可复用 `PresentationRunV1` lifecycle、Stage Reconciler（previous/target frame、retained exits、commit-only occurrence、interruption/input policy/reduced-motion/readiness/page-visibility/epoch fencing）与 `SemanticStageV1` 组件；transition edge 不进入 Save，非 barrier completion 不修改 gameplay State。§5 的 PendingInteraction 已实现：Base 提供 `PendingInteractionV1`（say/choice/pause/presentationBarrier/custom）、definitionId/seenRevision/occurrenceId 三重身份、以及 catalog/preview/queue-front dispatch 共用的 `evaluateInteractionResolutionV1`；Engine Conformance Story 的叙事 runner 自动执行纯节点到边界，barrier 由 acknowledged transition 经普通 semantic command 确认（instant settle/reduced-motion 也发确认），headless 可立即完成。稳定演出 Save/recovery 已落地：say/choice/barrier 任意稳定点可存/刷新/载入，load 提升 epoch、按 `loadRecovery: settle` 策略确认恢复的 barrier 而不重放旧动画，浏览器默认 debounced autosave 且 pagehide 刷盘。§7 的 audio intent 与 Web Audio Host 已实现：类型化 audio manifest（music/ambient/sfx/voice 独立合同 + byte/digest 校验）、可保存的 `AudioIntentV1`（BGM/ambient channel target、与 say interaction 关联且带 stop/sustain 的 voice）、commit-only transient effect stream（单调 sequence + presentation epoch + instance-local watermark，load/bootstrap 不重放历史 SFX）、`createAudioPresenterV1` 对账与 `createWebAudioHostV1`（unlock、integrity、decode fallback、page lifecycle）。§8 的 `AssetDemandPlanV1` 合同已落地，预算化调度器待媒体量增长后接入；有预算、无副作用的 narrative prediction 已实现：Story 把类型化 TS 叙事 IR 投影成 JSON-safe `NarrativeGraphV1`（`createNarrativeGraphBuilderV1` 与手写 literal 产出同一运行时合同，无 parser/DSL），`lintNarrativeGraphV1` 以稳定 code + source/pointer 报告 duplicate/missing/unreachable/call/pure-loop/interaction 问题，`predictNarrativeDependenciesV1` 从当前 cursor 在 node/depth/asset 预算内遍历所有分支与 call（不执行 command、不消费 RNG、不决定隐藏 choice），依赖输出经 `narrativePredictionToDemandPlanV1` 映射为 opportunistic prefetch plan；Engine Conformance Story 的脚本投影 lint 干净，静态 `mayShow` 标注由一致性测试对照真实 mutation 函数保持诚实，prediction 前后 Snapshot/command log 完全一致。§6 的基础 VN player 已实现：typewriter 两段确认（reduced-motion 即时）、normal/auto/skip 显式状态机（与手动输入共用同一 interaction resolution 契约，choice/不可跳过边界/未读行按策略停止）、NarrativeHistory 进入 Story State/Save 并随 occurrence 恢复、Seen registry 与 playback preferences 进入 Host profile（`settings` namespace，不进 Game Save）、hide UI 纯表现、voice replay 由 audio presenter 提供。M3 rollback 对 History/profile 的所有权已在合同标注。物理输入面已实现：keyboard/gamepad adapter 经 Input Router 的 context priority 形成与 pointer/Agent 一致的语义 intent，物理事件不进 CommandLog，player/presentation control 不伪装成 GameCommand，VN layer 对无关 action 返回 unhandled。§13 的纵切验收已由 Engine Conformance route 落实：3–5 分钟路线覆盖两背景、两角色与道具的 Stage mutations、三种 transition（背景 crossfade、角色入场 slide、外观变化 cut）、BGM/ambient/SFX/voice、typewriter、choice、history/seen/auto/skip/hide UI；precise 选择在一条 semantic command 里原子消耗 samples（narrative + samples + stage 三个 owner 一次提交），叙事结束后回到普通 SLG HUD 并完成流程。route 可由 DOM、Node Agent、JSONL Agent 与 Browser Agent（automation bridge 纯 dispatch）完成；normal/reduced-motion/skip/Browser-Agent 四种运行导出的 Save `snapshot.state.simulation` 完全一致，headless 同种子两跑 digest/commandLog 相同且权威 replay 通过；say/choice/barrier 任一稳定点的 Save/load 及路线中断续跑收敛到同一终态。Engine Lab 故意不带媒体字节，绿跑即 missing image/audio 降级证明；unknown content 绑定 fallback renderer 有专项测试。AI authoring canaries 已完成：`lab.wallet` 货币/商店模块（卖样本/买横幅各为一条跨模块原子命令，拒绝码稳定且失败不动 digest）、关系值条件叙事分支（Story 侧 `branch` 节点按可保存的 `rapport` 路由暖/冷台词，honesty 测试对照静态 successor 标注重放 chooser，prediction 收集两个分支而不决定）、语义化商店 React Overlay（只读 publication、只发 semantic invocation）——全部零引擎 src 改动，包级 import 守卫覆盖 `.ts`/`.tsx` 全源码；deterministic acceptance 留在普通测试代码，模型 eval 仅作非阻塞趋势工具。queue interruption、`loadRecovery: replay` 与之后章节尚未实现。旧 V1 场景系统（StageSceneGraph/hit map/空间交互/角色 host）已随首个 PoC 一起删除，语义舞台家族是唯一舞台路径；研发期契约统一使用 V1 后缀，破坏式重塑允许，但每次替换都必须显式迁移并删除旧权威路径。
 
-2026-08-10 的S4 Managed Surface amendment进一步冻结managed Narrative V1的reveal-first、
-Auto/Skip、barrier recovery、History/voice与UI visibility边界，并取代下述§6中与该迁移冲突的
-早期概括；现有Engine Lab行为在S4.3前仍只是live characterization。
+2026-08-10 的 S4 Managed Surface amendment 冻结了 managed Narrative V1 的
+reveal-first、Auto/Skip、barrier recovery、History/voice 与 UI visibility 边界；以上
+段落保留为 production cutover 前的实现证据，当前合同以本文开头和 §6 的更新为准。
 
 ## 1. Problem statement
 
@@ -136,6 +147,13 @@ PendingInteraction 属于 authoritative State，因为它决定当前允许的 g
 
 ## 6. Dialogue and player systems
 
+生产实现通过 `NarrativeSurfaceDefinitionV1` 分离 Story appearance 与运行时 authority。
+Story renderer 接收 immutable selection/player projection、text resolver 和 bounded actions；
+composition-owned player、Host、Semantic Stage binding 与 shared Managed Surface kernel 持有
+clock、reveal、输入、focus/inert、History、Barrier completion 与 successor fencing。
+`DefaultGameRootV1` 不接受任意 narrative slot，也不会与 Story renderer 并行安装第二个
+writer。
+
 基础 VN Player 包含相互独立的系统：
 
 - **Text reveal**：`ui.confirm`与`narrative.advance`使用同一个activate-say alias；第一次activation显示全文，第二次才resolve say；
@@ -163,10 +181,10 @@ History、Seen、CommandLog、Debug replay 和未来 Player rollback 是五个�
 
 这不是额外的 presentation Save sidecar；任何进入 Game Save 的 player data 都必须属于版本化、可验证的 Story/Game State 或现有 Save envelope 明确定义的字段。
 
-物理输入事件不进入 CommandLog。Pointer、touch、keyboard 和 gamepad 先由 Host adapter 映射为同一组语义 input actions，再由带优先级和 scope 的 Input Router 分发；只有最终形成的 gameplay semantic command 才进入 Session/CommandLog。VN layer 只消费当前 PendingInteraction 明确支持的 action，未处理 action 必须继续路由，不能无条件吞掉 DevTools、system dialog 或其他 gameplay surface 的输入。
+物理输入事件不进入 CommandLog。Pointer、touch、keyboard 和 gamepad 先由 Host adapter 映射为同一组语义 input actions，再由带优先级和 scope 的 Input Router 分发；只有最终形成的 gameplay semantic command 才进入 Session/CommandLog。生产 Narrative Host 只消费当前 PendingInteraction 明确支持的 action，未处理 action 必须继续路由，不能无条件吞掉 DevTools、system dialog 或其他 gameplay surface 的输入。
 
 Input action 分为两类：advance/choice 等 gameplay intent 经 SemanticGamePort/Session；history、切换 auto/skip 等
-player/presentation control由VN controller处理，除非它们最终resolve PendingInteraction，否则不伪装成GameCommand。
+player/presentation control 由 composition-owned player 处理，除非它们最终 resolve PendingInteraction，否则不伪装成 GameCommand。
 旧hide UI action在S4 V1 managed catalog中defer，不属于该迁移的accepted control set。
 
 ## 7. Audio intent and Web Audio Host
@@ -263,9 +281,9 @@ Rollback 是后续正式能力，不再被列为永久 non-goal。设计基于�
 
 这与 Debug replay 不同：Debug replay 从证据重放；Player rollback 是产品允许的历史 Snapshot 导航。
 
-## 12. Migration from current V1
+## 12. Migration from the first V1
 
-下列当前 API 是首个 PoC 偶然形成的 exact-key contract，可以在 vNext 直接替换：
+下列是首个 PoC 偶然形成、现已替换的历史 exact-key contract：
 
 - `RuntimeStageSceneV1` 的单 background/layout；
 - `StageScenePresentationV1` 的静态 Scene Variant；
@@ -278,6 +296,12 @@ Rollback 是后续正式能力，不再被列为永久 non-goal。设计基于�
 
 替换时应明确 state-contract identity 变化或一次性迁移；不得静默向 exact schema 增字段。（route/variant 平行权威已随 PoC 删除。）
 
+S4.3.1b 进一步完成 UI 侧迁移：Engine Lab、template、Bookshop 与 Cat Cafe 只通过
+`NarrativeSurfaceDefinitionV1` 提供 renderer；SillyOS 不声明 Narrative。旧
+conformance module、`DialoguePanelV1`、`VnLayerV1`、advance surface、text reveal 与
+playback-controller package exports 已删除，因此没有 compatibility renderer、default
+slot writer 或第二套 player authority。
+
 ## 13. Vertical acceptance
 
 VN foundations 的共同验收是一条 3–5 分钟 Engine Conformance Story 路线：
@@ -286,7 +310,7 @@ VN foundations 的共同验收是一条 3–5 分钟 Engine Conformance Story �
 - show/replace/hide、进退场、位置、姿势和表情变化；
 - cut、crossfade 和一次 move/entry transition；
 - BGM、一次 SFX 和关联台词的 voice intent；
-- typewriter、advance、choice、history、seen、auto、skip 和 hide UI；
+- typewriter、advance、choice、history、seen、auto、skip 和 voice replay；
 - choice 触发一个真实跨模块 gameplay command，然后返回 SLG/普通场景；
 - 在 dialogue、transition barrier 和选择处 Save/load 都恢复稳定 target；
 - normal、reduced-motion、skip 和 headless 路线得到相同 authoritative outcome；

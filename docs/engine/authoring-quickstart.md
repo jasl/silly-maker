@@ -56,6 +56,17 @@ Revision-sync rules (mistakes are rejected at startup by structured diagnostics;
 
 One application = one `WebGameApplicationV1` declaration + one `startWebGameApplicationV1` call. Start from `template` (copy the directory + global rename; the copy is a complete project — `sillymaker.config.ts`, `vite.config.ts`, `tools/story.mts` — and inside this repository you additionally add its directory to the root `project.config.ts` list); the full reference is `e2e/src/application/`. Application-directory conventions: `composition.tsx` (projector/slots/the `*GameApplicationV1` declaration), `ui.tsx` or `shell-ui.tsx` (PascalCase components, in a separate file from the application declaration for Vite Fast Refresh), `core-application.ts` (headless instance factory), `entry.tsx` (boots from composition). Builds are application tasks; the story CLI carries diagnostics (app-locally via `deno task story <verb> .`, or at the repository root once the directory is listed in `project.config.ts`):
 
+For a Narrative application, `composition.tsx` creates exactly one
+`NarrativeSurfaceDefinitionV1` with `defineNarrativeSurfaceV1`. Freeze the exact
+five-key input (`selectNarrative`, `dispatchResolution`, `renderer`,
+`resolveText`, `replayCurrentVoice`) and use
+`satisfies DefineNarrativeSurfaceInputV1<YourSemanticPublication>` to preserve
+contextual typing and reject extra keys. Put the React renderer in `ui.tsx` and
+return the definition as `ui.narrative`. The renderer uses only its immutable
+public props and bounded callbacks; never add `slots.narrative`, import the
+removed playback/conformance components, or mount another Host/Stage writer.
+Applications without Narrative simply omit `ui.narrative`, as SillyOS does.
+
 ```sh
 deno task dev                    # inside the application directory
 deno task build:web
@@ -81,6 +92,7 @@ that review.
 | `story.contract_invalid: State-contract module IDs must be strictly increasing`                    | manifest module entries not in lexicographic id order; reorder                                                                             |
 | `story.simulation_invalid: State-contract manifest does not match GameSimulation stateful modules` | manifest and `composeModules` disagree on modules/revisions; sync per the table above                                                      |
 | `story.nondeterministic: Story definitions differ`                                                 | `define()` returned a fresh object each call; hoist the definition to a module constant                                                    |
+| `ui.narrative_surface_definition_invalid`                                                          | the definition input is not a frozen exact five-key record or one of its required callables is invalid; copy the template construction     |
 | `interaction.occurrence_mismatch`                                                                  | resolving with a stale occurrenceId; take `narrative.pending.occurrenceId` from the latest publication                                     |
 | `CanonicalJsonError: number.not_integer`                                                           | a float reached saveable state; use integer logical units (e.g. `scalePermille`)                                                           |
 | `e2e.ui_text_missing:<textId>`                                                                     | the script references an unregistered textId; add the catalog entry                                                                        |
@@ -99,4 +111,5 @@ that review.
 
 - Skin and layout use only the published tokens: colors/spacing/radii/touch sizes are `--silly-color-*`, `--silly-space-*`, `--silly-radius-*`, `--silly-target-min-size` (defined in `theme/tokens.css` of `@sillymaker/ui`).
 - **No raw z-index**: the seven stage layers use `--silly-stage-z-*` (matching `stageLayerIdsV1`), within-layer surfaces use the `--silly-surface-z-*` scale (base < raised < front-door < splash < dialog-backdrop < dialog < confirm-backdrop < confirm); the contract is test-guarded.
+- Narrative appearance belongs in the Story renderer supplied to `defineNarrativeSurfaceV1`; player timing, History lifecycle, focus/inert authority, physical input, and Stage reconciliation belong to the composition-owned Host.
 - Do not hand-roll chrome for gameplay windows (shop/inventory/album/history): declare each exact-ID transient target with `defineWorkspaceOverlayV1`, add it to `overlayDefinitions`, and resolve its accessible name/content through `slots.overlayResolver`; required ports/services use concrete `overlayPorts` bindings. Ordinary primary opens use `context.intents.execute({ kind: "overlay.open", overlayId })`; structural replacement/detail/back/close may use the narrow `context.overlays` facade (`openPrimary`, `pushDetail`, `closeTop`, `closeAll`). That facade is Coordinator-backed and its snapshot is read-only — never mirror it into another writable store. An optional resolver `prepare()` may prepare presentation/resources only; it must not send semantic commands or advance gameplay. The Host supplies `PanelV1` chrome automatically; standalone panels use `PanelV1` directly (title bar + close + focusable scroll body). Backdrop click and right-click close the topmost window by default; a definition declaring `dismissible: false` is locked (only explicit close works). Right-click on controls has no default behavior (controls may declare `data-secondary-action`); the scene background's right-click action comes from the Story pointer map (default `cancel`, remappable to e.g. player rollback). Asset URLs via `useAssetUrlV1`/`resolveAssetUrlV1`, motion gating via `useReducedMotionV1`. For dragging and other complex window needs see `docs/engine/design/window-model.md`.

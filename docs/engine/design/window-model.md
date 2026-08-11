@@ -1,9 +1,9 @@
 # 窗体与 UI 组件体系：引擎契约、分层与上提清单
 
-状态：2026-07-28 接受；2026-07-30 澄清“产品槽位语义已交付”不等于“统一 Surface
-lifecycle authority 已交付”。后者仍是尚未实现的
-[Managed Surface lifecycle and contract harness](surface-contract-harness.md)。本文回答引擎
-UI 的分层结构与上提规则、窗体产品模型和通用 WindowManager 的取舍。
+状态：2026-07-28 接受；S4.3.1b 已让 Workspace Overlay、System 与
+Narrative/History 共用一个 composition-owned Managed Surface authority。
+S4b whole-canvas primary/detail 是当前迁移 lane。本文回答引擎 UI 的分层结构与上提规则、
+窗体产品模型和通用 WindowManager 的取舍。
 
 ## 调研摘要：各引擎怎么处理窗体
 
@@ -29,17 +29,13 @@ UI 的分层结构与上提规则、窗体产品模型和通用 WindowManager �
    在主窗上叠详情（背包 → 物品详情 → 供应商），逐层关闭。
 3. **嵌套确认层**：在对话框之上的独立层级刻度。
 
-现有组件分别提供 `PanelV1`
-窗体外壳（钉顶标题栏/关闭/可聚焦滚动区）、层叠令牌、关闭惯例、下层
-inert、焦点圈与恢复；表单控件由引擎主题统一样式。但这些行为目前分散在 Overlay
-store、SystemDialog host、Narrative host、InputRouter 和各组件 effect
-中，尚不是一个可原子检查的生命周期权威。“slot 看起来正确”不能证明
-modality、focus、input、dismiss、readiness 与 pointer gesture 在组合情况下闭合。
-
-[Surface Contract Harness design](surface-contract-harness.md)
-会把上述通用生命周期收敛为一个 Coordinator publication，同时保留这里的 system
-单槽、workspace primary + detail stack 和确认层作为产品 topology
-recipe。它不是新的自由桌面 WindowManager。
+`PanelV1` 提供窗体外壳（钉顶标题栏/关闭/可聚焦滚动区），引擎提供层叠令牌、关闭惯例、
+下层 inert、焦点圈与恢复，表单控件由主题统一样式。Workspace Overlay、System 与
+Narrative/History 现在通过同一个 Coordinator publication 原子绑定 modality、focus、
+input、dismiss、readiness 与 pointer gesture；各 Story 不再镜像另一份 writable
+lifecycle。system 单槽、workspace primary + detail stack 与确认层仍是产品 topology
+recipe，而不是自由桌面 WindowManager。whole-canvas primary/detail 的同权威迁移由
+S4b 继续完成。
 
 ## 立场：拖拽/最大最小化暂不进引擎
 
@@ -77,7 +73,11 @@ store（open/close/focus/minimize/toggleMaximize/taskbarActivate/move，不可�
 subscribe），外加一个 WindowFrame 组件。不需要引擎 WindowManager
 原语——单消费者，继续观察。该 store 拥有 MDI
 几何、最小化和任务栏等产品状态；其中会改变全局 input/focus/modality 的边界在
-Surface track 落地后登记为 managed contribution，而不是另建一套全局输入权威。
+Surface track 登记为 managed contribution，而不是另建一套全局输入权威。
+
+SillyOS 也验证了 Narrative 的显式省略路径：它不声明
+`NarrativeSurfaceDefinitionV1`，root slots 中也没有 narrative writer，因此自定义桌面
+shell 不会意外分配 Narrative Host、player 或 Stage claimant。
 
 实证出的关键配方（新增到手册）：
 
@@ -111,51 +111,36 @@ Surface track 落地后登记为 managed contribution，而不是另建一套全
 
 ## 组件体系分层（自下而上）
 
-| 层            | 内容                                                                                                                    | 状态                                   |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| L0 令牌       | 主题（色/距/圆角/触控尺寸）、层叠双刻度（stage-z / surface-z，测试盯守）、表单元素主题化                                | ✅ 已交付                              |
-| L1 原语       | `Button` / `IconButton` / `ProgressMeter` / `PanelV1`（窗体外壳）/ `AdvanceSurfaceV1` / `BootSplashV1` / `MuteToggleV1` | ✅ 已交付                              |
-| L2 窗体与槽位 | 系统对话框单槽、工作区主窗+详情栈、嵌套确认层、标题屏前门、关闭惯例与锁定（`dismissible`）                              | 槽位/组件已交付；统一 lifecycle 待实现 |
-| L3 组装件     | `DialoguePanelV1`（打字机/自动/快进/已读/历史/点击面/快捷条一体的对话播放器）                                           | ✅ 已交付（本轮）                      |
-| 横切 hooks    | `useAssetUrlV1` / `resolveAssetUrlV1` / `useReducedMotionV1` / `useLocaleTextV1`                                        | ✅ 已交付                              |
+| 层            | 内容                                                                                               | 状态                                     |
+| ------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| L0 令牌       | 主题（色/距/圆角/触控尺寸）、层叠双刻度（stage-z / surface-z，测试盯守）、表单元素主题化           | ✅ 已交付                                |
+| L1 原语       | `Button` / `IconButton` / `ProgressMeter` / `PanelV1`（窗体外壳）/ `BootSplashV1` / `MuteToggleV1` | ✅ 已交付                                |
+| L2 窗体与槽位 | 系统对话框单槽、工作区主窗+详情栈、嵌套确认层、标题屏前门、关闭惯例与锁定（`dismissible`）         | ✅ 共享 lifecycle；whole-canvas 进入 S4b |
+| L3 组装件     | `NarrativeSurfaceDefinitionV1` Story renderer + composition-owned player/Host/Stage authority      | ✅ 已交付                                |
+| 横切 hooks    | `useAssetUrlV1` / `resolveAssetUrlV1` / `useReducedMotionV1` / `useLocaleTextV1`                   | ✅ 已交付                                |
 
 上提规则不变：**两个以上真实 Story 重复且形状稳定**才进引擎，带契约测试。
 
 ## L3 上提清单
 
-### DialoguePanelV1（✅ 已交付）
+### Production Narrative surface（✅ 已交付）
 
-三个 Story 的对话面板曾是同一台机器的三份手抄（cat-cafe 约 270
-行胶水；template/bookshop 是它的简化版）。现已提炼为引擎组件 `@sillymaker/ui` 的
-`DialoguePanelV1`：打字机（profile 文字速度、reduced-motion 立即显示）+
-播放策略机（自动/快进，经共享决议契约派发）+ 已读标记（权威 history →
-`markSeen`）+ 历史面板（`PanelV1`）+ 点击面（`AdvanceSurfaceV1`）+
-快捷条。测试选择器统一为 `data-dialogue-*`。最终形状：
+三个 Story 的对话面板曾是同一台机器的多份手抄，随后短暂上提为
+`DialoguePanelV1`。S4.3.1b 已用更窄的生产合同替换并删除该组件：Story 通过
+`defineNarrativeSurfaceV1` 提供一个 `NarrativeSurfaceDefinitionV1`，其 renderer 只接收
+immutable pending/history/choice availability、player profile/view、文本解析与 bounded
+actions。打字机、normal/auto/skip、History、voice、物理输入、focus/inert、Stage
+barrier 与 stale fencing 都由 composition-owned player/Host/Stage authority 持有。
 
-```ts
-DialoguePanelV1(props: {
-  pending: PendingInteractionV1 | null;      // 引擎标准投影（say/choice；其余 kind 不渲染）
-  history: NarrativeHistoryV1;               // 权威 backlog（choice 选项就在 pending.options 上）
-  playerProfile: PlayerProfileStoreV1;       // 文字速度/自动停留/已读
-  uiText(textId: string): string;            // Story 文本目录（useLocaleTextV1 产物）
-  onResolve(occurrenceId, resolution): void; // 共享交互决议契约
-  labels: DialoguePanelLabelsV1;             // 快捷条与历史文案
-  quickMenuExtras?: ReactNode;               // Story 追加按钮（回退等）
-  panelStyle?: CSSProperties;                // 面板皮肤归 Story
-  clock?: PresentationClockV1;               // 测试注入
-})
-```
-
-验收（已完成）：cat-cafe 迁移删除全部本地播放机（薄适配 ~40
-行）；template/bookshop
-作为第二、三消费者，简版面板换成完整播放器（打字机/自动/快进/历史随迁移免费获得，各补
-6 条文案）；E2E 116 全绿。代码组织维度的配套执行见
-[特性切片提案](../proposals/feature-slices.md)。
+Engine Lab、template、Bookshop 与 Cat Cafe 已迁移到这一公开 seam；SillyOS 显式省略。
+旧 `DialoguePanelV1`、`VnLayerV1`、advance surface、raw text-reveal/playback 与
+conformance-only exports 已删除，不保留平行播放器或任意 `slots.narrative` writer。
+production browser promotion 已通过。
 
 ### 已评估项记录
 
 - `useLocaleTextV1`：✅ 已上提，cat-cafe 消费。
-- `DialoguePanelV1`：✅ 已上提，三个 Story 消费（见上）。
+- Narrative renderer seam：✅ 已上提，四个 Story 消费，SillyOS 验证省略路径（见上）。
 - 数值条：❌ 评估后保留 Story 侧——原生 `<progress>`
   的轨道颜色跨浏览器不可控，6px 细条下视觉严重退化；Story
   需要自定轨道+填充配色。手搓版补了 `role=progressbar` 语义。`ProgressMeter`

@@ -1,6 +1,6 @@
 # 特性切片：把 Module 的内聚性扩展到整个玩法纵切
 
-状态：已执行（2026-07-28）。cat-cafe 与 template 均已按特性切片重排并全量验证（vitest 1378 / E2E 116 全绿，`story check` 通过）；引擎侧助手仍按"两个真实消费者后定型"保留观察。
+状态：已执行（2026-07-28）。cat-cafe 与 template 均已按特性切片重排并全量验证（vitest 1378 / E2E 116 全绿，`story check` 通过）；引擎侧助手仍按"两个真实消费者后定型"保留观察。2026-08-12 的 production Narrative 提升已将当时的对话面板预测替换为公开 `NarrativeSurfaceDefinitionV1`；本文保留 2026-07-28 的组织决策与实施记录。
 
 ## 问题
 
@@ -29,7 +29,7 @@ src/
     contest/     contest 模块 + 回合规则 + 竞赛面板 + 竞技场 BGM 规则
     album/       图鉴表 + 元进度 watcher + 图鉴窗体
     shop/        shop 模块 + 活动表 + 活动按钮行
-    dialogue/    剧本 + 对话面板接线（未来消费 DialoguePanelV1）
+    dialogue/    剧本 + 对话呈现贡献（后续落地为 application.ui().narrative 公开定义）
     audio/       声音层（已存在：src/audio.ts 就是这个形状的活样本）
   application/   薄组合：story.ts 列模块、semantic 拼动作、web 拼 UI 槽
 ```
@@ -46,7 +46,7 @@ src/
 - **UI 槽**是函数：`hud: (ctx) => <>{features.map((f) => f.hudChip?.(ctx))}</>`；overlay resolver 合并特性 map。
 - **文本目录**是数组：按特性文件 concat 后交给同一个 parse（解析期校验不变）。
 
-因此迁移是**机械搬运**：公共形状（story entry、semantic adapter、应用定义）不变，测试与 E2E 无须改动。
+因此 2026-07-28 这一次纯 Story 目录重排是**机械搬运**：当时的公共形状（story entry、semantic adapter、应用定义）不变，测试与 E2E 无须因切片重排而改动。后来的 Narrative 公开合同提升是独立引擎切片，不是这一论断的一部分。
 
 ## 落地形态（2026-07-28）
 
@@ -74,7 +74,8 @@ src/
     ui-kit.ts    共享 UI 基座：主题令牌、locale 文本、发布/端口类型、派发助手
     stat-bar.tsx 共享数值条（自绘轨道；评估记录见 window-model）
     labels.ts    系统外壳文案（中英双语根标签、存档对话框、安全点提示）
-    composition.tsx  纯组合（~670 行）：投影、HUD 编排、槽位、设置节、应用声明
+    ui.tsx       HUD/面板组件 + 被动 Narrative renderer
+    composition.tsx  纯组合（当前约 313 行）：投影、槽位、应用声明 + application.ui().narrative
 ```
 
 template 以 `kernel.ts` + `features/inventory/`（模块+能力）做最小示范；两个手册（`template/AGENTS.md`、`examples/AGENTS.md`）已写入"新特性 = 新目录"的指引。
@@ -95,6 +96,6 @@ template 以 `kernel.ts` + `features/inventory/`（模块+能力）做最小示�
 
 ## 与既有设计的关系
 
-- [窗体与 UI 组件体系](../design/window-model.md)：L3 组装件（DialoguePanelV1）是特性切片的**消费方**——dialogue 特性变薄正依赖它。两条线合并后，`composition.tsx` 预期从 1700 行缩到 300 行以内的纯组合。
+- [窗体与 UI 组件体系](../design/window-model.md)：早期 L3 对话面板预测已被 production Narrative 合同取代。Story 通过 `defineNarrativeSurfaceV1` 把选择、语义派发、被动 renderer、文本解析与可选语音回放声明在 `application.ui().narrative`；组合层是 lifecycle、playback、History、input 与 Stage 接线的唯一 writer。这一落地将 cat-cafe `composition.tsx` 缩至约 313 行，同时保留 feature slice 的代码所有权。
 - [Mod composition and distribution](../design/mod-system.md)：Feature slice 是 Story/Mod 内部的代码组织；Mod 是跨 facet 的 activation、identity、compatibility 与 distribution 单元。一个 Mod 可包含多个 slices/GameplayModules，二者不能互换命名。
 - [typed-state-store 提案](typed-state-store.md)：正交——那是状态存取的类型学，本提案是代码组织学。

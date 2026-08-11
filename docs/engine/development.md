@@ -40,7 +40,7 @@ Dependency reference rule: engine and Story sources (everything Vite builds or v
 ```text
 engine/packages/base     framework-neutral authoring, contracts, and runtime
 engine/packages/tooling  non-browser CLI, Vite/identity, JSONL, and Desktop preview tools
-engine/packages/ui       generic React presentation and input
+engine/packages/ui       generic React presentation, Narrative surfaces, and input
 engine/packages/web      browser Host and application adapters
 e2e/                     neutral Engine Conformance Story (MIT test consumer)
 template    minimal starter Story (new-project skeleton)
@@ -506,7 +506,7 @@ Commits can be organized for reviewability, but there is no required Phase-to-co
 
 ## Testing policy
 
-Browser commands exercise the Engine Lab conformance Story ([E2E engine validation design](design/e2e-engine-validation.md)); the retired PoC product suite left with its application.
+Browser commands exercise the Engine Lab Story ([E2E engine validation design](design/e2e-engine-validation.md)); the retired PoC product suite left with its application. Production Narrative coverage also runs through the starter template, Bookshop, and Cat Cafe, while SillyOS proves that omitting Narrative remains valid. The promoted browser matrix exercises the same public definition and default Host used by applications rather than a conformance-only entry.
 
 Headless Story tests should drive gameplay through `createGameHarnessV1` from `@sillymaker/base/testkit` rather than assembling private Session/semantic/persistence fixtures.
 
@@ -565,6 +565,14 @@ When changing a package export:
 4. identify any Save, Hotfix, tooling, or application consumers that require migration.
 
 Version suffixes such as `V1` identify the current contract family. They do not prohibit replacement; a replacement should make coexistence and migration explicit, then retire obsolete paths rather than maintaining parallel authorities forever.
+
+For Narrative UI, external Story code uses `NarrativeSurfaceDefinitionV1` and
+`defineNarrativeSurfaceV1` from `@sillymaker/ui`, then returns the definition as
+`ui.narrative`. Do not recreate the removed `@sillymaker/ui/conformance`,
+`DialoguePanelV1`, `VnLayerV1`, advance-surface, or raw text-reveal/playback
+exports, and do not add a `slots.narrative` writer. Tests should drive the
+public renderer actions and observe authoritative publication, Host focus/inert
+behavior, and Semantic Stage settlement.
 
 ## Debugging failures
 

@@ -11,7 +11,7 @@ Already covered by the engine (do not re-handle in a Story): text selection / im
 The game side must handle these itself (the engine cannot):
 
 - **Keep the simulation layer DOM-clean**: `simulation.ts`/`state.ts`/content tables must not reference `window`/`document`/`matchMedia` (headless runs and replay break); browser APIs appear only under `application/` (`composition.tsx` / `ui.tsx`).
-- **Application-layer file roles**: `composition.tsx` = projector, slots, labels, the `*GameApplicationV1` declaration; PascalCase React components live in `ui.tsx` (Vite Fast Refresh requires components not to share a file with non-component exports); `core-application.ts` = the headless instance factory; `entry.tsx` boots from `composition.tsx`.
+- **Application-layer file roles**: `composition.tsx` = projector, slots, labels, the `*GameApplicationV1` declaration, and its `application.ui().narrative` definition; PascalCase React components, including the passive Narrative renderer, live in `ui.tsx` (Vite Fast Refresh requires components not to share a file with non-component exports); `core-application.ts` = the headless instance factory; `entry.tsx` boots from `composition.tsx`.
 - **No `Math.random()` or `Date.now()` on deterministic paths**: randomness goes through the transaction RNG, time through the engine clock.
 - **Bilingual text overflow**: eyeball long strings in both languages (English often runs 30%+ longer than Chinese); lay out HUD/buttons flexibly.
 - **Touch targets ≥ 32px**: compact buttons are already at the floor; do not shrink further.
@@ -25,7 +25,7 @@ Declaring `titleScreen` (title / background art / optional `splash` intro lines)
 
 - **Web metadata**: `metadata.json` (title/description/share card/favicon), injected into `<head>` at build time.
 - **Audio**: declare audio assets with `resolveAudioManifestV1` (digest required) → project `AudioIntentV1` from the view (bgm/ambient/voice, restored on load) → mount `GameAudioV1` in the UI (map one-shot SFX from transient effects via `resolveEffectAsset`).
-- **Dialogue panel**: mount `DialoguePanelV1` directly (typewriter, auto/skip, seen markers, history, click surface, and the shortcut bar in one); wire only pending/history/profile/text catalog and `onResolve`; test selectors use `data-dialogue-*`. The low-level pieces (`createTextRevealV1`/`createPlaybackControllerV1`) are only for custom players.
+- **Narrative surface**: declare the Story's one production writer as `narrative: defineNarrativeSurfaceV1(...)` inside `application.ui()`. Supply exactly the semantic selector, resolution dispatcher, passive `NarrativeSurfaceRendererPropsV1` renderer, locale-aware text resolver, and optional current-voice replay callback. The composition owns lifecycle, playback (typewriter/auto/skip-read), History, Player Profile, clock, input, and Stage integration; do not mount a second player or mirror that state. Test selectors may remain Story-owned `data-dialogue-*` attributes on the renderer.
 - **Player rollback**: add `rollback: { capacity, classify }` to the core definition (mark settlement/irreversible commands `"barrier"`); the UI uses `instance.rollback` (available/toPrevious/subscribe).
 - **Save safepoints**: add `saveGuard(publication)` to the web definition to disable manual saves mid-dialogue or mid-battle with a reason text.
 - **Stage hit regions**: declare `hitRegions` in the content catalog and pass `onHitRegionActivate` to `SemanticStageV1`.
@@ -35,7 +35,7 @@ Declaring `titleScreen` (title / background art / optional `splash` intro lines)
 
 ## Script/text tasks (most common)
 
-Which file to edit: dialogue and UI copy → the textId catalog in `src/presentation.ts`; story nodes/branches/stage directives → `src/narrative.ts`; stage renderers → `*StageRenderersV1` in `src/application/composition.tsx`; HUD/dialogue-panel components → `src/application/ui.tsx`.
+Which file to edit: dialogue and UI copy → the textId catalog in `src/presentation.ts`; story nodes/branches/stage directives → `src/narrative.ts`; stage renderers → `*StageRenderersV1` in `src/application/composition.tsx`; HUD and the passive Narrative renderer → `src/application/ui.tsx`; the public Narrative definition → the `application.ui().narrative` field in `src/application/composition.tsx`.
 
 Before editing, list the full node sequence (one occurrence number per say/choice boundary, starting at 1) so the scenario script (`src/tooling/simulation-target.ts`) and tests are written correctly on the first pass.
 

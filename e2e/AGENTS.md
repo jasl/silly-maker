@@ -6,7 +6,7 @@ Change discipline: **change only in service of engine work**. It is not a game a
 
 ## Script/text tasks (most common)
 
-Which file to edit: dialogue and UI copy → the textId catalog in `src/presentation.ts`; story nodes/branches/stage directives → `src/narrative.ts`; stage renderers and shell widgets → `src/application/shell-ui.tsx`; the VN player → `narrative-ui.tsx`; the application declaration and slot orchestration → `composition.tsx` (do not export PascalCase components from the same file as `labGameApplicationV1`, or Vite Fast Refresh breaks). `core-application.ts` is the headless instance factory.
+Which file to edit: dialogue and UI copy → the textId catalog in `src/presentation.ts`; story nodes/branches/stage directives → `src/narrative.ts`; stage renderers and shell widgets → `src/application/shell-ui.tsx`; the passive production Narrative renderer and its public `defineNarrativeSurfaceV1` adapter → `src/application/narrative-renderer.tsx`; the application declaration, slot orchestration, and sole `application.ui().narrative` binding → `composition.tsx` (do not export PascalCase components from the same file as `labGameApplicationV1`, or Vite Fast Refresh breaks). `core-application.ts` is the headless instance factory.
 
 Before editing, list the full node sequence (one occurrence number per say/choice boundary, starting at 1) so the scenario script (`src/tooling/simulation-target.ts`) and tests are written correctly on the first pass.
 
@@ -21,6 +21,7 @@ deno task story simulate <appId> --scenario <name>
 Rules in brief:
 
 - Every new say/choice needs a brand-new `definitionId` (`interaction.<story>.<name>`); never reuse one.
+- Engine Lab has one composition-owned Narrative writer. Extend its public `NarrativeSurfaceDefinitionV1`; do not mount another player or mirror its lifecycle, playback, History, input, or Stage state.
 - A `stage` node's `mayShow` honestly lists every contentId it might show; a `branch`'s `choose` must land inside `successors` (tests enforce both).
 - New stage content is wired in three places: the contentId constant in narrative, the content catalog in presentation, the renderer in composition.
 - Saveable state holds integers only (logical units like `scalePermille`); floats are rejected by canonical JSON.

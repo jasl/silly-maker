@@ -63,7 +63,7 @@ workload 证据；仓库外私有实验只能提供匿名需求反馈，正式 p
 1. repository/tooling guardrails；
 2. latest-stable required CI 与 autosave policy admission 两个 pre-pilot 小切片；
 3. Snapshot 热路径 baseline 与 digest/serialization 去重（PF1/A1 已完成）；
-4. Managed Surface dormant-kernel action provenance/boundedness 修正 + Workspace
+4. Managed Surface kernel action provenance/boundedness 修正 + Workspace
    Overlay pilot（PF2 已完成）；
 5. authoritative determinism guardrails：zero RNG、canonical command/evidence
    admission、simulation-closure lint/tripwire、conservative Date/import proof 与四 runtime
@@ -77,9 +77,12 @@ workload 证据；仓库外私有实验只能提供匿名需求反馈，正式 p
 9. Surface structural/model/browser harness 与作者 API promotion；
 10. release stabilization。
 
-当前默认 linear-core 入口是第 7 项的 `PF4/S4 Narrative/History`；System dialogs 与
-前置 S1-R aggregate gate 已完成，whole-canvas primary/detail 仍在后续 S4b。Save 的
-产品级 dry-run/backup/release fixture corpus 属于其后的 PF5/M3。
+第 7 项的 `PF4/S4.3.1b Narrative/History` 已完成生产迁移：一个
+composition-owned Managed Surface authority、公开
+`NarrativeSurfaceDefinitionV1`/`defineNarrativeSurfaceV1`、四个 Story 消费方、SillyOS
+省略路径和 browser promotion 均已落地，旧 conformance/player exports 已删除。当前
+默认 linear-core 入口是 S4b whole-canvas primary/detail；Save 的产品级
+dry-run/backup/release fixture corpus 属于其后的 PF5/M3。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实
@@ -206,7 +209,7 @@ Save migration 先于 Mod per-namespace migration；后者只能复用该管线�
 - stable owner target reconcile 成 instance；
 - immutable publication 原子绑定 topology、input/focus owner、dismiss、readiness；
 - stale instance/topology/semantic occurrence/gesture 明确拒绝；
-- `DialoguePlayerController / DialogueView / NarrativeSurfaceHost` 分层；
+- public Narrative definition/Story renderer、package-private player 与 production Host 分层；
 - DOM/browser adapter 处理 focus/inert/top-layer/pointercancel/visibility；
 - structural check、pure model、seeded shrink 与真实浏览器共同验证。
 
@@ -215,11 +218,11 @@ AI-friendly promotion 时，声明 presentation postcondition 的 action 必须�
 evidence，并能返回 `postcondition_failed`；普通 action 不统一 envelope。弱模型
 canary 用于冻结作者 API，不阻塞每个 runtime migration commit。
 
-System dialogs 已迁移为与 Workspace Overlay 共享同一个 composition-owned Coordinator 的
-live transient family，且两者都没有平行 writable lifecycle authority。S1-R stable-target reconcile
-aggregate gate已完成，但stable ingress仍是package-internal dormant能力；下一active family为
-Narrative/History S4，它将成为第一个真实externally published stable-target consumer。
-Whole-canvas primary/detail仍在后续S4b独立迁移。
+System dialogs、Workspace Overlay 与 Narrative/History 已共享同一个
+composition-owned Managed Surface authority，没有平行 writable lifecycle。Narrative
+通过公开 definition factory 进入一个 production Host，并绑定同一 Semantic Stage
+authority；Engine Lab、template、Bookshop、Cat Cafe 已迁移，SillyOS 显式省略。
+S4.3.1b 已完成，当前 active family 是 S4b whole-canvas primary/detail。
 
 ## 8. Strategic track D — content platform and creator tooling
 

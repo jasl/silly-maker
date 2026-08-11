@@ -12,7 +12,7 @@ What it exercises in the engine:
 
 - **Content database** — activities, petting reactions, contest moves, rivals, and album entries are typed, validated tables; tuning is editing a row.
 - **Stage hit regions** — petting routes through content-declared zones that scale with the cat's growth stage; feedback bursts in place (emoji + speech bubble).
-- **Dialogue player** — typewriter, auto/skip, history, and Seen tracking via the engine's `DialoguePanelV1`.
+- **Production Narrative surface** — Cat Cafe declares one `application.ui().narrative`; the engine owns typewriter, auto/skip-read, History, and Seen tracking while the Story supplies the passive skin.
 - **Deterministic simulation** — event-pool encounters, a turn-based contest, player rollback with hard barriers, save safepoints.
 - **Scene-driven audio** — BGM/ambient/SFX follow the published game view; three volume buses persist in the player profile.
 - **Bilingual text + auto locale**, AIGC art with a consistent storybook style, and host/cross-target Desktop packaging previews (`.app`, Windows `.msi`, or `.AppImage`) whose file-backed persistence still has a durability promotion gate.
@@ -29,7 +29,8 @@ Why it exists: to prove the engine outside visual novels.
 - **Window management as UI transients** — a ~180-line Story-side store handles z-order, focus, minimize/maximize, drag, and bounds clamping.
 - **Hard disk, not save UI** — persistence is entirely internal; players never see slots or save dialogs. Close the tab, reboot, your files are back.
 - **Custom shell chrome** — the engine's default system menu, title screen, and settings dialog are all hidden; Win98-style pressed-button and inset-field styling is plain CSS.
+- **No Narrative writer** — `application.ui()` intentionally omits `narrative`; the desktop does not pay for or imitate a dialogue runtime it does not use.
 
 ## Bookshop 《打烊前的旧书店》
 
-A short narrative vignette — the first Story ever authored for the engine by an external model in a single pass. It stays in the repository as the minimal script-writing reference: say/choice nodes, flags, a coin, and two endings.
+A short narrative vignette — the first Story ever authored for the engine by an external model in a single pass. It stays in the repository as the minimal script-writing reference: say/choice nodes, flags, a coin, and two endings. Like the starter and Cat Cafe, it now declares the composition-owned production Narrative surface through `defineNarrativeSurfaceV1`.

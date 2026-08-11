@@ -23,8 +23,11 @@ cd examples/my-game
 | `src/state.ts`                     | 模块状态形状、schema、初始值                      |
 | `src/simulation.ts`                | 模块、命令与规则                                  |
 | `src/application/semantic.ts`      | 动作目录与可用性规则                              |
-| `src/application/composition.tsx`  | React UI：HUD、对话面板、舞台渲染器               |
+| `src/application/ui.tsx`           | React 组件：HUD 与被动 Narrative renderer         |
+| `src/application/composition.tsx`  | 投影、slots、应用声明与 Narrative 绑定            |
 | `src/tooling/simulation-target.ts` | `story simulate` 的命名 headless 场景             |
+
+template 把唯一的 production Narrative writer 声明为 `application.ui().narrative`。`defineNarrativeSurfaceV1` 将五项 Story 贡献封装为不透明 `NarrativeSurfaceDefinitionV1`：选取 Narrative 投影、派发语义 resolution、渲染被动 UI、解析本地化文本，以及可选地重播当前语音。引擎拥有的组合层提供 playback、History、profile、时钟、input、focus 与 Stage lifecycle；不要在旁边再挂一个对话播放器。
 
 ## 开发循环
 

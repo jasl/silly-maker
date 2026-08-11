@@ -23,8 +23,11 @@ Then register the application in the root `project.config.ts` (copy the template
 | `src/state.ts`                     | Module state shapes, schemas, and initial values                            |
 | `src/simulation.ts`                | Modules, commands, and rules                                                |
 | `src/application/semantic.ts`      | The action catalog and availability rules                                   |
-| `src/application/composition.tsx`  | React UI: HUD, dialog panel, stage renderers                                |
+| `src/application/ui.tsx`           | React components: HUD and the passive Narrative renderer                    |
+| `src/application/composition.tsx`  | Projector, slots, application declaration, and Narrative binding            |
 | `src/tooling/simulation-target.ts` | Named headless scenarios for `story simulate`                               |
+
+The template declares its sole production Narrative writer as `application.ui().narrative`. `defineNarrativeSurfaceV1` packages five Story contributions into an opaque `NarrativeSurfaceDefinitionV1`: select the Narrative projection, dispatch a semantic resolution, render passive UI, resolve localized text, and optionally replay the current voice. The engine-owned composition supplies playback, History, profile, clock, input, focus, and Stage lifecycle; do not mount a second dialogue player beside it.
 
 ## The loop
 

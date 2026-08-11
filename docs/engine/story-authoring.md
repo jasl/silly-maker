@@ -129,7 +129,20 @@ Reuse the engine pattern, not the Tavern-specific ten-module partition, names, n
 
 ### Compose a Host application
 
-A Story ships one `WebGameApplicationV1` declaration (core definition with the semantic adapter, validators, and optional Story extensions; projector; UI slots; Workspace Overlay definitions; labels; input maps) and boots it with `startWebGameApplicationV1`. The composers own the Session, persistence, capability session, diagnostics construction, input adapters, automation, and the dev HMR boundary — an entry never assembles engine services by hand. The Engine Lab follows this path.
+A Story ships one `WebGameApplicationV1` declaration (core definition with the semantic adapter, validators, and optional Story extensions; projector; optional Narrative definition; UI slots; Workspace Overlay definitions; labels; input maps) and boots it with `startWebGameApplicationV1`. The composers own the Session, persistence, capability session, diagnostics construction, input adapters, automation, and the dev HMR boundary — an entry never assembles engine services by hand. The Engine Lab follows this path.
+
+When a Story has Narrative, create one frozen five-key input with
+`selectNarrative`, `dispatchResolution`, `renderer`, `resolveText`, and
+`replayCurrentVoice`, pass it to `defineNarrativeSurfaceV1`, and return the
+opaque `NarrativeSurfaceDefinitionV1` as `ui.narrative`. The renderer receives
+immutable pending/history/choice availability plus the current player profile
+and player view. It can invoke only the supplied occurrence-fenced actions; it
+does not own a player controller, clock, Host, Semantic Stage, Session, or
+writable lifecycle store. `DefaultGameRootV1` mounts the production Host from
+the composition definition, so do not add `slots.narrative`, a direct semantic
+writer, or a second stage claimant. Engine Lab, the starter template, Bookshop,
+and Cat Cafe are the maintained examples. SillyOS intentionally omits the
+definition and therefore mounts no Narrative surface.
 
 Declare each gameplay window with `defineWorkspaceOverlayV1`, including its
 contract revision, dismissal policy, and required port IDs. Supply concrete
@@ -172,7 +185,7 @@ finalizer that could target the successor.
 1. creates a `GameHostV1` (IndexedDB, files, clock, navigation, logging, entropy);
 2. builds the persisted capability session (Host records overlaid by the page query);
 3. resolves the Story and creates the core application instance (Session, semantic port, persistence lease, autosave, Story extensions);
-4. composes the UI (presentation store, input router, intent router, one Coordinator-backed Workspace Overlay/System lifecycle, plus the interaction session) and mounts the default GameRoot with the Story's slots;
+4. composes the UI (presentation store, input router, intent router, one shared Workspace Overlay/System/Narrative Managed Surface authority, plus the interaction session) and mounts the default GameRoot with the Story's ordinary slots and, when declared, the composition-owned Narrative Host;
 5. installs the automation bridge and optional pointer adapter, binds the DebugBundle UI context, and registers page-lifecycle teardown;
 6. owns disposal and — through `installWebGameApplicationHmrV1` — the dev HMR rebootstrap with persistence handoff.
 
