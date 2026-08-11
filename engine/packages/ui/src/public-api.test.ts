@@ -84,6 +84,18 @@ import type { ManagedSurfaceStableRootReservationContributorInternalV1 as Forbid
 import type { ManagedSurfaceRuntimeKernelInternalV1 as ForbiddenPublicRuntimeKernelV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose the generic runtime kernel.
 import type { ManagedSurfaceRuntimeKernelInternalV1 as ForbiddenInternalRuntimeKernelV1 } from "./internal.ts";
+// @ts-expect-error Generic runtime state-install participants stay source-relative.
+import type { ManagedSurfaceRuntimeStateInstallParticipantInternalV1 as ForbiddenPublicRuntimeStateInstallParticipantV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose generic runtime state-install participants.
+import type { ManagedSurfaceRuntimeStateInstallParticipantInternalV1 as ForbiddenInternalRuntimeStateInstallParticipantV1 } from "./internal.ts";
+// @ts-expect-error Prepared generic runtime state-install participants stay source-relative.
+import type { ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 as ForbiddenPublicRuntimePreparedStateInstallParticipantV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose prepared generic runtime state-install participants.
+import type { ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 as ForbiddenInternalRuntimePreparedStateInstallParticipantV1 } from "./internal.ts";
+// @ts-expect-error Generic runtime state-install participant claims stay source-relative.
+import type { claimManagedSurfaceRuntimeStateInstallParticipantInternalV1 as ForbiddenPublicRuntimeStateInstallParticipantClaimV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose generic runtime state-install participant claims.
+import type { claimManagedSurfaceRuntimeStateInstallParticipantInternalV1 as ForbiddenInternalRuntimeStateInstallParticipantClaimV1 } from "./internal.ts";
 // @ts-expect-error The generic runtime-kernel state adapter stays source-relative.
 import type { ManagedSurfaceRuntimeKernelStateAdapterInternalV1 as ForbiddenPublicRuntimeKernelStateAdapterV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose the runtime-kernel state adapter.
@@ -140,6 +152,14 @@ import type { ManagedSurfaceStableAdmissionContextCaptureResultInternalV1 as For
 import type { ManagedSurfaceStableCompositeRuntimeKernelInternalV1 as ForbiddenPublicStableCompositeKernelV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose the stable composition kernel.
 import type { ManagedSurfaceStableCompositeRuntimeKernelInternalV1 as ForbiddenInternalStableCompositeKernelV1 } from "./internal.ts";
+// @ts-expect-error Stable composite state-install participants stay source-relative.
+import type { ManagedSurfaceStableCompositeStateInstallParticipantInternalV1 as ForbiddenPublicStableCompositeStateInstallParticipantV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable composite state-install participants.
+import type { ManagedSurfaceStableCompositeStateInstallParticipantInternalV1 as ForbiddenInternalStableCompositeStateInstallParticipantV1 } from "./internal.ts";
+// @ts-expect-error Stable composite state-install participant claims stay source-relative.
+import type { claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1 as ForbiddenPublicStableCompositeStateInstallParticipantClaimV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable composite state-install participant claims.
+import type { claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1 as ForbiddenInternalStableCompositeStateInstallParticipantClaimV1 } from "./internal.ts";
 // @ts-expect-error Stable publisher disposal authority stays source-relative.
 import type { ManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1 as ForbiddenPublicStableDisposalAuthorityV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose stable publisher disposal authority.
@@ -709,6 +729,11 @@ import type { claimManagedSurfaceStableExactParentTransientChildLifecycleAuthori
 describe("@sillymaker/ui public managed System surface", () => {
   it("keeps the composition-backed Host and launchers without standalone lifecycle hosts", () => {
     type DormantRuntimeSpellingV1 =
+      | "ManagedSurfaceRuntimeStateInstallParticipantInternalV1"
+      | "ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1"
+      | "claimManagedSurfaceRuntimeStateInstallParticipantInternalV1"
+      | "ManagedSurfaceStableCompositeStateInstallParticipantInternalV1"
+      | "claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1"
       | "createNarrativeManagedSurfaceFamilyContractInternalV1"
       | "createNarrativeStablePublisherBridgeInternalV1"
       | "deriveManagedSurfaceReducerTopologyProjectionInternalV1"
@@ -903,6 +928,10 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "prepareExactParentTransientChildInternalV1"
       | "closeExactParentTransientChildInternalV1"
       | "dismissExactParentTransientChildInternalV1"
+      | "prepareStateInstallInternalV1"
+      | "validateInternalV1"
+      | "commitLogicalInternalV1"
+      | "completeInstalledInternalV1"
       | "commitInternalV1"
       | "abortInternalV1"
       | "getBindingInternalV1"
@@ -949,6 +978,9 @@ describe("@sillymaker/ui public managed System surface", () => {
         "projectManagedSurfaceTopologyPolicyInternalV1",
         "deriveManagedSurfaceReducerTopologyProjectionInternalV1",
         "createManagedSurfaceRuntimeKernelInternalV1",
+        "ManagedSurfaceRuntimeStateInstallParticipantInternalV1",
+        "ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1",
+        "claimManagedSurfaceRuntimeStateInstallParticipantInternalV1",
         "createManagedSurfaceCoordinatorRuntimeBundleInternalV1",
         "createManagedSurfaceStableCompositeStateInternalV1",
         "compareManagedSurfaceStableCompositePrivateProvenanceInternalV1",
@@ -958,6 +990,8 @@ describe("@sillymaker/ui public managed System surface", () => {
         "createManagedSurfaceRuntimeAuthorityBundleInternalV1",
         "createManagedSurfaceTransientRuntimeKernelInternalV1",
         "createManagedSurfaceStableCompositeRuntimeKernelInternalV1",
+        "ManagedSurfaceStableCompositeStateInstallParticipantInternalV1",
+        "claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1",
         "claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1",
         "createManagedSurfaceStableReadyRuntimeBindingInternalV1",
         "createManagedSurfaceStablePreparingRuntimeBindingInternalV1",
@@ -1165,6 +1199,10 @@ describe("@sillymaker/ui public managed System surface", () => {
         "prepareExactParentTransientChildInternalV1",
         "closeExactParentTransientChildInternalV1",
         "dismissExactParentTransientChildInternalV1",
+        "prepareStateInstallInternalV1",
+        "validateInternalV1",
+        "commitLogicalInternalV1",
+        "completeInstalledInternalV1",
         "commitInternalV1",
         "abortInternalV1",
         "getBindingInternalV1",

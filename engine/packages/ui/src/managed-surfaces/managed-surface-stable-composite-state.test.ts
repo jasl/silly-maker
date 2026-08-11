@@ -26,6 +26,7 @@ import { createManagedSurfaceCoordinatorFacadeInternalV1 } from "./managed-surfa
 import { createManagedSurfaceRuntimeAttemptIdentityInternalV1 } from "./managed-surface-identity.ts";
 import type { ManagedSurfacePreparedInputBindingContractInternalV1 } from "./managed-surface-action-route.ts";
 import { createManagedSurfaceReducerStateV1 } from "./managed-surface-reducer.ts";
+import type { ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 } from "./managed-surface-runtime-kernel.ts";
 import {
   createManagedSurfaceStableAdmissionAuthorityInternalV1,
   type ManagedSurfaceStableAcceptedBaselineInternalV1,
@@ -33,6 +34,7 @@ import {
   type ManagedSurfaceStableDefinitionSidecarInternalV1,
 } from "./managed-surface-stable-admission.ts";
 import {
+  claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1,
   claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1,
   claimManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1,
   claimManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1,
@@ -49,6 +51,7 @@ import {
   reconcileManagedSurfaceStableRootReservationsInternalV1,
   type ManagedSurfaceStableAdmissionContextCaptureResultInternalV1,
   type ManagedSurfaceStableCompositeStateInternalV1,
+  type ManagedSurfaceStableCompositeStateInstallParticipantInternalV1,
   type ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   type ManagedSurfaceStableDesiredRuntimeTargetInternalV1,
   type ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1,
@@ -6241,4 +6244,561 @@ describe("dormant stable publisher registration", () => {
       >["code"]
     >().toEqualTypeOf<"surface.stable_reconcile_faulted">();
   });
+});
+
+describe("stable composite state-install participant claim", () => {
+  function claimFixtureV1() {
+    const harness = harnessV1();
+    const kernel = createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
+      admissionAuthority: harness.authority,
+      publisherLeaseRegistry: harness.registry,
+      initialTransientState: transientStateV1(),
+    });
+    return Object.freeze({ harness, kernel });
+  }
+
+  function participantProbeV1() {
+    let participant!: ManagedSurfaceStableCompositeStateInstallParticipantInternalV1;
+    const prepareStateInstallInternalV1 = vi.fn(function (
+      this: ManagedSurfaceStableCompositeStateInstallParticipantInternalV1,
+      _previousState: ManagedSurfaceStableCompositeStateInternalV1,
+      _nextState: ManagedSurfaceStableCompositeStateInternalV1,
+    ): ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 | null {
+      expect(this).toBe(participant);
+      return null;
+    });
+    participant = Object.freeze({ prepareStateInstallInternalV1 });
+    return Object.freeze({ participant, prepareStateInstallInternalV1 });
+  }
+
+  function lifecycleParticipantProbeV1(
+    input: Readonly<{
+      readonly trace?: string[] | null;
+      readonly onComplete?: (
+        context: Readonly<{
+          readonly prepareIndex: number;
+          readonly previousState: ManagedSurfaceStableCompositeStateInternalV1;
+          readonly nextState: ManagedSurfaceStableCompositeStateInternalV1;
+        }>,
+      ) => void;
+    }> = {},
+  ) {
+    const counts = {
+      prepare: 0,
+      validate: 0,
+      commit: 0,
+      abort: 0,
+      complete: 0,
+    };
+    let activePrepared = 0;
+    let maxActivePrepared = 0;
+    const pushTrace = (entry: string): void => {
+      input.trace?.push(entry);
+    };
+    let participant!: ManagedSurfaceStableCompositeStateInstallParticipantInternalV1;
+    const candidate = {
+      prepareStateInstallInternalV1(
+        this: unknown,
+        previousState: ManagedSurfaceStableCompositeStateInternalV1,
+        nextState: ManagedSurfaceStableCompositeStateInternalV1,
+      ): ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 {
+        expect(this).toBe(participant);
+        counts.prepare += 1;
+        const context = Object.freeze({
+          prepareIndex: counts.prepare,
+          previousState,
+          nextState,
+        });
+        pushTrace(`prepare:${context.prepareIndex}`);
+        let settled = false;
+        let prepared!: ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1;
+        const settle = (): void => {
+          if (settled) throw new Error("prepared participant settled twice");
+          settled = true;
+          activePrepared -= 1;
+        };
+        prepared = Object.freeze({
+          validateInternalV1(this: unknown): boolean {
+            expect(this).toBe(prepared);
+            counts.validate += 1;
+            pushTrace(`validate:${context.prepareIndex}`);
+            return true;
+          },
+          commitLogicalInternalV1(this: unknown): void {
+            expect(this).toBe(prepared);
+            counts.commit += 1;
+            pushTrace(`commit:${context.prepareIndex}`);
+          },
+          abortInternalV1(this: unknown): void {
+            expect(this).toBe(prepared);
+            counts.abort += 1;
+            pushTrace(`abort:${context.prepareIndex}`);
+            settle();
+          },
+          completeInstalledInternalV1(this: unknown): void {
+            expect(this).toBe(prepared);
+            counts.complete += 1;
+            pushTrace(`complete:${context.prepareIndex}`);
+            settle();
+            input.onComplete?.(context);
+          },
+        });
+        activePrepared += 1;
+        maxActivePrepared = Math.max(maxActivePrepared, activePrepared);
+        return prepared;
+      },
+    } satisfies ManagedSurfaceStableCompositeStateInstallParticipantInternalV1;
+    participant = Object.freeze(candidate);
+    return Object.freeze({
+      participant,
+      counts,
+      getActivePrepared: (): number => activePrepared,
+      getMaxActivePrepared: (): number => maxActivePrepared,
+    });
+  }
+
+  function stableToggleCandidatesV1(harness: StableHarnessV1) {
+    const desired = desiredV1(harness, harness.workspaceRoot, harness.workspaceRevision);
+    return Object.freeze([
+      stableDesiredCandidateV1(desired),
+      gapRuntimeCandidateV1(desired),
+    ]);
+  }
+
+  it("retains one exact participant and rejects a missing prepare method", () => {
+    expectTypeOf<ExactKeysV1<ManagedSurfaceStableCompositeStateInstallParticipantInternalV1>>()
+      .toEqualTypeOf<"prepareStateInstallInternalV1">();
+    expectTypeOf<
+      Parameters<typeof claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1>
+    >().toEqualTypeOf<
+      [
+        ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+        object,
+        ManagedSurfaceStableCompositeStateInstallParticipantInternalV1,
+      ]
+    >();
+    expectTypeOf<
+      ReturnType<typeof claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1>
+    >().toEqualTypeOf<ManagedSurfaceStableCompositeStateInstallParticipantInternalV1>();
+
+    const harness = harnessV1();
+    const kernel = createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
+      admissionAuthority: harness.authority,
+      publisherLeaseRegistry: harness.registry,
+      initialTransientState: transientStateV1(),
+    });
+    const claimant = Object.freeze({});
+    const prepareStateInstallInternalV1 = vi.fn(() => null);
+    const participant = Object.freeze({ prepareStateInstallInternalV1 });
+
+    expect(
+      claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
+        kernel,
+        claimant,
+        participant,
+      ),
+    ).toBe(participant);
+    expect(
+      claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
+        kernel,
+        claimant,
+        participant,
+      ),
+    ).toBe(participant);
+    expect(Object.isFrozen(participant)).toBe(true);
+    expect(Reflect.ownKeys(participant)).toEqual(["prepareStateInstallInternalV1"]);
+    expect(prepareStateInstallInternalV1).not.toHaveBeenCalled();
+
+    const foreignHarness = harnessV1();
+    const foreignKernel = createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
+      admissionAuthority: foreignHarness.authority,
+      publisherLeaseRegistry: foreignHarness.registry,
+      initialTransientState: transientStateV1(),
+    });
+    expect(() =>
+      claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
+        foreignKernel,
+        Object.freeze({}),
+        Object.freeze({}) as ManagedSurfaceStableCompositeStateInstallParticipantInternalV1,
+      )
+    ).toThrow(TypeError);
+    expect(prepareStateInstallInternalV1).not.toHaveBeenCalled();
+  });
+
+  it("drives the claimed participant through the wrapped direct state transition", () => {
+    const { harness, kernel } = claimFixtureV1();
+    const { participant, prepareStateInstallInternalV1 } = participantProbeV1();
+    claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
+      kernel,
+      Object.freeze({}),
+      participant,
+    );
+    const before = kernel.getStateInternalV1();
+    const next = reconcileV1(before, stableToggleCandidatesV1(harness));
+
+    expect(
+      kernel.transitionStateInternalV1(() => Object.freeze({ state: next, result: "installed" })),
+    ).toBe("installed");
+    expect(kernel.getStateInternalV1()).toBe(next);
+    expect(prepareStateInstallInternalV1).toHaveBeenCalledTimes(1);
+    expect(prepareStateInstallInternalV1).toHaveBeenLastCalledWith(before, next);
+  });
+
+  it("drives the claimed participant through the wrapped prepared install", () => {
+    const { harness, kernel } = claimFixtureV1();
+    const { participant, prepareStateInstallInternalV1 } = participantProbeV1();
+    claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
+      kernel,
+      Object.freeze({}),
+      participant,
+    );
+    const before = kernel.getStateInternalV1();
+    const next = reconcileV1(before, stableToggleCandidatesV1(harness));
+    const prepared = kernel.prepareStateInstallInternalV1(before, next);
+
+    expect(kernel.commitPreparedStateInstallInternalV1(prepared, () => true)).toBe("installed");
+    expect(kernel.getStateInternalV1()).toBe(next);
+    expect(prepareStateInstallInternalV1).toHaveBeenCalledTimes(1);
+    expect(prepareStateInstallInternalV1).toHaveBeenLastCalledWith(before, next);
+  });
+
+  it("drives the claimed participant through the wrapped transient transition", () => {
+    const { kernel } = claimFixtureV1();
+    const { participant, prepareStateInstallInternalV1 } = participantProbeV1();
+    claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
+      kernel,
+      Object.freeze({}),
+      participant,
+    );
+    const before = kernel.getStateInternalV1();
+    const coordinator = createManagedSurfaceCoordinatorFacadeInternalV1(kernel);
+
+    const opened = coordinator.openTransientPrimary({
+      definition: definitionV1({
+        definitionId: rootDefinitionBV1,
+        ownerId: narrativeOwnerIdV1,
+        slotId: rootSlotBV1,
+      }).definition,
+      semanticOccurrenceId: null,
+    });
+    const next = kernel.getStateInternalV1();
+    expect(opened.receipt).toMatchObject({
+      kind: "applied",
+      code: "surface.preparation_started",
+    });
+    expect(next).not.toBe(before);
+    expect(prepareStateInstallInternalV1).toHaveBeenCalledTimes(1);
+    expect(prepareStateInstallInternalV1).toHaveBeenLastCalledWith(before, next);
+  });
+
+  it("rejects competing and malformed claims without reading foreign objects", () => {
+    const { kernel } = claimFixtureV1();
+    const claimant = Object.freeze({});
+    const { participant, prepareStateInstallInternalV1 } = participantProbeV1();
+    claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
+      kernel,
+      claimant,
+      participant,
+    );
+
+    const claimantTrap = vi.fn();
+    const secondClaimant = new Proxy(Object.freeze({}), {
+      get() {
+        claimantTrap();
+        throw new Error("second claimant read");
+      },
+      getOwnPropertyDescriptor() {
+        claimantTrap();
+        throw new Error("second claimant descriptor read");
+      },
+      ownKeys() {
+        claimantTrap();
+        throw new Error("second claimant enumerated");
+      },
+    });
+    expect(() =>
+      claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
+        kernel,
+        secondClaimant,
+        participant,
+      )
+    ).toThrow(TypeError);
+    expect(claimantTrap).not.toHaveBeenCalled();
+
+    const participantTrap = vi.fn();
+    const differentParticipant = new Proxy(participantProbeV1().participant, {
+      get() {
+        participantTrap();
+        throw new Error("different participant read");
+      },
+      getOwnPropertyDescriptor() {
+        participantTrap();
+        throw new Error("different participant descriptor read");
+      },
+      ownKeys() {
+        participantTrap();
+        throw new Error("different participant enumerated");
+      },
+    });
+    expect(() =>
+      claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
+        kernel,
+        claimant,
+        differentParticipant,
+      )
+    ).toThrow(TypeError);
+    expect(participantTrap).not.toHaveBeenCalled();
+
+    const fakeKernelTrap = vi.fn();
+    const fakeKernel = new Proxy(
+      Object.freeze({}) as ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+      {
+        get() {
+          fakeKernelTrap();
+          throw new Error("fake kernel read");
+        },
+        getOwnPropertyDescriptor() {
+          fakeKernelTrap();
+          throw new Error("fake kernel descriptor read");
+        },
+        ownKeys() {
+          fakeKernelTrap();
+          throw new Error("fake kernel enumerated");
+        },
+      },
+    );
+    expect(() =>
+      claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
+        fakeKernel,
+        claimant,
+        participant,
+      )
+    ).toThrow(TypeError);
+    expect(fakeKernelTrap).not.toHaveBeenCalled();
+
+    const accessorRead = vi.fn();
+    const malformedParticipant = Object.freeze(
+      Object.defineProperty({}, "prepareStateInstallInternalV1", {
+        configurable: false,
+        enumerable: true,
+        get() {
+          accessorRead();
+          throw new Error("participant accessor read");
+        },
+      }),
+    ) as ManagedSurfaceStableCompositeStateInstallParticipantInternalV1;
+    const fresh = claimFixtureV1();
+    expect(() =>
+      claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
+        fresh.kernel,
+        Object.freeze({}),
+        malformedParticipant,
+      )
+    ).toThrow(TypeError);
+    expect(accessorRead).not.toHaveBeenCalled();
+    expect(prepareStateInstallInternalV1).not.toHaveBeenCalled();
+  });
+
+  it("completes the first terminal install once and permanently fences re-claim", () => {
+    const { kernel } = claimFixtureV1();
+    const trace: string[] = [];
+    const claimant = Object.freeze({});
+    const lifecycle = lifecycleParticipantProbeV1({ trace });
+    claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
+      kernel,
+      claimant,
+      lifecycle.participant,
+    );
+    kernel.subscribeTransientInternalV1(() => trace.push("listener:transient"));
+    kernel.subscribeStateInternalV1(() => trace.push("listener:state"));
+
+    expect(kernel.transitionTransientInternalV1({ kind: "dispose_coordinator" })).toEqual({
+      kind: "applied",
+      code: "surface.coordinator_disposed",
+      beforeTopologyRevision: 0,
+      afterTopologyRevision: 1,
+    });
+    expect(lifecycle.counts).toEqual({
+      prepare: 1,
+      validate: 1,
+      commit: 1,
+      abort: 0,
+      complete: 1,
+    });
+    expect(trace).toEqual([
+      "prepare:1",
+      "validate:1",
+      "commit:1",
+      "listener:transient",
+      "listener:state",
+      "complete:1",
+    ]);
+    expect(lifecycle.getActivePrepared()).toBe(0);
+
+    const participantTrap = vi.fn();
+    const unreadParticipant = new Proxy(participantProbeV1().participant, {
+      get() {
+        participantTrap();
+        throw new Error("post-terminal participant read");
+      },
+      getOwnPropertyDescriptor() {
+        participantTrap();
+        throw new Error("post-terminal participant descriptor read");
+      },
+      ownKeys() {
+        participantTrap();
+        throw new Error("post-terminal participant enumerated");
+      },
+    });
+    expect(() =>
+      claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
+        kernel,
+        claimant,
+        unreadParticipant,
+      )
+    ).toThrow(TypeError);
+    expect(participantTrap).not.toHaveBeenCalled();
+
+    expect(kernel.transitionTransientInternalV1({ kind: "dispose_coordinator" })).toEqual({
+      kind: "unchanged",
+      code: "surface.coordinator_already_disposed",
+      beforeTopologyRevision: 1,
+      afterTopologyRevision: 1,
+    });
+    expect(lifecycle.counts).toEqual({
+      prepare: 1,
+      validate: 1,
+      commit: 1,
+      abort: 0,
+      complete: 1,
+    });
+  });
+
+  it("completes a listener-installed successor before the historical outer install", () => {
+    const { harness, kernel } = claimFixtureV1();
+    const trace: string[] = [];
+    const completionRows: Array<
+      Readonly<{
+        prepareIndex: number;
+        currentState: ManagedSurfaceStableCompositeStateInternalV1;
+        nextState: ManagedSurfaceStableCompositeStateInternalV1;
+      }>
+    > = [];
+    const lifecycle = lifecycleParticipantProbeV1({
+      trace,
+      onComplete(context) {
+        completionRows.push(Object.freeze({
+          prepareIndex: context.prepareIndex,
+          currentState: kernel.getStateInternalV1(),
+          nextState: context.nextState,
+        }));
+      },
+    });
+    claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
+      kernel,
+      Object.freeze({}),
+      lifecycle.participant,
+    );
+    const initial = kernel.getStateInternalV1();
+    const outerNext = reconcileV1(initial, stableToggleCandidatesV1(harness));
+    let nestedNext!: ManagedSurfaceStableCompositeStateInternalV1;
+    let nestedResult: string | null = null;
+    const unsubscribe = kernel.subscribeStateInternalV1(() => {
+      unsubscribe();
+      trace.push("listener:outer");
+      expect(kernel.getStateInternalV1()).toBe(outerNext);
+      nestedResult = kernel.transitionStateInternalV1((currentState) => {
+        trace.push("plan:nested");
+        nestedNext = reconcileV1(currentState, Object.freeze([]));
+        return Object.freeze({ state: nestedNext, result: "nested" });
+      });
+    });
+
+    const outerResult = kernel.transitionStateInternalV1(() => {
+      trace.push("plan:outer");
+      return Object.freeze({ state: outerNext, result: "outer" });
+    });
+
+    expect(outerResult).toBe("outer");
+    expect(nestedResult).toBe("nested");
+    expect(kernel.getStateInternalV1()).toBe(nestedNext);
+    expect(lifecycle.counts).toEqual({
+      prepare: 2,
+      validate: 2,
+      commit: 2,
+      abort: 0,
+      complete: 2,
+    });
+    expect(trace).toEqual([
+      "plan:outer",
+      "prepare:1",
+      "validate:1",
+      "commit:1",
+      "listener:outer",
+      "plan:nested",
+      "prepare:2",
+      "validate:2",
+      "commit:2",
+      "complete:2",
+      "complete:1",
+    ]);
+    expect(completionRows).toEqual([
+      {
+        prepareIndex: 2,
+        currentState: nestedNext,
+        nextState: nestedNext,
+      },
+      {
+        prepareIndex: 1,
+        currentState: nestedNext,
+        nextState: outerNext,
+      },
+    ]);
+    expect(lifecycle.getMaxActivePrepared()).toBe(2);
+    expect(lifecycle.getActivePrepared()).toBe(0);
+  });
+
+  it("keeps one retained claim and one active prepared participant across 10,000 installs", () => {
+    const { harness, kernel } = claimFixtureV1();
+    const claimant = Object.freeze({});
+    const lifecycle = lifecycleParticipantProbeV1({ trace: null });
+    expect(
+      claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
+        kernel,
+        claimant,
+        lifecycle.participant,
+      ),
+    ).toBe(lifecycle.participant);
+    const populated = stableToggleCandidatesV1(harness);
+    const empty = Object.freeze([]);
+
+    for (let index = 0; index < 10_000; index += 1) {
+      const retained = claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
+        kernel,
+        claimant,
+        lifecycle.participant,
+      );
+      if (retained !== lifecycle.participant) throw new Error("participant claim identity drifted");
+      kernel.transitionStateInternalV1((currentState) =>
+        Object.freeze({
+          state: reconcileV1(currentState, index % 2 === 0 ? populated : empty),
+          result: undefined,
+        })
+      );
+    }
+
+    expect(lifecycle.counts).toEqual({
+      prepare: 10_000,
+      validate: 10_000,
+      commit: 10_000,
+      abort: 0,
+      complete: 10_000,
+    });
+    expect(lifecycle.getMaxActivePrepared()).toBe(1);
+    expect(lifecycle.getActivePrepared()).toBe(0);
+    expect(Reflect.ownKeys(lifecycle.participant)).toEqual([
+      "prepareStateInstallInternalV1",
+    ]);
+    expect(kernel.getStateInternalV1().rootReservationContributors).toEqual([]);
+  }, 120_000);
 });

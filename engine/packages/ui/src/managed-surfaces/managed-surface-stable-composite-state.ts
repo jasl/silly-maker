@@ -57,8 +57,10 @@ import {
   type ManagedSurfaceReducerTopologyProjectionRevisionModeInternalV1,
 } from "./managed-surface-reducer.ts";
 import {
+  claimManagedSurfaceRuntimeStateInstallParticipantInternalV1,
   createManagedSurfaceRuntimeKernelInternalV1,
   type ManagedSurfaceRuntimeKernelInternalV1,
+  type ManagedSurfaceRuntimeStateInstallParticipantInternalV1,
 } from "./managed-surface-runtime-kernel.ts";
 import { projectManagedSurfaceTopologyPolicyInternalV1 } from "./managed-surface-topology-policy.ts";
 import {
@@ -338,6 +340,12 @@ export type ManagedSurfaceStableAdmissionContextCaptureResultInternalV1 =
     readonly code: "surface.stable_reconcile_faulted";
   };
 
+export interface ManagedSurfaceStableCompositeStateInstallParticipantInternalV1
+  extends
+    ManagedSurfaceRuntimeStateInstallParticipantInternalV1<
+      ManagedSurfaceStableCompositeStateInternalV1
+    > {}
+
 export interface ManagedSurfaceStableCompositeRuntimeKernelInternalV1
   extends ManagedSurfaceRuntimeKernelInternalV1<ManagedSurfaceStableCompositeStateInternalV1> {
   registerStablePublisherLeaseInternalV1(
@@ -556,6 +564,9 @@ const compositeStateAuthorityRecordsInternalV1 = new WeakMap<
 interface CompositeRuntimeKernelConfigurationRecordInternalV1 {
   readonly admissionAuthority: ManagedSurfaceStableAdmissionAuthorityInternalV1;
   readonly publisherLeaseRegistry: ManagedSurfaceStablePublisherLeaseRegistryInternalV1;
+  readonly runtimeKernel: ManagedSurfaceRuntimeKernelInternalV1<
+    ManagedSurfaceStableCompositeStateInternalV1
+  >;
 }
 
 const compositeRuntimeKernelConfigurationRecordsInternalV1 = new WeakMap<
@@ -678,6 +689,22 @@ export function matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationIn
   );
   return record !== undefined && record.admissionAuthority === admissionAuthority &&
     record.publisherLeaseRegistry === publisherLeaseRegistry;
+}
+
+export function claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
+  kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+  exactClaimant: object,
+  participant: ManagedSurfaceStableCompositeStateInstallParticipantInternalV1,
+): ManagedSurfaceStableCompositeStateInstallParticipantInternalV1 {
+  const configuration = compositeRuntimeKernelConfigurationRecordsInternalV1.get(kernel);
+  if (configuration === undefined) {
+    throw new TypeError("ui.managed_surface_runtime_state_install_participant_claim_invalid");
+  }
+  return claimManagedSurfaceRuntimeStateInstallParticipantInternalV1(
+    configuration.runtimeKernel,
+    exactClaimant,
+    participant,
+  );
 }
 
 /**
@@ -4482,6 +4509,7 @@ export function createManagedSurfaceStableCompositeRuntimeKernelInternalV1(input
   compositeRuntimeKernelConfigurationRecordsInternalV1.set(compositeKernel, {
     admissionAuthority,
     publisherLeaseRegistry,
+    runtimeKernel,
   });
   return compositeKernel;
 }
