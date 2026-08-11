@@ -7,6 +7,7 @@ import {
   parseNonNegativeSafeInteger,
   type NarrativeHistoryV1,
 } from "@sillymaker/base";
+import { defaultPlayerProfileV1 } from "@sillymaker/base/runtime";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { Component, StrictMode, useSyncExternalStore, type ErrorInfo, type ReactNode } from "react";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
@@ -161,6 +162,19 @@ function hostHarnessV1(
   const semanticDispatchPort = Object.freeze({
     dispatchResolutionInternalV1: (_request: unknown) => Promise.resolve(undefined),
   }) satisfies NarrativeStableSemanticResolutionPortInternalV1;
+  const playerProfile = Object.freeze({
+    getSnapshotInternalV1: () => defaultPlayerProfileV1,
+    subscribeInternalV1: (_listener: () => void) => Object.freeze(() => {}),
+    markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
+  });
+  const presentationClock = Object.freeze({
+    nowInternalV1: () => 0,
+    requestTickInternalV1: (_callback: (nowMs: number) => void) => Object.freeze(() => {}),
+    prefersReducedMotionInternalV1: () => false,
+  });
+  const textResolver = Object.freeze({
+    resolveTextInternalV1: (textId: string) => textId,
+  });
   const candidatePreflight = Object.freeze({
     preflightCandidateInternalV1: () =>
       Object.freeze({
@@ -173,9 +187,9 @@ function hostHarnessV1(
           historyAvailabilityPort: Object.freeze({
             readHistoryAvailabilityInternalV1: () => true,
           }),
-          playerProfile: Object.freeze({ locale: "en" }),
-          presentationClock: Object.freeze({ kind: "host-test-clock" }),
-          textResolver: Object.freeze({ kind: "host-test-text" }),
+          playerProfile,
+          presentationClock,
+          textResolver,
           voiceReplayPort: null,
           quickMenuContribution: null,
         }),

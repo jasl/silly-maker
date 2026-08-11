@@ -5,6 +5,7 @@ import {
   parseNonNegativeSafeInteger,
   type NarrativeHistoryV1,
 } from "@sillymaker/base";
+import { defaultPlayerProfileV1 } from "@sillymaker/base/runtime";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import {
@@ -94,6 +95,19 @@ const defaultHistoryObservationPortV1 = Object.freeze({
   getSnapshotInternalV1: () => emptyNarrativeHistoryV1,
   subscribeInternalV1: (_listener: () => void) => Object.freeze(() => {}),
 }) satisfies NarrativeStableHistoryObservationPortInternalV1;
+const defaultDialoguePlayerProfilePortV1 = Object.freeze({
+  getSnapshotInternalV1: () => defaultPlayerProfileV1,
+  subscribeInternalV1: (_listener: () => void) => Object.freeze(() => {}),
+  markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
+});
+const defaultDialoguePlayerClockPortV1 = Object.freeze({
+  nowInternalV1: () => 0,
+  requestTickInternalV1: (_callback: (nowMs: number) => void) => Object.freeze(() => {}),
+  prefersReducedMotionInternalV1: () => false,
+});
+const defaultDialoguePlayerTextResolverPortV1 = Object.freeze({
+  resolveTextInternalV1: (textId: string) => textId,
+});
 const defaultCandidateSnapshotV1 = Object.freeze({
   rendererComponent: Object.freeze({ kind: "session-test-renderer" }),
   visualConfig: Object.freeze({ skin: "session-test" }),
@@ -102,9 +116,9 @@ const defaultCandidateSnapshotV1 = Object.freeze({
   historyAvailabilityPort: Object.freeze({
     readHistoryAvailabilityInternalV1: () => true,
   }),
-  playerProfile: Object.freeze({ locale: "en" }),
-  presentationClock: Object.freeze({ kind: "session-test-clock" }),
-  textResolver: Object.freeze({ kind: "session-test-text" }),
+  playerProfile: defaultDialoguePlayerProfilePortV1,
+  presentationClock: defaultDialoguePlayerClockPortV1,
+  textResolver: defaultDialoguePlayerTextResolverPortV1,
   voiceReplayPort: null,
   quickMenuContribution: null,
 });
@@ -2051,12 +2065,20 @@ describe("Narrative stable session", () => {
       throw new Error("expected History preparation entry");
     }
     expect(historyPreparing.parentRenderKey).toBe(rootActive.renderKey);
-    expect(historyPreparing.rendererProps).toEqual({
+    expect(historyPreparing.rendererProps).toMatchObject({
       kind: "history",
       visualConfig: defaultCandidateSnapshotV1.visualConfig,
-      playerProfile: defaultCandidateSnapshotV1.playerProfile,
-      textResolver: defaultCandidateSnapshotV1.textResolver,
     });
+    expect(historyPreparing.rendererProps.playerProfile).not.toBe(
+      defaultCandidateSnapshotV1.playerProfile,
+    );
+    expect(Object.isFrozen(historyPreparing.rendererProps.playerProfile)).toBe(true);
+    expect(Reflect.ownKeys(historyPreparing.rendererProps.playerProfile)).toEqual([]);
+    expect(historyPreparing.rendererProps.textResolver).not.toBe(
+      defaultCandidateSnapshotV1.textResolver,
+    );
+    expect(Object.isFrozen(historyPreparing.rendererProps.textResolver)).toBe(true);
+    expect(Reflect.ownKeys(historyPreparing.rendererProps.textResolver as object)).toEqual([]);
     expect(Object.hasOwn(historyPreparing.rendererProps, "history")).toBe(false);
     const renderObservation = historyPreparing.historyObservation;
     expectFrozenOwnMethodsV1(renderObservation, [

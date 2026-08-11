@@ -17,6 +17,7 @@ import {
   type StageTransitionCatalogV1,
   type StageTransitionDefinitionV1,
 } from "@sillymaker/base";
+import { defaultPlayerProfileV1 } from "@sillymaker/base/runtime";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import type { ElementType } from "react";
 
@@ -37,6 +38,17 @@ import type {
   StageRetargetInputV1,
   StageTransitionAcknowledgmentV1,
 } from "../stage/stage-reconciler.ts";
+import {
+  createNarrativeStableDialoguePlayerControllerInternalV1,
+  type CreateNarrativeStableDialoguePlayerControllerInputInternalV1,
+  type NarrativeStableCapturedDialoguePlayerClockPortInternalV1,
+  type NarrativeStableCapturedDialoguePlayerProfilePortInternalV1,
+  type NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1,
+  type NarrativeStableDialoguePlayerClockPortInternalV1,
+  type NarrativeStableDialoguePlayerControllerInternalV1,
+  type NarrativeStableDialoguePlayerProfilePortInternalV1,
+  type NarrativeStableDialoguePlayerTextResolverPortInternalV1,
+} from "./dialogue-player-controller.ts";
 import {
   parseManagedSurfaceActionIdV1,
   parseManagedSurfaceGestureIdV1,
@@ -174,15 +186,67 @@ const defaultHistoryObservationPortV1 = Object.freeze({
   getSnapshotInternalV1: () => emptyNarrativeHistoryV1,
   subscribeInternalV1: (_listener: () => void) => Object.freeze(() => {}),
 }) satisfies NarrativeStableHistoryObservationPortInternalV1;
+const defaultDialoguePlayerProfilePortV1 = Object.freeze({
+  getSnapshotInternalV1: () => defaultPlayerProfileV1,
+  subscribeInternalV1: (_listener: () => void) => Object.freeze(() => {}),
+  markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
+}) satisfies NarrativeStableDialoguePlayerProfilePortInternalV1;
+const defaultDialoguePlayerClockPortV1 = Object.freeze({
+  nowInternalV1: () => 0,
+  requestTickInternalV1: (_callback: (nowMs: number) => void) => Object.freeze(() => {}),
+  prefersReducedMotionInternalV1: () => false,
+}) satisfies NarrativeStableDialoguePlayerClockPortInternalV1;
+const defaultDialoguePlayerTextResolverPortV1 = Object.freeze({
+  resolveTextInternalV1: (textId: string) => textId,
+}) satisfies NarrativeStableDialoguePlayerTextResolverPortInternalV1;
+
+interface ControlledDialoguePlayerClockV1 {
+  readonly port: NarrativeStableDialoguePlayerClockPortInternalV1;
+  readonly now: ReturnType<typeof vi.fn>;
+  readonly requestTick: ReturnType<typeof vi.fn>;
+  readonly cancellationCount: () => number;
+  latestTick(): (nowMs: number) => void;
+}
+
+function controlledDialoguePlayerClockV1(nowMs = 1_000): ControlledDialoguePlayerClockV1 {
+  let cancellations = 0;
+  const scheduledTicks: Array<(nextNowMs: number) => void> = [];
+  const now = vi.fn(() => nowMs);
+  const requestTick = vi.fn((callback: (nextNowMs: number) => void) => {
+    scheduledTicks.push(callback);
+    let active = true;
+    return Object.freeze(() => {
+      if (!active) return;
+      active = false;
+      cancellations += 1;
+    });
+  });
+  const port = Object.freeze({
+    nowInternalV1: now,
+    requestTickInternalV1: requestTick,
+    prefersReducedMotionInternalV1: () => false,
+  }) satisfies NarrativeStableDialoguePlayerClockPortInternalV1;
+  return {
+    port,
+    now,
+    requestTick,
+    cancellationCount: () => cancellations,
+    latestTick(): (nextNowMs: number) => void {
+      const callback = scheduledTicks.at(-1);
+      if (callback === undefined) throw new Error("expected one scheduled Dialogue tick");
+      return callback;
+    },
+  };
+}
 const defaultCandidateSnapshotV1 = Object.freeze({
   rendererComponent: Object.freeze({ kind: "dialogue-renderer" }),
   visualConfig: Object.freeze({ skin: "test" }),
   semanticDispatchPort: defaultSemanticDispatchPortV1,
   historyObservationPort: defaultHistoryObservationPortV1,
   historyAvailabilityPort: defaultHistoryAvailabilityPortV1,
-  playerProfile: Object.freeze({ locale: "en" }),
-  presentationClock: Object.freeze({ kind: "manual-clock" }),
-  textResolver: Object.freeze({ kind: "text-resolver" }),
+  playerProfile: defaultDialoguePlayerProfilePortV1,
+  presentationClock: defaultDialoguePlayerClockPortV1,
+  textResolver: defaultDialoguePlayerTextResolverPortV1,
   voiceReplayPort: null,
   quickMenuContribution: null,
 });
@@ -267,6 +331,29 @@ function narrativeBaselineV1(harness: NarrativeHarnessV1) {
   );
   expect(baseline).toBeDefined();
   return baseline!;
+}
+
+function currentDialoguePlayerTargetV1(harness: NarrativeHarnessV1) {
+  const baseline = narrativeBaselineV1(harness);
+  if (baseline.kind !== "accepted" || baseline.targets.length !== 1) {
+    throw new Error("expected one accepted Narrative target");
+  }
+  const target = baseline.targets[0]!;
+  const frame = harness.bridge.inspectAdmittedTargetFrameInternalV1(target);
+  if (frame === null) throw new Error("expected exact Narrative target frame");
+  return Object.freeze({ target, frame });
+}
+
+function createDialoguePlayerControllerV1(
+  harness: NarrativeHarnessV1,
+): NarrativeStableDialoguePlayerControllerInternalV1 {
+  const { target, frame } = currentDialoguePlayerTargetV1(harness);
+  const input = Object.freeze({
+    bridge: harness.bridge,
+    target,
+    frame,
+  }) satisfies CreateNarrativeStableDialoguePlayerControllerInputInternalV1;
+  return createNarrativeStableDialoguePlayerControllerInternalV1(input);
 }
 
 function publisherSnapshotV1(harness: NarrativeHarnessV1) {
@@ -538,13 +625,16 @@ function stableContributorCandidatesV1(
   ]));
 }
 
-function suspendCurrentNarrativeV1(harness: NarrativeHarnessV1): void {
+function captureNarrativePhaseInstallV1(
+  harness: NarrativeHarnessV1,
+  phase: "active" | "suspended",
+) {
   const current = harness.kernel.getStateInternalV1();
   const entry = current.stableRuntimeBindings[0];
   if (entry?.binding.kind !== "ready_instance") throw new Error("expected ready Narrative root");
   const suspended = createManagedSurfaceStableReadyRuntimeBindingInternalV1({
     attempt: entry.binding.instance.attempt,
-    phase: "suspended",
+    phase,
   });
   const entries = Object.freeze(
     current.stableRuntimeBindings.map((candidate) =>
@@ -555,6 +645,15 @@ function suspendCurrentNarrativeV1(harness: NarrativeHarnessV1): void {
     currentState: current,
     contributorCandidates: stableContributorCandidatesV1(entries),
   });
+  return Object.freeze({ current, next });
+}
+
+function captureSuspendedNarrativeInstallV1(harness: NarrativeHarnessV1) {
+  return captureNarrativePhaseInstallV1(harness, "suspended");
+}
+
+function suspendCurrentNarrativeV1(harness: NarrativeHarnessV1): void {
+  const { current, next } = captureSuspendedNarrativeInstallV1(harness);
   const prepared = harness.kernel.prepareStateInstallInternalV1(current, next);
   expect(harness.kernel.commitPreparedStateInstallInternalV1(prepared, () => true)).toBe(
     "installed",
@@ -749,8 +848,12 @@ function physicalHistoryHarnessV1(input: {
   readonly kind?: NarrativeReadyPendingKindV1;
   readonly historyAvailabilityPort?: unknown;
   readonly historyObservationPort?: unknown;
+  readonly playerProfile?: unknown;
+  readonly presentationClock?: unknown;
+  readonly textResolver?: unknown;
   readonly semanticDispatchPort?: NarrativeStableSemanticResolutionPortInternalV1;
   readonly isGestureCurrent?: () => boolean;
+  readonly beforeSettleReady?: (harness: NarrativeHarnessV1) => void;
 } = {}) {
   const kind = input.kind ?? "say";
   const semanticDispatchPort = input.semanticDispatchPort ?? defaultSemanticDispatchPortV1;
@@ -766,6 +869,10 @@ function physicalHistoryHarnessV1(input: {
           semanticDispatchPort,
           historyObservationPort,
           historyAvailabilityPort,
+          playerProfile: input.playerProfile ?? defaultCandidateSnapshotV1.playerProfile,
+          presentationClock: input.presentationClock ??
+            defaultCandidateSnapshotV1.presentationClock,
+          textResolver: input.textResolver ?? defaultCandidateSnapshotV1.textResolver,
         })),
     }),
   });
@@ -773,6 +880,7 @@ function physicalHistoryHarnessV1(input: {
     kind: "applied",
     code: "surface.stable_publication_applied",
   });
+  input.beforeSettleReady?.(harness);
   settleCurrentNarrativeReadyV1(harness);
   const inputRouter = createInputRouterV1();
   const admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
@@ -960,6 +1068,11 @@ function nonBlockingNarrativeHarnessV1(
   layerOrder = 90,
   modality: "non_blocking" | "blocking" = "non_blocking",
   voiceReplayPort: unknown = defaultCandidateSnapshotV1.voiceReplayPort,
+  dialoguePlayerPorts: Readonly<{
+    readonly playerProfile?: unknown;
+    readonly presentationClock?: unknown;
+    readonly textResolver?: unknown;
+  }> = Object.freeze({}),
 ) {
   const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
   const nonBlockingDefinition = parseManagedSurfaceResolvedDefinitionV1({
@@ -1024,6 +1137,12 @@ function nonBlockingNarrativeHarnessV1(
           ...defaultCandidateSnapshotV1,
           semanticDispatchPort,
           voiceReplayPort,
+          playerProfile: dialoguePlayerPorts.playerProfile ??
+            defaultCandidateSnapshotV1.playerProfile,
+          presentationClock: dialoguePlayerPorts.presentationClock ??
+            defaultCandidateSnapshotV1.presentationClock,
+          textResolver: dialoguePlayerPorts.textResolver ??
+            defaultCandidateSnapshotV1.textResolver,
         })),
     }),
     exactAggregateDefinitionSidecars: contract.stableDefinitionSidecars,
@@ -1459,6 +1578,9 @@ describe("Narrative stable Managed Surface family", () => {
       semanticDispatchPort: captured?.semanticDispatchPort,
       historyAvailabilityPort: captured?.historyAvailabilityPort,
       historyObservationPort: captured?.historyObservationPort,
+      playerProfile: captured?.playerProfile,
+      presentationClock: captured?.presentationClock,
+      textResolver: captured?.textResolver,
     });
     expect(Object.isFrozen(captured)).toBe(true);
     expect(captured?.rendererComponent).toBe(defaultCandidateSnapshotV1.rendererComponent);
@@ -1534,6 +1656,174 @@ describe("Narrative stable Managed Surface family", () => {
       leaseSequenceHighWater: 0,
       currentPublisherCount: 0,
     });
+  });
+
+  it("descriptor-captures the exact Dialogue player ports as frozen zero-key handles", () => {
+    expectTypeOf<keyof NarrativeStableDialoguePlayerClockPortInternalV1>().toEqualTypeOf<
+      "nowInternalV1" | "requestTickInternalV1" | "prefersReducedMotionInternalV1"
+    >();
+    expectTypeOf<keyof NarrativeStableDialoguePlayerProfilePortInternalV1>().toEqualTypeOf<
+      "getSnapshotInternalV1" | "subscribeInternalV1" | "markSeenInternalV1"
+    >();
+    expectTypeOf<keyof NarrativeStableDialoguePlayerTextResolverPortInternalV1>().toEqualTypeOf<
+      "resolveTextInternalV1"
+    >();
+
+    const getProfile = vi.fn(() => defaultPlayerProfileV1);
+    const subscribeProfile = vi.fn((_listener: () => void) => Object.freeze(() => {}));
+    const markSeen = vi.fn((_definitionId: string, _seenRevision: number) => {});
+    const playerProfile = Object.freeze({
+      getSnapshotInternalV1: getProfile,
+      subscribeInternalV1: subscribeProfile,
+      markSeenInternalV1: markSeen,
+    }) satisfies NarrativeStableDialoguePlayerProfilePortInternalV1;
+    const now = vi.fn(() => 0);
+    const requestTick = vi.fn((_callback: (nowMs: number) => void) => Object.freeze(() => {}));
+    const prefersReducedMotion = vi.fn(() => false);
+    const presentationClock = Object.freeze({
+      nowInternalV1: now,
+      requestTickInternalV1: requestTick,
+      prefersReducedMotionInternalV1: prefersReducedMotion,
+    }) satisfies NarrativeStableDialoguePlayerClockPortInternalV1;
+    const resolveText = vi.fn((textId: string) => `resolved:${textId}`);
+    const textResolver = Object.freeze({
+      resolveTextInternalV1: resolveText,
+    }) satisfies NarrativeStableDialoguePlayerTextResolverPortInternalV1;
+    const harness = harnessV1({
+      candidatePreflight: Object.freeze({
+        preflightCandidateInternalV1: () =>
+          capturedCandidatePreflightResultV1(Object.freeze({
+            ...defaultCandidateSnapshotV1,
+            playerProfile,
+            presentationClock,
+            textResolver,
+          })),
+      }),
+    });
+
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    const baseline = narrativeBaselineV1(harness);
+    if (baseline.kind !== "accepted") throw new Error("expected accepted baseline");
+    const captured = harness.bridge.inspectAdmittedTargetFrameInternalV1(
+      baseline.targets[0]!,
+    )?.candidateSnapshot;
+    expectTypeOf(captured?.playerProfile).toEqualTypeOf<
+      NarrativeStableCapturedDialoguePlayerProfilePortInternalV1 | undefined
+    >();
+    expectTypeOf(captured?.presentationClock).toEqualTypeOf<
+      NarrativeStableCapturedDialoguePlayerClockPortInternalV1 | undefined
+    >();
+    expectTypeOf(captured?.textResolver).toEqualTypeOf<
+      NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1 | undefined
+    >();
+    for (
+      const [handle, raw] of [
+        [captured?.playerProfile, playerProfile],
+        [captured?.presentationClock, presentationClock],
+        [captured?.textResolver, textResolver],
+      ] as const
+    ) {
+      expect(handle).not.toBe(raw);
+      expect(Object.isFrozen(handle)).toBe(true);
+      expect(Reflect.ownKeys(handle as object)).toEqual([]);
+    }
+    expect(getProfile).not.toHaveBeenCalled();
+    expect(subscribeProfile).not.toHaveBeenCalled();
+    expect(markSeen).not.toHaveBeenCalled();
+    expect(now).not.toHaveBeenCalled();
+    expect(requestTick).not.toHaveBeenCalled();
+    expect(prefersReducedMotion).not.toHaveBeenCalled();
+    expect(resolveText).not.toHaveBeenCalled();
+  });
+
+  it.each(
+    [
+      ["playerProfile", Object.freeze({})],
+      [
+        "playerProfile",
+        Object.freeze({ ...defaultDialoguePlayerProfilePortV1, extra: true }),
+      ],
+      ["presentationClock", Object.freeze({})],
+      [
+        "presentationClock",
+        Object.freeze({ ...defaultDialoguePlayerClockPortV1, extra: true }),
+      ],
+      ["textResolver", Object.freeze({})],
+      [
+        "textResolver",
+        Object.freeze({ ...defaultDialoguePlayerTextResolverPortV1, extra: true }),
+      ],
+    ] as const,
+  )(
+    "faults malformed Dialogue player port %s before candidate allocation",
+    (portName, malformedPort) => {
+      const harness = harnessV1({
+        candidatePreflight: Object.freeze({
+          preflightCandidateInternalV1: () =>
+            capturedCandidatePreflightResultV1(Object.freeze({
+              ...defaultCandidateSnapshotV1,
+              [portName]: malformedPort,
+            })),
+        }),
+      });
+      const state = harness.kernel.getStateInternalV1();
+
+      expectZeroResultV1(
+        harness.bridge.reconcilePendingInternalV1(pendingV1("say")),
+        "faulted",
+        "narrative.candidate_preflight_faulted",
+      );
+      expect(harness.kernel.getStateInternalV1()).toBe(state);
+      expect(publisherSnapshotV1(harness)).toMatchObject({
+        sourceRevisionIssuanceHighWater: 0,
+        occurrenceIssuanceHighWater: 0,
+      });
+      expect(harness.stateNotificationCount()).toBe(0);
+    },
+  );
+
+  it("creates the Dialogue player only for the exact bridge-target-frame provenance", () => {
+    const harness = harnessV1();
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    const { target, frame } = currentDialoguePlayerTargetV1(harness);
+    const valueEqualFrame = Object.freeze({ ...frame });
+
+    expect(() =>
+      createNarrativeStableDialoguePlayerControllerInternalV1(Object.freeze({
+        bridge: harness.bridge,
+        target,
+        frame: valueEqualFrame,
+      }) as CreateNarrativeStableDialoguePlayerControllerInputInternalV1)
+    ).toThrowError(TypeError);
+    expect(() =>
+      createNarrativeStableDialoguePlayerControllerInternalV1(Object.freeze({
+        bridge: harness.bridge,
+        target,
+        frame,
+        extra: true,
+      }) as unknown as CreateNarrativeStableDialoguePlayerControllerInputInternalV1)
+    ).toThrowError(TypeError);
+
+    const controller = createDialoguePlayerControllerV1(harness);
+    expect(Object.isFrozen(controller)).toBe(true);
+    expect(Reflect.ownKeys(controller)).toEqual([
+      "getSnapshotInternalV1",
+      "subscribeInternalV1",
+      "disposeInternalV1",
+    ]);
+    expect(controller.getSnapshotInternalV1()).toMatchObject({
+      kind: "say",
+      phase: "preparing",
+      playbackMode: "normal",
+      playerProfile: defaultPlayerProfileV1,
+    });
+    controller.disposeInternalV1();
   });
 
   it.each(
@@ -2198,6 +2488,9 @@ describe("Narrative stable Managed Surface family", () => {
         semanticDispatchPort: frame?.candidateSnapshot.semanticDispatchPort,
         historyAvailabilityPort: frame?.candidateSnapshot.historyAvailabilityPort,
         historyObservationPort: frame?.candidateSnapshot.historyObservationPort,
+        playerProfile: frame?.candidateSnapshot.playerProfile,
+        presentationClock: frame?.candidateSnapshot.presentationClock,
+        textResolver: frame?.candidateSnapshot.textResolver,
       },
     });
     expect(Object.isFrozen(frame)).toBe(true);
@@ -3922,7 +4215,7 @@ describe("Narrative stable Managed Surface family", () => {
 
     for (const skippable of [true, false] as const) {
       let clockReads = 0;
-      const presentationClock = new Proxy({}, {
+      const presentationClock = new Proxy(defaultDialoguePlayerClockPortV1, {
         get() {
           clockReads += 1;
           throw new Error("the controller-attempt floor must not read a clock");
@@ -4553,13 +4846,13 @@ describe("Narrative stable Managed Surface family", () => {
     let presentationClockReads = 0;
     const fixture = physicalSayHarnessV1({
       advancePolicy: "auto",
-      playerProfile: new Proxy(Object.freeze({ locale: "en" }), {
+      playerProfile: new Proxy(defaultDialoguePlayerProfilePortV1, {
         get: (target, key, receiver) => {
           playerProfileReads += 1;
           return Reflect.get(target, key, receiver);
         },
       }),
-      presentationClock: new Proxy({ kind: "manual-clock" }, {
+      presentationClock: new Proxy(defaultDialoguePlayerClockPortV1, {
         get: (target, key, receiver) => {
           presentationClockReads += 1;
           return Reflect.get(target, key, receiver);
@@ -11055,6 +11348,482 @@ describe("Narrative stable Managed Surface family", () => {
     unsubscribe();
     admission.disposeInternalV1();
     fixture.controller.disposeInternalV1();
+  });
+
+  it("logically suspends the Dialogue player before History publication and fences its old tick", () => {
+    const clock = controlledDialoguePlayerClockV1();
+    const semanticDispatch = vi.fn((_request: unknown) => Promise.resolve("advanced"));
+    let controller!: NarrativeStableDialoguePlayerControllerInternalV1;
+    const fixture = physicalHistoryHarnessV1({
+      presentationClock: clock.port,
+      textResolver: Object.freeze({
+        resolveTextInternalV1: (textId: string) =>
+          textId === "text.test.speaker" ? "Speaker" : "AB",
+      }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: semanticDispatch,
+      }),
+      beforeSettleReady: (harness) => {
+        controller = createDialoguePlayerControllerV1(harness);
+        expect(controller.getSnapshotInternalV1()).toMatchObject({
+          kind: "say",
+          phase: "preparing",
+          playbackMode: "normal",
+          revealedCharacters: 0,
+          revealLength: 2,
+        });
+      },
+    });
+    expect(controller.getSnapshotInternalV1()).toMatchObject({
+      kind: "say",
+      phase: "active",
+      playbackMode: "normal",
+    });
+    expect(clock.requestTick).toHaveBeenCalledOnce();
+    const oldTick = clock.latestTick();
+
+    const autoAttempt = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(
+      routePlaybackModeToggleV1(
+        fixture.admission,
+        "auto",
+        autoAttempt,
+        "dialogue-player-history-auto",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "auto", completion: null });
+    const phasesAtInstallNotification: string[] = [];
+    const unsubscribe = fixture.harness.kernel.subscribeStateInternalV1(() => {
+      phasesAtInstallNotification.push(controller.getSnapshotInternalV1().phase);
+    });
+    const intent = mintHistoryOpenIntentV1(
+      fixture.admission,
+      "dialogue-player-history-first-win",
+    );
+    const lifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
+      bridge: fixture.harness.bridge,
+    });
+
+    expect(lifecycle.redeemHistoryOpenIntentInternalV1(intent)).toMatchObject({
+      kind: "preparing",
+    });
+    expect(phasesAtInstallNotification[0]).toBe("suspended");
+    expect(controller.getSnapshotInternalV1()).toMatchObject({
+      kind: "say",
+      phase: "suspended",
+      playbackMode: "auto",
+      revealedCharacters: 0,
+    });
+    expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("auto");
+    expect(clock.cancellationCount()).toBe(1);
+
+    oldTick(1_040);
+    expect(semanticDispatch).not.toHaveBeenCalled();
+    expect(clock.requestTick).toHaveBeenCalledOnce();
+    unsubscribe();
+    controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it("logically suspends the Dialogue player before a higher blocker and preserves mode", () => {
+    const clock = controlledDialoguePlayerClockV1();
+    const semanticDispatch = vi.fn((_request: unknown) => Promise.resolve("advanced"));
+    const semanticDispatchPort = Object.freeze({
+      dispatchResolutionInternalV1: semanticDispatch,
+    });
+    const parts = nonBlockingNarrativeHarnessV1(
+      semanticDispatchPort,
+      90,
+      "blocking",
+      null,
+      Object.freeze({
+        presentationClock: clock.port,
+        textResolver: Object.freeze({
+          resolveTextInternalV1: (textId: string) =>
+            textId === "text.test.speaker" ? "Speaker" : "AB",
+        }),
+      }),
+    );
+    expect(parts.harness.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    const controller = createDialoguePlayerControllerV1(parts.harness);
+    settleCurrentNarrativeReadyV1(parts.harness);
+    const admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: parts.harness.bridge,
+      inputRouter: createInputRouterV1(),
+      isGestureCurrent: () => true,
+    });
+    const autoAttempt = admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(
+      routePlaybackModeToggleV1(
+        admission,
+        "auto",
+        autoAttempt,
+        "dialogue-player-blocker-auto",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "auto", completion: null });
+    const oldTick = clock.latestTick();
+    const phasesAtInstallNotification: string[] = [];
+    const unsubscribe = parts.harness.kernel.subscribeStateInternalV1(() => {
+      phasesAtInstallNotification.push(controller.getSnapshotInternalV1().phase);
+    });
+
+    openNonBlockingSurfaceV1(
+      parts.harness,
+      parts.nonBlockingDefinition,
+      "suspended",
+      "candidate",
+      () => {
+        expect(phasesAtInstallNotification[0]).toBe("suspended");
+        expect(controller.getSnapshotInternalV1()).toMatchObject({
+          kind: "say",
+          phase: "suspended",
+          playbackMode: "auto",
+        });
+      },
+      "suspended",
+    );
+    expect(parts.harness.bridge.readPlaybackModeInternalV1()).toBe("auto");
+    expect(clock.cancellationCount()).toBe(1);
+    oldTick(1_040);
+    expect(semanticDispatch).not.toHaveBeenCalled();
+    expect(clock.requestTick).toHaveBeenCalledOnce();
+    unsubscribe();
+    controller.disposeInternalV1();
+    admission.disposeInternalV1();
+  });
+
+  it.each(["generation", "mode_aba"] as const)(
+    "captures the Dialogue player %s before calling raw now",
+    (drift) => {
+      let reenterNow = false;
+      let runReentry = (): void => {};
+      const now = vi.fn(() => {
+        if (reenterNow) {
+          reenterNow = false;
+          runReentry();
+        }
+        return 1_000;
+      });
+      const clock = Object.freeze({
+        nowInternalV1: now,
+        requestTickInternalV1: (_callback: (nowMs: number) => void) => Object.freeze(() => {}),
+        prefersReducedMotionInternalV1: () => false,
+      }) satisfies NarrativeStableDialoguePlayerClockPortInternalV1;
+      let controller!: NarrativeStableDialoguePlayerControllerInternalV1;
+      const fixture = physicalHistoryHarnessV1({
+        presentationClock: clock,
+        beforeSettleReady: (harness) => {
+          controller = createDialoguePlayerControllerV1(harness);
+        },
+      });
+      runReentry = drift === "generation"
+        ? () => {
+          const attempt = fixture.admission.issueSayActivationAttemptInternalV1(controller);
+          const routed = fixture.admission.routeInternalV1(
+            fixture.admission.createEnvelopeInternalV1({
+              actionId: narrativeAdvanceActionIdV1,
+              gestureId: parseManagedSurfaceGestureIdV1(
+                "gesture.narrative.dialogue-player-now-generation",
+              ),
+            }),
+            attempt,
+          );
+          expect(routed.consumerResult).toEqual({ kind: "revealed", completion: null });
+        }
+        : () => {
+          for (const suffix of ["enter", "leave"] as const) {
+            const attempt = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+            expect(
+              routePlaybackModeToggleV1(
+                fixture.admission,
+                "auto",
+                attempt,
+                `now-mode-aba-${suffix}`,
+              ).consumerResult,
+            ).toMatchObject({ kind: "toggled" });
+          }
+          expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
+        };
+      const { current, next } = captureSuspendedNarrativeInstallV1(fixture.harness);
+      const prepared = fixture.harness.kernel.prepareStateInstallInternalV1(current, next);
+      reenterNow = true;
+
+      expect(
+        fixture.harness.kernel.commitPreparedStateInstallInternalV1(prepared, () => true),
+      ).toBe("stale");
+      expect(fixture.harness.kernel.getStateInternalV1()).toBe(current);
+      expect(controller.getSnapshotInternalV1()).toMatchObject({
+        kind: "say",
+        phase: "active",
+        playbackMode: "normal",
+      });
+      fixture.admission.disposeInternalV1();
+      controller.disposeInternalV1();
+    },
+  );
+
+  it("fences only the current controller when prepared now regresses", () => {
+    let nowMs = 1_000;
+    const cancellation = vi.fn();
+    const requestTick = vi.fn((_callback: (nextNowMs: number) => void) =>
+      Object.freeze(cancellation)
+    );
+    const clock = Object.freeze({
+      nowInternalV1: () => nowMs,
+      requestTickInternalV1: requestTick,
+      prefersReducedMotionInternalV1: () => false,
+    }) satisfies NarrativeStableDialoguePlayerClockPortInternalV1;
+    const rawUnsubscribe = vi.fn();
+    const profile = Object.freeze({
+      getSnapshotInternalV1: () => defaultPlayerProfileV1,
+      subscribeInternalV1: (_listener: () => void) => Object.freeze(rawUnsubscribe),
+      markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
+    }) satisfies NarrativeStableDialoguePlayerProfilePortInternalV1;
+    let controller!: NarrativeStableDialoguePlayerControllerInternalV1;
+    const fixture = physicalHistoryHarnessV1({
+      playerProfile: profile,
+      presentationClock: clock,
+      beforeSettleReady: (harness) => {
+        controller = createDialoguePlayerControllerV1(harness);
+      },
+    });
+    const { current, next } = captureSuspendedNarrativeInstallV1(fixture.harness);
+    const prepared = fixture.harness.kernel.prepareStateInstallInternalV1(current, next);
+    nowMs = 999;
+
+    expect(
+      fixture.harness.kernel.commitPreparedStateInstallInternalV1(prepared, () => true),
+    ).toBe("installed");
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(next);
+    expect(controller.getSnapshotInternalV1()).toMatchObject({
+      kind: "passive",
+      phase: "suspended",
+      playbackMode: "normal",
+    });
+    expect(requestTick).toHaveBeenCalledOnce();
+    expect(cancellation).toHaveBeenCalledOnce();
+    expect(rawUnsubscribe).toHaveBeenCalledOnce();
+    fixture.admission.disposeInternalV1();
+    controller.disposeInternalV1();
+  });
+
+  it("fences a retained predecessor before replacement listeners and blocks old completion scheduling", () => {
+    const clock = controlledDialoguePlayerClockV1();
+    const rawUnsubscribe = vi.fn();
+    const profile = Object.freeze({
+      getSnapshotInternalV1: () => defaultPlayerProfileV1,
+      subscribeInternalV1: (_listener: () => void) => Object.freeze(rawUnsubscribe),
+      markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
+    }) satisfies NarrativeStableDialoguePlayerProfilePortInternalV1;
+    const harness = harnessV1({
+      candidatePreflight: Object.freeze({
+        preflightCandidateInternalV1: () =>
+          capturedCandidatePreflightResultV1(Object.freeze({
+            ...defaultCandidateSnapshotV1,
+            playerProfile: profile,
+            presentationClock: clock.port,
+          })),
+      }),
+    });
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
+      kind: "applied",
+    });
+    const controller = createDialoguePlayerControllerV1(harness);
+    let enteredSuccessor = false;
+    let nestedReplacement: NarrativeStablePublisherBridgeResultInternalV1 | null = null;
+    const snapshotsAtReplacementNotification: unknown[] = [];
+    const unsubscribe = harness.kernel.subscribeStateInternalV1(() => {
+      if (!enteredSuccessor) {
+        enteredSuccessor = true;
+        nestedReplacement = harness.bridge.reconcilePendingInternalV1(pendingV1("say", 2));
+        return;
+      }
+      snapshotsAtReplacementNotification.push(controller.getSnapshotInternalV1());
+    });
+
+    settleCurrentNarrativeReadyV1(harness);
+
+    expect(nestedReplacement).toMatchObject({ kind: "applied" });
+    const replacement = harness.kernel.getStateInternalV1().stableRuntimeBindings[0];
+    expect(replacement?.binding.kind).toBe("preparing");
+    if (replacement?.binding.kind !== "preparing") {
+      throw new Error("expected reentrant replacement preparation");
+    }
+    expect(replacement.binding.retainedSubtree).not.toBeNull();
+    expect(snapshotsAtReplacementNotification[0]).toMatchObject({
+      kind: "passive",
+      phase: "suspended",
+      playbackMode: "normal",
+    });
+    expect(controller.getSnapshotInternalV1()).toBe(snapshotsAtReplacementNotification[0]);
+    expect(clock.requestTick).not.toHaveBeenCalled();
+    expect(clock.cancellationCount()).toBe(0);
+    expect(rawUnsubscribe).toHaveBeenCalledOnce();
+    unsubscribe();
+    controller.disposeInternalV1();
+  });
+
+  it("keeps retired no-controller raw handles unreadable before every port call", () => {
+    const profileGet = vi.fn(() => {
+      throw new Error("retired profile binding must be unreadable");
+    });
+    const profileSubscribe = vi.fn((_listener: () => void) => Object.freeze(() => {}));
+    const clockNow = vi.fn(() => {
+      throw new Error("retired clock binding must be unreadable");
+    });
+    const clockTick = vi.fn((_callback: (nowMs: number) => void) => Object.freeze(() => {}));
+    const reducedMotion = vi.fn(() => false);
+    const resolveText = vi.fn((_textId: string) => {
+      throw new Error("retired text binding must be unreadable");
+    });
+    const candidateSnapshot = Object.freeze({
+      ...defaultCandidateSnapshotV1,
+      playerProfile: Object.freeze({
+        getSnapshotInternalV1: profileGet,
+        subscribeInternalV1: profileSubscribe,
+        markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
+      }),
+      presentationClock: Object.freeze({
+        nowInternalV1: clockNow,
+        requestTickInternalV1: clockTick,
+        prefersReducedMotionInternalV1: reducedMotion,
+      }),
+      textResolver: Object.freeze({ resolveTextInternalV1: resolveText }),
+    });
+    const harness = harnessV1({
+      candidatePreflight: Object.freeze({
+        preflightCandidateInternalV1: () => capturedCandidatePreflightResultV1(candidateSnapshot),
+      }),
+    });
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
+      kind: "applied",
+    });
+    settleCurrentNarrativeReadyV1(harness);
+    const retired = currentDialoguePlayerTargetV1(harness);
+
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say", 2))).toMatchObject({
+      kind: "applied",
+    });
+    const replacement = harness.kernel.getStateInternalV1().stableRuntimeBindings[0];
+    expect(replacement?.binding.kind).toBe("preparing");
+    if (replacement?.binding.kind !== "preparing") {
+      throw new Error("expected retained no-controller replacement");
+    }
+    expect(replacement.binding.retainedSubtree).not.toBeNull();
+    expect(() =>
+      createNarrativeStableDialoguePlayerControllerInternalV1(Object.freeze({
+        bridge: harness.bridge,
+        target: retired.target,
+        frame: retired.frame,
+      }))
+    ).toThrow(TypeError);
+    expect(profileGet).not.toHaveBeenCalled();
+    expect(profileSubscribe).not.toHaveBeenCalled();
+    expect(clockNow).not.toHaveBeenCalled();
+    expect(clockTick).not.toHaveBeenCalled();
+    expect(reducedMotion).not.toHaveBeenCalled();
+    expect(resolveText).not.toHaveBeenCalled();
+  });
+
+  it.each(
+    [
+      ["profile replacement", "profile_replacement", 1, 0, 0],
+      ["profile phase ABA", "profile_phase_aba", 1, 0, 0],
+      ["reduced-motion replacement", "reduced_motion_replacement", 1, 1, 0],
+      ["first-text replacement", "first_text_replacement", 1, 1, 1],
+    ] as const,
+  )("stops hostile factory raw reads immediately after %s", (
+    _label,
+    driftKind,
+    expectedProfileReads,
+    expectedReducedMotionReads,
+    expectedTextReads,
+  ) => {
+    let harness!: NarrativeHarnessV1;
+    let drifted = false;
+    const runDrift = (): void => {
+      if (drifted) return;
+      drifted = true;
+      if (driftKind === "profile_phase_aba") {
+        const suspension = captureNarrativePhaseInstallV1(harness, "suspended");
+        const suspendToken = harness.kernel.prepareStateInstallInternalV1(
+          suspension.current,
+          suspension.next,
+        );
+        expect(harness.kernel.commitPreparedStateInstallInternalV1(suspendToken, () => true))
+          .toBe("installed");
+        const resumption = captureNarrativePhaseInstallV1(harness, "active");
+        const resumeToken = harness.kernel.prepareStateInstallInternalV1(
+          resumption.current,
+          resumption.next,
+        );
+        expect(harness.kernel.commitPreparedStateInstallInternalV1(resumeToken, () => true))
+          .toBe("installed");
+        return;
+      }
+      expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say", 2))).toMatchObject({
+        kind: "applied",
+        code: "surface.stable_publication_applied",
+      });
+    };
+    const profileGet = vi.fn(() => {
+      if (driftKind === "profile_replacement" || driftKind === "profile_phase_aba") {
+        runDrift();
+      }
+      return defaultPlayerProfileV1;
+    });
+    const profileSubscribe = vi.fn((_listener: () => void) => Object.freeze(() => {}));
+    const prefersReducedMotion = vi.fn(() => {
+      if (driftKind === "reduced_motion_replacement") runDrift();
+      return false;
+    });
+    const resolveText = vi.fn((textId: string) => {
+      if (driftKind === "first_text_replacement") runDrift();
+      return textId;
+    });
+    const now = vi.fn(() => 1_000);
+    const requestTick = vi.fn((_callback: (nowMs: number) => void) => Object.freeze(() => {}));
+    harness = harnessV1({
+      candidatePreflight: Object.freeze({
+        preflightCandidateInternalV1: () =>
+          capturedCandidatePreflightResultV1(Object.freeze({
+            ...defaultCandidateSnapshotV1,
+            playerProfile: Object.freeze({
+              getSnapshotInternalV1: profileGet,
+              subscribeInternalV1: profileSubscribe,
+              markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
+            }),
+            presentationClock: Object.freeze({
+              nowInternalV1: now,
+              requestTickInternalV1: requestTick,
+              prefersReducedMotionInternalV1: prefersReducedMotion,
+            }),
+            textResolver: Object.freeze({ resolveTextInternalV1: resolveText }),
+          })),
+      }),
+    });
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
+      kind: "applied",
+    });
+    settleCurrentNarrativeReadyV1(harness);
+    const current = currentDialoguePlayerTargetV1(harness);
+
+    expect(() =>
+      createNarrativeStableDialoguePlayerControllerInternalV1(Object.freeze({
+        bridge: harness.bridge,
+        target: current.target,
+        frame: current.frame,
+      }))
+    ).toThrow(TypeError);
+    expect(drifted).toBe(true);
+    expect(profileGet).toHaveBeenCalledTimes(expectedProfileReads);
+    expect(prefersReducedMotion).toHaveBeenCalledTimes(expectedReducedMotionReads);
+    expect(resolveText).toHaveBeenCalledTimes(expectedTextReads);
+    expect(profileSubscribe).not.toHaveBeenCalled();
+    expect(now).not.toHaveBeenCalled();
+    expect(requestTick).not.toHaveBeenCalled();
   });
 
   it("mints fresh opaque History intents across 10k attempts without production state growth", () => {

@@ -13,6 +13,7 @@ import {
   type PendingInteractionV1,
   type RuntimeSchemaV1,
 } from "@sillymaker/base";
+import type { PlayerProfileV1 } from "@sillymaker/base/runtime";
 import type { ElementType } from "react";
 
 import {
@@ -71,10 +72,13 @@ import {
   claimManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1,
   claimManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1,
   claimManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1,
+  claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1,
   claimManagedSurfaceStableActionRouteAuthorityInternalV1,
   matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1,
   type ManagedSurfaceStableActionRouteAuthorityInternalV1,
   type ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+  type ManagedSurfaceStableCompositeStateInstallParticipantInternalV1,
+  type ManagedSurfaceStableCompositeStateInternalV1,
   type ManagedSurfaceStableDirectActionTargetProofInternalV1,
   type ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1,
   type ManagedSurfaceStableExactParentTransientChildCandidateInternalV1,
@@ -86,6 +90,7 @@ import {
   type ManagedSurfaceStableReadyActiveTargetProofInternalV1,
   type ManagedSurfaceStableRuntimeAttemptInternalV1,
 } from "../managed-surfaces/managed-surface-stable-composite-state.ts";
+import type { ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 } from "../managed-surfaces/managed-surface-runtime-kernel.ts";
 import type {
   ManagedSurfaceStableAdmittedTargetInternalV1,
   ManagedSurfaceStablePublisherLeaseInternalV1,
@@ -127,6 +132,23 @@ import type {
   NarrativeStableRootPreparationInternalV1,
   NarrativeStableSessionInternalV1,
 } from "./narrative-managed-surface-session.ts";
+import type {
+  CreateNarrativeStableDialoguePlayerControllerInputInternalV1,
+  NarrativeStableCapturedDialoguePlayerClockPortInternalV1,
+  NarrativeStableCapturedDialoguePlayerProfilePortInternalV1,
+  NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1,
+  NarrativeStableDialoguePlayerClockPortInternalV1,
+  NarrativeStableDialoguePlayerControllerInternalV1,
+  NarrativeStableDialoguePlayerProfilePortInternalV1,
+  NarrativeStablePlaybackModeResetAttemptInternalV1,
+  NarrativeStablePlaybackModeResetDispatchResultInternalV1,
+  NarrativeStableSayPlayerAutoAttemptInternalV1,
+  NarrativeStableSayPlayerAutoDispatchResultInternalV1,
+  NarrativeStableSaySkipAttemptInternalV1,
+  NarrativeStableSaySkipDispatchResultInternalV1,
+  NarrativeStableDialoguePlayerSnapshotInternalV1,
+  NarrativeStableDialoguePlayerTextResolverPortInternalV1,
+} from "./dialogue-player-controller.ts";
 
 const freezeNarrativePhysicalActionDataInternalV1 = Object.freeze;
 const applyNarrativePhysicalActionInternalV1 = Reflect.apply;
@@ -258,8 +280,8 @@ export interface NarrativeStableDialogueRendererPropsInternalV1 {
   readonly kind: "dialogue";
   readonly pending: DeepReadonly<PendingInteractionV1>;
   readonly visualConfig: Readonly<object>;
-  readonly playerProfile: Readonly<object>;
-  readonly textResolver: object | ((...args: never[]) => unknown);
+  readonly playerProfile: NarrativeStableCapturedDialoguePlayerProfilePortInternalV1;
+  readonly textResolver: NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1;
   readonly quickMenuContribution: object | ((...args: never[]) => unknown) | null;
 }
 
@@ -267,8 +289,8 @@ export interface NarrativeStableHistoryRendererPropsInternalV1 {
   readonly kind: "history";
   readonly history: DeepReadonly<NarrativeHistoryV1>;
   readonly visualConfig: Readonly<object>;
-  readonly playerProfile: Readonly<object>;
-  readonly textResolver: object | ((...args: never[]) => unknown);
+  readonly playerProfile: NarrativeStableCapturedDialoguePlayerProfilePortInternalV1;
+  readonly textResolver: NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1;
 }
 
 export type NarrativeStableRendererPropsInternalV1 =
@@ -285,9 +307,9 @@ export interface NarrativeStableCandidateSnapshotInternalV1 {
   readonly semanticDispatchPort: NarrativeStableCapturedSemanticResolutionPortInternalV1;
   readonly historyObservationPort: NarrativeStableCapturedHistoryObservationPortInternalV1;
   readonly historyAvailabilityPort: NarrativeStableCapturedHistoryAvailabilityPortInternalV1;
-  readonly playerProfile: Readonly<object>;
-  readonly presentationClock: object | ((...args: never[]) => unknown);
-  readonly textResolver: object | ((...args: never[]) => unknown);
+  readonly playerProfile: NarrativeStableCapturedDialoguePlayerProfilePortInternalV1;
+  readonly presentationClock: NarrativeStableCapturedDialoguePlayerClockPortInternalV1;
+  readonly textResolver: NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1;
   readonly voiceReplayPort: NarrativeStableCapturedVoiceReplayPortInternalV1 | null;
   readonly quickMenuContribution: object | ((...args: never[]) => unknown) | null;
 }
@@ -847,6 +869,10 @@ const narrativeStablePublisherBridgeRecordsInternalV1 = new WeakMap<
   NarrativeStablePublisherBridgeInternalV1,
   NarrativeStablePublisherBridgeRecordInternalV1
 >();
+const narrativeStablePublisherBridgeRecordsByKernelInternalV1 = new WeakMap<
+  ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+  NarrativeStablePublisherBridgeRecordInternalV1
+>();
 
 interface NarrativeStableSemanticResolutionPortBindingInternalV1 {
   readonly receiver: NarrativeStableSemanticResolutionPortInternalV1;
@@ -876,6 +902,37 @@ interface NarrativeStableHistoryObservationPortBindingInternalV1 {
   ];
   readonly subscribe: NarrativeStableHistoryObservationPortInternalV1[
     "subscribeInternalV1"
+  ];
+}
+
+interface NarrativeStableDialoguePlayerClockPortBindingInternalV1 {
+  readonly receiver: NarrativeStableDialoguePlayerClockPortInternalV1;
+  readonly now: NarrativeStableDialoguePlayerClockPortInternalV1["nowInternalV1"];
+  readonly requestTick: NarrativeStableDialoguePlayerClockPortInternalV1[
+    "requestTickInternalV1"
+  ];
+  readonly prefersReducedMotion: NarrativeStableDialoguePlayerClockPortInternalV1[
+    "prefersReducedMotionInternalV1"
+  ];
+}
+
+interface NarrativeStableDialoguePlayerProfilePortBindingInternalV1 {
+  readonly receiver: NarrativeStableDialoguePlayerProfilePortInternalV1;
+  readonly getSnapshot: NarrativeStableDialoguePlayerProfilePortInternalV1[
+    "getSnapshotInternalV1"
+  ];
+  readonly subscribe: NarrativeStableDialoguePlayerProfilePortInternalV1[
+    "subscribeInternalV1"
+  ];
+  readonly markSeen: NarrativeStableDialoguePlayerProfilePortInternalV1[
+    "markSeenInternalV1"
+  ];
+}
+
+interface NarrativeStableDialoguePlayerTextResolverPortBindingInternalV1 {
+  readonly receiver: NarrativeStableDialoguePlayerTextResolverPortInternalV1;
+  readonly resolveText: NarrativeStableDialoguePlayerTextResolverPortInternalV1[
+    "resolveTextInternalV1"
   ];
 }
 
@@ -935,6 +992,88 @@ const narrativeStableHistoryObservationPortBindingsInternalV1 = new WeakMap<
   NarrativeStableCapturedHistoryObservationPortInternalV1,
   NarrativeStableHistoryObservationPortBindingInternalV1
 >();
+const narrativeStableDialoguePlayerClockPortBindingsInternalV1 = new WeakMap<
+  NarrativeStableCapturedDialoguePlayerClockPortInternalV1,
+  NarrativeStableDialoguePlayerClockPortBindingInternalV1
+>();
+const narrativeStableDialoguePlayerProfilePortBindingsInternalV1 = new WeakMap<
+  NarrativeStableCapturedDialoguePlayerProfilePortInternalV1,
+  NarrativeStableDialoguePlayerProfilePortBindingInternalV1
+>();
+const narrativeStableDialoguePlayerTextResolverPortBindingsInternalV1 = new WeakMap<
+  NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1,
+  NarrativeStableDialoguePlayerTextResolverPortBindingInternalV1
+>();
+
+interface NarrativeStableDialoguePlayerControllerRecordInternalV1 {
+  controller: NarrativeStableDialoguePlayerControllerInternalV1 | null;
+  bridge: NarrativeStablePublisherBridgeInternalV1 | null;
+  bridgeRecord: NarrativeStablePublisherBridgeRecordInternalV1 | null;
+  target: ManagedSurfaceStableAdmittedTargetInternalV1 | null;
+  frame: NarrativeStableAdmittedFrameInternalV1 | null;
+  profileBinding: NarrativeStableDialoguePlayerProfilePortBindingInternalV1 | null;
+  clockBinding: NarrativeStableDialoguePlayerClockPortBindingInternalV1 | null;
+  textBinding: NarrativeStableDialoguePlayerTextResolverPortBindingInternalV1 | null;
+  profile: DeepReadonly<PlayerProfileV1>;
+  readonly policy: Readonly<{
+    readonly textRevealCharsPerSecond: number;
+    readonly autoWaitMs: number;
+    readonly skipPolicy: "skip_read" | "skip_all";
+    readonly reducedMotion: boolean;
+  }>;
+  snapshot: NarrativeStableDialoguePlayerSnapshotInternalV1;
+  phaseGeneration: object;
+  cancelTick: (() => void) | null;
+  lastTickMs: number | null;
+  revealRemainder: number;
+  automaticRemainingMs: number | null;
+  currentAutomaticAttempt:
+    | NarrativeStableSayPlayerAutoAttemptInternalV1
+    | NarrativeStableSaySkipAttemptInternalV1
+    | NarrativeStablePlaybackModeResetAttemptInternalV1
+    | null;
+  seenCommitted: boolean;
+  legacySayRevealController: NarrativeStableSayRevealControllerInternalV1 | null;
+  pauseExpiryController: NarrativeStablePauseExpiryControllerInternalV1 | null;
+  active: boolean;
+  rawUnsubscribe: (() => void) | null;
+  readonly listeners: Set<() => void>;
+  readonly listenerHolders: Set<{
+    record: NarrativeStableDialoguePlayerControllerRecordInternalV1 | null;
+    listener: (() => void) | null;
+  }>;
+}
+
+const narrativeStableDialoguePlayerControllerRecordsInternalV1 = new WeakMap<
+  NarrativeStableDialoguePlayerControllerInternalV1,
+  NarrativeStableDialoguePlayerControllerRecordInternalV1
+>();
+const narrativeStableDialoguePlayerControllersByTargetInternalV1 = new WeakMap<
+  ManagedSurfaceStableAdmittedTargetInternalV1,
+  NarrativeStableDialoguePlayerControllerRecordInternalV1
+>();
+const narrativeStableDialoguePlayerControllerClaimsByTargetInternalV1 = new WeakMap<
+  ManagedSurfaceStableAdmittedTargetInternalV1,
+  object
+>();
+type NarrativeStableDialoguePlayerAutomaticAttemptInternalV1 =
+  | NarrativeStableSayPlayerAutoAttemptInternalV1
+  | NarrativeStableSaySkipAttemptInternalV1
+  | NarrativeStablePlaybackModeResetAttemptInternalV1;
+interface NarrativeStableDialoguePlayerAutomaticAttemptRecordInternalV1 {
+  readonly kind: "player_auto" | "skip" | "mode_reset";
+  readonly controllerRecord: NarrativeStableDialoguePlayerControllerRecordInternalV1;
+  readonly generation: object;
+  readonly target: ManagedSurfaceStableAdmittedTargetInternalV1;
+  readonly frame: NarrativeStableAdmittedFrameInternalV1;
+  readonly expectedModeState: NarrativeStablePlaybackModeStateInternalV1;
+  spent: boolean;
+}
+const narrativeStableDialoguePlayerAutomaticAttemptRecordsInternalV1 = new WeakMap<
+  NarrativeStableDialoguePlayerAutomaticAttemptInternalV1,
+  NarrativeStableDialoguePlayerAutomaticAttemptRecordInternalV1
+>();
+const narrativeStableDialoguePlayerLateUnsubscribeInternalV1 = Object.freeze(() => {});
 const narrativeStablePhysicalActionAttemptRecordsInternalV1 = new WeakMap<
   | NarrativeStableChoiceActionAttemptInternalV1
   | NarrativeStablePauseResumeActionAttemptInternalV1
@@ -1016,6 +1155,7 @@ interface NarrativeStableHistoryChildFamilyClaimRecordInternalV1 {
     ManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1;
   readonly lifecycleAuthority:
     ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1;
+  readonly stateInstallParticipant: ManagedSurfaceStableCompositeStateInstallParticipantInternalV1;
 }
 
 interface NarrativeStableHistoryChildLifecycleRecordInternalV1 {
@@ -1719,6 +1859,30 @@ const narrativeSayContentAutoNotReadyResultInternalV1 = Object.freeze({
   completion: null,
 });
 
+const narrativeSayPlayerAutoNotReadyResultInternalV1 = Object.freeze({
+  kind: "not_ready" as const,
+  completion: null,
+}) satisfies NarrativeStableSayPlayerAutoDispatchResultInternalV1;
+
+const narrativeSayPlayerAutomaticStaleResultInternalV1 = Object.freeze({
+  kind: "stale" as const,
+  completion: null,
+}) satisfies
+  | NarrativeStableSayPlayerAutoDispatchResultInternalV1
+  | NarrativeStableSaySkipDispatchResultInternalV1;
+
+const narrativeSayPlayerAutomaticFaultedResultInternalV1 = Object.freeze({
+  kind: "faulted" as const,
+  completion: null,
+}) satisfies
+  | NarrativeStableSayPlayerAutoDispatchResultInternalV1
+  | NarrativeStableSaySkipDispatchResultInternalV1;
+
+const narrativePlaybackModeResetStaleResultInternalV1 = Object.freeze({
+  kind: "stale" as const,
+  completion: null,
+}) satisfies NarrativeStablePlaybackModeResetDispatchResultInternalV1;
+
 const narrativePauseExpiryStaleResultInternalV1 = Object.freeze({
   kind: "stale" as const,
   completion: null,
@@ -2147,6 +2311,105 @@ function captureHistoryObservationPortInternalV1(
   return handle;
 }
 
+function captureDialoguePlayerClockPortInternalV1(
+  value: unknown,
+): NarrativeStableCapturedDialoguePlayerClockPortInternalV1 | null {
+  const record = captureOwnDataRecordInternalV1(value);
+  if (
+    record === null ||
+    !capturedRecordHasExactKeysInternalV1(record, [
+      "nowInternalV1",
+      "requestTickInternalV1",
+      "prefersReducedMotionInternalV1",
+    ]) ||
+    typeof record.values.nowInternalV1 !== "function" ||
+    typeof record.values.requestTickInternalV1 !== "function" ||
+    typeof record.values.prefersReducedMotionInternalV1 !== "function"
+  ) {
+    return null;
+  }
+  const handle = freezeNarrativePhysicalActionDataInternalV1(
+    {},
+  ) as NarrativeStableCapturedDialoguePlayerClockPortInternalV1;
+  narrativeStableDialoguePlayerClockPortBindingsInternalV1.set(handle, {
+    receiver: value as NarrativeStableDialoguePlayerClockPortInternalV1,
+    now: record.values.nowInternalV1 as NarrativeStableDialoguePlayerClockPortInternalV1[
+      "nowInternalV1"
+    ],
+    requestTick: record.values
+      .requestTickInternalV1 as NarrativeStableDialoguePlayerClockPortInternalV1[
+        "requestTickInternalV1"
+      ],
+    prefersReducedMotion: record.values
+      .prefersReducedMotionInternalV1 as NarrativeStableDialoguePlayerClockPortInternalV1[
+        "prefersReducedMotionInternalV1"
+      ],
+  });
+  return handle;
+}
+
+function captureDialoguePlayerProfilePortInternalV1(
+  value: unknown,
+): NarrativeStableCapturedDialoguePlayerProfilePortInternalV1 | null {
+  const record = captureOwnDataRecordInternalV1(value);
+  if (
+    record === null ||
+    !capturedRecordHasExactKeysInternalV1(record, [
+      "getSnapshotInternalV1",
+      "subscribeInternalV1",
+      "markSeenInternalV1",
+    ]) ||
+    typeof record.values.getSnapshotInternalV1 !== "function" ||
+    typeof record.values.subscribeInternalV1 !== "function" ||
+    typeof record.values.markSeenInternalV1 !== "function"
+  ) {
+    return null;
+  }
+  const handle = freezeNarrativePhysicalActionDataInternalV1(
+    {},
+  ) as NarrativeStableCapturedDialoguePlayerProfilePortInternalV1;
+  narrativeStableDialoguePlayerProfilePortBindingsInternalV1.set(handle, {
+    receiver: value as NarrativeStableDialoguePlayerProfilePortInternalV1,
+    getSnapshot: record.values
+      .getSnapshotInternalV1 as NarrativeStableDialoguePlayerProfilePortInternalV1[
+        "getSnapshotInternalV1"
+      ],
+    subscribe: record.values
+      .subscribeInternalV1 as NarrativeStableDialoguePlayerProfilePortInternalV1[
+        "subscribeInternalV1"
+      ],
+    markSeen: record.values
+      .markSeenInternalV1 as NarrativeStableDialoguePlayerProfilePortInternalV1[
+        "markSeenInternalV1"
+      ],
+  });
+  return handle;
+}
+
+function captureDialoguePlayerTextResolverPortInternalV1(
+  value: unknown,
+): NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1 | null {
+  const record = captureOwnDataRecordInternalV1(value);
+  if (
+    record === null ||
+    !capturedRecordHasExactKeysInternalV1(record, ["resolveTextInternalV1"]) ||
+    typeof record.values.resolveTextInternalV1 !== "function"
+  ) {
+    return null;
+  }
+  const handle = freezeNarrativePhysicalActionDataInternalV1(
+    {},
+  ) as NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1;
+  narrativeStableDialoguePlayerTextResolverPortBindingsInternalV1.set(handle, {
+    receiver: value as NarrativeStableDialoguePlayerTextResolverPortInternalV1,
+    resolveText: record.values
+      .resolveTextInternalV1 as NarrativeStableDialoguePlayerTextResolverPortInternalV1[
+        "resolveTextInternalV1"
+      ],
+  });
+  return handle;
+}
+
 function captureCandidateSnapshotInternalV1(
   value: unknown,
 ): NarrativeStableCandidateSnapshotInternalV1 | null {
@@ -2187,6 +2450,13 @@ function captureCandidateSnapshotInternalV1(
   const historyObservationPort = captureHistoryObservationPortInternalV1(
     captured.historyObservationPort,
   );
+  const playerProfile = captureDialoguePlayerProfilePortInternalV1(captured.playerProfile);
+  const presentationClock = captureDialoguePlayerClockPortInternalV1(
+    captured.presentationClock,
+  );
+  const textResolver = captureDialoguePlayerTextResolverPortInternalV1(
+    captured.textResolver,
+  );
   if (
     !isOpaqueCandidatePortInternalV1(captured.rendererComponent) ||
     typeof captured.visualConfig !== "object" || captured.visualConfig === null ||
@@ -2194,10 +2464,9 @@ function captureCandidateSnapshotInternalV1(
     semanticDispatchPort === null ||
     historyObservationPort === null ||
     historyAvailabilityPort === null ||
-    typeof captured.playerProfile !== "object" || captured.playerProfile === null ||
-    !Object.isFrozen(captured.playerProfile) ||
-    !isOpaqueCandidatePortInternalV1(captured.presentationClock) ||
-    !isOpaqueCandidatePortInternalV1(captured.textResolver) ||
+    playerProfile === null ||
+    presentationClock === null ||
+    textResolver === null ||
     (captured.voiceReplayPort !== null && voiceReplayPort === null) ||
     (captured.quickMenuContribution !== null &&
       !isOpaqueCandidatePortInternalV1(captured.quickMenuContribution))
@@ -2210,9 +2479,9 @@ function captureCandidateSnapshotInternalV1(
     semanticDispatchPort,
     historyObservationPort,
     historyAvailabilityPort,
-    playerProfile: captured.playerProfile,
-    presentationClock: captured.presentationClock,
-    textResolver: captured.textResolver,
+    playerProfile,
+    presentationClock,
+    textResolver,
     voiceReplayPort,
     quickMenuContribution: captured.quickMenuContribution,
   });
@@ -2558,46 +2827,16 @@ export function createNarrativeStablePublisherBridgeInternalV1(
     const previousTargetRecord = admittedTarget === null
       ? undefined
       : narrativeTargetFrameRecordsInternalV1.get(admittedTarget);
-    let predecessorModeState: NarrativeStablePlaybackModeStateInternalV1 | null = null;
-    let provisionalModeState: NarrativeStablePlaybackModeStateInternalV1 | null = null;
-    if (
-      (record === null || record.frame.pending.kind !== "say") &&
-      bridgeRecord.currentModeState.mode !== "normal"
-    ) {
-      predecessorModeState = bridgeRecord.currentModeState;
-      provisionalModeState = createNarrativePlaybackModeStateInternalV1("normal");
-      if (
-        !compareAndSetNarrativePlaybackModeStateInternalV1(
-          bridgeRecord,
-          predecessorModeState,
-          provisionalModeState,
-        )
-      ) {
-        return stableReconcileFaultedResultInternalV1;
-      }
-    }
 
     const restorePrestage = (): void => {
-      try {
-        if (
-          admittedTarget !== null && record !== null &&
-          narrativeTargetFrameRecordsInternalV1.get(admittedTarget) === record
-        ) {
-          if (previousTargetRecord === undefined) {
-            narrativeTargetFrameRecordsInternalV1.delete(admittedTarget);
-          } else {
-            narrativeTargetFrameRecordsInternalV1.set(admittedTarget, previousTargetRecord);
-          }
-        }
-      } finally {
-        if (
-          predecessorModeState !== null && provisionalModeState !== null
-        ) {
-          compareAndSetNarrativePlaybackModeStateInternalV1(
-            bridgeRecord,
-            provisionalModeState,
-            predecessorModeState,
-          );
+      if (
+        admittedTarget !== null && record !== null &&
+        narrativeTargetFrameRecordsInternalV1.get(admittedTarget) === record
+      ) {
+        if (previousTargetRecord === undefined) {
+          narrativeTargetFrameRecordsInternalV1.delete(admittedTarget);
+        } else {
+          narrativeTargetFrameRecordsInternalV1.set(admittedTarget, previousTargetRecord);
         }
       }
     };
@@ -2854,7 +3093,421 @@ export function createNarrativeStablePublisherBridgeInternalV1(
     barrierRecoverySynchronizationPoisoned: false,
     barrierRecoveryGeneration: null,
   });
+  const installedBridgeRecord = narrativeStablePublisherBridgeRecordsInternalV1.get(bridge);
+  if (installedBridgeRecord === undefined) {
+    throw new TypeError("ui.narrative_stable_composition_invalid");
+  }
+  narrativeStablePublisherBridgeRecordsByKernelInternalV1.set(
+    compositeRuntimeKernel,
+    installedBridgeRecord,
+  );
+  try {
+    claimNarrativeStableHistoryChildFamilyAuthorityInternalV1(compositeRuntimeKernel);
+  } catch {
+    const bridgeRecord = narrativeStablePublisherBridgeRecordsInternalV1.get(bridge);
+    if (bridgeRecord !== undefined) bridgeRecord.active = false;
+    bridgeActive = false;
+    try {
+      Reflect.apply(disposeStablePublisherLease, compositeRuntimeKernel, [publisherLease]);
+    } catch {
+      // Construction remains failed closed when terminal cleanup is hostile.
+    }
+    throw new TypeError("ui.narrative_stable_composition_invalid");
+  }
   return bridge;
+}
+
+function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
+  kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+): ManagedSurfaceStableCompositeStateInstallParticipantInternalV1 {
+  const participant = freezeNarrativePhysicalActionDataInternalV1({
+    prepareStateInstallInternalV1(
+      this: ManagedSurfaceStableCompositeStateInstallParticipantInternalV1,
+      previousState: ManagedSurfaceStableCompositeStateInternalV1,
+      nextState: ManagedSurfaceStableCompositeStateInternalV1,
+    ): ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 | null {
+      if (this !== participant) {
+        throw new TypeError("ui.narrative_stable_dialogue_player_participant_invalid");
+      }
+      const bridgeRecord = narrativeStablePublisherBridgeRecordsByKernelInternalV1.get(kernel) ??
+        null;
+      const expectedModeState = bridgeRecord?.currentModeState ?? null;
+      const targets = [
+        ...collectNarrativeDialoguePlayerTargetsFromStateInternalV1(previousState),
+      ];
+      for (const target of collectNarrativeDialoguePlayerTargetsFromStateInternalV1(nextState)) {
+        if (!targets.includes(target)) targets.push(target);
+      }
+      const frameRetirements: Array<{
+        readonly target: ManagedSurfaceStableAdmittedTargetInternalV1;
+        readonly targetRecord: NarrativeTargetFrameRecordInternalV1;
+      }> = [];
+      for (const target of targets) {
+        if (
+          captureNarrativeDialoguePlayerTargetPhaseFromStateInternalV1(previousState, target) ===
+            null ||
+          captureNarrativeDialoguePlayerTargetPhaseFromStateInternalV1(nextState, target) !== null
+        ) continue;
+        const targetRecord = narrativeTargetFrameRecordsInternalV1.get(target);
+        if (
+          targetRecord !== undefined && bridgeRecord !== null &&
+          targetRecord.bridgeIdentity === bridgeRecord.bridgeIdentity
+        ) frameRetirements.push({ target, targetRecord });
+      }
+      const plans: Array<{
+        readonly record: NarrativeStableDialoguePlayerControllerRecordInternalV1;
+        readonly target: ManagedSurfaceStableAdmittedTargetInternalV1;
+        readonly expectedGeneration: object;
+        readonly previousPhase: "preparing" | "active" | "suspended" | null;
+        readonly nextPhase: "preparing" | "active" | "suspended" | null;
+        readonly preparedNow: number | null;
+        readonly clockFault: boolean;
+        cancelled: (() => void) | null;
+        legacyToDispose: NarrativeStableSayRevealControllerInternalV1 | null;
+        pauseToDispose: NarrativeStablePauseExpiryControllerInternalV1 | null;
+        rawUnsubscribeToCall: (() => void) | null;
+        committedGeneration: object | null;
+      }> = [];
+      for (const target of targets) {
+        const record = narrativeStableDialoguePlayerControllersByTargetInternalV1.get(target);
+        if (record === undefined || !record.active || record.target !== target) continue;
+        const previousPhase = captureNarrativeDialoguePlayerTargetPhaseFromStateInternalV1(
+          previousState,
+          target,
+        );
+        const nextPhase = captureNarrativeDialoguePlayerTargetPhaseFromStateInternalV1(
+          nextState,
+          target,
+        );
+        if (previousPhase === nextPhase) continue;
+        const expectedGeneration = record.phaseGeneration;
+        const expectedLastTickMs = record.lastTickMs;
+        let preparedNow: number | null = null;
+        let clockFault = false;
+        const timedPause = record.snapshot.kind === "passive" &&
+          record.frame?.pending.kind === "pause";
+        const timedSay = record.snapshot.kind === "say" &&
+          (!record.snapshot.revealComplete || expectedModeState?.mode === "auto" ||
+            expectedModeState?.mode === "skip" ||
+            (record.frame?.pending.kind === "say" &&
+              record.frame.pending.advancePolicy === "auto"));
+        if (
+          (previousPhase === "active" || nextPhase === "active") &&
+          (timedPause || timedSay) &&
+          record.clockBinding !== null
+        ) {
+          let nowValue: unknown;
+          try {
+            nowValue = applyNarrativePhysicalActionInternalV1(
+              record.clockBinding.now,
+              record.clockBinding.receiver,
+              [],
+            );
+          } catch {
+            clockFault = true;
+            nowValue = null;
+          }
+          if (
+            !isNarrativeDialogueClockTimestampInternalV1(nowValue) ||
+            (expectedLastTickMs !== null && nowValue < expectedLastTickMs)
+          ) clockFault = true;
+          else preparedNow = nowValue;
+        }
+        plans.push({
+          record,
+          target,
+          expectedGeneration,
+          previousPhase,
+          nextPhase,
+          preparedNow,
+          clockFault,
+          cancelled: null,
+          legacyToDispose: null,
+          pauseToDispose: null,
+          rawUnsubscribeToCall: null,
+          committedGeneration: null,
+        });
+      }
+      let nextNarrativeKind: PendingInteractionV1["kind"] | null = null;
+      if (bridgeRecord !== null) {
+        for (const entry of nextState.stableRuntimeBindings) {
+          const targetRecord = narrativeTargetFrameRecordsInternalV1.get(
+            entry.desiredTarget.admittedTarget,
+          );
+          if (
+            targetRecord?.bridgeIdentity === bridgeRecord.bridgeIdentity &&
+            targetRecord.sourceRevision === entry.desiredTarget.sourceRevision
+          ) {
+            nextNarrativeKind = targetRecord.frame.pending.kind;
+            break;
+          }
+        }
+      }
+      const resetsMode = expectedModeState !== null && expectedModeState.mode !== "normal" &&
+        nextNarrativeKind !== "say";
+      const successorModeState = resetsMode
+        ? createNarrativePlaybackModeStateInternalV1("normal")
+        : null;
+      if (plans.length === 0 && frameRetirements.length === 0 && !resetsMode) return null;
+      let state: "prepared" | "committed" | "aborted" | "completed" = "prepared";
+      const prepared = freezeNarrativePhysicalActionDataInternalV1({
+        validateInternalV1(
+          this: ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1,
+        ): boolean {
+          if (this !== prepared || state !== "prepared") return false;
+          return plans.every((plan) =>
+            plan.record.active && plan.record.phaseGeneration === plan.expectedGeneration &&
+            plan.record.target === plan.target &&
+            narrativeStableDialoguePlayerControllersByTargetInternalV1.get(plan.target) ===
+              plan.record &&
+            plan.record.bridgeRecord?.compositeRuntimeKernel === kernel
+          ) && frameRetirements.every((retirement) =>
+            narrativeTargetFrameRecordsInternalV1.get(retirement.target) ===
+              retirement.targetRecord
+          ) &&
+            narrativeStablePublisherBridgeRecordsByKernelInternalV1.get(kernel) === bridgeRecord &&
+            (bridgeRecord === null
+              ? expectedModeState === null
+              : bridgeRecord.currentModeState === expectedModeState);
+        },
+        commitLogicalInternalV1(
+          this: ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1,
+        ): void {
+          if (this !== prepared || state !== "prepared") {
+            throw new TypeError("ui.narrative_stable_dialogue_player_participant_invalid");
+          }
+          state = "committed";
+          if (
+            resetsMode && bridgeRecord !== null && expectedModeState !== null &&
+            successorModeState !== null &&
+            !compareAndSetNarrativePlaybackModeStateInternalV1(
+              bridgeRecord,
+              expectedModeState,
+              successorModeState,
+            )
+          ) {
+            throw new TypeError("ui.narrative_stable_dialogue_player_participant_invalid");
+          }
+          for (const retirement of frameRetirements) {
+            narrativeStableDialoguePlayerClockPortBindingsInternalV1.delete(
+              retirement.targetRecord.frame.candidateSnapshot.presentationClock,
+            );
+            narrativeStableDialoguePlayerProfilePortBindingsInternalV1.delete(
+              retirement.targetRecord.frame.candidateSnapshot.playerProfile,
+            );
+            narrativeStableDialoguePlayerTextResolverPortBindingsInternalV1.delete(
+              retirement.targetRecord.frame.candidateSnapshot.textResolver,
+            );
+          }
+          for (const plan of plans) {
+            const record = plan.record;
+            const nextPhase = plan.clockFault ? null : plan.nextPhase;
+            if (
+              !plan.clockFault && plan.previousPhase === "active" && nextPhase !== "active" &&
+              plan.preparedNow !== null && record.lastTickMs !== null &&
+              record.automaticRemainingMs !== null
+            ) {
+              record.automaticRemainingMs = Math.max(
+                0,
+                record.automaticRemainingMs - (plan.preparedNow - record.lastTickMs),
+              );
+            }
+            if (
+              !plan.clockFault && plan.previousPhase === "active" && nextPhase !== "active" &&
+              plan.preparedNow !== null && record.snapshot.kind === "say" &&
+              record.lastTickMs !== null && plan.preparedNow >= record.lastTickMs
+            ) {
+              const elapsed = plan.preparedNow - record.lastTickMs;
+              const total = BigInt(elapsed) * BigInt(record.policy.textRevealCharsPerSecond) +
+                BigInt(record.revealRemainder);
+              const advanced = Number(total / 1_000n);
+              record.revealRemainder = Number(total % 1_000n);
+              const nextCharacters = Math.min(
+                record.snapshot.revealLength,
+                record.snapshot.revealedCharacters + advanced,
+              );
+              record.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+                ...record.snapshot,
+                revealedCharacters: nextCharacters,
+                revealComplete: nextCharacters === record.snapshot.revealLength,
+              });
+              record.lastTickMs = plan.preparedNow;
+            }
+            if (nextPhase === "active" && plan.preparedNow !== null) {
+              record.lastTickMs = plan.preparedNow;
+              if (
+                record.snapshot.kind === "passive" && record.frame?.pending.kind === "pause" &&
+                record.automaticRemainingMs === null
+              ) {
+                record.automaticRemainingMs = record.frame.pending.durationMs;
+              } else if (record.snapshot.kind === "say") {
+                const mode = record.bridgeRecord?.currentModeState.mode;
+                if (mode === "skip" && record.automaticRemainingMs === null) {
+                  record.automaticRemainingMs = 40;
+                } else if (
+                  mode === "auto" && record.snapshot.revealComplete &&
+                  record.automaticRemainingMs === null
+                ) {
+                  record.automaticRemainingMs = record.policy.autoWaitMs;
+                }
+              }
+            }
+            plan.cancelled = record.cancelTick;
+            record.cancelTick = null;
+            if (nextPhase !== "active") {
+              retireNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(record);
+              plan.legacyToDispose = record.legacySayRevealController;
+              record.legacySayRevealController = null;
+              plan.pauseToDispose = record.pauseExpiryController;
+              record.pauseExpiryController = null;
+            }
+            record.phaseGeneration = freezeNarrativePhysicalActionDataInternalV1({});
+            plan.committedGeneration = record.phaseGeneration;
+            if (nextPhase === null) {
+              if (plan.clockFault) {
+                resetNarrativeStableDialoguePlayerModeInternalV1(record);
+              }
+              narrativeStableDialoguePlayerControllersByTargetInternalV1.delete(plan.target);
+              const frame = record.frame;
+              if (frame !== null) {
+                narrativeStableDialoguePlayerClockPortBindingsInternalV1.delete(
+                  frame.candidateSnapshot.presentationClock,
+                );
+                narrativeStableDialoguePlayerProfilePortBindingsInternalV1.delete(
+                  frame.candidateSnapshot.playerProfile,
+                );
+                narrativeStableDialoguePlayerTextResolverPortBindingsInternalV1.delete(
+                  frame.candidateSnapshot.textResolver,
+                );
+              }
+              record.active = false;
+              plan.rawUnsubscribeToCall = record.rawUnsubscribe;
+              record.rawUnsubscribe = null;
+              record.listeners.clear();
+              for (const holder of record.listenerHolders) {
+                holder.record = null;
+                holder.listener = null;
+              }
+              record.listenerHolders.clear();
+              record.bridge = null;
+              record.bridgeRecord = null;
+              record.target = null;
+              record.frame = null;
+              record.profileBinding = null;
+              record.clockBinding = null;
+              record.textBinding = null;
+              record.lastTickMs = null;
+              record.revealRemainder = 0;
+              record.automaticRemainingMs = null;
+              record.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+                kind: "passive" as const,
+                phase: "suspended" as const,
+                playbackMode: "normal" as const,
+                playerProfile: record.profile,
+              });
+              continue;
+            }
+            if (record.snapshot.kind === "say") {
+              record.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+                ...record.snapshot,
+                phase: nextPhase,
+                playbackMode: record.bridgeRecord?.currentModeState.mode ?? "normal",
+              });
+            } else {
+              record.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+                ...record.snapshot,
+                phase: nextPhase,
+              });
+            }
+          }
+        },
+        abortInternalV1(
+          this: ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1,
+        ): void {
+          if (this !== prepared || state !== "prepared") {
+            return;
+          }
+          state = "aborted";
+        },
+        completeInstalledInternalV1(
+          this: ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1,
+        ): void {
+          if (this !== prepared || state !== "committed") {
+            return;
+          }
+          state = "completed";
+          for (const plan of plans) {
+            const cancel = plan.cancelled;
+            plan.cancelled = null;
+            if (cancel !== null) {
+              try {
+                applyNarrativePhysicalActionInternalV1(cancel, undefined, []);
+              } catch {
+                // The logical generation already fences the retired tick.
+              }
+            }
+            const legacy = plan.legacyToDispose;
+            plan.legacyToDispose = null;
+            if (legacy !== null) {
+              try {
+                applyNarrativePhysicalActionInternalV1(legacy.disposeInternalV1, legacy, []);
+              } catch {
+                // Logical suspension already fenced the legacy admission.
+              }
+            }
+            const pause = plan.pauseToDispose;
+            plan.pauseToDispose = null;
+            if (pause !== null) {
+              try {
+                applyNarrativePhysicalActionInternalV1(
+                  pause.disposeInternalV1,
+                  pause,
+                  [],
+                );
+              } catch {
+                // Logical retirement already fenced Pause expiry.
+              }
+            }
+            const rawUnsubscribe = plan.rawUnsubscribeToCall;
+            plan.rawUnsubscribeToCall = null;
+            if (rawUnsubscribe !== null) {
+              try {
+                applyNarrativePhysicalActionInternalV1(rawUnsubscribe, undefined, []);
+              } catch {
+                // Logical retirement already fenced raw profile ingress.
+              }
+            }
+            const record = plan.record;
+            if (
+              !record.active || plan.committedGeneration === null ||
+              record.phaseGeneration !== plan.committedGeneration || record.target === null ||
+              narrativeStableDialoguePlayerControllersByTargetInternalV1.get(record.target) !==
+                record
+            ) {
+              continue;
+            }
+            if (record.snapshot.kind === "say" && record.snapshot.revealComplete) {
+              markNarrativeStableDialoguePlayerSeenInternalV1(record);
+            }
+            notifyNarrativeStableDialoguePlayerControllerInternalV1(record);
+            const nextPhase = plan.clockFault ? null : plan.nextPhase;
+            if (nextPhase === "active") {
+              ensureNarrativeStableDialoguePlayerLegacyControllerInternalV1(record);
+              ensureNarrativeStableDialoguePlayerPauseControllerInternalV1(record);
+              requestNarrativeStableDialoguePlayerTickInternalV1(
+                record,
+                record.phaseGeneration,
+              );
+            } else if (nextPhase === null) {
+              disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(record);
+            }
+          }
+        },
+      });
+      return prepared;
+    },
+  });
+  return participant;
 }
 
 function claimNarrativeStableHistoryChildFamilyAuthorityInternalV1(
@@ -2882,12 +3535,20 @@ function claimNarrativeStableHistoryChildFamilyAuthorityInternalV1(
       kernel,
       claimant,
     );
+  const stateInstallParticipant =
+    createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(kernel);
+  claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
+    kernel,
+    claimant,
+    stateInstallParticipant,
+  );
   const record = freezeNarrativePhysicalActionDataInternalV1({
     claimant,
     authority,
     readinessAuthority,
     actionAuthority,
     lifecycleAuthority,
+    stateInstallParticipant,
   });
   narrativeStableHistoryChildFamilyClaimsInternalV1.set(kernel, record);
   return authority;
@@ -5649,6 +6310,1387 @@ function matchesNarrativeBarrierActivationGateBindingInternalV1(
     current.isOpen === binding.isOpen;
 }
 
+function isFrozenNarrativePlayerProfileRecordInternalV1(
+  value: unknown,
+): value is DeepReadonly<PlayerProfileV1> {
+  if (
+    typeof value !== "object" || value === null || Array.isArray(value) ||
+    !Object.isFrozen(value)
+  ) return false;
+  const profile = captureOwnDataRecordInternalV1(value);
+  if (
+    profile === null || !capturedRecordHasExactKeysInternalV1(profile, [
+      "profileRevision",
+      "seen",
+      "meta",
+      "preferences",
+    ]) || profile.values.profileRevision !== 1
+  ) return false;
+  const validateRevisionRecord = (candidate: unknown): boolean => {
+    if (
+      typeof candidate !== "object" || candidate === null || Array.isArray(candidate) ||
+      !Object.isFrozen(candidate) || Reflect.getPrototypeOf(candidate) !== Object.prototype
+    ) return false;
+    for (const key of Reflect.ownKeys(candidate)) {
+      if (typeof key !== "string") return false;
+      const descriptor = Reflect.getOwnPropertyDescriptor(candidate, key);
+      if (
+        descriptor === undefined || !("value" in descriptor) ||
+        typeof descriptor.value !== "number" || !Number.isSafeInteger(descriptor.value) ||
+        descriptor.value < 1
+      ) return false;
+    }
+    return true;
+  };
+  if (
+    !validateRevisionRecord(profile.values.seen) ||
+    !validateRevisionRecord(profile.values.meta)
+  ) return false;
+  const preferencesValue = profile.values.preferences;
+  if (
+    typeof preferencesValue !== "object" || preferencesValue === null ||
+    Array.isArray(preferencesValue) || !Object.isFrozen(preferencesValue)
+  ) return false;
+  const preferences = captureOwnDataRecordInternalV1(preferencesValue);
+  if (
+    preferences === null || !capturedRecordHasExactKeysInternalV1(preferences, [
+      "textRevealCharsPerSecond",
+      "autoWaitMs",
+      "skipPolicy",
+      "skipCutscenes",
+      "masterGainPermille",
+      "bgmGainPermille",
+      "voiceGainPermille",
+      "sfxGainPermille",
+      "muted",
+      "locale",
+    ])
+  ) return false;
+  const fields = preferences.values;
+  const rate = fields.textRevealCharsPerSecond;
+  const wait = fields.autoWaitMs;
+  const gains = [
+    fields.masterGainPermille,
+    fields.bgmGainPermille,
+    fields.voiceGainPermille,
+    fields.sfxGainPermille,
+  ];
+  return typeof rate === "number" && Number.isSafeInteger(rate) && rate >= 0 &&
+    typeof wait === "number" && Number.isSafeInteger(wait) && wait >= 0 &&
+    (fields.skipPolicy === "skip_read" || fields.skipPolicy === "skip_all") &&
+    typeof fields.skipCutscenes === "boolean" &&
+    gains.every((gain) =>
+      typeof gain === "number" && Number.isSafeInteger(gain) && gain >= 0 && gain <= 1_000
+    ) &&
+    typeof fields.muted === "boolean" &&
+    (fields.locale === null ||
+      (typeof fields.locale === "string" && fields.locale.length > 0));
+}
+
+function captureNarrativeDialoguePlayerTargetPhaseInternalV1(
+  bridgeRecord: NarrativeStablePublisherBridgeRecordInternalV1,
+  target: ManagedSurfaceStableAdmittedTargetInternalV1,
+): "preparing" | "active" | "suspended" | null {
+  return captureNarrativeDialoguePlayerTargetPhaseFromStateInternalV1(
+    bridgeRecord.compositeRuntimeKernel.getStateInternalV1(),
+    target,
+  );
+}
+
+function captureNarrativeDialoguePlayerTargetPhaseFromStateInternalV1(
+  state: ManagedSurfaceStableCompositeStateInternalV1,
+  target: ManagedSurfaceStableAdmittedTargetInternalV1,
+): "preparing" | "active" | "suspended" | null {
+  const targetRecord = narrativeTargetFrameRecordsInternalV1.get(target);
+  if (
+    targetRecord === undefined ||
+    !state.stableAcceptedBaselines.some((baseline) =>
+      baseline.kind === "accepted" && baseline.sourceRevision === targetRecord.sourceRevision &&
+      baseline.targets.includes(target)
+    )
+  ) return null;
+  for (const entry of state.stableRuntimeBindings) {
+    const binding = entry.binding;
+    if (
+      binding.kind === "ready_instance" &&
+      binding.instance.attempt.desiredTarget.admittedTarget === target
+    ) return binding.instance.phase;
+    if (binding.kind === "preparing" && binding.attempt.desiredTarget.admittedTarget === target) {
+      return "preparing";
+    }
+  }
+  return null;
+}
+
+function collectNarrativeDialoguePlayerTargetsFromStateInternalV1(
+  state: ManagedSurfaceStableCompositeStateInternalV1,
+): readonly ManagedSurfaceStableAdmittedTargetInternalV1[] {
+  const targets: ManagedSurfaceStableAdmittedTargetInternalV1[] = [];
+  const add = (target: ManagedSurfaceStableAdmittedTargetInternalV1): void => {
+    if (!targets.includes(target)) targets.push(target);
+  };
+  for (const entry of state.stableRuntimeBindings) {
+    const binding = entry.binding;
+    if (binding.kind === "ready_instance") {
+      add(binding.instance.attempt.desiredTarget.admittedTarget);
+      continue;
+    }
+    if (binding.kind === "preparing") add(binding.attempt.desiredTarget.admittedTarget);
+    if (binding.retainedSubtree !== null) {
+      add(binding.retainedSubtree.root.attempt.desiredTarget.admittedTarget);
+      for (const descendant of binding.retainedSubtree.descendants) {
+        add(descendant.attempt.desiredTarget.admittedTarget);
+      }
+    }
+  }
+  return freezeNarrativePhysicalActionDataInternalV1(targets);
+}
+
+function notifyNarrativeStableDialoguePlayerControllerInternalV1(
+  record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+): void {
+  const listeners = freezeNarrativePhysicalActionDataInternalV1([...record.listeners]);
+  for (const listener of listeners) {
+    if (!record.active) break;
+    try {
+      applyNarrativePhysicalActionInternalV1(listener, undefined, []);
+    } catch {
+      // Dialogue player observers are isolated after the cached update.
+    }
+  }
+}
+
+function publishNarrativeStableDialoguePlayerModeInternalV1(
+  record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+  mode: NarrativeStablePlaybackModeInternalV1,
+): void {
+  if (
+    !record.active || record.snapshot.kind !== "say" ||
+    record.snapshot.playbackMode === mode
+  ) return;
+  record.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+    ...record.snapshot,
+    playbackMode: mode,
+  });
+  notifyNarrativeStableDialoguePlayerControllerInternalV1(record);
+}
+
+function retireNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(
+  record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+): void {
+  const attempt = record.currentAutomaticAttempt;
+  record.currentAutomaticAttempt = null;
+  if (attempt === null) return;
+  const attemptRecord = narrativeStableDialoguePlayerAutomaticAttemptRecordsInternalV1.get(
+    attempt,
+  );
+  if (attemptRecord !== undefined) attemptRecord.spent = true;
+}
+
+function captureExactCurrentNarrativeDialoguePlayerFrameInternalV1(
+  record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+  generation: object,
+): NarrativeStableAdmittedFrameInternalV1 | null {
+  const bridgeRecord = record.bridgeRecord;
+  const target = record.target;
+  const frame = record.frame;
+  if (
+    !record.active || record.phaseGeneration !== generation || bridgeRecord === null ||
+    target === null || frame === null || record.snapshot.phase !== "active" ||
+    narrativeStableDialoguePlayerControllersByTargetInternalV1.get(target) !== record
+  ) return null;
+  let current: NarrativeStableCurrentTargetProjectionInternalV1 | null;
+  try {
+    current = bridgeRecord.captureCurrentTargetInternalV1();
+  } catch {
+    return null;
+  }
+  return current?.target === target && current.frame === frame ? frame : null;
+}
+
+function issueNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(
+  record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+  kind: "player_auto" | "skip" | "mode_reset",
+): NarrativeStableDialoguePlayerAutomaticAttemptInternalV1 | null {
+  const bridgeRecord = record.bridgeRecord;
+  const target = record.target;
+  const frame = record.frame;
+  const generation = record.phaseGeneration;
+  if (
+    bridgeRecord === null || target === null || frame === null ||
+    captureExactCurrentNarrativeDialoguePlayerFrameInternalV1(record, generation) !== frame
+  ) return null;
+  const expectedModeState = bridgeRecord.currentModeState;
+  if (
+    (kind === "player_auto" && expectedModeState.mode !== "auto") ||
+    ((kind === "skip" || kind === "mode_reset") && expectedModeState.mode !== "skip")
+  ) return null;
+  retireNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(record);
+  const attempt = freezeNarrativePhysicalActionDataInternalV1(
+    {},
+  ) as NarrativeStableDialoguePlayerAutomaticAttemptInternalV1;
+  narrativeStableDialoguePlayerAutomaticAttemptRecordsInternalV1.set(attempt, {
+    kind,
+    controllerRecord: record,
+    generation,
+    target,
+    frame,
+    expectedModeState,
+    spent: false,
+  });
+  record.currentAutomaticAttempt = attempt;
+  return attempt;
+}
+
+function captureNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(
+  record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+  attempt: NarrativeStableDialoguePlayerAutomaticAttemptInternalV1,
+  kind: NarrativeStableDialoguePlayerAutomaticAttemptRecordInternalV1["kind"],
+): NarrativeStableDialoguePlayerAutomaticAttemptRecordInternalV1 | null {
+  const attemptRecord = narrativeStableDialoguePlayerAutomaticAttemptRecordsInternalV1.get(
+    attempt,
+  );
+  const bridgeRecord = record.bridgeRecord;
+  if (
+    attemptRecord === undefined || attemptRecord.kind !== kind || attemptRecord.spent ||
+    attemptRecord.controllerRecord !== record || record.currentAutomaticAttempt !== attempt ||
+    bridgeRecord === null || bridgeRecord.currentModeState !== attemptRecord.expectedModeState ||
+    captureExactCurrentNarrativeDialoguePlayerFrameInternalV1(
+        record,
+        attemptRecord.generation,
+      ) !== attemptRecord.frame
+  ) return null;
+  return attemptRecord;
+}
+
+function dispatchNarrativeStableDialoguePlayerAutomaticAdvanceInternalV1(
+  record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+  attempt: NarrativeStableSayPlayerAutoAttemptInternalV1 | NarrativeStableSaySkipAttemptInternalV1,
+  kind: "player_auto" | "skip",
+):
+  | NarrativeStableSayPlayerAutoDispatchResultInternalV1
+  | NarrativeStableSaySkipDispatchResultInternalV1 {
+  const attemptRecord = captureNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(
+    record,
+    attempt,
+    kind,
+  );
+  if (attemptRecord === null) {
+    if (record.currentAutomaticAttempt === attempt) {
+      retireNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(record);
+    }
+    return narrativeSayPlayerAutomaticStaleResultInternalV1;
+  }
+  const finalizeAttempt = (): void => {
+    attemptRecord.spent = true;
+    if (record.currentAutomaticAttempt === attempt) record.currentAutomaticAttempt = null;
+  };
+  if (record.snapshot.kind !== "say" || !record.snapshot.revealComplete) {
+    finalizeAttempt();
+    return kind === "player_auto"
+      ? narrativeSayPlayerAutoNotReadyResultInternalV1
+      : narrativeSayPlayerAutomaticStaleResultInternalV1;
+  }
+  const legacy = record.legacySayRevealController;
+  const legacyRecord = legacy === null
+    ? undefined
+    : narrativeStableSayRevealControllerRecordsInternalV1.get(legacy);
+  const bridgeRecord = record.bridgeRecord;
+  if (
+    legacyRecord === undefined || !legacyRecord.active || bridgeRecord === null ||
+    legacyRecord.bridgeRecord !== bridgeRecord || legacyRecord.callbackClaim !== null ||
+    bridgeRecord.sayCallbackClaim !== null || bridgeRecord.saySemanticInFlightClaim !== null ||
+    !legacyRecord.isCurrentInternalV1()
+  ) {
+    finalizeAttempt();
+    return narrativeSayPlayerAutomaticStaleResultInternalV1;
+  }
+  const captureExactCurrentFrame = (): NarrativeStableAdmittedFrameInternalV1 | null =>
+    captureExactCurrentNarrativeDialoguePlayerFrameInternalV1(
+      record,
+      attemptRecord.generation,
+    );
+  if (captureExactCurrentFrame() === null) {
+    finalizeAttempt();
+    return narrativeSayPlayerAutomaticStaleResultInternalV1;
+  }
+  const boundaryClaim = freezeNarrativePhysicalActionDataInternalV1({});
+  legacyRecord.callbackClaim = boundaryClaim;
+  bridgeRecord.sayCallbackClaim = boundaryClaim;
+  finalizeAttempt();
+  if (legacyRecord.currentActivationAttempt !== null) {
+    const manual = narrativeStablePhysicalActionAttemptRecordsInternalV1.get(
+      legacyRecord.currentActivationAttempt,
+    );
+    if (manual !== undefined) manual.spent = true;
+    legacyRecord.currentActivationAttempt = null;
+  }
+  if (legacyRecord.currentContentAutoAttempt !== null) {
+    const content = narrativeStableSayContentAutoAttemptRecordsInternalV1.get(
+      legacyRecord.currentContentAutoAttempt,
+    );
+    if (content !== undefined) content.spent = true;
+    legacyRecord.currentContentAutoAttempt = null;
+  }
+  const result = legacyRecord.dispatchAdvanceInternalV1(boundaryClaim, captureExactCurrentFrame);
+  if (result.kind === "dispatched") void result.completion.catch(() => {});
+  return result.kind === "dispatched"
+    ? result
+    : result.kind === "faulted"
+    ? narrativeSayPlayerAutomaticFaultedResultInternalV1
+    : narrativeSayPlayerAutomaticStaleResultInternalV1;
+}
+
+function dispatchNarrativeStableDialoguePlayerModeResetInternalV1(
+  record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+  attempt: NarrativeStablePlaybackModeResetAttemptInternalV1,
+): NarrativeStablePlaybackModeResetDispatchResultInternalV1 {
+  const attemptRecord = captureNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(
+    record,
+    attempt,
+    "mode_reset",
+  );
+  if (attemptRecord === null) {
+    if (record.currentAutomaticAttempt === attempt) {
+      retireNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(record);
+    }
+    return narrativePlaybackModeResetStaleResultInternalV1;
+  }
+  const bridgeRecord = record.bridgeRecord;
+  if (bridgeRecord === null) {
+    attemptRecord.spent = true;
+    record.currentAutomaticAttempt = null;
+    return narrativePlaybackModeResetStaleResultInternalV1;
+  }
+  const successorModeState = createNarrativePlaybackModeStateInternalV1("normal");
+  if (
+    !compareAndSetNarrativePlaybackModeStateInternalV1(
+      bridgeRecord,
+      attemptRecord.expectedModeState,
+      successorModeState,
+    )
+  ) {
+    attemptRecord.spent = true;
+    record.currentAutomaticAttempt = null;
+    return narrativePlaybackModeResetStaleResultInternalV1;
+  }
+  attemptRecord.spent = true;
+  record.currentAutomaticAttempt = null;
+  record.automaticRemainingMs = null;
+  publishNarrativeStableDialoguePlayerModeInternalV1(record, "normal");
+  return freezeNarrativePhysicalActionDataInternalV1({
+    kind: "reset" as const,
+    mode: "normal" as const,
+    completion: null,
+  });
+}
+
+function markNarrativeStableDialoguePlayerSeenInternalV1(
+  record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+): void {
+  if (
+    record.seenCommitted || record.snapshot.kind !== "say" || record.frame === null ||
+    record.profileBinding === null
+  ) return;
+  record.seenCommitted = true;
+  try {
+    applyNarrativePhysicalActionInternalV1(
+      record.profileBinding.markSeen,
+      record.profileBinding.receiver,
+      [record.frame.pending.definitionId, record.frame.pending.seenRevision],
+    );
+  } catch {
+    // Seen is logical-once even when the external profile writer fails.
+  }
+}
+
+function resetNarrativeStableDialoguePlayerModeInternalV1(
+  record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+): void {
+  const bridgeRecord = record.bridgeRecord;
+  if (bridgeRecord === null) return;
+  const currentMode = bridgeRecord.currentModeState;
+  if (currentMode.mode === "normal") return;
+  compareAndSetNarrativePlaybackModeStateInternalV1(
+    bridgeRecord,
+    currentMode,
+    createNarrativePlaybackModeStateInternalV1("normal"),
+  );
+}
+
+function faultNarrativeStableDialoguePlayerControllerInternalV1(
+  record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+): void {
+  if (!record.active) return;
+  record.phaseGeneration = freezeNarrativePhysicalActionDataInternalV1({});
+  const cancel = record.cancelTick;
+  record.cancelTick = null;
+  resetNarrativeStableDialoguePlayerModeInternalV1(record);
+  disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(record);
+  if (cancel !== null) {
+    try {
+      applyNarrativePhysicalActionInternalV1(cancel, undefined, []);
+    } catch {
+      // The logical controller fence wins over hostile clock cleanup.
+    }
+  }
+}
+
+function isNarrativeDialogueClockTimestampInternalV1(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function shouldScheduleNarrativeStableDialoguePlayerTickInternalV1(
+  record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+): boolean {
+  if (
+    !record.active || record.snapshot.phase !== "active" ||
+    record.clockBinding === null || record.bridgeRecord === null || record.frame === null
+  ) return false;
+  if (record.snapshot.kind === "passive") {
+    return record.frame.pending.kind === "pause" && record.automaticRemainingMs !== null;
+  }
+  if (!record.snapshot.revealComplete) return true;
+  if (record.bridgeRecord.currentModeState.mode === "auto") return true;
+  if (record.bridgeRecord.currentModeState.mode === "skip") return true;
+  return record.frame.pending.kind === "say" && record.frame.pending.advancePolicy === "auto";
+}
+
+function dispatchNarrativeStableDialoguePlayerContentAutoInternalV1(
+  record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+): NarrativeStableSayContentAutoDispatchResultInternalV1 | null {
+  const legacy = record.legacySayRevealController;
+  if (legacy === null) return null;
+  let attempt: NarrativeStableSayContentAutoAttemptInternalV1 | null;
+  try {
+    attempt = applyNarrativePhysicalActionInternalV1(
+      legacy.issueContentAutoAttemptInternalV1,
+      legacy,
+      [],
+    ) as NarrativeStableSayContentAutoAttemptInternalV1 | null;
+  } catch {
+    return narrativePhysicalActionFaultedResultInternalV1;
+  }
+  if (attempt === null) return null;
+  try {
+    const result = applyNarrativePhysicalActionInternalV1(
+      legacy.dispatchContentAutoInternalV1,
+      legacy,
+      [attempt],
+    ) as NarrativeStableSayContentAutoDispatchResultInternalV1;
+    if (result.kind === "dispatched") void result.completion.catch(() => {});
+    return result;
+  } catch {
+    return narrativePhysicalActionFaultedResultInternalV1;
+  }
+}
+
+function processNarrativeStableDialoguePlayerSkipTickInternalV1(
+  record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+  generation: object,
+): void {
+  const bridgeRecord = record.bridgeRecord;
+  const binding = record.profileBinding;
+  const frame = record.frame;
+  if (
+    bridgeRecord === null || binding === null || frame === null || frame.pending.kind !== "say" ||
+    record.snapshot.kind !== "say" ||
+    bridgeRecord.currentModeState.mode !== "skip" ||
+    captureExactCurrentNarrativeDialoguePlayerFrameInternalV1(record, generation) !== frame
+  ) return;
+  const expectedModeState = bridgeRecord.currentModeState;
+  let profile: unknown;
+  let profileFault = false;
+  try {
+    profile = applyNarrativePhysicalActionInternalV1(binding.getSnapshot, binding.receiver, []);
+  } catch {
+    profile = null;
+    profileFault = true;
+  }
+  if (
+    !record.active || record.phaseGeneration !== generation || record.profileBinding !== binding ||
+    record.bridgeRecord !== bridgeRecord || bridgeRecord.currentModeState !== expectedModeState ||
+    captureExactCurrentNarrativeDialoguePlayerFrameInternalV1(record, generation) !== frame
+  ) return;
+  if (profileFault || !isFrozenNarrativePlayerProfileRecordInternalV1(profile)) {
+    faultNarrativeStableDialoguePlayerControllerInternalV1(record);
+    return;
+  }
+  const seenRevision = profile.seen[frame.pending.definitionId];
+  const seen = seenRevision !== undefined && seenRevision >= frame.pending.seenRevision;
+  if (!seen && record.policy.skipPolicy === "skip_read") {
+    const attempt = issueNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(
+      record,
+      "mode_reset",
+    ) as NarrativeStablePlaybackModeResetAttemptInternalV1 | null;
+    if (attempt !== null) dispatchNarrativeStableDialoguePlayerModeResetInternalV1(record, attempt);
+    return;
+  }
+  if (profile !== record.profile) {
+    record.profile = profile;
+  }
+  record.revealRemainder = 0;
+  record.automaticRemainingMs = null;
+  const revealLength = record.snapshot.revealLength;
+  record.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+    ...record.snapshot,
+    playerProfile: profile,
+    revealedCharacters: revealLength,
+    revealComplete: true,
+  });
+  if (!seen && record.policy.skipPolicy === "skip_all") {
+    markNarrativeStableDialoguePlayerSeenInternalV1(record);
+  } else if (seen) {
+    record.seenCommitted = true;
+  }
+  notifyNarrativeStableDialoguePlayerControllerInternalV1(record);
+  const attempt = issueNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(
+    record,
+    "skip",
+  ) as NarrativeStableSaySkipAttemptInternalV1 | null;
+  if (attempt !== null) {
+    dispatchNarrativeStableDialoguePlayerAutomaticAdvanceInternalV1(record, attempt, "skip");
+  }
+}
+
+function requestNarrativeStableDialoguePlayerTickInternalV1(
+  record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+  generation: object,
+): void {
+  if (
+    !record.active || record.phaseGeneration !== generation || record.cancelTick !== null ||
+    !shouldScheduleNarrativeStableDialoguePlayerTickInternalV1(record)
+  ) return;
+  const binding = record.clockBinding;
+  if (binding === null) return;
+  let requestReturned = false;
+  let callbackEnteredSynchronously = false;
+  let callbackConsumed = false;
+  const callback = (nowValue: number): void => {
+    if (!requestReturned) {
+      callbackEnteredSynchronously = true;
+      callbackConsumed = true;
+      return;
+    }
+    if (callbackConsumed) {
+      if (
+        record.active && record.phaseGeneration === generation &&
+        record.snapshot.phase === "active"
+      ) {
+        faultNarrativeStableDialoguePlayerControllerInternalV1(record);
+      }
+      return;
+    }
+    callbackConsumed = true;
+    if (
+      !record.active || record.phaseGeneration !== generation ||
+      record.snapshot.phase !== "active"
+    ) return;
+    record.cancelTick = null;
+    if (
+      !isNarrativeDialogueClockTimestampInternalV1(nowValue) ||
+      record.lastTickMs === null || nowValue < record.lastTickMs
+    ) {
+      faultNarrativeStableDialoguePlayerControllerInternalV1(record);
+      return;
+    }
+    const elapsed = nowValue - record.lastTickMs;
+    record.lastTickMs = nowValue;
+    const bridgeRecord = record.bridgeRecord;
+    if (bridgeRecord === null) return;
+    if (record.snapshot.kind === "passive") {
+      if (
+        record.frame?.pending.kind !== "pause" || record.automaticRemainingMs === null ||
+        record.pauseExpiryController === null
+      ) return;
+      record.automaticRemainingMs = Math.max(0, record.automaticRemainingMs - elapsed);
+      if (record.automaticRemainingMs > 0) {
+        requestNarrativeStableDialoguePlayerTickInternalV1(record, generation);
+        return;
+      }
+      const pauseController = record.pauseExpiryController;
+      let attempt: NarrativeStablePauseExpiryControllerAttemptInternalV1 | null = null;
+      try {
+        attempt = applyNarrativePhysicalActionInternalV1(
+          pauseController.issueAttemptInternalV1,
+          pauseController,
+          [],
+        ) as NarrativeStablePauseExpiryControllerAttemptInternalV1 | null;
+        if (attempt !== null) {
+          const result = applyNarrativePhysicalActionInternalV1(
+            pauseController.dispatchInternalV1,
+            pauseController,
+            [attempt],
+          ) as NarrativeStablePauseExpiryDispatchResultInternalV1;
+          if (result.kind === "dispatched") void result.completion.catch(() => {});
+        }
+      } catch {
+        faultNarrativeStableDialoguePlayerControllerInternalV1(record);
+      }
+      return;
+    }
+    if (bridgeRecord.currentModeState.mode === "skip") {
+      const remaining = record.automaticRemainingMs ?? 40;
+      record.automaticRemainingMs = Math.max(0, remaining - elapsed);
+      if (record.automaticRemainingMs > 0) {
+        requestNarrativeStableDialoguePlayerTickInternalV1(record, generation);
+        return;
+      }
+      record.automaticRemainingMs = null;
+      processNarrativeStableDialoguePlayerSkipTickInternalV1(record, generation);
+      return;
+    }
+    const wasComplete = record.snapshot.revealComplete;
+    let nextCharacters = record.snapshot.revealedCharacters;
+    if (!wasComplete) {
+      const total = BigInt(elapsed) * BigInt(record.policy.textRevealCharsPerSecond) +
+        BigInt(record.revealRemainder);
+      const advanced = Number(total / 1_000n);
+      record.revealRemainder = Number(total % 1_000n);
+      nextCharacters = Math.min(
+        record.snapshot.revealLength,
+        record.snapshot.revealedCharacters + advanced,
+      );
+    }
+    const complete = nextCharacters === record.snapshot.revealLength;
+    if (nextCharacters !== record.snapshot.revealedCharacters || (!wasComplete && complete)) {
+      record.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+        ...record.snapshot,
+        revealedCharacters: nextCharacters,
+        revealComplete: complete,
+      });
+      if (complete) markNarrativeStableDialoguePlayerSeenInternalV1(record);
+      notifyNarrativeStableDialoguePlayerControllerInternalV1(record);
+    }
+    if (!record.active || record.phaseGeneration !== generation) return;
+    if (complete && record.frame?.pending.kind === "say" && !wasComplete) {
+      if (record.frame.pending.advancePolicy === "auto") {
+        const contentResult = dispatchNarrativeStableDialoguePlayerContentAutoInternalV1(record);
+        if (contentResult !== null && contentResult.kind !== "not_ready") return;
+        if (
+          record.bridgeRecord?.sayCallbackClaim !== null ||
+          record.bridgeRecord?.saySemanticInFlightClaim !== null
+        ) return;
+      }
+      if (record.bridgeRecord?.currentModeState.mode === "auto") {
+        record.automaticRemainingMs = record.policy.autoWaitMs;
+      }
+    }
+    if (
+      complete && record.frame?.pending.kind === "say" &&
+      record.frame.pending.advancePolicy === "auto" && wasComplete
+    ) {
+      const contentResult = dispatchNarrativeStableDialoguePlayerContentAutoInternalV1(record);
+      if (contentResult !== null && contentResult.kind !== "not_ready") return;
+      if (
+        record.bridgeRecord?.sayCallbackClaim !== null ||
+        record.bridgeRecord?.saySemanticInFlightClaim !== null
+      ) return;
+    }
+    if (complete && record.bridgeRecord?.currentModeState.mode === "auto") {
+      if (record.automaticRemainingMs === null) {
+        record.automaticRemainingMs = record.policy.autoWaitMs;
+      } else if (wasComplete) {
+        record.automaticRemainingMs = Math.max(0, record.automaticRemainingMs - elapsed);
+      }
+      if (record.automaticRemainingMs === 0) {
+        const attempt = issueNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(
+          record,
+          "player_auto",
+        ) as NarrativeStableSayPlayerAutoAttemptInternalV1 | null;
+        if (attempt !== null) {
+          dispatchNarrativeStableDialoguePlayerAutomaticAdvanceInternalV1(
+            record,
+            attempt,
+            "player_auto",
+          );
+        }
+        return;
+      }
+    }
+    requestNarrativeStableDialoguePlayerTickInternalV1(record, generation);
+  };
+  let cancel: unknown;
+  try {
+    cancel = applyNarrativePhysicalActionInternalV1(
+      binding.requestTick,
+      binding.receiver,
+      [callback],
+    );
+  } catch {
+    faultNarrativeStableDialoguePlayerControllerInternalV1(record);
+    return;
+  }
+  requestReturned = true;
+  if (typeof cancel !== "function") {
+    faultNarrativeStableDialoguePlayerControllerInternalV1(record);
+    return;
+  }
+  if (callbackEnteredSynchronously) {
+    try {
+      applyNarrativePhysicalActionInternalV1(cancel, undefined, []);
+    } catch {
+      // The synchronous callback is already classified as a current fault.
+    }
+    faultNarrativeStableDialoguePlayerControllerInternalV1(record);
+    return;
+  }
+  if (
+    !record.active || record.phaseGeneration !== generation ||
+    record.snapshot.phase !== "active" ||
+    !shouldScheduleNarrativeStableDialoguePlayerTickInternalV1(record)
+  ) {
+    try {
+      applyNarrativePhysicalActionInternalV1(cancel, undefined, []);
+    } catch {
+      // A synchronously consumed or stale tick stays fenced.
+    }
+    return;
+  }
+  record.cancelTick = cancel as () => void;
+}
+
+function revealAllNarrativeStableDialoguePlayerInternalV1(
+  record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+): void {
+  if (
+    !record.active || record.snapshot.kind !== "say" || record.snapshot.phase !== "active" ||
+    record.snapshot.revealComplete
+  ) return;
+  const clockBinding = record.clockBinding;
+  const frame = record.frame;
+  const previousGeneration = record.phaseGeneration;
+  let nowValue: unknown;
+  let clockFault = false;
+  if (clockBinding === null || frame === null) {
+    faultNarrativeStableDialoguePlayerControllerInternalV1(record);
+    return;
+  }
+  try {
+    nowValue = applyNarrativePhysicalActionInternalV1(
+      clockBinding.now,
+      clockBinding.receiver,
+      [],
+    );
+  } catch {
+    nowValue = null;
+    clockFault = true;
+  }
+  if (
+    record.clockBinding !== clockBinding ||
+    captureExactCurrentNarrativeDialoguePlayerFrameInternalV1(
+        record,
+        previousGeneration,
+      ) !== frame
+  ) return;
+  if (
+    clockFault || !isNarrativeDialogueClockTimestampInternalV1(nowValue) ||
+    (record.lastTickMs !== null && nowValue < record.lastTickMs)
+  ) {
+    faultNarrativeStableDialoguePlayerControllerInternalV1(record);
+    return;
+  }
+  const cancel = record.cancelTick;
+  record.cancelTick = null;
+  record.phaseGeneration = freezeNarrativePhysicalActionDataInternalV1({});
+  const generation = record.phaseGeneration;
+  record.lastTickMs = nowValue;
+  record.revealRemainder = 0;
+  record.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+    ...record.snapshot,
+    revealedCharacters: record.snapshot.revealLength,
+    revealComplete: true,
+  });
+  markNarrativeStableDialoguePlayerSeenInternalV1(record);
+  notifyNarrativeStableDialoguePlayerControllerInternalV1(record);
+  if (cancel !== null) {
+    try {
+      applyNarrativePhysicalActionInternalV1(cancel, undefined, []);
+    } catch {
+      // Manual logical reveal remains committed when clock cleanup is hostile.
+    }
+  }
+  if (
+    record.active && record.phaseGeneration === generation && record.frame !== null &&
+    captureExactCurrentNarrativeDialoguePlayerFrameInternalV1(record, generation) === record.frame
+  ) {
+    const mode = record.bridgeRecord?.currentModeState.mode;
+    record.automaticRemainingMs = mode === "skip"
+      ? 40
+      : mode === "auto"
+      ? record.policy.autoWaitMs
+      : null;
+    requestNarrativeStableDialoguePlayerTickInternalV1(record, generation);
+  }
+}
+
+function ensureNarrativeStableDialoguePlayerLegacyControllerInternalV1(
+  record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+): void {
+  if (
+    !record.active || record.legacySayRevealController !== null || record.bridge === null ||
+    record.snapshot.kind !== "say" || record.snapshot.phase !== "active"
+  ) return;
+  const revealGenerationPort = freezeNarrativePhysicalActionDataInternalV1({
+    capturePhaseInternalV1: () =>
+      record.active && record.snapshot.kind === "say" && record.snapshot.revealComplete
+        ? "complete" as const
+        : "incomplete" as const,
+    revealAllInternalV1: () => revealAllNarrativeStableDialoguePlayerInternalV1(record),
+  });
+  try {
+    record.legacySayRevealController = createNarrativeStableSayRevealControllerInternalV1({
+      bridge: record.bridge,
+      revealGenerationPort,
+    });
+  } catch {
+    faultNarrativeStableDialoguePlayerControllerInternalV1(record);
+  }
+}
+
+function ensureNarrativeStableDialoguePlayerPauseControllerInternalV1(
+  record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+): void {
+  if (
+    !record.active || record.pauseExpiryController !== null || record.bridge === null ||
+    record.snapshot.phase !== "active" || record.frame?.pending.kind !== "pause"
+  ) return;
+  try {
+    record.pauseExpiryController = createNarrativeStablePauseExpiryControllerInternalV1(
+      record.bridge,
+    );
+  } catch {
+    faultNarrativeStableDialoguePlayerControllerInternalV1(record);
+  }
+}
+
+function publishNarrativeDialoguePlayerProfileInternalV1(
+  holder: { record: NarrativeStableDialoguePlayerControllerRecordInternalV1 | null },
+): void {
+  const record = holder.record;
+  if (!record?.active || record.profileBinding === null) return;
+  const binding = record.profileBinding;
+  const generation = record.phaseGeneration;
+  const bridgeRecord = record.bridgeRecord;
+  const target = record.target;
+  const frame = record.frame;
+  const phase = record.snapshot.phase;
+  if (bridgeRecord === null || target === null || frame === null) return;
+  let nextProfile: unknown;
+  let profileFault = false;
+  try {
+    nextProfile = applyNarrativePhysicalActionInternalV1(
+      binding.getSnapshot,
+      binding.receiver,
+      [],
+    );
+  } catch {
+    nextProfile = null;
+    profileFault = true;
+  }
+  if (
+    holder.record !== record || !record.active || record.profileBinding !== binding ||
+    record.phaseGeneration !== generation || record.bridgeRecord !== bridgeRecord ||
+    record.target !== target || record.frame !== frame ||
+    narrativeStableDialoguePlayerControllersByTargetInternalV1.get(target) !== record ||
+    captureNarrativeDialoguePlayerTargetPhaseInternalV1(bridgeRecord, target) !== phase
+  ) return;
+  if (profileFault || !isFrozenNarrativePlayerProfileRecordInternalV1(nextProfile)) {
+    faultNarrativeStableDialoguePlayerControllerInternalV1(record);
+    return;
+  }
+  if (nextProfile === record.profile) return;
+  record.profile = nextProfile;
+  const previous = record.snapshot;
+  record.snapshot = previous.kind === "say"
+    ? freezeNarrativePhysicalActionDataInternalV1({ ...previous, playerProfile: nextProfile })
+    : freezeNarrativePhysicalActionDataInternalV1({ ...previous, playerProfile: nextProfile });
+  notifyNarrativeStableDialoguePlayerControllerInternalV1(record);
+}
+
+function disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(
+  record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
+): void {
+  if (!record.active) return;
+  retireNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(record);
+  record.active = false;
+  record.phaseGeneration = freezeNarrativePhysicalActionDataInternalV1({});
+  const cancelTick = record.cancelTick;
+  record.cancelTick = null;
+  record.automaticRemainingMs = null;
+  const legacySayRevealController = record.legacySayRevealController;
+  record.legacySayRevealController = null;
+  const pauseExpiryController = record.pauseExpiryController;
+  record.pauseExpiryController = null;
+  const target = record.target;
+  const frame = record.frame;
+  if (
+    target !== null &&
+    narrativeStableDialoguePlayerControllersByTargetInternalV1.get(target) === record
+  ) narrativeStableDialoguePlayerControllersByTargetInternalV1.delete(target);
+  if (frame !== null) {
+    narrativeStableDialoguePlayerClockPortBindingsInternalV1.delete(
+      frame.candidateSnapshot.presentationClock,
+    );
+    narrativeStableDialoguePlayerProfilePortBindingsInternalV1.delete(
+      frame.candidateSnapshot.playerProfile,
+    );
+    narrativeStableDialoguePlayerTextResolverPortBindingsInternalV1.delete(
+      frame.candidateSnapshot.textResolver,
+    );
+  }
+  const profile = record.profile;
+  record.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+    kind: "passive" as const,
+    phase: "suspended" as const,
+    playbackMode: "normal" as const,
+    playerProfile: profile,
+  });
+  record.listeners.clear();
+  for (const holder of record.listenerHolders) {
+    holder.record = null;
+    holder.listener = null;
+  }
+  record.listenerHolders.clear();
+  const unsubscribe = record.rawUnsubscribe;
+  record.rawUnsubscribe = null;
+  record.bridgeRecord = null;
+  record.bridge = null;
+  record.target = null;
+  record.frame = null;
+  record.profileBinding = null;
+  record.clockBinding = null;
+  record.textBinding = null;
+  if (unsubscribe !== null) {
+    try {
+      applyNarrativePhysicalActionInternalV1(unsubscribe, undefined, []);
+    } catch {
+      // Logical retirement remains complete when raw cleanup is hostile.
+    }
+  }
+  if (cancelTick !== null) {
+    try {
+      applyNarrativePhysicalActionInternalV1(cancelTick, undefined, []);
+    } catch {
+      // Logical retirement remains complete when clock cleanup is hostile.
+    }
+  }
+  if (legacySayRevealController !== null) {
+    try {
+      applyNarrativePhysicalActionInternalV1(
+        legacySayRevealController.disposeInternalV1,
+        legacySayRevealController,
+        [],
+      );
+    } catch {
+      // Logical retirement remains complete when legacy cleanup is hostile.
+    }
+  }
+  if (pauseExpiryController !== null) {
+    try {
+      applyNarrativePhysicalActionInternalV1(
+        pauseExpiryController.disposeInternalV1,
+        pauseExpiryController,
+        [],
+      );
+    } catch {
+      // Logical retirement remains complete when Pause cleanup is hostile.
+    }
+  }
+}
+
+export function createNarrativeStableDialoguePlayerControllerInternalV1(
+  input: CreateNarrativeStableDialoguePlayerControllerInputInternalV1,
+): NarrativeStableDialoguePlayerControllerInternalV1 {
+  let captured: CapturedOwnDataRecordInternalV1 | null;
+  try {
+    captured = captureOwnDataRecordInternalV1(input);
+  } catch {
+    captured = null;
+  }
+  if (
+    captured === null || !capturedRecordHasExactKeysInternalV1(captured, [
+      "bridge",
+      "target",
+      "frame",
+    ])
+  ) throw new TypeError("ui.narrative_stable_dialogue_player_controller_invalid");
+  const bridge = captured.values.bridge as NarrativeStablePublisherBridgeInternalV1;
+  const target = captured.values.target as ManagedSurfaceStableAdmittedTargetInternalV1;
+  const frame = captured.values.frame as NarrativeStableAdmittedFrameInternalV1;
+  const bridgeRecord = (typeof bridge === "object" || typeof bridge === "function") &&
+      bridge !== null
+    ? narrativeStablePublisherBridgeRecordsInternalV1.get(bridge)
+    : undefined;
+  const targetRecord = (typeof target === "object" || typeof target === "function") &&
+      target !== null
+    ? narrativeTargetFrameRecordsInternalV1.get(target)
+    : undefined;
+  let current: NarrativeStableCurrentTargetProjectionInternalV1 | null = null;
+  try {
+    current = bridgeRecord?.captureCurrentTargetInternalV1() ?? null;
+  } catch {
+    current = null;
+  }
+  if (
+    bridgeRecord === undefined || !bridgeRecord.active || targetRecord === undefined ||
+    targetRecord.bridgeIdentity !== bridgeRecord.bridgeIdentity || targetRecord.frame !== frame ||
+    current?.target !== target || current.frame !== frame
+  ) throw new TypeError("ui.narrative_stable_dialogue_player_controller_invalid");
+  const expectedKernelState = bridgeRecord.compositeRuntimeKernel.getStateInternalV1();
+  const phase = captureNarrativeDialoguePlayerTargetPhaseInternalV1(bridgeRecord, target);
+  if (phase === null) {
+    throw new TypeError("ui.narrative_stable_dialogue_player_controller_invalid");
+  }
+  if (narrativeStableDialoguePlayerControllerClaimsByTargetInternalV1.has(target)) {
+    throw new TypeError("ui.narrative_stable_dialogue_player_controller_invalid");
+  }
+  const existing = narrativeStableDialoguePlayerControllersByTargetInternalV1.get(target);
+  if (
+    existing?.active && existing.target === target && existing.frame === frame &&
+    existing.controller !== null
+  ) return existing.controller;
+  const factoryClaim = freezeNarrativePhysicalActionDataInternalV1({});
+  narrativeStableDialoguePlayerControllerClaimsByTargetInternalV1.set(target, factoryClaim);
+  const failClaim = (): never => {
+    if (
+      narrativeStableDialoguePlayerControllerClaimsByTargetInternalV1.get(target) === factoryClaim
+    ) narrativeStableDialoguePlayerControllerClaimsByTargetInternalV1.delete(target);
+    throw new TypeError("ui.narrative_stable_dialogue_player_controller_invalid");
+  };
+  const isExactFactoryCurrent = (): boolean => {
+    let projected: NarrativeStableCurrentTargetProjectionInternalV1 | null = null;
+    try {
+      projected = bridgeRecord.captureCurrentTargetInternalV1();
+    } catch {
+      return false;
+    }
+    return bridgeRecord.active && projected?.target === target && projected.frame === frame &&
+      narrativeTargetFrameRecordsInternalV1.get(target) === targetRecord &&
+      bridgeRecord.compositeRuntimeKernel.getStateInternalV1() === expectedKernelState &&
+      captureNarrativeDialoguePlayerTargetPhaseInternalV1(bridgeRecord, target) === phase &&
+      narrativeStableDialoguePlayerControllerClaimsByTargetInternalV1.get(target) === factoryClaim;
+  };
+  const profileBinding = narrativeStableDialoguePlayerProfilePortBindingsInternalV1.get(
+    frame.candidateSnapshot.playerProfile,
+  );
+  const clockBinding = narrativeStableDialoguePlayerClockPortBindingsInternalV1.get(
+    frame.candidateSnapshot.presentationClock,
+  );
+  const textBinding = narrativeStableDialoguePlayerTextResolverPortBindingsInternalV1.get(
+    frame.candidateSnapshot.textResolver,
+  );
+  if (profileBinding === undefined || clockBinding === undefined || textBinding === undefined) {
+    return failClaim();
+  }
+  let profile: unknown;
+  let reducedMotion: unknown;
+  let resolvedSpeakerText: string | null = null;
+  let resolvedText = "";
+  try {
+    profile = applyNarrativePhysicalActionInternalV1(
+      profileBinding.getSnapshot,
+      profileBinding.receiver,
+      [],
+    );
+  } catch {
+    return failClaim();
+  }
+  if (!isExactFactoryCurrent() || !isFrozenNarrativePlayerProfileRecordInternalV1(profile)) {
+    return failClaim();
+  }
+  try {
+    reducedMotion = applyNarrativePhysicalActionInternalV1(
+      clockBinding.prefersReducedMotion,
+      clockBinding.receiver,
+      [],
+    );
+  } catch {
+    return failClaim();
+  }
+  if (!isExactFactoryCurrent() || typeof reducedMotion !== "boolean") return failClaim();
+  if (frame.pending.kind === "say") {
+    if (frame.pending.speakerTextId !== null) {
+      try {
+        resolvedSpeakerText = applyNarrativePhysicalActionInternalV1(
+          textBinding.resolveText,
+          textBinding.receiver,
+          [frame.pending.speakerTextId],
+        );
+      } catch {
+        return failClaim();
+      }
+      if (!isExactFactoryCurrent() || typeof resolvedSpeakerText !== "string") {
+        return failClaim();
+      }
+    }
+    try {
+      resolvedText = applyNarrativePhysicalActionInternalV1(
+        textBinding.resolveText,
+        textBinding.receiver,
+        [frame.pending.textId],
+      );
+    } catch {
+      return failClaim();
+    }
+    if (!isExactFactoryCurrent() || typeof resolvedText !== "string") return failClaim();
+  }
+  const preferences = profile.preferences;
+  const instant = reducedMotion || preferences.textRevealCharsPerSecond === 0;
+  const snapshot: NarrativeStableDialoguePlayerSnapshotInternalV1 = frame.pending.kind === "say"
+    ? freezeNarrativePhysicalActionDataInternalV1({
+      kind: "say" as const,
+      phase,
+      playbackMode: bridgeRecord.currentModeState.mode,
+      playerProfile: profile,
+      resolvedSpeakerText,
+      resolvedText,
+      revealedCharacters: instant ? resolvedText.length : 0,
+      revealLength: resolvedText.length,
+      revealComplete: instant,
+    })
+    : freezeNarrativePhysicalActionDataInternalV1({
+      kind: "passive" as const,
+      phase,
+      playbackMode: "normal" as const,
+      playerProfile: profile,
+    });
+  let controller!: NarrativeStableDialoguePlayerControllerInternalV1;
+  let record!: NarrativeStableDialoguePlayerControllerRecordInternalV1;
+  controller = freezeNarrativePhysicalActionDataInternalV1({
+    getSnapshotInternalV1(
+      this: NarrativeStableDialoguePlayerControllerInternalV1,
+    ): NarrativeStableDialoguePlayerSnapshotInternalV1 {
+      const currentRecord = this === controller
+        ? narrativeStableDialoguePlayerControllerRecordsInternalV1.get(controller)
+        : undefined;
+      if (currentRecord !== record) {
+        throw new TypeError("ui.narrative_stable_dialogue_player_controller_invalid");
+      }
+      return currentRecord.snapshot;
+    },
+    subscribeInternalV1(
+      this: NarrativeStableDialoguePlayerControllerInternalV1,
+      listener: () => void,
+    ): () => void {
+      const currentRecord = this === controller
+        ? narrativeStableDialoguePlayerControllerRecordsInternalV1.get(controller)
+        : undefined;
+      if (currentRecord !== record || typeof listener !== "function") {
+        throw new TypeError("ui.narrative_stable_dialogue_player_controller_invalid");
+      }
+      if (!currentRecord.active) return narrativeStableDialoguePlayerLateUnsubscribeInternalV1;
+      const holder: {
+        record: NarrativeStableDialoguePlayerControllerRecordInternalV1 | null;
+        listener: (() => void) | null;
+      } = { record: currentRecord, listener };
+      currentRecord.listeners.add(listener);
+      currentRecord.listenerHolders.add(holder);
+      return freezeNarrativePhysicalActionDataInternalV1(() => {
+        const ownedRecord = holder.record;
+        const ownedListener = holder.listener;
+        holder.record = null;
+        holder.listener = null;
+        if (ownedRecord === null || ownedListener === null) return;
+        ownedRecord.listeners.delete(ownedListener);
+        ownedRecord.listenerHolders.delete(holder);
+      });
+    },
+    disposeInternalV1(this: NarrativeStableDialoguePlayerControllerInternalV1): void {
+      const currentRecord = this === controller
+        ? narrativeStableDialoguePlayerControllerRecordsInternalV1.get(controller)
+        : undefined;
+      if (currentRecord !== record) return;
+      disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(currentRecord);
+    },
+  });
+  record = {
+    controller,
+    bridge,
+    bridgeRecord,
+    target,
+    frame,
+    profileBinding,
+    clockBinding,
+    textBinding,
+    profile,
+    policy: freezeNarrativePhysicalActionDataInternalV1({
+      textRevealCharsPerSecond: preferences.textRevealCharsPerSecond,
+      autoWaitMs: preferences.autoWaitMs,
+      skipPolicy: preferences.skipPolicy,
+      reducedMotion,
+    }),
+    snapshot,
+    phaseGeneration: freezeNarrativePhysicalActionDataInternalV1({}),
+    cancelTick: null,
+    lastTickMs: null,
+    revealRemainder: 0,
+    automaticRemainingMs: null,
+    currentAutomaticAttempt: null,
+    seenCommitted: false,
+    legacySayRevealController: null,
+    pauseExpiryController: null,
+    active: true,
+    rawUnsubscribe: null,
+    listeners: new Set(),
+    listenerHolders: new Set(),
+  };
+  narrativeStableDialoguePlayerControllerRecordsInternalV1.set(controller, record);
+  narrativeStableDialoguePlayerControllersByTargetInternalV1.set(target, record);
+  const rawListenerHolder: {
+    record: NarrativeStableDialoguePlayerControllerRecordInternalV1 | null;
+  } = { record };
+  let rawUnsubscribe: unknown;
+  try {
+    rawUnsubscribe = applyNarrativePhysicalActionInternalV1(
+      profileBinding.subscribe,
+      profileBinding.receiver,
+      [() => publishNarrativeDialoguePlayerProfileInternalV1(rawListenerHolder)],
+    );
+  } catch {
+    disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(record);
+    rawListenerHolder.record = null;
+    return failClaim();
+  }
+  if (typeof rawUnsubscribe !== "function") {
+    disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(record);
+    rawListenerHolder.record = null;
+    return failClaim();
+  }
+  let rawSubscriptionActive = true;
+  const releaseRawSubscription = (): void => {
+    if (!rawSubscriptionActive) return;
+    rawSubscriptionActive = false;
+    rawListenerHolder.record = null;
+    applyNarrativePhysicalActionInternalV1(rawUnsubscribe as () => void, undefined, []);
+  };
+  let installedCurrent: NarrativeStableCurrentTargetProjectionInternalV1 | null = null;
+  try {
+    installedCurrent = bridgeRecord.captureCurrentTargetInternalV1();
+  } catch {
+    installedCurrent = null;
+  }
+  if (
+    !record.active || rawListenerHolder.record !== record || !bridgeRecord.active ||
+    installedCurrent?.target !== target ||
+    installedCurrent.frame !== frame ||
+    narrativeStableDialoguePlayerControllersByTargetInternalV1.get(target) !== record ||
+    bridgeRecord.compositeRuntimeKernel.getStateInternalV1() !== expectedKernelState ||
+    captureNarrativeDialoguePlayerTargetPhaseInternalV1(bridgeRecord, target) !== phase
+  ) {
+    rawListenerHolder.record = null;
+    try {
+      releaseRawSubscription();
+    } catch {
+      // A synchronous subscription fault cannot revive the retired controller.
+    }
+    if (record.active) disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(record);
+    return failClaim();
+  }
+  record.rawUnsubscribe = releaseRawSubscription;
+  let currentProfile: unknown;
+  let profileReadFault = false;
+  try {
+    currentProfile = applyNarrativePhysicalActionInternalV1(
+      profileBinding.getSnapshot,
+      profileBinding.receiver,
+      [],
+    );
+  } catch {
+    currentProfile = null;
+    profileReadFault = true;
+  }
+  if (
+    !record.active || rawListenerHolder.record !== record || !isExactFactoryCurrent() ||
+    narrativeStableDialoguePlayerControllersByTargetInternalV1.get(target) !== record
+  ) {
+    if (record.active) disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(record);
+    return failClaim();
+  }
+  if (profileReadFault || !isFrozenNarrativePlayerProfileRecordInternalV1(currentProfile)) {
+    disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(record);
+    return failClaim();
+  }
+  if (currentProfile !== record.profile) {
+    record.profile = currentProfile;
+    record.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+      ...record.snapshot,
+      playerProfile: currentProfile,
+    });
+  }
+  if (instant && snapshot.kind === "say") {
+    markNarrativeStableDialoguePlayerSeenInternalV1(record);
+    if (
+      !record.active || !isExactFactoryCurrent() ||
+      narrativeStableDialoguePlayerControllersByTargetInternalV1.get(target) !== record
+    ) {
+      if (record.active) disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(record);
+      return failClaim();
+    }
+  }
+  if (phase === "active") {
+    if (record.snapshot.kind === "passive" && frame.pending.kind === "pause") {
+      record.automaticRemainingMs = frame.pending.durationMs;
+    } else if (record.snapshot.kind === "say") {
+      const mode = bridgeRecord.currentModeState.mode;
+      record.automaticRemainingMs = mode === "skip"
+        ? 40
+        : mode === "auto" && record.snapshot.revealComplete
+        ? record.policy.autoWaitMs
+        : null;
+    }
+    const shouldSchedule = shouldScheduleNarrativeStableDialoguePlayerTickInternalV1(record);
+    if (shouldSchedule) {
+      const generation = record.phaseGeneration;
+      let nowValue: unknown;
+      let clockFault = false;
+      try {
+        nowValue = applyNarrativePhysicalActionInternalV1(
+          clockBinding.now,
+          clockBinding.receiver,
+          [],
+        );
+      } catch {
+        nowValue = null;
+        clockFault = true;
+      }
+      if (
+        !record.active || record.phaseGeneration !== generation || !isExactFactoryCurrent() ||
+        narrativeStableDialoguePlayerControllersByTargetInternalV1.get(target) !== record
+      ) {
+        if (record.active) disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(record);
+        return failClaim();
+      }
+      if (clockFault || !isNarrativeDialogueClockTimestampInternalV1(nowValue)) {
+        faultNarrativeStableDialoguePlayerControllerInternalV1(record);
+        return failClaim();
+      }
+      record.lastTickMs = nowValue;
+    }
+    ensureNarrativeStableDialoguePlayerLegacyControllerInternalV1(record);
+    ensureNarrativeStableDialoguePlayerPauseControllerInternalV1(record);
+    if (
+      !record.active || !isExactFactoryCurrent() ||
+      narrativeStableDialoguePlayerControllersByTargetInternalV1.get(target) !== record
+    ) {
+      if (record.active) disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(record);
+      return failClaim();
+    }
+    if (shouldSchedule) {
+      requestNarrativeStableDialoguePlayerTickInternalV1(record, record.phaseGeneration);
+      if (
+        !record.active || !isExactFactoryCurrent() ||
+        narrativeStableDialoguePlayerControllersByTargetInternalV1.get(target) !== record
+      ) {
+        if (record.active) disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(record);
+        return failClaim();
+      }
+    }
+  }
+  narrativeStableDialoguePlayerControllerClaimsByTargetInternalV1.delete(target);
+  return controller;
+}
+
 function captureSayRevealGenerationPortInternalV1(
   value: unknown,
 ):
@@ -6062,6 +8104,15 @@ export function createNarrativeStableSayRevealControllerInternalV1(
       attemptRecord.spent = true;
       record.currentContentAutoAttempt = null;
       retireCurrentActivationAttempt();
+      const dialoguePlayerRecord = narrativeStableDialoguePlayerControllersByTargetInternalV1.get(
+        record.directTarget,
+      );
+      if (
+        dialoguePlayerRecord?.legacySayRevealController === controller &&
+        dialoguePlayerRecord.frame === record.frame
+      ) {
+        retireNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(dialoguePlayerRecord);
+      }
 
       let phase: unknown;
       let phaseThrew = false;
@@ -7049,6 +9100,63 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
       ) {
         return narrativePlaybackModeStaleResultInternalV1;
       }
+      const dialoguePlayerRecord = narrativeStableDialoguePlayerControllersByTargetInternalV1.get(
+        record.directTarget,
+      );
+      let modeBaselineNow: number | null = null;
+      if (
+        dialoguePlayerRecord?.active && dialoguePlayerRecord.bridgeRecord === bridgeRecord &&
+        dialoguePlayerRecord.frame === record.frame &&
+        dialoguePlayerRecord.snapshot.kind === "say" &&
+        (successorModeState.mode === "skip" ||
+          (successorModeState.mode === "auto" && dialoguePlayerRecord.snapshot.revealComplete))
+      ) {
+        const generation = dialoguePlayerRecord.phaseGeneration;
+        const clockBinding = dialoguePlayerRecord.clockBinding;
+        const frame = dialoguePlayerRecord.frame;
+        let nowValue: unknown;
+        let clockFault = false;
+        if (clockBinding === null || frame === null) {
+          faultNarrativeStableDialoguePlayerControllerInternalV1(dialoguePlayerRecord);
+          return narrativePlaybackModeFaultedResultInternalV1;
+        }
+        try {
+          nowValue = applyNarrativePhysicalActionInternalV1(
+            clockBinding.now,
+            clockBinding.receiver,
+            [],
+          );
+        } catch {
+          nowValue = null;
+          clockFault = true;
+        }
+        const postClockKind = classifyCurrentPlaybackModeTarget();
+        if (postClockKind === "stale") return narrativePlaybackModeStaleResultInternalV1;
+        if (postClockKind !== "say") return narrativePlaybackModeFaultedResultInternalV1;
+        if (
+          !active || bridgeRecord.physicalActionAdmissionClaim !== admissionClaim ||
+          !bridgeRecord.isActiveInternalV1() || bridgeRecord.sayCallbackClaim !== null ||
+          bridgeRecord.currentModeState !== record.issuanceModeState ||
+          !dialoguePlayerRecord.active || dialoguePlayerRecord.phaseGeneration !== generation ||
+          dialoguePlayerRecord.clockBinding !== clockBinding ||
+          dialoguePlayerRecord.frame !== frame ||
+          captureExactCurrentNarrativeDialoguePlayerFrameInternalV1(
+              dialoguePlayerRecord,
+              generation,
+            ) !== frame
+        ) {
+          return narrativePlaybackModeStaleResultInternalV1;
+        }
+        if (
+          clockFault || !isNarrativeDialogueClockTimestampInternalV1(nowValue) ||
+          (dialoguePlayerRecord.lastTickMs !== null &&
+            nowValue < dialoguePlayerRecord.lastTickMs)
+        ) {
+          faultNarrativeStableDialoguePlayerControllerInternalV1(dialoguePlayerRecord);
+          return narrativePlaybackModeFaultedResultInternalV1;
+        }
+        modeBaselineNow = nowValue;
+      }
       if (
         !compareAndSetNarrativePlaybackModeStateInternalV1(
           bridgeRecord,
@@ -7057,6 +9165,28 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         )
       ) {
         return narrativePlaybackModeStaleResultInternalV1;
+      }
+      if (
+        dialoguePlayerRecord?.active && dialoguePlayerRecord.bridgeRecord === bridgeRecord &&
+        dialoguePlayerRecord.frame === record.frame
+      ) {
+        retireNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(dialoguePlayerRecord);
+        if (modeBaselineNow !== null) dialoguePlayerRecord.lastTickMs = modeBaselineNow;
+        dialoguePlayerRecord.automaticRemainingMs = successorModeState.mode === "skip"
+          ? 40
+          : successorModeState.mode === "auto" &&
+              dialoguePlayerRecord.snapshot.kind === "say" &&
+              dialoguePlayerRecord.snapshot.revealComplete
+          ? dialoguePlayerRecord.policy.autoWaitMs
+          : null;
+        publishNarrativeStableDialoguePlayerModeInternalV1(
+          dialoguePlayerRecord,
+          successorModeState.mode,
+        );
+        requestNarrativeStableDialoguePlayerTickInternalV1(
+          dialoguePlayerRecord,
+          dialoguePlayerRecord.phaseGeneration,
+        );
       }
       return toggledResult;
     }
@@ -7311,6 +9441,15 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         );
         if (automaticCompetitor !== undefined) automaticCompetitor.spent = true;
         controllerRecord.currentContentAutoAttempt = null;
+      }
+      const dialoguePlayerRecord = narrativeStableDialoguePlayerControllersByTargetInternalV1.get(
+        record.directTarget,
+      );
+      if (
+        dialoguePlayerRecord?.legacySayRevealController === record.controller &&
+        dialoguePlayerRecord.frame === record.frame
+      ) {
+        retireNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(dialoguePlayerRecord);
       }
 
       const releaseCallbackBoundary = (): void => {
@@ -7748,8 +9887,15 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
       ) {
         return null;
       }
+      const dialoguePlayerRecord = narrativeStableDialoguePlayerControllerRecordsInternalV1.get(
+        controller as NarrativeStableDialoguePlayerControllerInternalV1,
+      );
+      const resolvedController = dialoguePlayerRecord?.active &&
+          dialoguePlayerRecord.legacySayRevealController !== null
+        ? dialoguePlayerRecord.legacySayRevealController
+        : controller as NarrativeStableSayRevealControllerInternalV1;
       const controllerRecord = narrativeStableSayRevealControllerRecordsInternalV1.get(
-        controller as NarrativeStableSayRevealControllerInternalV1,
+        resolvedController,
       );
       if (
         controllerRecord === undefined || !controllerRecord.active ||
@@ -7822,7 +9968,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         narrativeStablePhysicalActionAttemptRecordsInternalV1.set(attempt, {
           kind: "say_activation",
           authority,
-          controller: controller as NarrativeStableSayRevealControllerInternalV1,
+          controller: resolvedController,
           controllerClaim: controllerRecord.controllerClaim,
           targetProof: current.targetProof,
           directTarget: current.directTarget,
