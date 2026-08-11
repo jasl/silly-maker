@@ -3180,10 +3180,13 @@ Exact `null` prepare result表示本次transition不参与，后续按既有路�
 
 - existing adapter planning/validation fault保持原error且没有participant callback；prepared clone/foreign/consumed token返回`invalid`、initial expected
   drift返回`stale`，同样没有participant callback；
+- participant prepare callback及prepared descriptor capture返回后，必须先重验expected state/install generation/current participant；该currentness
+  drift优先于null、throw或malformed output，外层只可走下述stale结果。已经authenticate的prepared abort once，未authenticate output没有abort；
 - prepare callback后的expected-state ABA/current-participant drift或`validateInternalV1()` exact false：direct transient返回既有
   `rejected / surface.invalid_transition` exact-zero receipt，direct generic state transition抛既有
   `TypeError("ui.managed_surface_runtime_state_stale")`，prepared install返回existing `stale`；authenticated prepared value先abort once；
-- participant prepare throw/malformed、validate throw/nonboolean：direct transient返回既有`faulted / surface.transition_faulted` exact-zero
+- exact-current下的participant prepare throw/malformed、validate throw/nonboolean：direct transient返回既有
+  `faulted / surface.transition_faulted` exact-zero
   receipt，direct generic state transition抛exact
   `TypeError("ui.managed_surface_runtime_state_install_participant_faulted")`，prepared install返回existing `aborted`；
 - boolean operation guard exact false保持existing `aborted`；operation guard throw先abort authenticated participant，再原样rethrow original error、
