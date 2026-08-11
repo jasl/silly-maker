@@ -1,8 +1,11 @@
 # 窗体与 UI 组件体系：引擎契约、分层与上提清单
 
 状态：2026-07-28 接受；S4.3.1b 已让 Workspace Overlay、System 与
-Narrative/History 共用一个 composition-owned Managed Surface authority。
-S4b whole-canvas primary/detail 是当前迁移 lane。本文回答引擎 UI 的分层结构与上提规则、
+Narrative/History 共用一个 composition-owned Managed Surface authority。S4b broad
+checkpoint 已转为 historical；S4b.0 docs-only exact entry 已冻结同一 whole-canvas
+authority 下的 built-in Splash/Title、Cat Cafe ending 第一消费者、Engine Lab 中性第二消费者，
+以及 package-owned transient exact-parent detail。当前 implementation gate 是 S4b.1a
+whole-canvas family + routed-input substrate。本文回答引擎 UI 的分层结构与上提规则、
 窗体产品模型和通用 WindowManager 的取舍。
 
 ## 调研摘要：各引擎怎么处理窗体
@@ -77,7 +80,15 @@ Surface track 登记为 managed contribution，而不是另建一套全局输入
 
 SillyOS 也验证了 Narrative 的显式省略路径：它不声明
 `NarrativeSurfaceDefinitionV1`，root slots 中也没有 narrative writer，因此自定义桌面
-shell 不会意外分配 Narrative Host、player 或 Stage claimant。
+shell 不会意外分配 Narrative Host、player 或 Stage claimant。S4b.0 同样明确省略
+`WholeCanvasSurfaceDefinitionV1`：SillyOS 的 MDI geometry、focus/z-order、最小化与任务栏仍是
+单一 custom-shell product store，不是 whole-canvas primary/detail 消费者。
+
+该省略**不是新的 fullscreen writer 逃逸口**。当前 SillyOS boot/shutdown screen 仍以 custom-shell
+local state 改变全局 input/focus/modality，是已登记但尚未迁移的 tracked debt；它不计入 S4b 的
+Cat Cafe 第一消费者、Engine Lab 第二消费者或 promotion evidence，也不能证明 whole-canvas
+authority 已覆盖全仓库。若后续要把 custom-root front door 纳入 managed authority，必须先有新的
+exact entry 与原子 removal gate；本次 S4b.0 不顺带迁移 MDI、boot 或 shutdown。
 
 实证出的关键配方（新增到手册）：
 
