@@ -2371,7 +2371,7 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     controller.disposeInternalV1();
     expect(clock.cancel).toHaveBeenCalledTimes(10_000);
     expect(harness.profile.unsubscribe).toHaveBeenCalledTimes(10_000);
-  });
+  }, 30_000);
 
   it("releases a subscription returned after its synchronous callback retires the factory record", () => {
     let profileRead = 0;

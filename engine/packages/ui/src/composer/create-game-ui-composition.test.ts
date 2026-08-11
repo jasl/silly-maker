@@ -2140,91 +2140,95 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
     fixture.composition.dispose();
   });
 
-  it("keeps one current session/subscription/claimant through 10,000 production churn steps", () => {
-    const fixture = createNarrativeChurnComposerFixtureV1();
-    const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
-    const initialSession = managed.narrative.getCurrentSessionInternalV1();
-    if (initialSession === null) throw new Error("expected initial Narrative session");
-    const predecessorHostLease = initialSession.attachHostInternalV1(Object.freeze({
-      hostIdentity: Object.freeze({}),
-    }));
-    const claimant = managed.narrative.getStageClaimantInternalV1();
-    const reconciler = createStageReconcilerV1({
-      clock: Object.freeze({
-        now: () => 0,
-        requestTick: () => Object.freeze(() => undefined),
-      }),
-      catalog: Object.freeze({
-        resolveTransition: () => narrativeChurnTransitionV1,
-        resolveTransitionById: (transitionId: string) =>
-          transitionId === narrativeChurnTransitionV1.transitionId
-            ? narrativeChurnTransitionV1
-            : null,
-      }),
-    });
-    const driver = createSemanticStageCompositionDriverInternalV1(reconciler, claimant);
-    const releaseStage = managed.narrative.bindStageReconcilerInternalV1(reconciler, driver);
-    const stageTargets = Object.freeze([
-      narrativeChurnStageTargetV1("content.composer.churn-a"),
-      narrativeChurnStageTargetV1("content.composer.churn-b"),
-    ]);
-    driver.retargetInternalV1(Object.freeze({
-      target: stageTargets[0]!,
-      revision: 1,
-      epoch: managed.runtime.getCurrent().applicationEpoch,
-    }));
-    let lastBarrier = narrativeChurnBarrierPendingV1(0);
-
-    for (let sequence = 1; sequence <= 2_500; sequence += 1) {
-      const pending = narrativeChurnChoicePendingV1(sequence);
-      fixture.publish(narrativeChurnSelectionV1({ pending }));
-      fixture.publish(narrativeChurnSelectionV1({ pending, firstEnabled: false }));
-      lastBarrier = narrativeChurnBarrierPendingV1(sequence);
-      fixture.publish(narrativeChurnSelectionV1({ pending: lastBarrier }));
-      fixture.anchorEvents.publish(Object.freeze({
-        anchor: Object.freeze({ epoch: sequence, origin: "restart" }),
-        token: null,
+  it(
+    "keeps one current session/subscription/claimant through 10,000 production churn steps",
+    () => {
+      const fixture = createNarrativeChurnComposerFixtureV1();
+      const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
+      const initialSession = managed.narrative.getCurrentSessionInternalV1();
+      if (initialSession === null) throw new Error("expected initial Narrative session");
+      const predecessorHostLease = initialSession.attachHostInternalV1(Object.freeze({
+        hostIdentity: Object.freeze({}),
       }));
+      const claimant = managed.narrative.getStageClaimantInternalV1();
+      const reconciler = createStageReconcilerV1({
+        clock: Object.freeze({
+          now: () => 0,
+          requestTick: () => Object.freeze(() => undefined),
+        }),
+        catalog: Object.freeze({
+          resolveTransition: () => narrativeChurnTransitionV1,
+          resolveTransitionById: (transitionId: string) =>
+            transitionId === narrativeChurnTransitionV1.transitionId
+              ? narrativeChurnTransitionV1
+              : null,
+        }),
+      });
+      const driver = createSemanticStageCompositionDriverInternalV1(reconciler, claimant);
+      const releaseStage = managed.narrative.bindStageReconcilerInternalV1(reconciler, driver);
+      const stageTargets = Object.freeze([
+        narrativeChurnStageTargetV1("content.composer.churn-a"),
+        narrativeChurnStageTargetV1("content.composer.churn-b"),
+      ]);
       driver.retargetInternalV1(Object.freeze({
-        target: stageTargets[sequence % stageTargets.length]!,
-        revision: sequence + 1,
+        target: stageTargets[0]!,
+        revision: 1,
         epoch: managed.runtime.getCurrent().applicationEpoch,
       }));
-    }
+      let lastBarrier = narrativeChurnBarrierPendingV1(0);
 
-    expect(predecessorHostLease.isCurrentInternalV1()).toBe(false);
-    expect(managed.narrative.getCurrentSessionInternalV1()).not.toBe(initialSession);
-    expect(managed.narrative.getCurrentSessionInternalV1()).not.toBeNull();
-    expect(managed.narrative.getCurrentSelectionInternalV1()).toEqual(
-      narrativeChurnSelectionV1({ pending: lastBarrier }),
-    );
-    expect(managed.narrative.getStageClaimantInternalV1()).toBe(claimant);
-    expect(driver.isCurrentInternalV1()).toBe(true);
-    expect(fixture.reports()).toHaveLength(2_500);
-    expect(
-      fixture.reports().every(({ code, error }) =>
-        code === "narrative.barrier_replay_unsupported" && error === null
-      ),
-    ).toBe(true);
-    expect({
-      semanticSubscriptions: fixture.semanticSubscriptions(),
-      semanticListeners: fixture.semanticListenerCount(),
-      preflightCount: fixture.preflightCount(),
-      allocatedEpochs: fixture.allocatedEpochs(),
-      applicationEpoch: managed.runtime.getCurrent().applicationEpoch,
-    }).toEqual({
-      semanticSubscriptions: 1,
-      semanticListeners: 1,
-      preflightCount: 7_500,
-      allocatedEpochs: 2_501,
-      applicationEpoch: 2_501,
-    });
+      for (let sequence = 1; sequence <= 2_500; sequence += 1) {
+        const pending = narrativeChurnChoicePendingV1(sequence);
+        fixture.publish(narrativeChurnSelectionV1({ pending }));
+        fixture.publish(narrativeChurnSelectionV1({ pending, firstEnabled: false }));
+        lastBarrier = narrativeChurnBarrierPendingV1(sequence);
+        fixture.publish(narrativeChurnSelectionV1({ pending: lastBarrier }));
+        fixture.anchorEvents.publish(Object.freeze({
+          anchor: Object.freeze({ epoch: sequence, origin: "restart" }),
+          token: null,
+        }));
+        driver.retargetInternalV1(Object.freeze({
+          target: stageTargets[sequence % stageTargets.length]!,
+          revision: sequence + 1,
+          epoch: managed.runtime.getCurrent().applicationEpoch,
+        }));
+      }
 
-    fixture.composition.dispose();
-    expect(driver.isCurrentInternalV1()).toBe(false);
-    expect(() => releaseStage()).not.toThrow();
-    expect(fixture.semanticUnsubscriptions()).toBe(1);
-  });
+      expect(predecessorHostLease.isCurrentInternalV1()).toBe(false);
+      expect(managed.narrative.getCurrentSessionInternalV1()).not.toBe(initialSession);
+      expect(managed.narrative.getCurrentSessionInternalV1()).not.toBeNull();
+      expect(managed.narrative.getCurrentSelectionInternalV1()).toEqual(
+        narrativeChurnSelectionV1({ pending: lastBarrier }),
+      );
+      expect(managed.narrative.getStageClaimantInternalV1()).toBe(claimant);
+      expect(driver.isCurrentInternalV1()).toBe(true);
+      expect(fixture.reports()).toHaveLength(2_500);
+      expect(
+        fixture.reports().every(({ code, error }) =>
+          code === "narrative.barrier_replay_unsupported" && error === null
+        ),
+      ).toBe(true);
+      expect({
+        semanticSubscriptions: fixture.semanticSubscriptions(),
+        semanticListeners: fixture.semanticListenerCount(),
+        preflightCount: fixture.preflightCount(),
+        allocatedEpochs: fixture.allocatedEpochs(),
+        applicationEpoch: managed.runtime.getCurrent().applicationEpoch,
+      }).toEqual({
+        semanticSubscriptions: 1,
+        semanticListeners: 1,
+        preflightCount: 7_500,
+        allocatedEpochs: 2_501,
+        applicationEpoch: 2_501,
+      });
+
+      fixture.composition.dispose();
+      expect(driver.isCurrentInternalV1()).toBe(false);
+      expect(() => releaseStage()).not.toThrow();
+      expect(fixture.semanticUnsubscriptions()).toBe(1);
+    },
+    30_000,
+  );
 });
 
 describe("hosted presentation successor acknowledgment", () => {

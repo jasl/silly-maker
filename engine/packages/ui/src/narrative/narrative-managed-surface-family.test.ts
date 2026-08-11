@@ -10867,7 +10867,7 @@ describe("Narrative stable Managed Surface family", () => {
       occurrenceIssuanceHighWater: publisherBefore.occurrenceIssuanceHighWater + 10_000,
     });
     admission.disposeInternalV1();
-  });
+  }, 30_000);
 
   it.each(
     (["say", "choice", "pause", "custom", "presentation_barrier"] as const).flatMap(

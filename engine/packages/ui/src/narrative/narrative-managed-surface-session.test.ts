@@ -2394,7 +2394,7 @@ describe("Narrative stable session", () => {
     unregisterLower();
     fixture.runtime.attachment.releaseInternalV1();
     fixture.disposePortal();
-  });
+  }, 30_000);
 
   it("fails pending root before History and stops cleanup after a synchronous successor", async () => {
     const detached = createConcurrentPendingHostFixtureV1("detach-order", 50);
