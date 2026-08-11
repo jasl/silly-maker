@@ -6145,6 +6145,18 @@ inventory；public `InputRouterV1`继续只有`{ register, route, clearTransient
 styles、typecheck、determinism、tests、assets、stories及e2e build全部green。本批未重跑browser、examples或prebuilt；Engine browser `101 / 101`、
 examples `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作为prior evidence，不冒充本delivery的HEAD验证。
 
+**2026-08-11 S4.2.5.1a callable prototype bound corrective delivery addendum（commit `ceabebf`，已完成）：** 本addendum
+精确只记录`engine/packages/ui/src/input/input-router.ts`与`engine/packages/ui/src/input/input-router.test.ts`两文件的窄纠正；其他source、test、runtime、
+public API与live wiring均未改变。原cycle detection在callable Proxy每次向prototype walk提供fresh、non-cyclic的trapping Proxy节点时
+不能单独证明termination；本纠正在保持contained actual `Get("then")`、descriptor trap containment、inherited/synthesized thenable rejection与
+exact invalid TypeError不变的同时，把callable own/prototype descriptor walk限定为最多检查 **64 nodes**，超出预算即fail closed。
+
+Mutation-sensitive focused input-router证据先以未修正实现得到RED **53 / 54**，再以commit `ceabebf`得到GREEN **54 / 54**；
+相邻input-router/composer/public API focused matrix为 **81 / 81**，全仓typecheck与exact two-file oxlint、fmt、diff check均green。本窄addendum
+没有重跑UI package、canonical `deno task check`、full、browser、examples或prebuilt；commit `0f41e41`与其他旧批次的任何结果都不复用为commit
+`ceabebf`的HEAD证据。`.5.1a`保持completed/historical；唯一live current/next、core slice与direct RED/implementation gate仍为
+**S4.2.5.1c dormant Engine Lab Narrative conformance implementation**，后续严格为 **S4.3 → S4b**。
+
 #### S4.2.5.1b Host physical ingress corrective
 
 Live Host把caller predicate保存进ref，再创建自己的stable `isGestureCurrent` callback；Host runtime与candidate action binding持有的是该stable callback
