@@ -1397,9 +1397,62 @@ Verification passed focused
 complete `deno task check`. Browser `101 / 101`, examples
 `45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior evidence
 and were not rerun because the path is still dormant. S4.2.3.0 and S4.2.3.1
-are complete. Current/next is S4.2.3.2, the dormant Narrative
-close/input/root + History focus Host lifecycle, followed by S4.2.4, S4.2.5,
-S4.3, and S4b.
+are complete. At that checkpoint, current/next was S4.2.3.2, the dormant
+Narrative close/input/root + History focus Host lifecycle delivered below.
+
+S4.2.3.2 now completes that dormant lifecycle. Every exact History candidate
+owns one source-relative `NarrativeStableHistoryChildControllerInternalV1`
+whose identity survives preparing-to-ready and same-Host reattach but becomes
+permanently stale on child retirement, cutover, terminal state, or detach.
+Authenticated ready actions keep their existing managed publication, routing,
+catalog, and gesture gates: `player.toggle_history` performs exact close,
+`ui.cancel` performs routed-cancel dismiss, the outer action remains consumed
+with `surface.action_routed`, and the lifecycle result stays inside the
+consumer result. The controller never enters renderer or Story props.
+
+Preparing History and the sole initial Dialogue fallback use one bounded
+Host-generation managed input registration. A ready, failed, closed, released,
+or terminal entry becomes logically inert before Surface assignment and is
+then physically unregistered outside the transition guard. Exact History
+close/dismiss prepares the surviving root input binding first; the generic
+same-claimant lifecycle guard atomically commits that binding, current focus
+ownership, physical admission, and child/fallback fencing before the Surface
+assignment and synchronous notification. Locked, stale, and faulted paths
+preserve publication identity and repair any superseded dormant candidate
+binding without creating an input gap.
+
+The dormant React Host now owns actual Dialogue and History focus containment.
+Each entry has a focusable outer scope and a nested renderer shell: the current
+preparing fallback can receive real browser focus and trap Tab on the outer
+scope while the renderer remains hidden, inert, aria-hidden, and
+pointer-disabled until ready. The Host keeps only the current root previous
+owner and History opener, restores them in one coalesced microtask after exact
+parent/successor/external-owner revalidation, and suppresses restoration on
+cutover, true detach, application successor, publisher disposal, or Coordinator
+terminal state. The source-relative pure
+`isNarrativeStableHostRuntimeCurrentInternalV1` query checks only module-owned
+runtime, lease, session, and bridge records before restore scheduling and again
+at delivery; it adds no runtime object member or public export.
+
+Escape respects the DevDock owner, backdrop dismiss requires an exact primary
+same-pointer gesture and arms the existing Stage pointer fence before closing,
+and the Host reuses the existing Narrative input isolation hook without
+changing GameStage or live Story wiring. StrictMode reattach, focus faults,
+listener reentry, fallback teardown, controller churn, and 10,000 lifecycle
+cycles retain only topology-bounded action/focus/controller/DOM records and one
+physical fallback registration.
+
+This delivery changes exactly the Narrative family, session, and Host
+source/test pairs plus `engine/packages/ui/src/public-api.test.ts`. Root and
+`./internal` inventories reject every new top-level and member spelling; no
+barrel, package export, GameStage, Web, Story, or live composition file changes.
+Verification passed focused `4 files / 263 tests`, UI
+`81 files / 1306 tests`, full `255 files / 4236 tests`, typecheck, lint,
+formatting, diff checks, and the complete `deno task check`. Browser
+`101 / 101`, examples `45 passed / 2 skipped`, and prebuilt Player `38 / 38`
+remain prior evidence and were not rerun because the Host is still dormant.
+S4.2.3.2 is complete. Current/next is S4.2.4 exact entry before RED,
+followed by S4.2.5, S4.3, and S4b.
 
 ## 9. Changing the architecture
 
@@ -1477,8 +1530,10 @@ cached render source, guarded action/focus commit, and StrictMode-safe portal
 lifecycle described above. S4.2.3.0 freezes the exact History lifecycle split,
 and S4.2.3.1 adds the same-claimant exact-child close/dismiss authority,
 guarded parent input restoration, and preserved ordinary generic fence
-described above. Current/next is S4.2.3.2, the dormant Narrative
-close/input/root + History focus Host lifecycle, followed by S4.2.4, S4.2.5,
-S4.3, and S4b. Narrative controller adoption, actual DOM focus, and the live
-migration remain planned work; the source-relative Host does not alter the live
-Host data flow until those slices and their behavior tests land.
+described above. S4.2.3.2 adds the candidate-bound Narrative History
+controller, managed fallback teardown, actual root/History focus lifecycle,
+physical dismiss fencing, and terminal-safe restore query described above.
+Current/next is S4.2.4 exact entry before RED, followed by S4.2.5, S4.3,
+and S4b. Player control/timing and the live migration remain planned work; the
+source-relative Host does not alter the live Host data flow until those slices
+and their behavior tests land.
