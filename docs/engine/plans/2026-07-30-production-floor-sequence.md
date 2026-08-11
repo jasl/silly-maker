@@ -60,8 +60,10 @@ History atomic cross-axis preparation现也已关闭；原`S4.2.2` broad checkpo
 `.2.2.2.1` DOM-free generic Host-commit atomic substrate与`.2.2.2.2` dormant Narrative React Host现也已关闭并转为
 historical。原S4.2.3 History close/dismiss/input/focus broad checkpoint已由completed docs-only `S4.2.3.0`重切；
 `.3.1` DOM-free generic exact History-child lifecycle substrate与`.3.2` dormant Narrative close/input/root + History focus Host lifecycle
-现也已关闭并转为historical。current/next、core slice与implementation gate现为
-**S4.2.4 controller timers与History suspension/resume exact entry before RED**，随后依次为`S4.2.5 -> S4.3 -> S4b`。
+现也已关闭并转为historical。原`S4.2.4` controller timers与History suspension/resume broad checkpoint现由completed
+docs-only `S4.2.4.0` exact Dialogue player timing/suspension entry重切；current/next、core slice与implementation gate现为
+**S4.2.4.1 generic prepared state-install participant substrate**，随后依次为
+`S4.2.4.2 -> S4.2.4.3 -> S4.2.5 -> S4.3 -> S4b`。
 同日 S1-R pre-implementation review 将 external reconcile gate 重切为 S1-R.0–S1-R.5；
 顺序变化不把任何 planned stable-target contract写成 live capability。
 同日 S1-R.3 entry-gate adjudication 采用 A-prime，将原 R3 拆为单一 composite
@@ -101,8 +103,9 @@ checkpoint又由completed docs-only S4.2.2.0细分；原S4.2.2.2 broad dormant H
 S4.2.2.2.0重切，S4.2.2.2.1 DOM-free generic Host-commit atomic substrate与S4.2.2.2.2 dormant Narrative React
 Host现也已关闭；原S4.2.3 broad checkpoint现又由completed docs-only S4.2.3.0重切，S4.2.3.1 DOM-free generic
 exact History-child lifecycle substrate与S4.2.3.2 dormant Narrative close/input/root + History focus Host lifecycle现也已关闭。
-下一独立切片、current/next、core slice与implementation gate均为
-**S4.2.4 controller timers与History suspension/resume exact entry before RED**，随后依次为S4.2.5、S4.3与S4b。
+原S4.2.4 broad checkpoint现由completed docs-only S4.2.4.0 exact Dialogue player timing/suspension entry重切。下一独立切片、current/next、core
+slice与implementation gate均为 **S4.2.4.1 generic prepared state-install participant substrate**，随后依次为
+S4.2.4.2 DOM-free Narrative DialoguePlayerController core、S4.2.4.3 dormant Host player-view integration、S4.2.5、S4.3与S4b。
 旧 promotion 数字保留为
 历史证据。本文是当前唯一的跨计划排序入口；
 具体合同仍由各 design 文档拥有，主要任务由五个独立计划拥有：
@@ -1016,11 +1019,15 @@ Surface pilot 通过后按 family 分开合并：
 40. S4.2.3.0：History lifecycle exact entry与execution split（docs-only，已完成）；
 41. S4.2.3.1：DOM-free generic exact History-child lifecycle substrate（已完成）；
 42. S4.2.3.2：dormant Narrative close/input/root + History focus Host lifecycle（已完成）；
-43. S4.2.4：controller timers与History suspension/resume（当前；先完成exact entry before RED）；
-44. S4.2.5：dormant Engine Lab conformance；
-45. S4.3：atomic live cutover and promotion；
-46. S4b：whole-canvas primary/detail 独立 family；
-47. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
+43. S4.2.4：controller timers与History suspension/resume（superseded broad checkpoint）；
+44. S4.2.4.0：exact Dialogue player timing/suspension entry（docs-only，已完成）；
+45. S4.2.4.1：generic prepared state-install participant substrate（当前）；
+46. S4.2.4.2：DOM-free Narrative DialoguePlayerController core；
+47. S4.2.4.3：dormant Host player-view integration；
+48. S4.2.5：dormant Engine Lab conformance；
+49. S4.3：atomic live cutover and promotion；
+50. S4b：whole-canvas primary/detail 独立 family；
+51. input/gesture reset（pointercancel、focus loss、visibility change）与 Browser
     Agent observation。
 
 S3 是 Coordinator-owned transient family，与 Workspace Overlay 共用同一个
@@ -2167,7 +2174,9 @@ browser `101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player
 checkpoint不再作为一个合并切片。唯一有效线性顺序为 **S4.2.1 History atomic cross-axis
 preparation（现已完成）→ S4.2.2 Narrative session与Host-commit readiness（现又由`.2.2.0`及`.2.2.1`–`.2.2.2`
 细分）→ S4.2.3 History close/dismiss/input/focus lifecycle（现又由`.3.0`及`.3.1`–`.3.2`细分）→
-S4.2.4 controller timers与History suspension/resume exact entry before RED（当前）→
+S4.2.4 controller timers与History suspension/resume（现由completed docs-only `.4.0`及`.4.1`–`.4.3`细分）→
+S4.2.4.1 generic prepared state-install participant substrate（当前）→
+S4.2.4.2 DOM-free Narrative DialoguePlayerController core → S4.2.4.3 dormant Host player-view integration →
 S4.2.5 dormant Engine Lab conformance → S4.3 atomic live cutover and promotion → S4b**。后项只能
 消费前项已合并合同；不得把这些authority重新合并进一次Host/controller/topology refactor。
 
@@ -2297,7 +2306,8 @@ session/readiness observation、React Host、ready/fail、focus与ready前action
 3. **S4.2.2.2（superseded broad checkpoint）**：已由`.2.2.2.0–.2`重切，不能再作为implementation gate；
 4. **S4.2.2.2.0（docs-only，completed）→ .2.2.2.1（completed）→ .2.2.2.2（completed）**：先冻结exact generic/
    Narrative/React boundary，再分别交付DOM-free generic Host-commit atomic substrate与dormant Narrative React Host；
-5. **S4.2.3.0（completed）→ S4.2.3.1（completed）→ S4.2.3.2（completed）→ S4.2.4 exact entry before RED（当前）→ S4.2.5 → S4.3 → S4b**：
+5. **S4.2.3.0（completed）→ S4.2.3.1（completed）→ S4.2.3.2（completed）→ S4.2.4.0（docs-only，completed）→
+   S4.2.4.1（当前）→ S4.2.4.2 → S4.2.4.3 → S4.2.5 → S4.3 → S4b**：
    先冻结并依次交付generic exact History-child lifecycle substrate与dormant Narrative close/input/root + History
    focus Host lifecycle，再保持controller timers/suspension、dormant Engine Lab、atomic live cutover及whole-canvas family。
 
@@ -2486,8 +2496,9 @@ zero expansion。验证通过focused **3 files / 209 tests**、UI package **80 f
 HEAD新验证。该delivery当时把current推进到原 **S4.2.2.2 dormant React Narrative Host own docs-only exact entry
 before RED**；该entry随后由下述`.2.2.2.0`关闭并重切，当时的唯一implementation gate为`.2.2.2.1`；该`.1`与
 `.2.2.2.2` gate现亦已由下述delivery关闭；原S4.2.3 exact-entry gate现由下述completed `.3.0`关闭并重切，
-`.3.1`与`.3.2` gate现也由下述delivery关闭；当前唯一implementation gate为
-**S4.2.4 controller timers与History suspension/resume exact entry before RED**。
+`.3.1`与`.3.2` gate现也由下述delivery关闭；原S4.2.4 broad checkpoint现由completed docs-only `.4.0`
+关闭并重切；当前唯一implementation gate为
+**S4.2.4.1 generic prepared state-install participant substrate**。
 
 **PF4/S4.2.2.2.0 dormant React Narrative Host exact entry（docs-only，completed）：** 原S4.2.2.2把generic
 prepared action binding、root/History guarded readiness、cross-axis action fence、immutable Narrative render source、React portal Host、
@@ -2501,7 +2512,8 @@ S4.2.2.1 readiness snapshot都不能冒充ready前atomic handoff或ready/retaine
 3. **S4.2.2.2.2 dormant Narrative React Host（completed）**：只改family pair、session pair、new Host pair与`public-api.test.ts`共七文件，
    交付immutable renderer/History observation、Host runtime/component、explicit portal、layout acknowledgment、prepared binding与
    Host-local focus registration、StrictMode generation、pre-ready error boundary及real-detach terminal cleanup；
-4. 后续固定为 **S4.2.3.0（completed）→ S4.2.3.1（completed）→ S4.2.3.2（completed）→ S4.2.4 exact entry before RED（当前）→ S4.2.5 → S4.3 → S4b**；
+4. 后续固定为 **S4.2.3.0（completed）→ S4.2.3.1（completed）→ S4.2.3.2（completed）→
+   S4.2.4.0（docs-only，completed）→ S4.2.4.1（当前）→ S4.2.4.2 → S4.2.4.3 → S4.2.5 → S4.3 → S4b**；
    generic exact child lifecycle、Narrative close/input/root + History actual DOM focus、timer、Engine Lab与live cutover
    必须依次保持各自authority，不得提前并入。
 
@@ -2599,7 +2611,7 @@ Renderer contract exact names为`NarrativeStableDialogueRendererPropsInternalV1`
 `NarrativeStableRendererComponentInternalV1`。Dialogue props exact fields为`kind: "dialogue"`、`pending`、`visualConfig`、
 `playerProfile`、`textResolver`、`quickMenuContribution`；History props exact fields为`kind: "history"`、`history`、`visualConfig`、
 `playerProfile`与`textResolver`。同一个candidate renderer接收该closed discriminated union；不得把raw reveal/controller/action authority交给
-renderer。Reveal、Auto/Skip clock与suspension仍归S4.2.4。
+renderer。DOM-free Reveal、Auto/Skip clock与suspension归S4.2.4.2，Host player-view integration归S4.2.4.3。
 
 Host render contract exact names为`NarrativeStableHostRenderPhaseInternalV1 = "preparing" | "active" | "suspended"`、root/History
 closed `NarrativeStableHostRenderEntryInternalV1`、`NarrativeStableHostRenderSnapshotInternalV1`与
@@ -2728,14 +2740,16 @@ dispatcher与scalar O(1)，
 或generic fence会拦截claimed/structural cascade，停止并修订。
 `.2`若必须暴露raw/mutable History/Story/Coordinator authority、用readiness snapshot渲染ready subtree、在guard内调用DOM/React/router、
 以generic close处理detach、需要async renderer promise/stream、parallel Host或越过seven-file scope，也停止并修订。History exact lifecycle
-substrate归S4.2.3.1，Narrative close/input与root + History actual DOM focus/opener归S4.2.3.2，controller/reveal/timer/suspension归
-S4.2.4，Engine Lab归S4.2.5，GameStage/Story/live cutover归S4.3。
+substrate归S4.2.3.1，Narrative close/input与root + History actual DOM focus/opener归S4.2.3.2，generic prepared
+state-install participant substrate归S4.2.4.1，DOM-free controller/reveal/timer/suspension归S4.2.4.2，dormant Host
+player-view integration归S4.2.4.3，Engine Lab归S4.2.5，GameStage/Story/live cutover归S4.3。
 
 本entry在三份owning design/planning docs中同步exact contract；本cross-plan change本身只修改本文件，没有source/test/runtime/architecture/
 React Host/public/live diff，也没有新runtime delivery evidence。只要求本文件`deno fmt --check`与`git diff --check`；S4.2.2.1的focused/UI/
 full/check、browser/examples/prebuilt prior evidence均不能冒充本docs-only checkpoint验证。原S4.2.2.2 broad checkpoint与本`.0`现均为
 historical；该entry交付时的current/next、core slice与implementation gate为 **S4.2.2.2.1 DOM-free generic Host-commit atomic substrate**，随后依次为
-**S4.2.2.2.2 → S4.2.3.0 → S4.2.3.1 → S4.2.3.2 → S4.2.4 → S4.2.5 → S4.3 → S4b**。
+**S4.2.2.2.2 → S4.2.3.0 → S4.2.3.1 → S4.2.3.2 → S4.2.4.0 → S4.2.4.1 → S4.2.4.2 →
+S4.2.4.3 → S4.2.5 → S4.3 → S4b**。
 该`.2.2.2.1` gate现已由下述delivery关闭，`.3.0`也已由下述docs-only entry关闭。
 
 **PF4/S4.2.2.2.1 DOM-free generic Host-commit atomic substrate delivery（completed）：** implementation source与
@@ -2766,9 +2780,9 @@ UI root与`./internal`对全部new top-level/member spelling的type/runtime nega
 本source-relative delivery未重跑browser/examples/prebuilt；先前Engine browser `101 / 101`、examples browser
 `45 passed / 2 skipped`与prebuilt Player `38 / 38`只作prior evidence。`.2.2.2.0/.1/.2`现均为completed historical
 checkpoints；原S4.2.3 exact-entry gate现也由下述completed `.3.0`关闭并重切，`.3.1`又已由下述delivery关闭。
-`.3.2`现也由下述delivery关闭。唯一current/next、core slice与implementation gate现为
-**S4.2.4 controller timers与History suspension/resume exact entry before RED**，随后为
-**S4.2.5 → S4.3 → S4b**。
+`.3.2`现也由下述delivery关闭。原S4.2.4 broad checkpoint现由completed docs-only `.4.0`关闭并重切；唯一
+current/next、core slice与implementation gate现为 **S4.2.4.1 generic prepared state-install participant substrate**，随后为
+**S4.2.4.2 → S4.2.4.3 → S4.2.5 → S4.3 → S4b**。
 
 **PF4/S4.2.2.2.2 dormant Narrative React Host delivery（completed）：** implementation与primary RED严格落在
 family source/test、session source/test、new Host source/test及`public-api.test.ts`七文件，全部保持source-relative、
@@ -2802,9 +2816,9 @@ browser/examples/prebuilt；先前Engine browser `101 / 101`、examples browser 
 evidence。S4.2.2.2.2据此转为completed historical checkpoint；其原S4.2.3 exact-entry pointer现由下述completed `.3.0`
 关闭并重切，`.3.1`也已由下述delivery关闭。linear core/current/next与implementation gate现统一推进到
 下述completed **S4.2.3.2 dormant Narrative close/input/root + History focus Host lifecycle**；该delivery现又把live
-current/next、core slice与implementation gate推进为
-**S4.2.4 controller timers与History suspension/resume exact entry before RED**，后续顺序为
-**S4.2.5 → S4.3 → S4b**。
+current/next、core slice与implementation gate推进为原S4.2.4 broad checkpoint；该checkpoint现由completed docs-only `.4.0`
+关闭并重切，唯一current为 **S4.2.4.1 generic prepared state-install participant substrate**，后续顺序为
+**S4.2.4.2 → S4.2.4.3 → S4.2.5 → S4.3 → S4b**。
 
 **PF4/S4.2.3.0 History close/dismiss/input/focus lifecycle exact entry（docs-only，completed）：** 原
 S4.2.3把generic exact-child topology lifecycle、Narrative action/input route、preparing fallback、React Host focus/opener与
@@ -2815,8 +2829,9 @@ physical dismiss混在一个checkpoint；它现只作superseded broad checkpoint
    exact-child close/dismiss authority与whole-composite atomic handoff，不接Narrative/React/DOM/Host；
 3. **S4.2.3.2 dormant Narrative close/input/root + History focus Host lifecycle（completed）**：一次性交付candidate-bound
    History controller、preparing/active close、managed input、root + History actual focus/trap/restore及physical dismiss；
-4. **S4.2.4 exact entry before RED（当前）→ S4.2.5 → S4.3 → S4b**：随后才依次交付controller timers/suspension、dormant Engine Lab、
-   atomic live cutover及whole-canvas family。
+4. **S4.2.4.0（docs-only，completed）→ S4.2.4.1（当前）→ S4.2.4.2 → S4.2.4.3 → S4.2.5 → S4.3 → S4b**：
+   随后才依次交付generic prepared state-install participant substrate、DOM-free controller timers/suspension、dormant Host
+   player-view integration、dormant Engine Lab、atomic live cutover及whole-canvas family。
 
 `.3.1`新增独立、source-relative、package-internal
 `ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1`，其frozen exact sole member为
@@ -3003,7 +3018,8 @@ fence再同步dismiss，Escape/Back/routed cancel不得arm。不得修改GameSta
 one candidate-bound Host lifecycle交付，若需要修改`.3.1` generic authority、input-router source、reducer、GameStage、CSS、composer/Web/Base/
 Save/wire、Engine Lab/template/examples/live Story或legacy writer，立即停止并修订。不得用React local `showHistory`、第二input/focus writer、
 async check-then-close/rollback、owner-preparation-cancel、ready后passive-effect binding、caller-retained DOM ledger或unbounded generation map绕过。
-Reveal/Auto/Skip timer与History suspension remaining留S4.2.4，Engine Lab留S4.2.5，Narrative portal/composer/tracked Story迁移、legacy
+Reveal/Auto/Skip timer与History suspension remaining留S4.2.4.2，Host player-view integration留S4.2.4.3，Engine Lab留S4.2.5，
+Narrative portal/composer/tracked Story迁移、legacy
 writer/export删除与browser/prebuilt promotion留S4.3。
 
 本`.3.0` amendment在三份owning design/planning docs中同步exact contract；本cross-plan change本身严格只修改本文件，没有source、test、
@@ -3068,9 +3084,311 @@ spelling，controller/query/DOM ledger均未进入public boundary。
 验证通过focused **4 files / 263 tests**、UI package **81 files / 1306 tests**、full **255 files / 4236 tests**与完整canonical
 `deno task check`，并单独通过`deno task typecheck`、`deno task lint`、相关文件`deno fmt --check`及`git diff --check`。本dormant
 delivery未重跑browser/examples/prebuilt；先前Engine browser `101 / 101`、examples browser `45 passed / 2 skipped`与prebuilt Player
-`38 / 38`只作prior evidence，不冒充本delivery的HEAD验证。S4.2.3.2据此转为completed historical checkpoint；唯一live/current/next、
-core slice与implementation gate现推进到 **S4.2.4 controller timers与History suspension/resume exact entry before RED**，随后严格为
-**S4.2.5 → S4.3 → S4b**。
+`38 / 38`只作prior evidence，不冒充本delivery的HEAD验证。S4.2.3.2据此转为completed historical checkpoint；原S4.2.4 broad
+checkpoint现由completed docs-only `.4.0`关闭并重切，唯一live/current/next、core slice与implementation gate现推进到
+**S4.2.4.1 generic prepared state-install participant substrate**，随后严格为
+**S4.2.4.2 → S4.2.4.3 → S4.2.5 → S4.3 → S4b**。
+
+**S4.2.4.0 exact Dialogue player timing/suspension entry（docs-only，已完成）：** 原S4.2.4把generic state-install
+atomic participant、DOM-free clock/player controller与React Host view projection混成一个broad checkpoint；现只作为superseded historical
+entry。唯一有效顺序冻结为：
+
+1. **S4.2.4.0（本entry，docs-only completed）**：只冻结本节exact names/shapes、两阶段atomic protocol、policy、RED、file scope与stop；
+2. **S4.2.4.1 generic prepared state-install participant substrate（当前）**：先覆盖runtime kernel全部state assignment路径，提供
+   composition-local、same-claimant、pre-assignment two-phase participant；
+3. **S4.2.4.2 DOM-free Narrative DialoguePlayerController core**：再交付captured clock/profile/text ports、reveal/Pause/Auto/Skip scheduling、
+   bridge-owned mode reset、same-transition first-win与History/higher-blocker remaining；
+4. **S4.2.4.3 dormant Host player-view integration**：最后把cached immutable player observation接入existing session/render source/React Host，
+   renderer只取得passive view data；
+5. **S4.2.5 → S4.3 → S4b**：随后才进入dormant Engine Lab、live atomic cutover与whole-canvas family。
+
+`.4.1`新增的generic runtime exact contract为：
+
+```ts
+export interface ManagedSurfaceRuntimeStateInstallParticipantInternalV1<TState> {
+  prepareStateInstallInternalV1(
+    previousState: TState,
+    nextState: TState,
+  ): ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 | null;
+}
+
+export interface ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 {
+  validateInternalV1(): boolean;
+  commitLogicalInternalV1(): void;
+  abortInternalV1(): void;
+  completeInstalledInternalV1(): void;
+}
+```
+
+Stable-composite specialization与claim精确为：
+
+```ts
+export interface ManagedSurfaceStableCompositeStateInstallParticipantInternalV1
+  extends
+    ManagedSurfaceRuntimeStateInstallParticipantInternalV1<
+      ManagedSurfaceStableCompositeStateInternalV1
+    > {}
+
+export function claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
+  kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+  exactClaimant: object,
+  participant: ManagedSurfaceStableCompositeStateInstallParticipantInternalV1,
+): ManagedSurfaceStableCompositeStateInstallParticipantInternalV1;
+```
+
+Participant与prepared value都必须是frozen exact own-data method object；descriptor/accessor/extra/missing key、borrowed receiver、clone、foreign
+kernel/claimant/participant与second claimant在state read或callback前fail closed。Same kernel + same exact claimant + same exact participant repeat返回
+retained exact participant；没有release、transfer、participant vector或第二composition authority。Production retained state只有每kernel one weak
+claim record与最多one current prepared transaction；terminal install后claim永久fenced且不保留previous/next/controller/timestamp history。
+
+Kernel的三个assignment入口——ordinary transient transition、`transitionStateInternalV1`与prepared-state commit——统一使用下列顺序：
+
+1. 在既有transition lock内只运行pure reducer/transition并derive exact `previousState`/`nextState`；`previous === next`不调用participant；
+2. 释放lock后调用一次captured participant `prepareStateInstallInternalV1(previous,next)`；Narrative可以在这里调用descriptor-captured clock
+   `nowInternalV1()`并把该successful prepared timestamp固定为本次transition timestamp，但不得mutation kernel state；callback同步reentry若安装
+   successor，外层稍后只可stale；
+3. 重新取得lock并先验证expected kernel state与exact current participant/prepared identity，再调用一次module-owned
+   `validateInternalV1()`；只有exact boolean `true`继续，`false`为stale，throw/nonboolean为fault；
+4. 随后运行existing operation-specific guard；guard成功后才调用no-throw/no-caller-call `commitLogicalInternalV1()`，它只允许CAS controller
+   generation/attempt、integer cursor、sub-character remainder与remaining并逻辑fence old callbacks；之后才执行唯一state assignment；
+5. assignment后旧generation已stale；完整既有listener vector返回后才调用一次`completeInstalledInternalV1()`，在transition stack外best-effort
+   cancel old physical tick并为fresh generation请求至多one next tick。Cancel/request throw被contain，listener同步安装successor时old completion只可stale；
+6. expected-state drift、participant/operation guard失败，以及已经成功capture/authenticate的prepared value在validate或安装阶段失败时，
+   都对该prepared value调用一次`abortInternalV1()`并保持participant/controller/state/notification exact zero；prepare throw或返回
+   malformed/missing/throwing-descriptor value时没有prepared abort且postcondition同样exact zero。Abort本身必须no-throw且不得调用
+   clock/router/DOM/user code。
+
+Direct transient participant drift使用既有`rejected / surface.invalid_transition` exact-zero receipt，participant fault使用既有
+`faulted / surface.transition_faulted`；direct generic state transition分别抛既有state-stale或source-relative participant-fault TypeError，
+prepared install继续映射existing `stale | aborted`。本entry不新增`ManagedSurfaceOperationV1`、public receipt/code或generic rollback。Operation
+guard与participant logical commit之间不允许fallible caller work；若实现不能证明operation guard成功后logical commit必定no-throw，`.4.1`停止。
+
+`.4.1` mutation RED必须覆盖三assignment入口、exact descriptor/claim/receiver、previous-equals-next unread、prepare callback reentry、expected-state
+ABA、validate false/throw/nonboolean、operation guard false/throw、logical commit ordering、notification reentry、cancel/request throw、terminal及
+10,000轮one-participant/one-prepared bounded churn。Implementation精确只有：
+
+- `engine/packages/ui/src/managed-surfaces/managed-surface-runtime-kernel.ts`及同名`.test.ts`；
+- `engine/packages/ui/src/managed-surfaces/managed-surface-stable-composite-state.ts`及同名`.test.ts`；
+- `engine/packages/ui/src/public-api.test.ts` negative guards。
+
+若必须建立participant array/Map、在assignment后subscriber才计算remaining、在kernel CAS fence首次调用raw clock、改变generic operation/result/code、
+修改reducer/InputRouter/Coordinator/public barrel，或不能覆盖上述三个assignment入口，`.4.1`立即停止并回到本entry。
+
+`.4.2`把candidate既有`playerProfile`、`presentationClock`与`textResolver` required fields从opaque identity收窄为下列raw ports的
+descriptor-captured zero-key handles；candidate snapshot key set与required port IDs保持不变：
+
+```ts
+export interface NarrativeStableDialoguePlayerClockPortInternalV1 {
+  nowInternalV1(): number;
+  requestTickInternalV1(callback: (nowMs: number) => void): () => void;
+  prefersReducedMotionInternalV1(): boolean;
+}
+
+export interface NarrativeStableDialoguePlayerProfilePortInternalV1 {
+  getSnapshotInternalV1(): DeepReadonly<PlayerProfileV1>;
+  subscribeInternalV1(listener: () => void): () => void;
+  markSeenInternalV1(definitionId: string, seenRevision: number): void;
+}
+
+export interface NarrativeStableDialoguePlayerTextResolverPortInternalV1 {
+  resolveTextInternalV1(textId: string): string;
+}
+
+declare const narrativeStableCapturedDialoguePlayerClockPortBrandInternalV1: unique symbol;
+export interface NarrativeStableCapturedDialoguePlayerClockPortInternalV1 {
+  readonly [narrativeStableCapturedDialoguePlayerClockPortBrandInternalV1]: true;
+}
+declare const narrativeStableCapturedDialoguePlayerProfilePortBrandInternalV1: unique symbol;
+export interface NarrativeStableCapturedDialoguePlayerProfilePortInternalV1 {
+  readonly [narrativeStableCapturedDialoguePlayerProfilePortBrandInternalV1]: true;
+}
+declare const narrativeStableCapturedDialoguePlayerTextResolverPortBrandInternalV1: unique symbol;
+export interface NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1 {
+  readonly [narrativeStableCapturedDialoguePlayerTextResolverPortBrandInternalV1]: true;
+}
+```
+
+三个captured interface使用private `unique symbol` brand并暴露frozen **zero-own-key** handle；brand const不export，也不是runtime/member
+spelling。Raw ports必须是exact plain own-data method object，preflight descriptor-capture receiver/callables，
+不调用method；malformed/throwing reflection继续归既有`faulted / narrative.candidate_preflight_faulted`且candidate/allocation/topology zero。
+Clock/profile/text raw receiver、store、callback与cancel handle永不进入candidate snapshot、renderer props或public export。
+
+Player policy与passive snapshot精确为：
+
+```ts
+export interface NarrativeStableDialoguePlayerPolicySnapshotInternalV1 {
+  readonly textRevealCharsPerSecond: number;
+  readonly autoWaitMs: number;
+  readonly skipPolicy: "skip_read" | "skip_all";
+  readonly reducedMotion: boolean;
+}
+
+export type NarrativeStableDialoguePlayerSnapshotInternalV1 =
+  | Readonly<{
+    kind: "say";
+    phase: "preparing" | "active" | "suspended";
+    playbackMode: NarrativeStablePlaybackModeInternalV1;
+    playerProfile: DeepReadonly<PlayerProfileV1>;
+    resolvedSpeakerText: string | null;
+    resolvedText: string;
+    revealedCharacters: number;
+    revealLength: number;
+    revealComplete: boolean;
+  }>
+  | Readonly<{
+    kind: "passive";
+    phase: "preparing" | "active" | "suspended";
+    playbackMode: "normal";
+    playerProfile: DeepReadonly<PlayerProfileV1>;
+  }>;
+
+export interface CreateNarrativeStableDialoguePlayerControllerInputInternalV1 {
+  readonly bridge: NarrativeStablePublisherBridgeInternalV1;
+  readonly target: ManagedSurfaceStableAdmittedTargetInternalV1;
+  readonly frame: NarrativeStableAdmittedFrameInternalV1;
+}
+
+export interface NarrativeStableDialoguePlayerControllerInternalV1 {
+  getSnapshotInternalV1(): NarrativeStableDialoguePlayerSnapshotInternalV1;
+  subscribeInternalV1(listener: () => void): () => void;
+  disposeInternalV1(): void;
+}
+
+export function createNarrativeStableDialoguePlayerControllerInternalV1(
+  input: CreateNarrativeStableDialoguePlayerControllerInputInternalV1,
+): NarrativeStableDialoguePlayerControllerInternalV1;
+```
+
+Factory input是exact three-key plain-data record；family必须证明`target`的private target-frame record仍属于exact bridge且其frame正是
+`frame`，随后controller只保留该fresh frame/candidate generation的bounded provenance。Foreign/retired target、value-equal frame、readiness retry的
+predecessor frame、accessor/extra key与borrowed controller receiver在clock/profile/text read前fail closed；fresh retry必须取得fresh frame/controller。
+Dispose/retirement先logical fence generation/attempt，再把mutable private holder中的bridge/target/frame/raw bindings/cancel/subscribers全部scrub；
+caller-retained controller late snapshot只返回最后frozen passive snapshot、late subscribe返回frozen no-op、repeat dispose idempotent，不反向保活owner。
+
+Policy snapshot必须是frozen exact four-key safe data：reveal rate与auto wait为nonnegative safe integer，reduced motion为boolean。Controller只维持
+one captured raw profile subscription；profile change规范为fresh frozen current profile并只在identity变化时发布fresh player snapshot，timing policy/
+resolved text保持本frame不变，unsubscribe在logical fence之后best-effort contain。Clock `now`与tick
+timestamp单位均为finite nonnegative safe-integer milliseconds且per exact clock monotonic；regression、throw、invalid/noncallable cancel、callback
+reentry或unexpected duplicate tick先重验controller/currentness，current fault只fence该controller并reset bridge-owned mode，stale fault不命中
+successor。每controller至多one scheduled tick、one cancel handle、one generation、one current automatic attempt与bounded subscribers。
+
+S4 V1 reveal cursor按JavaScript **UTF-16 code unit**计数；`revealLength === resolvedText.length`，因此renderer可以用同一captured resolved text
+稳定slice。Fixed Skip cadence是engine-owned **40ms**，不进入profile/Save。Policy、resolved speaker/text与reveal length在每个fresh target frame首次
+prepare时捕获；同frame profile/locale/reduced-motion变化可更新cached profile view与seen query，但不得重算当前rate/deadline、重启text或改变
+resolved text。History/higher-blocker suspension保留同frame policy、integer cursor、sub-character remainder与`max(0, deadline - preparedTimestamp)`；
+root/source replacement使用fresh frame/controller并重新capture。Reduced motion或rate 0的fresh Say初始即complete。
+
+Seen ownership冻结为：每个exact Say controller只在首次full reveal（natural tick、manual `revealAll`、fresh instant）或`skip_all`即将dispatch该
+unread Say前调用一次captured `markSeenInternalV1(definitionId, seenRevision)`；logical once flag先提交，callback throw/reentry被contain且不回滚。
+`skip_read`在每个fresh skip step调用captured profile snapshot判定；unread时不reveal、不mark、不semantic dispatch，而由bridge-owned compare-and-set
+把mode从exact current `skip`降回`normal`。Controller不得暴露任意`setMode`或建立第二mode writer。
+
+New attempts/results的exact names与closed rows为：
+
+```ts
+declare const narrativeStableSayPlayerAutoAttemptBrandInternalV1: unique symbol;
+export interface NarrativeStableSayPlayerAutoAttemptInternalV1 {
+  readonly [narrativeStableSayPlayerAutoAttemptBrandInternalV1]: true;
+}
+declare const narrativeStableSaySkipAttemptBrandInternalV1: unique symbol;
+export interface NarrativeStableSaySkipAttemptInternalV1 {
+  readonly [narrativeStableSaySkipAttemptBrandInternalV1]: true;
+}
+declare const narrativeStablePlaybackModeResetAttemptBrandInternalV1: unique symbol;
+export interface NarrativeStablePlaybackModeResetAttemptInternalV1 {
+  readonly [narrativeStablePlaybackModeResetAttemptBrandInternalV1]: true;
+}
+
+export type NarrativeStableSayPlayerAutoDispatchResultInternalV1 =
+  | Readonly<{ kind: "dispatched"; completion: Promise<unknown> }>
+  | Readonly<{ kind: "not_ready"; completion: null }>
+  | Readonly<{ kind: "stale"; completion: null }>
+  | Readonly<{ kind: "faulted"; completion: null }>;
+
+export type NarrativeStableSaySkipDispatchResultInternalV1 =
+  | Readonly<{ kind: "dispatched"; completion: Promise<unknown> }>
+  | Readonly<{ kind: "stopped"; completion: null }>
+  | Readonly<{ kind: "stale"; completion: null }>
+  | Readonly<{ kind: "faulted"; completion: null }>;
+
+export type NarrativeStablePlaybackModeResetDispatchResultInternalV1 =
+  | Readonly<{ kind: "reset"; mode: "normal"; completion: null }>
+  | Readonly<{ kind: "stale"; completion: null }>
+  | Readonly<{ kind: "faulted"; completion: null }>;
+```
+
+三个attempt都是fresh frozen zero-key private-brand capability。Content-owned auto继续只接受
+`advancePolicy: "auto"`；player Auto对`confirm | auto`都等full reveal再用captured `autoWaitMs`；Skip优先于两种auto并绕过reveal wait。
+Player-auto/Skip/manual/content-auto必须复用existing per-frame `sayCallbackClaim`与`saySemanticInFlightClaim`，Pause继续复用existing
+Pause-expiry attempt；不得建立第二semantic claim。Manual/timer/skip/History/blocker在同一composition transition中first-win：suspension logical
+commit先赢则old tick/attempt stale-zero；timer先seal shared claim则History intent沿既有claim gate失败。Semantic call前seal；Promise settlement
+drain publication/reconcile后只以exact token CAS清理，resolved/rejected均不复活loser。
+
+只有exact direct ready-active root运行tick。Preparing、readiness gap、retained predecessor与suspended controller只保存passive state；History
+preparing/ready、foreign higher blocker与source suspension都经`.4.1` participant在同一install logical commit保存remaining并撤销attempt。Resume用fresh
+generation继续remaining；remaining 0仍必须等successor assignment及完整notification之后由**下一次 clock tick**dispatch。Accepted fresh non-Say
+source boundary立即把mode CAS回normal并冻结retained predecessor controller；Pause只在ready-active后按`durationMs`arm existing expiry attempt并沿
+相同suspension remaining，choice/barrier/custom无timer。Empty、epoch/
+publisher-lease/application successor、true detach、terminal或dispose永久cancel/reset；source replacement冻结old controller，fresh Say按current bridge
+mode重建。
+
+`.4.2` RED覆盖raw/captured descriptors、policy/text/profile faults、clock monotonic/reentry/cancel、UTF-16/remainder、instant reveal、manual first-win、
+content auto/player auto/Skip/Pause、seen/reset、History/higher blocker、replacement/retry/empty/terminal、Promise/ABA与10,000 timer/controller churn。
+Implementation精确只有：
+
+- new `engine/packages/ui/src/narrative/dialogue-player-controller.ts`及同名`.test.ts`；
+- `engine/packages/ui/src/narrative/narrative-managed-surface-family.ts`及同名`.test.ts`；
+- `engine/packages/ui/src/public-api.test.ts` negative guards。
+
+若DOM-free core还必须读取React/DOM、修改session/Host、复用legacy `TextRevealV1`/`PlaybackControllerV1`、扩generic receipt/Base/Save、调用
+`Date.now`/`setTimeout`、把profile/clock/controller交给renderer，或无法复用existing claims，`.4.2`立即停止。
+
+`.4.3`新增只读proxy：
+
+```ts
+export type NarrativeStableDialoguePlayerTextResolverInternalV1 = (
+  textId: string,
+) => string;
+
+export interface NarrativeStableDialoguePlayerObservationInternalV1 {
+  getSnapshotInternalV1(): NarrativeStableDialoguePlayerSnapshotInternalV1;
+  subscribeInternalV1(listener: () => void): () => void;
+}
+```
+
+每个Dialogue Host render entry新增exact `playerObservation` field；preparing→ready→suspended→resume与same-host/same-portal StrictMode reattach保持
+exact observation/controller/renderKey identity，root replacement/failure/empty/terminal/fresh frame永久fence old proxy。Observation只保留current frozen
+snapshot与bounded listener set；late get返回最后snapshot，late subscribe为frozen no-op，不反向保活raw clock/profile/text ports或bridge/kernel。
+
+`NarrativeStableDialogueRendererPropsInternalV1`保留现有`kind | pending | visualConfig | playerProfile | textResolver |
+quickMenuContribution` fields并新增exact `playerView: NarrativeStableDialoguePlayerSnapshotInternalV1`；Dialogue与History props中的
+`playerProfile`都收窄为`DeepReadonly<PlayerProfileV1>`，`textResolver`都收窄为
+`NarrativeStableDialoguePlayerTextResolverInternalV1`。Host使用module-level keyed Dialogue child与
+`useSyncExternalStore(playerObservation...)`materialize current frozen snapshot；`playerProfile`只传current immutable
+`DeepReadonly<PlayerProfileV1>`，`textResolver`只传descriptor-captured/bound read callable，绝不传raw store/receiver。Renderer不得取得
+`NarrativeStableDialoguePlayerControllerInternalV1`、observation、clock、deadline/remaining、mode reset、semantic port、Surface/Coordinator evidence或
+timer lifecycle；presentation intents仍走existing managed route/admission，不新增React-local writer。
+
+Preparing/retained/suspended shell继续遵守existing inner inert/hidden与outer focus ownership；Host不计算cursor/deadline、不请求tick、不reset mode，
+只订阅passive view。Pre-ready observation/render fault沿existing readiness-failed terminal-once；accepted-ready fault继续rethrow outer diagnostics owner。
+StrictMode effect probe与same-portal reattach不创建fresh controller/generation/tick；true detach/terminal由family participant先logical fence再在existing
+Host cleanup里physical cancel。Profile/text/clock callback、observation listener与renderer reentry都必须在publish前后复核exact generation；snapshot
+equal复用identity且zero notify。
+
+`.4.3` RED覆盖exact entry/props keys、`useSyncExternalStore` identity、preparing/active/suspended/replacement max-three view、History open/close与higher
+blocker remaining、zero-next-tick、StrictMode/reattach/detach/terminal、pre/post-ready fault、profile/text churn、late proxy及10,000 Host/controller/
+snapshot churn。Implementation精确只有family pair、session pair、Host pair与`engine/packages/ui/src/public-api.test.ts`七files。任何new top-level/
+member spelling都必须进入UI root、`./internal`与package type/runtime negative inventory；public/package barrel、architecture/features/development/live
+Story保持zero diff。
+
+若renderer必须拿raw controller/clock/profile store、Host必须建立timer/deadline/mode writer、History suspension只能post-notify、StrictMode必须
+重建generation，或需要Engine Lab/GameStage/composer/DialoguePanel/VnLayer/Web/CSS/Base/Save/live wiring，`.4.3`立即停止；Engine Lab只归`.5`，
+tracked consumer migration、legacy writer/export删除与browser/examples/prebuilt promotion只归S4.3。
+
+本`.4.0`严格只修改本design与两份owning plans，不修改source/test/runtime/architecture/features/development/roadmap/website/live graph，也不
+复用旧runtime evidence冒充delivery。Verification只有三份target docs的`deno fmt --check`与scoped `git diff --check`。本entry完成后唯一active
+current/next、core slice与direct RED gate为**S4.2.4.1 generic prepared state-install participant substrate**，后续唯一顺序为
+**S4.2.4.1 → S4.2.4.2 → S4.2.4.3 → S4.2.5 → S4.3 → S4b**。
 
 每个 family 的迁移提交必须删除旧 owner；禁止长期 adapter 双写。
 `DialoguePanelV1` / `VnLayerV1` 的 controller/view/host 拆分在 Narrative family
