@@ -676,6 +676,22 @@ import type { ManagedSurfaceStableExactParentTransientChildActionRouteAuthorityI
 import type { claimManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1 as ForbiddenPublicStableExactParentTransientChildActionRouteAuthorityClaimV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose stable exact-parent transient-child action-route authority claims.
 import type { claimManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1 as ForbiddenInternalStableExactParentTransientChildActionRouteAuthorityClaimV1 } from "./internal.ts";
+// @ts-expect-error Stable exact-parent transient-child lifecycle commit guards stay source-relative.
+import type { ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1 as ForbiddenPublicStableExactParentTransientChildLifecycleCommitGuardV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable exact-parent transient-child lifecycle commit guards.
+import type { ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1 as ForbiddenInternalStableExactParentTransientChildLifecycleCommitGuardV1 } from "./internal.ts";
+// @ts-expect-error Stable exact-parent transient-child lifecycle results stay source-relative.
+import type { ManagedSurfaceStableExactParentTransientChildLifecycleResultInternalV1 as ForbiddenPublicStableExactParentTransientChildLifecycleResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable exact-parent transient-child lifecycle results.
+import type { ManagedSurfaceStableExactParentTransientChildLifecycleResultInternalV1 as ForbiddenInternalStableExactParentTransientChildLifecycleResultV1 } from "./internal.ts";
+// @ts-expect-error Stable exact-parent transient-child lifecycle authorities stay source-relative.
+import type { ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1 as ForbiddenPublicStableExactParentTransientChildLifecycleAuthorityV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable exact-parent transient-child lifecycle authorities.
+import type { ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1 as ForbiddenInternalStableExactParentTransientChildLifecycleAuthorityV1 } from "./internal.ts";
+// @ts-expect-error Stable exact-parent transient-child lifecycle authority claims stay source-relative.
+import type { claimManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1 as ForbiddenPublicStableExactParentTransientChildLifecycleAuthorityClaimV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose stable exact-parent transient-child lifecycle authority claims.
+import type { claimManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1 as ForbiddenInternalStableExactParentTransientChildLifecycleAuthorityClaimV1 } from "./internal.ts";
 /* oxlint-enable no-unused-vars */
 
 describe("@sillymaker/ui public managed System surface", () => {
@@ -848,6 +864,10 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "ManagedSurfaceStableExactParentTransientChildActionInputCaptureResultInternalV1"
       | "ManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1"
       | "claimManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1"
+      | "ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1"
+      | "ManagedSurfaceStableExactParentTransientChildLifecycleResultInternalV1"
+      | "ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1"
+      | "claimManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1"
       | "ManagedSurfaceStableDirectActionTargetProofInternalV1"
       | "ManagedSurfaceStableReadyActiveTargetProofInternalV1"
       | "ManagedSurfaceStableReadyActiveTargetCaptureResultInternalV1"
@@ -863,6 +883,8 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "ManagedSurfaceReducerCrossAxisParentProjectionInternalV1"
       | "DeriveManagedSurfaceReducerCrossAxisChildPreparationInputInternalV1"
       | "prepareExactParentTransientChildInternalV1"
+      | "closeExactParentTransientChildInternalV1"
+      | "dismissExactParentTransientChildInternalV1"
       | "commitInternalV1"
       | "abortInternalV1"
       | "getBindingInternalV1"
@@ -1098,6 +1120,10 @@ describe("@sillymaker/ui public managed System surface", () => {
         "ManagedSurfaceStableExactParentTransientChildActionInputCaptureResultInternalV1",
         "ManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1",
         "claimManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1",
+        "ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1",
+        "ManagedSurfaceStableExactParentTransientChildLifecycleResultInternalV1",
+        "ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1",
+        "claimManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1",
         "ManagedSurfaceStableDirectActionTargetProofInternalV1",
         "ManagedSurfaceStableReadyActiveTargetProofInternalV1",
         "ManagedSurfaceStableReadyActiveTargetCaptureResultInternalV1",
@@ -1113,6 +1139,8 @@ describe("@sillymaker/ui public managed System surface", () => {
         "ManagedSurfaceReducerCrossAxisParentProjectionInternalV1",
         "DeriveManagedSurfaceReducerCrossAxisChildPreparationInputInternalV1",
         "prepareExactParentTransientChildInternalV1",
+        "closeExactParentTransientChildInternalV1",
+        "dismissExactParentTransientChildInternalV1",
         "commitInternalV1",
         "abortInternalV1",
         "getBindingInternalV1",

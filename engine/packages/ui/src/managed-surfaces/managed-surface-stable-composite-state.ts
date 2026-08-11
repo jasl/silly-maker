@@ -7,6 +7,7 @@ import {
 } from "@sillymaker/base";
 
 import type {
+  ManagedSurfaceDismissKindV1,
   ManagedSurfaceReadinessEvidenceV1,
   ManagedSurfaceInstanceIdV1,
   ManagedSurfaceOperationV1,
@@ -430,6 +431,36 @@ export interface ManagedSurfaceStableExactParentTransientChildReadinessAuthority
   ): ManagedSurfaceStableExactParentTransientChildReadinessResultInternalV1;
 }
 
+export interface ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1 {
+  readonly commitInternalV1: (
+    contract: ManagedSurfacePreparedInputBindingContractInternalV1,
+  ) => boolean;
+}
+
+export type ManagedSurfaceStableExactParentTransientChildLifecycleResultInternalV1 =
+  | Readonly<{
+    readonly kind: "applied";
+    readonly code: "surface.closed" | "surface.dismissed";
+  }>
+  | Readonly<{
+    readonly kind: "locked";
+    readonly code: "surface.dismiss_locked";
+  }>
+  | Readonly<{ readonly kind: "stale" }>
+  | Readonly<{ readonly kind: "faulted" }>;
+
+export interface ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1 {
+  closeExactParentTransientChildInternalV1(
+    candidate: unknown,
+    guard: ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1,
+  ): ManagedSurfaceStableExactParentTransientChildLifecycleResultInternalV1;
+  dismissExactParentTransientChildInternalV1(
+    candidate: unknown,
+    dismissKind: ManagedSurfaceDismissKindV1,
+    guard: ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1,
+  ): ManagedSurfaceStableExactParentTransientChildLifecycleResultInternalV1;
+}
+
 export type ManagedSurfaceStableExactParentTransientChildActionInputCaptureResultInternalV1 =
   | Readonly<{
     readonly kind: "captured";
@@ -576,6 +607,11 @@ interface ManagedSurfaceStableExactParentTransientChildReadinessClaimRecordInter
   readonly authority: ManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1;
 }
 
+interface ManagedSurfaceStableExactParentTransientChildLifecycleClaimRecordInternalV1 {
+  readonly exactClaimant: object;
+  readonly authority: ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1;
+}
+
 interface ManagedSurfaceStableExactParentTransientChildActionClaimRecordInternalV1 {
   readonly exactClaimant: object;
   readonly authority: ManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1;
@@ -602,6 +638,10 @@ const stableExactParentTransientChildClaimsInternalV1 = new WeakMap<
 const stableExactParentTransientChildReadinessClaimsInternalV1 = new WeakMap<
   ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   ManagedSurfaceStableExactParentTransientChildReadinessClaimRecordInternalV1
+>();
+const stableExactParentTransientChildLifecycleClaimsInternalV1 = new WeakMap<
+  ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+  ManagedSurfaceStableExactParentTransientChildLifecycleClaimRecordInternalV1
 >();
 const stableExactParentTransientChildActionClaimsInternalV1 = new WeakMap<
   ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
@@ -4471,6 +4511,32 @@ const stableExactParentTransientChildReadinessStaleResultInternalV1 = Object.fre
 const stableExactParentTransientChildReadinessFaultedResultInternalV1 = Object.freeze({
   kind: "faulted" as const,
 });
+const stableExactParentTransientChildLifecycleClosedResultInternalV1 = Object.freeze({
+  kind: "applied" as const,
+  code: "surface.closed" as const,
+});
+const stableExactParentTransientChildLifecycleDismissedResultInternalV1 = Object.freeze({
+  kind: "applied" as const,
+  code: "surface.dismissed" as const,
+});
+const stableExactParentTransientChildLifecycleLockedResultInternalV1 = Object.freeze({
+  kind: "locked" as const,
+  code: "surface.dismiss_locked" as const,
+});
+const stableExactParentTransientChildLifecycleStaleResultInternalV1 = Object.freeze({
+  kind: "stale" as const,
+});
+const stableExactParentTransientChildLifecycleFaultedResultInternalV1 = Object.freeze({
+  kind: "faulted" as const,
+});
+
+function isStableExactParentTransientChildLifecycleDismissKindInternalV1(
+  value: unknown,
+): value is ManagedSurfaceDismissKindV1 {
+  return value === "back" || value === "escape" || value === "backdrop" ||
+    value === "routed_cancel";
+}
+
 const stableExactParentTransientChildActionUnavailableResultInternalV1 = Object.freeze({
   kind: "unavailable" as const,
 });
@@ -4489,6 +4555,31 @@ interface CapturedStableReadinessCommitGuardInternalV1 {
 function captureStableReadinessCommitGuardInternalV1(
   guard: unknown,
 ): CapturedStableReadinessCommitGuardInternalV1 | null {
+  if ((typeof guard !== "object" && typeof guard !== "function") || guard === null) {
+    return null;
+  }
+  const keys = Reflect.ownKeys(guard);
+  const descriptor = Object.getOwnPropertyDescriptor(guard, "commitInternalV1");
+  if (
+    !Object.isFrozen(guard) || keys.length !== 1 || keys[0] !== "commitInternalV1" ||
+    descriptor === undefined || !("value" in descriptor) ||
+    typeof descriptor.value !== "function"
+  ) {
+    return null;
+  }
+  return Object.freeze({ receiver: guard, callable: descriptor.value });
+}
+
+interface CapturedStableExactParentTransientChildLifecycleCommitGuardInternalV1 {
+  readonly receiver: object;
+  readonly callable: (
+    contract: ManagedSurfacePreparedInputBindingContractInternalV1,
+  ) => unknown;
+}
+
+function captureStableExactParentTransientChildLifecycleCommitGuardInternalV1(
+  guard: unknown,
+): CapturedStableExactParentTransientChildLifecycleCommitGuardInternalV1 | null {
   if ((typeof guard !== "object" && typeof guard !== "function") || guard === null) {
     return null;
   }
@@ -5170,6 +5261,298 @@ export function claimManagedSurfaceStableExactParentTransientChildReadinessAutho
   };
   authority = Object.freeze(candidate);
   stableExactParentTransientChildReadinessClaimsInternalV1.set(kernel, {
+    exactClaimant,
+    authority,
+  });
+  return authority;
+}
+
+export function claimManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1(
+  kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+  exactClaimant: object,
+): ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1 {
+  const preparationClaim = stableExactParentTransientChildClaimsInternalV1.get(kernel);
+  if (
+    !compositeRuntimeKernelConfigurationRecordsInternalV1.has(kernel) ||
+    ((typeof exactClaimant !== "object" && typeof exactClaimant !== "function") ||
+      exactClaimant === null) ||
+    preparationClaim?.exactClaimant !== exactClaimant
+  ) {
+    throw new TypeError(
+      "ui.managed_surface_stable_exact_parent_transient_child_lifecycle_claim_invalid",
+    );
+  }
+  const retained = stableExactParentTransientChildLifecycleClaimsInternalV1.get(kernel);
+  if (retained !== undefined) {
+    if (retained.exactClaimant !== exactClaimant) {
+      throw new TypeError(
+        "ui.managed_surface_stable_exact_parent_transient_child_lifecycle_claim_invalid",
+      );
+    }
+    return retained.authority;
+  }
+
+  let authority!: ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1;
+  const transition = (
+    candidateInput: unknown,
+    guardInput: ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1,
+    request: Readonly<
+      | { readonly kind: "close" }
+      | { readonly kind: "dismiss"; readonly dismissKind: unknown }
+    >,
+  ): ManagedSurfaceStableExactParentTransientChildLifecycleResultInternalV1 => {
+    if (
+      (typeof candidateInput !== "object" && typeof candidateInput !== "function") ||
+      candidateInput === null
+    ) {
+      throw new TypeError(
+        "ui.managed_surface_stable_exact_parent_transient_child_lifecycle_claim_invalid",
+      );
+    }
+    const record = stableExactParentTransientChildCandidateRecordsInternalV1.get(
+      candidateInput,
+    );
+    if (record === undefined || record.kernel !== kernel) {
+      throw new TypeError(
+        "ui.managed_surface_stable_exact_parent_transient_child_lifecycle_claim_invalid",
+      );
+    }
+
+    const currentState = kernel.getStateInternalV1();
+    if (currentState.transientState.publication.coordinatorDisposed) {
+      return stableExactParentTransientChildLifecycleStaleResultInternalV1;
+    }
+    const inspected = inspectCurrentStableExactParentTransientChildInternalV1(
+      currentState,
+      record,
+    );
+    if (inspected.kind === "unavailable") {
+      return stableExactParentTransientChildLifecycleStaleResultInternalV1;
+    }
+    if (inspected.kind === "faulted") {
+      return stableExactParentTransientChildLifecycleFaultedResultInternalV1;
+    }
+    const preparing = inspected.instance.readiness.kind === "preparing";
+    if (
+      (!preparing && inspected.instance.phase !== "active") ||
+      (preparing && inspected.instance.readiness.transition !== "child_open")
+    ) {
+      return stableExactParentTransientChildLifecycleStaleResultInternalV1;
+    }
+    const currentPublication = currentState.transientState.publication;
+    const currentCloseTarget = currentPublication.orderedInstances.toReversed().find((instance) =>
+      (instance.readiness.kind === "preparing" &&
+        (instance.readiness.transition === "initial_open" ||
+          instance.readiness.transition === "child_open")) ||
+      instance.surfaceInstanceId === currentPublication.navigationTargetInstanceId
+    );
+    if (
+      currentCloseTarget !== inspected.instance ||
+      (!preparing &&
+        (inspected.projection.inputNode?.axis !== "transient" ||
+          inspected.projection.inputNode.instance !== inspected.instance ||
+          currentPublication.navigationTargetInstanceId !== record.surfaceInstanceId))
+    ) {
+      return stableExactParentTransientChildLifecycleStaleResultInternalV1;
+    }
+    let dismissKind: ManagedSurfaceDismissKindV1 | null = null;
+    if (request.kind === "dismiss") {
+      if (
+        !isStableExactParentTransientChildLifecycleDismissKindInternalV1(
+          request.dismissKind,
+        )
+      ) {
+        return stableExactParentTransientChildLifecycleFaultedResultInternalV1;
+      }
+      dismissKind = request.dismissKind;
+    }
+
+    let nextState: ManagedSurfaceStableCompositeStateInternalV1;
+    let contract: ManagedSurfaceInputBindingContractV1;
+    let appliedResult:
+      | typeof stableExactParentTransientChildLifecycleClosedResultInternalV1
+      | typeof stableExactParentTransientChildLifecycleDismissedResultInternalV1;
+    try {
+      const publication = currentState.transientState.publication;
+      let operation: ManagedSurfaceOperationV1;
+      if (request.kind === "close") {
+        operation = Object.freeze({
+          kind: "close_top" as const,
+          applicationEpoch: publication.applicationEpoch,
+        });
+      } else if (dismissKind === null) {
+        return stableExactParentTransientChildLifecycleFaultedResultInternalV1;
+      } else {
+        operation = preparing
+          ? Object.freeze({
+            kind: "route_fallback_dismiss_exact_candidate" as const,
+            dismissKind,
+            evidence: record.readinessEvidence,
+          })
+          : Object.freeze({
+            kind: "route_dismiss" as const,
+            dismissKind,
+            evidence: Object.freeze({
+              applicationEpoch: publication.applicationEpoch,
+              topologyRevision: publication.topologyRevision,
+              surfaceInstanceId: record.surfaceInstanceId,
+            }),
+          });
+      }
+      const reduced = reduceManagedSurfaceV1(currentState.transientState, operation);
+      if (
+        request.kind === "dismiss" && reduced.receipt.kind === "rejected" &&
+        reduced.receipt.code === "surface.dismiss_locked" &&
+        reduced.receipt.surfaceInstanceId === record.surfaceInstanceId
+      ) {
+        return stableExactParentTransientChildLifecycleLockedResultInternalV1;
+      }
+      if (reduced.receipt.kind === "stale") {
+        return stableExactParentTransientChildLifecycleStaleResultInternalV1;
+      }
+      const expectedCode = request.kind === "close" ? "surface.closed" : "surface.dismissed";
+      if (
+        reduced.receipt.kind !== "applied" || reduced.receipt.code !== expectedCode
+      ) {
+        return reduced.receipt.code === "surface.invalid_transition" ||
+            reduced.receipt.code === "surface.already_closed"
+          ? stableExactParentTransientChildLifecycleStaleResultInternalV1
+          : stableExactParentTransientChildLifecycleFaultedResultInternalV1;
+      }
+      if (reduced.receipt.surfaceInstanceId !== record.surfaceInstanceId) {
+        return stableExactParentTransientChildLifecycleStaleResultInternalV1;
+      }
+
+      const seedState = replaceTransientStateInternalV1(currentState, reduced.state);
+      const reflow = planWholeCompositeReflowInternalV1({
+        beforeState: currentState,
+        seedState,
+        transientRevisionMode: "coalesce_existing_transition",
+      });
+      nextState = reflow.state;
+      if (
+        reflow.allocatedPreparationCount !== 0 ||
+        nextState.transientState.identitySequenceHighWater !==
+          currentState.transientState.identitySequenceHighWater ||
+        nextState.transientState.publication.orderedInstances.some((instance) =>
+          instance.surfaceInstanceId === record.surfaceInstanceId
+        )
+      ) {
+        return stableExactParentTransientChildLifecycleFaultedResultInternalV1;
+      }
+      const successorProjection = projectWholeCompositeTopologyInternalV1(nextState);
+      const parentNode = successorProjection.nodes.find((node) =>
+        node.axis === "stable" && node.instance !== null &&
+        node.instance.attempt.identity.surfaceInstanceId === record.parentInstanceId
+      );
+      if (
+        parentNode === undefined || parentNode.axis !== "stable" ||
+        parentNode.instance === null ||
+        successorProjection.stablePhaseByInstance.get(parentNode.instance) !== "active"
+      ) {
+        return stableExactParentTransientChildLifecycleFaultedResultInternalV1;
+      }
+      const derivedContract = managedSurfaceInputBindingContractForCompositeStateInternalV1(
+        nextState,
+      );
+      if (
+        derivedContract === null ||
+        derivedContract.surfaceInstanceId !== record.parentInstanceId
+      ) {
+        return stableExactParentTransientChildLifecycleFaultedResultInternalV1;
+      }
+      contract = derivedContract;
+      appliedResult = request.kind === "close"
+        ? stableExactParentTransientChildLifecycleClosedResultInternalV1
+        : stableExactParentTransientChildLifecycleDismissedResultInternalV1;
+    } catch {
+      return kernel.getStateInternalV1() === currentState
+        ? stableExactParentTransientChildLifecycleFaultedResultInternalV1
+        : stableExactParentTransientChildLifecycleStaleResultInternalV1;
+    }
+
+    let guard: CapturedStableExactParentTransientChildLifecycleCommitGuardInternalV1 | null;
+    try {
+      guard = captureStableExactParentTransientChildLifecycleCommitGuardInternalV1(guardInput);
+    } catch {
+      return stableExactParentTransientChildLifecycleFaultedResultInternalV1;
+    }
+    if (guard === null) {
+      return stableExactParentTransientChildLifecycleFaultedResultInternalV1;
+    }
+
+    let contractToken: ManagedSurfacePreparedInputBindingContractInternalV1;
+    try {
+      contractToken = captureManagedSurfacePreparedInputBindingContractInternalV1(contract);
+    } catch {
+      return kernel.getStateInternalV1() === currentState
+        ? stableExactParentTransientChildLifecycleFaultedResultInternalV1
+        : stableExactParentTransientChildLifecycleStaleResultInternalV1;
+    }
+    let prepared: ReturnType<
+      ManagedSurfaceStableCompositeRuntimeKernelInternalV1["prepareStateInstallInternalV1"]
+    >;
+    try {
+      prepared = kernel.prepareStateInstallInternalV1(currentState, nextState);
+    } catch {
+      return kernel.getStateInternalV1() === currentState
+        ? stableExactParentTransientChildLifecycleFaultedResultInternalV1
+        : stableExactParentTransientChildLifecycleStaleResultInternalV1;
+    }
+
+    let guardFaulted = false;
+    const installResult = kernel.commitPreparedStateInstallInternalV1(
+      prepared,
+      () => {
+        try {
+          const committed = Reflect.apply(guard.callable, guard.receiver, [contractToken]);
+          if (committed !== true && committed !== false) guardFaulted = true;
+          return committed === true;
+        } catch {
+          guardFaulted = true;
+          return false;
+        }
+      },
+    );
+    if (installResult === "installed") return appliedResult;
+    return guardFaulted
+      ? stableExactParentTransientChildLifecycleFaultedResultInternalV1
+      : stableExactParentTransientChildLifecycleStaleResultInternalV1;
+  };
+
+  const candidate: ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1 = {
+    closeExactParentTransientChildInternalV1(
+      this: ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1,
+      childCandidate: unknown,
+      guard: ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1,
+    ): ManagedSurfaceStableExactParentTransientChildLifecycleResultInternalV1 {
+      if (this !== authority) {
+        throw new TypeError(
+          "ui.managed_surface_stable_exact_parent_transient_child_lifecycle_claim_invalid",
+        );
+      }
+      return transition(childCandidate, guard, Object.freeze({ kind: "close" as const }));
+    },
+    dismissExactParentTransientChildInternalV1(
+      this: ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1,
+      childCandidate: unknown,
+      dismissKind: ManagedSurfaceDismissKindV1,
+      guard: ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1,
+    ): ManagedSurfaceStableExactParentTransientChildLifecycleResultInternalV1 {
+      if (this !== authority) {
+        throw new TypeError(
+          "ui.managed_surface_stable_exact_parent_transient_child_lifecycle_claim_invalid",
+        );
+      }
+      return transition(
+        childCandidate,
+        guard,
+        Object.freeze({ kind: "dismiss" as const, dismissKind }),
+      );
+    },
+  };
+  authority = Object.freeze(candidate);
+  stableExactParentTransientChildLifecycleClaimsInternalV1.set(kernel, {
     exactClaimant,
     authority,
   });
