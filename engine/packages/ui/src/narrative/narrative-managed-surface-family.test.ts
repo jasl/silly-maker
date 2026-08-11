@@ -300,6 +300,7 @@ function createCompositionPartsV1(
 
 function harnessV1(input: {
   readonly candidatePreflight?: NarrativeStableCandidatePreflightInternalV1;
+  readonly barrierStageClaimant?: object;
 } = {}): NarrativeHarnessV1 {
   const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
   const { registry, authority, kernel } = createCompositionPartsV1(contract);
@@ -310,6 +311,9 @@ function harnessV1(input: {
     candidatePreflight: input.candidatePreflight ?? defaultCandidatePreflightV1,
     exactAggregateDefinitionSidecars: contract.stableDefinitionSidecars,
     exactAggregateSlotDescriptors: contract.resolvedSlotDescriptors,
+    ...(input.barrierStageClaimant === undefined
+      ? {}
+      : { barrierStageClaimant: input.barrierStageClaimant }),
   });
   let stateNotifications = 0;
   kernel.subscribeStateInternalV1(() => {
@@ -8460,6 +8464,85 @@ describe("Narrative stable Managed Surface family", () => {
     expect(successor).not.toBe(controller);
     expect(controller.flushRetainedTerminalInternalV1()).toBeNull();
     successor.disposeInternalV1();
+  });
+
+  it("reuses the composition-scoped Stage claimant supplied to successor bridges", () => {
+    const claimant = Object.freeze({});
+    const firstDispatch = vi.fn(() => Promise.resolve("first-drained"));
+    const first = harnessV1({
+      barrierStageClaimant: claimant,
+      candidatePreflight: Object.freeze({
+        preflightCandidateInternalV1: () =>
+          capturedCandidatePreflightResultV1(Object.freeze({
+            ...defaultCandidateSnapshotV1,
+            semanticDispatchPort: Object.freeze({
+              dispatchResolutionInternalV1: firstDispatch,
+            }),
+          })),
+      }),
+    });
+    expect(first.bridge.reconcilePendingInternalV1(pendingV1("presentation_barrier")))
+      .toMatchObject({ kind: "applied" });
+    settleCurrentNarrativeReadyV1(first);
+    const stage = createBarrierStageHarnessV1({
+      claimant,
+      transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
+    });
+    expect(stage.authority).not.toBeNull();
+
+    const firstController = createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+      bridge: first.bridge,
+      stageReconciler: stage.reconciler,
+    });
+    expect(
+      firstController.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(stage.nextTarget, 2),
+      ),
+    ).toEqual({ kind: "armed", completion: null });
+    expect(firstController.flushRetainedTerminalInternalV1()).toMatchObject({
+      kind: "dispatched",
+    });
+    expect(firstDispatch).toHaveBeenCalledOnce();
+    firstController.disposeInternalV1();
+    first.bridge.disposeInternalV1();
+    expect(
+      firstController.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(stage.thirdTarget, 3),
+      ),
+    ).toEqual({ kind: "stale", completion: null });
+
+    const successorDispatch = vi.fn(() => Promise.resolve("successor-drained"));
+    const successor = harnessV1({
+      barrierStageClaimant: claimant,
+      candidatePreflight: Object.freeze({
+        preflightCandidateInternalV1: () =>
+          capturedCandidatePreflightResultV1(Object.freeze({
+            ...defaultCandidateSnapshotV1,
+            semanticDispatchPort: Object.freeze({
+              dispatchResolutionInternalV1: successorDispatch,
+            }),
+          })),
+      }),
+    });
+    expect(successor.bridge.reconcilePendingInternalV1(pendingV1("presentation_barrier", 2)))
+      .toMatchObject({ kind: "applied" });
+    settleCurrentNarrativeReadyV1(successor);
+    const successorController = createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
+      bridge: successor.bridge,
+      stageReconciler: stage.reconciler,
+    });
+    expect(Object.isFrozen(successorController)).toBe(true);
+    expect(
+      successorController.retargetCurrentBarrierStageInternalV1(
+        barrierRetargetInputV1(stage.thirdTarget, 3),
+      ),
+    ).toEqual({ kind: "armed", completion: null });
+    expect(successorController.flushRetainedTerminalInternalV1()).toMatchObject({
+      kind: "dispatched",
+    });
+    expect(successorDispatch).toHaveBeenCalledOnce();
+    expect(firstDispatch).toHaveBeenCalledOnce();
+    successorController.disposeInternalV1();
   });
 
   it("stores an instant Barrier terminal until explicit flush and seals its Promise", async () => {

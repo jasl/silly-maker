@@ -82,16 +82,22 @@ export function createManagedSurfaceCompositionRuntimeInternalV1(
   let disposed = false;
   let transitioning = false;
 
-  const attachCurrent = (): void => {
+  const attachCurrent = (
+    activationGate: ManagedSurfaceFamilyActivationGateInternalV1 | null,
+  ): () => void => {
     const captured = current;
     const syncManagedInput = (): void => {
-      if (captured !== current || !captured.isIngressOpen()) return;
+      if (
+        captured !== current || !captured.isIngressOpen() ||
+        (activationGate !== null && !activationGate.isOpen())
+      ) return;
       if (captured.coordinator.getSnapshot().inputOwner !== null) captured.bindCurrentInput();
     };
     unsubscribePublication = captured.coordinator.subscribe(syncManagedInput);
     syncManagedInput();
+    return syncManagedInput;
   };
-  attachCurrent();
+  attachCurrent(null);
 
   return Object.freeze({
     getCurrent(): ManagedSurfaceCoordinatorRuntimeV1 {
@@ -118,14 +124,19 @@ export function createManagedSurfaceCompositionRuntimeInternalV1(
           unsubscribePublication?.();
           unsubscribePublication = null;
           current = lifetime.replace({ kind, recipe: input.recipe });
-          attachCurrent();
+          const syncCurrentInput = attachCurrent(activationGate);
           for (const adapter of familyAdapters) {
             adapter.prepareRuntimeAttachmentInternalV1(current, activationGate);
           }
           for (const adapter of familyAdapters) {
             activationNotifications.push(adapter.activateRuntimeAttachmentInternalV1());
           }
+          // Open every armed family at one point, then install the current input
+          // publication before any family observer can synchronously re-enter.
+          activationState.open = true;
+          syncCurrentInput();
         } catch (error) {
+          activationState.open = false;
           disposed = true;
           const cleanupErrors: unknown[] = [];
           for (const adapter of familyAdapters) {
@@ -158,9 +169,6 @@ export function createManagedSurfaceCompositionRuntimeInternalV1(
           }
           throw error;
         }
-        // One shared flag opens every armed adapter before the first no-throw
-        // family notification can synchronously re-enter composition code.
-        activationState.open = true;
         for (const notifyActivation of activationNotifications) notifyActivation();
         return current;
       } finally {

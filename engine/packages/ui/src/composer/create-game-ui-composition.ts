@@ -7,6 +7,7 @@ import type {
   ReadonlyViewSourceV1,
 } from "@sillymaker/base";
 import { parseContentMaturityFlagsV1 } from "@sillymaker/base";
+import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 
 import { inputIgnoredV1 } from "../input/contracts.ts";
 import type { InputRouterV1 } from "../input/contracts.ts";
@@ -51,6 +52,7 @@ import type {
   RuntimePresentationPublicationV1,
   RuntimePresentationStoreV1,
 } from "../runtime/runtime-presentation-store.ts";
+import type { PresentationClockV1 } from "../presentation-run/presentation-clock.ts";
 import { createRuntimePresentationStoreV1 } from "../runtime/runtime-presentation-store.ts";
 import { createSemanticPublicationBridgeV1 } from "../runtime/semantic-publication-bridge.ts";
 import {
@@ -61,6 +63,15 @@ import {
   createSystemDialogManagedSessionInternalV1,
   createSystemDialogSessionFacadeInternalV1,
 } from "../system/system-dialog-managed-session.ts";
+import {
+  appendNarrativeManagedSurfaceRecipeInternalV1,
+  assertNarrativeSurfaceCompositionDefinitionInternalV1,
+  createNarrativeSurfaceCompositeKernelBundleInternalV1,
+  createNarrativeSurfaceCompositionRuntimeInternalV1,
+  type NarrativeSurfaceCompositeKernelBundleInternalV1,
+  type NarrativeSurfaceCompositionDefinitionInternalV1,
+  type NarrativeSurfaceCompositionRuntimeInternalV1,
+} from "../narrative/narrative-surface-composition.tsx";
 
 /**
  * The instance-local presentation anchor as the UI consumes it. It mirrors
@@ -207,6 +218,7 @@ export interface GameUiCompositionV1<
 /** @internal Managed Surface authority shared by the public family facades. */
 export interface GameUiManagedSurfaceCompositionInternalV1 {
   readonly runtime: ManagedSurfaceCompositionRuntimeInternalV1;
+  readonly narrative: NarrativeSurfaceCompositionRuntimeInternalV1;
   readonly systemDialogSession: SystemDialogSessionV1;
   sealTerminalInternalV1(): void;
   isTerminalInternalV1(): boolean;
@@ -226,6 +238,13 @@ export function resolveGameUiManagedSurfaceCompositionInternalV1(
     throw new TypeError("ui.game_ui_managed_surface_composition_required");
   }
   return internal;
+}
+
+/** @internal Nullable render seam for structurally typed legacy/test compositions. */
+export function resolveOptionalGameUiManagedSurfaceCompositionInternalV1(
+  composition: object,
+): GameUiManagedSurfaceCompositionInternalV1 | null {
+  return gameUiManagedSurfaceCompositionInternalsV1.get(composition) ?? null;
 }
 
 /** @internal Narrow Host fence; it does not expose managed-family authority. */
@@ -260,6 +279,116 @@ const staticAnchorSourceV1: GameUiAnchorSourceV1 = Object.freeze({
   current: () => bootstrapAnchorV1,
   subscribe: () => () => undefined,
 });
+
+type NarrativeSurfaceCompositionEnvironmentInputInternalV1 = Readonly<{
+  readonly playerProfile: PlayerProfileStoreV1;
+  readonly presentationClock: PresentationClockV1;
+  readonly prefersReducedMotion: () => boolean;
+}>;
+
+type HostedNarrativeSurfaceCompositionInputInternalV1<TSemanticPublication> = Readonly<{
+  readonly definition: NarrativeSurfaceCompositionDefinitionInternalV1<TSemanticPublication>;
+  readonly playerProfile: PlayerProfileStoreV1;
+  readonly presentationClock: PresentationClockV1;
+  readonly prefersReducedMotion: () => boolean;
+}>;
+
+const hostedNarrativeSurfaceCompositionKeysInternalV1 = Object.freeze(
+  [
+    "definition",
+    "playerProfile",
+    "presentationClock",
+    "prefersReducedMotion",
+  ] as const,
+);
+
+function isHostedNarrativeCallableInternalV1(
+  value: unknown,
+): value is (...args: never[]) => unknown {
+  if (typeof value !== "function") return false;
+  try {
+    return Reflect.get(value, "then") === undefined;
+  } catch {
+    return false;
+  }
+}
+
+function hasHostedNarrativeCallablesInternalV1(
+  value: unknown,
+  keys: readonly string[],
+): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  try {
+    return Object.isFrozen(value) &&
+      keys.every((key) => isHostedNarrativeCallableInternalV1(Reflect.get(value, key)));
+  } catch {
+    return false;
+  }
+}
+
+function captureHostedNarrativeSurfaceCompositionInputInternalV1<TSemanticPublication>(
+  input: HostedNarrativeSurfaceCompositionInputInternalV1<TSemanticPublication>,
+): Readonly<{
+  readonly definition: NarrativeSurfaceCompositionDefinitionInternalV1<TSemanticPublication>;
+  readonly environment: NarrativeSurfaceCompositionEnvironmentInputInternalV1;
+}> {
+  let values: Readonly<Record<string, unknown>> | null = null;
+  try {
+    if (
+      typeof input === "object" && input !== null && !Array.isArray(input) &&
+      Reflect.getPrototypeOf(input) === Object.prototype && Object.isFrozen(input)
+    ) {
+      const ownKeys = Reflect.ownKeys(input);
+      if (ownKeys.length === hostedNarrativeSurfaceCompositionKeysInternalV1.length) {
+        const captured: Record<string, unknown> = Object.create(null);
+        let exact = true;
+        for (const key of hostedNarrativeSurfaceCompositionKeysInternalV1) {
+          const descriptor = Reflect.getOwnPropertyDescriptor(input, key);
+          if (
+            descriptor === undefined || !("value" in descriptor) || !descriptor.enumerable ||
+            descriptor.configurable || descriptor.writable
+          ) {
+            exact = false;
+            break;
+          }
+          captured[key] = descriptor.value;
+        }
+        if (
+          exact && ownKeys.every((key) => typeof key === "string" && Object.hasOwn(captured, key))
+        ) values = Object.freeze(captured);
+      }
+    }
+  } catch {
+    values = null;
+  }
+  if (
+    values === null ||
+    !hasHostedNarrativeCallablesInternalV1(values.playerProfile, [
+      "current",
+      "subscribe",
+      "markSeen",
+      "markMeta",
+      "updatePreferences",
+    ]) ||
+    !hasHostedNarrativeCallablesInternalV1(values.presentationClock, ["now", "requestTick"]) ||
+    !isHostedNarrativeCallableInternalV1(values.prefersReducedMotion)
+  ) {
+    throw new TypeError("ui.narrative_surface_composition_environment_invalid");
+  }
+  assertNarrativeSurfaceCompositionDefinitionInternalV1(
+    values.definition as NarrativeSurfaceCompositionDefinitionInternalV1<unknown>,
+  );
+  return Object.freeze({
+    definition: values.definition as NarrativeSurfaceCompositionDefinitionInternalV1<
+      TSemanticPublication
+    >,
+    environment: Object.freeze({
+      playerProfile: values.playerProfile as PlayerProfileStoreV1,
+      presentationClock: values.presentationClock as PresentationClockV1,
+      prefersReducedMotion: values.prefersReducedMotion as () => boolean,
+    }),
+  });
+}
 
 function createStaticContentPreferencePortV1(): ContentPreferencePortV1 {
   const preference: DeepReadonly<ContentPreferenceV1> = Object.freeze({
@@ -304,7 +433,19 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
     readonly anchorEvents: GameUiPresentationAnchorEventSourceInternalV1;
     readonly producer: GameUiPresentationSuccessorProducerInternalV1;
   },
+  narrativeDefinitionInternalV1:
+    | NarrativeSurfaceCompositionDefinitionInternalV1<
+      TSemanticPublication
+    >
+    | null = null,
+  narrativeEnvironmentInternalV1: NarrativeSurfaceCompositionEnvironmentInputInternalV1 | null =
+    null,
 ): GameUiCompositionV1<TSemanticPublication, TStoryUiState, TView, TAssetId, TOverlayId> {
+  if (narrativeDefinitionInternalV1 !== null) {
+    assertNarrativeSurfaceCompositionDefinitionInternalV1(
+      narrativeDefinitionInternalV1 as NarrativeSurfaceCompositionDefinitionInternalV1<unknown>,
+    );
+  }
   type OverlayIdV1 = GameUiOverlayIdV1<TOverlayId>;
   const anchorSource = input.anchor ?? staticAnchorSourceV1;
   const initialAnchor = hostedSuccessor?.anchorEvents.current() ?? anchorSource.current();
@@ -326,12 +467,24 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
       ? {}
       : { reportFailure: managedSurfaceReportFailure }),
   });
+  const managedSurfaceRecipe = appendNarrativeManagedSurfaceRecipeInternalV1(
+    combineManagedSurfaceRecipeInternalV1(
+      overlayConfiguration.recipeContribution,
+    ),
+  );
+  let latestNarrativeKernelBundle: NarrativeSurfaceCompositeKernelBundleInternalV1 | null = null;
   const managedSurfaceRuntime = createManagedSurfaceCompositionRuntimeInternalV1({
     epochAllocator: managedSurfaceEpochAllocator,
     inputRouter,
-    recipe: combineManagedSurfaceRecipeInternalV1(
-      overlayConfiguration.recipeContribution,
-    ),
+    recipe: managedSurfaceRecipe,
+    createCoordinator: (coordinatorInput) => {
+      const bundle = createNarrativeSurfaceCompositeKernelBundleInternalV1({
+        applicationEpoch: coordinatorInput.applicationEpoch,
+        recipe: managedSurfaceRecipe,
+      });
+      latestNarrativeKernelBundle = bundle;
+      return bundle.coordinator;
+    },
     ...(managedSurfaceRegisterManagedInputHandler === undefined
       ? {}
       : { registerManagedInputHandler: managedSurfaceRegisterManagedInputHandler }),
@@ -355,6 +508,14 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
   let terminal = false;
   let unsubscribeAnchor = (): void => undefined;
   const ingressOpen = (): boolean => !disposed && !terminal;
+  const noThrowV1 = (operation: () => void): void => {
+    try {
+      operation();
+    } catch {
+      // Terminal fencing is best effort per resource but never abandons the
+      // remaining synchronous ingress fences.
+    }
+  };
 
   const uiState = createViewSourceV1<GameUiStateV1<TStoryUiState>>(
     Object.freeze({
@@ -396,6 +557,78 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
     project: (projectionInput) => input.projector.project(projectionInput),
     reportFailure,
   });
+
+  // Narrative consumes the already-composed presentation publication. It
+  // therefore shares the presentation bridge's sole upstream semantic
+  // subscription instead of subscribing to the Story source independently.
+  const narrativeStageClaimant = Object.freeze({});
+  let bootstrapNarrativeFailure: { readonly error: unknown } | null = null;
+  let sealCompositionFromNarrativeFailure = (error: unknown): void => {
+    bootstrapNarrativeFailure ??= Object.freeze({ error });
+    if (terminal) return;
+    terminal = true;
+    noThrowV1(() => presentation.dispose());
+    noThrowV1(() => semanticBridge.dispose());
+    noThrowV1(() => overlayInternal.sealTerminalDisposalInternalV1());
+    noThrowV1(() => managedSystemDialogInternal.sealTerminalDisposalInternalV1());
+    noThrowV1(() => overlayInternal.detachRuntimeInternalV1());
+    noThrowV1(() => managedSystemDialogInternal.detachRuntimeInternalV1());
+    noThrowV1(() => managedSurfaceRuntime.dispose());
+  };
+  const narrativeInternal = createNarrativeSurfaceCompositionRuntimeInternalV1({
+    definition: narrativeDefinitionInternalV1,
+    environment: narrativeEnvironmentInternalV1,
+    presentation: Object.freeze({
+      getSnapshotInternalV1: () =>
+        presentation.getSnapshot().semantic as DeepReadonly<TSemanticPublication>,
+      subscribeInternalV1: (listener: () => void) => presentation.subscribe(listener),
+    }),
+    resolveKernelBundleInternalV1: (runtime) => {
+      const bundle = latestNarrativeKernelBundle;
+      if (bundle === null || bundle.applicationEpoch !== runtime.applicationEpoch) {
+        throw new TypeError("ui.narrative_surface_composition_kernel_invalid");
+      }
+      return bundle;
+    },
+    stageClaimant: narrativeStageClaimant,
+    sealCompositionOnFailure: (error: unknown) => sealCompositionFromNarrativeFailure(error),
+    ...(managedSurfaceReportFailure === undefined ? {} : {
+      reportObservation: (code: "narrative.barrier_replay_unsupported") =>
+        managedSurfaceReportFailure(code, null),
+      reportFailure: (error: unknown) =>
+        managedSurfaceReportFailure(
+          "ui.narrative_surface_composition_failed",
+          error,
+        ),
+    }),
+  });
+  const initialNarrativeActivation = { open: false };
+  const initialNarrativeActivationGate = Object.freeze({
+    isOpen: (): boolean => initialNarrativeActivation.open,
+  });
+  try {
+    narrativeInternal.prepareRuntimeAttachmentInternalV1(
+      initialManagedSurfaceRuntime,
+      initialNarrativeActivationGate,
+    );
+    const notifyNarrativeActivation = narrativeInternal.activateRuntimeAttachmentInternalV1();
+    initialNarrativeActivation.open = true;
+    notifyNarrativeActivation();
+    const capturedBootstrapNarrativeFailure = bootstrapNarrativeFailure as {
+      readonly error: unknown;
+    } | null;
+    if (capturedBootstrapNarrativeFailure !== null) {
+      throw capturedBootstrapNarrativeFailure.error;
+    }
+  } catch (error) {
+    narrativeInternal.disposeInternalV1();
+    presentation.dispose();
+    semanticBridge.dispose();
+    overlayInternal.detachRuntimeInternalV1();
+    managedSystemDialogInternal.detachRuntimeInternalV1();
+    managedSurfaceRuntime.dispose();
+    throw error;
+  }
 
   const systemDialogSession = managedSystemDialogSession;
 
@@ -492,14 +725,6 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
 
   const anchorQueue: GameUiPresentationAnchorEventInternalV1[] = [];
   let anchorTransitionActive = false;
-  const noThrowV1 = (operation: () => void): void => {
-    try {
-      operation();
-    } catch {
-      // Terminal fencing is best effort per resource but never abandons the
-      // remaining synchronous ingress fences.
-    }
-  };
   const sealTerminalInternalV1 = (): void => {
     if (terminal) return;
     terminal = true;
@@ -511,10 +736,12 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
     noThrowV1(() => semanticBridge.dispose());
     noThrowV1(() => overlayInternal.sealTerminalDisposalInternalV1());
     noThrowV1(() => managedSystemDialogInternal.sealTerminalDisposalInternalV1());
+    noThrowV1(() => narrativeInternal.disposeInternalV1());
     noThrowV1(() => overlayInternal.detachRuntimeInternalV1());
     noThrowV1(() => managedSystemDialogInternal.detachRuntimeInternalV1());
     noThrowV1(() => managedSurfaceRuntime.dispose());
   };
+  sealCompositionFromNarrativeFailure = (): void => sealTerminalInternalV1();
 
   const failSuccessorV1 = (
     event: GameUiPresentationAnchorEventInternalV1,
@@ -541,11 +768,12 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
       ? "import_rebootstrap"
       : "coordinator_successor";
     try {
-      // The shared authority closes both predecessor adapters, binds both to one
-      // successor, activates both, and only then flushes family notifications.
+      // The shared authority closes every predecessor adapter, binds all three
+      // families to one successor, then opens one activation gate.
       const successorRuntime = managedSurfaceRuntime.replace(successorKind, [
         overlayInternal,
         managedSystemDialogInternal,
+        narrativeInternal,
       ]);
       if (disposed || terminal) {
         if (hostedSuccessor === undefined) return;
@@ -564,6 +792,7 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
         !currentRuntime.isIngressOpen() ||
         !overlayInternal.isRuntimeAttachmentCurrentInternalV1(successorRuntime) ||
         !managedSystemDialogInternal.isRuntimeAttachmentCurrentInternalV1(successorRuntime) ||
+        !narrativeInternal.isCurrentRuntimeAttachmentInternalV1(successorRuntime) ||
         uiState.getCurrent().anchor !== anchor
       ) {
         throw new TypeError("ui.presentation_successor_activation_failed");
@@ -640,9 +869,11 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
       noThrowV1(unsubscribeAnchor);
       overlayInternal.detachRuntimeInternalV1();
       managedSystemDialogInternal.detachRuntimeInternalV1();
+      narrativeInternal.detachRuntimeInternalV1();
       noThrowV1(() => managedSurfaceRuntime.dispose());
       overlayInternal.disposeInternalV1();
       managedSystemDialogInternal.disposeInternalV1();
+      narrativeInternal.disposeInternalV1();
       presentation.dispose();
       semanticBridge.dispose();
     },
@@ -651,6 +882,7 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
     composition,
     Object.freeze({
       runtime: managedSurfaceRuntime,
+      narrative: narrativeInternal,
       systemDialogSession: managedSystemDialogSession,
       sealTerminalInternalV1,
       isTerminalInternalV1: () => terminal,
@@ -716,7 +948,13 @@ export function createHostedGameUiCompositionInternalV1<
     readonly anchorEvents: GameUiPresentationAnchorEventSourceInternalV1;
     readonly successorProducer: GameUiPresentationSuccessorProducerInternalV1;
   },
+  narrativeInputInternalV1:
+    | HostedNarrativeSurfaceCompositionInputInternalV1<TSemanticPublication>
+    | null = null,
 ): GameUiCompositionV1<TSemanticPublication, TStoryUiState, TView, TAssetId, TOverlayId> {
+  const narrative = narrativeInputInternalV1 === null
+    ? null
+    : captureHostedNarrativeSurfaceCompositionInputInternalV1(narrativeInputInternalV1);
   return createGameUiCompositionWithEpochAllocatorInternalV1(
     input,
     host.managedSurfaceEpochAllocator,
@@ -726,5 +964,7 @@ export function createHostedGameUiCompositionInternalV1<
       anchorEvents: host.anchorEvents,
       producer: host.successorProducer,
     }),
+    narrative?.definition ?? null,
+    narrative?.environment ?? null,
   );
 }

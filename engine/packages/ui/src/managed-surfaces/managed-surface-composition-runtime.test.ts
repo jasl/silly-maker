@@ -2,7 +2,7 @@
 import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "@sillymaker/base";
 import { describe, expect, it } from "vitest";
 
-import { createInputRouterV1 } from "../input/input-router.ts";
+import { createInputRouterV1, registerManagedInputHandlerV1 } from "../input/input-router.ts";
 import {
   parseManagedSurfaceActionIdV1,
   parseManagedSurfaceFocusTargetIdV1,
@@ -325,6 +325,400 @@ describe("composition-owned Managed Surface runtime", () => {
       orderedInstances: [],
     });
     fixture.runtime.dispose();
+  });
+
+  it("holds successor managed input behind the shared gate and syncs it before family notification", () => {
+    const trace: string[] = [];
+    const epochs = [11, 17] as const;
+    let epochCursor = 0;
+    let registrations = 0;
+    let successorRuntime: ManagedSurfaceCoordinatorRuntimeV1 | null = null;
+    const coordinatorListeners: (() => void)[][] = [];
+    const runtime = createManagedSurfaceCompositionRuntimeInternalV1({
+      epochAllocator: Object.freeze({
+        allocate: () => parseNonNegativeSafeInteger(epochs[epochCursor++]!),
+      }),
+      inputRouter: createInputRouterV1(),
+      recipe: Object.freeze({
+        resolvedOwnerIds: Object.freeze([overlayOwnerIdV1, systemOwnerIdV1]),
+        resolvedSlotDescriptors: Object.freeze([
+          Object.freeze({
+            kind: "root" as const,
+            slotId: overlaySlotIdV1,
+            cardinality: "single" as const,
+          }),
+          Object.freeze({
+            kind: "root" as const,
+            slotId: systemSlotIdV1,
+            cardinality: "single" as const,
+          }),
+        ]),
+      }),
+      registerManagedInputHandler: () => {
+        registrations += 1;
+        trace.push("input:sync");
+        return () => undefined;
+      },
+      createCoordinator(input) {
+        const coordinator = createManagedSurfaceCoordinatorV1(input);
+        const listeners: (() => void)[] = [];
+        coordinatorListeners.push(listeners);
+        return Object.freeze({
+          ...coordinator,
+          subscribe(listener: () => void): () => void {
+            listeners.push(listener);
+            return coordinator.subscribe(listener);
+          },
+        });
+      },
+    });
+
+    const adapter = (
+      family: "overlay" | "system" | "narrative",
+    ): ManagedSurfaceFamilyRuntimeAdapterInternalV1 => {
+      let detached = false;
+      let prepared = false;
+      return Object.freeze({
+        detachRuntimeInternalV1(): void {
+          detached = true;
+          trace.push(`${family}:detach`);
+        },
+        prepareRuntimeAttachmentInternalV1(
+          nextRuntime: ManagedSurfaceCoordinatorRuntimeV1,
+          activationGate: ManagedSurfaceFamilyActivationGateInternalV1,
+        ): void {
+          expect(detached).toBe(true);
+          expect(prepared).toBe(false);
+          expect(activationGate.isOpen()).toBe(false);
+          expect(registrations).toBe(0);
+          prepared = true;
+          successorRuntime = nextRuntime;
+          trace.push(`${family}:prepare`);
+          if (family !== "overlay") return;
+          const pending = nextRuntime.coordinator.openTransientPrimary({
+            definition: definitionV1({
+              ownerId: systemOwnerIdV1,
+              slotId: systemSlotIdV1,
+              id: "surface.fixture.successor-system",
+              layerOrder: 60,
+            }),
+            semanticOccurrenceId: null,
+          });
+          pending.readiness!.ready();
+          expect(nextRuntime.coordinator.getSnapshot().inputOwner).not.toBeNull();
+          expect(registrations).toBe(0);
+        },
+        activateRuntimeAttachmentInternalV1(): () => void {
+          expect(detached).toBe(true);
+          expect(prepared).toBe(true);
+          expect(registrations).toBe(0);
+          detached = false;
+          prepared = false;
+          trace.push(`${family}:arm`);
+          return (): void => {
+            expect(registrations).toBe(1);
+            trace.push(`${family}:notify`);
+          };
+        },
+        abortRuntimeAttachmentInternalV1(): void {
+          detached = true;
+          prepared = false;
+          trace.push(`${family}:abort`);
+        },
+      });
+    };
+
+    const successor = runtime.replace("coordinator_successor", [
+      adapter("overlay"),
+      adapter("system"),
+      adapter("narrative"),
+    ]);
+
+    expect(successor).toBe(successorRuntime);
+    expect(registrations).toBe(1);
+    expect(trace).toEqual([
+      "overlay:detach",
+      "system:detach",
+      "narrative:detach",
+      "overlay:prepare",
+      "system:prepare",
+      "narrative:prepare",
+      "overlay:arm",
+      "system:arm",
+      "narrative:arm",
+      "input:sync",
+      "overlay:notify",
+      "system:notify",
+      "narrative:notify",
+    ]);
+    const currentBinding = successor.bindCurrentInput();
+    const currentGesture = successor.gestureLease.begin();
+    const currentEnvelope = currentBinding.createEnvelope({
+      actionId: parseManagedSurfaceActionIdV1("surface-action.cancel"),
+      gestureId: currentGesture,
+    });
+    for (const notifyStalePredecessor of coordinatorListeners[0]!) {
+      notifyStalePredecessor();
+    }
+    expect(successor.bindCurrentInput()).toBe(currentBinding);
+    expect(
+      successor.bindCurrentInput().createEnvelope({
+        actionId: parseManagedSurfaceActionIdV1("surface-action.cancel"),
+        gestureId: currentGesture,
+      }).inputPublicationRevision,
+    ).toBe(currentEnvelope.inputPublicationRevision);
+    expect(successor.gestureLease.isCurrent(currentGesture)).toBe(true);
+    expect(registrations).toBe(1);
+    runtime.dispose();
+  });
+
+  it("automatically syncs managed input from successor publications after the gate opens", () => {
+    const epochs = [11, 17] as const;
+    let epochCursor = 0;
+    let registrations = 0;
+    const coordinatorListeners: (() => void)[][] = [];
+    const runtime = createManagedSurfaceCompositionRuntimeInternalV1({
+      epochAllocator: Object.freeze({
+        allocate: () => parseNonNegativeSafeInteger(epochs[epochCursor++]!),
+      }),
+      inputRouter: createInputRouterV1(),
+      recipe: Object.freeze({
+        resolvedOwnerIds: Object.freeze([systemOwnerIdV1]),
+        resolvedSlotDescriptors: Object.freeze([
+          Object.freeze({
+            kind: "root" as const,
+            slotId: systemSlotIdV1,
+            cardinality: "single" as const,
+          }),
+        ]),
+      }),
+      registerManagedInputHandler: (router, registration) => {
+        registrations += 1;
+        return registerManagedInputHandlerV1(router, registration);
+      },
+      createCoordinator(input) {
+        const coordinator = createManagedSurfaceCoordinatorV1(input);
+        const listeners: (() => void)[] = [];
+        coordinatorListeners.push(listeners);
+        return Object.freeze({
+          ...coordinator,
+          subscribe(listener: () => void): () => void {
+            listeners.push(listener);
+            return coordinator.subscribe(listener);
+          },
+        });
+      },
+    });
+
+    const successor = runtime.replace("coordinator_successor", [
+      familyAdapterV1(),
+      familyAdapterV1(),
+      familyAdapterV1(),
+    ]);
+    expect(successor.coordinator.getSnapshot().inputOwner).toBeNull();
+    expect(registrations).toBe(0);
+
+    const pending = successor.coordinator.openTransientPrimary({
+      definition: definitionV1({
+        ownerId: systemOwnerIdV1,
+        slotId: systemSlotIdV1,
+        id: "surface.fixture.post-activation-system",
+        layerOrder: 60,
+      }),
+      semanticOccurrenceId: null,
+    });
+    pending.readiness!.ready();
+
+    // This assertion deliberately precedes binding retrieval: the successor
+    // publication subscriber, rather than this test, must install current input.
+    expect(successor.coordinator.getSnapshot().inputOwner).not.toBeNull();
+    expect(registrations).toBe(1);
+    const currentBinding = successor.bindCurrentInput();
+    expect(registrations).toBe(1);
+    const currentGesture = successor.gestureLease.begin();
+    const currentEnvelope = currentBinding.createEnvelope({
+      actionId: parseManagedSurfaceActionIdV1("surface-action.cancel"),
+      gestureId: currentGesture,
+    });
+    expect(currentBinding.route(currentEnvelope)).toMatchObject({
+      input: { kind: "unhandled", code: "input.managed_surface_unhandled" },
+      surface: { kind: "unchanged", code: "surface.action_routed" },
+    });
+
+    runtime.dispose();
+    for (const notifyDisposedSuccessor of coordinatorListeners[1]!) {
+      notifyDisposedSuccessor();
+    }
+    expect(registrations).toBe(1);
+    expect(currentBinding.route(currentEnvelope)).toMatchObject({
+      input: { kind: "consumed", code: "input.stale_publication" },
+      surface: null,
+    });
+  });
+
+  it("rolls back gated successor input and every family when the final arm fails", () => {
+    const epochs = [11, 17] as const;
+    let epochCursor = 0;
+    let registrations = 0;
+    let notifications = 0;
+    let aborts = 0;
+    let successorRuntime: ManagedSurfaceCoordinatorRuntimeV1 | null = null;
+    const failure = new Error("fixture.narrative_arm_failed");
+    const runtime = createManagedSurfaceCompositionRuntimeInternalV1({
+      epochAllocator: Object.freeze({
+        allocate: () => parseNonNegativeSafeInteger(epochs[epochCursor++]!),
+      }),
+      inputRouter: createInputRouterV1(),
+      recipe: Object.freeze({
+        resolvedOwnerIds: Object.freeze([overlayOwnerIdV1, systemOwnerIdV1]),
+        resolvedSlotDescriptors: Object.freeze([
+          Object.freeze({
+            kind: "root" as const,
+            slotId: overlaySlotIdV1,
+            cardinality: "single" as const,
+          }),
+          Object.freeze({
+            kind: "root" as const,
+            slotId: systemSlotIdV1,
+            cardinality: "single" as const,
+          }),
+        ]),
+      }),
+      registerManagedInputHandler: () => {
+        registrations += 1;
+        return () => undefined;
+      },
+    });
+
+    const adapter = (index: 0 | 1 | 2): ManagedSurfaceFamilyRuntimeAdapterInternalV1 =>
+      Object.freeze({
+        detachRuntimeInternalV1: () => undefined,
+        prepareRuntimeAttachmentInternalV1(
+          nextRuntime: ManagedSurfaceCoordinatorRuntimeV1,
+          activationGate: ManagedSurfaceFamilyActivationGateInternalV1,
+        ): void {
+          expect(activationGate.isOpen()).toBe(false);
+          successorRuntime = nextRuntime;
+          if (index === 0) {
+            const pending = nextRuntime.coordinator.openTransientPrimary({
+              definition: definitionV1({
+                ownerId: systemOwnerIdV1,
+                slotId: systemSlotIdV1,
+                id: "surface.fixture.rollback-system",
+                layerOrder: 60,
+              }),
+              semanticOccurrenceId: null,
+            });
+            pending.readiness!.ready();
+          }
+          expect(registrations).toBe(0);
+        },
+        activateRuntimeAttachmentInternalV1(): () => void {
+          expect(registrations).toBe(0);
+          if (index === 2) throw failure;
+          return (): void => {
+            notifications += 1;
+          };
+        },
+        abortRuntimeAttachmentInternalV1(): void {
+          aborts += 1;
+        },
+      });
+
+    expect(() => runtime.replace("coordinator_successor", [adapter(0), adapter(1), adapter(2)]))
+      .toThrow(failure);
+    expect({ registrations, notifications, aborts }).toEqual({
+      registrations: 0,
+      notifications: 0,
+      aborts: 3,
+    });
+    expect(() => runtime.getCurrent()).toThrowError(
+      "ui.managed_surface_composition_runtime_disposed",
+    );
+    expect(
+      (successorRuntime as ManagedSurfaceCoordinatorRuntimeV1 | null)?.isIngressOpen(),
+    ).toBe(false);
+    expect(() => runtime.dispose()).not.toThrow();
+  });
+
+  it("recloses the shared gate and aborts every family when current input sync fails", () => {
+    const epochs = [11, 17] as const;
+    let epochCursor = 0;
+    let notifications = 0;
+    let aborts = 0;
+    let successorRuntime: ManagedSurfaceCoordinatorRuntimeV1 | null = null;
+    const activationGates: ManagedSurfaceFamilyActivationGateInternalV1[] = [];
+    const bindingFailure = new Error("fixture.input_sync_failed");
+    const runtime = createManagedSurfaceCompositionRuntimeInternalV1({
+      epochAllocator: Object.freeze({
+        allocate: () => parseNonNegativeSafeInteger(epochs[epochCursor++]!),
+      }),
+      inputRouter: createInputRouterV1(),
+      recipe: Object.freeze({
+        resolvedOwnerIds: Object.freeze([systemOwnerIdV1]),
+        resolvedSlotDescriptors: Object.freeze([
+          Object.freeze({
+            kind: "root" as const,
+            slotId: systemSlotIdV1,
+            cardinality: "single" as const,
+          }),
+        ]),
+      }),
+      registerManagedInputHandler: () => {
+        throw bindingFailure;
+      },
+    });
+
+    const adapter = (index: 0 | 1 | 2): ManagedSurfaceFamilyRuntimeAdapterInternalV1 =>
+      Object.freeze({
+        detachRuntimeInternalV1: () => undefined,
+        prepareRuntimeAttachmentInternalV1(
+          nextRuntime: ManagedSurfaceCoordinatorRuntimeV1,
+          activationGate: ManagedSurfaceFamilyActivationGateInternalV1,
+        ): void {
+          successorRuntime = nextRuntime;
+          activationGates.push(activationGate);
+          if (index !== 0) return;
+          const pending = nextRuntime.coordinator.openTransientPrimary({
+            definition: definitionV1({
+              ownerId: systemOwnerIdV1,
+              slotId: systemSlotIdV1,
+              id: "surface.fixture.failed-input-sync",
+              layerOrder: 60,
+            }),
+            semanticOccurrenceId: null,
+          });
+          pending.readiness!.ready();
+        },
+        activateRuntimeAttachmentInternalV1: () => () => {
+          notifications += 1;
+        },
+        abortRuntimeAttachmentInternalV1(): void {
+          aborts += 1;
+        },
+      });
+
+    let thrown: unknown;
+    try {
+      runtime.replace("coordinator_successor", [adapter(0), adapter(1), adapter(2)]);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toMatchObject({
+      name: "TypeError",
+      message: "ui.managed_surface_input_authority_invalid",
+      cause: bindingFailure,
+    });
+    expect({ notifications, aborts }).toEqual({ notifications: 0, aborts: 3 });
+    expect(new Set(activationGates)).toHaveLength(1);
+    expect(activationGates[0]!.isOpen()).toBe(false);
+    expect(() => runtime.getCurrent()).toThrowError(
+      "ui.managed_surface_composition_runtime_disposed",
+    );
+    expect(
+      (successorRuntime as ManagedSurfaceCoordinatorRuntimeV1 | null)?.isIngressOpen(),
+    ).toBe(false);
+    expect(() => runtime.dispose()).not.toThrow();
   });
 
   it("rejects direct nested replacement until every activation notification drains", () => {

@@ -5,11 +5,14 @@ import * as conformanceUiV1 from "@sillymaker/ui/conformance";
 import * as internalUiV1 from "./internal.ts";
 import * as publicUiV1 from "./index.ts";
 import type {
+  DefaultGameRootPropsV1,
+  GameUiCompositionV1,
   SaveOverlayGuardV1,
   SaveOverlayLabelsV1,
   SaveOverlayPortV1,
   SaveOverlaySlotNamesV1,
   SavesLauncherPropsV1,
+  SemanticStagePropsV1,
   SettingsLauncherPropsV1,
   SystemDialogControllerV1,
   SystemDialogCustomSavesComponentV1,
@@ -545,6 +548,82 @@ import type { StageAcknowledgedRunAuthorityInternalV1 as ForbiddenInternalStageA
 import type { claimStageAcknowledgedRunAuthorityInternalV1 as ForbiddenPublicStageAcknowledgedRunAuthorityClaimV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Stage acknowledged-run authority claiming.
 import type { claimStageAcknowledgedRunAuthorityInternalV1 as ForbiddenInternalStageAcknowledgedRunAuthorityClaimV1 } from "./internal.ts";
+// @ts-expect-error Composition-owned Stage drivers remain source-relative.
+import type { SemanticStageCompositionDriverInternalV1 as ForbiddenPublicSemanticStageCompositionDriverV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose composition-owned Stage drivers.
+import type { SemanticStageCompositionDriverInternalV1 as ForbiddenInternalSemanticStageCompositionDriverV1 } from "./internal.ts";
+// @ts-expect-error Composition-owned Stage driver construction remains source-relative.
+import type { createSemanticStageCompositionDriverInternalV1 as ForbiddenPublicSemanticStageCompositionDriverFactoryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose composition-owned Stage driver construction.
+import type { createSemanticStageCompositionDriverInternalV1 as ForbiddenInternalSemanticStageCompositionDriverFactoryV1 } from "./internal.ts";
+// @ts-expect-error Composition-owned Stage claimant providers remain source-relative.
+import type { SemanticStageCompositionClaimantProviderInternalV1 as ForbiddenPublicSemanticStageCompositionClaimantProviderV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose composition-owned Stage claimant providers.
+import type { SemanticStageCompositionClaimantProviderInternalV1 as ForbiddenInternalSemanticStageCompositionClaimantProviderV1 } from "./internal.ts";
+// @ts-expect-error Composition-owned Stage retarget delegation remains source-relative.
+import type { bindSemanticStageCompositionRetargetDelegateInternalV1 as ForbiddenPublicSemanticStageCompositionRetargetDelegateBindingV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose composition-owned Stage retarget delegation.
+import type { bindSemanticStageCompositionRetargetDelegateInternalV1 as ForbiddenInternalSemanticStageCompositionRetargetDelegateBindingV1 } from "./internal.ts";
+// @ts-expect-error Narrative composition availability statuses remain source-relative.
+import type { NarrativeSurfaceChoiceAvailabilityStatusInternalV1 as ForbiddenPublicNarrativeSurfaceChoiceAvailabilityStatusV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative composition availability statuses.
+import type { NarrativeSurfaceChoiceAvailabilityStatusInternalV1 as ForbiddenInternalNarrativeSurfaceChoiceAvailabilityStatusV1 } from "./internal.ts";
+// @ts-expect-error Narrative composition availability rows remain source-relative.
+import type { NarrativeSurfaceChoiceAvailabilityInternalV1 as ForbiddenPublicNarrativeSurfaceChoiceAvailabilityV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative composition availability rows.
+import type { NarrativeSurfaceChoiceAvailabilityInternalV1 as ForbiddenInternalNarrativeSurfaceChoiceAvailabilityV1 } from "./internal.ts";
+// @ts-expect-error Narrative composition selections remain source-relative.
+import type { NarrativeSurfaceSelectionInternalV1 as ForbiddenPublicNarrativeSurfaceSelectionV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative composition selections.
+import type { NarrativeSurfaceSelectionInternalV1 as ForbiddenInternalNarrativeSurfaceSelectionV1 } from "./internal.ts";
+// @ts-expect-error Narrative composition definition inputs remain source-relative.
+import type { CreateNarrativeSurfaceCompositionDefinitionInputInternalV1 as ForbiddenPublicNarrativeSurfaceCompositionDefinitionInputV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative composition definition inputs.
+import type { CreateNarrativeSurfaceCompositionDefinitionInputInternalV1 as ForbiddenInternalNarrativeSurfaceCompositionDefinitionInputV1 } from "./internal.ts";
+// @ts-expect-error Narrative composition definitions remain source-relative.
+import type { NarrativeSurfaceCompositionDefinitionInternalV1 as ForbiddenPublicNarrativeSurfaceCompositionDefinitionV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative composition definitions.
+import type { NarrativeSurfaceCompositionDefinitionInternalV1 as ForbiddenInternalNarrativeSurfaceCompositionDefinitionV1 } from "./internal.ts";
+// @ts-expect-error Narrative composition definition construction remains source-relative.
+import type { createNarrativeSurfaceCompositionDefinitionInternalV1 as ForbiddenPublicNarrativeSurfaceCompositionDefinitionFactoryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative composition definition construction.
+import type { createNarrativeSurfaceCompositionDefinitionInternalV1 as ForbiddenInternalNarrativeSurfaceCompositionDefinitionFactoryV1 } from "./internal.ts";
+// @ts-expect-error Narrative composition definition admission remains source-relative.
+import type { assertNarrativeSurfaceCompositionDefinitionInternalV1 as ForbiddenPublicNarrativeSurfaceCompositionDefinitionAdmissionV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative composition definition admission.
+import type { assertNarrativeSurfaceCompositionDefinitionInternalV1 as ForbiddenInternalNarrativeSurfaceCompositionDefinitionAdmissionV1 } from "./internal.ts";
+// @ts-expect-error Narrative recipe aggregation remains source-relative.
+import type { appendNarrativeManagedSurfaceRecipeInternalV1 as ForbiddenPublicNarrativeManagedSurfaceRecipeAppendV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative recipe aggregation.
+import type { appendNarrativeManagedSurfaceRecipeInternalV1 as ForbiddenInternalNarrativeManagedSurfaceRecipeAppendV1 } from "./internal.ts";
+// @ts-expect-error Narrative composite kernel bundles remain source-relative.
+import type { NarrativeSurfaceCompositeKernelBundleInternalV1 as ForbiddenPublicNarrativeSurfaceCompositeKernelBundleV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative composite kernel bundles.
+import type { NarrativeSurfaceCompositeKernelBundleInternalV1 as ForbiddenInternalNarrativeSurfaceCompositeKernelBundleV1 } from "./internal.ts";
+// @ts-expect-error Narrative composite kernel bundle construction remains source-relative.
+import type { createNarrativeSurfaceCompositeKernelBundleInternalV1 as ForbiddenPublicNarrativeSurfaceCompositeKernelBundleFactoryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative composite kernel bundle construction.
+import type { createNarrativeSurfaceCompositeKernelBundleInternalV1 as ForbiddenInternalNarrativeSurfaceCompositeKernelBundleFactoryV1 } from "./internal.ts";
+// @ts-expect-error Narrative semantic presentation sources remain source-relative.
+import type { NarrativeSurfaceSemanticPresentationSourceInternalV1 as ForbiddenPublicNarrativeSurfaceSemanticPresentationSourceV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative semantic presentation sources.
+import type { NarrativeSurfaceSemanticPresentationSourceInternalV1 as ForbiddenInternalNarrativeSurfaceSemanticPresentationSourceV1 } from "./internal.ts";
+// @ts-expect-error Narrative composition runtimes remain source-relative.
+import type { NarrativeSurfaceCompositionRuntimeInternalV1 as ForbiddenPublicNarrativeSurfaceCompositionRuntimeV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative composition runtimes.
+import type { NarrativeSurfaceCompositionRuntimeInternalV1 as ForbiddenInternalNarrativeSurfaceCompositionRuntimeV1 } from "./internal.ts";
+// @ts-expect-error Narrative composition runtime construction remains source-relative.
+import type { createNarrativeSurfaceCompositionRuntimeInternalV1 as ForbiddenPublicNarrativeSurfaceCompositionRuntimeFactoryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative composition runtime construction.
+import type { createNarrativeSurfaceCompositionRuntimeInternalV1 as ForbiddenInternalNarrativeSurfaceCompositionRuntimeFactoryV1 } from "./internal.ts";
+// @ts-expect-error Composition-owned Narrative bound-action hooks remain source-relative.
+import type { useNarrativeSurfaceCompositionBoundActionInternalV1 as ForbiddenPublicNarrativeSurfaceCompositionBoundActionHookV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose composition-owned Narrative bound-action hooks.
+import type { useNarrativeSurfaceCompositionBoundActionInternalV1 as ForbiddenInternalNarrativeSurfaceCompositionBoundActionHookV1 } from "./internal.ts";
+// @ts-expect-error Optional managed Narrative composition lookup remains source-relative.
+import type { resolveOptionalGameUiManagedSurfaceCompositionInternalV1 as ForbiddenPublicOptionalGameUiManagedSurfaceCompositionResolverV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose optional managed Narrative composition lookup.
+import type { resolveOptionalGameUiManagedSurfaceCompositionInternalV1 as ForbiddenInternalOptionalGameUiManagedSurfaceCompositionResolverV1 } from "./internal.ts";
 // @ts-expect-error Stage presentation-generation proofs remain source-relative.
 import type { StagePresentationGenerationProofInternalV1 as ForbiddenPublicStagePresentationGenerationProofV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Stage presentation-generation proofs.
@@ -858,6 +937,66 @@ describe("@sillymaker/ui public managed System surface", () => {
   });
 
   it("keeps the composition-backed Host and launchers without standalone lifecycle hosts", () => {
+    expectTypeOf<
+      Extract<
+        keyof SemanticStagePropsV1,
+        | "claimant"
+        | "driver"
+        | "onBindInternalV1"
+        | "bindSemanticStageCompositionRetargetDelegateInternalV1"
+      >
+    >().toEqualTypeOf<never>();
+    expectTypeOf<
+      Extract<
+        keyof GameUiCompositionV1<unknown, unknown, unknown, unknown, string>,
+        | "narrative"
+        | "narrativeComposition"
+        | "runtimeKernel"
+        | "stageClaimant"
+        | "barrierStageClaimant"
+        | "detachRuntimeInternalV1"
+        | "prepareRuntimeAttachmentInternalV1"
+        | "activateRuntimeAttachmentInternalV1"
+        | "abortRuntimeAttachmentInternalV1"
+        | "getCurrentSessionInternalV1"
+        | "getCurrentSelectionInternalV1"
+        | "getStageClaimantInternalV1"
+        | "isHostEnabledInternalV1"
+        | "isGestureCurrentInternalV1"
+        | "registerHostPhysicalIngressInternalV1"
+        | "captureBoundHostActionInternalV1"
+        | "provideHostActionContextInternalV1"
+        | "subscribeInternalV1"
+        | "bindStageReconcilerInternalV1"
+        | "isCurrentRuntimeAttachmentInternalV1"
+        | "disposeInternalV1"
+      >
+    >().toEqualTypeOf<never>();
+    expectTypeOf<
+      Extract<
+        keyof DefaultGameRootPropsV1<unknown, unknown, unknown, unknown, string, unknown>,
+        | "narrativeDefinitionInternalV1"
+        | "narrativeComposition"
+        | "barrierStageClaimant"
+        | "detachRuntimeInternalV1"
+        | "prepareRuntimeAttachmentInternalV1"
+        | "activateRuntimeAttachmentInternalV1"
+        | "abortRuntimeAttachmentInternalV1"
+        | "getCurrentSessionInternalV1"
+        | "getCurrentSelectionInternalV1"
+        | "getStageClaimantInternalV1"
+        | "isHostEnabledInternalV1"
+        | "isGestureCurrentInternalV1"
+        | "registerHostPhysicalIngressInternalV1"
+        | "captureBoundHostActionInternalV1"
+        | "provideHostActionContextInternalV1"
+        | "subscribeInternalV1"
+        | "bindStageReconcilerInternalV1"
+        | "isCurrentRuntimeAttachmentInternalV1"
+        | "disposeInternalV1"
+      >
+    >().toEqualTypeOf<never>();
+
     type DormantRuntimeSpellingV1 =
       | "ManagedSurfaceRuntimeStateInstallParticipantInternalV1"
       | "ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1"
@@ -1051,6 +1190,25 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "StageAcknowledgedRunRetargetResultInternalV1"
       | "StageAcknowledgedRunAuthorityInternalV1"
       | "claimStageAcknowledgedRunAuthorityInternalV1"
+      | "SemanticStageCompositionDriverInternalV1"
+      | "createSemanticStageCompositionDriverInternalV1"
+      | "SemanticStageCompositionClaimantProviderInternalV1"
+      | "bindSemanticStageCompositionRetargetDelegateInternalV1"
+      | "NarrativeSurfaceChoiceAvailabilityStatusInternalV1"
+      | "NarrativeSurfaceChoiceAvailabilityInternalV1"
+      | "NarrativeSurfaceSelectionInternalV1"
+      | "CreateNarrativeSurfaceCompositionDefinitionInputInternalV1"
+      | "NarrativeSurfaceCompositionDefinitionInternalV1"
+      | "createNarrativeSurfaceCompositionDefinitionInternalV1"
+      | "assertNarrativeSurfaceCompositionDefinitionInternalV1"
+      | "appendNarrativeManagedSurfaceRecipeInternalV1"
+      | "NarrativeSurfaceCompositeKernelBundleInternalV1"
+      | "createNarrativeSurfaceCompositeKernelBundleInternalV1"
+      | "NarrativeSurfaceSemanticPresentationSourceInternalV1"
+      | "NarrativeSurfaceCompositionRuntimeInternalV1"
+      | "createNarrativeSurfaceCompositionRuntimeInternalV1"
+      | "useNarrativeSurfaceCompositionBoundActionInternalV1"
+      | "resolveOptionalGameUiManagedSurfaceCompositionInternalV1"
       | "StagePresentationGenerationProofInternalV1"
       | "StagePresentationGenerationCaptureResultInternalV1"
       | "StagePresentationGenerationRetargetResultInternalV1"
@@ -1386,6 +1544,25 @@ describe("@sillymaker/ui public managed System surface", () => {
         "StageAcknowledgedRunRetargetResultInternalV1",
         "StageAcknowledgedRunAuthorityInternalV1",
         "claimStageAcknowledgedRunAuthorityInternalV1",
+        "SemanticStageCompositionDriverInternalV1",
+        "createSemanticStageCompositionDriverInternalV1",
+        "SemanticStageCompositionClaimantProviderInternalV1",
+        "bindSemanticStageCompositionRetargetDelegateInternalV1",
+        "NarrativeSurfaceChoiceAvailabilityStatusInternalV1",
+        "NarrativeSurfaceChoiceAvailabilityInternalV1",
+        "NarrativeSurfaceSelectionInternalV1",
+        "CreateNarrativeSurfaceCompositionDefinitionInputInternalV1",
+        "NarrativeSurfaceCompositionDefinitionInternalV1",
+        "createNarrativeSurfaceCompositionDefinitionInternalV1",
+        "assertNarrativeSurfaceCompositionDefinitionInternalV1",
+        "appendNarrativeManagedSurfaceRecipeInternalV1",
+        "NarrativeSurfaceCompositeKernelBundleInternalV1",
+        "createNarrativeSurfaceCompositeKernelBundleInternalV1",
+        "NarrativeSurfaceSemanticPresentationSourceInternalV1",
+        "NarrativeSurfaceCompositionRuntimeInternalV1",
+        "createNarrativeSurfaceCompositionRuntimeInternalV1",
+        "useNarrativeSurfaceCompositionBoundActionInternalV1",
+        "resolveOptionalGameUiManagedSurfaceCompositionInternalV1",
         "StagePresentationGenerationProofInternalV1",
         "StagePresentationGenerationCaptureResultInternalV1",
         "StagePresentationGenerationRetargetResultInternalV1",

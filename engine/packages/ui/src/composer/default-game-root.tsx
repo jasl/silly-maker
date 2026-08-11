@@ -1,5 +1,13 @@
 // SPDX-License-Identifier: MIT
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { ReactElement, ReactNode } from "react";
 
 import type {
@@ -44,12 +52,16 @@ import { SystemDialogHostV1 } from "../system/system-dialog-host.tsx";
 import type { SystemDialogCustomSavesV1 } from "../system/system-dialog-host.tsx";
 import type { SystemDialogOpenResultV1 } from "../system/system-dialog-managed-contract.ts";
 import type { InteractionSessionStoreV1 } from "../interaction/interaction-session-store.ts";
+import { NarrativeSurfaceHostInternalV1 } from "../narrative/narrative-surface-host.tsx";
 import type {
   GameUiCompositionV1,
   GameUiCueRegistryV1,
+  GameUiManagedSurfaceCompositionInternalV1,
   GameUiOverlayIdV1,
 } from "./create-game-ui-composition.ts";
+import { resolveOptionalGameUiManagedSurfaceCompositionInternalV1 } from "./create-game-ui-composition.ts";
 import { admitSettledSessionAnchorResultInternalV1 } from "./session-anchor-result-admission-internal.ts";
+import { SemanticStageCompositionClaimantProviderInternalV1 } from "../stage/semantic-stage.tsx";
 import styles from "./default-game-root.module.css";
 
 /** Player-facing labels of the default surfaces; Stories override per locale. */
@@ -367,6 +379,62 @@ function DefaultDevDockV1(props: {
   );
 }
 
+function DefaultNarrativeSurfaceHostInternalV1(props: {
+  readonly narrative: GameUiManagedSurfaceCompositionInternalV1["narrative"];
+  readonly inputRouter: InputRouterV1;
+}): ReactElement {
+  const { narrative, inputRouter } = props;
+  const session = useSyncExternalStore(
+    narrative.subscribeInternalV1,
+    narrative.getCurrentSessionInternalV1,
+    narrative.getCurrentSessionInternalV1,
+  );
+  const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(null);
+  const [registered, setRegistered] = useState<
+    Readonly<{
+      readonly session: NonNullable<typeof session>;
+      readonly portalContainer: HTMLDivElement;
+      readonly inputRouter: InputRouterV1;
+    }> | null
+  >(null);
+  const capturePortal = useCallback((next: HTMLDivElement | null): void => {
+    setPortalContainer(next);
+  }, []);
+
+  // Register the exact tuple before mounting the inner Host. Across a
+  // successor, the old Host remains mounted for this commit while the parent
+  // swaps registrations; the next render updates the same Host instance only
+  // after the successor tuple is ready.
+  useLayoutEffect(() => {
+    if (session === null || portalContainer === null) return undefined;
+    const release = narrative.registerHostPhysicalIngressInternalV1(Object.freeze({
+      session,
+      portalContainer,
+      inputRouter,
+    }));
+    const binding = Object.freeze({ session, portalContainer, inputRouter });
+    setRegistered(binding);
+    return () => {
+      release();
+      setRegistered((current) => current === binding ? null : current);
+    };
+  }, [inputRouter, narrative, portalContainer, session]);
+
+  return (
+    <>
+      <div ref={capturePortal} data-default-narrative-surface-portal="true" />
+      {registered === null ? null : narrative.provideHostActionContextInternalV1(
+        <NarrativeSurfaceHostInternalV1
+          session={registered.session}
+          portalContainer={registered.portalContainer}
+          inputRouter={registered.inputRouter}
+          isGestureCurrent={narrative.isGestureCurrentInternalV1}
+        />,
+      )}
+    </>
+  );
+}
+
 /**
  * The default GameRoot: a complete playable shell over a composed UI with
  * zero Story React code. The stage renders inside a managed GameViewport;
@@ -521,16 +589,31 @@ export function DefaultGameRootV1<
   const overlayResolver = createDefaultOverlayResolverV1<TOverlayId>({
     storyResolver: slots.overlayResolver?.(slotContext) ?? null,
   });
+  const managedComposition = resolveOptionalGameUiManagedSurfaceCompositionInternalV1(
+    props.composition,
+  );
+  const narrativeComposition = managedComposition?.narrative ?? null;
 
   const layers = Object.freeze({
-    background: (
-      <div
-        className={styles["default-root__stage-slot"]}
-        key={`background:${String(anchor.epoch)}`}
-      >
-        {slots.background?.(slotContext) ?? null}
-      </div>
-    ),
+    background: narrativeComposition === null
+      ? (
+        <div
+          className={styles["default-root__stage-slot"]}
+          key={`background:${String(anchor.epoch)}`}
+        >
+          {slots.background?.(slotContext) ?? null}
+        </div>
+      )
+      : (
+        <SemanticStageCompositionClaimantProviderInternalV1
+          claimant={narrativeComposition.getStageClaimantInternalV1()}
+          onBindInternalV1={narrativeComposition.bindStageReconcilerInternalV1}
+        >
+          <div className={styles["default-root__stage-slot"]}>
+            {slots.background?.(slotContext) ?? null}
+          </div>
+        </SemanticStageCompositionClaimantProviderInternalV1>
+      ),
     character: (
       <div className={styles["default-root__stage-slot"]} key={`character:${String(anchor.epoch)}`}>
         {slots.character?.(slotContext) ?? null}
@@ -546,7 +629,14 @@ export function DefaultGameRootV1<
         closeLabel={labels.closeLabel}
       />
     ),
-    narrative: slots.narrative?.(slotContext) ?? null,
+    narrative: narrativeComposition?.isHostEnabledInternalV1() === true
+      ? (
+        <DefaultNarrativeSurfaceHostInternalV1
+          narrative={narrativeComposition}
+          inputRouter={props.composition.input}
+        />
+      )
+      : slots.narrative?.(slotContext) ?? null,
     system: (
       <SystemDialogHostV1
         inputRouter={props.composition.input}

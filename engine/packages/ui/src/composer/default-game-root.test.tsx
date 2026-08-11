@@ -4,14 +4,42 @@ import "@testing-library/jest-dom/vitest";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { StrictMode, useEffect, useState } from "react";
+import type { ReactElement } from "react";
 
-import { parseNonNegativeSafeInteger } from "@sillymaker/base";
-import type { RuntimeCapabilityPortV1, SessionAnchorResultV1 } from "@sillymaker/base";
-import { createPlayerProfileStoreV1 } from "@sillymaker/base/runtime";
+import {
+  createSemanticStageStateV1,
+  emptyNarrativeHistoryV1,
+  parsePendingInteractionV1,
+  parseStageTransitionDefinitionV1,
+  parseNonNegativeSafeInteger,
+  projectStageRenderTargetV1,
+  reduceStageMutationsV1,
+  timelineV1,
+} from "@sillymaker/base";
+import type {
+  AssetId,
+  DeepReadonly,
+  PendingInteractionV1,
+  RuntimeCapabilityPortV1,
+  SessionAnchorResultV1,
+  StageContentCatalogV1,
+  StageTransitionCatalogV1,
+  TimelineCatalogV1,
+} from "@sillymaker/base";
+import { createPlayerProfileStoreV1, defaultPlayerProfileV1 } from "@sillymaker/base/runtime";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 
 import { createInputRouterV1 } from "../input/input-router.ts";
+import { parseInputActionIdV1, systemInputActionIdsV1 } from "../input/contracts.ts";
+import type { NarrativeStableRendererPropsInternalV1 } from "../narrative/narrative-managed-surface-family.ts";
+import {
+  createNarrativeSurfaceCompositionDefinitionInternalV1,
+  useNarrativeSurfaceCompositionBoundActionInternalV1,
+  type NarrativeSurfaceChoiceAvailabilityInternalV1,
+  type NarrativeSurfaceSelectionInternalV1,
+} from "../narrative/narrative-surface-composition.tsx";
 import {
   createLocalManagedSurfaceEpochAllocatorInternalV1,
   createManagedSurfaceCompositionRuntimeInternalV1,
@@ -29,6 +57,8 @@ import type {
   SaveUiReadableSlotIdV1,
   SaveUiWritableSlotIdV1,
 } from "../persistence/save-overlay.tsx";
+import { createManualPresentationClockV1 } from "../presentation-run/presentation-clock.ts";
+import { SemanticStageV1 } from "../stage/semantic-stage.tsx";
 import { systemDialogManagedContractInternalV1 } from "../system/system-dialog-managed-contract.ts";
 import {
   createSystemDialogManagedSessionInternalV1,
@@ -36,8 +66,10 @@ import {
   resolveSystemDialogSessionInternalV1,
 } from "../system/system-dialog-managed-session.ts";
 import {
+  createGameUiCompositionWithEpochAllocatorInternalV1,
   createHostedGameUiCompositionInternalV1,
   resolveGameUiManagedSurfaceCompositionInternalV1,
+  type GameUiCueRegistryV1,
   type GameUiPresentationAnchorEventInternalV1,
   type GameUiPresentationAnchorEventSourceInternalV1,
   type GameUiPresentationAnchorV1,
@@ -169,12 +201,160 @@ function deferredV1() {
   return Object.freeze({ promise, resolve });
 }
 
+function StageLifetimeProbeV1(props: {
+  readonly onMount: () => void;
+  readonly onUnmount: () => void;
+  readonly onAcknowledgment?: () => void;
+  readonly epoch: number;
+  readonly clock: ReturnType<typeof createManualPresentationClockV1>;
+  readonly cues?: GameUiCueRegistryV1;
+}): ReactElement {
+  const { onMount, onUnmount, onAcknowledgment, epoch, clock, cues } = props;
+  const [contentGeneration, setContentGeneration] = useState(0);
+  useEffect(() => {
+    onMount();
+    return onUnmount;
+  }, [onMount, onUnmount]);
+  useEffect(() => {
+    setContentGeneration(epoch + 1);
+  }, [epoch]);
+  return (
+    <div data-stage-lifetime-probe="true">
+      <SemanticStageV1
+        target={stageLifetimeTargetV1(
+          contentGeneration % 2 === 0 ? "content.test.lifetime-a" : "content.test.lifetime-b",
+        )}
+        revision={epoch * 10 + contentGeneration}
+        epoch={epoch}
+        catalog={stageLifetimeTransitionCatalogV1}
+        renderers={stageLifetimeRenderersV1}
+        accessibleName="Stage lifetime probe"
+        clock={clock}
+        timelines={stageLifetimeTimelinesV1}
+        {...(onAcknowledgment === undefined ? {} : { onAcknowledgment })}
+        {...(cues === undefined ? {} : { cues })}
+      />
+    </div>
+  );
+}
+
+function StrictBarrierStageProbeInternalV1(props: {
+  readonly onMount: () => void;
+  readonly onUnmount: () => void;
+  readonly clock: ReturnType<typeof createManualPresentationClockV1>;
+  readonly cues: GameUiCueRegistryV1;
+}): ReactElement {
+  const { onMount, onUnmount, clock, cues } = props;
+  useEffect(() => {
+    onMount();
+    return onUnmount;
+  }, [onMount, onUnmount]);
+  return (
+    <SemanticStageV1
+      target={stageLifetimeTargetV1("content.test.strict-barrier")}
+      revision={1}
+      epoch={0}
+      catalog={strictBarrierTransitionCatalogInternalV1}
+      renderers={stageLifetimeRenderersV1}
+      accessibleName="Strict coherent Barrier Stage"
+      clock={clock}
+      timelines={stageLifetimeTimelinesV1}
+      cues={cues}
+    />
+  );
+}
+
+const stageLifetimeContentCatalogV1: StageContentCatalogV1 = Object.freeze({
+  resolveContent: (contentId: Parameters<StageContentCatalogV1["resolveContent"]>[0]) =>
+    Object.freeze({
+      rendererId: "renderer.test.default-root-lifetime",
+      assetIds: Object.freeze([] as readonly AssetId[]),
+      accessibleName: contentId,
+      props: Object.freeze({}),
+    }),
+});
+function stageLifetimeTargetV1(contentId: string) {
+  const state = createSemanticStageStateV1({
+    stageId: "stage.test.default-root-lifetime",
+    layerIds: ["layer.test.default-root-lifetime"],
+  });
+  const outcome = reduceStageMutationsV1(state, [{
+    kind: "show",
+    layerId: "layer.test.default-root-lifetime",
+    tag: "tag.test.default-root-lifetime",
+    contentId,
+  }]);
+  if (outcome.kind !== "applied") throw new Error("Stage lifetime target must apply");
+  return projectStageRenderTargetV1(outcome.state, stageLifetimeContentCatalogV1).target;
+}
+const stageLifetimeTransitionV1 = parseStageTransitionDefinitionV1({
+  transitionId: "transition.test.default-root-lifetime",
+  kind: "crossfade",
+  durationMs: 100,
+  easing: "linear",
+  inputPolicy: "block",
+  interruption: "settle_and_retarget",
+  reducedMotion: { kind: "settle" },
+  readiness: { kind: "immediate" },
+  acknowledge: true,
+  slide: null,
+});
+const stageLifetimeTransitionCatalogV1: StageTransitionCatalogV1 = Object.freeze({
+  resolveTransition: (
+    change: Parameters<StageTransitionCatalogV1["resolveTransition"]>[0],
+  ) => change.kind === "replace" ? stageLifetimeTransitionV1 : null,
+});
+const strictBarrierTransitionInternalV1 = parseStageTransitionDefinitionV1({
+  transitionId: "transition.test.fade",
+  kind: "crossfade",
+  durationMs: 100,
+  easing: "linear",
+  inputPolicy: "target_active",
+  interruption: "settle_and_retarget",
+  reducedMotion: { kind: "settle" },
+  readiness: { kind: "immediate" },
+  acknowledge: true,
+  slide: null,
+});
+const strictBarrierTransitionCatalogInternalV1: StageTransitionCatalogV1 = Object.freeze({
+  resolveTransition: () => strictBarrierTransitionInternalV1,
+  resolveTransitionById: (transitionId: string) =>
+    transitionId === strictBarrierTransitionInternalV1.transitionId
+      ? strictBarrierTransitionInternalV1
+      : null,
+});
+const stageLifetimeRenderersV1 = Object.freeze({
+  "renderer.test.default-root-lifetime": () => <span />,
+});
+const stageLifetimeCueV1 = timelineV1.define(
+  "cue.test.default-root-lifetime",
+  timelineV1.tween({
+    target: timelineV1.entry(
+      "layer.test.default-root-lifetime",
+      "tag.test.default-root-lifetime",
+    ),
+    property: "offsetX",
+    to: 10,
+    durationMs: 100,
+    easing: "linear",
+  }),
+);
+const stageLifetimeTimelinesV1: TimelineCatalogV1 = Object.freeze({
+  resolveTimeline: (cueId: Parameters<TimelineCatalogV1["resolveTimeline"]>[0]) =>
+    cueId === "cue.test.default-root-lifetime" ? stageLifetimeCueV1 : null,
+});
+
 function renderLifecycleRootV1(input: {
   readonly restart?: () => Promise<SessionAnchorResultV1>;
   readonly beginNewGame?: () => void | Promise<unknown>;
   readonly playerProfile?: PlayerProfileStoreV1;
   readonly capabilities?: RuntimeCapabilityPortV1;
   readonly labels?: Partial<DefaultGameRootLabelsV1>;
+  readonly stageLifetime?: {
+    readonly onMount: () => void;
+    readonly onUnmount: () => void;
+    readonly clock: ReturnType<typeof createManualPresentationClockV1>;
+  };
 }) {
   let systemDialogs:
     | DefaultGameRootSlotContextV1<unknown, unknown>["systemDialogs"]
@@ -221,7 +401,8 @@ function renderLifecycleRootV1(input: {
   });
   const systemDialogSession = createSystemDialogSessionFacadeInternalV1(systemDialogInternal);
   const publication = Object.freeze({ revision: 0 });
-  const anchor = Object.freeze({ epoch: 0, origin: "bootstrap" });
+  let anchor: GameUiPresentationAnchorV1 = Object.freeze({ epoch: 0, origin: "bootstrap" });
+  const anchorListeners = new Set<() => void>();
 
   render(
     <DefaultGameRootV1
@@ -232,7 +413,10 @@ function renderLifecycleRootV1(input: {
         }),
         anchor: Object.freeze({
           getCurrent: () => anchor,
-          subscribe: () => () => undefined,
+          subscribe: (listener: () => void) => {
+            anchorListeners.add(listener);
+            return () => anchorListeners.delete(listener);
+          },
         }),
         input: inputRouter,
         intents: Object.freeze({}),
@@ -257,6 +441,16 @@ function renderLifecycleRootV1(input: {
         ...(input.beginNewGame === undefined ? {} : { beginNewGame: input.beginNewGame }),
       })}
       slots={Object.freeze({
+        ...(input.stageLifetime === undefined ? {} : {
+          background: () => (
+            <StageLifetimeProbeV1
+              onMount={input.stageLifetime!.onMount}
+              onUnmount={input.stageLifetime!.onUnmount}
+              epoch={anchor.epoch}
+              clock={input.stageLifetime!.clock}
+            />
+          ),
+        }),
         hud: (context: DefaultGameRootSlotContextV1<unknown, unknown>) => {
           systemDialogs = context.systemDialogs;
           return null;
@@ -271,6 +465,10 @@ function renderLifecycleRootV1(input: {
     overlayInternal,
     overlaySession,
     overlayFailures,
+    publishAnchor(next: GameUiPresentationAnchorV1): void {
+      anchor = next;
+      for (const listener of [...anchorListeners]) listener();
+    },
     resolvePreparation(id: LifecycleOverlayIdV1) {
       preparations.get(id)!.resolve();
     },
@@ -380,8 +578,309 @@ function createExactLifecycleAnchorSourceV1() {
   });
 }
 
+const narrativeChooseActionIdInternalV1 = parseInputActionIdV1("narrative.choose");
+
+function choicePendingInternalV1(sequence: number): PendingInteractionV1 {
+  return parsePendingInteractionV1({
+    kind: "choice",
+    definitionId: "narrative.test.default-root-choice",
+    seenRevision: 1,
+    occurrenceId: `interaction-occurrence.${String(sequence + 1_000)}`,
+    promptTextId: "text.test.default-root-prompt",
+    options: [
+      { choiceId: "choice.test.default-root-first", textId: "text.test.default-root-first" },
+      { choiceId: "choice.test.default-root-second", textId: "text.test.default-root-second" },
+    ],
+  });
+}
+
+function choiceSelectionInternalV1(sequence: number): NarrativeSurfaceSelectionInternalV1 {
+  const availability = Object.freeze([
+    Object.freeze({
+      choiceId: "choice.test.default-root-first",
+      status: "enabled" as const,
+      reasonTextIds: Object.freeze([]),
+    }),
+    Object.freeze({
+      choiceId: "choice.test.default-root-second",
+      status: "enabled" as const,
+      reasonTextIds: Object.freeze([]),
+    }),
+  ]) satisfies readonly NarrativeSurfaceChoiceAvailabilityInternalV1[];
+  return Object.freeze({
+    pending: choicePendingInternalV1(sequence),
+    history: emptyNarrativeHistoryV1,
+    choiceAvailability: availability,
+  });
+}
+
+function strictBarrierSelectionInternalV1(
+  pending: PendingInteractionV1 | null = parsePendingInteractionV1({
+    kind: "presentation_barrier",
+    definitionId: "narrative.test.default-root-strict-barrier",
+    seenRevision: 1,
+    occurrenceId: "interaction-occurrence.1001",
+    expectedTransitionId: strictBarrierTransitionInternalV1.transitionId,
+    loadRecovery: "settle",
+  }),
+): NarrativeSurfaceSelectionInternalV1 {
+  return Object.freeze({
+    pending,
+    history: emptyNarrativeHistoryV1,
+    choiceAvailability: null,
+  });
+}
+
+function renderCompositionOwnedNarrativeRootInternalV1(
+  options: {
+    readonly completionMode?:
+      | "publish_resolved"
+      | "reject_current"
+      | "resolve_without_publication"
+      | "publish_pending";
+    readonly initialStrictBarrier?: {
+      readonly clock: ReturnType<typeof createManualPresentationClockV1>;
+      readonly onMount: () => void;
+      readonly onUnmount: () => void;
+      readonly onDispatch?: () => void;
+    };
+    readonly strictMode?: boolean;
+  } = {},
+) {
+  interface SemanticPublicationInternalV1 {
+    readonly selection: NarrativeSurfaceSelectionInternalV1;
+  }
+  const semanticListeners = new Set<() => void>();
+  let occurrenceSequence = 1;
+  let semanticPublication: SemanticPublicationInternalV1 = Object.freeze({
+    selection: options.initialStrictBarrier === undefined
+      ? choiceSelectionInternalV1(occurrenceSequence)
+      : strictBarrierSelectionInternalV1(),
+  });
+  const callbacks: Array<
+    Readonly<{
+      readonly occurrenceId: string;
+      readonly callback: () => boolean;
+    }>
+  > = [];
+  const dispatches: Array<
+    Readonly<{
+      readonly expectedOccurrenceId: string;
+      readonly resolution: unknown;
+    }>
+  > = [];
+  const failures: Array<
+    Readonly<{
+      readonly code: string;
+      readonly error: unknown;
+    }>
+  > = [];
+  let rejectPendingCompletion: ((error: unknown) => void) | null = null;
+  const publishSelection = (selection: NarrativeSurfaceSelectionInternalV1): void => {
+    semanticPublication = Object.freeze({ selection });
+    for (const listener of [...semanticListeners]) listener();
+  };
+  const ChoiceRendererInternalV1 = Object.freeze(
+    function ChoiceRendererInternalV1(
+      props: NarrativeStableRendererPropsInternalV1,
+    ): ReactElement {
+      const pending = props.kind === "dialogue" ? props.pending : null;
+      const occurrenceId = pending?.occurrenceId ?? "history";
+      const choiceId = pending?.kind === "choice" ? pending.options[0]?.choiceId : undefined;
+      const onChoose = useNarrativeSurfaceCompositionBoundActionInternalV1({
+        actionId: narrativeChooseActionIdInternalV1,
+        ...(choiceId === undefined ? {} : { choiceId }),
+      });
+      useEffect(() => {
+        if (choiceId === undefined) return;
+        callbacks.push(Object.freeze({ occurrenceId, callback: onChoose }));
+      }, [choiceId, occurrenceId, onChoose]);
+      return choiceId === undefined
+        ? <output data-testid="default-root-narrative-history" />
+        : (
+          <button
+            type="button"
+            data-testid="default-root-narrative-choice"
+            data-occurrence-id={occurrenceId}
+            onClick={() => onChoose()}
+          >
+            Choose first
+          </button>
+        );
+    },
+  );
+  const definition = createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
+    selectNarrativeInternalV1: (
+      publication: DeepReadonly<SemanticPublicationInternalV1>,
+    ) => publication.selection,
+    preflightCandidateInternalV1: (
+      _pending: PendingInteractionV1,
+      _rendererKey: string,
+      selection: NarrativeSurfaceSelectionInternalV1,
+    ) =>
+      Object.freeze({
+        kind: "captured" as const,
+        candidateSnapshot: Object.freeze({
+          rendererComponent: ChoiceRendererInternalV1,
+          visualConfig: Object.freeze({}),
+          semanticDispatchPort: Object.freeze({
+            dispatchResolutionInternalV1: (
+              request: Readonly<{
+                readonly expectedOccurrenceId: string;
+                readonly resolution: unknown;
+              }>,
+            ) => {
+              dispatches.push(request);
+              if (options.initialStrictBarrier !== undefined) {
+                options.initialStrictBarrier.onDispatch?.();
+                publishSelection(strictBarrierSelectionInternalV1(null));
+                return Promise.resolve();
+              }
+              switch (options.completionMode ?? "publish_resolved") {
+                case "reject_current":
+                  return Promise.reject(new Error("current Choice completion rejected"));
+                case "resolve_without_publication":
+                  return Promise.resolve();
+                case "publish_pending": {
+                  const completion = new Promise<void>((_resolve, reject) => {
+                    rejectPendingCompletion = reject;
+                  });
+                  occurrenceSequence += 1;
+                  publishSelection(choiceSelectionInternalV1(occurrenceSequence));
+                  return completion;
+                }
+                case "publish_resolved":
+                  occurrenceSequence += 1;
+                  publishSelection(choiceSelectionInternalV1(occurrenceSequence));
+                  return Promise.resolve();
+              }
+              throw new TypeError("unexpected Narrative completion fixture mode");
+            },
+          }),
+          historyObservationPort: Object.freeze({
+            getSnapshotInternalV1: () => semanticPublication.selection.history,
+            subscribeInternalV1(listener: () => void) {
+              semanticListeners.add(listener);
+              return Object.freeze(() => semanticListeners.delete(listener));
+            },
+          }),
+          historyAvailabilityPort: Object.freeze({
+            readHistoryAvailabilityInternalV1: () => selection.history.entries.length > 0,
+          }),
+          playerProfile: Object.freeze({
+            getSnapshotInternalV1: () => defaultPlayerProfileV1,
+            subscribeInternalV1: () => Object.freeze(() => undefined),
+            markSeenInternalV1: () => undefined,
+          }),
+          presentationClock: Object.freeze({
+            nowInternalV1: () => 0,
+            requestTickInternalV1: () => Object.freeze(() => undefined),
+            prefersReducedMotionInternalV1: () => false,
+          }),
+          textResolver: Object.freeze({
+            resolveTextInternalV1: (textId: string) => textId,
+          }),
+          voiceReplayPort: null,
+          quickMenuContribution: null,
+        }),
+      }),
+  }));
+  const anchorEvents = createExactLifecycleAnchorSourceV1();
+  let managedEpoch = 0;
+  const composition = createGameUiCompositionWithEpochAllocatorInternalV1(
+    {
+      semantic: Object.freeze({
+        observe: () => semanticPublication,
+        subscribe(listener: () => void) {
+          semanticListeners.add(listener);
+          return () => semanticListeners.delete(listener);
+        },
+      }),
+      projector: Object.freeze({
+        resolvedCatalog: Object.freeze({}),
+        initialUiState: Object.freeze({}),
+        project: (input: { readonly uiState: { readonly anchor: GameUiPresentationAnchorV1 } }) =>
+          Object.freeze({
+            view: Object.freeze({ anchorEpoch: input.uiState.anchor.epoch }),
+            requiredAssetIds: Object.freeze([]),
+          }),
+      }),
+      overlayDefinitions: Object.freeze([]),
+    },
+    Object.freeze({
+      allocate: () => parseNonNegativeSafeInteger(++managedEpoch),
+    }),
+    (code: string, error: unknown) => {
+      failures.push(Object.freeze({ code, error }));
+    },
+    undefined,
+    Object.freeze({
+      anchorEvents: anchorEvents.source,
+      producer: Object.freeze({
+        installed: () => undefined,
+        failed: () => undefined,
+      }),
+    }),
+    definition,
+  );
+  const legacyNarrative = vi.fn(() => <output data-testid="legacy-narrative-writer" />);
+  const initialStrictBarrier = options.initialStrictBarrier;
+  const root = (
+    <DefaultGameRootV1
+      composition={composition as never}
+      semantic={Object.freeze({})}
+      accessibleName="Composition Narrative fixture"
+      applicationId="composition-narrative-fixture"
+      viewport={undefined as never}
+      inputMaps={Object.freeze({
+        keyboard: Object.freeze({ KeyN: systemInputActionIdsV1.confirm }),
+        gamepad: Object.freeze({ 0: systemInputActionIdsV1.confirm }),
+      })}
+      slots={Object.freeze({
+        ...(initialStrictBarrier === undefined ? {} : {
+          background: (context: DefaultGameRootSlotContextV1<unknown, unknown>) => (
+            <StrictBarrierStageProbeInternalV1
+              onMount={initialStrictBarrier.onMount}
+              onUnmount={initialStrictBarrier.onUnmount}
+              clock={initialStrictBarrier.clock}
+              cues={context.cues}
+            />
+          ),
+        }),
+        narrative: legacyNarrative,
+      })}
+    />
+  );
+  const view = render(options.strictMode === true ? <StrictMode>{root}</StrictMode> : root);
+  return Object.freeze({
+    ...view,
+    anchorEvents,
+    callbacks,
+    composition,
+    dispatches,
+    failures,
+    legacyNarrative,
+    rejectPendingCompletion(error: unknown): void {
+      const reject = rejectPendingCompletion;
+      if (reject === null) throw new Error("expected a pending Narrative completion");
+      rejectPendingCompletion = null;
+      reject(error);
+    },
+  });
+}
+
 function renderHostedLifecycleRootV1(
-  options: { readonly withSaveUi?: boolean } = {},
+  options: {
+    readonly narrativeSlot?: () => ReactElement;
+    readonly withSaveUi?: boolean;
+    readonly stageLifetime?: {
+      readonly onMount: () => void;
+      readonly onUnmount: () => void;
+      readonly onAcknowledgment?: () => void;
+      readonly clock: ReturnType<typeof createManualPresentationClockV1>;
+    };
+    readonly strictMode?: boolean;
+  } = {},
 ) {
   const anchorEvents = createExactLifecycleAnchorSourceV1();
   const installed: Parameters<GameUiPresentationSuccessorProducerInternalV1["installed"]>[0][] = [];
@@ -504,7 +1003,7 @@ function renderHostedLifecycleRootV1(
       }),
   });
 
-  render(
+  const root = (
     <DefaultGameRootV1
       composition={composition as never}
       semantic={Object.freeze({})}
@@ -517,14 +1016,33 @@ function renderHostedLifecycleRootV1(
         : {})}
       titleScreen={Object.freeze({ title: "Hosted lifecycle fixture" })}
       slots={Object.freeze({
+        ...(options.narrativeSlot === undefined ? {} : {
+          narrative: options.narrativeSlot,
+        }),
+        ...(options.stageLifetime === undefined ? {} : {
+          background: (context: DefaultGameRootSlotContextV1<unknown, unknown>) => (
+            <StageLifetimeProbeV1
+              onMount={options.stageLifetime!.onMount}
+              onUnmount={options.stageLifetime!.onUnmount}
+              {...(options.stageLifetime!.onAcknowledgment === undefined
+                ? {}
+                : { onAcknowledgment: options.stageLifetime!.onAcknowledgment })}
+              epoch={(context.publication as { readonly view: { readonly anchorEpoch: number } })
+                .view.anchorEpoch}
+              clock={options.stageLifetime!.clock}
+              cues={context.cues}
+            />
+          ),
+        }),
         hud: (context: DefaultGameRootSlotContextV1<unknown, unknown>) => {
           returnToTitle = context.systemDialogs.returnToTitle;
           return null;
         },
         overlayResolver: () => overlayResolver,
       })}
-    />,
+    />
   );
+  render(options.strictMode === true ? <StrictMode>{root}</StrictMode> : root);
 
   return Object.freeze({
     allocatedEpochs,
@@ -546,6 +1064,418 @@ function renderHostedLifecycleRootV1(
 }
 
 describe("DefaultGameRootV1 lifecycle result handling", () => {
+  it("pre-registers the production Narrative Host and dual-fences device and renderer actions", async () => {
+    const getGamepadsDescriptor = Object.getOwnPropertyDescriptor(navigator, "getGamepads");
+    const requestAnimationFrameDescriptor = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "requestAnimationFrame",
+    );
+    const cancelAnimationFrameDescriptor = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "cancelAnimationFrame",
+    );
+    let connected = false;
+    let pressed = false;
+    let nextFrameId = 1;
+    const frames = new Map<number, FrameRequestCallback>();
+    Object.defineProperty(navigator, "getGamepads", {
+      configurable: true,
+      value: () =>
+        connected
+          ? [Object.freeze({
+            index: 0,
+            connected: true,
+            buttons: Object.freeze([{ pressed }]),
+          })]
+          : [],
+    });
+    Object.defineProperty(globalThis, "requestAnimationFrame", {
+      configurable: true,
+      value: (callback: FrameRequestCallback) => {
+        const frameId = nextFrameId;
+        nextFrameId += 1;
+        frames.set(frameId, callback);
+        return frameId;
+      },
+    });
+    Object.defineProperty(globalThis, "cancelAnimationFrame", {
+      configurable: true,
+      value: (frameId: number) => {
+        frames.delete(frameId);
+      },
+    });
+    let fixture: ReturnType<typeof renderCompositionOwnedNarrativeRootInternalV1> | null = null;
+    const runGamepadFrame = async (): Promise<void> => {
+      const entry = frames.entries().next().value as
+        | [number, FrameRequestCallback]
+        | undefined;
+      if (entry === undefined) throw new Error("expected a pending gamepad frame");
+      frames.delete(entry[0]);
+      await act(async () => {
+        entry[1](0);
+        await Promise.resolve();
+      });
+    };
+
+    try {
+      fixture = renderCompositionOwnedNarrativeRootInternalV1();
+      const currentChoice = async (sequence: number): Promise<HTMLElement> => {
+        await screen.findByTestId("default-root-narrative-choice");
+        await waitFor(() =>
+          expect(screen.getByTestId("default-root-narrative-choice")).toHaveAttribute(
+            "data-occurrence-id",
+            `interaction-occurrence.${String(sequence + 1_000)}`,
+          )
+        );
+        await act(async () => {
+          await new Promise<void>((complete) => queueMicrotask(complete));
+        });
+        return screen.getByTestId("default-root-narrative-choice");
+      };
+      const firstChoice = await currentChoice(1);
+      const portal = fixture.container.querySelector(
+        '[data-default-narrative-surface-portal="true"]',
+      );
+      expect(portal).not.toBeNull();
+      expect(fixture.legacyNarrative).not.toHaveBeenCalled();
+      expect(screen.queryByTestId("legacy-narrative-writer")).toBeNull();
+
+      await userEvent.setup().click(firstChoice);
+      await currentChoice(2);
+      expect(fixture.dispatches).toHaveLength(1);
+
+      const keyboard = new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        code: "KeyN",
+      });
+      act(() => {
+        document.dispatchEvent(keyboard);
+      });
+      expect(keyboard.defaultPrevented).toBe(true);
+      await currentChoice(3);
+      expect(fixture.dispatches).toHaveLength(2);
+
+      connected = true;
+      act(() => {
+        window.dispatchEvent(new Event("gamepadconnected"));
+      });
+      pressed = true;
+      await runGamepadFrame();
+      await currentChoice(4);
+      expect(fixture.dispatches).toHaveLength(3);
+
+      const oldPointerCallback = fixture.callbacks.findLast((capture) =>
+        capture.occurrenceId === "interaction-occurrence.1004"
+      )?.callback;
+      if (oldPointerCallback === undefined) {
+        throw new Error("expected the predecessor renderer callback");
+      }
+
+      await act(async () => {
+        fixture!.anchorEvents.publish(Object.freeze({
+          anchor: Object.freeze({ epoch: 1, origin: "load" }),
+          token: null,
+        }));
+        await Promise.resolve();
+      });
+      await waitFor(() =>
+        expect(screen.getByRole("application")).toHaveAttribute("data-presentation-epoch", "1")
+      );
+      expect(
+        fixture.container.querySelector('[data-default-narrative-surface-portal="true"]'),
+      ).toBe(portal);
+      await waitFor(() =>
+        expect(
+          fixture!.callbacks.some((capture) =>
+            capture.occurrenceId === "interaction-occurrence.1004" &&
+            capture.callback !== oldPointerCallback
+          ),
+        ).toBe(true)
+      );
+
+      expect(oldPointerCallback()).toBe(false);
+      // The predecessor gamepad press remains physically held across the
+      // successor; polling it again must not replay that old rising edge.
+      await runGamepadFrame();
+      expect(fixture.dispatches).toHaveLength(3);
+      pressed = false;
+      await runGamepadFrame();
+
+      const freshPointerCallback = fixture.callbacks.findLast((capture) =>
+        capture.occurrenceId === "interaction-occurrence.1004" &&
+        capture.callback !== oldPointerCallback
+      )?.callback;
+      if (freshPointerCallback === undefined) {
+        throw new Error("expected the successor renderer callback");
+      }
+      expect(freshPointerCallback()).toBe(true);
+      await currentChoice(5);
+      expect(fixture.dispatches).toHaveLength(4);
+
+      const successorKeyboard = new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        code: "KeyN",
+      });
+      act(() => {
+        document.dispatchEvent(successorKeyboard);
+      });
+      expect(successorKeyboard.defaultPrevented).toBe(true);
+      await currentChoice(6);
+      expect(fixture.dispatches).toHaveLength(5);
+
+      pressed = true;
+      await runGamepadFrame();
+      await currentChoice(7);
+      expect(fixture.dispatches).toHaveLength(6);
+      expect(fixture.dispatches.map((request) => request.expectedOccurrenceId)).toEqual([
+        "interaction-occurrence.1001",
+        "interaction-occurrence.1002",
+        "interaction-occurrence.1003",
+        "interaction-occurrence.1004",
+        "interaction-occurrence.1005",
+        "interaction-occurrence.1006",
+      ]);
+      expect(fixture.dispatches.map((request) => request.resolution)).toEqual(
+        Array.from({ length: 6 }, () => ({
+          kind: "choose",
+          choiceId: "choice.test.default-root-first",
+        })),
+      );
+    } finally {
+      fixture?.unmount();
+      fixture?.composition.dispose();
+      if (getGamepadsDescriptor === undefined) {
+        delete (navigator as { getGamepads?: unknown })
+          .getGamepads;
+      } else Object.defineProperty(navigator, "getGamepads", getGamepadsDescriptor);
+      if (requestAnimationFrameDescriptor === undefined) {
+        delete (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame;
+      } else {
+        Object.defineProperty(
+          globalThis,
+          "requestAnimationFrame",
+          requestAnimationFrameDescriptor,
+        );
+      }
+      if (cancelAnimationFrameDescriptor === undefined) {
+        delete (globalThis as { cancelAnimationFrame?: unknown }).cancelAnimationFrame;
+      } else {
+        Object.defineProperty(globalThis, "cancelAnimationFrame", cancelAnimationFrameDescriptor);
+      }
+    }
+  });
+
+  it("retains one coherent Barrier across StrictMode bind replay and terminal-cleans true unmount", async () => {
+    const clock = createManualPresentationClockV1();
+    const onMount = vi.fn();
+    const onUnmount = vi.fn();
+    let setupCountAtDispatch = -1;
+    let cleanupCountAtDispatch = -1;
+    const fixture = renderCompositionOwnedNarrativeRootInternalV1({
+      initialStrictBarrier: Object.freeze({
+        clock,
+        onMount,
+        onUnmount,
+        onDispatch: () => {
+          setupCountAtDispatch = onMount.mock.calls.length;
+          cleanupCountAtDispatch = onUnmount.mock.calls.length;
+        },
+      }),
+      strictMode: true,
+    });
+    let unmounted = false;
+    try {
+      expect(onMount).toHaveBeenCalledTimes(2);
+      expect(onUnmount).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(fixture.dispatches).toHaveLength(1));
+
+      expect(fixture.dispatches[0]).toMatchObject({
+        expectedOccurrenceId: "interaction-occurrence.1001",
+        resolution: { kind: "barrier_completed" },
+      });
+      expect(setupCountAtDispatch).toBe(2);
+      expect(cleanupCountAtDispatch).toBe(1);
+      expect(fixture.failures).toEqual([]);
+      const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
+      expect(managed.isTerminalInternalV1()).toBe(false);
+      expect(managed.narrative.getCurrentSelectionInternalV1()?.pending).toBeNull();
+
+      expect(fixture.composition.cues.play("cue.test.default-root-lifetime")).toBe(true);
+      expect(clock.pendingTickCount()).toBe(1);
+      fixture.unmount();
+      unmounted = true;
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(onUnmount).toHaveBeenCalledTimes(2);
+      expect(clock.pendingTickCount()).toBe(0);
+      expect(fixture.composition.cues.play("cue.test.default-root-lifetime")).toBe(false);
+      expect(fixture.dispatches).toHaveLength(1);
+    } finally {
+      if (!unmounted) fixture.unmount();
+      fixture.composition.dispose();
+    }
+  });
+
+  it("terminal-seals the composition when the current Choice completion rejects", async () => {
+    const fixture = renderCompositionOwnedNarrativeRootInternalV1({
+      completionMode: "reject_current",
+    });
+    try {
+      await userEvent.setup().click(await screen.findByTestId("default-root-narrative-choice"));
+      await waitFor(() => expect(fixture.failures).toHaveLength(1));
+
+      const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
+      expect(fixture.failures[0]?.code).toBe("ui.narrative_surface_composition_failed");
+      expect(managed.isTerminalInternalV1()).toBe(true);
+      expect(managed.narrative.getCurrentSessionInternalV1()).toBeNull();
+      expect(fixture.composition.input.route(Object.freeze({
+        kind: "action",
+        actionId: systemInputActionIdsV1.confirm,
+      }))).toEqual({ kind: "ignored" });
+    } finally {
+      fixture.unmount();
+      fixture.composition.dispose();
+    }
+  });
+
+  it("terminal-seals an already-resolved Choice completion without synchronous publication", async () => {
+    const fixture = renderCompositionOwnedNarrativeRootInternalV1({
+      completionMode: "resolve_without_publication",
+    });
+    try {
+      await userEvent.setup().click(await screen.findByTestId("default-root-narrative-choice"));
+      await waitFor(() => expect(fixture.failures).toHaveLength(1));
+
+      const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
+      expect(fixture.failures[0]?.code).toBe("ui.narrative_surface_composition_failed");
+      expect(managed.isTerminalInternalV1()).toBe(true);
+      expect(managed.narrative.getCurrentSessionInternalV1()).toBeNull();
+    } finally {
+      fixture.unmount();
+      fixture.composition.dispose();
+    }
+  });
+
+  it("ignores a late rejected Choice completion after synchronous semantic publication", async () => {
+    const fixture = renderCompositionOwnedNarrativeRootInternalV1({
+      completionMode: "publish_pending",
+    });
+    try {
+      await userEvent.setup().click(await screen.findByTestId("default-root-narrative-choice"));
+      await waitFor(() =>
+        expect(screen.getByTestId("default-root-narrative-choice")).toHaveAttribute(
+          "data-occurrence-id",
+          "interaction-occurrence.1002",
+        )
+      );
+      expect(fixture.dispatches).toHaveLength(1);
+
+      await act(async () => {
+        fixture.rejectPendingCompletion(new Error("late predecessor completion rejected"));
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
+      expect(fixture.failures).toEqual([]);
+      expect(managed.isTerminalInternalV1()).toBe(false);
+      expect(managed.narrative.getCurrentSelectionInternalV1()?.pending?.occurrenceId).toBe(
+        "interaction-occurrence.1002",
+      );
+      expect(screen.getByTestId("default-root-narrative-choice")).toHaveAttribute(
+        "data-occurrence-id",
+        "interaction-occurrence.1002",
+      );
+    } finally {
+      fixture.unmount();
+      fixture.composition.dispose();
+    }
+  });
+
+  it("keeps the Story narrative slot for a composition with no Narrative definition", () => {
+    const narrativeSlot = vi.fn(() => <output data-testid="default-root-legacy-null-narrative" />);
+    const fixture = renderHostedLifecycleRootV1({ narrativeSlot });
+
+    expect(screen.getByTestId("default-root-legacy-null-narrative")).toBeInTheDocument();
+    expect(narrativeSlot).toHaveBeenCalledTimes(1);
+    expect(
+      document.querySelector('[data-default-narrative-surface-portal="true"]'),
+    ).toBeNull();
+
+    fixture.composition.dispose();
+  });
+
+  it("keeps the mounted Stage subtree across application epoch successors", async () => {
+    const onMount = vi.fn();
+    const onUnmount = vi.fn();
+    const onAcknowledgment = vi.fn();
+    const clock = createManualPresentationClockV1();
+    const fixture = renderHostedLifecycleRootV1({
+      stageLifetime: Object.freeze({ onMount, onUnmount, onAcknowledgment, clock }),
+      strictMode: true,
+    });
+
+    expect(onMount).toHaveBeenCalledTimes(2);
+    expect(onUnmount).toHaveBeenCalledTimes(1);
+    expect(clock.pendingTickCount()).toBe(1);
+
+    act(() => clock.advance(100));
+    expect(onAcknowledgment).toHaveBeenCalledOnce();
+    expect(clock.pendingTickCount()).toBe(0);
+
+    await act(async () => {
+      fixture.anchorEvents.publish(Object.freeze({
+        anchor: Object.freeze({ epoch: 1, origin: "load" }),
+        token: null,
+      }));
+      await Promise.resolve();
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("application")).toHaveAttribute("data-presentation-epoch", "1")
+    );
+
+    expect(onMount).toHaveBeenCalledTimes(2);
+    expect(onUnmount).toHaveBeenCalledTimes(1);
+    expect(clock.pendingTickCount()).toBe(1);
+    expect(fixture.composition.cues.play("cue.test.default-root-lifetime")).toBe(true);
+    expect(clock.pendingTickCount()).toBe(2);
+
+    // Composition terminal disposal reaches the bound private Stage driver
+    // and its decorative timeline player even while React remains mounted.
+    await act(async () => fixture.composition.dispose());
+    expect(clock.pendingTickCount()).toBe(0);
+    expect(onUnmount).toHaveBeenCalledTimes(1);
+
+    cleanup();
+    expect(onUnmount).toHaveBeenCalledTimes(2);
+  });
+
+  it("retains epoch remount semantics for structurally typed legacy compositions", () => {
+    const onMount = vi.fn();
+    const onUnmount = vi.fn();
+    const clock = createManualPresentationClockV1();
+    const fixture = renderLifecycleRootV1({
+      stageLifetime: Object.freeze({ onMount, onUnmount, clock }),
+    });
+
+    expect(onMount).toHaveBeenCalledTimes(1);
+    expect(onUnmount).not.toHaveBeenCalled();
+
+    act(() => {
+      fixture.publishAnchor(Object.freeze({ epoch: 1, origin: "load" }));
+    });
+
+    expect(onMount).toHaveBeenCalledTimes(2);
+    expect(onUnmount).toHaveBeenCalledTimes(1);
+    cleanup();
+    expect(onUnmount).toHaveBeenCalledTimes(2);
+  });
+
   it("returns managed structured System results through the Story slot context", async () => {
     const fixture = renderLifecycleRootV1({ restart: async () => anchoredV1 });
     let settingsResult: ReturnType<typeof fixture.openSettings> | undefined;

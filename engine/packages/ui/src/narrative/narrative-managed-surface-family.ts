@@ -409,6 +409,12 @@ export interface CreateNarrativeStablePublisherBridgeInputInternalV1 {
   readonly exactAggregateDefinitionSidecars:
     readonly ManagedSurfaceStableDefinitionSidecarInternalV1[];
   readonly exactAggregateSlotDescriptors: readonly ManagedSurfaceResolvedSlotDescriptorV1[];
+  /**
+   * Composition-scoped Stage claim identity. Production successors reuse one
+   * identity; source-relative legacy fixtures may omit it and receive an
+   * instance-local claim.
+   */
+  readonly barrierStageClaimant?: object;
 }
 
 declare const narrativeStableChoiceActionAttemptBrandInternalV1: unique symbol;
@@ -2573,6 +2579,14 @@ export function createNarrativeStablePublisherBridgeInternalV1(
   const compositeRuntimeKernel = input.compositeRuntimeKernel;
   const exactAggregateDefinitionSidecars = input.exactAggregateDefinitionSidecars;
   const exactAggregateSlotDescriptors = input.exactAggregateSlotDescriptors;
+  const barrierStageClaimant = input.barrierStageClaimant ??
+    freezeNarrativePhysicalActionDataInternalV1({});
+  if (
+    (typeof barrierStageClaimant !== "object" && typeof barrierStageClaimant !== "function") ||
+    barrierStageClaimant === null
+  ) {
+    throw new TypeError("ui.narrative_stable_composition_invalid");
+  }
   const contract = narrativeManagedSurfaceFamilyContractInternalV1;
   if (
     !matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1(
@@ -3124,7 +3138,7 @@ export function createNarrativeStablePublisherBridgeInternalV1(
     sayRevealControllerClaim: null,
     sayCallbackClaim: null,
     saySemanticInFlightClaim: null,
-    barrierStageClaimant: freezeNarrativePhysicalActionDataInternalV1({}),
+    barrierStageClaimant,
     barrierAcknowledgmentControllerClaim: null,
     barrierTargetTerminalClaim: null,
     barrierCallbackClaim: null,

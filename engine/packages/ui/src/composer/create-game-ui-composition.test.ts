@@ -1,8 +1,26 @@
 // SPDX-License-Identifier: MIT
-import { parseInteractionSurfaceId, parseNonNegativeSafeInteger } from "@sillymaker/base";
+import {
+  createSemanticStageStateV1,
+  emptyNarrativeHistoryV1,
+  parseInteractionSurfaceId,
+  parseNonNegativeSafeInteger,
+  parsePendingInteractionV1,
+  parseStageTransitionDefinitionV1,
+  projectStageRenderTargetV1,
+  reduceStageMutationsV1,
+  type AssetId,
+  type DeepReadonly,
+  type PendingInteractionV1,
+  type StageContentCatalogV1,
+  type StageRenderTargetV1,
+} from "@sillymaker/base";
+import { defaultPlayerProfileV1 } from "@sillymaker/base/runtime";
 import { describe, expect, it, vi } from "vitest";
 
-import { parseManagedSurfaceActionIdV1 } from "../managed-surfaces/managed-surface-contracts.ts";
+import {
+  parseManagedSurfaceActionIdV1,
+  parseManagedSurfaceOwnerIdV1,
+} from "../managed-surfaces/managed-surface-contracts.ts";
 import { inputHandledV1, inputIgnoredV1, parseInputActionIdV1 } from "../input/contracts.ts";
 import {
   registerManagedInputHandlerV1,
@@ -16,6 +34,14 @@ import {
   createSystemDialogRootCatalogSnapshotInternalV1,
   resolveSystemDialogSessionInternalV1,
 } from "../system/system-dialog-managed-session.ts";
+import { createSemanticStageCompositionDriverInternalV1 } from "../stage/semantic-stage.tsx";
+import { createStageReconcilerV1 } from "../stage/stage-reconciler.ts";
+import {
+  createNarrativeSurfaceCompositionDefinitionInternalV1,
+  type NarrativeSurfaceCompositionDefinitionInternalV1,
+  type NarrativeSurfaceSelectionInternalV1,
+} from "../narrative/narrative-surface-composition.tsx";
+import { createManualPresentationClockV1 } from "../presentation-run/presentation-clock.ts";
 import {
   createGameUiCompositionV1,
   createGameUiCompositionWithEpochAllocatorInternalV1,
@@ -1385,6 +1411,819 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
       unregistrations: 0,
       activeRegistrations: 1,
     });
+  });
+});
+
+function createNarrativeComposerFixtureV1(input: {
+  readonly definition?:
+    | NarrativeSurfaceCompositionDefinitionInternalV1<{
+      readonly pending: null;
+    }>
+    | null;
+  readonly reportFailure?: (code: string, error: unknown) => void;
+} = {}) {
+  const semanticPublication = Object.freeze({ pending: null as null });
+  const semanticListeners = new Set<() => void>();
+  let semanticSubscriptions = 0;
+  let semanticUnsubscriptions = 0;
+  let epoch = 0;
+  const definition = input.definition === undefined
+    ? createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
+      selectNarrativeInternalV1: () =>
+        Object.freeze({
+          pending: null,
+          history: Object.freeze({ entries: Object.freeze([]) }),
+          choiceAvailability: null,
+        }),
+      preflightCandidateInternalV1: () =>
+        Object.freeze({
+          kind: "rejected" as const,
+          code: "narrative.renderer_missing" as const,
+        }),
+    }))
+    : input.definition;
+  const anchorEvents = createExactAnchorEventSourceV1();
+  const producer = createSuccessorProducerFixtureV1();
+  const composition = createGameUiCompositionWithEpochAllocatorInternalV1(
+    {
+      semantic: Object.freeze({
+        observe: () => semanticPublication,
+        subscribe(listener: () => void) {
+          semanticSubscriptions += 1;
+          semanticListeners.add(listener);
+          return () => {
+            if (!semanticListeners.delete(listener)) return;
+            semanticUnsubscriptions += 1;
+          };
+        },
+      }),
+      projector: Object.freeze({
+        resolvedCatalog: Object.freeze({}),
+        initialUiState: Object.freeze({}),
+        project: () =>
+          Object.freeze({
+            view: Object.freeze({}),
+            requiredAssetIds: Object.freeze([]),
+          }),
+      }),
+      overlayDefinitions: Object.freeze([overlayDefinitionV1]),
+    },
+    Object.freeze({
+      allocate: () => parseNonNegativeSafeInteger(++epoch),
+    }),
+    input.reportFailure,
+    undefined,
+    Object.freeze({
+      anchorEvents: anchorEvents.source,
+      producer: producer.producer,
+    }),
+    definition,
+  );
+  return Object.freeze({
+    composition,
+    anchorEvents,
+    producer,
+    publishSemantic(): void {
+      for (const listener of [...semanticListeners]) listener();
+    },
+    semanticSubscriptions: () => semanticSubscriptions,
+    semanticUnsubscriptions: () => semanticUnsubscriptions,
+  });
+}
+
+interface NarrativeChurnPublicationV1 {
+  readonly selection: NarrativeSurfaceSelectionInternalV1;
+}
+
+function narrativeChurnChoicePendingV1(sequence: number) {
+  return parsePendingInteractionV1({
+    kind: "choice",
+    definitionId: "narrative.composer.churn",
+    seenRevision: 1,
+    occurrenceId: `interaction-occurrence.${String(sequence)}`,
+    promptTextId: "text.composer.prompt",
+    options: [
+      { choiceId: "choice.composer.first", textId: "text.composer.first" },
+      { choiceId: "choice.composer.second", textId: "text.composer.second" },
+    ],
+  });
+}
+
+function narrativeChurnBarrierPendingV1(sequence: number): PendingInteractionV1 {
+  return parsePendingInteractionV1({
+    kind: "presentation_barrier",
+    definitionId: "narrative.composer.churn-barrier",
+    seenRevision: 1,
+    occurrenceId: `interaction-occurrence.${String(sequence + 10_000)}`,
+    expectedTransitionId: "transition.composer.churn",
+    loadRecovery: "replay",
+  });
+}
+
+function narrativeChurnSelectionV1(input: {
+  readonly pending?: PendingInteractionV1 | null;
+  readonly firstEnabled?: boolean;
+} = {}): NarrativeSurfaceSelectionInternalV1 {
+  const pending = input.pending ?? null;
+  return Object.freeze({
+    pending,
+    history: emptyNarrativeHistoryV1,
+    choiceAvailability: pending?.kind !== "choice" ? null : Object.freeze([
+      Object.freeze({
+        choiceId: "choice.composer.first",
+        status: input.firstEnabled === false ? "disabled" as const : "enabled" as const,
+        reasonTextIds: input.firstEnabled === false
+          ? Object.freeze(["text.composer.unavailable"])
+          : Object.freeze([]),
+      }),
+      Object.freeze({
+        choiceId: "choice.composer.second",
+        status: "enabled" as const,
+        reasonTextIds: Object.freeze([]),
+      }),
+    ]),
+  });
+}
+
+function createNarrativeChurnComposerFixtureV1() {
+  let publication: NarrativeChurnPublicationV1 = Object.freeze({
+    selection: narrativeChurnSelectionV1(),
+  });
+  const semanticListeners = new Set<() => void>();
+  let semanticSubscriptions = 0;
+  let semanticUnsubscriptions = 0;
+  let allocatedEpochs = 0;
+  let preflightCount = 0;
+  const reports: Readonly<{ readonly code: string; readonly error: unknown }>[] = [];
+  let preflightHook: (pending: PendingInteractionV1) => void = () => undefined;
+  const publish = (selection: NarrativeSurfaceSelectionInternalV1): void => {
+    publication = Object.freeze({ selection });
+    for (const listener of [...semanticListeners]) listener();
+  };
+  const definition = createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
+    selectNarrativeInternalV1: (
+      current: DeepReadonly<NarrativeChurnPublicationV1>,
+    ) => current.selection,
+    preflightCandidateInternalV1: (pending: PendingInteractionV1) => {
+      preflightCount += 1;
+      preflightHook(pending);
+      return Object.freeze({
+        kind: "captured" as const,
+        candidateSnapshot: Object.freeze({
+          rendererComponent: Object.freeze(() => null),
+          visualConfig: Object.freeze({}),
+          semanticDispatchPort: Object.freeze({
+            dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+          }),
+          historyObservationPort: Object.freeze({
+            getSnapshotInternalV1: () => publication.selection.history,
+            subscribeInternalV1: () => Object.freeze(() => undefined),
+          }),
+          historyAvailabilityPort: Object.freeze({
+            readHistoryAvailabilityInternalV1: () => false,
+          }),
+          playerProfile: Object.freeze({
+            getSnapshotInternalV1: () => defaultPlayerProfileV1,
+            subscribeInternalV1: () => Object.freeze(() => undefined),
+            markSeenInternalV1: () => undefined,
+          }),
+          presentationClock: Object.freeze({
+            nowInternalV1: () => 0,
+            requestTickInternalV1: () => Object.freeze(() => undefined),
+            prefersReducedMotionInternalV1: () => false,
+          }),
+          textResolver: Object.freeze({
+            resolveTextInternalV1: (textId: string) => textId,
+          }),
+          voiceReplayPort: null,
+          quickMenuContribution: null,
+        }),
+      });
+    },
+  }));
+  const anchorEvents = createExactAnchorEventSourceV1();
+  const composition = createGameUiCompositionWithEpochAllocatorInternalV1(
+    {
+      semantic: Object.freeze({
+        observe: () => publication,
+        subscribe(listener: () => void) {
+          semanticSubscriptions += 1;
+          semanticListeners.add(listener);
+          return () => {
+            if (!semanticListeners.delete(listener)) return;
+            semanticUnsubscriptions += 1;
+          };
+        },
+      }),
+      projector: Object.freeze({
+        resolvedCatalog: Object.freeze({}),
+        initialUiState: Object.freeze({}),
+        project: () =>
+          Object.freeze({
+            view: Object.freeze({}),
+            requiredAssetIds: Object.freeze([]),
+          }),
+      }),
+    },
+    Object.freeze({
+      allocate: () => parseNonNegativeSafeInteger(++allocatedEpochs),
+    }),
+    (code: string, error: unknown) => reports.push(Object.freeze({ code, error })),
+    undefined,
+    Object.freeze({
+      anchorEvents: anchorEvents.source,
+      producer: Object.freeze({
+        installed: () => undefined,
+        failed: () => undefined,
+      }),
+    }),
+    definition,
+  );
+  return Object.freeze({
+    composition,
+    anchorEvents,
+    publish,
+    setPreflightHook(
+      next: (pending: PendingInteractionV1) => void,
+    ): void {
+      preflightHook = next;
+    },
+    semanticSubscriptions: () => semanticSubscriptions,
+    semanticUnsubscriptions: () => semanticUnsubscriptions,
+    semanticListenerCount: () => semanticListeners.size,
+    allocatedEpochs: () => allocatedEpochs,
+    preflightCount: () => preflightCount,
+    reports: () => Object.freeze([...reports]),
+  });
+}
+
+const narrativeChurnStageCatalogV1: StageContentCatalogV1 = Object.freeze({
+  resolveContent: (contentId: Parameters<StageContentCatalogV1["resolveContent"]>[0]) =>
+    Object.freeze({
+      rendererId: "renderer.composer.churn",
+      assetIds: Object.freeze([`asset.for.${contentId}` as AssetId]),
+      accessibleName: `Composer churn ${contentId}`,
+      props: Object.freeze({}),
+    }),
+});
+
+function narrativeChurnStageTargetV1(contentId: string): StageRenderTargetV1 {
+  const initial = createSemanticStageStateV1({
+    stageId: "stage.composer.churn",
+    layerIds: ["layer.composer.churn"],
+  });
+  const reduced = reduceStageMutationsV1(initial, [{
+    kind: "show",
+    layerId: "layer.composer.churn",
+    tag: "tag.composer.churn",
+    contentId,
+  }]);
+  if (reduced.kind !== "applied") throw new Error("expected composer churn Stage target");
+  return projectStageRenderTargetV1(reduced.state, narrativeChurnStageCatalogV1).target;
+}
+
+const narrativeChurnTransitionV1 = parseStageTransitionDefinitionV1({
+  transitionId: "transition.composer.churn",
+  kind: "cut",
+  durationMs: 0,
+  easing: "linear",
+  inputPolicy: "target_active",
+  interruption: "settle_and_retarget",
+  reducedMotion: { kind: "settle" },
+  readiness: { kind: "immediate" },
+  acknowledge: true,
+  slide: null,
+});
+
+describe("Game UI production Narrative shared-kernel substrate", () => {
+  it("captures the exact hosted Narrative environment before allocating the production runtime", () => {
+    let allocations = 0;
+    let semanticSubscriptions = 0;
+    let reducedMotion = false;
+    let capturedEnvironment: unknown;
+    const anchorEvents = createExactAnchorEventSourceV1();
+    const producer = createSuccessorProducerFixtureV1();
+    const host = Object.freeze({
+      managedSurfaceEpochAllocator: Object.freeze({
+        allocate: () => parseNonNegativeSafeInteger(++allocations),
+      }),
+      anchorEvents: anchorEvents.source,
+      successorProducer: producer.producer,
+    });
+    const playerProfile = Object.freeze({
+      current: () => defaultPlayerProfileV1,
+      subscribe: (_listener: () => void) => () => undefined,
+      markSeen: async (_definitionId: string, _seenRevision: number) => undefined,
+      markMeta: async (_entryId: string, _value?: number) => undefined,
+      updatePreferences: async (
+        _update: Partial<typeof defaultPlayerProfileV1.preferences>,
+      ) => undefined,
+    });
+    const presentationClock = createManualPresentationClockV1();
+    presentationClock.advance(42);
+    const pending = narrativeChurnChoicePendingV1(99);
+    const definition = createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
+      selectNarrativeInternalV1: () =>
+        Object.freeze({
+          pending,
+          history: emptyNarrativeHistoryV1,
+          choiceAvailability: narrativeChurnSelectionV1({ pending }).choiceAvailability,
+        }),
+      preflightCandidateInternalV1: (...args: unknown[]) => {
+        capturedEnvironment = args[3];
+        const environment = capturedEnvironment as {
+          readonly playerProfile: typeof playerProfile;
+          readonly presentationClock: typeof presentationClock;
+          readonly prefersReducedMotion: () => boolean;
+        };
+        return Object.freeze({
+          kind: "captured" as const,
+          candidateSnapshot: Object.freeze({
+            rendererComponent: Object.freeze(() => null),
+            visualConfig: Object.freeze({}),
+            semanticDispatchPort: Object.freeze({
+              dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+            }),
+            historyObservationPort: Object.freeze({
+              getSnapshotInternalV1: () => emptyNarrativeHistoryV1,
+              subscribeInternalV1: () => Object.freeze(() => undefined),
+            }),
+            historyAvailabilityPort: Object.freeze({
+              readHistoryAvailabilityInternalV1: () => false,
+            }),
+            playerProfile: Object.freeze({
+              getSnapshotInternalV1: () => environment.playerProfile.current(),
+              subscribeInternalV1: (listener: () => void) =>
+                environment.playerProfile.subscribe(listener),
+              markSeenInternalV1: (definitionId: string, seenRevision: number) =>
+                environment.playerProfile.markSeen(definitionId, seenRevision),
+            }),
+            presentationClock: Object.freeze({
+              nowInternalV1: () => environment.presentationClock.now(),
+              requestTickInternalV1: (callback: (now: number) => void) =>
+                environment.presentationClock.requestTick(callback),
+              prefersReducedMotionInternalV1: environment.prefersReducedMotion,
+            }),
+            textResolver: Object.freeze({
+              resolveTextInternalV1: (textId: string) => textId,
+            }),
+            voiceReplayPort: null,
+            quickMenuContribution: null,
+          }),
+        });
+      },
+    }));
+    const narrativeEnvironment = Object.freeze({
+      definition,
+      playerProfile,
+      presentationClock,
+      prefersReducedMotion: () => reducedMotion,
+    });
+    const composition = createHostedGameUiCompositionInternalV1(
+      {
+        semantic: Object.freeze({
+          observe: () => Object.freeze({ pending: null as null }),
+          subscribe: () => {
+            semanticSubscriptions += 1;
+            return () => undefined;
+          },
+        }),
+        projector: Object.freeze({
+          resolvedCatalog: Object.freeze({}),
+          initialUiState: Object.freeze({}),
+          project: () =>
+            Object.freeze({
+              view: Object.freeze({}),
+              requiredAssetIds: Object.freeze([]),
+            }),
+        }),
+      },
+      host,
+      narrativeEnvironment,
+    );
+
+    try {
+      expect(Reflect.ownKeys(host)).toEqual([
+        "managedSurfaceEpochAllocator",
+        "anchorEvents",
+        "successorProducer",
+      ]);
+      expect(Reflect.ownKeys(narrativeEnvironment)).toEqual([
+        "definition",
+        "playerProfile",
+        "presentationClock",
+        "prefersReducedMotion",
+      ]);
+      expect(capturedEnvironment).toMatchObject({
+        playerProfile,
+        presentationClock,
+      });
+      const captured = capturedEnvironment as {
+        readonly playerProfile: typeof playerProfile;
+        readonly presentationClock: typeof presentationClock;
+        readonly prefersReducedMotion: () => boolean;
+      };
+      expect(captured.playerProfile.current().preferences.locale).toBe(
+        defaultPlayerProfileV1.preferences.locale,
+      );
+      expect(captured.presentationClock.now()).toBe(42);
+      expect(captured.prefersReducedMotion()).toBe(false);
+      reducedMotion = true;
+      expect(captured.prefersReducedMotion()).toBe(true);
+      expect(
+        resolveGameUiManagedSurfaceCompositionInternalV1(composition).narrative
+          .isHostEnabledInternalV1(),
+      ).toBe(true);
+      expect({ allocations, semanticSubscriptions }).toEqual({
+        allocations: 1,
+        semanticSubscriptions: 1,
+      });
+    } finally {
+      composition.dispose();
+    }
+  });
+
+  it("rejects a malformed hosted Narrative environment before allocation or subscription", () => {
+    let allocations = 0;
+    let semanticSubscriptions = 0;
+    const anchorEvents = createExactAnchorEventSourceV1();
+    const producer = createSuccessorProducerFixtureV1();
+    const definition = createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
+      selectNarrativeInternalV1: () => narrativeChurnSelectionV1(),
+      preflightCandidateInternalV1: () =>
+        Object.freeze({
+          kind: "rejected" as const,
+          code: "narrative.renderer_missing" as const,
+        }),
+    }));
+
+    expect(() =>
+      createHostedGameUiCompositionInternalV1(
+        {
+          semantic: Object.freeze({
+            observe: () => Object.freeze({ pending: null as null }),
+            subscribe: () => {
+              semanticSubscriptions += 1;
+              return () => undefined;
+            },
+          }),
+          projector: Object.freeze({
+            resolvedCatalog: Object.freeze({}),
+            initialUiState: Object.freeze({}),
+            project: () =>
+              Object.freeze({
+                view: Object.freeze({}),
+                requiredAssetIds: Object.freeze([]),
+              }),
+          }),
+        },
+        Object.freeze({
+          managedSurfaceEpochAllocator: Object.freeze({
+            allocate: () => parseNonNegativeSafeInteger(++allocations),
+          }),
+          anchorEvents: anchorEvents.source,
+          successorProducer: producer.producer,
+        }),
+        Object.freeze({
+          definition,
+          playerProfile: Object.freeze({}),
+          presentationClock: createManualPresentationClockV1(),
+          prefersReducedMotion: () => false,
+        }) as never,
+      )
+    ).toThrow("ui.narrative_surface_composition_environment_invalid");
+    expect({ allocations, semanticSubscriptions }).toEqual({
+      allocations: 0,
+      semanticSubscriptions: 0,
+    });
+  });
+
+  it("shares one recipe, epoch, semantic fanout, and rotates the third adapter on successor", () => {
+    const fixture = createNarrativeComposerFixtureV1();
+    const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
+    const initialRuntime = managed.runtime.getCurrent();
+    const initialSession = managed.narrative.getCurrentSessionInternalV1();
+    const claimant = managed.narrative.getStageClaimantInternalV1();
+    for (
+      const ownerId of [
+        "surface-owner.workspace-overlay",
+        "surface-owner.system",
+        "surface-owner.narrative",
+      ]
+    ) {
+      expect(
+        initialRuntime.coordinator.disposeOwner(parseManagedSurfaceOwnerIdV1(ownerId)),
+      ).toMatchObject({ kind: "applied" });
+    }
+    expect(
+      initialRuntime.coordinator.getSnapshot().ownerTrace.map(({ ownerId }) => ownerId),
+    ).toEqual([
+      "surface-owner.workspace-overlay",
+      "surface-owner.system",
+      "surface-owner.narrative",
+    ]);
+    expect(initialSession).not.toBeNull();
+    expect(fixture.semanticSubscriptions()).toBe(1);
+
+    const token = Object.freeze({ operation: "narrative-successor" });
+    fixture.anchorEvents.publish(Object.freeze({
+      anchor: Object.freeze({ epoch: 1, origin: "load" }),
+      token,
+    }));
+
+    const successorRuntime = managed.runtime.getCurrent();
+    expect(successorRuntime).not.toBe(initialRuntime);
+    expect(successorRuntime.applicationEpoch).toBeGreaterThan(initialRuntime.applicationEpoch);
+    expect(managed.narrative.getCurrentSessionInternalV1()).not.toBe(initialSession);
+    expect(managed.narrative.getStageClaimantInternalV1()).toBe(claimant);
+    expect(fixture.semanticSubscriptions()).toBe(1);
+    expect(fixture.producer.installed).toEqual([{
+      anchor: { epoch: 1, origin: "load" },
+      token,
+      managedSurfaceApplicationEpoch: successorRuntime.applicationEpoch,
+    }]);
+
+    fixture.composition.dispose();
+    expect(managed.narrative.getCurrentSessionInternalV1()).toBeNull();
+    expect(fixture.semanticUnsubscriptions()).toBe(1);
+  });
+
+  it("rejects a forged hosted definition before semantic subscription or epoch allocation", () => {
+    let allocations = 0;
+    let semanticSubscriptions = 0;
+    const anchorEvents = createExactAnchorEventSourceV1();
+    const producer = createSuccessorProducerFixtureV1();
+    let unexpectedComposition:
+      | ReturnType<typeof createHostedGameUiCompositionInternalV1>
+      | null = null;
+    let failure: unknown;
+    try {
+      unexpectedComposition = createHostedGameUiCompositionInternalV1(
+        {
+          semantic: Object.freeze({
+            observe: () => Object.freeze({ pending: null }),
+            subscribe: () => {
+              semanticSubscriptions += 1;
+              return () => undefined;
+            },
+          }),
+          projector: Object.freeze({
+            resolvedCatalog: Object.freeze({}),
+            initialUiState: Object.freeze({}),
+            project: () =>
+              Object.freeze({
+                view: Object.freeze({}),
+                requiredAssetIds: Object.freeze([]),
+              }),
+          }),
+        },
+        Object.freeze({
+          managedSurfaceEpochAllocator: Object.freeze({
+            allocate: () => {
+              allocations += 1;
+              return parseNonNegativeSafeInteger(allocations);
+            },
+          }),
+          anchorEvents: anchorEvents.source,
+          successorProducer: producer.producer,
+        }),
+        Object.freeze({
+          definition: Object.freeze({}) as NarrativeSurfaceCompositionDefinitionInternalV1<{
+            readonly pending: null;
+          }>,
+          playerProfile: Object.freeze({
+            current: () => defaultPlayerProfileV1,
+            subscribe: () => () => undefined,
+            markSeen: async () => undefined,
+            markMeta: async () => undefined,
+            updatePreferences: async () => undefined,
+          }),
+          presentationClock: createManualPresentationClockV1(),
+          prefersReducedMotion: () => false,
+        }),
+      );
+    } catch (error) {
+      failure = error;
+    } finally {
+      unexpectedComposition?.dispose();
+    }
+
+    expect(failure).toBeInstanceOf(TypeError);
+    expect((failure as Error | undefined)?.message).toBe(
+      "ui.narrative_surface_composition_definition_invalid",
+    );
+    expect({ allocations, semanticSubscriptions }).toEqual({
+      allocations: 0,
+      semanticSubscriptions: 0,
+    });
+  });
+
+  it("terminal-seals the full composition when the Stage bind claim is foreign", () => {
+    const fixture = createNarrativeComposerFixtureV1({ definition: null });
+    const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
+    const reconciler = createStageReconcilerV1({
+      clock: Object.freeze({
+        now: () => 0,
+        requestTick: () => Object.freeze(() => undefined),
+      }),
+      catalog: Object.freeze({
+        resolveTransition: () => null,
+        resolveTransitionById: () => null,
+      }),
+    });
+    const foreignDriver = createSemanticStageCompositionDriverInternalV1(
+      reconciler,
+      Object.freeze({}),
+    );
+
+    expect(() => managed.narrative.bindStageReconcilerInternalV1(reconciler, foreignDriver))
+      .toThrow(TypeError);
+    expect(managed.isTerminalInternalV1()).toBe(true);
+    expect(foreignDriver.isCurrentInternalV1()).toBe(false);
+    expect(() => managed.runtime.getCurrent()).toThrow(
+      "ui.managed_surface_composition_runtime_disposed",
+    );
+    expect(fixture.semanticUnsubscriptions()).toBe(1);
+  });
+
+  it("terminal-seals every family when a later Narrative selection faults", () => {
+    let selections = 0;
+    let reporterFixture: ReturnType<typeof createNarrativeComposerFixtureV1> | null = null;
+    let reporterObservation: unknown = null;
+    const reportFailure = vi.fn((code: string) => {
+      const currentFixture = reporterFixture;
+      if (currentFixture === null) throw new Error("fixture reporter called during construction");
+      const currentManaged = resolveGameUiManagedSurfaceCompositionInternalV1(
+        currentFixture.composition,
+      );
+      let runtimeDisposed = false;
+      try {
+        currentManaged.runtime.getCurrent();
+      } catch {
+        runtimeDisposed = true;
+      }
+      reporterObservation = Object.freeze({
+        code,
+        input: currentFixture.composition.input.route(managedFacadeActionEventV1),
+        overlay: currentFixture.composition.overlaySession.openPrimary("overlay.epoch-fixture"),
+        system: currentFixture.composition.systemDialogSession.openSettings(),
+        terminal: currentManaged.isTerminalInternalV1(),
+        runtimeDisposed,
+        semanticUnsubscriptions: currentFixture.semanticUnsubscriptions(),
+      });
+    });
+    const fixture = createNarrativeComposerFixtureV1({
+      reportFailure,
+      definition: createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
+        selectNarrativeInternalV1: () => {
+          selections += 1;
+          if (selections > 2) throw new Error("fixture.narrative_selector_failed");
+          return Object.freeze({
+            pending: null,
+            history: Object.freeze({ entries: Object.freeze([]) }),
+            choiceAvailability: null,
+          });
+        },
+        preflightCandidateInternalV1: () =>
+          Object.freeze({
+            kind: "rejected" as const,
+            code: "narrative.renderer_missing" as const,
+          }),
+      })),
+    });
+    reporterFixture = fixture;
+    const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
+
+    expect(fixture.semanticSubscriptions()).toBe(1);
+    expect(() => fixture.publishSemantic()).not.toThrow();
+    expect(reportFailure).toHaveBeenCalledOnce();
+    expect(reporterObservation).toEqual({
+      code: "ui.narrative_surface_composition_failed",
+      input: { kind: "ignored" },
+      overlay: { kind: "rejected", code: "overlay.disposed" },
+      system: { kind: "rejected", code: "system_dialog.disposed" },
+      terminal: true,
+      runtimeDisposed: true,
+      semanticUnsubscriptions: 1,
+    });
+    expect(managed.isTerminalInternalV1()).toBe(true);
+    expect(managed.narrative.getCurrentSessionInternalV1()).toBeNull();
+    expect(() => managed.runtime.getCurrent()).toThrow(
+      "ui.managed_surface_composition_runtime_disposed",
+    );
+    expect(fixture.semanticUnsubscriptions()).toBe(1);
+  });
+
+  it("recaptures a successor publication advanced reentrantly by preflight", () => {
+    const fixture = createNarrativeChurnComposerFixtureV1();
+    const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
+    const first = narrativeChurnChoicePendingV1(1);
+    const successor = narrativeChurnChoicePendingV1(2);
+    fixture.publish(narrativeChurnSelectionV1({ pending: first }));
+    let republished = false;
+    fixture.setPreflightHook((pending) => {
+      if (republished || pending.occurrenceId !== first.occurrenceId) return;
+      republished = true;
+      fixture.publish(narrativeChurnSelectionV1({ pending: successor }));
+    });
+
+    fixture.anchorEvents.publish(Object.freeze({
+      anchor: Object.freeze({ epoch: 1, origin: "restart" }),
+      token: null,
+    }));
+
+    expect(republished).toBe(true);
+    expect(managed.narrative.getCurrentSelectionInternalV1()?.pending?.occurrenceId).toBe(
+      successor.occurrenceId,
+    );
+    expect(fixture.semanticSubscriptions()).toBe(1);
+    fixture.composition.dispose();
+  });
+
+  it("keeps one current session/subscription/claimant through 10,000 production churn steps", () => {
+    const fixture = createNarrativeChurnComposerFixtureV1();
+    const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
+    const initialSession = managed.narrative.getCurrentSessionInternalV1();
+    if (initialSession === null) throw new Error("expected initial Narrative session");
+    const predecessorHostLease = initialSession.attachHostInternalV1(Object.freeze({
+      hostIdentity: Object.freeze({}),
+    }));
+    const claimant = managed.narrative.getStageClaimantInternalV1();
+    const reconciler = createStageReconcilerV1({
+      clock: Object.freeze({
+        now: () => 0,
+        requestTick: () => Object.freeze(() => undefined),
+      }),
+      catalog: Object.freeze({
+        resolveTransition: () => narrativeChurnTransitionV1,
+        resolveTransitionById: (transitionId: string) =>
+          transitionId === narrativeChurnTransitionV1.transitionId
+            ? narrativeChurnTransitionV1
+            : null,
+      }),
+    });
+    const driver = createSemanticStageCompositionDriverInternalV1(reconciler, claimant);
+    const releaseStage = managed.narrative.bindStageReconcilerInternalV1(reconciler, driver);
+    const stageTargets = Object.freeze([
+      narrativeChurnStageTargetV1("content.composer.churn-a"),
+      narrativeChurnStageTargetV1("content.composer.churn-b"),
+    ]);
+    driver.retargetInternalV1(Object.freeze({
+      target: stageTargets[0]!,
+      revision: 1,
+      epoch: managed.runtime.getCurrent().applicationEpoch,
+    }));
+    let lastBarrier = narrativeChurnBarrierPendingV1(0);
+
+    for (let sequence = 1; sequence <= 2_500; sequence += 1) {
+      const pending = narrativeChurnChoicePendingV1(sequence);
+      fixture.publish(narrativeChurnSelectionV1({ pending }));
+      fixture.publish(narrativeChurnSelectionV1({ pending, firstEnabled: false }));
+      lastBarrier = narrativeChurnBarrierPendingV1(sequence);
+      fixture.publish(narrativeChurnSelectionV1({ pending: lastBarrier }));
+      fixture.anchorEvents.publish(Object.freeze({
+        anchor: Object.freeze({ epoch: sequence, origin: "restart" }),
+        token: null,
+      }));
+      driver.retargetInternalV1(Object.freeze({
+        target: stageTargets[sequence % stageTargets.length]!,
+        revision: sequence + 1,
+        epoch: managed.runtime.getCurrent().applicationEpoch,
+      }));
+    }
+
+    expect(predecessorHostLease.isCurrentInternalV1()).toBe(false);
+    expect(managed.narrative.getCurrentSessionInternalV1()).not.toBe(initialSession);
+    expect(managed.narrative.getCurrentSessionInternalV1()).not.toBeNull();
+    expect(managed.narrative.getCurrentSelectionInternalV1()).toEqual(
+      narrativeChurnSelectionV1({ pending: lastBarrier }),
+    );
+    expect(managed.narrative.getStageClaimantInternalV1()).toBe(claimant);
+    expect(driver.isCurrentInternalV1()).toBe(true);
+    expect(fixture.reports()).toHaveLength(2_500);
+    expect(
+      fixture.reports().every(({ code, error }) =>
+        code === "narrative.barrier_replay_unsupported" && error === null
+      ),
+    ).toBe(true);
+    expect({
+      semanticSubscriptions: fixture.semanticSubscriptions(),
+      semanticListeners: fixture.semanticListenerCount(),
+      preflightCount: fixture.preflightCount(),
+      allocatedEpochs: fixture.allocatedEpochs(),
+      applicationEpoch: managed.runtime.getCurrent().applicationEpoch,
+    }).toEqual({
+      semanticSubscriptions: 1,
+      semanticListeners: 1,
+      preflightCount: 7_500,
+      allocatedEpochs: 2_501,
+      applicationEpoch: 2_501,
+    });
+
+    fixture.composition.dispose();
+    expect(driver.isCurrentInternalV1()).toBe(false);
+    expect(() => releaseStage()).not.toThrow();
+    expect(fixture.semanticUnsubscriptions()).toBe(1);
   });
 });
 
