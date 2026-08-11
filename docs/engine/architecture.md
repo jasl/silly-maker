@@ -1502,9 +1502,50 @@ live Story composition changes. Verification passed focused
 complete `deno task check`. Browser `101 / 101`, examples
 `45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior evidence
 and were not rerun because this package-internal substrate has no live
-composition wiring. S4.2.4.0 and S4.2.4.1 are complete. Current/next is
-S4.2.4.2, the DOM-free Narrative DialoguePlayerController core, followed by
-S4.2.4.3, S4.2.5, S4.3, and S4b.
+composition wiring. S4.2.4.0 and S4.2.4.1 are complete. At that checkpoint,
+current/next was S4.2.4.2, the DOM-free Narrative DialoguePlayerController
+core delivered below.
+
+S4.2.4.2 now supplies that source-relative controller without changing the
+live renderer graph. Narrative candidate preflight descriptor-captures exact
+profile, clock, and text-resolver ports into frozen zero-key handles; the
+factory authenticates the exact active bridge, target, frame, state, phase,
+and first-win claim before or after every hostile raw call. A subscribe-then-
+reread handshake closes profile lost updates while preserving the frame's
+first captured timing policy and resolved UTF-16 text. Retired frames and
+caller-retained controllers cannot retain raw ports or owner records.
+
+One cached frozen controller view owns the UTF-16 reveal cursor,
+sub-character remainder, monotonic clock baseline, automatic remaining time,
+one tick/cancel pair, and one current automatic attempt. Manual reveal,
+content auto, player Auto, Skip, and Pause reuse the existing exact Say/Pause
+semantic claims and bridge-owned mode writer; seen publication is logical
+once, automatic Promise rejection is contained, and fresh non-Say boundaries
+atomically reset mode before listeners. Synchronous, duplicate, regressing,
+or stale-generation clock callbacks fail closed without reaching a successor.
+
+The S4.2.4.1 participant now suspends and resumes Dialogue timing in the same
+state install: it captures timestamps outside the lock, commits cursor,
+remaining, generation, action, and raw-ingress fences before assignment, then
+cancels or arms physical work only after the complete listener vector. Fresh
+instant Say, late ready-active factory creation, delayed manual reveal, and
+delayed Auto/Skip activation all establish a fresh baseline before scheduling.
+History, higher blockers, replacement, empty, terminal, and 10,000-controller
+churn retain only topology-bounded current records.
+
+This delivery changes exactly the new Dialogue-player controller source/test,
+the Narrative family source/test, session and Host fixture tests, and
+`engine/packages/ui/src/public-api.test.ts`. Session and Host production,
+public barrels, package exports, renderer components, Web, Stories, and live
+composition remain unchanged. Verification passed focused
+`5 files / 334 tests`, UI `83 files / 1428 tests`, full
+`257 files / 4358 tests`, and the complete `deno task check`, including
+formatting, lint, style lint, typecheck, determinism, assets, all Story checks,
+and the e2e production build. Browser `101 / 101`, examples
+`45 passed / 2 skipped`, and prebuilt Player `38 / 38` remain prior evidence
+and were not rerun because the controller remains dormant. S4.2.4.2 is
+complete. Current/next is S4.2.4.3, dormant Host player-view integration,
+followed by S4.2.5, S4.3, and S4b.
 
 ## 9. Changing the architecture
 
@@ -1588,8 +1629,10 @@ physical dismiss fencing, and terminal-safe restore query described above.
 S4.2.4.0 freezes the exact Dialogue-player timing split, and S4.2.4.1 adds the
 generic prepared state-install participant, stable-composite private claim,
 ABA-fenced logical commit, post-notification completion, and bounded terminal
-ownership described above. Current/next is S4.2.4.2, the DOM-free Narrative
-DialoguePlayerController core, followed by S4.2.4.3, S4.2.5, S4.3, and S4b.
-Player rendering integration and the live migration remain planned work; the
-source-relative Host does not alter the live Host data flow until those slices
-and their behavior tests land.
+ownership described above. S4.2.4.2 adds the exact captured Dialogue-player
+ports, cached controller view, UTF-16 reveal timing, shared-claim
+manual/content/player/Skip/Pause scheduling, same-install suspension, and
+bounded clock/profile lifecycle described above. Current/next is S4.2.4.3,
+dormant Host player-view integration, followed by S4.2.5, S4.3, and S4b. Live
+renderer migration remains planned work; the source-relative Host does not
+alter the live Host data flow until those slices and their behavior tests land.
