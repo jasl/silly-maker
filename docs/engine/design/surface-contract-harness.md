@@ -159,6 +159,15 @@ bundle construction 仍在任何 subscription/publication 前拒绝非法 epoch�
 或 definition catalog。Publisher lease、source revision、generation/currentness、CAS、
 readiness、terminal teardown 与 late async-result fencing 均不变；历史段落及其当时验证记录
 不重写。
+
+2026-08-13 的 Complexity Reset CR2.5 supersede 本文后续历史 delivery records 中将全部
+Narrative source-relative definition、schema 与 render-observation 实现限定在单个 giant family
+文件的内部 ownership 描述。现行实现把 immutable family definition/schema 与 History
+render observation 分别放入两个叶模块；package exports、Story/public input、publisher/session/
+Dialogue Player/History-child/physical-action authority 与全部 currentness/atomicity fences不变。
+需要共享 private lifecycle records 的 Dialogue、History child 与 Physical Action cluster 暂不强拆。
+历史 exact-file scope 与当时验证记录不重写。
+
 R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0、S4.1a、S4.1b.0、S4.1b.1a、S4.1b.1b.0与
 S4.1b.1b.1a、S4.1b.1b.1b.1、S4.1b.1b.1b.2a、S4.1b.1b.1b.2b.0与
 S4.1b.1b.1b.2b.1a、S4.1b.1b.1b.2b.1b、S4.1b.1b.1b.2b.2a、

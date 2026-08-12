@@ -10,10 +10,10 @@ import type {
   NarrativeStableHistoryChildLifecycleInternalV1,
   NarrativeStableHistoryChildControllerInternalV1,
   NarrativeStableHistoryChildPreparationInternalV1,
-  NarrativeStableHistoryRenderObservationInternalV1,
   NarrativeStableHistoryRendererPropsInternalV1,
   NarrativeStableRendererComponentInternalV1,
 } from "./narrative-managed-surface-family.ts";
+import type { NarrativeStableHistoryRenderObservationInternalV1 } from "./narrative-history-render-observation.ts";
 
 declare const narrativeStableRootPreparationBrandInternalV1: unique symbol;
 

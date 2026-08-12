@@ -1,17 +1,12 @@
 // SPDX-License-Identifier: MIT
 import {
   canonicalJsonBytes,
-  parseNarrativeHistoryV1,
   type DeepReadonly,
   type NarrativeHistoryV1,
-  parseInteractionOccurrenceIdV1,
   parseInteractionResolutionV1,
-  parseModuleId,
   parsePendingInteractionV1,
-  parsePositiveSafeInteger,
   type InteractionResolutionV1,
   type PendingInteractionV1,
-  type RuntimeSchemaV1,
 } from "@sillymaker/base";
 import { defaultPlayerProfileV1, type PlayerProfileV1 } from "@sillymaker/base/runtime";
 import type { ElementType } from "react";
@@ -44,25 +39,14 @@ import {
   type ManagedSurfaceActionIdV1,
   type ManagedSurfaceDismissKindV1,
   type ManagedSurfaceFocusTargetIdV1,
-  parseManagedSurfaceActionIdV1,
-  parseManagedSurfaceDefinitionIdV1,
-  parseManagedSurfaceFocusTargetIdV1,
   type ManagedSurfaceGestureIdV1,
-  parseManagedSurfaceLayerIdV1,
-  parseManagedSurfaceOwnerIdV1,
-  parseManagedSurfaceSlotIdV1,
-  type ManagedSurfaceOwnerIdV1,
-  type ManagedSurfaceResolvedDefinitionV1,
-  type ManagedSurfaceResolvedSlotDescriptorV1,
 } from "../managed-surfaces/managed-surface-contracts.ts";
 import type {
   ManagedSurfaceFamilyActivationGateInternalV1,
 } from "../managed-surfaces/managed-surface-composition-runtime.ts";
-import { parseManagedSurfaceResolvedDefinitionV1 } from "../managed-surfaces/managed-surface-definition.ts";
 import {
   type ManagedSurfaceStableAcceptedBaselineInternalV1,
   type ManagedSurfaceStableAdmissionResultInternalV1,
-  type ManagedSurfaceStableDefinitionSidecarInternalV1,
   type ManagedSurfaceStableRootReservationSnapshotInternalV1,
 } from "../managed-surfaces/managed-surface-stable-admission.ts";
 import {
@@ -143,6 +127,36 @@ import type {
   NarrativeStableDialoguePlayerSnapshotInternalV1,
   NarrativeStableDialoguePlayerTextResolverPortInternalV1,
 } from "./dialogue-player-controller.ts";
+import {
+  createNarrativeManagedSurfaceFamilyContractInternalV1,
+  narrativeAdvanceActionIdInternalV1,
+  narrativeCancelActionIdInternalV1,
+  narrativeChooseActionIdInternalV1,
+  narrativeConfirmActionIdInternalV1,
+  narrativeCustomActionIdInternalV1,
+  narrativeDialogueDefinitionInternalV1 as dialogueDefinitionInternalV1,
+  narrativeDialogueDefinitionIdInternalV1 as dialogueDefinitionIdInternalV1,
+  narrativeHistoryDefinitionInternalV1 as historyDefinitionInternalV1,
+  narrativeHistoryDefinitionIdInternalV1 as historyDefinitionIdInternalV1,
+  narrativeOwnerIdInternalV1 as ownerIdInternalV1,
+  narrativeReplayVoiceActionIdInternalV1,
+  narrativeResumeActionIdInternalV1,
+  narrativeToggleAutoActionIdInternalV1,
+  narrativeToggleHistoryActionIdInternalV1,
+  narrativeToggleSkipActionIdInternalV1,
+} from "./narrative-managed-surface-definition.ts";
+import {
+  createNarrativeStableHistoryRenderObservationInternalV1,
+  retireNarrativeStableHistoryRenderObservationInternalV1,
+  type NarrativeStableHistoryObservationPortInternalV1,
+} from "./narrative-history-render-observation.ts";
+
+export { createNarrativeManagedSurfaceFamilyContractInternalV1 };
+export type {
+  NarrativeStableHistoryObservationPortInternalV1,
+  NarrativeStableHistoryRenderObservationInternalV1,
+} from "./narrative-history-render-observation.ts";
+export type { NarrativeManagedSurfaceFamilyContractInternalV1 } from "./narrative-managed-surface-definition.ts";
 
 const narrativeStableHostReadyCommitFaultedResultInternalV1 = Object.freeze({
   kind: "faulted" as const,
@@ -185,17 +199,6 @@ const narrativeStableHistoryChildLifecycleFaultedResultInternalV1 = Object.freez
   completion: null,
 });
 
-export interface NarrativeManagedSurfaceFamilyContractInternalV1 {
-  readonly ownerId: ManagedSurfaceOwnerIdV1;
-  readonly resolvedOwnerIds: readonly ManagedSurfaceOwnerIdV1[];
-  readonly resolvedSlotDescriptors: readonly ManagedSurfaceResolvedSlotDescriptorV1[];
-  readonly definitions: Readonly<{
-    readonly dialogue: ManagedSurfaceResolvedDefinitionV1;
-    readonly history: ManagedSurfaceResolvedDefinitionV1;
-  }>;
-  readonly stableDefinitionSidecars: readonly ManagedSurfaceStableDefinitionSidecarInternalV1[];
-}
-
 export interface NarrativeStableAdmittedFrameInternalV1 {
   readonly semanticOccurrenceId: string;
   readonly rendererKey: string;
@@ -230,16 +233,6 @@ export interface NarrativeStableVoiceReplayPortInternalV1 {
 
 export interface NarrativeStableHistoryAvailabilityPortInternalV1 {
   readonly readHistoryAvailabilityInternalV1: () => boolean;
-}
-
-export interface NarrativeStableHistoryObservationPortInternalV1 {
-  getSnapshotInternalV1(): DeepReadonly<NarrativeHistoryV1>;
-  subscribeInternalV1(listener: () => void): () => void;
-}
-
-export interface NarrativeStableHistoryRenderObservationInternalV1 {
-  getSnapshotInternalV1(): DeepReadonly<NarrativeHistoryV1>;
-  subscribeInternalV1(listener: () => void): () => void;
 }
 
 export type NarrativeStableDialoguePlayerTextResolverInternalV1 = (
@@ -1182,16 +1175,6 @@ interface NarrativeStableHostFocusAttachmentRecordInternalV1 {
   readonly generation: object;
 }
 
-interface NarrativeStableHistoryRenderObservationRecordInternalV1 {
-  binding: NarrativeStableHistoryObservationPortInternalV1 | null;
-  readonly listeners: Set<() => void>;
-  readonly listenerHolders: Set<{ listener: (() => void) | null }>;
-  currentSnapshot: DeepReadonly<NarrativeHistoryV1> | null;
-  currentBytes: Uint8Array | null;
-  unsubscribeRaw: (() => void) | null;
-  active: boolean;
-}
-
 interface NarrativeStableHostRuntimeRecordInternalV1 {
   readonly sessionRecord: NarrativeStableSessionRecordInternalV1;
   readonly hostIdentity: object;
@@ -1315,11 +1298,6 @@ const narrativeStableHostRenderSourceRecordsInternalV1 = new WeakMap<
   NarrativeStableHostRenderSourceInternalV1,
   NarrativeStableHostRenderSourceRecordInternalV1
 >();
-const narrativeStableHistoryRenderObservationRecordsInternalV1 = new WeakMap<
-  NarrativeStableHistoryRenderObservationInternalV1,
-  NarrativeStableHistoryRenderObservationRecordInternalV1
->();
-
 function retireNarrativeStableHostReadyCommitRecordInternalV1(
   record: NarrativeStableHostReadyCommitRecordInternalV1,
 ): void {
@@ -1875,27 +1853,6 @@ function narrativeBarrierStageFaultedResultInternalV1(
   });
 }
 
-function hasExactDataKeysInternalV1(
-  value: unknown,
-  keys: readonly string[],
-): value is Readonly<Record<string, unknown>> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const prototype = Reflect.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) return false;
-  const ownKeys = Reflect.ownKeys(value);
-  if (
-    ownKeys.length !== keys.length ||
-    ownKeys.some((key) => typeof key !== "string") ||
-    !keys.every((key) => Object.hasOwn(value, key))
-  ) {
-    return false;
-  }
-  return keys.every((key) => {
-    const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
-    return descriptor !== undefined && "value" in descriptor;
-  });
-}
-
 interface CapturedOwnDataRecordInternalV1 {
   readonly keys: readonly string[];
   readonly values: Readonly<Record<string, unknown>>;
@@ -1933,181 +1890,6 @@ function capturedRecordHasExactKeysInternalV1(
   if (record.keys.length !== expectedKeys.length) return false;
   const actualKeys = new Set(record.keys);
   return expectedKeys.every((key) => actualKeys.has(key));
-}
-
-function narrativeParametersSchemaInternalV1(): RuntimeSchemaV1<unknown> {
-  return Object.freeze({
-    parse(value: unknown): NarrativeStableParametersInternalV1 {
-      const keys = [
-        "semanticOccurrenceId",
-        "kind",
-        "definitionId",
-        "seenRevision",
-        "rendererKey",
-      ] as const;
-      if (!hasExactDataKeysInternalV1(value, keys)) {
-        throw new TypeError("ui.narrative_stable_parameters_invalid");
-      }
-      const kind = value.kind;
-      if (
-        kind !== "say" && kind !== "choice" && kind !== "pause" &&
-        kind !== "presentation_barrier" && kind !== "custom"
-      ) {
-        throw new TypeError("ui.narrative_stable_parameters_invalid");
-      }
-      return Object.freeze({
-        semanticOccurrenceId: parseInteractionOccurrenceIdV1(value.semanticOccurrenceId),
-        kind,
-        definitionId: parseModuleId(value.definitionId),
-        seenRevision: parsePositiveSafeInteger(value.seenRevision),
-        rendererKey: parseModuleId(value.rendererKey),
-      });
-    },
-  });
-}
-
-const ownerIdInternalV1 = parseManagedSurfaceOwnerIdV1("surface-owner.narrative");
-const rootSlotIdInternalV1 = parseManagedSurfaceSlotIdV1("surface-slot.narrative.root");
-const historySlotIdInternalV1 = parseManagedSurfaceSlotIdV1(
-  "surface-slot.narrative.history",
-);
-const dialogueDefinitionIdInternalV1 = parseManagedSurfaceDefinitionIdV1(
-  "surface.narrative.dialogue",
-);
-const historyDefinitionIdInternalV1 = parseManagedSurfaceDefinitionIdV1(
-  "surface.narrative.history",
-);
-const narrativeLayerIdInternalV1 = parseManagedSurfaceLayerIdV1("surface-layer.narrative");
-const narrativeChooseActionIdInternalV1 = parseManagedSurfaceActionIdV1("narrative.choose");
-const narrativeResumeActionIdInternalV1 = parseManagedSurfaceActionIdV1("narrative.resume");
-const narrativeCustomActionIdInternalV1 = parseManagedSurfaceActionIdV1("narrative.custom");
-const narrativeConfirmActionIdInternalV1 = parseManagedSurfaceActionIdV1("ui.confirm");
-const narrativeAdvanceActionIdInternalV1 = parseManagedSurfaceActionIdV1("narrative.advance");
-const narrativeReplayVoiceActionIdInternalV1 = parseManagedSurfaceActionIdV1(
-  "player.replay_voice",
-);
-const narrativeToggleAutoActionIdInternalV1 = parseManagedSurfaceActionIdV1(
-  "player.toggle_auto",
-);
-const narrativeToggleSkipActionIdInternalV1 = parseManagedSurfaceActionIdV1(
-  "player.toggle_skip",
-);
-const narrativeToggleHistoryActionIdInternalV1 = parseManagedSurfaceActionIdV1(
-  "player.toggle_history",
-);
-const narrativeCancelActionIdInternalV1 = parseManagedSurfaceActionIdV1("ui.cancel");
-
-const readinessPolicyInternalV1 = Object.freeze({
-  initialOpen: "blocking_fallback" as const,
-  primaryReplacement: "retain_current" as const,
-  childOpen: "blocking_fallback" as const,
-});
-
-const dialogueDefinitionInternalV1 = parseManagedSurfaceResolvedDefinitionV1({
-  definitionId: dialogueDefinitionIdInternalV1,
-  contractRevision: parsePositiveSafeInteger(2),
-  ownerId: ownerIdInternalV1,
-  slotId: rootSlotIdInternalV1,
-  layerId: narrativeLayerIdInternalV1,
-  layerOrder: 40,
-  placement: "root",
-  modality: "blocking",
-  inputPolicy: Object.freeze({ kind: "managed", inputContextId: "narrative" }),
-  dismissPolicy: Object.freeze({
-    back: false,
-    escape: false,
-    backdrop: false,
-    routedCancel: false,
-  }),
-  focusPolicy: Object.freeze({
-    kind: "owns_focus",
-    initialTargetId: parseManagedSurfaceFocusTargetIdV1(
-      "surface-focus.narrative.primary",
-    ),
-    trap: true,
-    restore: "previous_owner",
-  }),
-  navigationPolicy: Object.freeze({ kind: "none" }),
-  actionIds: Object.freeze(
-    [
-      "ui.confirm",
-      "narrative.advance",
-      "narrative.choose",
-      "narrative.resume",
-      "narrative.custom",
-      "player.toggle_auto",
-      "player.toggle_skip",
-      "player.toggle_history",
-      "player.replay_voice",
-    ].map(parseManagedSurfaceActionIdV1),
-  ),
-  readiness: readinessPolicyInternalV1,
-});
-
-const historyDefinitionInternalV1 = parseManagedSurfaceResolvedDefinitionV1({
-  definitionId: historyDefinitionIdInternalV1,
-  contractRevision: parsePositiveSafeInteger(1),
-  ownerId: ownerIdInternalV1,
-  slotId: historySlotIdInternalV1,
-  layerId: narrativeLayerIdInternalV1,
-  layerOrder: 41,
-  placement: "child",
-  modality: "blocking",
-  inputPolicy: Object.freeze({ kind: "managed", inputContextId: "narrative" }),
-  dismissPolicy: Object.freeze({
-    back: true,
-    escape: true,
-    backdrop: true,
-    routedCancel: true,
-  }),
-  focusPolicy: Object.freeze({
-    kind: "owns_focus",
-    initialTargetId: parseManagedSurfaceFocusTargetIdV1(
-      "surface-focus.narrative.history-close",
-    ),
-    trap: true,
-    restore: "opener",
-  }),
-  navigationPolicy: Object.freeze({ kind: "close" }),
-  actionIds: Object.freeze(
-    ["ui.cancel", "player.toggle_history"].map(parseManagedSurfaceActionIdV1),
-  ),
-  readiness: readinessPolicyInternalV1,
-});
-
-const rootSlotDescriptorInternalV1 = Object.freeze({
-  kind: "root" as const,
-  slotId: rootSlotIdInternalV1,
-  cardinality: "single" as const,
-});
-const historySlotDescriptorInternalV1 = Object.freeze({
-  kind: "child" as const,
-  parentDefinitionId: dialogueDefinitionIdInternalV1,
-  slotId: historySlotIdInternalV1,
-  cardinality: "single" as const,
-});
-const dialogueSidecarInternalV1: ManagedSurfaceStableDefinitionSidecarInternalV1 = Object.freeze({
-  definition: dialogueDefinitionInternalV1,
-  parameterSchema: narrativeParametersSchemaInternalV1(),
-});
-
-const narrativeManagedSurfaceFamilyContractInternalV1:
-  NarrativeManagedSurfaceFamilyContractInternalV1 = Object.freeze({
-    ownerId: ownerIdInternalV1,
-    resolvedOwnerIds: Object.freeze([ownerIdInternalV1]),
-    resolvedSlotDescriptors: Object.freeze([
-      rootSlotDescriptorInternalV1,
-      historySlotDescriptorInternalV1,
-    ]),
-    definitions: Object.freeze({
-      dialogue: dialogueDefinitionInternalV1,
-      history: historyDefinitionInternalV1,
-    }),
-    stableDefinitionSidecars: Object.freeze([dialogueSidecarInternalV1]),
-  });
-
-export function createNarrativeManagedSurfaceFamilyContractInternalV1(): NarrativeManagedSurfaceFamilyContractInternalV1 {
-  return narrativeManagedSurfaceFamilyContractInternalV1;
 }
 
 function bytesEqualInternalV1(left: Uint8Array, right: Uint8Array): boolean {
@@ -4100,144 +3882,6 @@ function deriveNarrativeStableDialogueRenderEntryInternalV1(
     actionBindingGeneration,
   });
   return entry;
-}
-
-function createNarrativeStableHistoryRenderObservationInternalV1(
-  capturedPort: NarrativeStableHistoryObservationPortInternalV1,
-): NarrativeStableHistoryRenderObservationInternalV1 {
-  const initialBinding = capturedPort;
-  if (initialBinding === undefined) {
-    throw new TypeError("ui.narrative_stable_history_observation_invalid");
-  }
-  let observation!: NarrativeStableHistoryRenderObservationInternalV1;
-  let record!: NarrativeStableHistoryRenderObservationRecordInternalV1;
-  const refresh = (): boolean => {
-    const binding = record.binding;
-    if (!record.active || binding === null) return false;
-    const raw = binding.getSnapshotInternalV1();
-    const parsed = parseNarrativeHistoryV1(raw);
-    const bytes = canonicalJsonBytes(parsed);
-    if (record.currentBytes !== null && bytesEqualInternalV1(record.currentBytes, bytes)) {
-      return false;
-    }
-    record.currentSnapshot = parsed;
-    record.currentBytes = Uint8Array.from(bytes);
-    return true;
-  };
-  observation = Object.freeze({
-    getSnapshotInternalV1(
-      this: NarrativeStableHistoryRenderObservationInternalV1,
-    ): DeepReadonly<NarrativeHistoryV1> {
-      if (
-        this !== observation ||
-        narrativeStableHistoryRenderObservationRecordsInternalV1.get(observation) !== record
-      ) {
-        throw new TypeError("ui.narrative_stable_history_observation_invalid");
-      }
-      if (record.active) refresh();
-      if (record.currentSnapshot === null) {
-        throw new TypeError("ui.narrative_stable_history_observation_invalid");
-      }
-      return record.currentSnapshot;
-    },
-    subscribeInternalV1(
-      this: NarrativeStableHistoryRenderObservationInternalV1,
-      listener: () => void,
-    ): () => void {
-      if (
-        this !== observation ||
-        narrativeStableHistoryRenderObservationRecordsInternalV1.get(observation) !== record ||
-        typeof listener !== "function"
-      ) {
-        throw new TypeError("ui.narrative_stable_history_observation_invalid");
-      }
-      if (!record.active) {
-        return Object.freeze((): void => {});
-      }
-      refresh();
-      record.listeners.add(listener);
-      const holder: { listener: (() => void) | null } = { listener };
-      record.listenerHolders.add(holder);
-      if (record.unsubscribeRaw === null) {
-        const rawListener = (): void => {
-          if (!record.active) return;
-          let changed = false;
-          try {
-            changed = refresh();
-          } catch {
-            changed = true;
-          }
-          if (!changed) return;
-          for (
-            const current of Object.freeze([
-              ...record.listeners,
-            ])
-          ) {
-            try {
-              current();
-            } catch {
-              // Observation subscribers are isolated after canonical refresh.
-            }
-          }
-        };
-        const binding = record.binding;
-        if (binding === null) {
-          record.listeners.delete(listener);
-          holder.listener = null;
-          record.listenerHolders.delete(holder);
-          return Object.freeze((): void => {});
-        }
-        const unsubscribe = binding.subscribeInternalV1(rawListener);
-        if (typeof unsubscribe !== "function") {
-          record.listeners.delete(listener);
-          holder.listener = null;
-          record.listenerHolders.delete(holder);
-          throw new TypeError("ui.narrative_stable_history_observation_invalid");
-        }
-        record.unsubscribeRaw = unsubscribe as () => void;
-      }
-      let active = true;
-      return Object.freeze((): void => {
-        if (!active) return;
-        active = false;
-        const retainedListener = holder.listener;
-        holder.listener = null;
-        record.listenerHolders.delete(holder);
-        if (retainedListener !== null) record.listeners.delete(retainedListener);
-      });
-    },
-  });
-  record = {
-    binding: initialBinding,
-    listeners: new Set(),
-    listenerHolders: new Set(),
-    currentSnapshot: null,
-    currentBytes: null,
-    unsubscribeRaw: null,
-    active: true,
-  };
-  narrativeStableHistoryRenderObservationRecordsInternalV1.set(observation, record);
-  return observation;
-}
-
-function retireNarrativeStableHistoryRenderObservationInternalV1(
-  observation: NarrativeStableHistoryRenderObservationInternalV1,
-): void {
-  const record = narrativeStableHistoryRenderObservationRecordsInternalV1.get(observation);
-  if (record === undefined || !record.active) return;
-  record.active = false;
-  record.binding = null;
-  record.listeners.clear();
-  for (const holder of record.listenerHolders) holder.listener = null;
-  record.listenerHolders.clear();
-  const unsubscribe = record.unsubscribeRaw;
-  record.unsubscribeRaw = null;
-  if (unsubscribe === null) return;
-  try {
-    Reflect.apply(unsubscribe, undefined, []);
-  } catch {
-    // The retired observation stays fenced when raw cleanup is hostile.
-  }
 }
 
 function deriveNarrativeStableHistoryRenderEntryInternalV1(

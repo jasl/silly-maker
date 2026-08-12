@@ -1253,9 +1253,14 @@ publisher bridge retains one frozen source-relative session and one exact
 History-child lifecycle. A lifecycle created before the session is adopted by
 that session; a same-kernel bridge successor receives fresh session and
 lifecycle identities while reusing only the existing per-kernel
-Narrative-family claimant. The standalone session module owns types only. The
-family bridge remains the sole runtime owner of every private record and
-factory.
+Narrative-family claimant. The source-relative session module owns its host and
+readiness contracts; the definition module owns the immutable family/schema
+declaration; and the History render-observation leaf owns only its listener,
+canonical-snapshot, and teardown record. The family bridge remains the sole
+owner of publisher, session, Dialogue Player, History-child, physical-action,
+and barrier runtime authority. This CR2.5 split changes no package export or
+product contract and deliberately leaves lifecycle clusters together until a
+real facade boundary exists.
 
 The existing History prepared-install guard now authenticates and records the
 opaque History preparation and the bridge-private eventual-session slot before
