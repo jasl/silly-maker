@@ -7513,7 +7513,7 @@ Final `a5fc634` HEAD verification通过focused `20 files / 444 tests`、UI packa
 
 `.1c`在一个merge batch完成public factories、front-door adapter和全部old-writer removal，并hard-delete public
 `DefaultGameRootPropsV1.titleScreen` ingress；不得先挂新public/live source后留旧Title/HUD ending writer。Exact
-runtime/test/browser allowlist为下列二十七文件；new路径必须kebab-case，允许列内zero-diff，不允许inventory外runtime补丁：
+runtime/test/browser allowlist为下列二十九文件；new路径必须kebab-case，允许列内zero-diff，不允许inventory外runtime补丁：
 
 1. `engine/packages/ui/src/whole-canvas/whole-canvas-surface-composition.tsx`
 2. `engine/packages/ui/src/whole-canvas/whole-canvas-surface-composition.test.tsx`
@@ -7542,6 +7542,14 @@ runtime/test/browser allowlist为下列二十七文件；new路径必须kebab-ca
 25. `engine/packages/web/e2e/engine/whole-canvas.spec.ts`（new）
 26. `examples/silly-os/src/test/application-ui.test.ts`
 27. `examples/e2e/silly-os.spec.ts`
+28. `engine/packages/ui/src/narrative/narrative-surface-host.tsx`
+29. `engine/packages/ui/src/narrative/narrative-surface-host.test.tsx`
+
+**2026-08-12 S4b.1c docs-only scope corrective：** 原二十七项全部保持不变。Cat Cafe真实浏览器的initial Title WholeCanvas与retained
+Narrative同时存在时，Narrative Host的document-level focus trap未在入队与microtask执行时复验shell祖先`[inert]`；它会与WholeCanvas focus trap
+连续互相恢复焦点，造成microtask/main-thread starvation。该故障由本`.1c` public Title/WholeCanvas cutover直接触发并阻断第一consumer browser
+evidence，因此必须在同一`.1c` batch修复，不能留给后续切片或在Cat/WholeCanvas Host绕过；allowlist只为此扩入上述Narrative Host source/test pair，
+不声明runtime delivery。
 
 两项public factory runtime实现与tests同时落在whole-canvas composition files；不得新建generic public Coordinator/registry/controller。Public Story/Web seam、built-in
 front-door adapter与public negative inventory必须在本batch一起发布；`.1a` input及`.1b` Stage/shared-kernel不得复制。Engine Lab的新conformance component独占
