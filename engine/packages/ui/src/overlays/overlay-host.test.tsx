@@ -1398,8 +1398,9 @@ describe("OverlayHostV1", () => {
           character: null,
           sceneInteraction: <button type="button">场景操作</button>,
           hud: <button type="button">经营操作</button>,
-          workspaceOverlay: host,
           narrative: <button type="button">叙事操作</button>,
+          wholeCanvas: <button type="button">全画布操作</button>,
+          workspaceOverlay: host,
           system: (
             <button type="button" onClick={systemAction}>
               系统操作
@@ -1421,6 +1422,7 @@ describe("OverlayHostV1", () => {
     expect(screen.getByTestId("stage-scene-interaction")).toHaveAttribute("inert");
     expect(screen.getByTestId("stage-hud")).toHaveAttribute("inert");
     expect(screen.getByTestId("stage-narrative")).toHaveAttribute("inert");
+    expect(screen.getByTestId("stage-whole-canvas")).toHaveAttribute("inert");
     expect(screen.getByTestId("stage-workspace-overlay")).not.toHaveAttribute("inert");
     expect(screen.getByTestId("stage-system")).not.toHaveAttribute("inert");
     await userEvent.setup().click(screen.getByRole("button", { name: "系统操作" }));
@@ -1431,6 +1433,7 @@ describe("OverlayHostV1", () => {
     expect(overlayHost).toHaveStyle({ pointerEvents: "none" });
     expect(screen.getByTestId("stage-background")).not.toHaveAttribute("inert");
     expect(screen.getByTestId("stage-narrative")).not.toHaveAttribute("inert");
+    expect(screen.getByTestId("stage-whole-canvas")).not.toHaveAttribute("inert");
   });
 
   it("handles ui.cancel one entry at a time but never closes on focus_loss", async () => {

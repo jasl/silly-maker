@@ -38,6 +38,7 @@
   --silly-stage-z-scene-interaction: 20;
   --silly-stage-z-hud: 30;
   --silly-stage-z-narrative: 40;
+  --silly-stage-z-whole-canvas: 45;
   --silly-stage-z-workspace-overlay: 50;
   --silly-stage-z-system: 60;
 

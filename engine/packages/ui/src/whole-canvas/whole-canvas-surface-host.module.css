@@ -1,0 +1,69 @@
+/* SPDX-License-Identifier: MIT */
+.host {
+  position: absolute;
+  inset: 0;
+  z-index: var(--silly-stage-z-whole-canvas);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.entry {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  outline: none;
+  pointer-events: auto;
+}
+
+.slot {
+  display: contents;
+}
+
+.root {
+  z-index: 0;
+}
+
+.detail {
+  z-index: 1;
+  place-items: center;
+  background: rgb(0 0 0 / 52%);
+}
+
+.concealed {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.blocked {
+  pointer-events: none;
+}
+
+.failed {
+  place-items: center;
+  background: rgb(12 14 20 / 88%);
+}
+
+.preparing {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  pointer-events: auto;
+}
+
+.renderer {
+  display: contents;
+}
+
+.renderer-concealed {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.failure {
+  display: grid;
+  place-items: center;
+  min-width: min(28rem, 80vi);
+  min-height: 10rem;
+}

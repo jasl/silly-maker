@@ -8,6 +8,7 @@ import type {
   DefaultGameRootPropsV1,
   DefaultGameRootSlotsV1,
   DefineNarrativeSurfaceInputV1,
+  GameStageLayersV1,
   GameUiCompositionV1,
   InputContextIdV1,
   NarrativeChoiceAvailabilityV1,
@@ -25,6 +26,7 @@ import type {
   SavesLauncherPropsV1,
   SemanticStagePropsV1,
   SettingsLauncherPropsV1,
+  StageInputIsolationContextIdV1,
   SystemDialogControllerV1,
   SystemDialogCustomSavesComponentV1,
   SystemDialogCustomSavesRenderIntentsV1,
@@ -37,6 +39,13 @@ import type {
   SystemDialogSessionV1,
   SystemDialogSettingsV1,
 } from "./index.ts";
+
+type EqualPublicTypeV1<TLeft, TRight> = (<T>() => T extends TLeft ? 1 : 2) extends
+  <T>() => T extends TRight ? 1 : 2 ? true : false;
+type ExpectPublicTypeV1<TValue extends true> = TValue;
+type OptionalPublicKeysV1<TValue> = {
+  [TKey in keyof TValue]-?: Record<never, never> extends Pick<TValue, TKey> ? TKey : never;
+}[keyof TValue];
 
 /* oxlint-disable no-unused-vars -- compile-time negative package-export assertions */
 // @ts-expect-error The temporary Narrative qualification subpath was removed at promotion.
@@ -621,6 +630,14 @@ import type { assertNarrativeSurfaceCompositionDefinitionInternalV1 as Forbidden
 import type { appendNarrativeManagedSurfaceRecipeInternalV1 as ForbiddenPublicNarrativeManagedSurfaceRecipeAppendV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative recipe aggregation.
 import type { appendNarrativeManagedSurfaceRecipeInternalV1 as ForbiddenInternalNarrativeManagedSurfaceRecipeAppendV1 } from "./internal.ts";
+// @ts-expect-error Generic composite-kernel bundles remain source-relative.
+import type { ManagedSurfaceCompositeKernelBundleInternalV1 as ForbiddenPublicManagedSurfaceCompositeKernelBundleV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose generic composite-kernel bundles.
+import type { ManagedSurfaceCompositeKernelBundleInternalV1 as ForbiddenInternalManagedSurfaceCompositeKernelBundleV1 } from "./internal.ts";
+// @ts-expect-error Generic composite-kernel bundle construction remains source-relative.
+import type { createManagedSurfaceCompositeKernelBundleInternalV1 as ForbiddenPublicManagedSurfaceCompositeKernelBundleFactoryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose generic composite-kernel bundle construction.
+import type { createManagedSurfaceCompositeKernelBundleInternalV1 as ForbiddenInternalManagedSurfaceCompositeKernelBundleFactoryV1 } from "./internal.ts";
 // @ts-expect-error Narrative composite kernel bundles remain source-relative.
 import type { NarrativeSurfaceCompositeKernelBundleInternalV1 as ForbiddenPublicNarrativeSurfaceCompositeKernelBundleV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative composite kernel bundles.
@@ -1065,6 +1082,58 @@ import type { WholeCanvasManagedSurfaceSessionInternalV1 as ForbiddenInternalWho
 import type { createWholeCanvasManagedSurfaceSessionInternalV1 as ForbiddenPublicWholeCanvasSessionFactoryV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose whole-canvas session construction.
 import type { createWholeCanvasManagedSurfaceSessionInternalV1 as ForbiddenInternalWholeCanvasSessionFactoryV1 } from "./internal.ts";
+// @ts-expect-error Whole-canvas composition renderer props remain source-relative in S4b.1b.
+import type { WholeCanvasSurfaceRendererPropsInternalV1 as ForbiddenPublicWholeCanvasCompositionRendererPropsV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose whole-canvas composition renderer props.
+import type { WholeCanvasSurfaceRendererPropsInternalV1 as ForbiddenInternalWholeCanvasCompositionRendererPropsV1 } from "./internal.ts";
+// @ts-expect-error Whole-canvas composition definition inputs remain source-relative in S4b.1b.
+import type { CreateWholeCanvasSurfaceCompositionDefinitionInputInternalV1 as ForbiddenPublicWholeCanvasCompositionDefinitionInputV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose whole-canvas composition definition inputs.
+import type { CreateWholeCanvasSurfaceCompositionDefinitionInputInternalV1 as ForbiddenInternalWholeCanvasCompositionDefinitionInputV1 } from "./internal.ts";
+// @ts-expect-error Whole-canvas composition definitions remain source-relative in S4b.1b.
+import type { WholeCanvasSurfaceCompositionDefinitionInternalV1 as ForbiddenPublicWholeCanvasCompositionDefinitionV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose whole-canvas composition definitions.
+import type { WholeCanvasSurfaceCompositionDefinitionInternalV1 as ForbiddenInternalWholeCanvasCompositionDefinitionV1 } from "./internal.ts";
+// @ts-expect-error Whole-canvas composition definition construction remains source-relative in S4b.1b.
+import type { createWholeCanvasSurfaceCompositionDefinitionInternalV1 as ForbiddenPublicWholeCanvasCompositionDefinitionFactoryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose whole-canvas composition definition construction.
+import type { createWholeCanvasSurfaceCompositionDefinitionInternalV1 as ForbiddenInternalWholeCanvasCompositionDefinitionFactoryV1 } from "./internal.ts";
+// @ts-expect-error Whole-canvas composition family resolution remains source-relative in S4b.1b.
+import type { resolveWholeCanvasSurfaceCompositionFamilyContractInternalV1 as ForbiddenPublicWholeCanvasCompositionFamilyResolverV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose whole-canvas composition family resolution.
+import type { resolveWholeCanvasSurfaceCompositionFamilyContractInternalV1 as ForbiddenInternalWholeCanvasCompositionFamilyResolverV1 } from "./internal.ts";
+// @ts-expect-error Whole-canvas Host bindings remain source-relative in S4b.1b.
+import type { WholeCanvasSurfaceHostBindingInternalV1 as ForbiddenPublicWholeCanvasSurfaceHostBindingV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose whole-canvas Host bindings.
+import type { WholeCanvasSurfaceHostBindingInternalV1 as ForbiddenInternalWholeCanvasSurfaceHostBindingV1 } from "./internal.ts";
+// @ts-expect-error Whole-canvas Host binding runtimes remain source-relative in S4b.1b.
+import type { WholeCanvasSurfaceHostBindingRuntimeInternalV1 as ForbiddenPublicWholeCanvasSurfaceHostBindingRuntimeV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose whole-canvas Host binding runtimes.
+import type { WholeCanvasSurfaceHostBindingRuntimeInternalV1 as ForbiddenInternalWholeCanvasSurfaceHostBindingRuntimeV1 } from "./internal.ts";
+// @ts-expect-error Whole-canvas Host binding resolution remains source-relative in S4b.1b.
+import type { resolveWholeCanvasSurfaceHostBindingRuntimeInternalV1 as ForbiddenPublicWholeCanvasSurfaceHostBindingResolverV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose whole-canvas Host binding resolution.
+import type { resolveWholeCanvasSurfaceHostBindingRuntimeInternalV1 as ForbiddenInternalWholeCanvasSurfaceHostBindingResolverV1 } from "./internal.ts";
+// @ts-expect-error Whole-canvas composition runtimes remain source-relative in S4b.1b.
+import type { WholeCanvasSurfaceCompositionRuntimeInternalV1 as ForbiddenPublicWholeCanvasSurfaceCompositionRuntimeV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose whole-canvas composition runtimes.
+import type { WholeCanvasSurfaceCompositionRuntimeInternalV1 as ForbiddenInternalWholeCanvasSurfaceCompositionRuntimeV1 } from "./internal.ts";
+// @ts-expect-error Whole-canvas composition runtime inputs remain source-relative in S4b.1b.
+import type { CreateWholeCanvasSurfaceCompositionRuntimeInputInternalV1 as ForbiddenPublicWholeCanvasSurfaceCompositionRuntimeInputV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose whole-canvas composition runtime inputs.
+import type { CreateWholeCanvasSurfaceCompositionRuntimeInputInternalV1 as ForbiddenInternalWholeCanvasSurfaceCompositionRuntimeInputV1 } from "./internal.ts";
+// @ts-expect-error Whole-canvas composition runtime construction remains source-relative in S4b.1b.
+import type { createWholeCanvasSurfaceCompositionRuntimeInternalV1 as ForbiddenPublicWholeCanvasSurfaceCompositionRuntimeFactoryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose whole-canvas composition runtime construction.
+import type { createWholeCanvasSurfaceCompositionRuntimeInternalV1 as ForbiddenInternalWholeCanvasSurfaceCompositionRuntimeFactoryV1 } from "./internal.ts";
+// @ts-expect-error Whole-canvas Host props remain source-relative in S4b.1b.
+import type { WholeCanvasSurfaceHostPropsInternalV1 as ForbiddenPublicWholeCanvasSurfaceHostPropsV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose whole-canvas Host props.
+import type { WholeCanvasSurfaceHostPropsInternalV1 as ForbiddenInternalWholeCanvasSurfaceHostPropsV1 } from "./internal.ts";
+// @ts-expect-error The whole-canvas Host component remains source-relative in S4b.1b.
+import type { WholeCanvasSurfaceHostInternalV1 as ForbiddenPublicWholeCanvasSurfaceHostV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose the whole-canvas Host component.
+import type { WholeCanvasSurfaceHostInternalV1 as ForbiddenInternalWholeCanvasSurfaceHostV1 } from "./internal.ts";
 // @ts-expect-error Pending whole-canvas projection refresh authority remains source-relative.
 import type { ManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1 as ForbiddenPublicPendingProjectionRefreshAuthorityV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose pending projection refresh authority.
@@ -1211,7 +1280,48 @@ describe("@sillymaker/ui public managed System surface", () => {
     ) expect(publicUiV1).not.toHaveProperty(removedExport);
   });
 
+  it("exports the exact eight-layer Stage ABI and five isolation contexts", () => {
+    expectTypeOf<
+      ExpectPublicTypeV1<
+        EqualPublicTypeV1<
+          keyof GameStageLayersV1,
+          | "background"
+          | "character"
+          | "sceneInteraction"
+          | "hud"
+          | "narrative"
+          | "wholeCanvas"
+          | "workspaceOverlay"
+          | "system"
+        >
+      >
+    >().toEqualTypeOf<true>();
+    expectTypeOf<
+      ExpectPublicTypeV1<EqualPublicTypeV1<OptionalPublicKeysV1<GameStageLayersV1>, never>>
+    >().toEqualTypeOf<true>();
+    expectTypeOf<
+      ExpectPublicTypeV1<
+        EqualPublicTypeV1<
+          StageInputIsolationContextIdV1,
+          "interaction" | "narrative" | "whole_canvas" | "overlay" | "system"
+        >
+      >
+    >().toEqualTypeOf<true>();
+  });
+
   it("keeps the composition-backed Host and launchers without standalone lifecycle hosts", () => {
+    type WholeCanvasPublicIngressSpellingV1 =
+      | "wholeCanvas"
+      | "wholeCanvasDefinition"
+      | "wholeCanvasDefinitionInternalV1"
+      | "wholeCanvasComposition"
+      | "wholeCanvasCompositionInternalV1"
+      | "wholeCanvasRuntime"
+      | "wholeCanvasRuntimeInternalV1"
+      | "wholeCanvasHostBinding"
+      | "wholeCanvasHostBindingInternalV1"
+      | "getCurrentHostBindingInternalV1";
+
     expectTypeOf<
       Extract<
         keyof SemanticStagePropsV1,
@@ -1271,6 +1381,39 @@ describe("@sillymaker/ui public managed System surface", () => {
         | "disposeInternalV1"
       >
     >().toEqualTypeOf<never>();
+    expectTypeOf<
+      ExpectPublicTypeV1<
+        EqualPublicTypeV1<
+          Extract<
+            keyof GameUiCompositionV1<unknown, unknown, unknown, unknown, string>,
+            WholeCanvasPublicIngressSpellingV1
+          >,
+          never
+        >
+      >
+    >().toEqualTypeOf<true>();
+    expectTypeOf<
+      ExpectPublicTypeV1<
+        EqualPublicTypeV1<
+          Extract<
+            keyof DefaultGameRootPropsV1<unknown, unknown, unknown, unknown, string, unknown>,
+            WholeCanvasPublicIngressSpellingV1
+          >,
+          never
+        >
+      >
+    >().toEqualTypeOf<true>();
+    expectTypeOf<
+      ExpectPublicTypeV1<
+        EqualPublicTypeV1<
+          Extract<
+            keyof DefaultGameRootSlotsV1<unknown, unknown, string>,
+            WholeCanvasPublicIngressSpellingV1
+          >,
+          never
+        >
+      >
+    >().toEqualTypeOf<true>();
 
     type DormantRuntimeSpellingV1 =
       | "WholeCanvasManagedSurfaceCatalogRowInternalV1"
@@ -1302,6 +1445,19 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "CreateWholeCanvasManagedSurfaceSessionInputInternalV1"
       | "WholeCanvasManagedSurfaceSessionInternalV1"
       | "createWholeCanvasManagedSurfaceSessionInternalV1"
+      | "WholeCanvasSurfaceRendererPropsInternalV1"
+      | "CreateWholeCanvasSurfaceCompositionDefinitionInputInternalV1"
+      | "WholeCanvasSurfaceCompositionDefinitionInternalV1"
+      | "createWholeCanvasSurfaceCompositionDefinitionInternalV1"
+      | "resolveWholeCanvasSurfaceCompositionFamilyContractInternalV1"
+      | "WholeCanvasSurfaceHostBindingInternalV1"
+      | "WholeCanvasSurfaceHostBindingRuntimeInternalV1"
+      | "resolveWholeCanvasSurfaceHostBindingRuntimeInternalV1"
+      | "WholeCanvasSurfaceCompositionRuntimeInternalV1"
+      | "CreateWholeCanvasSurfaceCompositionRuntimeInputInternalV1"
+      | "createWholeCanvasSurfaceCompositionRuntimeInternalV1"
+      | "WholeCanvasSurfaceHostPropsInternalV1"
+      | "WholeCanvasSurfaceHostInternalV1"
       | "ManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1"
       | "claimManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1"
       | "applyPendingProjectionRefreshWithCommitGuardInternalV1"
@@ -1531,6 +1687,8 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "createNarrativeSurfaceCompositionDefinitionInternalV1"
       | "assertNarrativeSurfaceCompositionDefinitionInternalV1"
       | "appendNarrativeManagedSurfaceRecipeInternalV1"
+      | "ManagedSurfaceCompositeKernelBundleInternalV1"
+      | "createManagedSurfaceCompositeKernelBundleInternalV1"
       | "NarrativeSurfaceCompositeKernelBundleInternalV1"
       | "createNarrativeSurfaceCompositeKernelBundleInternalV1"
       | "NarrativeSurfaceSemanticPresentationSourceInternalV1"
@@ -1684,6 +1842,19 @@ describe("@sillymaker/ui public managed System surface", () => {
         "CreateWholeCanvasManagedSurfaceSessionInputInternalV1",
         "WholeCanvasManagedSurfaceSessionInternalV1",
         "createWholeCanvasManagedSurfaceSessionInternalV1",
+        "WholeCanvasSurfaceRendererPropsInternalV1",
+        "CreateWholeCanvasSurfaceCompositionDefinitionInputInternalV1",
+        "WholeCanvasSurfaceCompositionDefinitionInternalV1",
+        "createWholeCanvasSurfaceCompositionDefinitionInternalV1",
+        "resolveWholeCanvasSurfaceCompositionFamilyContractInternalV1",
+        "WholeCanvasSurfaceHostBindingInternalV1",
+        "WholeCanvasSurfaceHostBindingRuntimeInternalV1",
+        "resolveWholeCanvasSurfaceHostBindingRuntimeInternalV1",
+        "WholeCanvasSurfaceCompositionRuntimeInternalV1",
+        "CreateWholeCanvasSurfaceCompositionRuntimeInputInternalV1",
+        "createWholeCanvasSurfaceCompositionRuntimeInternalV1",
+        "WholeCanvasSurfaceHostPropsInternalV1",
+        "WholeCanvasSurfaceHostInternalV1",
         "ManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1",
         "claimManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1",
         "applyPendingProjectionRefreshWithCommitGuardInternalV1",
@@ -1940,6 +2111,8 @@ describe("@sillymaker/ui public managed System surface", () => {
         "createNarrativeSurfaceCompositionDefinitionInternalV1",
         "assertNarrativeSurfaceCompositionDefinitionInternalV1",
         "appendNarrativeManagedSurfaceRecipeInternalV1",
+        "ManagedSurfaceCompositeKernelBundleInternalV1",
+        "createManagedSurfaceCompositeKernelBundleInternalV1",
         "NarrativeSurfaceCompositeKernelBundleInternalV1",
         "createNarrativeSurfaceCompositeKernelBundleInternalV1",
         "NarrativeSurfaceSemanticPresentationSourceInternalV1",

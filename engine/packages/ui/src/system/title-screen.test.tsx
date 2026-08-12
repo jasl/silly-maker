@@ -70,8 +70,9 @@ function TitleSystemHarnessV1(props: {
         character: null,
         sceneInteraction: null,
         hud: null,
-        workspaceOverlay: null,
         narrative: null,
+        wholeCanvas: null,
+        workspaceOverlay: null,
         system: (
           <SystemDialogHostV1
             session={fixture.session}

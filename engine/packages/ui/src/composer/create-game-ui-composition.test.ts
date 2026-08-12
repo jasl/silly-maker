@@ -1898,7 +1898,7 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
     });
   });
 
-  it("shares one recipe, epoch, semantic fanout, and rotates the third adapter on successor", () => {
+  it("shares one recipe, epoch, semantic fanout, and rotates the fourth adapter on successor", () => {
     const fixture = createNarrativeComposerFixtureV1();
     const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
     const initialRuntime = managed.runtime.getCurrent();
@@ -1909,6 +1909,7 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
         "surface-owner.workspace-overlay",
         "surface-owner.system",
         "surface-owner.narrative",
+        "surface-owner.whole-canvas",
       ]
     ) {
       expect(
@@ -1921,9 +1922,16 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
       "surface-owner.workspace-overlay",
       "surface-owner.system",
       "surface-owner.narrative",
+      "surface-owner.whole-canvas",
     ]);
     expect(initialSession).not.toBeNull();
+    expect(managed.wholeCanvas.getCurrentHostBindingInternalV1()).toBeNull();
+    expect(managed.wholeCanvas.isCurrentRuntimeAttachmentInternalV1(initialRuntime)).toBe(true);
     expect(fixture.semanticSubscriptions()).toBe(1);
+    let wholeCanvasNotifications = 0;
+    const unsubscribeWholeCanvas = managed.wholeCanvas.subscribeInternalV1(() => {
+      wholeCanvasNotifications += 1;
+    });
 
     const token = Object.freeze({ operation: "narrative-successor" });
     fixture.anchorEvents.publish(Object.freeze({
@@ -1936,6 +1944,9 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
     expect(successorRuntime.applicationEpoch).toBeGreaterThan(initialRuntime.applicationEpoch);
     expect(managed.narrative.getCurrentSessionInternalV1()).not.toBe(initialSession);
     expect(managed.narrative.getStageClaimantInternalV1()).toBe(claimant);
+    expect(managed.wholeCanvas.getCurrentHostBindingInternalV1()).toBeNull();
+    expect(managed.wholeCanvas.isCurrentRuntimeAttachmentInternalV1(successorRuntime)).toBe(true);
+    expect(wholeCanvasNotifications).toBe(0);
     expect(fixture.semanticSubscriptions()).toBe(1);
     expect(fixture.producer.installed).toEqual([{
       anchor: { epoch: 1, origin: "load" },
@@ -1943,8 +1954,11 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
       managedSurfaceApplicationEpoch: successorRuntime.applicationEpoch,
     }]);
 
+    unsubscribeWholeCanvas();
     fixture.composition.dispose();
     expect(managed.narrative.getCurrentSessionInternalV1()).toBeNull();
+    expect(managed.wholeCanvas.getCurrentHostBindingInternalV1()).toBeNull();
+    expect(managed.wholeCanvas.isCurrentRuntimeAttachmentInternalV1(successorRuntime)).toBe(false);
     expect(fixture.semanticUnsubscriptions()).toBe(1);
   });
 
@@ -2488,6 +2502,42 @@ describe("hosted presentation successor acknowledgment", () => {
     );
 
     expect(managed.isTerminalInternalV1()).toBe(true);
+    expect(producer.installed).toEqual([]);
+    expect(producer.failed).toHaveLength(1);
+    expect(producer.failed[0]).toMatchObject({ anchor, token });
+    expect(producer.failed[0]?.error).toBeInstanceOf(Error);
+    expect(() => managed.runtime.getCurrent()).toThrowError(
+      "ui.managed_surface_composition_runtime_disposed",
+    );
+    composition.dispose();
+  });
+
+  it("terminal-seals the dormant fourth-family attachment before anchor publication", () => {
+    const anchorEvents = createExactAnchorEventSourceV1();
+    const producer = createSuccessorProducerFixtureV1();
+    const fixture = createExactHostedCompositionFixtureV1(anchorEvents, producer);
+    const { composition } = fixture;
+    const managed = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
+    const token = Object.freeze({ operation: "fourth-family" });
+    const anchor = Object.freeze({ epoch: 1, origin: "load" });
+    let wholeCanvasNotifications = 0;
+    let narrativeNotifications = 0;
+    managed.wholeCanvas.subscribeInternalV1(() => {
+      wholeCanvasNotifications += 1;
+    });
+    managed.narrative.subscribeInternalV1(() => {
+      narrativeNotifications += 1;
+    });
+    managed.wholeCanvas.disposeInternalV1();
+
+    expect(() => anchorEvents.publish(Object.freeze({ anchor, token }))).toThrowError(
+      "ui.whole_canvas_surface_composition_prepare_invalid",
+    );
+
+    expect(managed.isTerminalInternalV1()).toBe(true);
+    expect(wholeCanvasNotifications).toBe(0);
+    expect(narrativeNotifications).toBe(0);
+    expect(composition.anchor.getCurrent()).toEqual({ epoch: 0, origin: "bootstrap" });
     expect(producer.installed).toEqual([]);
     expect(producer.failed).toHaveLength(1);
     expect(producer.failed[0]).toMatchObject({ anchor, token });

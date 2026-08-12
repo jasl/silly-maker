@@ -72,8 +72,9 @@ const emptyStageLayersV1 = Object.freeze({
   character: null,
   sceneInteraction: null,
   hud: null,
-  workspaceOverlay: null,
   narrative: null,
+  wholeCanvas: null,
+  workspaceOverlay: null,
   system: null,
 }) satisfies GameStageLayersV1;
 

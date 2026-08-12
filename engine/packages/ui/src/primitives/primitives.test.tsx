@@ -174,7 +174,7 @@ describe("theme tokens", () => {
     }
   });
 
-  it("defines exactly the seven fixed Stage z-index tokens in ascending order", async () => {
+  it("defines exactly the eight fixed Stage z-index tokens in ascending order", async () => {
     const tokensCssV1 = await readFile(resolve(import.meta.dirname, "../theme/tokens.css"), "utf8");
     const zTokens = [...tokensCssV1.matchAll(/--silly-stage-z-([a-z-]+):\s*(\d+);/gu)].map(
       (match) => [match[1], Number(match[2])],
@@ -188,6 +188,7 @@ describe("theme tokens", () => {
       ["scene-interaction", 20],
       ["hud", 30],
       ["narrative", 40],
+      ["whole-canvas", 45],
       ["workspace-overlay", 50],
       ["system", 60],
     ]);

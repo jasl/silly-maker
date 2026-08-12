@@ -260,8 +260,9 @@ function StageHarnessV1(props: {
         character: null,
         sceneInteraction: null,
         hud: null,
-        workspaceOverlay: null,
         narrative: null,
+        wholeCanvas: <button type="button">Whole canvas</button>,
+        workspaceOverlay: null,
         system: props.host,
       }}
     />
@@ -363,9 +364,11 @@ describe("managed System Host-commit readiness", () => {
     const renderer = screen.getByTestId("managed-settings-renderer") as HTMLInputElement;
     const fallback = screen.getByTestId("system-dialog-fallback");
     const gameplayLayer = screen.getByTestId("stage-background");
+    const wholeCanvasLayer = screen.getByTestId("stage-whole-canvas");
     expect(shell.closest('[data-stage-layer="system"]')).not.toBeNull();
     expect(fallback.closest('[data-stage-layer="system"]')).not.toBeNull();
     expect(gameplayLayer).toHaveAttribute("inert");
+    expect(wholeCanvasLayer).toHaveAttribute("inert");
     expect(fallback).toHaveAttribute("data-blocking-focus-scope", "system");
     expect(fallback).toHaveStyle({ position: "absolute", inset: "0", pointerEvents: "auto" });
     expect(document.activeElement).toBe(fallback);
@@ -484,6 +487,7 @@ describe("managed System Host-commit readiness", () => {
 
     expect(screen.queryByRole("dialog", { name: "Managed settings" })).not.toBeInTheDocument();
     expect(fixture.internal.getManagedSnapshotInternalV1().orderedInstances).toEqual([]);
+    expect(screen.getByTestId("stage-whole-canvas")).not.toHaveAttribute("inert");
     expect(screen.getByTestId("stage-workspace-overlay")).not.toHaveAttribute("inert");
     expect(document.activeElement).toBe(opener);
   });
@@ -502,6 +506,7 @@ describe("managed System Host-commit readiness", () => {
     await drainMicrotaskV1();
 
     expect(fixture.internal.getHostRenderSnapshotInternalV1().entries).toEqual([]);
+    expect(screen.getByTestId("stage-whole-canvas")).not.toHaveAttribute("inert");
     expect(screen.getByTestId("stage-workspace-overlay")).not.toHaveAttribute("inert");
   });
 

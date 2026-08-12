@@ -68,6 +68,11 @@
   align-items: end;
 }
 
+.game-stage__layer[data-stage-layer="whole_canvas"] {
+  z-index: var(--silly-stage-z-whole-canvas);
+  display: grid;
+}
+
 .game-stage__layer[data-stage-layer="system"] {
   z-index: var(--silly-stage-z-system);
   display: grid;
@@ -80,7 +85,7 @@
   padding-inline: var(--silly-safe-area-inline-start) var(--silly-safe-area-inline-end);
 }
 
-.game-stage__layer:is([data-stage-layer="workspace_overlay"], [data-stage-layer="narrative"]) > * {
+.game-stage__layer:is([data-stage-layer="workspace_overlay"], [data-stage-layer="narrative"], [data-stage-layer="whole_canvas"]) > * {
   pointer-events: auto;
 }
 

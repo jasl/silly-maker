@@ -62,8 +62,9 @@ function RuntimeFailureStageHarnessV1(props: {
         character: null,
         sceneInteraction: null,
         hud: <button type="button">HUD 操作</button>,
-        workspaceOverlay: <button type="button">Overlay 操作</button>,
         narrative: <button type="button">叙事操作</button>,
+        wholeCanvas: <button type="button">WholeCanvas 操作</button>,
+        workspaceOverlay: <button type="button">Overlay 操作</button>,
         system: (
           <>
             <SystemFocusScopeTargetProbeV1 />
@@ -170,8 +171,9 @@ describe("RuntimeFailureDialogV1", () => {
 
     expect(screen.getByRole("dialog", { name: labelsV1.title })).toBeVisible();
     expect(screen.getByTestId("stage-hud")).toHaveAttribute("inert");
-    expect(screen.getByTestId("stage-workspace-overlay")).toHaveAttribute("inert");
     expect(screen.getByTestId("stage-narrative")).toHaveAttribute("inert");
+    expect(screen.getByTestId("stage-whole-canvas")).toHaveAttribute("inert");
+    expect(screen.getByTestId("stage-workspace-overlay")).toHaveAttribute("inert");
     expect(screen.getByTestId("stage-system")).not.toHaveAttribute("inert");
     expect(inputRouter.route({ kind: "action", actionId: systemInputActionIdsV1.cancel })).toEqual({
       kind: "handled",
@@ -322,8 +324,9 @@ describe("RootErrorBoundaryV1", () => {
           character: null,
           sceneInteraction: null,
           hud: <CrashingSubtreeV1 />,
-          workspaceOverlay: null,
           narrative: null,
+          wholeCanvas: null,
+          workspaceOverlay: null,
           system: <span>原系统层</span>,
         }}
         errorBoundary={{
@@ -344,8 +347,8 @@ describe("RootErrorBoundaryV1", () => {
     expect(screen.queryByText("原背景层")).not.toBeInTheDocument();
     expect(screen.queryByText("原系统层")).not.toBeInTheDocument();
     expect(screen.getByTestId("stage-background")).toBeEmptyDOMElement();
-    // The recovery stage renders no interaction content, so six layers mount.
-    expect(screen.getAllByTestId(/^stage-/u)).toHaveLength(6);
+    // The recovery stage renders no interaction content, so seven layers mount.
+    expect(screen.getAllByTestId(/^stage-/u)).toHaveLength(7);
     expect(dialog.closest('[data-stage-layer="system"]')).toBe(screen.getByTestId("stage-system"));
     act(() => {
       expect(

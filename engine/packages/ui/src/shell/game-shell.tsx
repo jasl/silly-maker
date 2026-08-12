@@ -33,8 +33,9 @@ function recoveryLayersV1(system: ReactNode): GameStageLayersV1 {
     character: null,
     sceneInteraction: null,
     hud: null,
-    workspaceOverlay: null,
     narrative: null,
+    wholeCanvas: null,
+    workspaceOverlay: null,
     system,
   });
 }

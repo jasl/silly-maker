@@ -1346,6 +1346,8 @@ export function createWholeCanvasManagedSurfaceSessionInternalV1(
     forceRetry = false,
   ): WholeCanvasManagedSurfaceResultInternalV1 => {
     if (terminal) return staleResultInternalV1;
+    const retriesRetainedRoot = forceRetry && rootFailure !== null && rootCurrent !== null &&
+      rootCurrentRecord !== null;
     const pendingRootRecord = rootPending === null
       ? null
       : preparationRecords.get(rootPending.preparation);
@@ -1509,6 +1511,16 @@ export function createWholeCanvasManagedSurfaceSessionInternalV1(
         topology: surfaceTopologyRevision + (actionPublicationChanged ? 1 : 0),
       })
       : nextRevisions(selection === null);
+    const retryRetainedFrame = retriesRetainedRoot && rootCurrentRecord !== null
+      ? frameFor({
+        root: rootCurrentRecord,
+        detail: detailCurrentRecord,
+        hostGeneration: preparedHost.hostGeneration,
+        inputRevision: revisions.input,
+        publicationRevision: revisions.publication,
+        topologyRevision: revisions.topology,
+      })
+      : null;
     if (selection !== null && admittedTarget !== null && sameTargetRefresh && rootCurrentRecord) {
       nextRecord = Object.freeze({
         ...selection,
@@ -1549,7 +1561,7 @@ export function createWholeCanvasManagedSurfaceSessionInternalV1(
         ? null
         : (nextDetailEntry ?? nextRootEntry)?.frame ?? null
       : transition === "primary_replacement"
-      ? rootCurrent?.frame ?? null
+      ? retryRetainedFrame ?? rootCurrent?.frame ?? null
       : null;
     const guard = Object.freeze({
       commitInternalV1: (
@@ -1670,6 +1682,39 @@ export function createWholeCanvasManagedSurfaceSessionInternalV1(
       return appliedResultInternalV1;
     }
     if (runtimeEntry.binding.kind !== "preparing") return faultedResultInternalV1;
+    if (retryRetainedFrame !== null && rootCurrentRecord !== null) {
+      rootCurrent = renderEntryFor(
+        "primary",
+        rootCurrentRecord,
+        detailCurrentRecord,
+        retryRetainedFrame,
+      );
+      if (detailCurrentRecord !== null) {
+        detailCurrent = renderEntryFor(
+          "detail",
+          rootCurrentRecord,
+          detailCurrentRecord,
+          retryRetainedFrame,
+        );
+      }
+      const retryPendingDetailRecord = detailPending === null
+        ? null
+        : preparationRecords.get(detailPending.preparation);
+      if (retryPendingDetailRecord?.kind === "detail") {
+        const readinessEntry = Object.freeze({
+          renderEntry: renderEntryFor(
+            "detail",
+            rootCurrentRecord,
+            retryPendingDetailRecord.detail,
+            retryRetainedFrame,
+          ),
+          preparation: retryPendingDetailRecord.token,
+          transition: retryPendingDetailRecord.readinessEntry.transition,
+        });
+        retryPendingDetailRecord.readinessEntry = readinessEntry;
+        detailPending = readinessEntry;
+      }
+    }
     const rootRecord: RootRuntimeRecordInternalV1 = Object.freeze({
       ...selection,
       occurrenceId: String(occurrenceId),
@@ -1812,6 +1857,18 @@ export function createWholeCanvasManagedSurfaceSessionInternalV1(
         ? staleResultInternalV1
         : faultedResultInternalV1;
     }
+    const settledRuntimeEntry = findRuntimeEntry(record.root.admittedTarget);
+    if (
+      settledRuntimeEntry === null ||
+      (outcome === "ready" && settledRuntimeEntry.binding.kind !== "ready_instance") ||
+      (outcome === "failed" &&
+        (settledRuntimeEntry.binding.kind !== "gap" ||
+          settledRuntimeEntry.binding.reason !== "readiness_failed"))
+    ) {
+      preparedHost.abort();
+      return faultedResultInternalV1;
+    }
+    record.runtimeEntry = settledRuntimeEntry;
     installRevisions(revisions);
     record.active = false;
     activePreparations.delete(record);
@@ -1848,11 +1905,25 @@ export function createWholeCanvasManagedSurfaceSessionInternalV1(
       captured.directTarget !== null && captured.sourceRevision !== null &&
       captured.targetProof !== null
     ) return captured;
-    if (rootPending === null) return null;
-    const pendingRecord = preparationRecords.get(rootPending.preparation);
-    if (pendingRecord?.kind !== "root" || !pendingRecord.active) return null;
+    const carrierEntry = rootPending !== null
+      ? (() => {
+        const pendingRecord = preparationRecords.get(rootPending.preparation);
+        return pendingRecord?.kind === "root" && pendingRecord.active
+          ? pendingRecord.runtimeEntry
+          : null;
+      })()
+      : rootFailure !== null
+      ? (() => {
+        const failureRecord = preparationRecords.get(rootFailure.preparation);
+        return failureRecord?.kind === "root" && !failureRecord.active &&
+            failureRecord.readinessEntry === rootFailure
+          ? failureRecord.runtimeEntry
+          : null;
+      })()
+      : null;
+    if (carrierEntry === null) return null;
     const retained = detailAuthority.captureRetainedExactParentInputInternalV1(Object.freeze({
-      expectedCarrierEntry: pendingRecord.runtimeEntry,
+      expectedCarrierEntry: carrierEntry,
       expectedParentInstanceId: rootCurrent.frame.primaryInstanceId,
       expectedParent: rootCurrentRecord.admittedTarget,
       expectedSourceRevision: rootCurrentRecord.sourceRevision,

@@ -5231,6 +5231,161 @@ describe("managed stable exact-parent transient-child authority", () => {
     expect(fixture.kernel.getStateInternalV1()).toBe(cutover);
   });
 
+  it("captures a claimant-bound retained parent from the exact current readiness-failed gap", () => {
+    const fixture = exactParentTransientChildFixtureV1();
+    const parentActionAuthority = claimManagedSurfaceStableActionRouteAuthorityInternalV1(
+      fixture.kernel,
+    );
+    const replacement = admitAndApplyStableTargetV1({
+      harness: fixture.harness,
+      kernel: fixture.kernel,
+      publisher: fixture.harness.workspace,
+      target: fixture.harness.workspaceReplacement,
+      sourceRevision: fixture.harness.workspaceReplacementRevision,
+    });
+    const preparingEntry = fixture.kernel.getStateInternalV1().stableRuntimeBindings[0]!;
+    settleCurrentStablePreparationFailedV1(fixture.kernel, replacement);
+    const failedState = fixture.kernel.getStateInternalV1();
+    const failedEntry = failedState.stableRuntimeBindings[0]!;
+    expect(failedEntry.binding).toMatchObject({
+      kind: "gap",
+      reason: "readiness_failed",
+      retainedSubtree: {
+        root: {
+          attempt: {
+            identity: { surfaceInstanceId: fixture.captured.contract.surfaceInstanceId },
+          },
+        },
+      },
+    });
+
+    const retained = fixture.authority.captureRetainedExactParentInputInternalV1(Object.freeze({
+      expectedCarrierEntry: failedEntry,
+      expectedParentInstanceId: fixture.captured.contract.surfaceInstanceId,
+      expectedParent: fixture.expectedParent,
+      expectedSourceRevision: fixture.expectedSourceRevision,
+    }));
+    if (
+      retained.kind !== "captured" || retained.directTarget === null ||
+      retained.sourceRevision === null || retained.targetProof === null
+    ) throw new Error("expected failed-gap retained parent capture");
+    expect(retained.contract).toEqual(fixture.captured.contract);
+    expect(parentActionAuthority.isCurrentDirectTargetInternalV1(retained.targetProof)).toBe(true);
+    expect(parentActionAuthority.routeActionInternalV1(Object.freeze({
+      evidence: Object.freeze({
+        applicationEpoch: retained.contract.applicationEpoch,
+        topologyRevision: retained.contract.topologyRevision,
+        surfaceInstanceId: retained.contract.surfaceInstanceId,
+      }),
+      actionId: narrativeAdvanceActionIdV1,
+      routingLeaseId: retained.contract.routingLeaseId,
+    }))).toMatchObject({ kind: "unchanged", code: "surface.action_routed" });
+
+    for (const expectedCarrierEntry of [preparingEntry, Object.freeze({ ...failedEntry })]) {
+      expect(fixture.authority.captureRetainedExactParentInputInternalV1(Object.freeze({
+        expectedCarrierEntry,
+        expectedParentInstanceId: fixture.captured.contract.surfaceInstanceId,
+        expectedParent: fixture.expectedParent,
+        expectedSourceRevision: fixture.expectedSourceRevision,
+      }))).toEqual({ kind: "unavailable" });
+    }
+    const foreignAuthority = claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1(
+      fixture.kernel,
+      Object.freeze({}),
+    );
+    const foreignGuard = vi.fn(() => true);
+    expect(foreignAuthority.prepareExactParentTransientChildInternalV1(Object.freeze({
+      parentProof: retained.targetProof,
+      expectedParent: retained.directTarget,
+      expectedSourceRevision: retained.sourceRevision,
+      definition: fixture.harness.historyDefinition,
+      semanticOccurrenceId: null,
+      commitGuard: Object.freeze({ commitInternalV1: foreignGuard }),
+    }))).toEqual({ kind: "stale" });
+    expect(foreignGuard).not.toHaveBeenCalled();
+    expect(fixture.kernel.getStateInternalV1()).toBe(failedState);
+
+    const ownGuard = vi.fn(() => true);
+    expect(fixture.authority.prepareExactParentTransientChildInternalV1(Object.freeze({
+      parentProof: retained.targetProof,
+      expectedParent: retained.directTarget,
+      expectedSourceRevision: retained.sourceRevision,
+      definition: fixture.harness.historyDefinition,
+      semanticOccurrenceId: null,
+      commitGuard: Object.freeze({ commitInternalV1: ownGuard }),
+    }))).toMatchObject({ kind: "installed" });
+    expect(ownGuard).toHaveBeenCalledOnce();
+  });
+
+  it("stales a failed-gap proof at retry generation and replacement cutover", () => {
+    const fixture = exactParentTransientChildFixtureV1();
+    const parentActionAuthority = claimManagedSurfaceStableActionRouteAuthorityInternalV1(
+      fixture.kernel,
+    );
+    const replacement = admitAndApplyStableTargetV1({
+      harness: fixture.harness,
+      kernel: fixture.kernel,
+      publisher: fixture.harness.workspace,
+      target: fixture.harness.workspaceReplacement,
+      sourceRevision: fixture.harness.workspaceReplacementRevision,
+    });
+    settleCurrentStablePreparationFailedV1(fixture.kernel, replacement);
+    const failedEntry = fixture.kernel.getStateInternalV1().stableRuntimeBindings[0]!;
+    const retained = fixture.authority.captureRetainedExactParentInputInternalV1(Object.freeze({
+      expectedCarrierEntry: failedEntry,
+      expectedParentInstanceId: fixture.captured.contract.surfaceInstanceId,
+      expectedParent: fixture.expectedParent,
+      expectedSourceRevision: fixture.expectedSourceRevision,
+    }));
+    if (
+      retained.kind !== "captured" || retained.directTarget === null ||
+      retained.sourceRevision === null || retained.targetProof === null
+    ) throw new Error("expected failed-gap retained parent capture");
+
+    const retried = admitAndApplyStableTargetV1({
+      harness: fixture.harness,
+      kernel: fixture.kernel,
+      publisher: fixture.harness.workspace,
+      target: replacement,
+      sourceRevision: fixture.harness.workspace.issueSourceRevision(),
+    });
+    const retryEntry = fixture.kernel.getStateInternalV1().stableRuntimeBindings[0]!;
+    expect(retryEntry.binding).toMatchObject({
+      kind: "preparing",
+      transition: "primary_replacement",
+    });
+    expect(parentActionAuthority.isCurrentDirectTargetInternalV1(retained.targetProof)).toBe(false);
+    const staleGuard = vi.fn(() => true);
+    expect(fixture.authority.prepareExactParentTransientChildInternalV1(Object.freeze({
+      parentProof: retained.targetProof,
+      expectedParent: retained.directTarget,
+      expectedSourceRevision: retained.sourceRevision,
+      definition: fixture.harness.historyDefinition,
+      semanticOccurrenceId: null,
+      commitGuard: Object.freeze({ commitInternalV1: staleGuard }),
+    }))).toEqual({ kind: "stale" });
+    expect(staleGuard).not.toHaveBeenCalled();
+    expect(fixture.authority.captureRetainedExactParentInputInternalV1(Object.freeze({
+      expectedCarrierEntry: failedEntry,
+      expectedParentInstanceId: fixture.captured.contract.surfaceInstanceId,
+      expectedParent: fixture.expectedParent,
+      expectedSourceRevision: fixture.expectedSourceRevision,
+    }))).toEqual({ kind: "unavailable" });
+
+    const fresh = fixture.authority.captureRetainedExactParentInputInternalV1(Object.freeze({
+      expectedCarrierEntry: retryEntry,
+      expectedParentInstanceId: fixture.captured.contract.surfaceInstanceId,
+      expectedParent: fixture.expectedParent,
+      expectedSourceRevision: fixture.expectedSourceRevision,
+    }));
+    if (fresh.kind !== "captured" || fresh.targetProof === null) {
+      throw new Error("expected fresh retry retained parent capture");
+    }
+    expect(parentActionAuthority.isCurrentDirectTargetInternalV1(fresh.targetProof)).toBe(true);
+    settleCurrentStablePreparationReadyV1(fixture.kernel, retried);
+    expect(parentActionAuthority.isCurrentDirectTargetInternalV1(fresh.targetProof)).toBe(false);
+  });
+
   it("cascades the child with greater-empty, publisher disposal, and Coordinator terminal", () => {
     const emptyFixture = exactParentTransientChildFixtureV1();
     expect(prepareExactParentTransientHistoryV1(emptyFixture, () => true).kind).toBe(

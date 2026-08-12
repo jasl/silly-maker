@@ -638,6 +638,7 @@ interface ManagedSurfaceStableDirectActionTargetProofRecordInternalV1 {
   readonly instance: ManagedSurfaceStableReadyRuntimeInstanceInternalV1;
   readonly directTarget: ManagedSurfaceStableAdmittedTargetInternalV1;
   readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+  readonly retainedCarrierEntry: ManagedSurfaceStableRuntimeEntryInternalV1 | null;
 }
 
 interface ManagedSurfaceStableReadyActiveTargetProofRecordInternalV1 {
@@ -5311,6 +5312,41 @@ interface StableExactParentContextInternalV1 {
   readonly retainedSubtree: ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1 | null;
 }
 
+function retainedSubtreeForStableCarrierEntryInternalV1(
+  entry: ManagedSurfaceStableRuntimeEntryInternalV1,
+): ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1 | null {
+  const binding = entry.binding;
+  if (
+    binding.kind === "preparing" && binding.transition === "primary_replacement" &&
+    binding.retainedSubtree !== null
+  ) return binding.retainedSubtree;
+  if (
+    binding.kind === "gap" && binding.reason === "readiness_failed" &&
+    binding.retainedSubtree !== null
+  ) return binding.retainedSubtree;
+  return null;
+}
+
+function currentStableRetainedCarrierEntryInternalV1(
+  state: ManagedSurfaceStableCompositeStateInternalV1,
+  retainedSubtree: ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1,
+): ManagedSurfaceStableRuntimeEntryInternalV1 | null {
+  const carriers = state.stableRuntimeBindings.filter((entry) =>
+    retainedSubtreeForStableCarrierEntryInternalV1(entry) === retainedSubtree
+  );
+  return carriers.length === 1 ? carriers[0]! : null;
+}
+
+function isCurrentStableRetainedCarrierEntryInternalV1(
+  state: ManagedSurfaceStableCompositeStateInternalV1,
+  entry: ManagedSurfaceStableRuntimeEntryInternalV1,
+  retainedSubtree: ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1 | null,
+): boolean {
+  return retainedSubtree !== null &&
+    retainedSubtreeForStableCarrierEntryInternalV1(entry) === retainedSubtree &&
+    currentStableRetainedCarrierEntryInternalV1(state, retainedSubtree) === entry;
+}
+
 function resolveStableExactParentContextInternalV1(
   state: ManagedSurfaceStableCompositeStateInternalV1,
   projection: WholeCompositeTopologyProjectionInternalV1,
@@ -5356,17 +5392,11 @@ function resolveStableExactParentContextInternalV1(
   const desiredTarget = retainedIndex < 0
     ? undefined
     : retainedRecord.desiredTargets[retainedIndex];
-  const carriers = state.stableRuntimeBindings.filter((entry) =>
-    (entry.binding.kind === "preparing" &&
-      entry.binding.transition === "primary_replacement" &&
-      entry.binding.retainedSubtree === node.retainedSubtree) ||
-    (entry.binding.kind === "gap" && entry.binding.reason === "readiness_failed" &&
-      entry.binding.retainedSubtree === node.retainedSubtree)
-  );
+  const carrier = currentStableRetainedCarrierEntryInternalV1(state, node.retainedSubtree);
   if (
-    desiredTarget === undefined || carriers.length !== 1 ||
+    desiredTarget === undefined || carrier === null ||
     desiredTarget.admittedTarget !== node.instance.attempt.desiredTarget.admittedTarget ||
-    desiredTarget.publisherLease !== carriers[0]!.desiredTarget.publisherLease
+    desiredTarget.publisherLease !== carrier.desiredTarget.publisherLease
   ) {
     return null;
   }
@@ -5725,7 +5755,13 @@ export function claimManagedSurfaceStableExactParentTransientChildAuthorityInter
           publication.topologyRevision !== proofRecord.topologyRevision ||
           parentContext === null || parentContext.directTarget !== proofRecord.directTarget ||
           parentContext.sourceRevision !== proofRecord.sourceRevision ||
-          parentContext.node.retainedSubtree !== parentContext.retainedSubtree
+          parentContext.node.retainedSubtree !== parentContext.retainedSubtree ||
+          (proofRecord.retainedCarrierEntry !== null &&
+            !isCurrentStableRetainedCarrierEntryInternalV1(
+              currentState,
+              proofRecord.retainedCarrierEntry,
+              parentContext.retainedSubtree,
+            ))
         ) {
           return stableExactParentTransientChildStaleResultInternalV1;
         }
@@ -5977,19 +6013,21 @@ export function claimManagedSurfaceStableExactParentTransientChildAuthorityInter
           const carrier = state.stableRuntimeBindings.find((entry) =>
             entry === captured.expectedCarrierEntry
           );
+          const retainedSubtree = carrier === undefined
+            ? null
+            : retainedSubtreeForStableCarrierEntryInternalV1(carrier);
           if (
             authorityRecord === undefined || inventory === null ||
             !hasExpectedStableBaselineRuntimeCoherenceInternalV1(state, inventory) ||
-            carrier === undefined || carrier.binding.kind !== "preparing" ||
-            carrier.binding.transition !== "primary_replacement" ||
-            carrier.binding.retainedSubtree === null
+            carrier === undefined || retainedSubtree === null ||
+            currentStableRetainedCarrierEntryInternalV1(state, retainedSubtree) !== carrier
           ) {
             return Object.freeze({
               state,
               result: stableExactParentTransientChildActionUnavailableResultInternalV1,
             });
           }
-          const retainedRoot = carrier.binding.retainedSubtree.root;
+          const retainedRoot = retainedSubtree.root;
           if (
             retainedRoot.attempt.identity.surfaceInstanceId !==
               captured.expectedParentInstanceId
@@ -6008,7 +6046,7 @@ export function claimManagedSurfaceStableExactParentTransientChildAuthorityInter
           const contract = managedSurfaceInputBindingContractForCompositeStateInternalV1(state);
           const parentAuthority = stableActionRouteAuthoritiesInternalV1.get(kernel);
           if (
-            parent === null || parent.retainedSubtree !== carrier.binding.retainedSubtree ||
+            parent === null || parent.retainedSubtree !== retainedSubtree ||
             parent.node.instance !== retainedRoot ||
             parent.directTarget !== captured.expectedParent ||
             parent.sourceRevision !== captured.expectedSourceRevision ||
@@ -6034,6 +6072,7 @@ export function claimManagedSurfaceStableExactParentTransientChildAuthorityInter
             instance: retainedRoot,
             directTarget: parent.directTarget,
             sourceRevision: parent.sourceRevision,
+            retainedCarrierEntry: carrier,
           });
           return Object.freeze({
             state,
@@ -6625,9 +6664,13 @@ export function claimManagedSurfaceStableExactParentTransientChildActionRouteAut
         const parent = inspected.parent;
         const parentNode = parent.node;
         const parentAuthority = stableActionRouteAuthoritiesInternalV1.get(kernel);
+        const retainedCarrierEntry = parent.retainedSubtree === null
+          ? null
+          : currentStableRetainedCarrierEntryInternalV1(state, parent.retainedSubtree);
         if (
           parentNode.instance === null ||
           inspected.projection.stablePhaseByInstance.get(parentNode.instance) !== "suspended" ||
+          (parent.retainedSubtree !== null && retainedCarrierEntry === null) ||
           parentAuthority === undefined
         ) {
           return Object.freeze({
@@ -6648,6 +6691,7 @@ export function claimManagedSurfaceStableExactParentTransientChildActionRouteAut
           instance: parentNode.instance,
           directTarget: parent.directTarget,
           sourceRevision: parent.sourceRevision,
+          retainedCarrierEntry,
         });
         return Object.freeze({
           state,
@@ -6903,6 +6947,7 @@ export function claimManagedSurfaceStableActionRouteAuthorityInternalV1(
         instance: node.instance,
         directTarget: targetContext.directTarget,
         sourceRevision: targetContext.sourceRevision,
+        retainedCarrierEntry: null,
       });
       return Object.freeze({
         kind: "captured" as const,
@@ -7129,7 +7174,13 @@ export function claimManagedSurfaceStableActionRouteAuthorityInternalV1(
             publication.topologyRevision === record.topologyRevision &&
             node?.axis === "stable" && node.instance === record.instance &&
             targetContext?.node === node && targetContext.directTarget === record.directTarget &&
-            targetContext.sourceRevision === record.sourceRevision;
+            targetContext.sourceRevision === record.sourceRevision &&
+            (record.retainedCarrierEntry === null ||
+              isCurrentStableRetainedCarrierEntryInternalV1(
+                state,
+                record.retainedCarrierEntry,
+                targetContext.retainedSubtree,
+              ));
         } catch {
           current = false;
         }

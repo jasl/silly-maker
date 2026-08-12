@@ -753,6 +753,7 @@ describe("whole-canvas managed Surface session", () => {
       replacementPending.renderEntry.frame.primaryInstanceId,
     );
     expect(harness.session.getSnapshotInternalV1().root.current).toBe(currentA);
+    expect(harness.session.isFrameCurrentInternalV1(currentA.frame)).toBe(true);
     const currentB = settleRootReadyV1(harness);
     expect(currentB.resolved.view).toEqual({ version: 2 });
   });
@@ -1395,6 +1396,137 @@ describe("whole-canvas managed Surface session", () => {
     expect(detailHarness.session.getSnapshotInternalV1().detail.current).toBeNull();
     expect(detailHarness.session.retryCurrentInternalV1()).toMatchObject({ kind: "applied" });
     settleDetailReadyV1(detailHarness);
+  });
+
+  it("keeps a failed replacement predecessor actionable and rotates it on retry", () => {
+    const detailTarget = targetV1("test.whole-canvas.detail");
+    const harness = harnessV1({
+      catalog: Object.freeze([
+        catalogRowV1({
+          targetId: "test.whole-canvas.a",
+          placements: ["primary"],
+          actionIds: ["test.action.owner", "test.action.open-detail"],
+        }),
+        catalogRowV1({ targetId: "test.whole-canvas.b", placements: ["primary"] }),
+        catalogRowV1({ targetId: detailTarget.targetId, placements: ["detail"] }),
+      ]),
+    });
+    const currentA = openRootV1(
+      harness,
+      "test.whole-canvas.a",
+      resolvedV1({
+        targetId: "test.whole-canvas.a",
+        actions: [
+          ownerActionV1("test.action.owner"),
+          openDetailActionV1("test.action.open-detail", detailTarget),
+        ],
+      }),
+    );
+    installResolutionV1(
+      harness,
+      "detail",
+      detailTarget.targetId,
+      resolvedV1({ targetId: detailTarget.targetId }),
+    );
+    installResolutionV1(
+      harness,
+      "primary",
+      "test.whole-canvas.b",
+      resolvedV1({ targetId: "test.whole-canvas.b" }),
+    );
+
+    expect(harness.session.reconcileRootInternalV1(
+      desiredV1(targetV1("test.whole-canvas.b")),
+    )).toMatchObject({ kind: "applied" });
+    const failedPreparation = harness.session.getSnapshotInternalV1().root.pending!.preparation;
+    expect(harness.session.settleReadinessFailedInternalV1(failedPreparation)).toMatchObject({
+      kind: "faulted",
+    });
+    expect(harness.session.getSnapshotInternalV1().root.current).toBe(currentA);
+    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+      frame: currentA.frame,
+      actionId: "test.action.owner",
+    }))).toMatchObject({ kind: "applied" });
+    expect(harness.dispatchOwner).toHaveBeenCalledOnce();
+    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+      frame: currentA.frame,
+      actionId: "test.action.open-detail",
+    }))).toMatchObject({ kind: "applied" });
+    const detail = settleDetailReadyV1(harness);
+    expect(harness.session.dismissInternalV1(Object.freeze({
+      frame: detail.frame,
+      kind: "back" as const,
+    }))).toMatchObject({ kind: "applied" });
+    const failedA = harness.session.getSnapshotInternalV1().root.current!;
+
+    expect(harness.session.retryCurrentInternalV1()).toMatchObject({ kind: "applied" });
+    const retry = harness.session.getSnapshotInternalV1();
+    expect(retry.root.pending!.preparation).not.toBe(failedPreparation);
+    expect(retry.root.current!.frame.primaryInstanceId).toBe(
+      failedA.frame.primaryInstanceId,
+    );
+    expect(retry.root.current!.frame).not.toBe(failedA.frame);
+    expect(harness.session.isFrameCurrentInternalV1(failedA.frame)).toBe(false);
+    expect(harness.session.isFrameCurrentInternalV1(retry.root.current!.frame)).toBe(true);
+    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+      frame: failedA.frame,
+      actionId: "test.action.owner",
+    }))).toMatchObject({ kind: "stale" });
+    expect(harness.dispatchOwner).toHaveBeenCalledOnce();
+    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+      frame: retry.root.current!.frame,
+      actionId: "test.action.owner",
+    }))).toMatchObject({ kind: "applied" });
+    expect(harness.dispatchOwner).toHaveBeenCalledTimes(2);
+
+    expect(harness.session.settleReadinessReadyInternalV1(
+      retry.root.pending!.preparation,
+    )).toMatchObject({ kind: "applied" });
+    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+      frame: retry.root.current!.frame,
+      actionId: "test.action.owner",
+    }))).toMatchObject({ kind: "stale" });
+    expect(harness.session.isFrameCurrentInternalV1(retry.root.current!.frame)).toBe(false);
+
+    const closeHarness = harnessV1({
+      catalog: Object.freeze([
+        catalogRowV1({
+          targetId: "test.whole-canvas.a",
+          placements: ["primary"],
+          actionIds: ["test.action.owner"],
+        }),
+        catalogRowV1({ targetId: "test.whole-canvas.b", placements: ["primary"] }),
+      ]),
+    });
+    const closeA = openRootV1(
+      closeHarness,
+      "test.whole-canvas.a",
+      resolvedV1({
+        targetId: "test.whole-canvas.a",
+        actions: [ownerActionV1("test.action.owner")],
+      }),
+    );
+    installResolutionV1(
+      closeHarness,
+      "primary",
+      "test.whole-canvas.b",
+      resolvedV1({ targetId: "test.whole-canvas.b" }),
+    );
+    expect(closeHarness.session.reconcileRootInternalV1(
+      desiredV1(targetV1("test.whole-canvas.b")),
+    )).toMatchObject({ kind: "applied" });
+    const closeFailure = closeHarness.session.getSnapshotInternalV1().root.pending!.preparation;
+    expect(closeHarness.session.settleReadinessFailedInternalV1(closeFailure)).toMatchObject({
+      kind: "faulted",
+    });
+    expect(closeHarness.session.reconcileRootInternalV1(null)).toMatchObject({ kind: "applied" });
+    expect(closeHarness.session.dispatchActionInternalV1(Object.freeze({
+      frame: closeA.frame,
+      actionId: "test.action.owner",
+    }))).toMatchObject({ kind: "stale" });
+    expect(closeHarness.dispatchOwner).not.toHaveBeenCalled();
+    expect(closeHarness.session.isFrameCurrentInternalV1(closeA.frame)).toBe(false);
+    expect(closeHarness.session.retryCurrentInternalV1()).toMatchObject({ kind: "unchanged" });
   });
 
   it("routes current/default actions, rejects disabled actions, and consumes primary cancel", async () => {

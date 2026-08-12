@@ -33,6 +33,7 @@ describe("stacking token contract", () => {
     const sorted = [...values].sort((left, right) => left - right);
     expect(values).toEqual(sorted);
     expect(new Set(values).size).toBe(values.length);
+    expect(tokens.get("silly-stage-z-whole-canvas")).toBe(45);
   });
 
   it("the within-layer surface scale is strictly increasing", async () => {

@@ -15,7 +15,12 @@ import {
   type StagePointerGestureFenceHandleV1,
 } from "./pointer-gesture-fence.ts";
 
-export type StageInputIsolationContextIdV1 = "interaction" | "narrative" | "overlay" | "system";
+export type StageInputIsolationContextIdV1 =
+  | "interaction"
+  | "narrative"
+  | "whole_canvas"
+  | "overlay"
+  | "system";
 
 interface StageInputIsolationPortV1 {
   register(context: StageInputIsolationContextIdV1): () => void;
@@ -85,15 +90,22 @@ export function useStagePointerGestureFenceV1(
   );
 }
 
-type StageLayerInertPolicyV1 = "ordinary_gameplay" | "gameplay" | "narrative" | "system" | "none";
+type StageLayerInertPolicyV1 =
+  | "ordinary_gameplay"
+  | "gameplay"
+  | "narrative"
+  | "whole_canvas"
+  | "system"
+  | "none";
 
 export interface GameStageLayersV1 {
   readonly background: ReactNode;
   readonly character: ReactNode;
   readonly sceneInteraction: ReactNode;
   readonly hud: ReactNode;
-  readonly workspaceOverlay: ReactNode;
   readonly narrative: ReactNode;
+  readonly wholeCanvas: ReactNode;
+  readonly workspaceOverlay: ReactNode;
   readonly system: ReactNode;
 }
 
@@ -138,6 +150,7 @@ const stageLayerDescriptorsV1 = Object.freeze(
     }),
     defineStageLayerV1("hud", "hud", "ordinary_gameplay"),
     defineStageLayerV1("narrative", "narrative", "narrative"),
+    defineStageLayerV1("whole_canvas", "wholeCanvas", "whole_canvas"),
     defineStageLayerV1("workspace_overlay", "workspaceOverlay", "system"),
     defineStageLayerV1("system", "system", "none", { portalTarget: true }),
   ] as const satisfies readonly StageLayerDescriptorV1[],
@@ -169,6 +182,7 @@ interface StageSystemFocusScopeRegistrationV1 {
 const noStageInputIsolationV1 = Object.freeze({
   interaction: 0,
   narrative: 0,
+  whole_canvas: 0,
   overlay: 0,
   system: 0,
 }) satisfies StageInputIsolationCountsV1;
@@ -228,6 +242,11 @@ export function GameStageV1(props: GameStagePropsV1): ReactElement {
   );
   const currentSystemFocusScopeTarget =
     systemFocusScopeRegistrations[systemFocusScopeRegistrations.length - 1]?.target ?? null;
+  const systemActive = isolationCounts.system > 0;
+  const overlayActive = isolationCounts.overlay > 0;
+  const wholeCanvasActive = isolationCounts.whole_canvas > 0;
+  const narrativeActive = isolationCounts.narrative > 0;
+  const interactionActive = isolationCounts.interaction > 0;
   const isolationPort = useMemo(
     () =>
       Object.freeze({
@@ -245,17 +264,15 @@ export function GameStageV1(props: GameStagePropsV1): ReactElement {
       systemPortalContainer,
     ],
   );
-  const systemActive = isolationCounts.system > 0;
-  const overlayActive = isolationCounts.overlay > 0;
-  const narrativeActive = isolationCounts.narrative > 0;
-  const interactionActive = isolationCounts.interaction > 0;
-  const gameplayInert = systemActive || overlayActive || narrativeActive;
+  const gameplayInert = systemActive || overlayActive || wholeCanvasActive || narrativeActive;
   const ordinaryGameplayInert = gameplayInert || interactionActive;
-  const narrativeInert = systemActive || overlayActive;
+  const narrativeInert = systemActive || overlayActive || wholeCanvasActive;
+  const wholeCanvasInert = systemActive || overlayActive;
   const inertByPolicy = {
     ordinary_gameplay: ordinaryGameplayInert,
     gameplay: gameplayInert,
     narrative: narrativeInert,
+    whole_canvas: wholeCanvasInert,
     system: systemActive,
     none: false,
   } satisfies Readonly<Record<StageLayerInertPolicyV1, boolean>>;

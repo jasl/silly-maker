@@ -103,8 +103,9 @@ function emptyLayersV1(content: ReactNode = null) {
     character: null,
     sceneInteraction: null,
     hud: content,
-    workspaceOverlay: null,
     narrative: null,
+    wholeCanvas: null,
+    workspaceOverlay: null,
     system: null,
   });
 }

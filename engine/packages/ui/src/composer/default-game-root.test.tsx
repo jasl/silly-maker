@@ -34,6 +34,10 @@ import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 import { createInputRouterV1 } from "../input/input-router.ts";
 import { systemInputActionIdsV1 } from "../input/contracts.ts";
 import {
+  createWholeCanvasSurfaceCompositionDefinitionInternalV1,
+  type WholeCanvasSurfaceRendererPropsInternalV1,
+} from "../whole-canvas/whole-canvas-surface-composition.tsx";
+import {
   defineNarrativeSurfaceV1,
   type NarrativeSurfaceChoiceAvailabilityInternalV1,
   type NarrativeSurfaceRendererPropsV1,
@@ -659,6 +663,7 @@ function renderCompositionOwnedNarrativeRootInternalV1(
     readonly initialSay?: boolean;
     readonly narrativeClock?: PresentationClockV1;
     readonly strictMode?: boolean;
+    readonly wholeCanvas?: boolean;
   } = {},
 ) {
   interface SemanticPublicationInternalV1 {
@@ -667,7 +672,9 @@ function renderCompositionOwnedNarrativeRootInternalV1(
   const semanticListeners = new Set<() => void>();
   let occurrenceSequence = 1;
   let semanticPublication: SemanticPublicationInternalV1 = Object.freeze({
-    selection: options.initialStrictBarrier === undefined
+    selection: options.wholeCanvas === true
+      ? strictBarrierSelectionInternalV1(null)
+      : options.initialStrictBarrier === undefined
       ? options.initialSay === true
         ? saySelectionInternalV1(occurrenceSequence)
         : choiceSelectionInternalV1(occurrenceSequence)
@@ -794,6 +801,52 @@ function renderCompositionOwnedNarrativeRootInternalV1(
   }) satisfies PlayerProfileStoreV1;
   const narrativeClock = options.narrativeClock ?? options.initialStrictBarrier?.clock ??
     createManualPresentationClockV1();
+  const wholeCanvasTarget = Object.freeze({
+    targetId: "test.whole-canvas.primary",
+    parameters: Object.freeze({}),
+  });
+  const wholeCanvasDefinition = options.wholeCanvas === true
+    ? createWholeCanvasSurfaceCompositionDefinitionInternalV1(Object.freeze({
+      catalog: Object.freeze([Object.freeze({
+        targetId: wholeCanvasTarget.targetId,
+        contractRevision: 1 as const,
+        placements: Object.freeze(["primary" as const]),
+        actionIds: Object.freeze(["test.action.primary"]),
+        defaultActionId: null,
+      })]),
+      getSnapshotInternalV1: () =>
+        Object.freeze({
+          bootSplash: null,
+          title: null,
+          story: Object.freeze({
+            sourceKind: "application" as const,
+            target: wholeCanvasTarget,
+          }),
+        }),
+      subscribeInternalV1: () => Object.freeze(() => undefined),
+      resolveTargetInternalV1: () =>
+        Object.freeze({
+          accessibleNameTextId: "test.whole-canvas.primary-name",
+          view: Object.freeze({ kind: "primary" }),
+          actions: Object.freeze([Object.freeze({
+            actionId: "test.action.primary",
+            status: "enabled" as const,
+            reasonTextIds: Object.freeze([]),
+            intent: Object.freeze({ kind: "back" as const }),
+          })]),
+        }),
+      dispatchOwnerActionInternalV1: null,
+      prepareTargetInternalV1: null,
+      renderInternalV1: Object.freeze(({ entry }: WholeCanvasSurfaceRendererPropsInternalV1) => {
+        return (
+          <div
+            data-testid="default-root-whole-canvas-primary"
+            data-instance-id={entry.frame.primaryInstanceId}
+          />
+        );
+      }),
+    }))
+    : null;
   const composition = createGameUiCompositionWithEpochAllocatorInternalV1(
     {
       semantic: Object.freeze({
@@ -834,6 +887,7 @@ function renderCompositionOwnedNarrativeRootInternalV1(
       presentationClock: narrativeClock,
       prefersReducedMotion: () => false,
     }),
+    wholeCanvasDefinition,
   );
   const initialStrictBarrier = options.initialStrictBarrier;
   const root = (
@@ -1515,14 +1569,72 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     }
   });
 
-  it("renders no Narrative writer for a composition with no Narrative definition", () => {
+  it("renders no optional managed writer while retaining the required WholeCanvas layer", () => {
     const fixture = renderHostedLifecycleRootV1();
 
     expect(
       document.querySelector('[data-default-narrative-surface-portal="true"]'),
     ).toBeNull();
+    expect(
+      document.querySelector('[data-default-whole-canvas-surface-portal="true"]'),
+    ).toBeNull();
+    expect(document.querySelector('[data-stage-layer="whole_canvas"]')).toBeEmptyDOMElement();
 
     fixture.composition.dispose();
+  });
+
+  it("hosts one private WholeCanvas binding in its required layer across a successor", async () => {
+    const fixture = renderCompositionOwnedNarrativeRootInternalV1({
+      wholeCanvas: true,
+      strictMode: true,
+    });
+    const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
+    const initialBinding = managed.wholeCanvas.getCurrentHostBindingInternalV1();
+    const wholeCanvasLayer = document.querySelector('[data-stage-layer="whole_canvas"]');
+    const portal = wholeCanvasLayer?.querySelector(
+      '[data-default-whole-canvas-surface-portal="true"]',
+    );
+
+    expect(initialBinding).not.toBeNull();
+    expect(wholeCanvasLayer).not.toBeNull();
+    expect(portal).not.toBeNull();
+    expect(document.querySelectorAll(
+      '[data-default-whole-canvas-surface-portal="true"]',
+    )).toHaveLength(1);
+    expect(
+      document.querySelector('[data-stage-layer="system"]')?.querySelector(
+        '[data-default-whole-canvas-surface-portal="true"]',
+      ),
+    ).toBeNull();
+    const initialPrimary = await screen.findByTestId("default-root-whole-canvas-primary");
+    const initialInstanceId = initialPrimary.getAttribute("data-instance-id");
+    expect(initialInstanceId).not.toBeNull();
+    expect(initialPrimary.closest('[data-whole-canvas-surface-host="true"]')).not.toBeNull();
+
+    await act(async () => {
+      fixture.anchorEvents.publish(Object.freeze({
+        anchor: Object.freeze({ epoch: 1, origin: "load" }),
+        token: null,
+      }));
+      await Promise.resolve();
+    });
+
+    const successorRuntime = managed.runtime.getCurrent();
+    const successorBinding = managed.wholeCanvas.getCurrentHostBindingInternalV1();
+    expect(successorBinding).not.toBeNull();
+    expect(successorBinding).not.toBe(initialBinding);
+    expect(managed.wholeCanvas.isCurrentRuntimeAttachmentInternalV1(successorRuntime)).toBe(true);
+    expect(document.querySelector(
+      '[data-default-whole-canvas-surface-portal="true"]',
+    )).toBe(portal);
+    await waitFor(() => {
+      const successorPrimary = screen.getByTestId("default-root-whole-canvas-primary");
+      expect(successorPrimary.getAttribute("data-instance-id")).not.toBe(initialInstanceId);
+    });
+
+    fixture.unmount();
+    fixture.composition.dispose();
+    expect(managed.wholeCanvas.getCurrentHostBindingInternalV1()).toBeNull();
   });
 
   it("keeps the mounted Stage subtree across application epoch successors", async () => {

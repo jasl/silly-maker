@@ -22,6 +22,10 @@ import { defaultPlayerProfileV1 } from "@sillymaker/base/runtime";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ManagedSurfaceCoordinatorRuntimeV1 } from "../managed-surfaces/managed-surface-coordinator-lifetime.ts";
+import {
+  createManagedSurfaceCompositeKernelBundleInternalV1,
+  type ManagedSurfaceCompositeKernelBundleInternalV1,
+} from "../managed-surfaces/managed-surface-composite-kernel-bundle.ts";
 import { createWorkspaceOverlaySessionConfigurationInternalV1 } from "../overlays/workspace-overlay-session.ts";
 import { createManualPresentationClockV1 } from "../presentation-run/presentation-clock.ts";
 import type { SemanticStageEntryRendererV1 } from "../stage/semantic-stage-host.tsx";
@@ -32,15 +36,17 @@ import {
 } from "../stage/semantic-stage.tsx";
 import { createStageReconcilerV1 } from "../stage/stage-reconciler.ts";
 import { systemDialogManagedContractInternalV1 } from "../system/system-dialog-managed-contract.ts";
-import type { NarrativeStableCandidatePreflightResultInternalV1 } from "./narrative-managed-surface-family.ts";
+import {
+  createNarrativeManagedSurfaceFamilyContractInternalV1,
+  type NarrativeStableCandidatePreflightResultInternalV1,
+} from "./narrative-managed-surface-family.ts";
+import * as narrativeSurfaceCompositionModuleInternalV1 from "./narrative-surface-composition.tsx";
 import {
   appendNarrativeManagedSurfaceRecipeInternalV1,
-  createNarrativeSurfaceCompositeKernelBundleInternalV1,
   createNarrativeSurfaceCompositionDefinitionInternalV1,
   createNarrativeSurfaceCompositionRuntimeInternalV1,
   defineNarrativeSurfaceV1,
   type NarrativeSurfaceRendererPropsV1,
-  type NarrativeSurfaceCompositeKernelBundleInternalV1,
   type NarrativeSurfaceCompositionDefinitionInternalV1,
   type NarrativeSurfaceChoiceAvailabilityInternalV1,
   type NarrativeSurfaceSelectionInternalV1,
@@ -230,15 +236,17 @@ function runtimeHarnessV1(input: {
     resolvedOwnerIds: Object.freeze([]),
     resolvedSlotDescriptors: Object.freeze([]),
   }));
-  const bundle = createNarrativeSurfaceCompositeKernelBundleInternalV1({
+  const narrativeFamily = createNarrativeManagedSurfaceFamilyContractInternalV1();
+  const bundle = createManagedSurfaceCompositeKernelBundleInternalV1(Object.freeze({
     applicationEpoch: parseNonNegativeSafeInteger(7),
     recipe,
-  });
-  const bundles = new Map<number, NarrativeSurfaceCompositeKernelBundleInternalV1>([[7, bundle]]);
+    definitionSidecars: narrativeFamily.stableDefinitionSidecars,
+  }));
+  const bundles = new Map<number, ManagedSurfaceCompositeKernelBundleInternalV1>([[7, bundle]]);
   let activeBundle = bundle;
   const semantic = semanticSourceV1(input.selection ?? selectionV1());
   const createRuntime = (
-    nextBundle: NarrativeSurfaceCompositeKernelBundleInternalV1,
+    nextBundle: ManagedSurfaceCompositeKernelBundleInternalV1,
     activationKind: "initial" | "successor",
   ): ManagedSurfaceCoordinatorRuntimeV1 =>
     Object.freeze({
@@ -299,10 +307,11 @@ function runtimeHarnessV1(input: {
       composition.detachRuntimeInternalV1();
       semantic.publish(selection);
       const nextEpoch = parseNonNegativeSafeInteger(activeBundle.applicationEpoch + 1);
-      const nextBundle = createNarrativeSurfaceCompositeKernelBundleInternalV1({
+      const nextBundle = createManagedSurfaceCompositeKernelBundleInternalV1(Object.freeze({
         applicationEpoch: nextEpoch,
         recipe,
-      });
+        definitionSidecars: narrativeFamily.stableDefinitionSidecars,
+      }));
       bundles.set(nextEpoch, nextBundle);
       const nextRuntime = createRuntime(nextBundle, "successor");
       const nextActivation = { open: false };
@@ -637,6 +646,15 @@ describe("Narrative Surface composition definition", () => {
 });
 
 describe("Narrative Surface stable composite runtime", () => {
+  it("does not retain a Narrative-named composite-kernel factory", () => {
+    expect(
+      Object.hasOwn(
+        narrativeSurfaceCompositionModuleInternalV1,
+        "createNarrativeSurfaceCompositeKernelBundleInternalV1",
+      ),
+    ).toBe(false);
+  });
+
   it("builds the exact Overlay/System/Narrative owner and slot recipe", () => {
     const overlay = createWorkspaceOverlaySessionConfigurationInternalV1({
       definitions: Object.freeze([]),
@@ -651,10 +669,12 @@ describe("Narrative Surface stable composite runtime", () => {
         ...systemDialogManagedContractInternalV1.resolvedSlotDescriptors,
       ]),
     }));
-    const bundle = createNarrativeSurfaceCompositeKernelBundleInternalV1({
+    const family = createNarrativeManagedSurfaceFamilyContractInternalV1();
+    const bundle = createManagedSurfaceCompositeKernelBundleInternalV1(Object.freeze({
       applicationEpoch: parseNonNegativeSafeInteger(7),
       recipe,
-    });
+      definitionSidecars: family.stableDefinitionSidecars,
+    }));
     const state = bundle.compositeRuntimeKernel.getStateInternalV1().transientState;
 
     expect(state.resolvedOwnerIds).toEqual([

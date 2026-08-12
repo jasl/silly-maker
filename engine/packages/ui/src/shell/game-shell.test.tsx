@@ -17,8 +17,9 @@ function completeLayersV1() {
     character: null,
     sceneInteraction: null,
     hud: <InputRouterWitnessV1 />,
-    workspaceOverlay: null,
     narrative: <span>叙事</span>,
+    wholeCanvas: null,
+    workspaceOverlay: null,
     system: null,
   });
 }
@@ -48,7 +49,7 @@ describe("GameShell", () => {
     expect(screen.getByText("输入路由已连接")).toBeVisible();
     expect(witnessedRouterV1).toBe(inputRouter);
     // The null interaction layer stays unmounted so it cannot eat pointer input.
-    expect(screen.getAllByTestId(/^stage-/u)).toHaveLength(6);
+    expect(screen.getAllByTestId(/^stage-/u)).toHaveLength(7);
   });
 
   it("renders optional ultrawide fill outside the capped Stage as noninteractive content", () => {

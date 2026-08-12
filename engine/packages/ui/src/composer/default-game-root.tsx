@@ -53,6 +53,11 @@ import type { SystemDialogCustomSavesV1 } from "../system/system-dialog-host.tsx
 import type { SystemDialogOpenResultV1 } from "../system/system-dialog-managed-contract.ts";
 import type { InteractionSessionStoreV1 } from "../interaction/interaction-session-store.ts";
 import { NarrativeSurfaceHostInternalV1 } from "../narrative/narrative-surface-host.tsx";
+import { WholeCanvasSurfaceHostInternalV1 } from "../whole-canvas/whole-canvas-surface-host.tsx";
+import type {
+  WholeCanvasSurfaceCompositionRuntimeInternalV1,
+  WholeCanvasSurfaceHostBindingInternalV1,
+} from "../whole-canvas/whole-canvas-surface-composition.tsx";
 import type {
   GameUiCompositionV1,
   GameUiCueRegistryV1,
@@ -432,6 +437,57 @@ function DefaultNarrativeSurfaceHostInternalV1(props: {
   );
 }
 
+function DefaultWholeCanvasSurfaceHostInternalV1(props: {
+  readonly wholeCanvas: WholeCanvasSurfaceCompositionRuntimeInternalV1;
+  readonly inputRouter: InputRouterV1;
+}): ReactElement | null {
+  const { wholeCanvas, inputRouter } = props;
+  const binding = useSyncExternalStore(
+    wholeCanvas.subscribeInternalV1,
+    wholeCanvas.getCurrentHostBindingInternalV1,
+    wholeCanvas.getCurrentHostBindingInternalV1,
+  );
+  const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(null);
+  const [registered, setRegistered] = useState<
+    Readonly<{
+      readonly binding: WholeCanvasSurfaceHostBindingInternalV1;
+      readonly portalContainer: HTMLDivElement;
+      readonly inputRouter: InputRouterV1;
+    }> | null
+  >(null);
+  const capturePortal = useCallback((next: HTMLDivElement | null): void => {
+    setPortalContainer(next);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (binding === null || portalContainer === null) return undefined;
+    const release = wholeCanvas.registerHostPhysicalIngressInternalV1(Object.freeze({
+      portalContainer,
+      inputRouter,
+    }));
+    const next = Object.freeze({ binding, portalContainer, inputRouter });
+    setRegistered(next);
+    return () => {
+      release();
+      setRegistered((current) => current === next ? null : current);
+    };
+  }, [binding, inputRouter, portalContainer, wholeCanvas]);
+
+  if (binding === null) return null;
+  return (
+    <>
+      <div ref={capturePortal} data-default-whole-canvas-surface-portal="true" />
+      {registered === null ? null : (
+        <WholeCanvasSurfaceHostInternalV1
+          binding={registered.binding}
+          portalContainer={registered.portalContainer}
+          inputRouter={registered.inputRouter}
+        />
+      )}
+    </>
+  );
+}
+
 /**
  * The default GameRoot: a complete playable shell over a composed UI with
  * zero Story React code. The stage renders inside a managed GameViewport;
@@ -590,6 +646,7 @@ export function DefaultGameRootV1<
     props.composition,
   );
   const narrativeComposition = managedComposition?.narrative ?? null;
+  const wholeCanvasComposition = managedComposition?.wholeCanvas ?? null;
 
   const layers = Object.freeze({
     background: narrativeComposition === null
@@ -634,6 +691,15 @@ export function DefaultGameRootV1<
         />
       )
       : null,
+    wholeCanvas: wholeCanvasComposition === null ||
+        wholeCanvasComposition.getCurrentHostBindingInternalV1() === null
+      ? null
+      : (
+        <DefaultWholeCanvasSurfaceHostInternalV1
+          wholeCanvas={wholeCanvasComposition}
+          inputRouter={props.composition.input}
+        />
+      ),
     system: (
       <SystemDialogHostV1
         inputRouter={props.composition.input}

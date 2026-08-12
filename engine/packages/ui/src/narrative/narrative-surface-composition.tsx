@@ -7,7 +7,6 @@ import {
   type DeepReadonly,
   type InteractionResolutionV1,
   type NarrativeHistoryV1,
-  type NonNegativeSafeInteger,
   type PendingInteractionV1,
   type StrictJsonObjectV1,
 } from "@sillymaker/base";
@@ -38,31 +37,16 @@ import type {
   ManagedSurfaceCoordinatorRecipeV1,
   ManagedSurfaceCoordinatorRuntimeV1,
 } from "../managed-surfaces/managed-surface-coordinator-lifetime.ts";
-import {
-  createManagedSurfaceCoordinatorFacadeInternalV1,
-  type ManagedSurfaceCoordinatorV1,
-} from "../managed-surfaces/managed-surface-coordinator.ts";
+import type { ManagedSurfaceCompositeKernelBundleInternalV1 } from "../managed-surfaces/managed-surface-composite-kernel-bundle.ts";
 import {
   parseManagedSurfaceActionIdV1,
   type ManagedSurfaceGestureIdV1,
 } from "../managed-surfaces/managed-surface-contracts.ts";
-import { createManagedSurfaceReducerStateV1 } from "../managed-surfaces/managed-surface-reducer.ts";
-import {
-  createManagedSurfaceStableAdmissionAuthorityInternalV1,
-  type ManagedSurfaceStableAdmissionAuthorityInternalV1,
-} from "../managed-surfaces/managed-surface-stable-admission.ts";
 import type { PresentationClockV1 } from "../presentation-run/presentation-clock.ts";
 import {
   claimManagedSurfaceStableActionRouteAuthorityInternalV1,
-  createManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   type ManagedSurfaceStableActionRouteAuthorityInternalV1,
-  type ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
 } from "../managed-surfaces/managed-surface-stable-composite-state.ts";
-import {
-  createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1,
-  createManagedSurfaceStablePublisherLeaseRegistryInternalV1,
-  type ManagedSurfaceStablePublisherLeaseRegistryInternalV1,
-} from "../managed-surfaces/managed-surface-stable-publisher-lease.ts";
 import type { StageReconcilerV1, StageRetargetInputV1 } from "../stage/stage-reconciler.ts";
 import {
   bindSemanticStageCompositionRetargetDelegateInternalV1,
@@ -737,55 +721,6 @@ export function appendNarrativeManagedSurfaceRecipeInternalV1(
   });
 }
 
-export interface NarrativeSurfaceCompositeKernelBundleInternalV1 {
-  readonly applicationEpoch: NonNegativeSafeInteger;
-  readonly coordinator: ManagedSurfaceCoordinatorV1;
-  readonly publisherLeaseRegistry: ManagedSurfaceStablePublisherLeaseRegistryInternalV1;
-  readonly admissionAuthority: ManagedSurfaceStableAdmissionAuthorityInternalV1;
-  readonly compositeRuntimeKernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1;
-}
-
-export function createNarrativeSurfaceCompositeKernelBundleInternalV1(input: {
-  readonly applicationEpoch: NonNegativeSafeInteger;
-  readonly recipe: ManagedSurfaceCoordinatorRecipeV1;
-}): NarrativeSurfaceCompositeKernelBundleInternalV1 {
-  const narrative = createNarrativeManagedSurfaceFamilyContractInternalV1();
-  const publisherLeaseRegistry = createManagedSurfaceStablePublisherLeaseRegistryInternalV1({
-    applicationEpoch: input.applicationEpoch,
-    resolvedOwnerIds: input.recipe.resolvedOwnerIds,
-    leaseSequenceAllocator: createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1(),
-  });
-  const admissionAuthority = createManagedSurfaceStableAdmissionAuthorityInternalV1({
-    publisherLeaseRegistry,
-    definitionSidecars: narrative.stableDefinitionSidecars,
-    resolvedSlotDescriptors: input.recipe.resolvedSlotDescriptors,
-  });
-  const compositeRuntimeKernel = createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
-    admissionAuthority,
-    publisherLeaseRegistry,
-    initialTransientState: createManagedSurfaceReducerStateV1(
-      input.applicationEpoch,
-      input.recipe.resolvedOwnerIds,
-      input.recipe.resolvedSlotDescriptors,
-    ),
-    ...(input.recipe.reportSubscriberFailure === undefined ? {} : {
-      reportSubscriberFailure: () =>
-        input.recipe.reportSubscriberFailure!({
-          code: "surface.subscriber_failed",
-          summary: "Managed Surface publication subscriber failed.",
-          details: Object.freeze({ applicationEpoch: input.applicationEpoch }),
-        }),
-    }),
-  });
-  return Object.freeze({
-    applicationEpoch: input.applicationEpoch,
-    coordinator: createManagedSurfaceCoordinatorFacadeInternalV1(compositeRuntimeKernel),
-    publisherLeaseRegistry,
-    admissionAuthority,
-    compositeRuntimeKernel,
-  });
-}
-
 export interface NarrativeSurfaceSemanticPresentationSourceInternalV1<TSemanticPublication> {
   getSnapshotInternalV1(): DeepReadonly<TSemanticPublication>;
   subscribeInternalV1(listener: () => void): () => void;
@@ -969,7 +904,7 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
   >;
   readonly resolveKernelBundleInternalV1: (
     runtime: ManagedSurfaceCoordinatorRuntimeV1,
-  ) => NarrativeSurfaceCompositeKernelBundleInternalV1;
+  ) => ManagedSurfaceCompositeKernelBundleInternalV1;
   readonly stageClaimant: object;
   readonly reportFailure?: (error: unknown) => void;
   readonly reportObservation?: (code: "narrative.barrier_replay_unsupported") => void;
@@ -984,7 +919,6 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
   if (
     typeof input.stageClaimant !== "object" || input.stageClaimant === null
   ) throw new TypeError("ui.narrative_surface_composition_invalid");
-  const family = createNarrativeManagedSurfaceFamilyContractInternalV1();
   const listeners = new Set<() => void>();
   let current: NarrativeSurfaceCompositionGenerationInternalV1 | null = null;
   let prepared: NarrativeSurfaceCompositionGenerationInternalV1 | null = null;
@@ -1926,9 +1860,8 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
         admissionAuthority: bundle.admissionAuthority,
         compositeRuntimeKernel: bundle.compositeRuntimeKernel,
         candidatePreflight,
-        exactAggregateDefinitionSidecars: family.stableDefinitionSidecars,
-        exactAggregateSlotDescriptors: bundle.compositeRuntimeKernel.getStateInternalV1()
-          .transientState.resolvedSlotDescriptors,
+        exactAggregateDefinitionSidecars: bundle.exactAggregateDefinitionSidecars,
+        exactAggregateSlotDescriptors: bundle.exactAggregateSlotDescriptors,
         barrierStageClaimant: input.stageClaimant,
       });
       const barrierRecoveryGate = Object.freeze({

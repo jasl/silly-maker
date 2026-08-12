@@ -88,8 +88,9 @@ function PublicHostHarnessV1(props: {
         character: null,
         sceneInteraction: null,
         hud: null,
-        workspaceOverlay: null,
         narrative: null,
+        wholeCanvas: <button type="button">Whole canvas</button>,
+        workspaceOverlay: null,
         system: (
           <SystemDialogHostV1
             session={props.fixture.session}
@@ -134,6 +135,7 @@ describe("SystemDialogHostV1", () => {
     expect(sameLayerContent).toHaveAttribute("inert");
     expect(sameLayerContent).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByTestId("system-dialog-fallback")).toHaveFocus();
+    expect(screen.getByTestId("stage-whole-canvas")).toHaveAttribute("inert");
 
     await drainMicrotaskV1();
 
@@ -145,6 +147,7 @@ describe("SystemDialogHostV1", () => {
     expect(fixture.session.getSnapshot()).toEqual({ active: null });
     expect(sameLayerContent).not.toHaveAttribute("inert");
     expect(sameLayerContent).not.toHaveAttribute("aria-hidden");
+    expect(screen.getByTestId("stage-whole-canvas")).not.toHaveAttribute("inert");
     await waitFor(() => expect(opener).toHaveFocus());
 
     rendered.unmount();

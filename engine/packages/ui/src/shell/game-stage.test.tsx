@@ -6,7 +6,11 @@ import { resolve } from "node:path";
 import { useState } from "react";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { GameStageLayersV1, StageLayerIdV1 } from "./game-stage.tsx";
+import type {
+  GameStageLayersV1,
+  StageInputIsolationContextIdV1,
+  StageLayerIdV1,
+} from "./game-stage.tsx";
 import {
   GameStageV1,
   stageLayerIdsV1,
@@ -16,14 +20,15 @@ import {
 
 afterEach(cleanup);
 
-function completeSevenLayerFixtureV1(): GameStageLayersV1 {
+function completeEightLayerFixtureV1(): GameStageLayersV1 {
   return Object.freeze({
     background: <p>背景</p>,
     character: <p>角色</p>,
     sceneInteraction: <button type="button">场景交互</button>,
     hud: <button type="button">状态操作</button>,
-    workspaceOverlay: <section aria-label="工作区">工作区内容</section>,
     narrative: <section aria-label="叙事">叙事内容</section>,
+    wholeCanvas: <section aria-label="全画布">全画布内容</section>,
+    workspaceOverlay: <section aria-label="工作区">工作区内容</section>,
     system: <div role="status">系统状态</div>,
   });
 }
@@ -31,6 +36,13 @@ function completeSevenLayerFixtureV1(): GameStageLayersV1 {
 function ActiveInteractionRegionV1() {
   useStageInputIsolationV1("interaction", true);
   return <button type="button">互动区域操作</button>;
+}
+
+function ActiveIsolationRegistrationV1(props: {
+  readonly context: StageInputIsolationContextIdV1;
+}) {
+  useStageInputIsolationV1(props.context, true);
+  return <span data-testid={`active-isolation-${props.context}`}>{props.context}</span>;
 }
 
 function GestureFenceDismissButtonV1(props: { readonly onDismiss: () => void }) {
@@ -55,7 +67,7 @@ function GestureFenceLifecycleHarnessV1(props: { readonly onLowerAction: () => v
     <GameStageV1
       accessibleName="手势围栏舞台"
       layers={Object.freeze({
-        ...completeSevenLayerFixtureV1(),
+        ...completeEightLayerFixtureV1(),
         sceneInteraction: (
           <button type="button" onClick={props.onLowerAction}>
             下层业务操作
@@ -70,8 +82,8 @@ function GestureFenceLifecycleHarnessV1(props: { readonly onLowerAction: () => v
 }
 
 describe("GameStageV1", () => {
-  it("always renders the seven fixed layers in authoritative DOM order", () => {
-    render(<GameStageV1 accessibleName="游戏舞台" layers={completeSevenLayerFixtureV1()} />);
+  it("always renders the eight fixed layers in authoritative DOM order", () => {
+    render(<GameStageV1 accessibleName="游戏舞台" layers={completeEightLayerFixtureV1()} />);
 
     const stage = screen.getByRole("main", { name: "游戏舞台" });
     expect(stage).toBeVisible();
@@ -91,11 +103,15 @@ describe("GameStageV1", () => {
       "scene_interaction",
     );
     expect(screen.getByTestId("stage-hud")).toHaveAttribute("data-stage-layer", "hud");
+    expect(screen.getByTestId("stage-narrative")).toHaveAttribute("data-stage-layer", "narrative");
+    expect(screen.getByTestId("stage-whole-canvas")).toHaveAttribute(
+      "data-stage-layer",
+      "whole_canvas",
+    );
     expect(screen.getByTestId("stage-workspace-overlay")).toHaveAttribute(
       "data-stage-layer",
       "workspace_overlay",
     );
-    expect(screen.getByTestId("stage-narrative")).toHaveAttribute("data-stage-layer", "narrative");
     expect(screen.getByTestId("stage-system")).toHaveAttribute("data-stage-layer", "system");
 
     const contentByLayer = Object.freeze(
@@ -105,6 +121,7 @@ describe("GameStageV1", () => {
         ["scene_interaction", screen.getByRole("button", { name: "场景交互" })],
         ["hud", screen.getByRole("button", { name: "状态操作" })],
         ["narrative", screen.getByRole("region", { name: "叙事" })],
+        ["whole_canvas", screen.getByRole("region", { name: "全画布" })],
         ["workspace_overlay", screen.getByRole("region", { name: "工作区" })],
         ["system", screen.getByRole("status")],
       ] as const satisfies readonly (readonly [StageLayerIdV1, HTMLElement])[],
@@ -120,8 +137,9 @@ describe("GameStageV1", () => {
       character: null,
       sceneInteraction: null,
       hud: null,
-      workspaceOverlay: null,
       narrative: null,
+      wholeCanvas: null,
+      workspaceOverlay: null,
       system: null,
     }) satisfies GameStageLayersV1;
 
@@ -137,7 +155,7 @@ describe("GameStageV1", () => {
   });
 
   it("marks only scene interaction as the Pointer Adapter surface", () => {
-    render(<GameStageV1 accessibleName="游戏舞台" layers={completeSevenLayerFixtureV1()} />);
+    render(<GameStageV1 accessibleName="游戏舞台" layers={completeEightLayerFixtureV1()} />);
 
     const pointerSurfaces = document.querySelectorAll('[data-stage-pointer-surface="true"]');
     expect(pointerSurfaces).toHaveLength(1);
@@ -145,11 +163,12 @@ describe("GameStageV1", () => {
   });
 
   it("preserves semantic controls and regions in the upper layers", () => {
-    render(<GameStageV1 accessibleName="游戏舞台" layers={completeSevenLayerFixtureV1()} />);
+    render(<GameStageV1 accessibleName="游戏舞台" layers={completeEightLayerFixtureV1()} />);
 
     expect(screen.getByRole("button", { name: "状态操作" })).toBeVisible();
-    expect(screen.getByRole("region", { name: "工作区" })).toBeVisible();
     expect(screen.getByRole("region", { name: "叙事" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "全画布" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "工作区" })).toBeVisible();
     expect(screen.getByRole("status")).toHaveTextContent("系统状态");
   });
 
@@ -158,7 +177,7 @@ describe("GameStageV1", () => {
       <GameStageV1
         accessibleName="互动隔离舞台"
         layers={Object.freeze({
-          ...completeSevenLayerFixtureV1(),
+          ...completeEightLayerFixtureV1(),
           sceneInteraction: <ActiveInteractionRegionV1 />,
         })}
       />,
@@ -171,8 +190,58 @@ describe("GameStageV1", () => {
     expect(screen.getByRole("button", { name: "互动区域操作" })).toBeEnabled();
     expect(screen.getByTestId("stage-workspace-overlay")).not.toHaveAttribute("inert");
     expect(screen.getByTestId("stage-narrative")).not.toHaveAttribute("inert");
+    expect(screen.getByTestId("stage-whole-canvas")).not.toHaveAttribute("inert");
     expect(screen.getByTestId("stage-system")).not.toHaveAttribute("inert");
   });
+
+  it("makes Narrative, HUD, and gameplay inert while WholeCanvas owns input", () => {
+    render(
+      <GameStageV1
+        accessibleName="全画布隔离舞台"
+        layers={Object.freeze({
+          ...completeEightLayerFixtureV1(),
+          wholeCanvas: <ActiveIsolationRegistrationV1 context="whole_canvas" />,
+        })}
+      />,
+    );
+
+    expect(screen.getByTestId("stage-background")).toHaveAttribute("inert");
+    expect(screen.getByTestId("stage-character")).toHaveAttribute("inert");
+    expect(screen.getByTestId("stage-scene-interaction")).toHaveAttribute("inert");
+    expect(screen.getByTestId("stage-hud")).toHaveAttribute("inert");
+    expect(screen.getByTestId("stage-narrative")).toHaveAttribute("inert");
+    expect(screen.getByTestId("stage-whole-canvas")).not.toHaveAttribute("inert");
+    expect(screen.getByTestId("stage-workspace-overlay")).not.toHaveAttribute("inert");
+    expect(screen.getByTestId("stage-system")).not.toHaveAttribute("inert");
+  });
+
+  it.each(
+    [
+      ["interaction", false],
+      ["narrative", false],
+      ["overlay", true],
+      ["system", true],
+    ] as const satisfies readonly (readonly [StageInputIsolationContextIdV1, boolean])[],
+  )(
+    "keeps WholeCanvas isolation ordered against %s",
+    (context, expectedInert) => {
+      render(
+        <GameStageV1
+          accessibleName={`${context} 隔离舞台`}
+          layers={Object.freeze({
+            ...completeEightLayerFixtureV1(),
+            system: <ActiveIsolationRegistrationV1 context={context} />,
+          })}
+        />,
+      );
+
+      if (expectedInert) {
+        expect(screen.getByTestId("stage-whole-canvas")).toHaveAttribute("inert");
+      } else {
+        expect(screen.getByTestId("stage-whole-canvas")).not.toHaveAttribute("inert");
+      }
+    },
+  );
 
   it("keeps the stage-owned fence after caller unmount and distinguishes keyboard from stale pointer clicks", async () => {
     const lowerAction = vi.fn();
@@ -222,6 +291,7 @@ describe("GameStageV1", () => {
         "scene_interaction",
         "hud",
         "narrative",
+        "whole_canvas",
         "workspace_overlay",
         "system",
       ] satisfies readonly StageLayerIdV1[],
@@ -246,6 +316,9 @@ describe("GameStageV1", () => {
     );
     expect(css).toMatch(
       /\[data-stage-layer="narrative"\]\s*\{[^}]*display:\s*grid;[^}]*align-items:\s*end;/su,
+    );
+    expect(css).toMatch(
+      /\[data-stage-layer="whole_canvas"\]\s*\{[^}]*display:\s*grid;/su,
     );
     expect(css).toMatch(
       /:is\(\[data-stage-layer="hud"\],\s*\[data-stage-layer="system"\]\)\s*>\s*\*\s*\{[^}]*pointer-events:\s*none;/su,
