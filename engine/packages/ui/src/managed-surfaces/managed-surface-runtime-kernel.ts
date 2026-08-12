@@ -118,6 +118,9 @@ export interface ManagedSurfaceRuntimeKernelInternalV1<TState> {
     prepared: ManagedSurfaceRuntimePreparedStateInstallInternalV1<TState>,
     gate: () => boolean,
   ): ManagedSurfaceRuntimePreparedStateInstallResultInternalV1;
+  setStateInstallParticipantInternalV1(
+    participant: ManagedSurfaceRuntimeStateInstallParticipantInternalV1<TState>,
+  ): void;
   subscribeTransientInternalV1(listener: () => void): () => void;
   subscribeStateInternalV1(listener: () => void): () => void;
 }
@@ -138,187 +141,25 @@ interface ManagedSurfaceRuntimeInstallNotificationInternalV1 {
   readonly nextCoordinatorDisposed: boolean;
 }
 
-interface ManagedSurfaceRuntimeStateInstallParticipantClaimRecordInternalV1 {
-  readonly kind: "claim_record";
-  readonly participantOwner: ManagedSurfaceRuntimeStateInstallParticipantOwnerInternalV1;
-  exactClaimant: object | null;
-  participant: object | null;
-  prepareStateInstall: ((previousState: unknown, nextState: unknown) => unknown) | null;
-  terminal: boolean;
-}
-
-interface ManagedSurfaceRuntimeStateInstallParticipantOwnerInternalV1 {
-  readonly kind: "participant_owner";
-}
-
-interface ManagedSurfaceRuntimeCapturedPreparedStateInstallParticipantInternalV1 {
-  readonly receiver: object;
-  readonly validate: () => unknown;
-  readonly commitLogical: () => unknown;
-  readonly abort: () => unknown;
-  readonly completeInstalled: () => unknown;
-}
-
-interface ManagedSurfaceRuntimeObservedStateInstallParticipantInternalV1 {
-  readonly claimRecord: ManagedSurfaceRuntimeStateInstallParticipantClaimRecordInternalV1;
-  readonly participant: object;
-  readonly prepareStateInstall: (previousState: unknown, nextState: unknown) => unknown;
-}
-
-type ManagedSurfaceRuntimePreparedParticipantPhaseInternalV1 =
+type ManagedSurfaceRuntimePreparedParticipantPhaseInternalV1<TState> =
   | Readonly<{ readonly kind: "unclaimed" }>
   | Readonly<{
     readonly kind: "none" | "fault";
-    readonly observed: ManagedSurfaceRuntimeObservedStateInstallParticipantInternalV1;
+    readonly participant: ManagedSurfaceRuntimeStateInstallParticipantInternalV1<TState>;
   }>
   | Readonly<{
     readonly kind: "prepared";
-    readonly observed: ManagedSurfaceRuntimeObservedStateInstallParticipantInternalV1;
-    readonly prepared: ManagedSurfaceRuntimeCapturedPreparedStateInstallParticipantInternalV1;
+    readonly participant: ManagedSurfaceRuntimeStateInstallParticipantInternalV1<TState>;
+    readonly prepared: ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1;
   }>;
 
-const unclaimedPreparedParticipantPhaseInternalV1 = Object.freeze({
+const unclaimedPreparedParticipantPhaseInternalV1 = {
   kind: "unclaimed" as const,
-});
-
-const managedSurfaceRuntimeStateInstallParticipantClaimRecordsInternalV1 = new WeakMap<
-  object,
-  | ManagedSurfaceRuntimeStateInstallParticipantClaimRecordInternalV1
-  | ManagedSurfaceRuntimeStateInstallParticipantOwnerInternalV1
->();
-
-const stateInstallParticipantClaimInvalidInternalV1 = (): never => {
-  throw new TypeError("ui.managed_surface_runtime_state_install_participant_claim_invalid");
 };
 
-function captureManagedSurfaceRuntimeStateInstallParticipantInternalV1(
-  participant: unknown,
-):
-  | Readonly<{
-    receiver: object;
-    prepareStateInstall: (previousState: unknown, nextState: unknown) => unknown;
-  }>
-  | null {
-  if (
-    (typeof participant !== "object" && typeof participant !== "function") ||
-    participant === null
-  ) {
-    return null;
-  }
-  try {
-    const ownKeys = Reflect.ownKeys(participant);
-    const descriptor = Reflect.getOwnPropertyDescriptor(
-      participant,
-      "prepareStateInstallInternalV1",
-    );
-    if (
-      !Object.isFrozen(participant) || ownKeys.length !== 1 ||
-      ownKeys[0] !== "prepareStateInstallInternalV1" || descriptor === undefined ||
-      !("value" in descriptor) || typeof descriptor.value !== "function"
-    ) {
-      return null;
-    }
-    return Object.freeze({
-      receiver: participant,
-      prepareStateInstall: descriptor.value as (
-        previousState: unknown,
-        nextState: unknown,
-      ) => unknown,
-    });
-  } catch {
-    return null;
-  }
-}
-
-function captureManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1(
-  prepared: unknown,
-): ManagedSurfaceRuntimeCapturedPreparedStateInstallParticipantInternalV1 | null {
-  if ((typeof prepared !== "object" && typeof prepared !== "function") || prepared === null) {
-    return null;
-  }
-  const expectedKeys = [
-    "validateInternalV1",
-    "commitLogicalInternalV1",
-    "abortInternalV1",
-    "completeInstalledInternalV1",
-  ] as const;
-  try {
-    const ownKeys = Reflect.ownKeys(prepared);
-    if (
-      !Object.isFrozen(prepared) || ownKeys.length !== expectedKeys.length ||
-      expectedKeys.some((key) => !ownKeys.includes(key))
-    ) {
-      return null;
-    }
-    const readMethod = (key: (typeof expectedKeys)[number]): (() => unknown) | null => {
-      const descriptor = Reflect.getOwnPropertyDescriptor(prepared, key);
-      if (
-        descriptor === undefined || !("value" in descriptor) ||
-        typeof descriptor.value !== "function"
-      ) {
-        return null;
-      }
-      return descriptor.value as () => unknown;
-    };
-    const validate = readMethod("validateInternalV1");
-    const commitLogical = readMethod("commitLogicalInternalV1");
-    const abort = readMethod("abortInternalV1");
-    const completeInstalled = readMethod("completeInstalledInternalV1");
-    if (
-      validate === null || commitLogical === null || abort === null ||
-      completeInstalled === null
-    ) return null;
-    return Object.freeze({
-      receiver: prepared,
-      validate,
-      commitLogical,
-      abort,
-      completeInstalled,
-    });
-  } catch {
-    return null;
-  }
-}
-
-export function claimManagedSurfaceRuntimeStateInstallParticipantInternalV1<TState>(
-  kernel: ManagedSurfaceRuntimeKernelInternalV1<TState>,
-  exactClaimant: object,
-  participant: ManagedSurfaceRuntimeStateInstallParticipantInternalV1<TState>,
-): ManagedSurfaceRuntimeStateInstallParticipantInternalV1<TState> {
-  if ((typeof kernel !== "object" && typeof kernel !== "function") || kernel === null) {
-    return stateInstallParticipantClaimInvalidInternalV1();
-  }
-  const record = managedSurfaceRuntimeStateInstallParticipantClaimRecordsInternalV1.get(kernel);
-  if (
-    record === undefined || record.kind !== "claim_record" || record.terminal ||
-    ((typeof exactClaimant !== "object" && typeof exactClaimant !== "function") ||
-      exactClaimant === null)
-  ) {
-    return stateInstallParticipantClaimInvalidInternalV1();
-  }
-  if (record.exactClaimant !== null) {
-    if (record.exactClaimant !== exactClaimant || record.participant !== participant) {
-      return stateInstallParticipantClaimInvalidInternalV1();
-    }
-    return participant;
-  }
-  const captured = captureManagedSurfaceRuntimeStateInstallParticipantInternalV1(participant);
-  if (captured === null) return stateInstallParticipantClaimInvalidInternalV1();
-  const participantOwner = managedSurfaceRuntimeStateInstallParticipantClaimRecordsInternalV1.get(
-    captured.receiver,
-  );
-  if (participantOwner !== undefined && participantOwner !== record.participantOwner) {
-    return stateInstallParticipantClaimInvalidInternalV1();
-  }
-  record.exactClaimant = exactClaimant;
-  record.participant = captured.receiver;
-  record.prepareStateInstall = captured.prepareStateInstall;
-  managedSurfaceRuntimeStateInstallParticipantClaimRecordsInternalV1.set(
-    captured.receiver,
-    record.participantOwner,
-  );
-  return participant;
-}
+const stateInstallParticipantInvalidInternalV1 = (): never => {
+  throw new TypeError("ui.managed_surface_runtime_state_install_participant_invalid");
+};
 
 export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
   input: CreateManagedSurfaceRuntimeKernelInputInternalV1<TState>,
@@ -334,7 +175,6 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
   let state = input.initialState;
   let stateInstallGeneration: object = Object.freeze({});
   let transitionInProgress = false;
-  let participantClaimRecord!: ManagedSurfaceRuntimeStateInstallParticipantClaimRecordInternalV1;
   const transientListeners = new Set<() => void>();
   const stateListeners = new Set<() => void>();
   const preparedStateInstalls = new WeakMap<
@@ -347,6 +187,10 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
     Reflect.apply(getTransientState, stateAdapter, [stateValue]) as ManagedSurfaceReducerStateV1;
 
   const currentTransientState = (): ManagedSurfaceReducerStateV1 => transientStateFor(state);
+  let stateInstallParticipant:
+    | ManagedSurfaceRuntimeStateInstallParticipantInternalV1<TState>
+    | null = null;
+  let stateInstallParticipantTerminal = currentTransientState().publication.coordinatorDisposed;
 
   const reportFailure = (): void => {
     try {
@@ -373,74 +217,46 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
     transitionInProgress = true;
   };
 
-  const observeStateInstallParticipant = ():
-    | ManagedSurfaceRuntimeObservedStateInstallParticipantInternalV1
-    | null => {
-    const participant = participantClaimRecord.participant;
-    const prepareStateInstall = participantClaimRecord.prepareStateInstall;
-    if (
-      participantClaimRecord.terminal || participant === null ||
-      prepareStateInstall === null
-    ) {
-      return null;
-    }
-    return Object.freeze({
-      claimRecord: participantClaimRecord,
-      participant,
-      prepareStateInstall,
-    });
-  };
-
   const prepareStateInstallParticipant = (
     previousState: TState,
     nextState: TState,
-  ): ManagedSurfaceRuntimePreparedParticipantPhaseInternalV1 => {
+  ): ManagedSurfaceRuntimePreparedParticipantPhaseInternalV1<TState> => {
     if (previousState === nextState) return unclaimedPreparedParticipantPhaseInternalV1;
-    const observed = observeStateInstallParticipant();
-    if (observed === null) return unclaimedPreparedParticipantPhaseInternalV1;
-    let output: unknown;
+    const participant = stateInstallParticipantTerminal ? null : stateInstallParticipant;
+    if (participant === null) return unclaimedPreparedParticipantPhaseInternalV1;
+    let prepared: ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 | null;
     try {
-      output = Reflect.apply(observed.prepareStateInstall, observed.participant, [
-        previousState,
-        nextState,
-      ]);
+      prepared = participant.prepareStateInstallInternalV1(previousState, nextState);
     } catch {
-      return Object.freeze({ kind: "fault" as const, observed });
+      return { kind: "fault" as const, participant };
     }
-    if (output === null) return Object.freeze({ kind: "none" as const, observed });
-    const prepared = captureManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1(
-      output,
-    );
     return prepared === null
-      ? Object.freeze({ kind: "fault" as const, observed })
-      : Object.freeze({ kind: "prepared" as const, observed, prepared });
+      ? { kind: "none" as const, participant }
+      : { kind: "prepared" as const, participant, prepared };
   };
 
   const participantObservationIsCurrent = (
-    observed: ManagedSurfaceRuntimeObservedStateInstallParticipantInternalV1,
-  ): boolean =>
-    observed.claimRecord === participantClaimRecord && !participantClaimRecord.terminal &&
-    participantClaimRecord.participant === observed.participant &&
-    participantClaimRecord.prepareStateInstall === observed.prepareStateInstall;
+    participant: ManagedSurfaceRuntimeStateInstallParticipantInternalV1<TState>,
+  ): boolean => !stateInstallParticipantTerminal && stateInstallParticipant === participant;
 
   const abortPreparedParticipant = (
-    phase: ManagedSurfaceRuntimePreparedParticipantPhaseInternalV1,
+    phase: ManagedSurfaceRuntimePreparedParticipantPhaseInternalV1<TState>,
   ): void => {
     if (phase.kind !== "prepared") return;
     try {
-      Reflect.apply(phase.prepared.abort, phase.prepared.receiver, []);
+      phase.prepared.abortInternalV1();
     } catch {
       // A source-relative participant promises a no-throw logical abort.
     }
   };
 
   const validatePreparedParticipant = (
-    phase: ManagedSurfaceRuntimePreparedParticipantPhaseInternalV1,
+    phase: ManagedSurfaceRuntimePreparedParticipantPhaseInternalV1<TState>,
     expectedState: TState,
     expectedGeneration: object,
   ): "valid" | "stale" | "fault" => {
     const observedCurrent = phase.kind === "unclaimed" ||
-      participantObservationIsCurrent(phase.observed);
+      participantObservationIsCurrent(phase.participant);
     if (
       state !== expectedState || stateInstallGeneration !== expectedGeneration ||
       !observedCurrent
@@ -452,7 +268,7 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
     if (phase.kind !== "prepared") return "valid";
     let validated: unknown;
     try {
-      validated = Reflect.apply(phase.prepared.validate, phase.prepared.receiver, []);
+      validated = phase.prepared.validateInternalV1();
     } catch {
       abortPreparedParticipant(phase);
       return "fault";
@@ -463,11 +279,11 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
   };
 
   const commitPreparedParticipant = (
-    phase: ManagedSurfaceRuntimePreparedParticipantPhaseInternalV1,
+    phase: ManagedSurfaceRuntimePreparedParticipantPhaseInternalV1<TState>,
   ): boolean => {
     if (phase.kind !== "prepared") return true;
     try {
-      Reflect.apply(phase.prepared.commitLogical, phase.prepared.receiver, []);
+      phase.prepared.commitLogicalInternalV1();
       return true;
     } catch {
       abortPreparedParticipant(phase);
@@ -476,22 +292,20 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
   };
 
   const completePreparedParticipant = (
-    phase: ManagedSurfaceRuntimePreparedParticipantPhaseInternalV1,
+    phase: ManagedSurfaceRuntimePreparedParticipantPhaseInternalV1<TState>,
   ): void => {
     if (phase.kind !== "prepared") return;
     try {
-      Reflect.apply(phase.prepared.completeInstalled, phase.prepared.receiver, []);
+      phase.prepared.completeInstalledInternalV1();
     } catch {
       // Physical cancellation/scheduling is best effort after assignment.
     }
   };
 
   const fenceTerminalStateInstallParticipant = (): void => {
-    if (participantClaimRecord.terminal) return;
-    participantClaimRecord.terminal = true;
-    participantClaimRecord.exactClaimant = null;
-    participantClaimRecord.participant = null;
-    participantClaimRecord.prepareStateInstall = null;
+    if (stateInstallParticipantTerminal) return;
+    stateInstallParticipantTerminal = true;
+    stateInstallParticipant = null;
   };
 
   const assignPreparedInstall = (
@@ -868,6 +682,17 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
       completePreparedParticipant(participantPhase);
       return "installed";
     },
+    setStateInstallParticipantInternalV1(
+      participant: ManagedSurfaceRuntimeStateInstallParticipantInternalV1<TState>,
+    ): void {
+      if (
+        stateInstallParticipantTerminal || stateInstallParticipant !== null ||
+        typeof participant?.prepareStateInstallInternalV1 !== "function"
+      ) {
+        stateInstallParticipantInvalidInternalV1();
+      }
+      stateInstallParticipant = participant;
+    },
     subscribeTransientInternalV1(listener: () => void): () => void {
       return subscribe(transientListeners, listener);
     },
@@ -875,19 +700,6 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
       return subscribe(stateListeners, listener);
     },
   });
-
-  participantClaimRecord = {
-    kind: "claim_record",
-    participantOwner: Object.freeze({ kind: "participant_owner" }),
-    exactClaimant: null,
-    participant: null,
-    prepareStateInstall: null,
-    terminal: currentTransientState().publication.coordinatorDisposed,
-  };
-  managedSurfaceRuntimeStateInstallParticipantClaimRecordsInternalV1.set(
-    kernel,
-    participantClaimRecord,
-  );
 
   return kernel;
 }

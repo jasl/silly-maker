@@ -483,9 +483,8 @@ Registry inspection and callback counting use the repository-only
 Story code must use the ordinary authoring/runtime contracts and must not depend
 on this instrumentation seam.
 
-PF5/M3 Save migration product surface is complete. The current linear-core gate
-is PF6/S5 docs-only exact-entry/adjudication; do not begin broad S5 source work
-until that entry freezes an exact allowlist, mergeable slices, RED, and gates.
+PF5/M3 Save migration product surface is complete. Current/next work is owned
+only by the [production-floor sequence](plans/2026-07-30-production-floor-sequence.md).
 
 Strict JSON numeric regression tests use exact decimal token vectors rather
 than wall-clock timing: rounded fractions, safe boundaries, negative-zero

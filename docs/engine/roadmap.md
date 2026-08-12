@@ -60,22 +60,9 @@ Story、GameplayModule、Narrative、UI contribution 与可信 Hotfix 使用 Typ
 workload 证据；仓库外私有实验只能提供匿名需求反馈，正式 promotion evidence 必须
 由仓库内中性 workload 复现：
 
-1. repository/tooling guardrails；
-2. latest-stable required CI 与 autosave policy admission 两个 pre-pilot 小切片；
-3. Snapshot 热路径 baseline 与 digest/serialization 去重（PF1/A1 已完成）；
-4. Managed Surface kernel action provenance/boundedness 修正 + Workspace
-   Overlay pilot（PF2 已完成）；
-5. authoritative determinism guardrails：zero RNG、canonical command/evidence
-   admission、simulation-closure lint/tripwire、conservative Date/import proof 与四 runtime
-   逐 command parity（PF-DET corrective promotion 已完成）；
-6. Save metadata floor 与 callback-free envelope/load order（M1）已完成，并与
-   determinism 在 same-HEAD join 汇合；M2a–M2e 已依次完成 exact registry、bounded pure
-   kernel、staged load/import、atomic receipt/anchor commit，以及 Engine Lab real owner 的
-   four-runtime promotion；M2 证明机制但不构成历史 Save 产品承诺；
-7. System/Narrative/History/whole-canvas primary-detail 的逐 family migration；
-8. Save dry-run/backup/fixture corpus；
-9. Surface structural/model/browser harness 与作者 API promotion；
-10. release stabilization。
+PF0–PF5 已完成：repository/tooling guardrails、Snapshot 热路径、
+authoritative determinism、composition-owned Managed Surface families、Save
+inspection/backup/recovery 与 maintained compatibility corpus 均已 promotion。
 
 第 7 项的 `PF4/S4.3.1b Narrative/History` 已完成生产迁移：一个
 composition-owned Managed Surface authority、公开
@@ -84,9 +71,11 @@ composition-owned Managed Surface authority、公开
 `PF4/S4b.1c` WholeCanvas 也已完成：公开 definition/application-source seam、
 package-owned Splash/Title 与 exact-parent detail、Cat Cafe 第一消费者、Engine Lab
 opt-in 第二消费者和 SillyOS 省略均已 promotion。`PF5/M3` Save inspection、bounded
-backup/recovery、maintained release corpus 与 promotion 也已完成。当前默认 linear-core
-入口是 **PF6/S5 docs-only exact-entry/adjudication**：先把 broad structural tooling/model
-harness 冻结为有 exact allowlist 的 mergeable slices，再开始任何 S5 source implementation。
+backup/recovery、maintained release corpus 与 promotion 也已完成。当前默认 core
+方向是 **Complexity Reset**：按比例信任边界删除 package-internal anti-forgery，
+建立 Managed Surface/Narrative/WholeCanvas 与 Player 的真实性能趋势，并先交付
+Cat Cafe 的 detached Narrative/Stage preview。原 PF6/S5 broad harness 暂停，只有真实
+作者问题和第二消费者证明需要时才恢复最小部分。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实
@@ -228,8 +217,9 @@ composition-owned Managed Surface authority，没有平行 writable lifecycle。
 authority；Engine Lab、template、Bookshop、Cat Cafe 已迁移，SillyOS 显式省略。
 WholeCanvas 通过公开 definition 或 narrow application source 进入同一 kernel；
 Splash/Title 属于 package front door，Cat Cafe ending 与 Engine Lab opt-in route 是两名
-消费者，SillyOS 继续省略。S4b.1c 与 PF5/M3 均已完成；当前 core gate 是 PF6/S5
-docs-only exact-entry/adjudication，尚未授权 broad S5 runtime implementation。
+消费者，SillyOS 继续省略。S4b.1c 与 PF5/M3 均已完成；当前 core work 是任何
+PF6/S5 reactivation 之前的 Complexity Reset，而不是 broad S5 runtime implementation。当前顺序只由
+[production-floor sequence](plans/2026-07-30-production-floor-sequence.md) 拥有。
 
 ## 8. Strategic track D — content platform and creator tooling
 

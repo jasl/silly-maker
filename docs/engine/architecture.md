@@ -1685,9 +1685,8 @@ other Managed Surface families. Cat Cafe owns the publication-selected
 replacement/detail conformance; SillyOS proves omission. Replacement,
 readiness, focus, action, and successor callbacks are generation-fenced, and a
 lower family cannot reclaim focus while its Stage ancestor is inert. PF5/M3 Save
-migration product surface is complete. The current gate is PF6/S5 docs-only
-exact-entry/adjudication, which must freeze mergeable S5 slices before any broad
-runtime implementation.
+migration product surface is complete. Current/next implementation order lives
+only in the [production-floor sequence](plans/2026-07-30-production-floor-sequence.md).
 
 ## 9. Changing the architecture
 
@@ -1713,8 +1712,8 @@ Narrative/History, and WholeCanvas. Narrative and WholeCanvas are authored
 through public definition factories and rendered by at most one current
 production Host per present family; Splash/Title use the same WholeCanvas owner.
 PF5/M3 Save migration product surface is complete. The current production-floor
-lane is PF6/S5 docs-only exact-entry/adjudication; broad S5 runtime work is not
-yet authorized.
+order lives only in the
+[production-floor sequence](plans/2026-07-30-production-floor-sequence.md).
 
 ### Historical S4 delivery trail
 

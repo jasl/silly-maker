@@ -14,8 +14,9 @@ historical；M3.5 player-readable Save recovery UI 现也已完成并转为 hist
 docs-only exact inventory corrective 与 M3.6a maintained product corpus and Story lifecycle
 现也已完成并转为 historical；M3.6b four-runtime corpus parity、M3.6c Browser
 repeated-download no-clobber evidence 与 M3.6d live product docs/PF5 promotion 也已完成并转为
-historical，PF5/M3 已关闭。当前 core gate 是 PF6/S5 docs-only exact-entry/adjudication；在该
-entry 冻结 exact allowlist 与 mergeable slices 前，不得直接开始 broad S5 runtime implementation。
+historical，PF5/M3 已关闭。其后的 PF6/S5 historical pointer 已由当前
+[production-floor sequence](../plans/2026-07-30-production-floor-sequence.md)
+中的 Complexity Reset supersede。
 本文把 Save
 兼容从“分类与拒绝”升级为“一等迁移能力”：固定 migration registry 合同、load
 阶段顺序与发布验收。它独立于 Mod 系统并先于其落地；[Mod design](mod-system.md)
@@ -756,8 +757,8 @@ parity 与 Browser repeated-download evidence 同步到七份文档，且没有�
 Desktop crash-atomicity 声明；但上述 whole-doc scan 证明它遗漏两份 active design pointer owner，
 因此不构成 M3.6d delivery 或 PF5 promotion；随后的 exact-nine candidate 又遗漏上述三份 live
 owner，同样不构成 delivery/promotion。最终 closeout 必须严格命中修正后的 exact twelve-doc
-scope，并在 fresh canonical gate 全绿后才可把 PF5/M3 转为 historical、把 current pointer 推进到
-PF6/S5 docs-only exact-entry/adjudication。
+scope，并在 fresh canonical gate 全绿后才可把 PF5/M3 转为 historical；后续 current
+顺序只由 production-floor sequence 拥有。
 
 **2026-08-12 M3.6d live product docs/PF5 promotion delivery（已完成；historical）：** final
 exact-twelve overlay 把 implemented inspection、bounded adoption/backup/recovery/re-anchor、
@@ -769,8 +770,8 @@ Scoped format、diff、stale-pointer 与 exact inventory gate 全绿；fresh fin
 覆盖 format `959 files`、`269 files / 4701 tests`、assets、five registered Story checks 与
 Engine Lab production build `415 modules`；`/usr/bin/time -p` 为 real `46.59s`、user `224.14s`、
 sys `47.21s`，全部 green。M3.6d 与 PF5/M3
-据此转为 completed/historical，当前 core gate 推进到 PF6/S5 docs-only exact-entry/adjudication；
-该下一 gate 只负责冻结 S5 exact entry，不授权 broad runtime implementation。
+据此转为 completed/historical；当时的 PF6/S5 pointer 已由后续 Complexity Reset
+supersede。
 
 **2026-08-12 M3.6a maintained corpus and Story lifecycle delivery（已完成；historical）：**
 实现严格命中 frozen exact `10` paths（含只精确排除四份 maintained Save bytes 的

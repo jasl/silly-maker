@@ -12,8 +12,8 @@ historical；M3.5 player-readable Save recovery UI 现也已完成并转为 hist
 docs-only exact inventory corrective 与 M3.6a maintained product corpus and Story lifecycle
 现也已完成并转为 historical；M3.6b four-runtime corpus parity 现也已完成并转为
 historical；M3.6c Browser repeated-download evidence 与 M3.6d live docs/PF5 promotion 也已
-完成并转为 historical，PF5/M3 已关闭。当前 core gate 是 PF6/S5 docs-only
-exact-entry/adjudication；broad S5 runtime implementation 尚未授权。目标合同见
+完成并转为 historical，PF5/M3 已关闭。当前顺序只由
+[production-floor sequence](2026-07-30-production-floor-sequence.md) 拥有。目标合同见
 [Save migration design](../design/save-migration.md)；在
 [production-floor sequence](2026-07-30-production-floor-sequence.md) 中分为 PF3
 与 PF5，并与 PF-DET 按显式 DAG 汇合；不是“完整 PF-DET 后才开始全部 M0–M2”。
@@ -565,15 +565,14 @@ PF5/M3 的表述是当时历史 pointer；M3.0 exact entry、M3.1 inspection、M
 M3.3 backup substrate、M3.4 semantic operations 与 M3.5 player recovery UI 现均已完成；
 M3.6.0 docs-only inventory corrective、M3.6a maintained corpus/Story lifecycle、M3.6b
 four-runtime corpus parity、M3.6c Browser repeated-download evidence 与 M3.6d live docs/PF5
-promotion 均已关闭并转为 historical；PF5/M3 已完成，production-floor pointer 已推进到
-PF6/S5 docs-only exact-entry/adjudication。
+promotion 均已关闭并转为 historical；PF5/M3 已完成。
 
 ## 6. M3 — Product surface and release corpus
 
 M3 broad checkpoint 已由 M3.0 重切；M3.0–M3.6d 均已完成并转为 historical，PF5 已关闭。
 其执行严格按 `M3.6c -> M3.6d` 线性推进，没有把 corpus lifecycle、four-runtime parity、
-Browser no-clobber 与 live docs/promotion 合成一个 refactor。当前 core gate 是 PF6/S5
-docs-only exact-entry/adjudication。
+Browser no-clobber 与 live docs/promotion 合成一个 refactor。后续 current 顺序只由
+production-floor sequence 拥有。
 
 ### M3.0 — Exact entry contract（docs-only，已完成）
 
@@ -1210,8 +1209,8 @@ active design pointer owner，因此不能构成 M3.6d delivery、PF5 promotion 
 `architecture.md`、`development.md` 与 `design/window-model.md` 的上述有效状态/能力声明仍会
 让 PF5 closeout 留下错误 live truth，因此不构成 M3.6d delivery、PF5 promotion 或 pointer
 advancement。待修正后的 exact-twelve overlay 更新三份新增 owner、十二份 docs 的
-fmt/diff/stale-pointer audit 与 fresh `deno task check` 全绿后，才可记录最终 delivery并把
-production-floor pointer 推进到 PF6/S5 docs-only exact-entry/adjudication。
+fmt/diff/stale-pointer audit 与 fresh `deno task check` 全绿后，才可记录最终 delivery并
+关闭 PF5/M3。
 
 **2026-08-12 final exact-twelve delivery（已完成；historical）：** final overlay 严格命中上述
 十二份 docs，更新 live capability、supported Save floor、release workflow 与全部有效 execution
@@ -1222,8 +1221,7 @@ inventory gate 全绿；fresh final `deno task check` 覆盖 format `959 files`�
 `269 files / 4701 tests`、assets、five registered Story checks 与 Engine Lab production build
 `415 modules`；`/usr/bin/time -p` 为 real `46.59s`、user `224.14s`、sys `47.21s`，全部 green。
 M3.6d、M3 与 PF5 据此转为 completed/historical；
-current/next、core slice 与 direct gate 推进到 PF6/S5 docs-only exact-entry/adjudication，在该
-entry 冻结 exact allowlist、mergeable slices、RED 与 gates 前不得开始 broad S5 runtime work。
+当时的 PF6/S5 pointer 已由后续 Complexity Reset supersede。
 
 ## 7. API discipline
 

@@ -200,9 +200,8 @@ identities have checked-in canonical bytes, single-slot inspection and bounded
 backup/recovery are player-accessible, and the maintained four-fixture corpus
 runs through Story lifecycle and four-runtime parity gates. Opaque low-level
 custom runtime controls and explicit legacy prepare-callback callers remain
-outside the composite migration guarantee. PF5/M3 is complete; the next
-linear-core gate is PF6/S5 docs-only exact-entry/adjudication, before any broad
-S5 runtime implementation.
+outside the composite migration guarantee. PF5/M3 is complete; current/next work
+is owned only by the [production-floor sequence](plans/2026-07-30-production-floor-sequence.md).
 
 The script-language decision is durable: Story, Module, Narrative, UI, and official Hotfix code use TypeScript/JavaScript. SillyMaker does not plan Ren'Py DSL/Save compatibility, a custom script interpreter, or an untrusted-code security sandbox. Direct Host-global access remains possible JavaScript but is outside the supported engine API.
 

@@ -200,9 +200,10 @@ export async function createSillymakerAppViteConfigV1(
       rollupOptions: {
         input: resolve(appRoot, web.applicationHtml),
         output: {
-          // Dependencies get their own chunks: one for React, one for the rest of node_modules;
-          // application and engine code stay in the entry chunk — all three stay clear of the 500 kB warning line,
-          // and the dependency chunks stay stable across releases (good for caching).
+          // Dependencies get their own chunks: one for React and one for the
+          // rest of node_modules. Application and engine code stay in the entry
+          // chunk; release baselines measure the resulting raw/gzip sizes
+          // instead of assuming a fixed warning threshold.
           advancedChunks: {
             groups: [
               { name: "vendor-react", test: /node_modules[/\\](react|react-dom|scheduler)[/\\]/ },

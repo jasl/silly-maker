@@ -57,7 +57,6 @@ import {
   type ManagedSurfaceReducerTopologyProjectionRevisionModeInternalV1,
 } from "./managed-surface-reducer.ts";
 import {
-  claimManagedSurfaceRuntimeStateInstallParticipantInternalV1,
   createManagedSurfaceRuntimeKernelInternalV1,
   type ManagedSurfaceRuntimeKernelInternalV1,
   type ManagedSurfaceRuntimeStateInstallParticipantInternalV1,
@@ -613,9 +612,6 @@ const compositeStateAuthorityRecordsInternalV1 = new WeakMap<
 interface CompositeRuntimeKernelConfigurationRecordInternalV1 {
   readonly admissionAuthority: ManagedSurfaceStableAdmissionAuthorityInternalV1;
   readonly publisherLeaseRegistry: ManagedSurfaceStablePublisherLeaseRegistryInternalV1;
-  readonly runtimeKernel: ManagedSurfaceRuntimeKernelInternalV1<
-    ManagedSurfaceStableCompositeStateInternalV1
-  >;
   readonly applyPendingProjectionRefresh: (
     exactClaimant: object,
     proposal: unknown,
@@ -765,22 +761,6 @@ export function matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationIn
   );
   return record !== undefined && record.admissionAuthority === admissionAuthority &&
     record.publisherLeaseRegistry === publisherLeaseRegistry;
-}
-
-export function claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
-  kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
-  exactClaimant: object,
-  participant: ManagedSurfaceStableCompositeStateInstallParticipantInternalV1,
-): ManagedSurfaceStableCompositeStateInstallParticipantInternalV1 {
-  const configuration = compositeRuntimeKernelConfigurationRecordsInternalV1.get(kernel);
-  if (configuration === undefined) {
-    throw new TypeError("ui.managed_surface_runtime_state_install_participant_claim_invalid");
-  }
-  return claimManagedSurfaceRuntimeStateInstallParticipantInternalV1(
-    configuration.runtimeKernel,
-    exactClaimant,
-    participant,
-  );
 }
 
 /**
@@ -5109,7 +5089,6 @@ export function createManagedSurfaceStableCompositeRuntimeKernelInternalV1(input
   compositeRuntimeKernelConfigurationRecordsInternalV1.set(compositeKernel, {
     admissionAuthority,
     publisherLeaseRegistry,
-    runtimeKernel,
     applyPendingProjectionRefresh(
       exactClaimant,
       proposal,

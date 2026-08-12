@@ -150,10 +150,6 @@ import type { ManagedSurfaceRuntimeStateInstallParticipantInternalV1 as Forbidde
 import type { ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 as ForbiddenPublicRuntimePreparedStateInstallParticipantV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose prepared generic runtime state-install participants.
 import type { ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 as ForbiddenInternalRuntimePreparedStateInstallParticipantV1 } from "./internal.ts";
-// @ts-expect-error Generic runtime state-install participant claims stay source-relative.
-import type { claimManagedSurfaceRuntimeStateInstallParticipantInternalV1 as ForbiddenPublicRuntimeStateInstallParticipantClaimV1 } from "./index.ts";
-// @ts-expect-error The Host-only internal barrel does not expose generic runtime state-install participant claims.
-import type { claimManagedSurfaceRuntimeStateInstallParticipantInternalV1 as ForbiddenInternalRuntimeStateInstallParticipantClaimV1 } from "./internal.ts";
 // @ts-expect-error The generic runtime-kernel state adapter stays source-relative.
 import type { ManagedSurfaceRuntimeKernelStateAdapterInternalV1 as ForbiddenPublicRuntimeKernelStateAdapterV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose the runtime-kernel state adapter.
@@ -214,10 +210,6 @@ import type { ManagedSurfaceStableCompositeRuntimeKernelInternalV1 as ForbiddenI
 import type { ManagedSurfaceStableCompositeStateInstallParticipantInternalV1 as ForbiddenPublicStableCompositeStateInstallParticipantV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose stable composite state-install participants.
 import type { ManagedSurfaceStableCompositeStateInstallParticipantInternalV1 as ForbiddenInternalStableCompositeStateInstallParticipantV1 } from "./internal.ts";
-// @ts-expect-error Stable composite state-install participant claims stay source-relative.
-import type { claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1 as ForbiddenPublicStableCompositeStateInstallParticipantClaimV1 } from "./index.ts";
-// @ts-expect-error The Host-only internal barrel does not expose stable composite state-install participant claims.
-import type { claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1 as ForbiddenInternalStableCompositeStateInstallParticipantClaimV1 } from "./internal.ts";
 // @ts-expect-error Stable publisher disposal authority stays source-relative.
 import type { ManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1 as ForbiddenPublicStableDisposalAuthorityV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose stable publisher disposal authority.
@@ -1555,9 +1547,7 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "applyStableAdmissionProposalWithCommitGuardInternalV1"
       | "ManagedSurfaceRuntimeStateInstallParticipantInternalV1"
       | "ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1"
-      | "claimManagedSurfaceRuntimeStateInstallParticipantInternalV1"
       | "ManagedSurfaceStableCompositeStateInstallParticipantInternalV1"
-      | "claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1"
       | "bindManagedInputRouterFacadeInternalV1"
       | "NarrativeSurfaceHostPhysicalIngressContextInternalV1"
       | "RegisterNarrativeSurfaceHostPhysicalIngressInputInternalV1"
@@ -1961,7 +1951,6 @@ describe("@sillymaker/ui public managed System surface", () => {
         "createManagedSurfaceRuntimeKernelInternalV1",
         "ManagedSurfaceRuntimeStateInstallParticipantInternalV1",
         "ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1",
-        "claimManagedSurfaceRuntimeStateInstallParticipantInternalV1",
         "createManagedSurfaceCoordinatorRuntimeBundleInternalV1",
         "createManagedSurfaceStableCompositeStateInternalV1",
         "compareManagedSurfaceStableCompositePrivateProvenanceInternalV1",
@@ -1972,7 +1961,6 @@ describe("@sillymaker/ui public managed System surface", () => {
         "createManagedSurfaceTransientRuntimeKernelInternalV1",
         "createManagedSurfaceStableCompositeRuntimeKernelInternalV1",
         "ManagedSurfaceStableCompositeStateInstallParticipantInternalV1",
-        "claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1",
         "bindManagedInputRouterFacadeInternalV1",
         "NarrativeSurfaceHostPhysicalIngressContextInternalV1",
         "RegisterNarrativeSurfaceHostPhysicalIngressInputInternalV1",

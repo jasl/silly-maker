@@ -14,6 +14,20 @@
 - **2026-07-30** — 初版接受 [Snapshot integrity and Save migration plan](plans/2026-07-30-snapshot-integrity-and-save-migration.md)，作为 Snapshot 提交热路径第一步（性能契约 + digest 去重）与 Save migration track 的执行计划；同日后续审查将其标记 superseded 并拆为两个独立 promotion records。
 - **2026-07-30（路线图审查）** — 建立 [Production-floor execution sequence](plans/2026-07-30-production-floor-sequence.md)，把 Desktop、Snapshot 性能、Save migration 与 Managed Surface 改为可独立合并/回滚的切片：默认核心顺序从 Snapshot S0 开始；Desktop 目标为 macOS/Windows/Linux，当前 wrapper/file adapter 仍是 macOS preview，其 [durability plan](plans/2026-07-30-desktop-persistence-durability.md) 将 D0–D3 durability、D4 packaging 与 auto-update 分轴并按平台独立晋级，D4 在 target/output/report contract 定稿后不等待 D0–D3；只有“packaged app 使用 atomic persistence”的组合声明才同时引用两轨 evidence。Snapshot 与 Save 分别由 [commit-performance plan](plans/2026-07-30-snapshot-commit-performance.md) 和 [Save migration plan](plans/2026-07-30-save-migration.md) 承担；Surface 先做 package-internal kernel + Workspace Overlay pilot，再逐 family 迁移 System、Narrative/History 与独立的 whole-canvas primary/detail，之后才进入 structural/model/browser harness。PF6 不给普通 action 强加 universal envelope，但声明 presentation postcondition 的 action 必须组合分层 evidence，并在 UI 目标未成立时返回 `postcondition_failed`。Mod design 保持 incubation；PF7 不自动激活 M0–M2，仍需满足全部 activation gates 并接受新的 active plan。Story-local SLG/VN/卡牌玩法可与 production floor 并行；延后的是 engine-level genre packs。同期修复「应用即项目」的 workspace 目录/重复 application ID 验证、runtime/desktop static asset path/symlink 边界、records HTTP validation，收窄 pointer gesture fence 公共面，并允许 `manualSaveSlotCount: 0`。
 - **2026-07-31（公开仓库卫生）** — 正式能力证据收敛到原创 `examples/cat-cafe` 与正式测试；仓库外材料不能成为源码、测试、构建或 Artifact 依赖。
+- **2026-08-12（production-floor PF0–PF5 closeout）** — Snapshot performance、
+  authoritative determinism、composition-owned Managed Surface（Workspace Overlay、
+  System、Narrative/History、WholeCanvas）与 Save migration product surface 已完成。
+  Save closeout 包括按槽 inspection、bounded backup/recovery、Engine Lab State
+  revision 3/4/5 与 Cat Cafe revision 1 的 maintained byte corpus、四 runtime parity
+  以及真实 Browser recovery/download evidence。旧 production/surface 计划中的逐提交
+  微切片账本在 Complexity Reset 时退出 active authority；当前执行顺序只见精简后的
+  [production-floor sequence](plans/2026-07-30-production-floor-sequence.md)。
+- **2026-08-12（Complexity Reset CR0/CR1/CR2.1）** — active execution authority 收口为
+  约 200 行量级的 current/next/dependency/stop 文档，信任边界固定为 untrusted data、public
+  authoring 与 package-internal collaborator 三档。首个去堡垒化切片删除 runtime
+  state-install participant 的 WeakMap claim、exact claimant、frozen descriptor 与跨 kernel
+  ownership machinery，改用一次性 package-internal setter，同时保留 generation CAS、stale、
+  atomicity、terminal fencing 与 notification ordering。
 
 ## 2. Completed milestones
 

@@ -19,11 +19,11 @@ The public documentation site lives in `website/` (VitePress, English and Chines
 ## Accepted direction and active plans
 
 - [Engine roadmap](engine/roadmap.md) — accepted direction, remaining milestones, and continuous tracks; dated delivery history lives in the [roadmap archive](engine/roadmap-archive.md).
-- [Production-floor execution sequence](engine/plans/2026-07-30-production-floor-sequence.md) — the only cross-plan ordering entry; the core sequence starts with Snapshot S0, while desktop durability is a conditional promotion lane.
+- [Production-floor execution sequence](engine/plans/2026-07-30-production-floor-sequence.md) — the only cross-plan ordering entry; PF0–PF5 are complete and the current Complexity Reset precedes any PF6 reactivation, while desktop durability remains a conditional promotion lane.
 - [Desktop persistence durability plan](engine/plans/2026-07-30-desktop-persistence-durability.md) — independent Host-record conformance, crash/cross-process transaction backend, recovery, and real packaged-app promotion before desktop leaves preview.
 - [Snapshot commit performance plan](engine/plans/2026-07-30-snapshot-commit-performance.md) — baseline, digest/serialization reuse, and byte-equivalence gates.
 - [Save migration plan](engine/plans/2026-07-30-save-migration.md) — bounded envelope load order, migration registry, product path, and maintained fixtures.
-- [Managed Surface lifecycle plan](engine/plans/2026-07-30-surface-contract-harness.md) — pilot-first Coordinator migration, then System/Narrative and the verification harness.
+- [Managed Surface lifecycle plan](engine/plans/2026-07-30-surface-contract-harness.md) — concise live Surface contracts, Complexity Reset boundaries, and evidence-gated PF6 candidates; the completed micro-slice ledger is archived.
 - [Authoritative determinism guardrails plan](engine/plans/2026-07-31-authoritative-determinism-guardrails.md) — zero-state RNG repair, exact numeric import plus canonical bootstrap/command/evidence admission, simulation-closure diagnostics, isolated probes, and four-runtime parity.
 - [Managed Surface lifecycle and contract harness](engine/design/surface-contract-harness.md) — the accepted Surface contract behind the plan above.
 - [Authoritative simulation determinism boundary](engine/design/deterministic-simulation-boundary.md) — the accepted numeric, entropy, external-oracle, runtime-admission, and non-sandbox contract.

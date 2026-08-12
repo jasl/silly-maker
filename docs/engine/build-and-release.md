@@ -65,7 +65,14 @@ the application's own `vite.config.ts` from its directory — nothing selects a
 build switch. `dist-web/` is deployable static-hosting input; the build command
 does not itself publish it.
 
-Build output policy: dependencies split into stable `vendor`/`vendor-react` chunks (application and engine code stay in the entry chunk; all three sit well under the 500 kB warning line and the vendor chunks hash identically across applications for caching). Production output is minified and mangled by default (Vite's built-in minifier — the modern successor to the old "uglify" step); that is baseline code protection, not real obfuscation. Debug switches:
+Build output policy: dependencies split into `vendor`/`vendor-react` chunks
+while application and engine code stay in the entry chunk. Chunk size is a
+measured product trend, not an assumed 500 kB guarantee; the current release
+workflow does not enforce a bundle budget. The active Complexity Reset will add
+entry/preload/lazy and aggregate JS/CSS/assets reporting as raw and gzip bytes.
+Production output is minified and mangled by default (Vite's built-in minifier
+— the modern successor to the old "uglify" step); that is baseline code
+protection, not real obfuscation. Debug switches:
 
 ```sh
 deno task story build <app> --profile debug   # sourcemap + no minify in one flag

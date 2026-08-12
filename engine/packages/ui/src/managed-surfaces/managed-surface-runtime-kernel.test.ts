@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { parseNonNegativeSafeInteger } from "@sillymaker/base";
-import { describe, expect, expectTypeOf, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { parseManagedSurfaceOwnerIdV1 } from "./managed-surface-contracts.ts";
 import {
@@ -8,14 +8,11 @@ import {
   type ManagedSurfaceReducerStateV1,
 } from "./managed-surface-reducer.ts";
 import {
-  claimManagedSurfaceRuntimeStateInstallParticipantInternalV1,
   createManagedSurfaceRuntimeKernelInternalV1,
   type ManagedSurfaceRuntimeKernelInternalV1,
   type ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1,
   type ManagedSurfaceRuntimeStateInstallParticipantInternalV1,
 } from "./managed-surface-runtime-kernel.ts";
-
-type ExactKeysV1<TValue> = TValue extends unknown ? keyof TValue : never;
 
 interface RuntimeStateV1 {
   readonly transientState: ManagedSurfaceReducerStateV1;
@@ -62,19 +59,6 @@ interface ParticipantBundleV1 {
   readonly counts: ParticipantCountsV1;
   resetCounts(): void;
 }
-
-const malformedPreparedVariantsV1 = [
-  "unfrozen",
-  "extra",
-  "accessor",
-  "nonfunction",
-  "missing-validate",
-  "missing-commit",
-  "missing-abort",
-  "missing-complete",
-] as const;
-
-type MalformedPreparedVariantV1 = (typeof malformedPreparedVariantsV1)[number];
 
 const applicationEpochV1 = parseNonNegativeSafeInteger(73);
 const ownerIdV1 = parseManagedSurfaceOwnerIdV1("surface-owner.runtime-participant");
@@ -137,51 +121,28 @@ function createPreparedV1(
   context: PreparedContextV1,
   behavior: PreparedBehaviorV1 = {},
 ): ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 {
-  let prepared!: ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1;
-  const candidate = {
-    validateInternalV1(this: unknown): boolean {
-      if (this !== prepared) {
-        throw new TypeError(
-          "ui.managed_surface_runtime_state_install_participant_claim_invalid",
-        );
-      }
+  return {
+    validateInternalV1(): boolean {
       counts.validate += 1;
       fixture.trace.push("prepared:validate");
       return (behavior.validate?.(context) ?? true) as boolean;
     },
-    commitLogicalInternalV1(this: unknown): void {
-      if (this !== prepared) {
-        throw new TypeError(
-          "ui.managed_surface_runtime_state_install_participant_claim_invalid",
-        );
-      }
+    commitLogicalInternalV1(): void {
       counts.commit += 1;
       fixture.trace.push("prepared:commit");
       behavior.commit?.(context);
     },
-    abortInternalV1(this: unknown): void {
-      if (this !== prepared) {
-        throw new TypeError(
-          "ui.managed_surface_runtime_state_install_participant_claim_invalid",
-        );
-      }
+    abortInternalV1(): void {
       counts.abort += 1;
       fixture.trace.push("prepared:abort");
       behavior.abort?.(context);
     },
-    completeInstalledInternalV1(this: unknown): void {
-      if (this !== prepared) {
-        throw new TypeError(
-          "ui.managed_surface_runtime_state_install_participant_claim_invalid",
-        );
-      }
+    completeInstalledInternalV1(): void {
       counts.complete += 1;
       fixture.trace.push("prepared:complete");
       behavior.complete?.(context);
     },
-  } satisfies ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1;
-  prepared = Object.freeze(candidate);
-  return prepared;
+  };
 }
 
 function createParticipantV1(
@@ -200,18 +161,11 @@ function createParticipantV1(
     abort: 0,
     complete: 0,
   };
-  let participant!: ManagedSurfaceRuntimeStateInstallParticipantInternalV1<RuntimeStateV1>;
-  const candidate = {
+  const participant: ManagedSurfaceRuntimeStateInstallParticipantInternalV1<RuntimeStateV1> = {
     prepareStateInstallInternalV1(
-      this: unknown,
       previousState: RuntimeStateV1,
       nextState: RuntimeStateV1,
     ): ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 | null {
-      if (this !== participant) {
-        throw new TypeError(
-          "ui.managed_surface_runtime_state_install_participant_claim_invalid",
-        );
-      }
       counts.prepare += 1;
       fixture.trace.push("participant:prepare");
       const context: ParticipantPrepareContextV1 = Object.freeze({
@@ -223,8 +177,7 @@ function createParticipantV1(
       });
       return input.prepare === undefined ? context.createPrepared() : input.prepare(context);
     },
-  } satisfies ManagedSurfaceRuntimeStateInstallParticipantInternalV1<RuntimeStateV1>;
-  participant = Object.freeze(candidate);
+  };
   return Object.freeze({
     participant,
     counts,
@@ -238,82 +191,11 @@ function createParticipantV1(
   });
 }
 
-function createMalformedPreparedV1(
-  variant: MalformedPreparedVariantV1,
-  callbackTrace: string[],
-): ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 {
-  const candidate: Record<
-    keyof ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1,
-    unknown
-  > = {
-    validateInternalV1() {
-      callbackTrace.push("validate");
-      return true;
-    },
-    commitLogicalInternalV1() {
-      callbackTrace.push("commit");
-    },
-    abortInternalV1() {
-      callbackTrace.push("abort");
-    },
-    completeInstalledInternalV1() {
-      callbackTrace.push("complete");
-    },
-  };
-  if (variant === "unfrozen") {
-    return candidate as unknown as ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1;
-  }
-  if (variant === "extra") {
-    return Object.freeze({
-      ...candidate,
-      extraInternalV1: true,
-    }) as unknown as ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1;
-  }
-  if (variant === "accessor") {
-    Object.defineProperty(candidate, "validateInternalV1", {
-      configurable: true,
-      enumerable: true,
-      get() {
-        callbackTrace.push("accessor");
-        return (): boolean => true;
-      },
-    });
-    return Object.freeze(
-      candidate,
-    ) as unknown as ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1;
-  }
-  if (variant === "nonfunction") {
-    candidate.validateInternalV1 = true;
-    return Object.freeze(
-      candidate,
-    ) as unknown as ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1;
-  }
-  const missingMethod = variant === "missing-validate"
-    ? "validateInternalV1"
-    : variant === "missing-commit"
-    ? "commitLogicalInternalV1"
-    : variant === "missing-abort"
-    ? "abortInternalV1"
-    : "completeInstalledInternalV1";
-  Reflect.deleteProperty(candidate, missingMethod);
-  return Object.freeze(
-    candidate,
-  ) as unknown as ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1;
-}
-
-function claimParticipantV1(
+function setParticipantV1(
   fixture: KernelFixtureV1,
   bundle: ParticipantBundleV1,
-): object {
-  const claimant = Object.freeze({});
-  expect(
-    claimManagedSurfaceRuntimeStateInstallParticipantInternalV1(
-      fixture.kernel,
-      claimant,
-      bundle.participant,
-    ),
-  ).toBe(bundle.participant);
-  return claimant;
+): void {
+  fixture.kernel.setStateInstallParticipantInternalV1(bundle.participant);
 }
 
 function executeChangedPathV1(
@@ -394,53 +276,48 @@ function expectParticipantFailureV1(
 }
 
 describe("managed surface runtime state-install participant", () => {
-  it("exposes only the exact generic participant substrate", () => {
-    expectTypeOf<
-      ExactKeysV1<ManagedSurfaceRuntimeStateInstallParticipantInternalV1<unknown>>
-    >().toEqualTypeOf<"prepareStateInstallInternalV1">();
-    expectTypeOf<
-      ExactKeysV1<ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1>
-    >().toEqualTypeOf<
-      | "validateInternalV1"
-      | "commitLogicalInternalV1"
-      | "abortInternalV1"
-      | "completeInstalledInternalV1"
-    >();
+  it("fails fast when the one package-internal participant has no callable prepare", () => {
+    const fixture = createKernelFixtureV1();
 
-    expect(claimManagedSurfaceRuntimeStateInstallParticipantInternalV1).toBeTypeOf(
-      "function",
-    );
+    expect(() =>
+      fixture.kernel.setStateInstallParticipantInternalV1(
+        {} as ManagedSurfaceRuntimeStateInstallParticipantInternalV1<RuntimeStateV1>,
+      )
+    ).toThrowError("ui.managed_surface_runtime_state_install_participant_invalid");
+    expect(fixture.kernel.getStateInternalV1()).toBe(fixture.initialState);
+    expect(fixture.trace).toEqual([]);
   });
 
-  it.each(["unfrozen", "extra", "nonfunction"] as const)(
-    "rejects a %s participant claim without callbacks or state effects",
-    (variant) => {
-      const fixture = createKernelFixtureV1();
-      let prepareCalls = 0;
-      const prepareStateInstallInternalV1 = (): null => {
-        prepareCalls += 1;
-        return null;
-      };
-      const participant = variant === "unfrozen"
-        ? { prepareStateInstallInternalV1 }
-        : variant === "extra"
-        ? Object.freeze({ prepareStateInstallInternalV1, extraInternalV1: true })
-        : Object.freeze({ prepareStateInstallInternalV1: true });
+  it("accepts ordinary unfrozen participant and prepared objects with extra fields", () => {
+    const fixture = createKernelFixtureV1();
+    const trace: string[] = [];
+    const participant = {
+      description: "package-internal participant",
+      prepareStateInstallInternalV1() {
+        trace.push("prepare");
+        return {
+          description: "package-internal prepared value",
+          validateInternalV1() {
+            trace.push("validate");
+            return true;
+          },
+          commitLogicalInternalV1() {
+            trace.push("commit");
+          },
+          abortInternalV1() {
+            trace.push("abort");
+          },
+          completeInstalledInternalV1() {
+            trace.push("complete");
+          },
+        };
+      },
+    };
+    fixture.kernel.setStateInstallParticipantInternalV1(participant);
 
-      expect(() =>
-        claimManagedSurfaceRuntimeStateInstallParticipantInternalV1(
-          fixture.kernel,
-          Object.freeze({}),
-          participant as unknown as ManagedSurfaceRuntimeStateInstallParticipantInternalV1<
-            RuntimeStateV1
-          >,
-        )
-      ).toThrowError("ui.managed_surface_runtime_state_install_participant_claim_invalid");
-      expect(prepareCalls).toBe(0);
-      expect(fixture.kernel.getStateInternalV1()).toBe(fixture.initialState);
-      expect(fixture.trace).toEqual([]);
-    },
-  );
+    expect(executeChangedPathV1("state", fixture)).toBe("state-result");
+    expect(trace).toEqual(["prepare", "validate", "commit", "complete"]);
+  });
 
   it.each<AssignmentPathV1>(["transient", "state", "prepared"])(
     "keeps %s assignment ordered before notification and physical completion",
@@ -467,7 +344,7 @@ describe("managed surface runtime state-install participant", () => {
           });
         },
       });
-      claimParticipantV1(fixture, bundle);
+      setParticipantV1(fixture, bundle);
 
       fixture.kernel.subscribeTransientInternalV1(() => {
         fixture.trace.push("listener:transient");
@@ -529,7 +406,7 @@ describe("managed surface runtime state-install participant", () => {
   it("does not read the participant for previous-equals-next across all three paths", () => {
     const fixture = createKernelFixtureV1();
     const bundle = createParticipantV1(fixture);
-    claimParticipantV1(fixture, bundle);
+    setParticipantV1(fixture, bundle);
     const gateTrace: string[] = [];
 
     expect(fixture.kernel.transitionTransientInternalV1(Object.freeze({
@@ -560,7 +437,7 @@ describe("managed surface runtime state-install participant", () => {
     (path) => {
       const fixture = createKernelFixtureV1();
       const bundle = createParticipantV1(fixture, { prepare: () => null });
-      claimParticipantV1(fixture, bundle);
+      setParticipantV1(fixture, bundle);
 
       const result = executeChangedPathV1(path, fixture);
 
@@ -580,7 +457,7 @@ describe("managed surface runtime state-install participant", () => {
     const fixture = createKernelFixtureV1();
     const foreign = createKernelFixtureV1();
     const bundle = createParticipantV1(fixture);
-    claimParticipantV1(fixture, bundle);
+    setParticipantV1(fixture, bundle);
     const initialState = fixture.kernel.getStateInternalV1();
     const nextState = runtimeStateV1(initialState.transientState, 1);
     const token = fixture.kernel.prepareStateInstallInternalV1(initialState, nextState);
@@ -624,7 +501,7 @@ describe("managed surface runtime state-install participant", () => {
   it("detects prepared-token ABA before participant callback", () => {
     const fixture = createKernelFixtureV1();
     const bundle = createParticipantV1(fixture, { prepare: () => null });
-    claimParticipantV1(fixture, bundle);
+    setParticipantV1(fixture, bundle);
     const originalState = fixture.kernel.getStateInternalV1();
     const token = fixture.kernel.prepareStateInstallInternalV1(
       originalState,
@@ -676,7 +553,7 @@ describe("managed surface runtime state-install participant", () => {
           return prepared;
         },
       });
-      claimParticipantV1(fixture, bundle);
+      setParticipantV1(fixture, bundle);
 
       expectParticipantFailureV1(path, fixture, "stale");
 
@@ -707,7 +584,7 @@ describe("managed surface runtime state-install participant", () => {
           },
         },
       });
-      claimParticipantV1(fixture, bundle);
+      setParticipantV1(fixture, bundle);
 
       expectParticipantFailureV1(path, fixture, expectedKind);
 
@@ -724,7 +601,7 @@ describe("managed surface runtime state-install participant", () => {
   });
 
   it.each(["throw", "malformed"])(
-    "maps prepare %s as an unauthenticated participant fault on all three paths",
+    "contains prepare %s as a participant fault on all three paths",
     (variant) => {
       for (const path of ["transient", "state", "prepared"] as const) {
         const fixture = createKernelFixtureV1();
@@ -736,7 +613,7 @@ describe("managed surface runtime state-install participant", () => {
             ) as ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1;
           },
         });
-        claimParticipantV1(fixture, bundle);
+        setParticipantV1(fixture, bundle);
 
         expectParticipantFailureV1(path, fixture, "fault");
 
@@ -748,35 +625,6 @@ describe("managed surface runtime state-install participant", () => {
           abort: 0,
           complete: 0,
         });
-        expect(fixture.trace).not.toContain("adapter:finalize");
-      }
-    },
-  );
-
-  it.each(malformedPreparedVariantsV1)(
-    "rejects a %s prepared descriptor without authenticating callbacks",
-    (variant) => {
-      for (const path of ["transient", "state", "prepared"] as const) {
-        const fixture = createKernelFixtureV1();
-        const callbackTrace: string[] = [];
-        const bundle = createParticipantV1(fixture, {
-          prepare() {
-            return createMalformedPreparedV1(variant, callbackTrace);
-          },
-        });
-        claimParticipantV1(fixture, bundle);
-
-        expectParticipantFailureV1(path, fixture, "fault");
-
-        expect(fixture.kernel.getStateInternalV1()).toBe(fixture.initialState);
-        expect(bundle.counts).toEqual({
-          prepare: 1,
-          validate: 0,
-          commit: 0,
-          abort: 0,
-          complete: 0,
-        });
-        expect(callbackTrace).toEqual([]);
         expect(fixture.trace).not.toContain("adapter:finalize");
       }
     },
@@ -794,7 +642,7 @@ describe("managed surface runtime state-install participant", () => {
           },
         },
       });
-      claimParticipantV1(fixture, bundle);
+      setParticipantV1(fixture, bundle);
       fixture.kernel.subscribeTransientInternalV1(() => {
         notifications += 1;
       });
@@ -822,7 +670,7 @@ describe("managed surface runtime state-install participant", () => {
     (variant) => {
       const fixture = createKernelFixtureV1();
       const bundle = createParticipantV1(fixture);
-      claimParticipantV1(fixture, bundle);
+      setParticipantV1(fixture, bundle);
       const initialState = fixture.kernel.getStateInternalV1();
       const token = fixture.kernel.prepareStateInstallInternalV1(
         initialState,
@@ -873,7 +721,7 @@ describe("managed surface runtime state-install participant", () => {
       },
     });
     const bundle = createParticipantV1(fixture);
-    const claimant = claimParticipantV1(fixture, bundle);
+    setParticipantV1(fixture, bundle);
 
     expect(() => fixture.kernel.transitionTransientInternalV1({ kind: "dispose_coordinator" }))
       .toThrow(terminalError);
@@ -891,13 +739,6 @@ describe("managed surface runtime state-install participant", () => {
       "operation:terminal-gate",
       "prepared:abort",
     ]);
-    expect(
-      claimManagedSurfaceRuntimeStateInstallParticipantInternalV1(
-        fixture.kernel,
-        claimant,
-        bundle.participant,
-      ),
-    ).toBe(bundle.participant);
   });
 
   it("completes a listener-installed successor before the stale predecessor completion", () => {
@@ -911,7 +752,7 @@ describe("managed surface runtime state-install participant", () => {
         },
       },
     });
-    claimParticipantV1(fixture, bundle);
+    setParticipantV1(fixture, bundle);
     fixture.kernel.subscribeStateInternalV1(() => {
       const marker = fixture.kernel.getStateInternalV1().marker;
       fixture.trace.push(`listener:${marker}`);
@@ -956,7 +797,7 @@ describe("managed surface runtime state-install participant", () => {
         },
       },
     });
-    claimParticipantV1(fixture, bundle);
+    setParticipantV1(fixture, bundle);
     const listenerTrace: number[] = [];
     fixture.kernel.subscribeStateInternalV1(() => {
       listenerTrace.push(fixture.kernel.getStateInternalV1().marker);
@@ -974,12 +815,12 @@ describe("managed surface runtime state-install participant", () => {
     });
   });
 
-  it("fences the claim before terminal listeners and never replays participant completion", () => {
+  it("fences the participant before terminal listeners and never replays completion", () => {
     const fixture = createKernelFixtureV1();
     const bundle = createParticipantV1(fixture);
-    const claimant = claimParticipantV1(fixture, bundle);
+    setParticipantV1(fixture, bundle);
     const listenerTrace: string[] = [];
-    let claimFencedDuringListener = false;
+    let participantFencedDuringListener = false;
     fixture.kernel.subscribeTransientInternalV1(() => {
       listenerTrace.push("transient");
       fixture.trace.push("listener:transient");
@@ -988,14 +829,10 @@ describe("managed surface runtime state-install participant", () => {
       listenerTrace.push("state");
       fixture.trace.push("listener:state");
       try {
-        claimManagedSurfaceRuntimeStateInstallParticipantInternalV1(
-          fixture.kernel,
-          claimant,
-          bundle.participant,
-        );
+        fixture.kernel.setStateInstallParticipantInternalV1(bundle.participant);
       } catch (error) {
-        claimFencedDuringListener = error instanceof TypeError &&
-          error.message === "ui.managed_surface_runtime_state_install_participant_claim_invalid";
+        participantFencedDuringListener = error instanceof TypeError &&
+          error.message === "ui.managed_surface_runtime_state_install_participant_invalid";
       }
     });
 
@@ -1007,7 +844,7 @@ describe("managed surface runtime state-install participant", () => {
         afterTopologyRevision: 1,
       });
     expect(listenerTrace).toEqual(["transient", "state"]);
-    expect(claimFencedDuringListener).toBe(true);
+    expect(participantFencedDuringListener).toBe(true);
     expect(bundle.counts).toEqual({
       prepare: 1,
       validate: 1,
@@ -1018,13 +855,8 @@ describe("managed surface runtime state-install participant", () => {
     expect(fixture.trace.indexOf("prepared:complete")).toBeGreaterThan(
       fixture.trace.indexOf("listener:state"),
     );
-    expect(() =>
-      claimManagedSurfaceRuntimeStateInstallParticipantInternalV1(
-        fixture.kernel,
-        claimant,
-        bundle.participant,
-      )
-    ).toThrowError("ui.managed_surface_runtime_state_install_participant_claim_invalid");
+    expect(() => fixture.kernel.setStateInstallParticipantInternalV1(bundle.participant))
+      .toThrowError("ui.managed_surface_runtime_state_install_participant_invalid");
 
     bundle.resetCounts();
     listenerTrace.length = 0;
@@ -1035,28 +867,6 @@ describe("managed surface runtime state-install participant", () => {
       });
     expect(bundle.counts.prepare).toBe(0);
     expect(listenerTrace).toEqual([]);
-  });
-
-  it("permanently fences a terminal participant from transfer to another kernel", () => {
-    const firstFixture = createKernelFixtureV1();
-    const bundle = createParticipantV1(firstFixture);
-    claimParticipantV1(firstFixture, bundle);
-
-    expect(firstFixture.kernel.transitionTransientInternalV1({ kind: "dispose_coordinator" }))
-      .toMatchObject({
-        kind: "applied",
-        code: "surface.coordinator_disposed",
-      });
-
-    const secondFixture = createKernelFixtureV1();
-    expect(() =>
-      claimManagedSurfaceRuntimeStateInstallParticipantInternalV1(
-        secondFixture.kernel,
-        Object.freeze({}),
-        bundle.participant,
-      )
-    ).toThrowError("ui.managed_surface_runtime_state_install_participant_claim_invalid");
-    expect(bundle.counts.prepare).toBe(1);
   });
 
   it.each(["null", "throw", "malformed"])(
@@ -1086,7 +896,7 @@ describe("managed surface runtime state-install participant", () => {
             ) as ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1;
           },
         });
-        claimParticipantV1(fixture, bundle);
+        setParticipantV1(fixture, bundle);
 
         expectParticipantFailureV1(path, fixture, "stale");
 
@@ -1122,7 +932,7 @@ describe("managed surface runtime state-install participant", () => {
         });
       },
     });
-    const claimant = claimParticipantV1(fixture, bundle);
+    setParticipantV1(fixture, bundle);
     const kernelKeys = Reflect.ownKeys(fixture.kernel);
 
     for (let index = 0; index < 10_000; index += 1) {
@@ -1147,12 +957,5 @@ describe("managed surface runtime state-install participant", () => {
       complete: 10_000,
     });
     expect(Reflect.ownKeys(fixture.kernel)).toEqual(kernelKeys);
-    expect(
-      claimManagedSurfaceRuntimeStateInstallParticipantInternalV1(
-        fixture.kernel,
-        claimant,
-        bundle.participant,
-      ),
-    ).toBe(bundle.participant);
   });
 });

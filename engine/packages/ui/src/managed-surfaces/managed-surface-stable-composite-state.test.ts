@@ -34,7 +34,6 @@ import {
   type ManagedSurfaceStableDefinitionSidecarInternalV1,
 } from "./managed-surface-stable-admission.ts";
 import {
-  claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1,
   claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1,
   claimManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1,
   claimManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1,
@@ -3114,11 +3113,7 @@ describe("managed stable guarded admission apply", () => {
         return prepared;
       },
     });
-    claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
-      fixture.kernel,
-      Object.freeze({}),
-      participant,
-    );
+    fixture.kernel.setStateInstallParticipantInternalV1(participant);
     const proposal = evaluateStablePublicationV1({
       harness: fixture.harness,
       kernel: fixture.kernel,
@@ -3164,11 +3159,7 @@ describe("managed stable guarded admission apply", () => {
         return prepared;
       },
     });
-    claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
-      rejectedFixture.kernel,
-      Object.freeze({}),
-      rejectedParticipant,
-    );
+    rejectedFixture.kernel.setStateInstallParticipantInternalV1(rejectedParticipant);
     const rejectedProposal = evaluateStablePublicationV1({
       harness: rejectedFixture.harness,
       kernel: rejectedFixture.kernel,
@@ -8219,7 +8210,7 @@ describe("dormant stable publisher registration", () => {
   });
 });
 
-describe("stable composite state-install participant claim", () => {
+describe("stable composite state-install participant", () => {
   function claimFixtureV1() {
     const harness = harnessV1();
     const kernel = createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
@@ -8338,74 +8329,10 @@ describe("stable composite state-install participant claim", () => {
     ]);
   }
 
-  it("retains one exact participant and rejects a missing prepare method", () => {
-    expectTypeOf<ExactKeysV1<ManagedSurfaceStableCompositeStateInstallParticipantInternalV1>>()
-      .toEqualTypeOf<"prepareStateInstallInternalV1">();
-    expectTypeOf<
-      Parameters<typeof claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1>
-    >().toEqualTypeOf<
-      [
-        ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
-        object,
-        ManagedSurfaceStableCompositeStateInstallParticipantInternalV1,
-      ]
-    >();
-    expectTypeOf<
-      ReturnType<typeof claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1>
-    >().toEqualTypeOf<ManagedSurfaceStableCompositeStateInstallParticipantInternalV1>();
-
-    const harness = harnessV1();
-    const kernel = createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
-      admissionAuthority: harness.authority,
-      publisherLeaseRegistry: harness.registry,
-      initialTransientState: transientStateV1(),
-    });
-    const claimant = Object.freeze({});
-    const prepareStateInstallInternalV1 = vi.fn(() => null);
-    const participant = Object.freeze({ prepareStateInstallInternalV1 });
-
-    expect(
-      claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
-        kernel,
-        claimant,
-        participant,
-      ),
-    ).toBe(participant);
-    expect(
-      claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
-        kernel,
-        claimant,
-        participant,
-      ),
-    ).toBe(participant);
-    expect(Object.isFrozen(participant)).toBe(true);
-    expect(Reflect.ownKeys(participant)).toEqual(["prepareStateInstallInternalV1"]);
-    expect(prepareStateInstallInternalV1).not.toHaveBeenCalled();
-
-    const foreignHarness = harnessV1();
-    const foreignKernel = createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
-      admissionAuthority: foreignHarness.authority,
-      publisherLeaseRegistry: foreignHarness.registry,
-      initialTransientState: transientStateV1(),
-    });
-    expect(() =>
-      claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
-        foreignKernel,
-        Object.freeze({}),
-        Object.freeze({}) as ManagedSurfaceStableCompositeStateInstallParticipantInternalV1,
-      )
-    ).toThrow(TypeError);
-    expect(prepareStateInstallInternalV1).not.toHaveBeenCalled();
-  });
-
-  it("drives the claimed participant through the wrapped direct state transition", () => {
+  it("drives the participant through the wrapped direct state transition", () => {
     const { harness, kernel } = claimFixtureV1();
     const { participant, prepareStateInstallInternalV1 } = participantProbeV1();
-    claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
-      kernel,
-      Object.freeze({}),
-      participant,
-    );
+    kernel.setStateInstallParticipantInternalV1(participant);
     const before = kernel.getStateInternalV1();
     const next = reconcileV1(before, stableToggleCandidatesV1(harness));
 
@@ -8417,14 +8344,10 @@ describe("stable composite state-install participant claim", () => {
     expect(prepareStateInstallInternalV1).toHaveBeenLastCalledWith(before, next);
   });
 
-  it("drives the claimed participant through the wrapped prepared install", () => {
+  it("drives the participant through the wrapped prepared install", () => {
     const { harness, kernel } = claimFixtureV1();
     const { participant, prepareStateInstallInternalV1 } = participantProbeV1();
-    claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
-      kernel,
-      Object.freeze({}),
-      participant,
-    );
+    kernel.setStateInstallParticipantInternalV1(participant);
     const before = kernel.getStateInternalV1();
     const next = reconcileV1(before, stableToggleCandidatesV1(harness));
     const prepared = kernel.prepareStateInstallInternalV1(before, next);
@@ -8435,14 +8358,10 @@ describe("stable composite state-install participant claim", () => {
     expect(prepareStateInstallInternalV1).toHaveBeenLastCalledWith(before, next);
   });
 
-  it("drives the claimed participant through the wrapped transient transition", () => {
+  it("drives the participant through the wrapped transient transition", () => {
     const { kernel } = claimFixtureV1();
     const { participant, prepareStateInstallInternalV1 } = participantProbeV1();
-    claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
-      kernel,
-      Object.freeze({}),
-      participant,
-    );
+    kernel.setStateInstallParticipantInternalV1(participant);
     const before = kernel.getStateInternalV1();
     const coordinator = createManagedSurfaceCoordinatorFacadeInternalV1(kernel);
 
@@ -8464,124 +8383,11 @@ describe("stable composite state-install participant claim", () => {
     expect(prepareStateInstallInternalV1).toHaveBeenLastCalledWith(before, next);
   });
 
-  it("rejects competing and malformed claims without reading foreign objects", () => {
-    const { kernel } = claimFixtureV1();
-    const claimant = Object.freeze({});
-    const { participant, prepareStateInstallInternalV1 } = participantProbeV1();
-    claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
-      kernel,
-      claimant,
-      participant,
-    );
-
-    const claimantTrap = vi.fn();
-    const secondClaimant = new Proxy(Object.freeze({}), {
-      get() {
-        claimantTrap();
-        throw new Error("second claimant read");
-      },
-      getOwnPropertyDescriptor() {
-        claimantTrap();
-        throw new Error("second claimant descriptor read");
-      },
-      ownKeys() {
-        claimantTrap();
-        throw new Error("second claimant enumerated");
-      },
-    });
-    expect(() =>
-      claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
-        kernel,
-        secondClaimant,
-        participant,
-      )
-    ).toThrow(TypeError);
-    expect(claimantTrap).not.toHaveBeenCalled();
-
-    const participantTrap = vi.fn();
-    const differentParticipant = new Proxy(participantProbeV1().participant, {
-      get() {
-        participantTrap();
-        throw new Error("different participant read");
-      },
-      getOwnPropertyDescriptor() {
-        participantTrap();
-        throw new Error("different participant descriptor read");
-      },
-      ownKeys() {
-        participantTrap();
-        throw new Error("different participant enumerated");
-      },
-    });
-    expect(() =>
-      claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
-        kernel,
-        claimant,
-        differentParticipant,
-      )
-    ).toThrow(TypeError);
-    expect(participantTrap).not.toHaveBeenCalled();
-
-    const fakeKernelTrap = vi.fn();
-    const fakeKernel = new Proxy(
-      Object.freeze({}) as ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
-      {
-        get() {
-          fakeKernelTrap();
-          throw new Error("fake kernel read");
-        },
-        getOwnPropertyDescriptor() {
-          fakeKernelTrap();
-          throw new Error("fake kernel descriptor read");
-        },
-        ownKeys() {
-          fakeKernelTrap();
-          throw new Error("fake kernel enumerated");
-        },
-      },
-    );
-    expect(() =>
-      claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
-        fakeKernel,
-        claimant,
-        participant,
-      )
-    ).toThrow(TypeError);
-    expect(fakeKernelTrap).not.toHaveBeenCalled();
-
-    const accessorRead = vi.fn();
-    const malformedParticipant = Object.freeze(
-      Object.defineProperty({}, "prepareStateInstallInternalV1", {
-        configurable: false,
-        enumerable: true,
-        get() {
-          accessorRead();
-          throw new Error("participant accessor read");
-        },
-      }),
-    ) as ManagedSurfaceStableCompositeStateInstallParticipantInternalV1;
-    const fresh = claimFixtureV1();
-    expect(() =>
-      claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
-        fresh.kernel,
-        Object.freeze({}),
-        malformedParticipant,
-      )
-    ).toThrow(TypeError);
-    expect(accessorRead).not.toHaveBeenCalled();
-    expect(prepareStateInstallInternalV1).not.toHaveBeenCalled();
-  });
-
-  it("completes the first terminal install once and permanently fences re-claim", () => {
+  it("completes the first terminal install once and permanently fences the participant", () => {
     const { kernel } = claimFixtureV1();
     const trace: string[] = [];
-    const claimant = Object.freeze({});
     const lifecycle = lifecycleParticipantProbeV1({ trace });
-    claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
-      kernel,
-      claimant,
-      lifecycle.participant,
-    );
+    kernel.setStateInstallParticipantInternalV1(lifecycle.participant);
     kernel.subscribeTransientInternalV1(() => trace.push("listener:transient"));
     kernel.subscribeStateInternalV1(() => trace.push("listener:state"));
 
@@ -8608,29 +8414,8 @@ describe("stable composite state-install participant claim", () => {
     ]);
     expect(lifecycle.getActivePrepared()).toBe(0);
 
-    const participantTrap = vi.fn();
-    const unreadParticipant = new Proxy(participantProbeV1().participant, {
-      get() {
-        participantTrap();
-        throw new Error("post-terminal participant read");
-      },
-      getOwnPropertyDescriptor() {
-        participantTrap();
-        throw new Error("post-terminal participant descriptor read");
-      },
-      ownKeys() {
-        participantTrap();
-        throw new Error("post-terminal participant enumerated");
-      },
-    });
-    expect(() =>
-      claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
-        kernel,
-        claimant,
-        unreadParticipant,
-      )
-    ).toThrow(TypeError);
-    expect(participantTrap).not.toHaveBeenCalled();
+    expect(() => kernel.setStateInstallParticipantInternalV1(lifecycle.participant))
+      .toThrow(TypeError);
 
     expect(kernel.transitionTransientInternalV1({ kind: "dispose_coordinator" })).toEqual({
       kind: "unchanged",
@@ -8667,11 +8452,7 @@ describe("stable composite state-install participant claim", () => {
         }));
       },
     });
-    claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
-      kernel,
-      Object.freeze({}),
-      lifecycle.participant,
-    );
+    kernel.setStateInstallParticipantInternalV1(lifecycle.participant);
     const initial = kernel.getStateInternalV1();
     const outerNext = reconcileV1(initial, stableToggleCandidatesV1(harness));
     let nestedNext!: ManagedSurfaceStableCompositeStateInternalV1;
@@ -8731,27 +8512,14 @@ describe("stable composite state-install participant claim", () => {
     expect(lifecycle.getActivePrepared()).toBe(0);
   });
 
-  it("keeps one retained claim and one active prepared participant across 10,000 installs", () => {
+  it("keeps one active prepared participant across 10,000 installs", () => {
     const { harness, kernel } = claimFixtureV1();
-    const claimant = Object.freeze({});
     const lifecycle = lifecycleParticipantProbeV1({ trace: null });
-    expect(
-      claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
-        kernel,
-        claimant,
-        lifecycle.participant,
-      ),
-    ).toBe(lifecycle.participant);
+    kernel.setStateInstallParticipantInternalV1(lifecycle.participant);
     const populated = stableToggleCandidatesV1(harness);
     const empty = Object.freeze([]);
 
     for (let index = 0; index < 10_000; index += 1) {
-      const retained = claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
-        kernel,
-        claimant,
-        lifecycle.participant,
-      );
-      if (retained !== lifecycle.participant) throw new Error("participant claim identity drifted");
       kernel.transitionStateInternalV1((currentState) =>
         Object.freeze({
           state: reconcileV1(currentState, index % 2 === 0 ? populated : empty),
@@ -8769,9 +8537,6 @@ describe("stable composite state-install participant claim", () => {
     });
     expect(lifecycle.getMaxActivePrepared()).toBe(1);
     expect(lifecycle.getActivePrepared()).toBe(0);
-    expect(Reflect.ownKeys(lifecycle.participant)).toEqual([
-      "prepareStateInstallInternalV1",
-    ]);
     expect(kernel.getStateInternalV1().rootReservationContributors).toEqual([]);
   }, 120_000);
 });

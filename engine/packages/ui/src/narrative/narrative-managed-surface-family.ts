@@ -73,7 +73,6 @@ import {
   claimManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1,
   claimManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1,
   claimManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1,
-  claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1,
   claimManagedSurfaceStableActionRouteAuthorityInternalV1,
   matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1,
   type ManagedSurfaceStableActionRouteAuthorityInternalV1,
@@ -1199,7 +1198,6 @@ interface NarrativeStableHistoryChildFamilyClaimRecordInternalV1 {
     ManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1;
   readonly lifecycleAuthority:
     ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1;
-  readonly stateInstallParticipant: ManagedSurfaceStableCompositeStateInstallParticipantInternalV1;
 }
 
 interface NarrativeStableHistoryChildLifecycleRecordInternalV1 {
@@ -3608,18 +3606,13 @@ function claimNarrativeStableHistoryChildFamilyAuthorityInternalV1(
     );
   const stateInstallParticipant =
     createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(kernel);
-  claimManagedSurfaceStableCompositeStateInstallParticipantInternalV1(
-    kernel,
-    claimant,
-    stateInstallParticipant,
-  );
+  kernel.setStateInstallParticipantInternalV1(stateInstallParticipant);
   const record = freezeNarrativePhysicalActionDataInternalV1({
     claimant,
     authority,
     readinessAuthority,
     actionAuthority,
     lifecycleAuthority,
-    stateInstallParticipant,
   });
   narrativeStableHistoryChildFamilyClaimsInternalV1.set(kernel, record);
   return authority;

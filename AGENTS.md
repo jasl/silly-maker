@@ -21,17 +21,19 @@ Read only the documents relevant to the change:
 - `docs/engine/design/**` — accepted target contracts that are not necessarily
   implemented yet.
 - `docs/engine/plans/2026-07-30-production-floor-sequence.md` — the only
-  cross-plan execution order. The default core sequence starts with Snapshot
-  performance; Desktop persistence is an independent promotion gate while the
-  adapter remains preview. Agents take one mergeable slice at a time; do not
-  combine those authorities into one refactor.
+  cross-plan execution order. PF0–PF5 are complete; the current Complexity
+  Reset removes disproportionate package-internal defenses, adds real
+  performance evidence, and returns to an author-facing product vertical before
+  deciding whether PF6 should resume. Desktop persistence remains an independent
+  promotion gate while the adapter is preview.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,
   `docs/engine/plans/2026-07-30-snapshot-commit-performance.md`,
   `docs/engine/plans/2026-07-30-save-migration.md`,
   `docs/engine/plans/2026-07-30-surface-contract-harness.md`, and
   `docs/engine/plans/2026-07-31-authoritative-determinism-guardrails.md` —
-  current focused production-floor task order and acceptance; do not infer that
-  list order makes the conditional Desktop lane a blocker for the core sequence.
+  focused contracts and completed evidence. Only the production-floor sequence
+  owns current/next order; do not infer that list order or a historical pointer
+  makes the conditional Desktop lane a core blocker.
 - `docs/engine/plans/2026-07-19-sillymaker-vnext-foundations.md` and
   `docs/engine/plans/2026-07-28-sillymaker-r5-r7.md` — completed execution
   records whose defer/acceptance notes remain useful historical evidence;
@@ -127,6 +129,32 @@ documented migration path.
   scripts whose only purpose is to enforce a plan phase, task commit, exact file
   inventory, command order, clean Git tree, host attestation, or frozen
   provisional balance output.
+- Apply defensive validation in proportion to the trust boundary:
+  - bytes, files, URLs, HTTP payloads, Save data, cross-process records, and
+    other untrusted input keep strict bounds, canonical validation, atomic
+    failure, and stable diagnostics;
+  - public Story/authoring input is validated and normalized once at admission,
+    then consumed as ordinary typed data;
+  - package-internal collaborators are trusted TypeScript construction. Do not
+    add WeakMap authenticity brands, exact-claimant tokens, repeated descriptor
+    admission, captured language intrinsics, or Proxy/monkey-patch defenses for
+    them unless a real stale/ABA, cross-owner, public-boundary, or reproduced bug
+    requires it.
+- Use identity tokens and WeakMap proofs for concrete ownership/currentness
+  problems, not as a default object model. Preserve generation fencing, CAS,
+  single authority, atomic commit, and deterministic replay where those are
+  observable product invariants.
+- Treat the delivered authoritative-determinism checker as scope-frozen. Do not
+  extend syntax proofs, diagnostic precedence, or hypothetical capability
+  escapes unless authoritative code exposes a reproducible false negative or
+  false positive. A concrete regression may justify the smallest correction;
+  completeness alone does not.
+- Stop an implementation goal for unresolved public/wire compatibility,
+  Save/digest/replay semantics, authority/atomicity, an actual security boundary,
+  conflicting real consumers, or a measured production-performance failure. Private
+  helper shape, diagnostic precedence, test decomposition, and equally safe
+  internal designs are implementation choices; choose the simplest fail-fast
+  option and continue.
 - Prefer focused tests near the changed behavior, then run the relevant broader
   command. Regenerate a fixture only when it represents a maintained product
   format or user-visible compatibility contract.
@@ -137,7 +165,11 @@ documented migration path.
   avoid `Math.random()` there.
 - Update the active technical documentation when package roles, public exports,
   state ownership, persistence, Story authoring, build output, or supported
-  workflows change.
+  workflows change. Keep active execution plans focused on current/next work,
+  dependencies, acceptance, and stop conditions; move completed delivery detail
+  to an archive. Use at most two slice-numbering levels and at most one
+  docs-only entry before implementation rather than recursively adjudicating
+  every internal choice.
 
 ## Product and Story work
 
