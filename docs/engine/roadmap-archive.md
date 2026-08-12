@@ -4,6 +4,15 @@
 
 ## 1. Delivery and acceptance history
 
+- **2026-08-13（Complexity Reset 与 PF7 完成）** — CR2 按 proportional trust 删除
+  Managed Surface/Narrative package-internal captured brands、重复 look-alike proofs 与无生产
+  consumer comparator，并只拆出有清晰叶边界的 Narrative 模块；public/wire/Save/digest/replay
+  与 currentness/atomicity 保持。CR3 建立 Stable、Narrative、WholeCanvas、Player 与 bundle
+  的 trend-only 性能入口。CR4 在 Cat Cafe DevDock 交付覆盖全部 10 个节点、两条 choice
+  路线的 detached Stage preview；它不取得 Session 或 semantic writer。真实使用没有产生新的
+  public authoring gap 或第二消费者，PF6 broad harness 因此不激活。PF7 在 Deno 2.9.5 上完成
+  canonical、Save corpus、Deno/Chromium/Firefox/WebKit determinism、两款 Story `@save`、
+  prebuilt 与性能复审；Desktop production、Mod、compiler、genre pack 和通用 editor 仍未激活。
 - **2026-07-19** — 接受连续演进方向（R0 设计基线完成）；R1–R4 随 [vNext foundations plan](plans/2026-07-19-sillymaker-vnext-foundations.md) 实现并进入 feature list（含 Engine Conformance 垂直切片、AI authoring canaries 与 PoC 的 Composer 迁移）。
 - **2026-07-28** — R5 的 Timeline、R6 的 1–2 步（DevTools 数据面）与 R7 玩家回滚按 [R5–R7 执行计划](plans/2026-07-28-sillymaker-r5-r7.md) 实现并进入 feature list；该计划的 defer 表（keyframes、onLifecycle、受约束场景图、R6.3–6.5 编辑器、R8 媒体 adapter 等）记录未做部分及其激活条件。内容数据库、语义舞台命中区域与 Host 元进度命名空间随原创《雨巷猫舍》示例交付（`examples/cat-cafe`，见计划的缺口交付记录）。《雨巷猫舍》升格为旗舰示例：完整可玩游戏（标题屏、设置基线、运行时资产管线、竞赛/图鉴/结局演出、后日谈、双语），并交付一步桌面打包 preview（`story desktop`，macOS `.app`、图标与文件存档；后续审查补充了 durable transaction/platform promotion gate）。
 - **2026-07-28（晚间批次）** — 以《雨巷猫舍》为第二真实消费者落地：R8 音频第一刀（`GameAudioV1` 组件、真实 MP3 场景 BGM/环境声/一次性音效、设置音量联动）、VN 播放 QoL（打字机/自动/快进/历史回看，偏好持久化）、R7 rollback 产品策略（开赛/结局确认为硬边界、HUD 一步回退、防重掷证明）；系统菜单收敛为单模态路由（保存/设置互斥、存档安全点、标题屏载入存档）。

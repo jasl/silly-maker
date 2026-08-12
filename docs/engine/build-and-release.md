@@ -193,6 +193,28 @@ payload behavior only. The browser does not promise the final filesystem suffix;
 Desktop collision handling and process-crash durability keep their separate
 promotion gates.
 
+### 2026-08-13 core/web stabilization
+
+PF7 closed the default core/web production floor on latest stable Deno 2.9.5.
+The exact release floor passed the fresh canonical check (271 files / 4,690
+tests, assets, five Story checks, Engine Lab 417-module build), the four-file
+Save/current-load selection (57 tests), Deno plus Chromium/Firefox/WebKit
+determinism, both Story `@save` flows in all three browsers, file-level prebuilt
+smokes, and the Engine Lab Chromium prebuilt suite (44/44).
+
+The clean-HEAD bundle reports remain trend evidence. Engine Lab's largest entry
+is 922,550 raw / 214,643 gzip bytes; Cat Cafe's largest preload is 1,034,689 /
+242,838. Both exceed Vite's advisory 500 kB raw warning. This is an explicit
+code-splitting and download-size optimization lead, not a compatibility failure
+or a machine-bound release threshold. Cat Cafe also carries about 4.72 MB of
+runtime media assets (about 4.61 MB gzip); those product assets, browser cache,
+and lazy/preload policy should be reviewed separately from engine JavaScript.
+
+No package public export was added during Complexity Reset, CR3, or CR4, so
+there is no newly promoted ABI awaiting a second consumer. Desktop JSON-file
+persistence, multi-process/crash durability, packaging, and final filesystem
+download naming retain their separate preview/promotion boundaries.
+
 ## Desktop save server (preview local persistence channel)
 
 `deno task desktop:save-server --dist <app>/dist-web --saves <dir> --port 41800` serves a built Player bundle from one fixed loopback port and owns a save directory behind `/sillymaker/records`. Pages started with `?records=local` use `createHttpHostRecordStoreV1` instead of per-origin IndexedDB. The endpoint accepts only the bounded records protocol: same-origin JSON commits, validated namespaces/keys/revisions/base64, and GET-only record reads; the static side only accepts GET/HEAD and rejects malformed, traversing, or symlinked paths. This query-selected server is a trusted local development channel, not the packaged Desktop private-route authority; do not expose it to untrusted pages or treat its fixed port as authorization.

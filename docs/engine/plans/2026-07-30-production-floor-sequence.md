@@ -1,8 +1,8 @@
 # Production-floor execution sequence
 
-状态：2026-08-13，PF0–PF5 与 Complexity Reset 的 CR0、CR1、CR2.1–CR2.5、CR3、CR4
+状态：2026-08-13，PF0–PF7 与 Complexity Reset 的 CR0、CR1、CR2.1–CR2.5、CR3、CR4
 已完成。CR4 的真实作者纵切没有暴露需要通用 PF6 harness 解决的问题，PF6 已重新裁决为
-不激活；当前默认核心节点是 PF7 release stabilization。
+不激活。当前没有自动激活的默认核心节点。
 
 本文是唯一跨计划排序入口。它只保留 current、next、依赖、验收与 stop conditions。
 旧版逐提交 delivery ledger 已退出 active authority；完成里程碑摘要在
@@ -12,7 +12,7 @@
 
 当前：
 
-1. PF7 — release stabilization。
+1. 无。新的默认核心工作必须由真实产品证据和新的 active plan 明确接受。
 
 后续默认顺序：
 
@@ -202,7 +202,7 @@ simulate 或 Story-local preview 无法处理的作者问题；当前也只有�
 
 ## 6. PF7 — Release stabilization
 
-PF7 当前执行；PF6 已重新裁决为不激活：
+PF7 已于 2026-08-13 完成；PF6 已重新裁决为不激活：
 
 - latest stable Deno 上运行 canonical check；
 - 运行 affected browser/prebuilt、Save corpus 与 four-runtime determinism matrix；
@@ -214,6 +214,27 @@ PF7 当前执行；PF6 已重新裁决为不激活：
 
 PF7 不自动激活 Mod、content compiler、genre pack、advanced renderer 或 Desktop production
 claim。
+
+最终 stabilization evidence：
+
+- latest stable Deno 为 2.9.5；`deno upgrade --dry-run` 确认没有更新版本；fresh canonical
+  `deno task check` 为 format 970 files、unit 271 files / 4,690 tests、assets、五个 Story
+  checks 与 Engine Lab 417-module release build 全绿；
+- maintained Save corpus/current-load 为 4 files / 57 tests；Deno authoritative matrix 为
+  1 file / 3 tests，Chromium/Firefox/WebKit 各两次共 6/6；
+- Engine Lab 与 Cat Cafe 的 `@save` 均在 Chromium/WebKit/Firefox 3/3；Engine Lab 与 Cat
+  Cafe file-level prebuilt smoke 全绿，Engine Lab 完整 Chromium prebuilt suite 44/44；CR4
+  detached preview 的 Chromium/WebKit 代表流程各 1/1；
+- clean-HEAD performance review 重跑 Stable 30-row workload 与 Chromium fresh-context
+  3/3。Engine Lab 最大 entry 为 922,550 raw / 214,643 gzip bytes；Cat Cafe 最大 preload
+  为 1,034,689 / 242,838。Vite 500 kB warning 与拆包优化保留为产品限制，不提升为机器绑定
+  hard gate；
+- 从 PF5 完成点到 PF7 的 public barrel/package exports 没有新增入口。CR2 删除的均是
+  source-relative private claim/brand/matcher，CR3 是 benchmark task，CR4 是 Story-local
+  tooling；因此本轮没有未经第二消费者证明的新 public ABI。未完成的 PF6 manifest/scaffold
+  也不存在；
+- Desktop JSON file persistence、packaging 与跨平台 durability 仍是独立 preview lane；本次
+  不宣称 Desktop production、Mod、compiler、genre pack 或通用 editor/harness。
 
 ## 7. Independent Desktop promotion lane
 

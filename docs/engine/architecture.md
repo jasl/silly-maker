@@ -1,9 +1,14 @@
 # SillyMaker architecture
 
-状态：持续维护的现状文档。最后结构性复核：2026-08-12。
+状态：持续维护的现状文档。最后结构性复核：2026-08-13。
 
 本文描述当前实现的主要边界和数据流。它不是冻结 ABI；修改包职责、权威状态、Story
 组合、持久化格式或公开入口时，应同时更新本文、相应类型和行为测试。
+
+默认 web/core production floor 已完成 PF0–PF7 stabilization。Complexity Reset 只简化
+package-internal collaboration 并拆出清晰叶模块，没有改变 workspace public exports、Save/wire
+或 authoritative semantics；PF6 broad harness 经 Cat Cafe 真实作者纵切复审后没有激活。
+当前没有自动激活的默认核心实现节点，Desktop durability/packaging 仍是独立 preview lane。
 
 ## 1. System context
 

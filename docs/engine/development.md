@@ -589,6 +589,23 @@ seam. Browser runners consume this facade rather than copying or sorting a new o
 The expected module must never derive order from `localeCompare`, `Intl`, the
 implementation comparator, or current Host locale.
 
+## Current core/web stabilization record
+
+The 2026-08-13 PF7 local stabilization ran on latest stable Deno 2.9.5. The
+fresh canonical gate passed 271 unit-test files / 4,690 tests, assets, all five
+Story checks, and the Engine Lab release build. The maintained Save/current-load
+selection passed 4 files / 57 tests; the authoritative matrix passed its Deno
+suite and two repeats in each of Chromium, Firefox, and WebKit. Both Engine Lab
+and Cat Cafe passed their `@save` flows in all three browsers, and the Engine
+Lab prebuilt suite passed 44/44. Raw machine reports stayed in OS temporary
+directories.
+
+This record does not add a Deno patch pin, browser revision promise, Git-state
+test, or performance threshold. It also does not promote Desktop durability or
+packaging. The build still reports large-chunk warnings; use the CR3 bundle and
+browser trends to guide later code splitting, and require comparable repeated
+evidence before proposing a budget.
+
 ## Dependencies and toolchain
 
 - Add dependencies at the narrowest package that uses them and keep versions exact.

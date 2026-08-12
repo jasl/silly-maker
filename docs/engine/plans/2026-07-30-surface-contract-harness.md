@@ -2,7 +2,7 @@
 
 状态：S0–S4b 已完成，Workspace Overlay、System、Narrative/History 与 WholeCanvas 已由
 composition-owned authority 生产化。Complexity Reset CR2–CR4 已完成；CR4 的真实消费者
-没有证明需要重启 PF6 泛化，因此 PF6 维持暂停。当前顺序只由
+没有证明需要重启 PF6 泛化，因此 PF6 维持暂停；PF7 stabilization 也已完成。当前顺序只由
 [production-floor sequence](2026-07-30-production-floor-sequence.md) 决定。
 
 旧版本文包含 S0–S4b 的逐提交 delivery ledger 和递归 docs-only 切片。它们已退出 active

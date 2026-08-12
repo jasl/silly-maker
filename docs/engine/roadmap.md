@@ -76,7 +76,8 @@ backup/recovery、maintained release corpus 与 promotion 也已完成。当前�
 建立 Managed Surface/Narrative/WholeCanvas 与 Player 的真实性能趋势，并交付 Cat Cafe
 detached Narrative/Stage preview。该真实作者纵切由现有 Story-local projection 与
 `SemanticStageTargetHostV1` 完整解决，没有产生新的公共 authoring gap 或第二消费者；因此
-PF6/S5 broad harness 复审后仍不激活。当前默认 core 节点是 **PF7 release stabilization**。
+PF6/S5 broad harness 复审后仍不激活。PF7 现已完成；当前没有自动激活的默认 core 节点。
+新工作必须由真实产品证据和新的 active plan 接受。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实
@@ -218,8 +219,8 @@ composition-owned Managed Surface authority，没有平行 writable lifecycle。
 authority；Engine Lab、template、Bookshop、Cat Cafe 已迁移，SillyOS 显式省略。
 WholeCanvas 通过公开 definition 或 narrow application source 进入同一 kernel；
 Splash/Title 属于 package front door，Cat Cafe ending 与 Engine Lab opt-in route 是两名
-消费者，SillyOS 继续省略。S4b.1c 与 PF5/M3 均已完成；当前 core work 是任何
-PF6/S5 reactivation 之前的 Complexity Reset，而不是 broad S5 runtime implementation。当前顺序只由
+消费者，SillyOS 继续省略。S4b.1c、PF5/M3、Complexity Reset 与 PF7 stabilization 均已
+完成；PF6/S5 broad harness 经真实作者纵切复审后没有激活。当前顺序只由
 [production-floor sequence](plans/2026-07-30-production-floor-sequence.md) 拥有。
 
 ## 8. Strategic track D — content platform and creator tooling

@@ -4,6 +4,12 @@
 
 本页回答“引擎现在能做什么”。维护中的参考应用：Engine Lab（`e2e`，引擎一致性验证）、起点模板（`template`，新游戏的最小可玩起点）与收编示例（`examples/*`）——旗舰是完整可玩的《雨巷猫舍》（`example-cat-cafe`）。首个 PoC 应用已随 V1 场景系统移除（备份分支 `archive/poc-v1-stage-2026-07`）。
 
+截至 2026-08-13，默认 web/core PF0–PF7 已完成 stabilization：maintained Save corpus、
+四 runtime determinism、Engine Lab prebuilt、两款 Story 的 recovery browser flow 与当前 Story
+checks 均通过。PF6 broad harness 没有因 Cat Cafe 的 Story-local preview 产生新的激活证据，
+当前也没有新增 public authoring ABI。Desktop file persistence/packaging、通用 editor、Mod 与
+genre/compiler work 仍不在这项 production claim 内。
+
 ## Story authoring and resolution
 
 - Typed `GamePackage`, `GameSimulation`, and `GameplayModule` definitions.
