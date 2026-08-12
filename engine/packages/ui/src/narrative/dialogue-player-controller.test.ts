@@ -8,25 +8,17 @@ import {
   parseManagedSurfaceActionIdV1,
   parseManagedSurfaceGestureIdV1,
 } from "../managed-surfaces/managed-surface-contracts.ts";
-import { createManagedSurfaceReducerStateV1 } from "../managed-surfaces/managed-surface-reducer.ts";
-import {
-  createManagedSurfaceStableAdmissionAuthorityInternalV1,
-  type ManagedSurfaceStableAdmissionAuthorityInternalV1,
-} from "../managed-surfaces/managed-surface-stable-admission.ts";
+import { createManagedSurfaceCompositeKernelBundleInternalV1 } from "../managed-surfaces/managed-surface-composite-kernel-bundle.ts";
+import type { ManagedSurfaceStableAdmissionAuthorityInternalV1 } from "../managed-surfaces/managed-surface-stable-admission.ts";
 import type { ManagedSurfaceStableAdmittedTargetInternalV1 } from "../managed-surfaces/managed-surface-stable-contract.ts";
 import {
-  createManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   createManagedSurfaceStableReadyRuntimeBindingInternalV1,
   reconcileManagedSurfaceStableRootReservationsInternalV1,
   type ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   type ManagedSurfaceStableRootReservationContributorCandidateInternalV1,
   type ManagedSurfaceStableRuntimeEntryInternalV1,
 } from "../managed-surfaces/managed-surface-stable-composite-state.ts";
-import {
-  createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1,
-  createManagedSurfaceStablePublisherLeaseRegistryInternalV1,
-  type ManagedSurfaceStablePublisherLeaseRegistryInternalV1,
-} from "../managed-surfaces/managed-surface-stable-publisher-lease.ts";
+import type { ManagedSurfaceStablePublisherLeaseRegistryInternalV1 } from "../managed-surfaces/managed-surface-stable-publisher-lease.ts";
 import {
   createNarrativeStableDialoguePlayerControllerInternalV1,
   type CreateNarrativeStableDialoguePlayerControllerInputInternalV1,
@@ -285,25 +277,17 @@ function dialoguePlayerHarnessV1(input: {
   readonly semanticDispatchPort?: NarrativeStableSemanticResolutionPortInternalV1;
 } = {}): DialoguePlayerHarnessV1 {
   const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
-  const registry = createManagedSurfaceStablePublisherLeaseRegistryInternalV1({
+  const kernelBundle = createManagedSurfaceCompositeKernelBundleInternalV1({
     applicationEpoch: applicationEpochV1,
-    resolvedOwnerIds: contract.resolvedOwnerIds,
-    leaseSequenceAllocator: createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1(),
-  });
-  const authority = createManagedSurfaceStableAdmissionAuthorityInternalV1({
-    publisherLeaseRegistry: registry,
+    recipe: {
+      resolvedOwnerIds: contract.resolvedOwnerIds,
+      resolvedSlotDescriptors: contract.resolvedSlotDescriptors,
+    },
     definitionSidecars: contract.stableDefinitionSidecars,
-    resolvedSlotDescriptors: contract.resolvedSlotDescriptors,
   });
-  const kernel = createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
-    admissionAuthority: authority,
-    publisherLeaseRegistry: registry,
-    initialTransientState: createManagedSurfaceReducerStateV1(
-      applicationEpochV1,
-      contract.resolvedOwnerIds,
-      contract.resolvedSlotDescriptors,
-    ),
-  });
+  const registry = kernelBundle.publisherLeaseRegistry;
+  const authority = kernelBundle.admissionAuthority;
+  const kernel = kernelBundle.compositeRuntimeKernel;
   const clock = input.clock ?? manualDialogueClockV1();
   const profile = input.profile ?? mutableDialogueProfileV1();
   const text = input.text ?? dialogueTextResolverV1();
@@ -326,12 +310,8 @@ function dialoguePlayerHarnessV1(input: {
       }),
   }) satisfies NarrativeStableCandidatePreflightInternalV1;
   const bridge = createNarrativeStablePublisherBridgeInternalV1({
-    publisherLeaseRegistry: registry,
-    admissionAuthority: authority,
-    compositeRuntimeKernel: kernel,
+    kernelBundle,
     candidatePreflight,
-    exactAggregateDefinitionSidecars: contract.stableDefinitionSidecars,
-    exactAggregateSlotDescriptors: contract.resolvedSlotDescriptors,
   });
   return { contract, registry, authority, kernel, bridge, clock, profile, text };
 }

@@ -1,6 +1,6 @@
 # Production-floor execution sequence
 
-状态：2026-08-12，PF0–PF5 与 Complexity Reset 的 CR0、CR1、CR2.1–CR2.3 已完成。
+状态：2026-08-12，PF0–PF5 与 Complexity Reset 的 CR0、CR1、CR2.1–CR2.4 已完成。
 原 PF6/S5 泛化工作暂停；当前执行方向继续降低已交付 Managed Surface/Narrative 的内部
 复杂度，随后建立真实性能基线，再以真实作者工具纵切验证下一步价值。PF6 不会自动恢复。
 
@@ -12,18 +12,16 @@
 
 当前：
 
-1. CR2.4 — 让 Narrative/WholeCanvas 直接消费 composition-owned typed bundle，删除
-   同源 factory output 的重复 descriptor/look-alike admission。
+1. CR2.5 — 在行为稳定后拆分 Narrative 巨型文件；不在拆分时改产品合同。
 
 后续默认顺序：
 
-1. CR2.5 — 在行为稳定后拆分 Narrative 巨型文件；不在拆分时改产品合同。
-2. CR3 — 建立 UI lifecycle、浏览器交互与 Player 构建的真实性能趋势基线。
-3. CR4 — 先交付 Cat Cafe Story-local、只读的 Narrative-node Stage preview，再决定
+1. CR3 — 建立 UI lifecycle、浏览器交互与 Player 构建的真实性能趋势基线。
+2. CR4 — 先交付 Cat Cafe Story-local、只读的 Narrative-node Stage preview，再决定
    哪些能力值得提升为 engine authoring API。
-4. 重新审查 PF6；只有真实消费者证明仍需要 structural/model/browser harness 时才激活
+3. 重新审查 PF6；只有真实消费者证明仍需要 structural/model/browser harness 时才激活
    对应最小部分。
-5. PF7 — release stabilization。
+4. PF7 — release stabilization。
 
 一次只领取一个可命名任务。不得把 CR2.2–CR2.5、CR3、CR4 或 PF6 合成一次重写。
 
@@ -57,6 +55,11 @@ brand/WeakMap sidecar，改为一次读取 callable、捕获 receiver 的普通 
 method call；CR2.3 已删除无 production consumer 的 stable private-provenance comparator。两项均未
 改变 public/wire/Save 合同，并继续由 currentness、atomicity、terminal teardown 与 listener
 ordering 行为测试保护。
+
+CR2.4 已把每个 application epoch 的 composition-owned authority graph 收敛为五字段 typed
+bundle，由 Narrative 与 WholeCanvas 直接消费；删除了 aggregate sidecar/slot 的平行副本、family
+look-alike matcher 与 composite configuration matcher。Public authoring 仍在边界归一化一次，epoch、
+lease、source revision、CAS、readiness、exact-parent 与 late-async fences 保持不变。
 
 ## 3. Trust boundary
 

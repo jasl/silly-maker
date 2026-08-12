@@ -894,7 +894,7 @@ describe("S4b.1c WholeCanvas public factories", () => {
 });
 
 describe("S4b.1b WholeCanvas composition substrate", () => {
-  it("captures one opaque definition and reuses its exact pre-kernel family", () => {
+  it("captures one opaque definition and reuses its composition family", () => {
     const harness = activeHarnessInternalV1();
     const first = harness.family;
     const definitionFamily = resolveWholeCanvasSurfaceCompositionFamilyContractInternalV1(
@@ -910,9 +910,8 @@ describe("S4b.1b WholeCanvas composition substrate", () => {
     );
     expect(Object.isFrozen(first)).toBe(true);
     expect(first.stableDefinitionSidecars).not.toBe(definitionFamily.stableDefinitionSidecars);
-    expect(harness.bundle.exactAggregateDefinitionSidecars[0]).toBe(
-      first.stableDefinitionSidecars[0],
-    );
+    expect(first).not.toBe(definitionFamily);
+    expect(first.definitions).toEqual(definitionFamily.definitions);
     harness.composition.disposeInternalV1();
   });
 

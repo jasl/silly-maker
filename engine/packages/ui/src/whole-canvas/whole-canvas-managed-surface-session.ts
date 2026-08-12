@@ -13,14 +13,10 @@ import {
   parseManagedSurfaceActionIdV1,
   type ManagedSurfaceDismissKindV1,
   type ManagedSurfaceResolvedDefinitionV1,
-  type ManagedSurfaceResolvedSlotDescriptorV1,
 } from "../managed-surfaces/managed-surface-contracts.ts";
 import {
-  matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1,
   type ManagedSurfaceStableAcceptedBaselineInternalV1,
-  type ManagedSurfaceStableAdmissionAuthorityInternalV1,
   type ManagedSurfaceStableAdmissionResultInternalV1,
-  type ManagedSurfaceStableDefinitionSidecarInternalV1,
   type ManagedSurfaceStableRootReservationSnapshotInternalV1,
 } from "../managed-surfaces/managed-surface-stable-admission.ts";
 import {
@@ -30,13 +26,12 @@ import {
   claimManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1,
   claimManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1,
   claimManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1,
-  matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1,
-  type ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   type ManagedSurfaceStableDirectActionTargetProofInternalV1,
   type ManagedSurfaceStableExactParentTransientChildCandidateInternalV1,
   type ManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1,
   type ManagedSurfaceStableRuntimeEntryInternalV1,
 } from "../managed-surfaces/managed-surface-stable-composite-state.ts";
+import type { ManagedSurfaceCompositeKernelBundleInternalV1 } from "../managed-surfaces/managed-surface-composite-kernel-bundle.ts";
 import {
   managedSurfaceStableContractLimitsInternalV1,
   type ManagedSurfaceStableAdmittedTargetInternalV1,
@@ -44,13 +39,10 @@ import {
   type ManagedSurfaceStableSourceRevisionInternalV1,
   type ManagedSurfaceStableTargetInternalV1,
 } from "../managed-surfaces/managed-surface-stable-contract.ts";
-import {
-  type ManagedSurfaceStablePublisherInternalV1,
-  type ManagedSurfaceStablePublisherLeaseRegistryInternalV1,
-} from "../managed-surfaces/managed-surface-stable-publisher-lease.ts";
+import type { ManagedSurfaceStablePublisherInternalV1 } from "../managed-surfaces/managed-surface-stable-publisher-lease.ts";
 import type { ManagedSurfacePreparedInputBindingContractInternalV1 } from "../managed-surfaces/managed-surface-action-route.ts";
 import {
-  createWholeCanvasManagedSurfaceFamilyContractInternalV1,
+  type WholeCanvasManagedSurfaceFamilyContractInternalV1,
   type WholeCanvasManagedSurfaceCatalogRowInternalV1,
 } from "./whole-canvas-managed-surface-family.ts";
 
@@ -256,13 +248,8 @@ export interface WholeCanvasManagedSurfaceBoundedStateInternalV1 {
 }
 
 export interface CreateWholeCanvasManagedSurfaceSessionInputInternalV1 {
-  readonly publisherLeaseRegistry: ManagedSurfaceStablePublisherLeaseRegistryInternalV1;
-  readonly admissionAuthority: ManagedSurfaceStableAdmissionAuthorityInternalV1;
-  readonly compositeRuntimeKernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1;
-  readonly exactAggregateDefinitionSidecars:
-    readonly ManagedSurfaceStableDefinitionSidecarInternalV1[];
-  readonly exactAggregateSlotDescriptors: readonly ManagedSurfaceResolvedSlotDescriptorV1[];
-  readonly catalog: readonly WholeCanvasManagedSurfaceCatalogRowInternalV1[];
+  readonly kernelBundle: ManagedSurfaceCompositeKernelBundleInternalV1;
+  readonly family: WholeCanvasManagedSurfaceFamilyContractInternalV1;
   readonly resolveTargetInternalV1: WholeCanvasManagedSurfaceResolveTargetInternalV1;
   readonly dispatchOwnerActionInternalV1: WholeCanvasManagedSurfaceOwnerActionDispatcherInternalV1;
   readonly hostCommitPortInternalV1: WholeCanvasManagedSurfaceHostCommitPortInternalV1 | null;
@@ -722,43 +709,12 @@ const faultedResultInternalV1 = Object.freeze({
   code: "ui.whole_canvas_faulted",
 });
 
-function sameDefinitionInternalV1(
-  left: ManagedSurfaceResolvedDefinitionV1,
-  right: ManagedSurfaceResolvedDefinitionV1,
-): boolean {
-  const leftProjection = projectJsonInternalV1(left);
-  const rightProjection = projectJsonInternalV1(right);
-  return leftProjection !== null && rightProjection !== null &&
-    leftProjection.key === rightProjection.key;
-}
-
-const managedSurfaceDefinitionOwnKeysInternalV1 = Object.freeze([
-  "definitionId",
-  "contractRevision",
-  "ownerId",
-  "slotId",
-  "layerId",
-  "layerOrder",
-  "placement",
-  "modality",
-  "inputPolicy",
-  "dismissPolicy",
-  "focusPolicy",
-  "navigationPolicy",
-  "actionIds",
-  "readiness",
-]);
-
 export function createWholeCanvasManagedSurfaceSessionInternalV1(
   input: CreateWholeCanvasManagedSurfaceSessionInputInternalV1,
 ): WholeCanvasManagedSurfaceSessionInternalV1 {
   const capturedInput = captureDataRecordInternalV1(input, [
-    "publisherLeaseRegistry",
-    "admissionAuthority",
-    "compositeRuntimeKernel",
-    "exactAggregateDefinitionSidecars",
-    "exactAggregateSlotDescriptors",
-    "catalog",
+    "kernelBundle",
+    "family",
     "resolveTargetInternalV1",
     "dispatchOwnerActionInternalV1",
     "hostCommitPortInternalV1",
@@ -766,106 +722,22 @@ export function createWholeCanvasManagedSurfaceSessionInternalV1(
   if (capturedInput === null) {
     throw new TypeError("ui.whole_canvas_session_invalid");
   }
-  const publisherLeaseRegistry = capturedInput.values.get(
-    "publisherLeaseRegistry",
-  ) as ManagedSurfaceStablePublisherLeaseRegistryInternalV1;
-  const admissionAuthority = capturedInput.values.get(
-    "admissionAuthority",
-  ) as ManagedSurfaceStableAdmissionAuthorityInternalV1;
-  const compositeRuntimeKernel = capturedInput.values.get(
-    "compositeRuntimeKernel",
-  ) as ManagedSurfaceStableCompositeRuntimeKernelInternalV1;
-  const exactAggregateDefinitionSidecars = capturedInput.values.get(
-    "exactAggregateDefinitionSidecars",
-  ) as readonly ManagedSurfaceStableDefinitionSidecarInternalV1[];
-  const exactAggregateSlotDescriptors = capturedInput.values.get(
-    "exactAggregateSlotDescriptors",
-  ) as readonly ManagedSurfaceResolvedSlotDescriptorV1[];
-  const family = createWholeCanvasManagedSurfaceFamilyContractInternalV1(
-    capturedInput.values.get("catalog") as readonly WholeCanvasManagedSurfaceCatalogRowInternalV1[],
-  );
-  const rawSidecars = captureDenseFrozenArrayInternalV1(exactAggregateDefinitionSidecars);
+  const bundle = capturedInput.values.get(
+    "kernelBundle",
+  ) as ManagedSurfaceCompositeKernelBundleInternalV1;
+  const family = capturedInput.values.get(
+    "family",
+  ) as WholeCanvasManagedSurfaceFamilyContractInternalV1;
+  const publisherLeaseRegistry = bundle.publisherLeaseRegistry;
+  const admissionAuthority = bundle.admissionAuthority;
+  const compositeRuntimeKernel = bundle.compositeRuntimeKernel;
   const resolveTarget = capturedInput.values.get("resolveTargetInternalV1");
   const dispatchOwnerAction = capturedInput.values.get("dispatchOwnerActionInternalV1");
   if (
-    rawSidecars === null || typeof resolveTarget !== "function" ||
+    bundle.applicationEpoch !==
+      compositeRuntimeKernel.getStateInternalV1().transientState.publication.applicationEpoch ||
+    typeof resolveTarget !== "function" ||
     (dispatchOwnerAction !== null && typeof dispatchOwnerAction !== "function")
-  ) throw new TypeError("ui.whole_canvas_session_invalid");
-  const sidecarsByDefinitionId = new Map<
-    string,
-    Readonly<{
-      readonly sidecar: ManagedSurfaceStableDefinitionSidecarInternalV1;
-      readonly definition: ManagedSurfaceResolvedDefinitionV1;
-      readonly definitionId: string;
-      readonly parameterSchema: unknown;
-    }>
-  >();
-  for (const rawSidecar of rawSidecars) {
-    const captured = captureDataRecordInternalV1(rawSidecar, ["definition", "parameterSchema"]);
-    if (captured === null) continue;
-    const rawDefinition = captured.values.get("definition");
-    const capturedDefinition = captureDataRecordInternalV1(
-      rawDefinition,
-      managedSurfaceDefinitionOwnKeysInternalV1,
-    );
-    const definitionId = capturedDefinition?.values.get("definitionId");
-    if (capturedDefinition !== null && typeof definitionId === "string") {
-      const definition = Object.freeze(Object.fromEntries(
-        managedSurfaceDefinitionOwnKeysInternalV1.map((key) => [
-          key,
-          capturedDefinition.values.get(key),
-        ]),
-      )) as unknown as ManagedSurfaceResolvedDefinitionV1;
-      sidecarsByDefinitionId.set(
-        definitionId,
-        Object.freeze({
-          sidecar: rawSidecar as ManagedSurfaceStableDefinitionSidecarInternalV1,
-          definition,
-          definitionId,
-          parameterSchema: captured.values.get("parameterSchema"),
-        }),
-      );
-    }
-  }
-  const primarySidecar = sidecarsByDefinitionId.get("surface.whole-canvas.primary");
-  const splashSidecar = sidecarsByDefinitionId.get("surface.whole-canvas.boot-splash");
-  const titleSidecar = sidecarsByDefinitionId.get("surface.whole-canvas.title");
-  if (
-    primarySidecar === undefined || splashSidecar === undefined || titleSidecar === undefined
-  ) throw new TypeError("ui.whole_canvas_session_invalid");
-  const requiredSidecars = Object.freeze([
-    primarySidecar.sidecar,
-    splashSidecar.sidecar,
-    titleSidecar.sidecar,
-  ]);
-  const expectedPrimarySidecar = family.stableDefinitionSidecars[0];
-  const expectedSplashSidecar = family.stableDefinitionSidecars[1];
-  const expectedTitleSidecar = family.stableDefinitionSidecars[2];
-  if (
-    expectedPrimarySidecar === undefined || expectedSplashSidecar === undefined ||
-    expectedTitleSidecar === undefined ||
-    !sameDefinitionInternalV1(primarySidecar.definition, family.definitions.primary) ||
-    !sameDefinitionInternalV1(splashSidecar.definition, family.definitions.bootSplash) ||
-    !sameDefinitionInternalV1(titleSidecar.definition, family.definitions.title) ||
-    primarySidecar.definitionId !== "surface.whole-canvas.primary" ||
-    splashSidecar.definitionId !== "surface.whole-canvas.boot-splash" ||
-    titleSidecar.definitionId !== "surface.whole-canvas.title" ||
-    primarySidecar.parameterSchema !== expectedPrimarySidecar.parameterSchema ||
-    splashSidecar.parameterSchema !== expectedSplashSidecar.parameterSchema ||
-    titleSidecar.parameterSchema !== expectedTitleSidecar.parameterSchema ||
-    !matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1(
-      admissionAuthority,
-      publisherLeaseRegistry,
-      exactAggregateDefinitionSidecars,
-      exactAggregateSlotDescriptors,
-      requiredSidecars,
-      family.resolvedSlotDescriptors,
-    ) ||
-    !matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1(
-      compositeRuntimeKernel,
-      admissionAuthority,
-      publisherLeaseRegistry,
-    )
   ) throw new TypeError("ui.whole_canvas_session_invalid");
   const hostPort = captureHostCommitPortInternalV1(
     capturedInput.values.get("hostCommitPortInternalV1"),

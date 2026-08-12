@@ -1856,12 +1856,8 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
         },
       });
       const bridge = createNarrativeStablePublisherBridgeInternalV1({
-        publisherLeaseRegistry: bundle.publisherLeaseRegistry,
-        admissionAuthority: bundle.admissionAuthority,
-        compositeRuntimeKernel: bundle.compositeRuntimeKernel,
+        kernelBundle: bundle,
         candidatePreflight,
-        exactAggregateDefinitionSidecars: bundle.exactAggregateDefinitionSidecars,
-        exactAggregateSlotDescriptors: bundle.exactAggregateSlotDescriptors,
         barrierStageClaimant: input.stageClaimant,
       });
       const barrierRecoveryGate = Object.freeze({

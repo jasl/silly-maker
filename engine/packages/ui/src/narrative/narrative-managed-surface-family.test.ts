@@ -58,14 +58,15 @@ import type {
 import {
   parseManagedSurfaceResolvedDefinitionV1,
 } from "../managed-surfaces/managed-surface-definition.ts";
-import { createManagedSurfaceReducerStateV1 } from "../managed-surfaces/managed-surface-reducer.ts";
 import {
-  createManagedSurfaceStableAdmissionAuthorityInternalV1,
+  createManagedSurfaceCompositeKernelBundleInternalV1,
+  type ManagedSurfaceCompositeKernelBundleInternalV1,
+} from "../managed-surfaces/managed-surface-composite-kernel-bundle.ts";
+import {
   type ManagedSurfaceStableAdmissionAuthorityInternalV1,
 } from "../managed-surfaces/managed-surface-stable-admission.ts";
 import {
   claimManagedSurfaceStableActionRouteAuthorityInternalV1,
-  createManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   createManagedSurfaceStableReadyRuntimeBindingInternalV1,
   reconcileManagedSurfaceStableRootReservationsInternalV1,
   type ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
@@ -73,8 +74,6 @@ import {
   type ManagedSurfaceStableRuntimeEntryInternalV1,
 } from "../managed-surfaces/managed-surface-stable-composite-state.ts";
 import {
-  createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1,
-  createManagedSurfaceStablePublisherLeaseRegistryInternalV1,
   type ManagedSurfaceStablePublisherLeaseRegistryInternalV1,
 } from "../managed-surfaces/managed-surface-stable-publisher-lease.ts";
 import {
@@ -259,6 +258,7 @@ const defaultCandidatePreflightV1: NarrativeStableCandidatePreflightInternalV1 =
 
 interface NarrativeHarnessV1 {
   readonly contract: NarrativeManagedSurfaceFamilyContractInternalV1;
+  readonly kernelBundle: ManagedSurfaceCompositeKernelBundleInternalV1;
   readonly registry: ManagedSurfaceStablePublisherLeaseRegistryInternalV1;
   readonly authority: ManagedSurfaceStableAdmissionAuthorityInternalV1;
   readonly kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1;
@@ -269,26 +269,20 @@ interface NarrativeHarnessV1 {
 function createCompositionPartsV1(
   contract: NarrativeManagedSurfaceFamilyContractInternalV1,
 ) {
-  const registry = createManagedSurfaceStablePublisherLeaseRegistryInternalV1({
+  const kernelBundle = createManagedSurfaceCompositeKernelBundleInternalV1({
     applicationEpoch: applicationEpochV1,
-    resolvedOwnerIds: contract.resolvedOwnerIds,
-    leaseSequenceAllocator: createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1(),
-  });
-  const authority = createManagedSurfaceStableAdmissionAuthorityInternalV1({
-    publisherLeaseRegistry: registry,
+    recipe: {
+      resolvedOwnerIds: contract.resolvedOwnerIds,
+      resolvedSlotDescriptors: contract.resolvedSlotDescriptors,
+    },
     definitionSidecars: contract.stableDefinitionSidecars,
-    resolvedSlotDescriptors: contract.resolvedSlotDescriptors,
   });
-  const kernel = createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
-    admissionAuthority: authority,
-    publisherLeaseRegistry: registry,
-    initialTransientState: createManagedSurfaceReducerStateV1(
-      applicationEpochV1,
-      contract.resolvedOwnerIds,
-      contract.resolvedSlotDescriptors,
-    ),
-  });
-  return { registry, authority, kernel };
+  return {
+    kernelBundle,
+    registry: kernelBundle.publisherLeaseRegistry,
+    authority: kernelBundle.admissionAuthority,
+    kernel: kernelBundle.compositeRuntimeKernel,
+  };
 }
 
 function harnessV1(input: {
@@ -296,14 +290,10 @@ function harnessV1(input: {
   readonly barrierStageClaimant?: object;
 } = {}): NarrativeHarnessV1 {
   const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
-  const { registry, authority, kernel } = createCompositionPartsV1(contract);
+  const { kernelBundle, registry, authority, kernel } = createCompositionPartsV1(contract);
   const bridge = createNarrativeStablePublisherBridgeInternalV1({
-    publisherLeaseRegistry: registry,
-    admissionAuthority: authority,
-    compositeRuntimeKernel: kernel,
+    kernelBundle,
     candidatePreflight: input.candidatePreflight ?? defaultCandidatePreflightV1,
-    exactAggregateDefinitionSidecars: contract.stableDefinitionSidecars,
-    exactAggregateSlotDescriptors: contract.resolvedSlotDescriptors,
     ...(input.barrierStageClaimant === undefined
       ? {}
       : { barrierStageClaimant: input.barrierStageClaimant }),
@@ -314,6 +304,7 @@ function harnessV1(input: {
   });
   return {
     contract,
+    kernelBundle,
     registry,
     authority,
     kernel,
@@ -950,12 +941,8 @@ function createNarrativeBridgeSuccessorV1(
   harness: NarrativeHarnessV1,
 ): NarrativeStablePublisherBridgeInternalV1 {
   return createNarrativeStablePublisherBridgeInternalV1({
-    publisherLeaseRegistry: harness.registry,
-    admissionAuthority: harness.authority,
-    compositeRuntimeKernel: harness.kernel,
+    kernelBundle: harness.kernelBundle,
     candidatePreflight: defaultCandidatePreflightV1,
-    exactAggregateDefinitionSidecars: harness.contract.stableDefinitionSidecars,
-    exactAggregateSlotDescriptors: harness.contract.resolvedSlotDescriptors,
   });
 }
 
@@ -1104,29 +1091,19 @@ function nonBlockingNarrativeHarnessV1(
     ...contract.resolvedSlotDescriptors,
     extraSlot,
   ]);
-  const registry = createManagedSurfaceStablePublisherLeaseRegistryInternalV1({
+  const kernelBundle = createManagedSurfaceCompositeKernelBundleInternalV1({
     applicationEpoch: applicationEpochV1,
-    resolvedOwnerIds,
-    leaseSequenceAllocator: createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1(),
-  });
-  const authority = createManagedSurfaceStableAdmissionAuthorityInternalV1({
-    publisherLeaseRegistry: registry,
-    definitionSidecars: contract.stableDefinitionSidecars,
-    resolvedSlotDescriptors,
-  });
-  const kernel = createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
-    admissionAuthority: authority,
-    publisherLeaseRegistry: registry,
-    initialTransientState: createManagedSurfaceReducerStateV1(
-      applicationEpochV1,
+    recipe: {
       resolvedOwnerIds,
       resolvedSlotDescriptors,
-    ),
+    },
+    definitionSidecars: contract.stableDefinitionSidecars,
   });
+  const registry = kernelBundle.publisherLeaseRegistry;
+  const authority = kernelBundle.admissionAuthority;
+  const kernel = kernelBundle.compositeRuntimeKernel;
   const bridge = createNarrativeStablePublisherBridgeInternalV1({
-    publisherLeaseRegistry: registry,
-    admissionAuthority: authority,
-    compositeRuntimeKernel: kernel,
+    kernelBundle,
     candidatePreflight: Object.freeze({
       preflightCandidateInternalV1: () =>
         capturedCandidatePreflightResultV1(Object.freeze({
@@ -1141,8 +1118,6 @@ function nonBlockingNarrativeHarnessV1(
             defaultCandidateSnapshotV1.textResolver,
         })),
     }),
-    exactAggregateDefinitionSidecars: contract.stableDefinitionSidecars,
-    exactAggregateSlotDescriptors: resolvedSlotDescriptors,
   });
   let stateNotifications = 0;
   kernel.subscribeStateInternalV1(() => {
@@ -1150,6 +1125,7 @@ function nonBlockingNarrativeHarnessV1(
   });
   const harness: NarrativeHarnessV1 = {
     contract,
+    kernelBundle,
     registry,
     authority,
     kernel,
@@ -1370,61 +1346,13 @@ describe("Narrative stable Managed Surface family", () => {
     expect(Object.isFrozen(contract.definitions.dialogue.actionIds)).toBe(true);
   });
 
-  it("claims one exact composition configuration and rejects foreign or duplicate construction", () => {
+  it("consumes one composition bundle and rejects duplicate owner construction", () => {
     const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
     const exact = createCompositionPartsV1(contract);
-    const foreign = createCompositionPartsV1(contract);
-    let foreignPreflightReads = 0;
-    const foreignPreflight = Object.defineProperty(
-      {},
-      "preflightCandidateInternalV1",
-      {
-        get() {
-          foreignPreflightReads += 1;
-          throw new Error("foreign composition must not inspect candidate preflight");
-        },
-      },
-    ) as NarrativeStableCandidatePreflightInternalV1;
-
-    expect(() =>
-      createNarrativeStablePublisherBridgeInternalV1({
-        publisherLeaseRegistry: exact.registry,
-        admissionAuthority: foreign.authority,
-        compositeRuntimeKernel: exact.kernel,
-        candidatePreflight: foreignPreflight,
-        exactAggregateDefinitionSidecars: contract.stableDefinitionSidecars,
-        exactAggregateSlotDescriptors: contract.resolvedSlotDescriptors,
-      })
-    ).toThrowError("ui.narrative_stable_composition_invalid");
-    expect(foreignPreflightReads).toBe(0);
-    expect(exact.registry.getSnapshot()).toMatchObject({
-      leaseSequenceHighWater: 0,
-      currentPublisherCount: 0,
-    });
-    expect(exact.kernel.getStateInternalV1().stableAcceptedBaselines).toEqual([]);
-
-    expect(() =>
-      createNarrativeStablePublisherBridgeInternalV1({
-        publisherLeaseRegistry: exact.registry,
-        admissionAuthority: exact.authority,
-        compositeRuntimeKernel: foreign.kernel,
-        candidatePreflight: defaultCandidatePreflightV1,
-        exactAggregateDefinitionSidecars: contract.stableDefinitionSidecars,
-        exactAggregateSlotDescriptors: contract.resolvedSlotDescriptors,
-      })
-    ).toThrowError("ui.narrative_stable_composition_invalid");
-    expect(exact.registry.getSnapshot()).toMatchObject({
-      leaseSequenceHighWater: 0,
-      currentPublisherCount: 0,
-    });
 
     const bridge = createNarrativeStablePublisherBridgeInternalV1({
-      publisherLeaseRegistry: exact.registry,
-      admissionAuthority: exact.authority,
-      compositeRuntimeKernel: exact.kernel,
+      kernelBundle: exact.kernelBundle,
       candidatePreflight: defaultCandidatePreflightV1,
-      exactAggregateDefinitionSidecars: contract.stableDefinitionSidecars,
-      exactAggregateSlotDescriptors: contract.resolvedSlotDescriptors,
     });
     expect(Object.isFrozen(bridge)).toBe(true);
     expect(exact.registry.getSnapshot().currentPublisherCount).toBe(1);
@@ -1432,12 +1360,8 @@ describe("Narrative stable Managed Surface family", () => {
     const state = exact.kernel.getStateInternalV1();
     expect(() =>
       createNarrativeStablePublisherBridgeInternalV1({
-        publisherLeaseRegistry: exact.registry,
-        admissionAuthority: exact.authority,
-        compositeRuntimeKernel: exact.kernel,
+        kernelBundle: exact.kernelBundle,
         candidatePreflight: defaultCandidatePreflightV1,
-        exactAggregateDefinitionSidecars: contract.stableDefinitionSidecars,
-        exactAggregateSlotDescriptors: contract.resolvedSlotDescriptors,
       })
     ).toThrowError("ui.managed_surface_stable_publisher_owner_current");
     expect(exact.kernel.getStateInternalV1()).toBe(state);
@@ -1448,12 +1372,8 @@ describe("Narrative stable Managed Surface family", () => {
     const parts = createCompositionPartsV1(contract);
     const createBridge = (): NarrativeStablePublisherBridgeInternalV1 =>
       createNarrativeStablePublisherBridgeInternalV1({
-        publisherLeaseRegistry: parts.registry,
-        admissionAuthority: parts.authority,
-        compositeRuntimeKernel: parts.kernel,
+        kernelBundle: parts.kernelBundle,
         candidatePreflight: defaultCandidatePreflightV1,
-        exactAggregateDefinitionSidecars: contract.stableDefinitionSidecars,
-        exactAggregateSlotDescriptors: contract.resolvedSlotDescriptors,
       });
     const state = parts.kernel.getStateInternalV1();
 
@@ -1481,12 +1401,8 @@ describe("Narrative stable Managed Surface family", () => {
     const parts = createCompositionPartsV1(contract);
     const createBridge = (): NarrativeStablePublisherBridgeInternalV1 =>
       createNarrativeStablePublisherBridgeInternalV1({
-        publisherLeaseRegistry: parts.registry,
-        admissionAuthority: parts.authority,
-        compositeRuntimeKernel: parts.kernel,
+        kernelBundle: parts.kernelBundle,
         candidatePreflight: defaultCandidatePreflightV1,
-        exactAggregateDefinitionSidecars: contract.stableDefinitionSidecars,
-        exactAggregateSlotDescriptors: contract.resolvedSlotDescriptors,
       });
     let handled = false;
     let successorBridge: NarrativeStablePublisherBridgeInternalV1 | null = null;
@@ -1647,12 +1563,8 @@ describe("Narrative stable Managed Surface family", () => {
     const parts = createCompositionPartsV1(contract);
     expect(() =>
       createNarrativeStablePublisherBridgeInternalV1({
-        publisherLeaseRegistry: parts.registry,
-        admissionAuthority: parts.authority,
-        compositeRuntimeKernel: parts.kernel,
+        kernelBundle: parts.kernelBundle,
         candidatePreflight: Object.freeze({}) as NarrativeStableCandidatePreflightInternalV1,
-        exactAggregateDefinitionSidecars: contract.stableDefinitionSidecars,
-        exactAggregateSlotDescriptors: contract.resolvedSlotDescriptors,
       })
     ).toThrowError("ui.narrative_stable_composition_invalid");
     expect(parts.registry.getSnapshot()).toMatchObject({
@@ -2847,12 +2759,8 @@ describe("Narrative stable Managed Surface family", () => {
     );
 
     const successor = createNarrativeStablePublisherBridgeInternalV1({
-      publisherLeaseRegistry: harness.registry,
-      admissionAuthority: harness.authority,
-      compositeRuntimeKernel: harness.kernel,
+      kernelBundle: harness.kernelBundle,
       candidatePreflight: defaultCandidatePreflightV1,
-      exactAggregateDefinitionSidecars: harness.contract.stableDefinitionSidecars,
-      exactAggregateSlotDescriptors: harness.contract.resolvedSlotDescriptors,
     });
     expect(successor.reconcilePendingInternalV1(pendingV1("choice", 2))).toMatchObject({
       kind: "applied",

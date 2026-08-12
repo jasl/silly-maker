@@ -723,22 +723,6 @@ function exactParentTransientChildClaimPartitionInternalV1<TClaimRecord>(
   return partition;
 }
 
-/** Source-relative exact configuration proof for composition-owned family adapters. */
-export function matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1(
-  kernel: unknown,
-  admissionAuthority: unknown,
-  publisherLeaseRegistry: unknown,
-): boolean {
-  if ((typeof kernel !== "object" && typeof kernel !== "function") || kernel === null) {
-    return false;
-  }
-  const record = compositeRuntimeKernelConfigurationRecordsInternalV1.get(
-    kernel as ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
-  );
-  return record !== undefined && record.admissionAuthority === admissionAuthority &&
-    record.publisherLeaseRegistry === publisherLeaseRegistry;
-}
-
 const stalePublisherLeaseResultInternalV1 = Object.freeze({
   kind: "stale" as const,
   code: "surface.stable_publisher_lease_stale" as const,

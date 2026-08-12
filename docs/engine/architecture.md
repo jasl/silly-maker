@@ -480,9 +480,24 @@ into these generic surfaces. Missing assets or renderer contributions can
 degrade to a visible fallback without changing authoritative gameplay.
 
 Workspace Overlay, System dialogs, Narrative/History, and WholeCanvas are the
-live Managed Surface families. They share one composition-owned kernel and
-Coordinator, application epoch, immutable publication, input/focus ownership,
-and successor lifetime. A Story declares validated Overlay definitions and a
+live Managed Surface families. For each application epoch, composition creates
+one package-private `ManagedSurfaceCompositeKernelBundleInternalV1`. That typed
+authority graph carries the Coordinator, publisher-lease registry, stable
+admission authority, and composite runtime kernel; it is not another mutable
+state owner. Narrative and WholeCanvas receive that same bundle as one trusted
+package-internal collaborator instead of receiving its parts plus parallel
+aggregate sidecar/slot vectors. They do not repeat descriptor, schema, or
+configuration look-alike admission for same-package factory output. Public
+definitions and hosted environment values are still validated and normalized
+once before composition, while invalid epoch, owner, slot, or definition
+catalog construction fails before subscriptions or publication.
+
+The shared bundle preserves one application epoch, immutable publication,
+input/focus ownership, and successor lifetime. A successor composition creates
+a fresh bundle; family attachment checks its epoch, while publisher lease,
+source revision, generation/currentness, CAS, readiness, terminal teardown, and
+late async-result fences continue to protect the observable lifecycle. A Story
+declares validated Overlay definitions and a
 renderer resolver, then sends `openPrimary`, `pushDetail`, `closeTop`, or `closeAll`
 intents through the composition facade. System Settings and Saves share one
 root slot; a load, clear, or import confirmation is the exact-parent child of
@@ -563,7 +578,13 @@ below that model Narrative collaborator ports as branded zero-key handles,
 private-`WeakMap` bindings, descriptor-authenticated records, or cached-intrinsic
 calls. Those descriptions remain as commit history; references to separate
 attempt/proof/currentness identities still apply where they protect a real
-one-shot, stale/ABA, cross-owner, or cross-lifetime invariant.
+one-shot, stale/ABA, cross-owner, or cross-lifetime invariant. CR2.4 likewise
+supersedes historical wording that has Narrative or WholeCanvas reconstruct an
+aggregate configuration from separately supplied registry, authority, kernel,
+definition-sidecar, schema, or slot-descriptor values and then authenticate
+their pairing. The live families consume the composition-owned typed bundle
+directly; the historical exact aggregate records remain delivery evidence, not
+a current package-internal admission contract.
 
 A dormant, source-relative stable composite seam now reuses that same internal
 kernel. It binds admitted targets to exact registry/configuration provenance,

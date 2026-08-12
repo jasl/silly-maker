@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: MIT
-import { parseNonNegativeSafeInteger, type RuntimeSchemaV1 } from "@sillymaker/base";
+import { parseNonNegativeSafeInteger } from "@sillymaker/base";
 import { describe, expect, it, vi } from "vitest";
 
-import { createManagedSurfaceReducerStateV1 } from "../managed-surfaces/managed-surface-reducer.ts";
-import { createManagedSurfaceStableAdmissionAuthorityInternalV1 } from "../managed-surfaces/managed-surface-stable-admission.ts";
-import { createManagedSurfaceStableCompositeRuntimeKernelInternalV1 } from "../managed-surfaces/managed-surface-stable-composite-state.ts";
 import {
-  createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1,
-  createManagedSurfaceStablePublisherLeaseRegistryInternalV1,
-} from "../managed-surfaces/managed-surface-stable-publisher-lease.ts";
+  createManagedSurfaceCompositeKernelBundleInternalV1,
+  type ManagedSurfaceCompositeKernelBundleInternalV1,
+} from "../managed-surfaces/managed-surface-composite-kernel-bundle.ts";
 import {
   createWholeCanvasManagedSurfaceFamilyContractInternalV1,
   type WholeCanvasManagedSurfaceCatalogRowInternalV1,
@@ -98,9 +95,10 @@ interface HarnessV1 {
   readonly session: WholeCanvasManagedSurfaceSessionInternalV1;
   readonly resolutions: Map<string, WholeCanvasManagedSurfaceResolvedTargetInternalV1>;
   readonly dispatchOwner: ReturnType<typeof vi.fn>;
-  readonly registry: ReturnType<typeof createManagedSurfaceStablePublisherLeaseRegistryInternalV1>;
-  readonly authority: ReturnType<typeof createManagedSurfaceStableAdmissionAuthorityInternalV1>;
-  readonly kernel: ReturnType<typeof createManagedSurfaceStableCompositeRuntimeKernelInternalV1>;
+  readonly bundle: ManagedSurfaceCompositeKernelBundleInternalV1;
+  readonly registry: ManagedSurfaceCompositeKernelBundleInternalV1["publisherLeaseRegistry"];
+  readonly authority: ManagedSurfaceCompositeKernelBundleInternalV1["admissionAuthority"];
+  readonly kernel: ManagedSurfaceCompositeKernelBundleInternalV1["compositeRuntimeKernel"];
   readonly contract: ReturnType<typeof createWholeCanvasManagedSurfaceFamilyContractInternalV1>;
 }
 
@@ -114,42 +112,30 @@ function harnessV1(
   const applicationEpoch = input.applicationEpoch ?? 101;
   const catalog = input.catalog ?? defaultCatalogV1();
   const contract = createWholeCanvasManagedSurfaceFamilyContractInternalV1(catalog);
-  const registry = createManagedSurfaceStablePublisherLeaseRegistryInternalV1({
+  const bundle = createManagedSurfaceCompositeKernelBundleInternalV1({
     applicationEpoch: parseNonNegativeSafeInteger(applicationEpoch),
-    resolvedOwnerIds: contract.resolvedOwnerIds,
-    leaseSequenceAllocator: createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1(),
-  });
-  const authority = createManagedSurfaceStableAdmissionAuthorityInternalV1({
-    publisherLeaseRegistry: registry,
+    recipe: {
+      resolvedOwnerIds: contract.resolvedOwnerIds,
+      resolvedSlotDescriptors: contract.resolvedSlotDescriptors,
+    },
     definitionSidecars: contract.stableDefinitionSidecars,
-    resolvedSlotDescriptors: contract.resolvedSlotDescriptors,
   });
-  const kernel = createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
-    admissionAuthority: authority,
-    publisherLeaseRegistry: registry,
-    initialTransientState: createManagedSurfaceReducerStateV1(
-      parseNonNegativeSafeInteger(applicationEpoch),
-      contract.resolvedOwnerIds,
-      contract.resolvedSlotDescriptors,
-    ),
-  });
+  const registry = bundle.publisherLeaseRegistry;
+  const authority = bundle.admissionAuthority;
+  const kernel = bundle.compositeRuntimeKernel;
   const resolutions = new Map<string, WholeCanvasManagedSurfaceResolvedTargetInternalV1>();
   const dispatchOwner = vi.fn(() => Promise.resolve());
   const resolveTargetInternalV1 = (
     request: WholeCanvasManagedSurfaceResolveTargetRequestInternalV1,
   ) => resolutions.get(`${request.placement}:${request.target.targetId}`) ?? null;
   const session = createWholeCanvasManagedSurfaceSessionInternalV1(Object.freeze({
-    publisherLeaseRegistry: registry,
-    admissionAuthority: authority,
-    compositeRuntimeKernel: kernel,
-    exactAggregateDefinitionSidecars: contract.stableDefinitionSidecars,
-    exactAggregateSlotDescriptors: contract.resolvedSlotDescriptors,
-    catalog: contract.catalog,
+    kernelBundle: bundle,
+    family: contract,
     resolveTargetInternalV1,
     dispatchOwnerActionInternalV1: dispatchOwner,
     hostCommitPortInternalV1: input.hostCommitPortInternalV1 ?? null,
   }));
-  return { session, resolutions, dispatchOwner, registry, authority, kernel, contract };
+  return { session, resolutions, dispatchOwner, bundle, registry, authority, kernel, contract };
 }
 
 function desiredV1(
@@ -440,126 +426,6 @@ describe("whole-canvas managed Surface session", () => {
     expect(harness.registry.getSnapshot()).toMatchObject({
       leaseSequenceHighWater: publisherBefore.leaseSequenceHighWater,
     });
-  });
-
-  it("captures frozen arrays and hostile sidecars without invoking Story getters", () => {
-    const harness = harnessV1();
-    const actionsGet = vi.fn();
-    const actionsTarget = Object.freeze([]);
-    const actions = new Proxy(actionsTarget, {
-      get(target, key, receiver) {
-        actionsGet(key);
-        return Reflect.get(target, key, receiver);
-      },
-    });
-    harness.resolutions.set(
-      "primary:test.whole-canvas.a",
-      Object.freeze({
-        accessibleNameTextId: "text.test.whole-canvas.a",
-        view: Object.freeze({ version: 1 }),
-        actions,
-      }) as WholeCanvasManagedSurfaceResolvedTargetInternalV1,
-    );
-    expect(harness.session.reconcileRootInternalV1(
-      desiredV1(targetV1("test.whole-canvas.a")),
-    )).toMatchObject({ kind: "applied" });
-    expect(actionsGet).not.toHaveBeenCalled();
-    settleRootReadyV1(harness);
-
-    const definitionGetter = vi.fn(() => "surface.whole-canvas.primary");
-    const hostileDefinition = Object.freeze(Object.defineProperty({}, "definitionId", {
-      get: definitionGetter,
-      enumerable: true,
-    }));
-    const validSidecars = harness.contract.stableDefinitionSidecars;
-    const sidecarGet = vi.fn();
-    const hostileSidecarTarget = Object.freeze({
-      definition: hostileDefinition,
-      parameterSchema: validSidecars[0]!.parameterSchema,
-    });
-    const hostileSidecar = new Proxy(hostileSidecarTarget, {
-      get(target, key, receiver) {
-        sidecarGet(key);
-        return Reflect.get(target, key, receiver);
-      },
-    });
-    const hostileAggregate = Object.freeze([
-      hostileSidecar,
-      ...validSidecars.slice(1),
-    ]);
-    const registryBefore = harness.registry.getSnapshot();
-    expect(() =>
-      createWholeCanvasManagedSurfaceSessionInternalV1(Object.freeze({
-        publisherLeaseRegistry: harness.registry,
-        admissionAuthority: harness.authority,
-        compositeRuntimeKernel: harness.kernel,
-        exactAggregateDefinitionSidecars: hostileAggregate as unknown as typeof validSidecars,
-        exactAggregateSlotDescriptors: harness.contract.resolvedSlotDescriptors,
-        catalog: harness.contract.catalog,
-        resolveTargetInternalV1: () => null,
-        dispatchOwnerActionInternalV1: null,
-        hostCommitPortInternalV1: null,
-      }))
-    ).toThrowError("ui.whole_canvas_session_invalid");
-    expect(sidecarGet).not.toHaveBeenCalled();
-    expect(definitionGetter).not.toHaveBeenCalled();
-    expect(harness.registry.getSnapshot()).toEqual(registryBefore);
-
-    const wrongSchema = Object.freeze({
-      parse: (value: unknown): unknown => value,
-    }) satisfies RuntimeSchemaV1<unknown>;
-    const schemaSidecarGet = vi.fn();
-    const wrongPrimaryTarget = Object.freeze({
-      definition: validSidecars[0]!.definition,
-      parameterSchema: wrongSchema,
-    });
-    const wrongPrimary = new Proxy(wrongPrimaryTarget, {
-      get(target, key, receiver) {
-        schemaSidecarGet(key);
-        return Reflect.get(target, key, receiver);
-      },
-    });
-    const wrongSidecars = Object.freeze([
-      wrongPrimary,
-      validSidecars[1]!,
-      validSidecars[2]!,
-    ]) as typeof validSidecars;
-    const wrongRegistry = createManagedSurfaceStablePublisherLeaseRegistryInternalV1({
-      applicationEpoch: parseNonNegativeSafeInteger(202),
-      resolvedOwnerIds: harness.contract.resolvedOwnerIds,
-      leaseSequenceAllocator: createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1(),
-    });
-    const wrongAuthority = createManagedSurfaceStableAdmissionAuthorityInternalV1({
-      publisherLeaseRegistry: wrongRegistry,
-      definitionSidecars: wrongSidecars,
-      resolvedSlotDescriptors: harness.contract.resolvedSlotDescriptors,
-    });
-    const wrongKernel = createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
-      admissionAuthority: wrongAuthority,
-      publisherLeaseRegistry: wrongRegistry,
-      initialTransientState: createManagedSurfaceReducerStateV1(
-        parseNonNegativeSafeInteger(202),
-        harness.contract.resolvedOwnerIds,
-        harness.contract.resolvedSlotDescriptors,
-      ),
-    });
-    schemaSidecarGet.mockClear();
-    const wrongRegistryBefore = wrongRegistry.getSnapshot();
-    expect(() =>
-      createWholeCanvasManagedSurfaceSessionInternalV1(Object.freeze({
-        publisherLeaseRegistry: wrongRegistry,
-        admissionAuthority: wrongAuthority,
-        compositeRuntimeKernel: wrongKernel,
-        exactAggregateDefinitionSidecars: wrongSidecars,
-        exactAggregateSlotDescriptors: harness.contract.resolvedSlotDescriptors,
-        catalog: harness.contract.catalog,
-        resolveTargetInternalV1: () => null,
-        dispatchOwnerActionInternalV1: null,
-        hostCommitPortInternalV1: null,
-      }))
-    ).toThrowError("ui.whole_canvas_session_invalid");
-    expect(schemaSidecarGet).not.toHaveBeenCalled();
-    expect(wrongRegistry.getSnapshot()).toEqual(wrongRegistryBefore);
   });
 
   it("selects and directly advances Boot Splash to Title to the latest cached Story", () => {

@@ -1883,12 +1883,8 @@ export function createWholeCanvasSurfaceCompositionRuntimeInternalV1(
       let session: WholeCanvasManagedSurfaceSessionInternalV1 | null = null;
       try {
         session = createWholeCanvasManagedSurfaceSessionInternalV1(Object.freeze({
-          publisherLeaseRegistry: bundle.publisherLeaseRegistry,
-          admissionAuthority: bundle.admissionAuthority,
-          compositeRuntimeKernel: bundle.compositeRuntimeKernel,
-          exactAggregateDefinitionSidecars: bundle.exactAggregateDefinitionSidecars,
-          exactAggregateSlotDescriptors: bundle.exactAggregateSlotDescriptors,
-          catalog: binding.family.catalog,
+          kernelBundle: bundle,
+          family: binding.family,
           resolveTargetInternalV1: Object.freeze((
             request: Parameters<WholeCanvasManagedSurfaceResolveTargetInternalV1>[0],
           ) => Reflect.apply(binding.resolveTarget, binding.receiver, [request])),

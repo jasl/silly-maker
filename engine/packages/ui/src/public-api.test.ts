@@ -742,14 +742,6 @@ import type { NarrativeStablePhysicalActionAdmissionInternalV1 as ForbiddenInter
 import type { createNarrativeStablePhysicalActionAdmissionInternalV1 as ForbiddenPublicNarrativePhysicalActionAdmissionFactoryV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative physical-action admission construction.
 import type { createNarrativeStablePhysicalActionAdmissionInternalV1 as ForbiddenInternalNarrativePhysicalActionAdmissionFactoryV1 } from "./internal.ts";
-// @ts-expect-error Family configuration matching remains source-relative.
-import type { matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1 as ForbiddenPublicStableFamilyConfigurationMatcherV1 } from "./index.ts";
-// @ts-expect-error The Host-only internal barrel does not expose family configuration matching.
-import type { matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1 as ForbiddenInternalStableFamilyConfigurationMatcherV1 } from "./internal.ts";
-// @ts-expect-error Composite-kernel configuration matching remains source-relative.
-import type { matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1 as ForbiddenPublicStableCompositeConfigurationMatcherV1 } from "./index.ts";
-// @ts-expect-error The Host-only internal barrel does not expose composite-kernel configuration matching.
-import type { matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1 as ForbiddenInternalStableCompositeConfigurationMatcherV1 } from "./internal.ts";
 // @ts-expect-error Contract-bound action-route authorities stay source-relative.
 import type { ManagedSurfaceContractBoundActionRouteAuthorityInternalV1 as ForbiddenPublicContractBoundActionRouteAuthorityV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose contract-bound action-route authorities.
@@ -1530,8 +1522,6 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "createNarrativeManagedSurfaceFamilyContractInternalV1"
       | "createNarrativeStablePublisherBridgeInternalV1"
       | "deriveManagedSurfaceReducerTopologyProjectionInternalV1"
-      | "matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1"
-      | "matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1"
       | "NarrativeStableRequiredPortIdInternalV1"
       | "NarrativeStableCandidatePreflightRejectionCodeInternalV1"
       | "NarrativeStableCandidatePreflightResultInternalV1"
@@ -1947,8 +1937,6 @@ describe("@sillymaker/ui public managed System surface", () => {
         "allocateManagedSurfaceStableRuntimeAttemptInternalV1",
         "projectManagedSurfaceStableRootReservationSnapshotInternalV1",
         "matchesManagedSurfaceStableAdmissionAuthorityConfigurationInternalV1",
-        "matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1",
-        "matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1",
         "createNarrativeManagedSurfaceFamilyContractInternalV1",
         "createNarrativeStablePublisherBridgeInternalV1",
         "NarrativeStableRequiredPortIdInternalV1",

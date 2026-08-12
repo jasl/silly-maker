@@ -60,9 +60,7 @@ import type {
 } from "../managed-surfaces/managed-surface-composition-runtime.ts";
 import { parseManagedSurfaceResolvedDefinitionV1 } from "../managed-surfaces/managed-surface-definition.ts";
 import {
-  matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1,
   type ManagedSurfaceStableAcceptedBaselineInternalV1,
-  type ManagedSurfaceStableAdmissionAuthorityInternalV1,
   type ManagedSurfaceStableAdmissionResultInternalV1,
   type ManagedSurfaceStableDefinitionSidecarInternalV1,
   type ManagedSurfaceStableRootReservationSnapshotInternalV1,
@@ -74,7 +72,6 @@ import {
   claimManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1,
   claimManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1,
   claimManagedSurfaceStableActionRouteAuthorityInternalV1,
-  matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1,
   type ManagedSurfaceStableActionRouteAuthorityInternalV1,
   type ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   type ManagedSurfaceStableCompositeStateInstallParticipantInternalV1,
@@ -90,6 +87,7 @@ import {
   type ManagedSurfaceStableReadyActiveTargetProofInternalV1,
   type ManagedSurfaceStableRuntimeAttemptInternalV1,
 } from "../managed-surfaces/managed-surface-stable-composite-state.ts";
+import type { ManagedSurfaceCompositeKernelBundleInternalV1 } from "../managed-surfaces/managed-surface-composite-kernel-bundle.ts";
 import type { ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 } from "../managed-surfaces/managed-surface-runtime-kernel.ts";
 import type {
   ManagedSurfaceStableAdmittedTargetInternalV1,
@@ -100,7 +98,6 @@ import type {
 } from "../managed-surfaces/managed-surface-stable-contract.ts";
 import type {
   ManagedSurfaceStablePublisherInternalV1,
-  ManagedSurfaceStablePublisherLeaseRegistryInternalV1,
 } from "../managed-surfaces/managed-surface-stable-publisher-lease.ts";
 import {
   claimStageAcknowledgedRunAuthorityInternalV1,
@@ -371,13 +368,8 @@ export interface NarrativeStablePublisherBridgeInternalV1 {
 }
 
 export interface CreateNarrativeStablePublisherBridgeInputInternalV1 {
-  readonly publisherLeaseRegistry: ManagedSurfaceStablePublisherLeaseRegistryInternalV1;
-  readonly admissionAuthority: ManagedSurfaceStableAdmissionAuthorityInternalV1;
-  readonly compositeRuntimeKernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1;
+  readonly kernelBundle: ManagedSurfaceCompositeKernelBundleInternalV1;
   readonly candidatePreflight: NarrativeStableCandidatePreflightInternalV1;
-  readonly exactAggregateDefinitionSidecars:
-    readonly ManagedSurfaceStableDefinitionSidecarInternalV1[];
-  readonly exactAggregateSlotDescriptors: readonly ManagedSurfaceResolvedSlotDescriptorV1[];
   /**
    * Composition-scoped Stage claim identity. Production successors reuse one
    * identity; source-relative legacy fixtures may omit it and receive an
@@ -2368,11 +2360,10 @@ function stableContextResultInternalV1(
 export function createNarrativeStablePublisherBridgeInternalV1(
   input: CreateNarrativeStablePublisherBridgeInputInternalV1,
 ): NarrativeStablePublisherBridgeInternalV1 {
-  const publisherLeaseRegistry = input.publisherLeaseRegistry;
-  const admissionAuthority = input.admissionAuthority;
-  const compositeRuntimeKernel = input.compositeRuntimeKernel;
-  const exactAggregateDefinitionSidecars = input.exactAggregateDefinitionSidecars;
-  const exactAggregateSlotDescriptors = input.exactAggregateSlotDescriptors;
+  const bundle = input.kernelBundle;
+  const publisherLeaseRegistry = bundle.publisherLeaseRegistry;
+  const admissionAuthority = bundle.admissionAuthority;
+  const compositeRuntimeKernel = bundle.compositeRuntimeKernel;
   const barrierStageClaimant = input.barrierStageClaimant ??
     Object.freeze({});
   if (
@@ -2381,21 +2372,9 @@ export function createNarrativeStablePublisherBridgeInternalV1(
   ) {
     throw new TypeError("ui.narrative_stable_composition_invalid");
   }
-  const contract = narrativeManagedSurfaceFamilyContractInternalV1;
   if (
-    !matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1(
-      admissionAuthority,
-      publisherLeaseRegistry,
-      exactAggregateDefinitionSidecars,
-      exactAggregateSlotDescriptors,
-      contract.stableDefinitionSidecars,
-      contract.resolvedSlotDescriptors,
-    ) ||
-    !matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1(
-      compositeRuntimeKernel,
-      admissionAuthority,
-      publisherLeaseRegistry,
-    )
+    bundle.applicationEpoch !==
+      compositeRuntimeKernel.getStateInternalV1().transientState.publication.applicationEpoch
   ) {
     throw new TypeError("ui.narrative_stable_composition_invalid");
   }

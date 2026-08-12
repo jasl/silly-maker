@@ -147,6 +147,18 @@ record。Method closure 保留当时的 receiver/callable，后续直接调用�
 raw port。这一 supersession 不改变 target/frame/source revision、generation、
 ready-active、semantic in-flight/one-shot attempt、listener/terminal fencing、atomicity
 或 async currentness；历史段落及其当时验证记录不重写。
+
+2026-08-12 的 Complexity Reset CR2.4 又进一步 supersede 本文后续历史 delivery
+records 中要求 Narrative 或 WholeCanvas 分别接收 registry、admission authority、runtime
+kernel、aggregate definition sidecars、schemas 与 slot descriptors，再用
+descriptor/look-alike 或配置配对证明重新认证同源 factory output 的内部形状。现行合同是：
+composition 为每个 application epoch 构造唯一 package-private typed kernel bundle；
+Narrative 与 WholeCanvas 直接消费该 bundle，不重建平行 aggregate proof 或第二份配置
+authority。Public Story definition/Web environment 仍在边界 validate and normalize once，
+bundle construction 仍在任何 subscription/publication 前拒绝非法 epoch、duplicate owner/slot
+或 definition catalog。Publisher lease、source revision、generation/currentness、CAS、
+readiness、terminal teardown 与 late async-result fencing 均不变；历史段落及其当时验证记录
+不重写。
 R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0、S4.1a、S4.1b.0、S4.1b.1a、S4.1b.1b.0与
 S4.1b.1b.1a、S4.1b.1b.1b.1、S4.1b.1b.1b.2a、S4.1b.1b.1b.2b.0与
 S4.1b.1b.1b.2b.1a、S4.1b.1b.1b.2b.1b、S4.1b.1b.1b.2b.2a、

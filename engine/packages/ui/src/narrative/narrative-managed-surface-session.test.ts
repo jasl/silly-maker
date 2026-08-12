@@ -24,24 +24,19 @@ import {
   parseManagedSurfaceGestureIdV1,
   type ManagedSurfaceDismissKindV1,
 } from "../managed-surfaces/managed-surface-contracts.ts";
-import { createManagedSurfaceReducerStateV1 } from "../managed-surfaces/managed-surface-reducer.ts";
 import {
-  createManagedSurfaceStableAdmissionAuthorityInternalV1,
-  type ManagedSurfaceStableAdmissionAuthorityInternalV1,
-} from "../managed-surfaces/managed-surface-stable-admission.ts";
+  createManagedSurfaceCompositeKernelBundleInternalV1,
+  type ManagedSurfaceCompositeKernelBundleInternalV1,
+} from "../managed-surfaces/managed-surface-composite-kernel-bundle.ts";
+import type { ManagedSurfaceStableAdmissionAuthorityInternalV1 } from "../managed-surfaces/managed-surface-stable-admission.ts";
 import {
-  createManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   createManagedSurfaceStableReadyRuntimeBindingInternalV1,
   reconcileManagedSurfaceStableRootReservationsInternalV1,
   type ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   type ManagedSurfaceStableRootReservationContributorCandidateInternalV1,
   type ManagedSurfaceStableRuntimeEntryInternalV1,
 } from "../managed-surfaces/managed-surface-stable-composite-state.ts";
-import {
-  createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1,
-  createManagedSurfaceStablePublisherLeaseRegistryInternalV1,
-  type ManagedSurfaceStablePublisherLeaseRegistryInternalV1,
-} from "../managed-surfaces/managed-surface-stable-publisher-lease.ts";
+import type { ManagedSurfaceStablePublisherLeaseRegistryInternalV1 } from "../managed-surfaces/managed-surface-stable-publisher-lease.ts";
 import {
   createNarrativeManagedSurfaceFamilyContractInternalV1,
   createNarrativeStableHistoryChildLifecycleInternalV1,
@@ -140,6 +135,7 @@ interface NarrativeSessionHarnessV1 {
   readonly registry: ManagedSurfaceStablePublisherLeaseRegistryInternalV1;
   readonly authority: ManagedSurfaceStableAdmissionAuthorityInternalV1;
   readonly kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1;
+  readonly kernelBundle: ManagedSurfaceCompositeKernelBundleInternalV1;
   readonly bridge: NarrativeStablePublisherBridgeInternalV1;
   readonly stateNotificationCount: () => number;
 }
@@ -173,32 +169,20 @@ function createSessionHarnessV1(
   candidatePreflight: NarrativeStableCandidatePreflightInternalV1 = defaultCandidatePreflightV1,
 ): NarrativeSessionHarnessV1 {
   const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
-  const registry = createManagedSurfaceStablePublisherLeaseRegistryInternalV1({
+  const kernelBundle = createManagedSurfaceCompositeKernelBundleInternalV1({
     applicationEpoch: applicationEpochV1,
-    resolvedOwnerIds: contract.resolvedOwnerIds,
-    leaseSequenceAllocator: createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1(),
-  });
-  const authority = createManagedSurfaceStableAdmissionAuthorityInternalV1({
-    publisherLeaseRegistry: registry,
+    recipe: {
+      resolvedOwnerIds: contract.resolvedOwnerIds,
+      resolvedSlotDescriptors: contract.resolvedSlotDescriptors,
+    },
     definitionSidecars: contract.stableDefinitionSidecars,
-    resolvedSlotDescriptors: contract.resolvedSlotDescriptors,
   });
-  const kernel = createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
-    admissionAuthority: authority,
-    publisherLeaseRegistry: registry,
-    initialTransientState: createManagedSurfaceReducerStateV1(
-      applicationEpochV1,
-      contract.resolvedOwnerIds,
-      contract.resolvedSlotDescriptors,
-    ),
-  });
+  const registry = kernelBundle.publisherLeaseRegistry;
+  const authority = kernelBundle.admissionAuthority;
+  const kernel = kernelBundle.compositeRuntimeKernel;
   const bridge = createNarrativeStablePublisherBridgeInternalV1({
-    publisherLeaseRegistry: registry,
-    admissionAuthority: authority,
-    compositeRuntimeKernel: kernel,
+    kernelBundle,
     candidatePreflight,
-    exactAggregateDefinitionSidecars: contract.stableDefinitionSidecars,
-    exactAggregateSlotDescriptors: contract.resolvedSlotDescriptors,
   });
   let stateNotifications = 0;
   kernel.subscribeStateInternalV1(() => {
@@ -209,6 +193,7 @@ function createSessionHarnessV1(
     registry,
     authority,
     kernel,
+    kernelBundle,
     bridge,
     stateNotificationCount: () => stateNotifications,
   };
@@ -218,12 +203,8 @@ function createBridgeSuccessorV1(
   harness: NarrativeSessionHarnessV1,
 ): NarrativeStablePublisherBridgeInternalV1 {
   return createNarrativeStablePublisherBridgeInternalV1({
-    publisherLeaseRegistry: harness.registry,
-    admissionAuthority: harness.authority,
-    compositeRuntimeKernel: harness.kernel,
+    kernelBundle: harness.kernelBundle,
     candidatePreflight: defaultCandidatePreflightV1,
-    exactAggregateDefinitionSidecars: harness.contract.stableDefinitionSidecars,
-    exactAggregateSlotDescriptors: harness.contract.resolvedSlotDescriptors,
   });
 }
 

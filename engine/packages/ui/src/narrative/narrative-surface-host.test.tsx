@@ -24,15 +24,7 @@ import {
   parseManagedSurfaceFocusTargetIdV1,
   parseManagedSurfaceGestureIdV1,
 } from "../managed-surfaces/managed-surface-contracts.ts";
-import { createManagedSurfaceReducerStateV1 } from "../managed-surfaces/managed-surface-reducer.ts";
-import {
-  createManagedSurfaceStableAdmissionAuthorityInternalV1,
-} from "../managed-surfaces/managed-surface-stable-admission.ts";
-import { createManagedSurfaceStableCompositeRuntimeKernelInternalV1 } from "../managed-surfaces/managed-surface-stable-composite-state.ts";
-import {
-  createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1,
-  createManagedSurfaceStablePublisherLeaseRegistryInternalV1,
-} from "../managed-surfaces/managed-surface-stable-publisher-lease.ts";
+import { createManagedSurfaceCompositeKernelBundleInternalV1 } from "../managed-surfaces/managed-surface-composite-kernel-bundle.ts";
 import {
   createNarrativeManagedSurfaceFamilyContractInternalV1,
   createNarrativeStablePhysicalActionAdmissionInternalV1,
@@ -216,26 +208,15 @@ function hostHarnessV1(
   historyObservation = mutableHistoryObservationV1(),
 ) {
   const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
-  const registry = createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1();
-  const publisherLeaseRegistry = createManagedSurfaceStablePublisherLeaseRegistryInternalV1({
+  const kernelBundle = createManagedSurfaceCompositeKernelBundleInternalV1({
     applicationEpoch: applicationEpochV1,
-    resolvedOwnerIds: contract.resolvedOwnerIds,
-    leaseSequenceAllocator: registry,
-  });
-  const admissionAuthority = createManagedSurfaceStableAdmissionAuthorityInternalV1({
-    publisherLeaseRegistry,
+    recipe: {
+      resolvedOwnerIds: contract.resolvedOwnerIds,
+      resolvedSlotDescriptors: contract.resolvedSlotDescriptors,
+    },
     definitionSidecars: contract.stableDefinitionSidecars,
-    resolvedSlotDescriptors: contract.resolvedSlotDescriptors,
   });
-  const kernel = createManagedSurfaceStableCompositeRuntimeKernelInternalV1({
-    admissionAuthority,
-    publisherLeaseRegistry,
-    initialTransientState: createManagedSurfaceReducerStateV1(
-      applicationEpochV1,
-      contract.resolvedOwnerIds,
-      contract.resolvedSlotDescriptors,
-    ),
-  });
+  const kernel = kernelBundle.compositeRuntimeKernel;
   const semanticDispatchPort = Object.freeze({
     dispatchResolutionInternalV1: (_request: unknown) => Promise.resolve(undefined),
   }) satisfies NarrativeStableSemanticResolutionPortInternalV1;
@@ -287,12 +268,8 @@ function hostHarnessV1(
       }),
   }) satisfies NarrativeStableCandidatePreflightInternalV1;
   const bridge = createNarrativeStablePublisherBridgeInternalV1({
-    publisherLeaseRegistry,
-    admissionAuthority,
-    compositeRuntimeKernel: kernel,
+    kernelBundle,
     candidatePreflight,
-    exactAggregateDefinitionSidecars: contract.stableDefinitionSidecars,
-    exactAggregateSlotDescriptors: contract.resolvedSlotDescriptors,
   });
   const session = createNarrativeStableSessionInternalV1({ bridge });
   const isGestureCurrent = () => true;

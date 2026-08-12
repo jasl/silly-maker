@@ -9,11 +9,6 @@ import {
   type ManagedSurfaceCompositeKernelBundleInternalV1,
 } from "./managed-surface-composite-kernel-bundle.ts";
 import type { ManagedSurfaceCoordinatorRecipeV1 } from "./managed-surface-coordinator-lifetime.ts";
-import {
-  matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1,
-  type ManagedSurfaceStableDefinitionSidecarInternalV1,
-} from "./managed-surface-stable-admission.ts";
-import { matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1 } from "./managed-surface-stable-composite-state.ts";
 
 function aggregateFixtureV1() {
   const narrative = createNarrativeManagedSurfaceFamilyContractInternalV1();
@@ -45,7 +40,7 @@ function createAggregateBundleV1(): ManagedSurfaceCompositeKernelBundleInternalV
 }
 
 describe("managed-surface composite-kernel bundle", () => {
-  it("builds one exact shared authority graph for Narrative and WholeCanvas", () => {
+  it("builds one shared authority graph for Narrative and WholeCanvas", () => {
     const fixture = aggregateFixtureV1();
     const bundle = createManagedSurfaceCompositeKernelBundleInternalV1(Object.freeze({
       applicationEpoch: parseNonNegativeSafeInteger(7),
@@ -60,187 +55,61 @@ describe("managed-surface composite-kernel bundle", () => {
       "publisherLeaseRegistry",
       "admissionAuthority",
       "compositeRuntimeKernel",
-      "exactAggregateDefinitionSidecars",
-      "exactAggregateSlotDescriptors",
     ]);
     expect(bundle.applicationEpoch).toBe(7);
-    expect(bundle.exactAggregateDefinitionSidecars).toEqual(fixture.definitionSidecars);
-    expect(bundle.exactAggregateDefinitionSidecars).not.toBe(fixture.definitionSidecars);
-    expect(
-      bundle.exactAggregateDefinitionSidecars.every((sidecar, index) =>
-        sidecar === fixture.definitionSidecars[index]
-      ),
-    ).toBe(true);
-    expect(bundle.exactAggregateSlotDescriptors).toEqual(
-      fixture.recipe.resolvedSlotDescriptors,
-    );
-    expect(Object.isFrozen(bundle.exactAggregateDefinitionSidecars)).toBe(true);
-    expect(Object.isFrozen(bundle.exactAggregateSlotDescriptors)).toBe(true);
     expect(bundle.coordinator.getSnapshot()).toBe(
       bundle.compositeRuntimeKernel.getTransientSnapshotInternalV1(),
     );
-    expect(
-      matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1(
-        bundle.compositeRuntimeKernel,
-        bundle.admissionAuthority,
-        bundle.publisherLeaseRegistry,
-      ),
-    ).toBe(true);
-    for (const family of [fixture.narrative, fixture.wholeCanvas]) {
-      expect(
-        matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1(
-          bundle.admissionAuthority,
-          bundle.publisherLeaseRegistry,
-          bundle.exactAggregateDefinitionSidecars,
-          bundle.exactAggregateSlotDescriptors,
-          family.stableDefinitionSidecars,
-          family.resolvedSlotDescriptors,
-        ),
-      ).toBe(true);
-    }
-    const lookalikeWholeCanvas = createWholeCanvasManagedSurfaceFamilyContractInternalV1(
-      Object.freeze([]),
-    );
-    expect(
-      matchesManagedSurfaceStableAdmissionAuthorityFamilyConfigurationInternalV1(
-        bundle.admissionAuthority,
-        bundle.publisherLeaseRegistry,
-        bundle.exactAggregateDefinitionSidecars,
-        bundle.exactAggregateSlotDescriptors,
-        lookalikeWholeCanvas.stableDefinitionSidecars,
-        lookalikeWholeCanvas.resolvedSlotDescriptors,
-      ),
-    ).toBe(false);
   });
 
-  it("captures the exact frozen three-key input without invoking accessors", () => {
+  it("accepts ordinary typed composition data without frozen-record admission", () => {
     const fixture = aggregateFixtureV1();
-    const getter = vi.fn(() => fixture.recipe);
-    const accessor = Object.freeze(Object.defineProperties({}, {
-      applicationEpoch: {
-        enumerable: true,
-        value: parseNonNegativeSafeInteger(7),
-      },
-      recipe: {
-        enumerable: true,
-        get: getter,
-      },
-      definitionSidecars: {
-        enumerable: true,
-        value: fixture.definitionSidecars,
-      },
-    }));
-
-    expect(() => createManagedSurfaceCompositeKernelBundleInternalV1(accessor as never))
-      .toThrowError("ui.managed_surface_composite_kernel_bundle_invalid");
-    expect(getter).not.toHaveBeenCalled();
-
-    const recipeGetter = vi.fn(() => fixture.recipe.resolvedOwnerIds);
-    const recipeAccessor = Object.freeze(Object.defineProperties({}, {
-      resolvedOwnerIds: {
-        enumerable: true,
-        get: recipeGetter,
-      },
-      resolvedSlotDescriptors: {
-        enumerable: true,
-        value: fixture.recipe.resolvedSlotDescriptors,
-      },
-    }));
-    expect(() =>
-      createManagedSurfaceCompositeKernelBundleInternalV1(Object.freeze({
-        applicationEpoch: parseNonNegativeSafeInteger(7),
-        recipe: recipeAccessor as ManagedSurfaceCoordinatorRecipeV1,
-        definitionSidecars: fixture.definitionSidecars,
-      }))
-    ).toThrowError("ui.managed_surface_composite_kernel_bundle_invalid");
-    expect(recipeGetter).not.toHaveBeenCalled();
-
-    const sidecarGetter = vi.fn(() => fixture.definitionSidecars[0]);
-    const sidecarAccessor = [fixture.definitionSidecars[0]!];
-    Object.defineProperty(sidecarAccessor, "0", {
-      configurable: true,
-      enumerable: true,
-      get: sidecarGetter,
-    });
-    Object.freeze(sidecarAccessor);
-    expect(() =>
-      createManagedSurfaceCompositeKernelBundleInternalV1(Object.freeze({
-        applicationEpoch: parseNonNegativeSafeInteger(7),
-        recipe: fixture.recipe,
-        definitionSidecars: sidecarAccessor,
-      }) as never)
-    ).toThrowError("ui.managed_surface_composite_kernel_bundle_invalid");
-    expect(sidecarGetter).not.toHaveBeenCalled();
-
-    const valid = Object.freeze({
+    const recipe: ManagedSurfaceCoordinatorRecipeV1 = {
+      resolvedOwnerIds: [...fixture.recipe.resolvedOwnerIds],
+      resolvedSlotDescriptors: [...fixture.recipe.resolvedSlotDescriptors],
+    };
+    const bundle = createManagedSurfaceCompositeKernelBundleInternalV1({
       applicationEpoch: parseNonNegativeSafeInteger(7),
-      recipe: fixture.recipe,
-      definitionSidecars: fixture.definitionSidecars,
+      recipe,
+      definitionSidecars: [...fixture.definitionSidecars],
     });
-    const malformed = [
-      { ...valid },
-      Object.freeze({ ...valid, extra: true }),
-      Object.freeze({ applicationEpoch: valid.applicationEpoch, recipe: valid.recipe }),
-      Object.freeze(Object.assign(Object.create({ inherited: true }), valid)),
-    ];
-    for (const input of malformed) {
-      expect(() => createManagedSurfaceCompositeKernelBundleInternalV1(input as never))
-        .toThrowError("ui.managed_surface_composite_kernel_bundle_invalid");
-    }
+
+    expect(bundle.applicationEpoch).toBe(7);
+    expect(bundle.coordinator.getSnapshot()).toBe(
+      bundle.compositeRuntimeKernel.getTransientSnapshotInternalV1(),
+    );
   });
 
-  it("rejects malformed or duplicate aggregate vectors before inspecting a sidecar", () => {
+  it("rejects duplicate aggregate owners and slots as semantic construction failures", () => {
     const fixture = aggregateFixtureV1();
-    const sidecarTrap = vi.fn();
-    const opaqueSidecar = new Proxy(Object.freeze({}), {
-      get() {
-        sidecarTrap();
-        throw new Error("sidecar read after aggregate rejection");
-      },
-      getOwnPropertyDescriptor() {
-        sidecarTrap();
-        throw new Error("sidecar descriptor read after aggregate rejection");
-      },
-      ownKeys() {
-        sidecarTrap();
-        throw new Error("sidecar keys read after aggregate rejection");
-      },
-    }) as ManagedSurfaceStableDefinitionSidecarInternalV1;
-    const duplicateSidecars = Object.freeze([opaqueSidecar, opaqueSidecar]);
-
-    expect(() =>
-      createManagedSurfaceCompositeKernelBundleInternalV1(Object.freeze({
-        applicationEpoch: parseNonNegativeSafeInteger(7),
-        recipe: fixture.recipe,
-        definitionSidecars: duplicateSidecars,
-      }))
-    ).toThrowError("ui.managed_surface_composite_kernel_bundle_invalid");
-    expect(sidecarTrap).not.toHaveBeenCalled();
-
-    const duplicateSlotRecipe = Object.freeze({
+    const duplicateOwnerRecipe: ManagedSurfaceCoordinatorRecipeV1 = {
       ...fixture.recipe,
-      resolvedSlotDescriptors: Object.freeze([
+      resolvedOwnerIds: [
+        ...fixture.recipe.resolvedOwnerIds,
+        fixture.recipe.resolvedOwnerIds[0]!,
+      ],
+    };
+    expect(() =>
+      createManagedSurfaceCompositeKernelBundleInternalV1({
+        applicationEpoch: parseNonNegativeSafeInteger(7),
+        recipe: duplicateOwnerRecipe,
+        definitionSidecars: [...fixture.definitionSidecars],
+      })
+    ).toThrowError("ui.managed_surface_composite_kernel_bundle_invalid");
+
+    const duplicateSlotRecipe: ManagedSurfaceCoordinatorRecipeV1 = {
+      ...fixture.recipe,
+      resolvedSlotDescriptors: [
         ...fixture.recipe.resolvedSlotDescriptors,
         fixture.recipe.resolvedSlotDescriptors[0]!,
-      ]),
-    });
+      ],
+    };
     expect(() =>
-      createManagedSurfaceCompositeKernelBundleInternalV1(Object.freeze({
+      createManagedSurfaceCompositeKernelBundleInternalV1({
         applicationEpoch: parseNonNegativeSafeInteger(7),
         recipe: duplicateSlotRecipe,
-        definitionSidecars: fixture.definitionSidecars,
-      }))
-    ).toThrowError("ui.managed_surface_composite_kernel_bundle_invalid");
-
-    const sparseSidecars = Array<ManagedSurfaceStableDefinitionSidecarInternalV1>(2);
-    sparseSidecars[0] = fixture.definitionSidecars[0]!;
-    Object.freeze(sparseSidecars);
-    expect(() =>
-      createManagedSurfaceCompositeKernelBundleInternalV1(Object.freeze({
-        applicationEpoch: parseNonNegativeSafeInteger(7),
-        recipe: fixture.recipe,
-        definitionSidecars: sparseSidecars,
-      }))
+        definitionSidecars: [...fixture.definitionSidecars],
+      })
     ).toThrowError("ui.managed_surface_composite_kernel_bundle_invalid");
   });
 
