@@ -240,6 +240,13 @@ Do not freeze provisional balance or a large command corpus merely because it wa
 
 Story tooling is optional and should exist for a maintained authoring, debugging, migration, or content workflow. It may be lazy-loaded so ordinary play does not pay its cost. Debug and cheat operations remain capability-gated.
 
+For a detached Narrative/Stage preview, keep the selection and replay logic in the Story tooling
+slice. Purely replay the Story's script from an initial semantic Stage, project each selected point to
+a `StageRenderTarget`, and render it with `SemanticStageTargetHostV1`. The preview component should
+not receive the application instance, Session, semantic dispatch port, or `SemanticStageV1`; that
+keeps it read-only and avoids a second Stage reconciler. Cat Cafe's DevDock panel is the maintained
+reference, including explicit choice-route cases and a digest-stability test.
+
 Hotfixes are deterministic bootstrap-time replacements on named patch slots. They are appropriate when a deployed Story needs a controlled correction, not as a substitute for ordinary source changes or a general mod scripting API. A simulation-changing Hotfix must participate in compatibility/provenance decisions; a presentation-only patch must not claim authority to migrate State.
 
 ## 6. Evolving the model

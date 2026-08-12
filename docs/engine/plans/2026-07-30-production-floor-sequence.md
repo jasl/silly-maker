@@ -1,8 +1,8 @@
 # Production-floor execution sequence
 
-状态：2026-08-13，PF0–PF5 与 Complexity Reset 的 CR0、CR1、CR2.1–CR2.5、CR3 已完成。
-原 PF6/S5 泛化工作暂停；当前执行方向继续降低已交付 Managed Surface/Narrative 的内部
-复杂度，随后建立真实性能基线，再以真实作者工具纵切验证下一步价值。PF6 不会自动恢复。
+状态：2026-08-13，PF0–PF5 与 Complexity Reset 的 CR0、CR1、CR2.1–CR2.5、CR3、CR4
+已完成。CR4 的真实作者纵切没有暴露需要通用 PF6 harness 解决的问题，PF6 已重新裁决为
+不激活；当前默认核心节点是 PF7 release stabilization。
 
 本文是唯一跨计划排序入口。它只保留 current、next、依赖、验收与 stop conditions。
 旧版逐提交 delivery ledger 已退出 active authority；完成里程碑摘要在
@@ -12,13 +12,12 @@
 
 当前：
 
-1. CR4 — 交付 Cat Cafe Story-local、只读的 Narrative-node Stage preview。
+1. PF7 — release stabilization。
 
 后续默认顺序：
 
-1. 重新审查 PF6；只有真实消费者证明仍需要 structural/model/browser harness 时才激活
-   对应最小部分。
-2. PF7 — release stabilization。
+1. PF7 完成后没有自动激活的默认核心节点；新工作必须由真实产品证据和新的 active plan
+   明确接受。
 
 一次只领取一个可命名任务。不得把 CR2.2–CR2.5、CR3、CR4 或 PF6 合成一次重写。
 
@@ -71,6 +70,14 @@ matrix；prebuilt Chromium 对 fresh-context cold start、Narrative、WholeCanva
 runtime assets 报 raw/gzip bytes。报告默认只写 OS temp/artifact，记录 HEAD/dirty 与实际运行
 环境，不进入普通 CI hard gate。首份 Engine Lab release build 的最大 entry 为 922,550 raw /
 214,643 gzip bytes；它是待观察的产品趋势，不是新兼容阈值或 CR4 blocker。
+
+CR4 已在 Cat Cafe DevDock 交付 Story-local detached Narrative/Stage preview。工具从真实 10
+个脚本节点纯重放出 12 个 settled preview cases，明确区分“命名为小雨 / 稍后命名”两条
+choice 路线；组件只接 Player profile、资产 registry 与只读 `StageRenderTarget`，使用
+`SemanticStageTargetHostV1`，不取得 application instance、Session 或 semantic setter。Focused
+测试证明全部节点/路线覆盖及 preview 前后 application digest 不变；Chromium/WebKit 证明代表
+节点可见且关闭面板后 live 日历、数值与 Stage 完全不变。Cat Cafe 40/40、typecheck、Story
+check 与 release build 均通过。
 
 ## 3. Trust boundary
 
@@ -187,9 +194,15 @@ commit、async stale-result rejection 与 deterministic authoritative replay。
 弱模型 canary 只在某个作者 API 要宣称 stable/AI-friendly 时执行，不是 runtime 或每提交 CI
 前置。
 
+2026-08-13 的 CR4 复审结论是不激活 PF6：现有 Story script、Semantic Stage projection、
+`SemanticStageTargetHostV1` 与 DevDock contribution 已完成完整纵切，没有出现 check/inspect/
+simulate 或 Story-local preview 无法处理的作者问题；当前也只有一个真实 preview 消费者。
+因此缺少“具体未解决问题 + 两个消费者”两项必要条件。该结论不删除 deferred ideas；未来只有
+新的仓库内产品证据同时满足上述条件时，才单独激活最小切片。
+
 ## 6. PF7 — Release stabilization
 
-PF7 在当前 active work 完成且 PF6 是否需要已重新裁决后执行：
+PF7 当前执行；PF6 已重新裁决为不激活：
 
 - latest stable Deno 上运行 canonical check；
 - 运行 affected browser/prebuilt、Save corpus 与 four-runtime determinism matrix；

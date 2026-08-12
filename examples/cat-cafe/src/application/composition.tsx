@@ -474,7 +474,7 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
       inputMaps: Object.freeze({ keyboard: catcafeKeyboardMapV1, pointer: catcafePointerMapV1 }),
       loadDevDockContributions: () =>
         import("./dev-dock.tsx").then((module) =>
-          module.createCatcafeDevDockContributionsV1({ instance })
+          module.createCatcafeDevDockContributionsV1({ instance, playerProfile, registry })
         ),
     });
   },

@@ -72,10 +72,11 @@ composition-owned Managed Surface authority、公开
 package-owned Splash/Title 与 exact-parent detail、Cat Cafe 第一消费者、Engine Lab
 opt-in 第二消费者和 SillyOS 省略均已 promotion。`PF5/M3` Save inspection、bounded
 backup/recovery、maintained release corpus 与 promotion 也已完成。当前默认 core
-方向是 **Complexity Reset**：按比例信任边界删除 package-internal anti-forgery，
-建立 Managed Surface/Narrative/WholeCanvas 与 Player 的真实性能趋势，并先交付
-Cat Cafe 的 detached Narrative/Stage preview。原 PF6/S5 broad harness 暂停，只有真实
-作者问题和第二消费者证明需要时才恢复最小部分。
+方向已完成 **Complexity Reset**：按比例信任边界删除 package-internal anti-forgery，
+建立 Managed Surface/Narrative/WholeCanvas 与 Player 的真实性能趋势，并交付 Cat Cafe
+detached Narrative/Stage preview。该真实作者纵切由现有 Story-local projection 与
+`SemanticStageTargetHostV1` 完整解决，没有产生新的公共 authoring gap 或第二消费者；因此
+PF6/S5 broad harness 复审后仍不激活。当前默认 core 节点是 **PF7 release stabilization**。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实

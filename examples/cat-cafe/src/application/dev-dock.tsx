@@ -5,8 +5,11 @@ import type { ReactElement } from "react";
 import type { DebugCommandOperationResultV1, DevDockContributionSetV1 } from "@sillymaker/ui/debug";
 import { DebugCommandPanelV1, DebugValueInspectorV1 } from "@sillymaker/ui/debug";
 import type { DebugToolsOperationResultV1 } from "@sillymaker/base";
+import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 
 import type { CatcafeApplicationInstanceV1 } from "./core-definition.ts";
+import type { CatcafeAssetRegistryV1 } from "./ui-kit.ts";
+import { CatcafeNarrativePreviewV1 } from "./narrative-preview.tsx";
 import type { CatcafeDebugCommandV1 } from "../simulation.ts";
 import { catcafeDebugStatsV1 } from "../simulation.ts";
 import { catcafeEncountersV1 } from "../content.ts";
@@ -164,6 +167,8 @@ function ForceEncounterFormV1(props: {
 
 export function createCatcafeDevDockContributionsV1(input: {
   readonly instance: CatcafeApplicationInstanceV1;
+  readonly playerProfile: PlayerProfileStoreV1;
+  readonly registry: CatcafeAssetRegistryV1 | null;
 }): DevDockContributionSetV1 {
   const semantic = input.instance.semantic;
   return Object.freeze({
@@ -180,6 +185,18 @@ export function createCatcafeDevDockContributionsV1(input: {
               read: () => semantic.observe().game,
               subscribe: (listener: () => void) => semantic.subscribe(listener),
             })}
+          />
+        ),
+      }),
+      Object.freeze({
+        id: "catcafe.narrative-preview",
+        side: "right" as const,
+        title: "剧情预览",
+        authority: "read_only" as const,
+        render: () => (
+          <CatcafeNarrativePreviewV1
+            playerProfile={input.playerProfile}
+            registry={input.registry}
           />
         ),
       }),

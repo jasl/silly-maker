@@ -83,4 +83,4 @@ HUD 常驻"回退"按钮：有界检查点环（容量 24），每次提交自�
 
 ## 验收（已交付）
 
-内容表经解析期校验（主键/外键/textId join 测试）；日程/数值/抚摸/运动会/结局判定/权威重放 headless 全绿（`src/test/`）；抚摸命中区域与图鉴相册在 Chromium/WebKit/触摸 project 浏览器验收（`engine/packages/web/e2e/engine/hit-regions.spec.ts`）；元进度跨会话保留有 jsdom 证明；`story check`/`simulate`（opening、first-day 场景）走通。
+内容表经解析期校验（主键/外键/textId join 测试）；日程/数值/抚摸/运动会/结局判定/权威重放 headless 全绿（`src/test/`）；抚摸命中区域与图鉴相册在 Chromium/WebKit/触摸 project 浏览器验收（`engine/packages/web/e2e/engine/hit-regions.spec.ts`）；元进度跨会话保留有 jsdom 证明；`story check`/`simulate`（opening、first-day 场景）走通。DevDock 的只读剧情预览覆盖 10 个脚本节点及“命名为小雨 / 稍后命名”两条路线，只渲染 detached Stage target；focused digest 与 Chromium/WebKit 均证明预览不会改变 live game。

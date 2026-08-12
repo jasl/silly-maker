@@ -219,6 +219,47 @@ test("the DevDock tuning panel commits debug commands through the session", asyn
   await expect(page.locator("[data-cc-stats]")).toContainText("金钱55");
 });
 
+test("the detached Narrative preview covers representative routes without changing live play", async ({ page }) => {
+  await page.goto(catcafeTargetUrlV1("?capability=debug_tools"));
+  await playOpeningV1(page);
+
+  const liveStage = page.locator("[data-cc-stage]");
+  const calendarBefore = await page.locator("[data-cc-calendar]").getAttribute("data-cc-calendar");
+  const statsBefore = await page.locator("[data-cc-stats-text]").textContent();
+  const liveCatBefore = await liveStage.locator("[data-cc-cat]").getAttribute("data-cc-cat");
+
+  await page.getByRole("button", { name: "打开右侧开发工具" }).click();
+  const dock = page.getByRole("complementary", { name: "右侧开发工具" });
+  await dock.getByRole("button", { name: "剧情预览" }).click();
+  const preview = dock.locator("[data-cc-narrative-preview]");
+  const selector = preview.locator("[data-cc-narrative-preview-select]");
+
+  await selector.selectOption("node.catcafe.opening");
+  await expect(preview).toHaveAttribute("data-cc-narrative-preview", "node.catcafe.opening");
+  await expect(preview.locator("[data-cc-cat]")).toHaveCount(0);
+  await expect(preview.locator("[data-cc-surface='shopfront']")).toBeVisible();
+
+  await selector.selectOption("node.catcafe.unnamed@later");
+  await expect(preview).toHaveAttribute(
+    "data-cc-narrative-preview",
+    "node.catcafe.unnamed@later",
+  );
+  await expect(preview.getByText("名字先欠着。她不在意，已经把你的围裙当成了床。")).toBeVisible();
+  await expect(preview.locator("[data-cc-cat='kitten']")).toBeVisible();
+
+  await page.getByRole("button", { name: "关闭右侧开发工具" }).click();
+  await expect(dock).toHaveCount(0);
+  await expect(page.locator("[data-cc-calendar]")).toHaveAttribute(
+    "data-cc-calendar",
+    calendarBefore ?? "",
+  );
+  await expect(page.locator("[data-cc-stats-text]")).toHaveText(statsBefore ?? "");
+  await expect(liveStage.locator("[data-cc-cat]")).toHaveAttribute(
+    "data-cc-cat",
+    liveCatBefore ?? "",
+  );
+});
+
 test("Settings and Load game open above the title screen and stay interactive", async ({ page }) => {
   await page.goto(catcafeTargetUrlV1());
   await dismissSplashV1(page);

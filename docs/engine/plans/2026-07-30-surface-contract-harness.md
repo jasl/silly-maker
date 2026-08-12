@@ -1,7 +1,8 @@
 # Managed Surface lifecycle execution plan
 
 状态：S0–S4b 已完成，Workspace Overlay、System、Narrative/History 与 WholeCanvas 已由
-composition-owned authority 生产化。PF6 泛化暂停；当前顺序只由
+composition-owned authority 生产化。Complexity Reset CR2–CR4 已完成；CR4 的真实消费者
+没有证明需要重启 PF6 泛化，因此 PF6 维持暂停。当前顺序只由
 [production-floor sequence](2026-07-30-production-floor-sequence.md) 决定。
 
 旧版本文包含 S0–S4b 的逐提交 delivery ledger 和递归 docs-only 切片。它们已退出 active
@@ -58,7 +59,7 @@ exact claimant 或 captured intrinsic。
 4. 整体传递 composition-owned typed bundle，去除重复 look-alike admission（已完成）；
 5. 行为稳定后拆分 Narrative 与 stable composite 巨型文件；
 6. 建立真实 lifecycle/browser/build 性能趋势；
-7. 交付 Cat Cafe detached Narrative/Stage preview。
+7. 交付 Cat Cafe detached Narrative/Stage preview（已完成）。
 
 每步必须保留：
 
@@ -84,6 +85,12 @@ exact claimant 或 captured intrinsic。
 重新激活某项前必须完成当前已知 CR2 去堡垒化、由 CR4 暴露现有工具无法解决的具体
 作者/产品问题、取得两个真实消费者和 CR3 数据。不得把这些方向一次合成 generalized
 harness，也不得为了 completeness 给所有 action 增加 universal envelope。
+
+2026-08-13 复审：Cat Cafe 使用现有 Story script、Semantic Stage projection、
+`SemanticStageTargetHostV1` 与普通 DevDock contribution 即完成全部节点和两条 choice 路线的
+detached preview；它没有 Session/semantic write port，关闭后 live application 不变。实现未暴露
+新的公共 authoring gap，且没有第二个需要相同新 API 的 preview 消费者，所以本轮不激活上述
+任何 PF6 candidate。
 
 ## 5. Product-facing acceptance
 
