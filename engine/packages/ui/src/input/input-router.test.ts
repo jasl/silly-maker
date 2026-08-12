@@ -21,6 +21,7 @@ const precedenceV1 = Object.freeze(
     "debug",
     "system",
     "overlay",
+    "whole_canvas",
     "narrative",
     "interaction",
     "gameplay",
@@ -116,6 +117,65 @@ describe("createInputRouterV1", () => {
     expect(narrative).not.toHaveBeenCalled();
     expect(interaction).not.toHaveBeenCalled();
     expect(gameplay).not.toHaveBeenCalled();
+  });
+
+  it("isolates whole-canvas below higher contexts and consumes cancel before Narrative", () => {
+    const router = createInputRouterV1();
+    const calls: InputContextIdV1[] = [];
+    let systemHandles = true;
+    let overlayHandles = true;
+
+    router.register({
+      context: "narrative",
+      handle: () => {
+        calls.push("narrative");
+        return inputHandledV1;
+      },
+    });
+    router.register({
+      context: "whole_canvas",
+      handle: (event) => {
+        calls.push("whole_canvas");
+        return event.kind === "action" && event.actionId === systemInputActionIdsV1.cancel
+          ? inputHandledV1
+          : inputIgnoredV1;
+      },
+    });
+    router.register({
+      context: "overlay",
+      handle: () => {
+        calls.push("overlay");
+        return overlayHandles ? inputHandledV1 : inputIgnoredV1;
+      },
+    });
+    router.register({
+      context: "system",
+      handle: () => {
+        calls.push("system");
+        return systemHandles ? inputHandledV1 : inputIgnoredV1;
+      },
+    });
+
+    const cancel = Object.freeze({
+      kind: "action" as const,
+      actionId: systemInputActionIdsV1.cancel,
+    });
+    expect(router.route(cancel)).toEqual({ kind: "handled", context: "system" });
+    expect(calls).toEqual(["system"]);
+
+    systemHandles = false;
+    calls.length = 0;
+    expect(router.route(cancel)).toEqual({ kind: "handled", context: "overlay" });
+    expect(calls).toEqual(["system", "overlay"]);
+
+    overlayHandles = false;
+    calls.length = 0;
+    expect(router.route(cancel)).toEqual({ kind: "handled", context: "whole_canvas" });
+    expect(calls).toEqual(["system", "overlay", "whole_canvas"]);
+
+    calls.length = 0;
+    expect(router.route(actionEventV1())).toEqual({ kind: "handled", context: "narrative" });
+    expect(calls).toEqual(["system", "overlay", "whole_canvas", "narrative"]);
   });
 
   it("lets an ignored Overlay fall through to Interaction before Gameplay", () => {

@@ -6,6 +6,7 @@ import {
   inputHandledV1,
   inputIgnoredV1,
   parseInputActionIdV1,
+  type InputContextIdV1,
   type InputEventV1,
   type InputHandlerResultV1,
   type InputRouterV1,
@@ -53,6 +54,7 @@ import {
   type ManagedSurfaceTransientOpenInputV1,
   type ManagedSurfaceTransientReplaceInputV1,
 } from "./managed-surface-coordinator.ts";
+import { parseManagedSurfaceResolvedDefinitionV1 } from "./managed-surface-definition.ts";
 
 const resolvedSlotDescriptorsV1 = Object.freeze(
   [
@@ -104,6 +106,7 @@ function replaceReadyV1(
 
 const activateActionIdV1 = parseManagedSurfaceActionIdV1("surface-action.activate");
 const otherActionIdV1 = parseManagedSurfaceActionIdV1("surface-action.other");
+const cancelActionIdV1 = parseManagedSurfaceActionIdV1("ui.cancel");
 
 function definitionV1(
   suffix: string,
@@ -266,6 +269,119 @@ function createFixtureV1(options: FixtureOptionsV1 = {}) {
 }
 
 describe("Managed Surface action route", () => {
+  it("admits and freezes a whole-canvas managed definition", () => {
+    const parsed = parseManagedSurfaceResolvedDefinitionV1(
+      definitionV1("whole-canvas", {
+        inputPolicy: { kind: "managed", inputContextId: "whole_canvas" },
+      }),
+    );
+
+    expect(parsed.inputPolicy).toEqual({
+      kind: "managed",
+      inputContextId: "whole_canvas",
+    });
+    expect(Object.isFrozen(parsed.inputPolicy)).toBe(true);
+    expect(Object.isFrozen(parsed)).toBe(true);
+  });
+
+  it("keeps a claimed whole-canvas cancel below higher contexts and above Narrative", () => {
+    const router = createInputRouterV1();
+    const calls: InputContextIdV1[] = [];
+    let systemHandles = true;
+    let overlayHandles = true;
+    const narrative = vi.fn(() => {
+      calls.push("narrative");
+      return inputHandledV1;
+    });
+    const overlay = vi.fn(() => {
+      calls.push("overlay");
+      return overlayHandles ? inputHandledV1 : inputIgnoredV1;
+    });
+    const system = vi.fn(() => {
+      calls.push("system");
+      return systemHandles ? inputHandledV1 : inputIgnoredV1;
+    });
+    router.register({ context: "narrative", handle: narrative });
+    router.register({ context: "overlay", handle: overlay });
+    router.register({ context: "system", handle: system });
+
+    const contract = inputBindingContractV1({
+      inputContextId: "whole_canvas",
+      actionIds: Object.freeze([cancelActionIdV1]),
+    });
+    const authority = createContractBoundAuthorityV1();
+    const binding = createManagedSurfaceContractBoundActionBindingInternalV1({
+      authority: authority.authority,
+      contract,
+      inputRouter: router,
+      isGestureCurrent: () => true,
+    });
+    const consume = vi.fn(({ actionId }: { readonly actionId: unknown }) => {
+      expect(actionId).toBe(cancelActionIdV1);
+      calls.push("whole_canvas");
+      return "primary-cancel-consumed" as const;
+    });
+    const claimed = claimManagedSurfaceAuthenticatedActionRouteInternalV1(binding, consume);
+    const routeCancel = (suffix: string) =>
+      claimed.routeInternalV1(
+        binding.createEnvelope({
+          actionId: cancelActionIdV1,
+          gestureId: gestureV1(suffix),
+        }),
+        "primary_cancel" as const,
+      );
+
+    expect(routeCancel("whole-canvas-system")).toMatchObject({
+      route: { input: { kind: "consumed" }, surface: null },
+      consumerResult: null,
+    });
+    expect(calls).toEqual(["system"]);
+    expect(authority.routeActionInternalV1).not.toHaveBeenCalled();
+    expect(consume).not.toHaveBeenCalled();
+    expect(narrative).not.toHaveBeenCalled();
+
+    systemHandles = false;
+    calls.length = 0;
+    expect(routeCancel("whole-canvas-overlay")).toMatchObject({
+      route: { input: { kind: "consumed" }, surface: null },
+      consumerResult: null,
+    });
+    expect(calls).toEqual(["system", "overlay"]);
+    expect(authority.routeActionInternalV1).not.toHaveBeenCalled();
+    expect(consume).not.toHaveBeenCalled();
+    expect(narrative).not.toHaveBeenCalled();
+
+    overlayHandles = false;
+    calls.length = 0;
+    const consumed = routeCancel("whole-canvas-current");
+    expect(consumed).toEqual({
+      route: {
+        input: {
+          kind: "consumed",
+          code: "input.managed_surface_consumed",
+          gestureId: "gesture.test.whole-canvas-current",
+          inputPublicationRevision: 1,
+        },
+        surface: routedReceiptForContractV1(contract),
+      },
+      consumerResult: "primary-cancel-consumed",
+    });
+    expect(calls).toEqual(["system", "overlay", "whole_canvas"]);
+    expect(authority.routeActionInternalV1).toHaveBeenCalledOnce();
+    expect(consume).toHaveBeenCalledOnce();
+    expect(narrative).not.toHaveBeenCalled();
+
+    claimed.disposeInternalV1();
+    calls.length = 0;
+    expect(
+      router.route({
+        kind: "action",
+        actionId: parseInputActionIdV1(cancelActionIdV1),
+      }),
+    ).toEqual({ kind: "handled", context: "narrative" });
+    expect(calls).toEqual(["system", "overlay", "narrative"]);
+  });
+
   it("builds the exact frozen six-field canonical envelope and preserves public shapes", () => {
     const fixture = createFixtureV1();
     const envelope = fixture.binding.createEnvelope({

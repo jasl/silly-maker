@@ -6,6 +6,7 @@ export type InputContextIdV1 =
   | "gameplay"
   | "interaction"
   | "narrative"
+  | "whole_canvas"
   | "overlay"
   | "system"
   | "debug";

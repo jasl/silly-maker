@@ -40,6 +40,7 @@ const inputContextsV1 = new Set<InputContextIdV1>([
   "gameplay",
   "interaction",
   "narrative",
+  "whole_canvas",
   "overlay",
   "system",
   "debug",

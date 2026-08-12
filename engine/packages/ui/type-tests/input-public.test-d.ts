@@ -21,7 +21,13 @@ type ExpectV1<TValue extends true> = TValue;
 type PublicInputContextsV1 = ExpectV1<
   EqualV1<
     InputContextIdV1,
-    "debug" | "gameplay" | "interaction" | "narrative" | "overlay" | "system"
+    | "debug"
+    | "gameplay"
+    | "interaction"
+    | "narrative"
+    | "whole_canvas"
+    | "overlay"
+    | "system"
   >
 >;
 type PublicRouterKeysV1 = ExpectV1<

@@ -357,6 +357,10 @@ export interface ManagedSurfaceStableCompositeRuntimeKernelInternalV1
   applyStableAdmissionProposalInternalV1(
     proposal: unknown,
   ): ManagedSurfaceStableReconcileResultInternalV1;
+  applyStableAdmissionProposalWithCommitGuardInternalV1(
+    proposal: unknown,
+    commitGuard: ManagedSurfaceStableReadinessCommitGuardInternalV1,
+  ): ManagedSurfaceStableReconcileResultInternalV1;
   disposeStablePublisherLeaseInternalV1(
     publisherLease: unknown,
   ): ManagedSurfaceStableReconcileResultInternalV1;
@@ -415,12 +419,32 @@ export interface ManagedSurfaceStableExactParentTransientChildAuthorityInternalV
   prepareExactParentTransientChildInternalV1(
     input: PrepareManagedSurfaceStableExactParentTransientChildInputInternalV1,
   ): ManagedSurfaceStableExactParentTransientChildPreparationResultInternalV1;
+  captureRetainedExactParentInputInternalV1(
+    input: Readonly<{
+      readonly expectedCarrierEntry: unknown;
+      readonly expectedParentInstanceId: unknown;
+      readonly expectedParent: unknown;
+      readonly expectedSourceRevision: unknown;
+    }>,
+  ): ManagedSurfaceStableActionInputCaptureResultInternalV1;
 }
 
 export interface ManagedSurfaceStableReadinessCommitGuardInternalV1 {
   readonly commitInternalV1: (
     contract: ManagedSurfacePreparedInputBindingContractInternalV1 | null,
   ) => boolean;
+}
+
+/**
+ * Source-relative opt-in for a family that owns an exact pending root frame.
+ * Generic stable publication keeps its older-pending retry semantics.
+ */
+export interface ManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1 {
+  applyPendingProjectionRefreshWithCommitGuardInternalV1(
+    proposal: unknown,
+    expectedPreparingEntry: unknown,
+    commitGuard: ManagedSurfaceStableReadinessCommitGuardInternalV1,
+  ): ManagedSurfaceStableReconcileResultInternalV1;
 }
 
 export type ManagedSurfaceStableExactParentTransientChildReadinessResultInternalV1 =
@@ -473,6 +497,9 @@ export type ManagedSurfaceStableExactParentTransientChildActionInputCaptureResul
   | Readonly<{
     readonly kind: "captured";
     readonly contract: ManagedSurfaceInputBindingContractV1;
+    readonly parentDirectTarget: ManagedSurfaceStableAdmittedTargetInternalV1;
+    readonly parentSourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+    readonly parentTargetProof: ManagedSurfaceStableDirectActionTargetProofInternalV1;
   }>
   | Readonly<{ readonly kind: "unavailable" }>
   | Readonly<{
@@ -554,6 +581,28 @@ interface CompositeStateAuthorityRecordInternalV1 {
   >;
   readonly stableContributorCandidates:
     readonly ManagedSurfaceStableRootReservationContributorCandidateInternalV1[];
+  readonly pendingProjectionRefreshes: ReadonlyMap<
+    ManagedSurfaceRuntimeAttemptIdentityInternalV1,
+    PendingProjectionRefreshRecordInternalV1
+  >;
+}
+
+interface PendingProjectionRefreshRecordInternalV1 {
+  readonly exactClaimant: object;
+  readonly entry: ManagedSurfaceStableRuntimeEntryInternalV1;
+  readonly attempt: ManagedSurfaceStableRuntimeAttemptInternalV1;
+  readonly desiredTarget: ManagedSurfaceStableDesiredRuntimeTargetInternalV1;
+}
+
+interface PendingProjectionRefreshAuthorizationInternalV1 {
+  readonly origin: object;
+  readonly exactClaimant: object;
+  readonly expectedState: ManagedSurfaceStableCompositeStateInternalV1;
+  readonly expectedEntry: ManagedSurfaceStableRuntimeEntryInternalV1;
+  readonly nextAcceptedBaseline: Extract<
+    ManagedSurfaceStableAcceptedBaselineInternalV1,
+    { readonly kind: "accepted" }
+  >;
 }
 
 const compositeStateAuthorityRecordsInternalV1 = new WeakMap<
@@ -567,6 +616,12 @@ interface CompositeRuntimeKernelConfigurationRecordInternalV1 {
   readonly runtimeKernel: ManagedSurfaceRuntimeKernelInternalV1<
     ManagedSurfaceStableCompositeStateInternalV1
   >;
+  readonly applyPendingProjectionRefresh: (
+    exactClaimant: object,
+    proposal: unknown,
+    expectedPreparingEntry: unknown,
+    commitGuard: ManagedSurfaceStableReadinessCommitGuardInternalV1,
+  ) => ManagedSurfaceStableReconcileResultInternalV1;
 }
 
 const compositeRuntimeKernelConfigurationRecordsInternalV1 = new WeakMap<
@@ -577,6 +632,7 @@ const compositeRuntimeKernelConfigurationRecordsInternalV1 = new WeakMap<
 interface ManagedSurfaceStableDirectActionTargetProofRecordInternalV1 {
   readonly authority: ManagedSurfaceStableActionRouteAuthorityInternalV1;
   readonly kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1;
+  readonly exactClaimant: object | null;
   readonly applicationEpoch: number;
   readonly topologyRevision: number;
   readonly instance: ManagedSurfaceStableReadyRuntimeInstanceInternalV1;
@@ -609,27 +665,28 @@ const stableReadyActiveTargetProofRecordsInternalV1 = new WeakMap<
 >();
 
 interface ManagedSurfaceStableExactParentTransientChildClaimRecordInternalV1 {
-  readonly exactClaimant: object;
   readonly authority: ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1;
 }
 
+interface ManagedSurfaceStablePendingProjectionRefreshClaimRecordInternalV1 {
+  readonly authority: ManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1;
+}
+
 interface ManagedSurfaceStableExactParentTransientChildReadinessClaimRecordInternalV1 {
-  readonly exactClaimant: object;
   readonly authority: ManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1;
 }
 
 interface ManagedSurfaceStableExactParentTransientChildLifecycleClaimRecordInternalV1 {
-  readonly exactClaimant: object;
   readonly authority: ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1;
 }
 
 interface ManagedSurfaceStableExactParentTransientChildActionClaimRecordInternalV1 {
-  readonly exactClaimant: object;
   readonly authority: ManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1;
 }
 
 interface ManagedSurfaceStableExactParentTransientChildCandidateRecordInternalV1 {
   readonly kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1;
+  readonly exactClaimant: object;
   readonly origin: object;
   readonly surfaceInstanceId: ManagedSurfaceInstanceIdV1;
   readonly definition: DeepReadonly<ManagedSurfaceResolvedDefinitionV1>;
@@ -644,19 +701,23 @@ interface ManagedSurfaceStableExactParentTransientChildCandidateRecordInternalV1
 
 const stableExactParentTransientChildClaimsInternalV1 = new WeakMap<
   ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
-  ManagedSurfaceStableExactParentTransientChildClaimRecordInternalV1
+  WeakMap<object, ManagedSurfaceStableExactParentTransientChildClaimRecordInternalV1>
+>();
+const stablePendingProjectionRefreshClaimsInternalV1 = new WeakMap<
+  ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+  WeakMap<object, ManagedSurfaceStablePendingProjectionRefreshClaimRecordInternalV1>
 >();
 const stableExactParentTransientChildReadinessClaimsInternalV1 = new WeakMap<
   ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
-  ManagedSurfaceStableExactParentTransientChildReadinessClaimRecordInternalV1
+  WeakMap<object, ManagedSurfaceStableExactParentTransientChildReadinessClaimRecordInternalV1>
 >();
 const stableExactParentTransientChildLifecycleClaimsInternalV1 = new WeakMap<
   ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
-  ManagedSurfaceStableExactParentTransientChildLifecycleClaimRecordInternalV1
+  WeakMap<object, ManagedSurfaceStableExactParentTransientChildLifecycleClaimRecordInternalV1>
 >();
 const stableExactParentTransientChildActionClaimsInternalV1 = new WeakMap<
   ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
-  ManagedSurfaceStableExactParentTransientChildActionClaimRecordInternalV1
+  WeakMap<object, ManagedSurfaceStableExactParentTransientChildActionClaimRecordInternalV1>
 >();
 const stableExactParentTransientChildCandidateRecordsInternalV1 = new WeakMap<
   object,
@@ -674,6 +735,20 @@ const recordStableExactParentTransientChildInstanceInternalV1 =
   stableExactParentTransientChildInstanceRecordsInternalV1.set.bind(
     stableExactParentTransientChildInstanceRecordsInternalV1,
   );
+
+function exactParentTransientChildClaimPartitionInternalV1<TClaimRecord>(
+  partitions: WeakMap<
+    ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+    WeakMap<object, TClaimRecord>
+  >,
+  kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+): WeakMap<object, TClaimRecord> {
+  const retained = partitions.get(kernel);
+  if (retained !== undefined) return retained;
+  const partition = new WeakMap<object, TClaimRecord>();
+  partitions.set(kernel, partition);
+  return partition;
+}
 
 /** Source-relative exact configuration proof for composition-owned family adapters. */
 export function matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationInternalV1(
@@ -879,6 +954,7 @@ interface RetainedRuntimeSubtreeAuthorityRecordInternalV1 {
   readonly origin: object;
   readonly root: ManagedSurfaceStableReadyRuntimeInstanceInternalV1;
   readonly descendants: readonly ManagedSurfaceStableReadyRuntimeInstanceInternalV1[];
+  readonly desiredTargets: readonly ManagedSurfaceStableDesiredRuntimeTargetInternalV1[];
 }
 
 const retainedRuntimeSubtreeAuthorityRecordsInternalV1 = new WeakMap<
@@ -924,7 +1000,8 @@ function assertAuthenticRetainedRuntimeSubtreeInternalV1(
   const record = retainedRuntimeSubtreeAuthorityRecordsInternalV1.get(subtree);
   if (
     record === undefined || subtree.root !== record.root ||
-    subtree.descendants !== record.descendants
+    subtree.descendants !== record.descendants ||
+    record.desiredTargets.length !== subtree.descendants.length + 1
   ) {
     throw new TypeError("ui.managed_surface_stable_runtime_binding_invalid");
   }
@@ -974,6 +1051,7 @@ export function createManagedSurfaceStableCompositeStateInternalV1(input: {
     pendingRuntimeAttempts: new Set(),
     preservedReadinessFailureGaps: new Set(),
     stableContributorCandidates: Object.freeze([]),
+    pendingProjectionRefreshes: new Map(),
   });
   return state;
 }
@@ -1045,6 +1123,17 @@ export function createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1(input
   };
   visitChildren(input.root);
   const frozenDescendants = Object.freeze(descendants);
+  const desiredTargets = Object.freeze([input.root, ...frozenDescendants].map((instance) => {
+    const retainedEntry = readyEntries.find((candidate) => candidate.instance === instance);
+    if (
+      retainedEntry === undefined ||
+      retainedEntry.entry.desiredTarget.admittedTarget !==
+        instance.attempt.desiredTarget.admittedTarget
+    ) {
+      throw new TypeError("ui.managed_surface_stable_runtime_binding_invalid");
+    }
+    return retainedEntry.entry.desiredTarget;
+  }));
   const subtree = Object.freeze({
     root: input.root,
     descendants: frozenDescendants,
@@ -1053,6 +1142,7 @@ export function createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1(input
     origin: record.origin,
     root: input.root,
     descendants: frozenDescendants,
+    desiredTargets,
   });
   cache ??= new Map();
   cache.set(input.root, subtree);
@@ -1393,6 +1483,7 @@ function captureRuntimeBindingInternalV1(
   record: CompositeStateAuthorityRecordInternalV1,
   desiredTarget: ManagedSurfaceStableDesiredRuntimeTargetInternalV1,
   binding: ManagedSurfaceStableRuntimeBindingInternalV1,
+  pendingRefreshAuthorization: PendingProjectionRefreshAuthorizationInternalV1 | null,
 ): ManagedSurfaceStableRuntimeBindingInternalV1 {
   if (binding.kind === "ready_instance") {
     if (
@@ -1424,7 +1515,17 @@ function captureRuntimeBindingInternalV1(
     });
   }
   if (binding.kind === "preparing") {
-    if (!sameDesiredRuntimeTargetInternalV1(binding.attempt.desiredTarget, desiredTarget)) {
+    const pendingProjectionRefresh = matchesPendingProjectionRefreshPreparingBindingInternalV1(
+      state,
+      record,
+      desiredTarget,
+      binding,
+      pendingRefreshAuthorization,
+    );
+    if (
+      !sameDesiredRuntimeTargetInternalV1(binding.attempt.desiredTarget, desiredTarget) &&
+      !pendingProjectionRefresh
+    ) {
       throw new TypeError("ui.managed_surface_stable_runtime_binding_invalid");
     }
     if (
@@ -1438,7 +1539,7 @@ function captureRuntimeBindingInternalV1(
       state,
       record,
       binding.attempt,
-      desiredTarget,
+      pendingProjectionRefresh ? binding.attempt.desiredTarget : desiredTarget,
     );
     const retainedSubtree = binding.retainedSubtree === null
       ? null
@@ -1486,6 +1587,7 @@ function captureContributorCandidatesInternalV1(
   state: ManagedSurfaceStableCompositeStateInternalV1,
   record: CompositeStateAuthorityRecordInternalV1,
   candidates: readonly ManagedSurfaceStableRootReservationContributorCandidateInternalV1[],
+  pendingRefreshAuthorization: PendingProjectionRefreshAuthorizationInternalV1 | null,
 ): readonly ManagedSurfaceStableRootReservationContributorCandidateInternalV1[] {
   return Object.freeze(candidates.map((candidate) => {
     if (candidate.kind !== "stable_desired" && candidate.kind !== "stable_runtime") {
@@ -1502,6 +1604,7 @@ function captureContributorCandidatesInternalV1(
           record,
           desiredTarget,
           candidate.binding,
+          pendingRefreshAuthorization,
         ),
       });
   }));
@@ -1575,6 +1678,41 @@ function sameDesiredRuntimeTargetInternalV1(
     left.sourceRevision === right.sourceRevision;
 }
 
+function matchesPendingProjectionRefreshPreparingBindingInternalV1(
+  state: ManagedSurfaceStableCompositeStateInternalV1,
+  authorityRecord: CompositeStateAuthorityRecordInternalV1,
+  desired: ManagedSurfaceStableDesiredRuntimeTargetInternalV1,
+  binding: Extract<ManagedSurfaceStableRuntimeBindingInternalV1, { readonly kind: "preparing" }>,
+  authorization: PendingProjectionRefreshAuthorizationInternalV1 | null,
+): boolean {
+  const attempt = binding.attempt;
+  if (
+    desired.admittedTarget.stackScope.kind !== "root" ||
+    !sameStableOccurrenceIdentityInternalV1(attempt.desiredTarget, desired) ||
+    attempt.desiredTarget.sourceRevision >= desired.sourceRevision
+  ) {
+    return false;
+  }
+  if (authorization !== null) {
+    const baseline = authorization.nextAcceptedBaseline;
+    return authorization.origin === authorityRecord.origin &&
+      authorization.expectedEntry.binding === binding &&
+      authorization.expectedEntry.desiredTarget.admittedTarget === desired.admittedTarget &&
+      authorization.expectedEntry.desiredTarget.publisherLease === desired.publisherLease &&
+      authorization.expectedEntry.desiredTarget.sourceRevision < desired.sourceRevision &&
+      authorization.expectedState.stableRuntimeBindings.includes(authorization.expectedEntry) &&
+      baseline.kind === "accepted" && baseline.publisherLease === desired.publisherLease &&
+      baseline.sourceRevision === desired.sourceRevision && baseline.targets.length === 1 &&
+      baseline.targets[0] === desired.admittedTarget &&
+      state.stableAcceptedBaselines.includes(baseline);
+  }
+  const marker = authorityRecord.pendingProjectionRefreshes.get(attempt.identity);
+  return marker !== undefined && marker.entry.binding === binding && marker.attempt === attempt &&
+    marker.desiredTarget === marker.entry.desiredTarget &&
+    state.stableRuntimeBindings.includes(marker.entry) &&
+    sameDesiredRuntimeTargetInternalV1(marker.desiredTarget, desired);
+}
+
 function validateRuntimeEntryInternalV1(
   state: ManagedSurfaceStableCompositeStateInternalV1,
   authorityRecord: CompositeStateAuthorityRecordInternalV1,
@@ -1596,6 +1734,7 @@ function validateRuntimeEntryInternalV1(
     ManagedSurfaceRuntimeAttemptIdentityInternalV1,
     ManagedSurfaceStableRuntimeAttemptInternalV1
   >,
+  pendingRefreshAuthorization: PendingProjectionRefreshAuthorizationInternalV1 | null,
 ): void {
   const definition = validateDesiredTargetInternalV1(state, authorityRecord, desired);
   if (definition === null || definition.placement !== desired.admittedTarget.stackScope.kind) {
@@ -1628,7 +1767,14 @@ function validateRuntimeEntryInternalV1(
     }
   } else if (binding.kind === "preparing") {
     if (
-      !sameDesiredRuntimeTargetInternalV1(binding.attempt.desiredTarget, desired) ||
+      (!sameDesiredRuntimeTargetInternalV1(binding.attempt.desiredTarget, desired) &&
+        !matchesPendingProjectionRefreshPreparingBindingInternalV1(
+          state,
+          authorityRecord,
+          desired,
+          binding,
+          pendingRefreshAuthorization,
+        )) ||
       (binding.transition === "primary_replacement" &&
         (placement !== "root" || slotCardinality !== "single" ||
           binding.retainedSubtree === null)) ||
@@ -1790,6 +1936,7 @@ function stableRuntimeRowsInternalV1(
   authorityRecord: CompositeStateAuthorityRecordInternalV1,
   desired: ManagedSurfaceStableDesiredRuntimeTargetInternalV1,
   binding: ManagedSurfaceStableRuntimeBindingInternalV1,
+  pendingRefreshAuthorization: PendingProjectionRefreshAuthorizationInternalV1 | null,
 ): readonly ManagedSurfaceStableRootReservationContributorInternalV1[] {
   if (desired.admittedTarget.stackScope.kind !== "root") return Object.freeze([]);
   const base = {
@@ -1837,7 +1984,16 @@ function stableRuntimeRowsInternalV1(
     return Object.freeze([rowForInstance(binding.instance, "ready_instance")]);
   }
   if (binding.kind === "preparing") {
-    if (!sameDesiredRuntimeTargetInternalV1(binding.attempt.desiredTarget, desired)) {
+    if (
+      !sameDesiredRuntimeTargetInternalV1(binding.attempt.desiredTarget, desired) &&
+      !matchesPendingProjectionRefreshPreparingBindingInternalV1(
+        state,
+        authorityRecord,
+        desired,
+        binding,
+        pendingRefreshAuthorization,
+      )
+    ) {
       throw new TypeError("ui.managed_surface_stable_runtime_binding_invalid");
     }
     const rows: ManagedSurfaceStableRootReservationContributorInternalV1[] = [
@@ -1875,11 +2031,14 @@ function sameStableRuntimeEntriesInternalV1(
   });
 }
 
-export function reconcileManagedSurfaceStableRootReservationsInternalV1(input: {
-  readonly currentState: ManagedSurfaceStableCompositeStateInternalV1;
-  readonly contributorCandidates:
-    readonly ManagedSurfaceStableRootReservationContributorCandidateInternalV1[];
-}): ManagedSurfaceStableCompositeStateInternalV1 {
+function reconcileManagedSurfaceStableRootReservationsWithPendingRefreshInternalV1(
+  input: {
+    readonly currentState: ManagedSurfaceStableCompositeStateInternalV1;
+    readonly contributorCandidates:
+      readonly ManagedSurfaceStableRootReservationContributorCandidateInternalV1[];
+  },
+  pendingRefreshAuthorization: PendingProjectionRefreshAuthorizationInternalV1 | null,
+): ManagedSurfaceStableCompositeStateInternalV1 {
   const authorityRecord = compositeStateAuthorityRecordsInternalV1.get(input.currentState);
   if (authorityRecord === undefined || !Array.isArray(input.contributorCandidates)) {
     throw new TypeError("ui.managed_surface_stable_composite_state_invalid");
@@ -1888,6 +2047,7 @@ export function reconcileManagedSurfaceStableRootReservationsInternalV1(input: {
     input.currentState,
     authorityRecord,
     input.contributorCandidates,
+    pendingRefreshAuthorization,
   );
   const desiredByOccurrence = new Map<
     ManagedSurfaceStableAdmittedTargetInternalV1["occurrenceId"],
@@ -1962,6 +2122,7 @@ export function reconcileManagedSurfaceStableRootReservationsInternalV1(input: {
       runtimeByOccurrence,
       usedRuntimeSequences,
       usedRuntimeAttempts,
+      pendingRefreshAuthorization,
     );
     const currentEntry = input.currentState.stableRuntimeBindings.find((entry) =>
       sameDesiredRuntimeTargetInternalV1(entry.desiredTarget, candidate.desiredTarget) &&
@@ -1979,6 +2140,7 @@ export function reconcileManagedSurfaceStableRootReservationsInternalV1(input: {
         authorityRecord,
         candidate.desiredTarget,
         candidate.binding,
+        pendingRefreshAuthorization,
       ),
     );
   }
@@ -2040,6 +2202,39 @@ export function reconcileManagedSurfaceStableRootReservationsInternalV1(input: {
       ? input.currentState.stableRuntimeBindings
       : Object.freeze(stableRuntimeBindings),
   });
+  const pendingProjectionRefreshes = new Map<
+    ManagedSurfaceRuntimeAttemptIdentityInternalV1,
+    PendingProjectionRefreshRecordInternalV1
+  >();
+  for (const entry of stableRuntimeBindings) {
+    if (entry.binding.kind !== "preparing") continue;
+    const retained = authorityRecord.pendingProjectionRefreshes.get(entry.binding.attempt.identity);
+    if (
+      retained !== undefined && retained.entry === entry &&
+      retained.attempt === entry.binding.attempt &&
+      retained.desiredTarget === entry.desiredTarget
+    ) {
+      pendingProjectionRefreshes.set(entry.binding.attempt.identity, retained);
+    }
+  }
+  if (pendingRefreshAuthorization !== null) {
+    const refreshedEntry = stableRuntimeBindings.find((entry) =>
+      entry.binding === pendingRefreshAuthorization.expectedEntry.binding &&
+      entry.desiredTarget.admittedTarget ===
+        pendingRefreshAuthorization.expectedEntry.desiredTarget.admittedTarget &&
+      entry.desiredTarget.sourceRevision ===
+        pendingRefreshAuthorization.nextAcceptedBaseline.sourceRevision
+    );
+    if (refreshedEntry?.binding.kind !== "preparing") {
+      throw new TypeError("ui.managed_surface_stable_runtime_binding_invalid");
+    }
+    pendingProjectionRefreshes.set(refreshedEntry.binding.attempt.identity, {
+      exactClaimant: pendingRefreshAuthorization.exactClaimant,
+      entry: refreshedEntry,
+      attempt: refreshedEntry.binding.attempt,
+      desiredTarget: refreshedEntry.desiredTarget,
+    });
+  }
   compositeStateAuthorityRecordsInternalV1.set(nextState, {
     ...authorityRecord,
     derivedFrom: input.currentState,
@@ -2057,8 +2252,17 @@ export function reconcileManagedSurfaceStableRootReservationsInternalV1(input: {
     stableContributorCandidates: Object.freeze(
       [...contributorCandidates],
     ),
+    pendingProjectionRefreshes,
   });
   return nextState;
+}
+
+export function reconcileManagedSurfaceStableRootReservationsInternalV1(input: {
+  readonly currentState: ManagedSurfaceStableCompositeStateInternalV1;
+  readonly contributorCandidates:
+    readonly ManagedSurfaceStableRootReservationContributorCandidateInternalV1[];
+}): ManagedSurfaceStableCompositeStateInternalV1 {
+  return reconcileManagedSurfaceStableRootReservationsWithPendingRefreshInternalV1(input, null);
 }
 
 function transientContributorCandidatesInternalV1(
@@ -2127,6 +2331,7 @@ function replaceTransientStateInternalV1(
       pendingRuntimeAttempts: new Set(),
       preservedReadinessFailureGaps: new Set(),
       stableContributorCandidates: Object.freeze([]),
+      pendingProjectionRefreshes: new Map(),
     });
     return nextState;
   }
@@ -2144,6 +2349,34 @@ function replaceTransientStateInternalV1(
     installable: false,
   });
   return baseState;
+}
+
+function coalesceExactParentTransientChildReplacementRevisionsInternalV1(
+  currentState: ManagedSurfaceReducerStateV1,
+  replacementState: ManagedSurfaceReducerStateV1,
+): ManagedSurfaceReducerStateV1 {
+  const publicationRevision = parseNonNegativeSafeInteger(
+    currentState.publication.publicationRevision + 1,
+  );
+  const topologyRevision = parseNonNegativeSafeInteger(
+    currentState.publication.topologyRevision + 1,
+  );
+  if (
+    replacementState.publication.applicationEpoch !==
+      currentState.publication.applicationEpoch ||
+    replacementState.publication.publicationRevision !== publicationRevision + 1 ||
+    replacementState.publication.topologyRevision !== topologyRevision + 1
+  ) {
+    throw new TypeError("ui.managed_surface_stable_composite_state_invalid");
+  }
+  return Object.freeze({
+    ...replacementState,
+    publication: Object.freeze({
+      ...replacementState.publication,
+      publicationRevision,
+      topologyRevision,
+    }),
+  });
 }
 
 function validateCompositeStateInstallInternalV1(
@@ -2831,6 +3064,10 @@ function rephaseRetainedRuntimeSubtreeInternalV1(
     "active" | "suspended"
   >,
 ): ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1 {
+  const retainedRecord = assertAuthenticRetainedRuntimeSubtreeInternalV1(subtree);
+  if (retainedRecord.origin !== origin) {
+    throw new TypeError("ui.managed_surface_stable_runtime_binding_invalid");
+  }
   const root = rephaseStableReadyInstanceInternalV1(subtree.root, stablePhaseByInstance);
   const descendants = subtree.descendants.map((instance) =>
     rephaseStableReadyInstanceInternalV1(instance, stablePhaseByInstance)
@@ -2847,6 +3084,7 @@ function rephaseRetainedRuntimeSubtreeInternalV1(
     origin,
     root,
     descendants: frozenDescendants,
+    desiredTargets: retainedRecord.desiredTargets,
   });
   return nextSubtree;
 }
@@ -3317,6 +3555,18 @@ interface StableRuntimePlanInternalV1 {
   readonly subjectRuntimeBefore: readonly ManagedSurfaceStableRuntimeEntryInternalV1[];
 }
 
+type StableAdmissionProposalApplyPreflightInternalV1 =
+  | Readonly<{
+    readonly kind: "result";
+    readonly result: ManagedSurfaceStableReconcileResultInternalV1;
+  }>
+  | Readonly<{
+    readonly kind: "plan";
+    readonly expectedState: ManagedSurfaceStableCompositeStateInternalV1;
+    readonly nextState: ManagedSurfaceStableCompositeStateInternalV1;
+    readonly result: ManagedSurfaceStableReconcileResultInternalV1;
+  }>;
+
 type StableOwnedRuntimeDispositionInternalV1 = "none" | "nonobservable" | "observable";
 
 function stableOwnedRuntimeDispositionInternalV1(
@@ -3740,6 +3990,125 @@ function planStableRuntimeForProposalInternalV1(input: {
   });
 }
 
+function planPendingProjectionRefreshInternalV1(input: {
+  readonly currentState: ManagedSurfaceStableCompositeStateInternalV1;
+  readonly authorityRecord: CompositeStateAuthorityRecordInternalV1;
+  readonly leaseSnapshot: ManagedSurfaceStablePublisherLeaseSnapshotInternalV1;
+  readonly proposal: ManagedSurfaceStableAdmissionProposalInternalV1;
+  readonly expectedEntry: ManagedSurfaceStableRuntimeEntryInternalV1;
+  readonly exactClaimant: object;
+}): ManagedSurfaceStableCompositeStateInternalV1 {
+  const currentBaseline = input.proposal.captured.acceptedBaseline;
+  const nextBaseline = input.proposal.nextAcceptedBaseline;
+  const expectedEntry = input.expectedEntry;
+  const binding = expectedEntry.binding;
+  const scope = expectedEntry.desiredTarget.admittedTarget.stackScope;
+  const ownedEntries = input.currentState.stableRuntimeBindings.filter((entry) =>
+    entry.desiredTarget.publisherLease === input.proposal.captured.lease
+  );
+  if (
+    input.proposal.relation !== "greater_same" || currentBaseline.kind !== "accepted" ||
+    currentBaseline.targets.length !== 1 || nextBaseline.targets.length !== 1 ||
+    nextBaseline.targets[0] !== currentBaseline.targets[0] || ownedEntries.length !== 1 ||
+    ownedEntries[0] !== expectedEntry || binding.kind !== "preparing" || scope.kind !== "root" ||
+    expectedEntry.desiredTarget.publisherLease !== input.proposal.captured.lease ||
+    expectedEntry.desiredTarget.admittedTarget !== currentBaseline.targets[0] ||
+    expectedEntry.desiredTarget.sourceRevision !== currentBaseline.sourceRevision ||
+    nextBaseline.sourceRevision <= currentBaseline.sourceRevision ||
+    binding.attempt.desiredTarget.sourceRevision > expectedEntry.desiredTarget.sourceRevision ||
+    input.authorityRecord.boundRuntimeAttempts.get(binding.attempt.identity) !== binding.attempt ||
+    input.authorityRecord.pendingRuntimeAttempts.size !== 0
+  ) {
+    throw new TypeError("ui.managed_surface_stable_pending_projection_refresh_invalid");
+  }
+  const currentMarker = input.authorityRecord.pendingProjectionRefreshes.get(
+    binding.attempt.identity,
+  );
+  if (
+    binding.attempt.desiredTarget.sourceRevision < expectedEntry.desiredTarget.sourceRevision &&
+    (currentMarker === undefined || currentMarker.exactClaimant !== input.exactClaimant ||
+      currentMarker.entry !== expectedEntry || currentMarker.attempt !== binding.attempt ||
+      currentMarker.desiredTarget !== expectedEntry.desiredTarget)
+  ) {
+    throw new TypeError("ui.managed_surface_stable_pending_projection_refresh_stale");
+  }
+  const currentDesiredByOccurrence = new Map([
+    [expectedEntry.desiredTarget.admittedTarget.occurrenceId, expectedEntry.desiredTarget] as const,
+  ]);
+  if (
+    slotCardinalityForDesiredInternalV1(
+      input.currentState,
+      input.authorityRecord,
+      expectedEntry.desiredTarget,
+      currentDesiredByOccurrence,
+    ) !== "single"
+  ) {
+    throw new TypeError("ui.managed_surface_stable_pending_projection_refresh_invalid");
+  }
+  const planningState = deriveReplacedStableBaselineStateInternalV1(
+    input.currentState,
+    input.authorityRecord,
+    currentBaseline,
+    nextBaseline,
+  );
+  const planningRecord = compositeStateAuthorityRecordsInternalV1.get(planningState);
+  if (planningRecord === undefined) {
+    throw new TypeError("ui.managed_surface_stable_composite_state_invalid");
+  }
+  const desiredTargets = desiredTargetsForAcceptedBaselineInternalV1(
+    planningState,
+    planningRecord,
+    input.leaseSnapshot,
+    nextBaseline,
+  );
+  const desiredTarget = desiredTargets[0];
+  if (
+    desiredTargets.length !== 1 || desiredTarget === undefined ||
+    desiredTarget.admittedTarget !== expectedEntry.desiredTarget.admittedTarget
+  ) {
+    throw new TypeError("ui.managed_surface_stable_pending_projection_refresh_invalid");
+  }
+  const authorization: PendingProjectionRefreshAuthorizationInternalV1 = Object.freeze({
+    origin: input.authorityRecord.origin,
+    exactClaimant: input.exactClaimant,
+    expectedState: input.currentState,
+    expectedEntry,
+    nextAcceptedBaseline: nextBaseline,
+  });
+  const entries = Object.freeze(
+    planningState.stableRuntimeBindings.map((entry) =>
+      entry === expectedEntry ? Object.freeze({ desiredTarget, binding }) : entry
+    ),
+  );
+  const nextState = reconcileManagedSurfaceStableRootReservationsWithPendingRefreshInternalV1(
+    {
+      currentState: planningState,
+      contributorCandidates: stableContributorCandidatesForEntriesInternalV1(entries),
+    },
+    authorization,
+  );
+  const nextEntry = nextState.stableRuntimeBindings.find((entry) =>
+    entry.desiredTarget.publisherLease === input.proposal.captured.lease
+  );
+  const nextRecord = compositeStateAuthorityRecordsInternalV1.get(nextState);
+  const marker = binding.kind === "preparing"
+    ? nextRecord?.pendingProjectionRefreshes.get(binding.attempt.identity)
+    : undefined;
+  if (
+    nextEntry?.binding.kind !== "preparing" || nextEntry.binding.attempt !== binding.attempt ||
+    nextEntry.desiredTarget.sourceRevision !== nextBaseline.sourceRevision ||
+    nextState.transientState !== input.currentState.transientState ||
+    nextState.rootReservationContributors !== input.currentState.rootReservationContributors ||
+    nextState.rootReservationGenerationToken !==
+      input.currentState.rootReservationGenerationToken ||
+    marker?.entry !== nextEntry || marker.exactClaimant !== input.exactClaimant ||
+    marker.attempt !== binding.attempt || marker.desiredTarget !== nextEntry.desiredTarget
+  ) {
+    throw new TypeError("ui.managed_surface_stable_pending_projection_refresh_invalid");
+  }
+  return nextState;
+}
+
 function appliedDeltaForProposalInternalV1(
   proposal: ManagedSurfaceStableAdmissionProposalInternalV1,
   plan: StableRuntimePlanInternalV1,
@@ -3817,6 +4186,34 @@ function appliedDeltaForProposalInternalV1(
     topology: "readiness_policy_derived" as const,
     runtimeAllocation: "preparation_count" as const,
   });
+}
+
+function matchesCurrentPendingProjectionRefreshCandidateInternalV1(
+  state: ManagedSurfaceStableCompositeStateInternalV1,
+  candidate:
+    & ManagedSurfaceStableRuntimeEntryInternalV1
+    & Readonly<{
+      readonly binding: Extract<
+        ManagedSurfaceStableRuntimeBindingInternalV1,
+        { readonly kind: "preparing" }
+      >;
+    }>,
+): boolean {
+  const authorityRecord = compositeStateAuthorityRecordsInternalV1.get(state);
+  const marker = authorityRecord?.pendingProjectionRefreshes.get(
+    candidate.binding.attempt.identity,
+  );
+  return marker !== undefined && marker.entry === candidate &&
+    marker.attempt === candidate.binding.attempt &&
+    marker.desiredTarget === candidate.desiredTarget &&
+    state.stableRuntimeBindings.includes(candidate) &&
+    matchesPendingProjectionRefreshPreparingBindingInternalV1(
+      state,
+      authorityRecord!,
+      candidate.desiredTarget,
+      candidate.binding,
+      null,
+    );
 }
 
 interface StablePublisherDisposePlanInternalV1 {
@@ -3996,6 +4393,240 @@ export function createManagedSurfaceStableCompositeRuntimeKernelInternalV1(input
   const inspectPublisherLeaseDisposal =
     publisherLeaseDisposalAuthority.inspectPublisherLeaseDisposal;
   const disposeCurrentPublisherLease = publisherLeaseDisposalAuthority.disposeCurrentPublisherLease;
+  type StableAdmissionProposalInspectionInternalV1 =
+    | Extract<StableAdmissionProposalApplyPreflightInternalV1, { readonly kind: "result" }>
+    | Readonly<{
+      readonly kind: "inspected";
+      readonly proposal: ManagedSurfaceStableAdmissionProposalInternalV1;
+      readonly leaseSnapshot: ManagedSurfaceStablePublisherLeaseSnapshotInternalV1;
+      readonly authorityRecord: CompositeStateAuthorityRecordInternalV1;
+    }>;
+  const inspectStableAdmissionProposal = (
+    currentState: ManagedSurfaceStableCompositeStateInternalV1,
+    proposalInput: unknown,
+  ): StableAdmissionProposalInspectionInternalV1 => {
+    const proposal = admissionAuthority.inspectAdmissionProposal(proposalInput);
+    if (proposal === null) {
+      return Object.freeze({
+        kind: "result" as const,
+        result: stableAdmissionFaultedResultInternalV1,
+      });
+    }
+    const leaseSnapshot = Reflect.apply(
+      publisherLeaseRegistry.inspectCurrentLease,
+      publisherLeaseRegistry,
+      [proposal.captured.lease],
+    ) as ManagedSurfaceStablePublisherLeaseSnapshotInternalV1 | null;
+    if (leaseSnapshot === null) {
+      return Object.freeze({
+        kind: "result" as const,
+        result: stablePublisherLeaseStaleResultInternalV1,
+      });
+    }
+    const currentBaseline = currentState.stableAcceptedBaselines.find((baseline) =>
+      baseline.publisherLease === proposal.captured.lease
+    );
+    if (
+      currentBaseline !== proposal.captured.acceptedBaseline ||
+      currentState.rootReservationGenerationToken !==
+        proposal.captured.reservationSnapshot.generationToken
+    ) {
+      return Object.freeze({
+        kind: "result" as const,
+        result: stableReconcilePreconditionStaleResultInternalV1,
+      });
+    }
+    const authorityRecord = compositeStateAuthorityRecordsInternalV1.get(currentState);
+    const inventory = authorityRecord === undefined
+      ? null
+      : inspectCurrentStableBaselineInventoryInternalV1(currentState, authorityRecord);
+    if (
+      authorityRecord === undefined || inventory === null ||
+      !hasExpectedStableBaselineRuntimeCoherenceInternalV1(currentState, inventory)
+    ) {
+      return Object.freeze({
+        kind: "result" as const,
+        result: stableReconcileFaultedResultInternalV1,
+      });
+    }
+    return Object.freeze({
+      kind: "inspected" as const,
+      proposal,
+      leaseSnapshot,
+      authorityRecord,
+    });
+  };
+  const preflightStableAdmissionProposal = (
+    currentState: ManagedSurfaceStableCompositeStateInternalV1,
+    proposalInput: unknown,
+  ): StableAdmissionProposalApplyPreflightInternalV1 => {
+    const inspection = inspectStableAdmissionProposal(currentState, proposalInput);
+    if (inspection.kind === "result") return inspection;
+    try {
+      const plan = planStableRuntimeForProposalInternalV1({
+        currentState,
+        authorityRecord: inspection.authorityRecord,
+        leaseSnapshot: inspection.leaseSnapshot,
+        proposal: inspection.proposal,
+      });
+      return Object.freeze({
+        kind: "plan" as const,
+        expectedState: currentState,
+        nextState: plan.state,
+        result: stablePublicationAppliedResultInternalV1(
+          appliedDeltaForProposalInternalV1(inspection.proposal, plan),
+        ),
+      });
+    } catch {
+      return Object.freeze({
+        kind: "result" as const,
+        result: stableReconcileFaultedResultInternalV1,
+      });
+    }
+  };
+  const preflightPendingProjectionRefresh = (
+    currentState: ManagedSurfaceStableCompositeStateInternalV1,
+    proposalInput: unknown,
+    expectedPreparingEntry: unknown,
+    exactClaimant: object,
+  ): StableAdmissionProposalApplyPreflightInternalV1 => {
+    if (
+      !currentState.stableRuntimeBindings.includes(
+        expectedPreparingEntry as ManagedSurfaceStableRuntimeEntryInternalV1,
+      )
+    ) {
+      return Object.freeze({
+        kind: "result" as const,
+        result: stableReconcilePreconditionStaleResultInternalV1,
+      });
+    }
+    const expectedEntry = expectedPreparingEntry as ManagedSurfaceStableRuntimeEntryInternalV1;
+    const currentRecord = compositeStateAuthorityRecordsInternalV1.get(currentState);
+    if (expectedEntry.binding.kind === "preparing" && currentRecord !== undefined) {
+      const marker = currentRecord.pendingProjectionRefreshes.get(
+        expectedEntry.binding.attempt.identity,
+      );
+      if (
+        expectedEntry.binding.attempt.desiredTarget.sourceRevision <
+          expectedEntry.desiredTarget.sourceRevision &&
+        (marker?.entry !== expectedEntry || marker.exactClaimant !== exactClaimant)
+      ) {
+        return Object.freeze({
+          kind: "result" as const,
+          result: stableReconcilePreconditionStaleResultInternalV1,
+        });
+      }
+    }
+    const inspection = inspectStableAdmissionProposal(currentState, proposalInput);
+    if (inspection.kind === "result") return inspection;
+    try {
+      const nextState = planPendingProjectionRefreshInternalV1({
+        currentState,
+        authorityRecord: inspection.authorityRecord,
+        leaseSnapshot: inspection.leaseSnapshot,
+        proposal: inspection.proposal,
+        expectedEntry,
+        exactClaimant,
+      });
+      return Object.freeze({
+        kind: "plan" as const,
+        expectedState: currentState,
+        nextState,
+        result: stablePublicationAppliedResultInternalV1(Object.freeze({
+          source: "advance_cursor" as const,
+          runtime: "unchanged" as const,
+          notificationCount: 1 as const,
+          topology: "unchanged" as const,
+          runtimeAllocation: "zero" as const,
+        })),
+      });
+    } catch (error) {
+      return Object.freeze({
+        kind: "result" as const,
+        result: error instanceof TypeError &&
+            error.message === "ui.managed_surface_stable_pending_projection_refresh_stale"
+          ? stableReconcilePreconditionStaleResultInternalV1
+          : stableReconcileFaultedResultInternalV1,
+      });
+    }
+  };
+  const applyAdmissionPreflightWithCommitGuard = (
+    preflight: StableAdmissionProposalApplyPreflightInternalV1,
+    commitGuardInput: ManagedSurfaceStableReadinessCommitGuardInternalV1,
+  ): ManagedSurfaceStableReconcileResultInternalV1 => {
+    if (preflight.kind === "result") return preflight.result;
+    const currentState = preflight.expectedState;
+    if (runtimeKernel.getStateInternalV1() !== currentState) {
+      return stableReconcilePreconditionStaleResultInternalV1;
+    }
+    let commitGuard: CapturedStableReadinessCommitGuardInternalV1 | null;
+    let contractToken: ManagedSurfacePreparedInputBindingContractInternalV1 | null;
+    try {
+      commitGuard = captureStableReadinessCommitGuardInternalV1(commitGuardInput);
+      if (commitGuard === null) return stableReconcileFaultedResultInternalV1;
+      const contract = managedSurfaceInputBindingContractForCompositeStateInternalV1(
+        preflight.nextState,
+      );
+      contractToken = contract === null
+        ? null
+        : captureManagedSurfacePreparedInputBindingContractInternalV1(contract);
+    } catch {
+      return runtimeKernel.getStateInternalV1() === currentState
+        ? stableReconcileFaultedResultInternalV1
+        : stableReconcilePreconditionStaleResultInternalV1;
+    }
+
+    let prepared: ReturnType<
+      ManagedSurfaceStableCompositeRuntimeKernelInternalV1["prepareStateInstallInternalV1"]
+    >;
+    try {
+      prepared = runtimeKernel.prepareStateInstallInternalV1(
+        preflight.expectedState,
+        preflight.nextState,
+      );
+    } catch {
+      return runtimeKernel.getStateInternalV1() === currentState
+        ? stableReconcileFaultedResultInternalV1
+        : stableReconcilePreconditionStaleResultInternalV1;
+    }
+
+    let guardRejected = false;
+    let guardFaulted = false;
+    let installResult: ReturnType<
+      ManagedSurfaceStableCompositeRuntimeKernelInternalV1[
+        "commitPreparedStateInstallInternalV1"
+      ]
+    >;
+    try {
+      installResult = runtimeKernel.commitPreparedStateInstallInternalV1(
+        prepared,
+        () => {
+          try {
+            const committed = Reflect.apply(commitGuard.callable, commitGuard.receiver, [
+              contractToken,
+            ]);
+            if (committed === true) return true;
+            if (committed === false) guardRejected = true;
+            else guardFaulted = true;
+            return false;
+          } catch {
+            guardFaulted = true;
+            return false;
+          }
+        },
+      );
+    } catch {
+      return runtimeKernel.getStateInternalV1() === currentState
+        ? stableReconcileFaultedResultInternalV1
+        : stableReconcilePreconditionStaleResultInternalV1;
+    }
+    if (installResult === "installed") return preflight.result;
+    if (guardFaulted) return stableReconcileFaultedResultInternalV1;
+    if (guardRejected || installResult === "stale") {
+      return stableReconcilePreconditionStaleResultInternalV1;
+    }
+    return stableReconcileFaultedResultInternalV1;
+  };
   const settleStableReadiness = (
     envelope: ManagedSurfaceStableReadinessEnvelopeInternalV1,
     outcome: "ready" | "failed",
@@ -4032,9 +4663,21 @@ export function createManagedSurfaceStableCompositeRuntimeKernelInternalV1(input
           });
         }
         const sourceRevision = envelope.sourceRevision;
+        const pendingProjectionRefresh = matchesCurrentPendingProjectionRefreshCandidateInternalV1(
+          currentState,
+          candidate as
+            & ManagedSurfaceStableRuntimeEntryInternalV1
+            & Readonly<{
+              readonly binding: Extract<
+                ManagedSurfaceStableRuntimeBindingInternalV1,
+                { readonly kind: "preparing" }
+              >;
+            }>,
+        );
         if (
-          sourceRevision !== candidate.desiredTarget.sourceRevision ||
-          sourceRevision !== candidate.binding.attempt.desiredTarget.sourceRevision
+          sourceRevision !== candidate.binding.attempt.desiredTarget.sourceRevision ||
+          (sourceRevision !== candidate.desiredTarget.sourceRevision &&
+            !pendingProjectionRefresh)
         ) {
           return Object.freeze({
             state: currentState,
@@ -4100,11 +4743,23 @@ export function createManagedSurfaceStableCompositeRuntimeKernelInternalV1(input
       entry.binding.attempt.identity.surfaceInstanceId === readinessEvidence.surfaceInstanceId
     );
     if (candidate?.binding.kind !== "preparing") return stableReadinessStaleResultInternalV1;
+    const pendingProjectionRefresh = matchesCurrentPendingProjectionRefreshCandidateInternalV1(
+      currentState,
+      candidate as
+        & ManagedSurfaceStableRuntimeEntryInternalV1
+        & Readonly<{
+          readonly binding: Extract<
+            ManagedSurfaceStableRuntimeBindingInternalV1,
+            { readonly kind: "preparing" }
+          >;
+        }>,
+    );
     if (
       envelope.publisherLease !== candidate.desiredTarget.publisherLease ||
       envelope.publisherLease !== candidate.binding.attempt.desiredTarget.publisherLease ||
-      envelope.sourceRevision !== candidate.desiredTarget.sourceRevision ||
-      envelope.sourceRevision !== candidate.binding.attempt.desiredTarget.sourceRevision
+      envelope.sourceRevision !== candidate.binding.attempt.desiredTarget.sourceRevision ||
+      (envelope.sourceRevision !== candidate.desiredTarget.sourceRevision &&
+        !pendingProjectionRefresh)
     ) {
       return stableReadinessStaleResultInternalV1;
     }
@@ -4316,75 +4971,19 @@ export function createManagedSurfaceStableCompositeRuntimeKernelInternalV1(input
       return runtimeKernel.transitionStateInternalV1<
         ManagedSurfaceStableReconcileResultInternalV1
       >((currentState) => {
-        const proposal = admissionAuthority.inspectAdmissionProposal(proposalInput);
-        if (proposal === null) {
-          return Object.freeze({
-            state: currentState,
-            result: stableAdmissionFaultedResultInternalV1,
-          });
-        }
-        const leaseSnapshot = Reflect.apply(
-          publisherLeaseRegistry.inspectCurrentLease,
-          publisherLeaseRegistry,
-          [proposal.captured.lease],
-        ) as ManagedSurfaceStablePublisherLeaseSnapshotInternalV1 | null;
-        if (leaseSnapshot === null) {
-          return Object.freeze({
-            state: currentState,
-            result: stablePublisherLeaseStaleResultInternalV1,
-          });
-        }
-        const currentBaseline = currentState.stableAcceptedBaselines.find((baseline) =>
-          baseline.publisherLease === proposal.captured.lease
-        );
-        if (currentBaseline !== proposal.captured.acceptedBaseline) {
-          return Object.freeze({
-            state: currentState,
-            result: stableReconcilePreconditionStaleResultInternalV1,
-          });
-        }
-        if (
-          currentState.rootReservationGenerationToken !==
-            proposal.captured.reservationSnapshot.generationToken
-        ) {
-          return Object.freeze({
-            state: currentState,
-            result: stableReconcilePreconditionStaleResultInternalV1,
-          });
-        }
-        const authorityRecord = compositeStateAuthorityRecordsInternalV1.get(currentState);
-        const inventory = authorityRecord === undefined
-          ? null
-          : inspectCurrentStableBaselineInventoryInternalV1(currentState, authorityRecord);
-        if (
-          authorityRecord === undefined || inventory === null ||
-          !hasExpectedStableBaselineRuntimeCoherenceInternalV1(currentState, inventory)
-        ) {
-          return Object.freeze({
-            state: currentState,
-            result: stableReconcileFaultedResultInternalV1,
-          });
-        }
-        try {
-          const plan = planStableRuntimeForProposalInternalV1({
-            currentState,
-            authorityRecord,
-            leaseSnapshot,
-            proposal,
-          });
-          return Object.freeze({
-            state: plan.state,
-            result: stablePublicationAppliedResultInternalV1(
-              appliedDeltaForProposalInternalV1(proposal, plan),
-            ),
-          });
-        } catch {
-          return Object.freeze({
-            state: currentState,
-            result: stableReconcileFaultedResultInternalV1,
-          });
-        }
+        const preflight = preflightStableAdmissionProposal(currentState, proposalInput);
+        return preflight.kind === "result"
+          ? Object.freeze({ state: currentState, result: preflight.result })
+          : Object.freeze({ state: preflight.nextState, result: preflight.result });
       });
+    },
+    applyStableAdmissionProposalWithCommitGuardInternalV1(
+      proposalInput: unknown,
+      commitGuardInput: ManagedSurfaceStableReadinessCommitGuardInternalV1,
+    ): ManagedSurfaceStableReconcileResultInternalV1 {
+      const currentState = runtimeKernel.getStateInternalV1();
+      const preflight = preflightStableAdmissionProposal(currentState, proposalInput);
+      return applyAdmissionPreflightWithCommitGuard(preflight, commitGuardInput);
     },
     disposeStablePublisherLeaseInternalV1(
       publisherLeaseInput: unknown,
@@ -4510,8 +5109,65 @@ export function createManagedSurfaceStableCompositeRuntimeKernelInternalV1(input
     admissionAuthority,
     publisherLeaseRegistry,
     runtimeKernel,
+    applyPendingProjectionRefresh(
+      exactClaimant,
+      proposal,
+      expectedPreparingEntry,
+      commitGuard,
+    ) {
+      const preflight = preflightPendingProjectionRefresh(
+        runtimeKernel.getStateInternalV1(),
+        proposal,
+        expectedPreparingEntry,
+        exactClaimant,
+      );
+      return applyAdmissionPreflightWithCommitGuard(preflight, commitGuard);
+    },
   });
   return compositeKernel;
+}
+
+export function claimManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1(
+  kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
+  exactClaimant: object,
+): ManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1 {
+  const configuration = compositeRuntimeKernelConfigurationRecordsInternalV1.get(kernel);
+  if (
+    configuration === undefined ||
+    ((typeof exactClaimant !== "object" && typeof exactClaimant !== "function") ||
+      exactClaimant === null)
+  ) {
+    throw new TypeError("ui.managed_surface_stable_pending_projection_refresh_claim_invalid");
+  }
+  let claims = stablePendingProjectionRefreshClaimsInternalV1.get(kernel);
+  if (claims === undefined) {
+    claims = new WeakMap();
+    stablePendingProjectionRefreshClaimsInternalV1.set(kernel, claims);
+  }
+  const retained = claims.get(exactClaimant);
+  if (retained !== undefined) return retained.authority;
+  let authority!: ManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1;
+  const candidate: ManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1 = {
+    applyPendingProjectionRefreshWithCommitGuardInternalV1(
+      this: ManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1,
+      proposal: unknown,
+      expectedPreparingEntry: unknown,
+      commitGuard: ManagedSurfaceStableReadinessCommitGuardInternalV1,
+    ): ManagedSurfaceStableReconcileResultInternalV1 {
+      if (this !== authority) {
+        throw new TypeError("ui.managed_surface_stable_pending_projection_refresh_claim_invalid");
+      }
+      return configuration.applyPendingProjectionRefresh(
+        exactClaimant,
+        proposal,
+        expectedPreparingEntry,
+        commitGuard,
+      );
+    },
+  };
+  authority = Object.freeze(candidate);
+  claims.set(exactClaimant, { authority });
+  return authority;
 }
 
 function stableActionRouteReceiptInternalV1(
@@ -4648,11 +5304,91 @@ function managedSurfaceInputBindingContractForCompositeStateInternalV1(
   });
 }
 
+interface StableExactParentContextInternalV1 {
+  readonly node: Extract<WholeCompositeTopologyNodeInternalV1, { readonly axis: "stable" }>;
+  readonly directTarget: ManagedSurfaceStableAdmittedTargetInternalV1;
+  readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
+  readonly retainedSubtree: ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1 | null;
+}
+
+function resolveStableExactParentContextInternalV1(
+  state: ManagedSurfaceStableCompositeStateInternalV1,
+  projection: WholeCompositeTopologyProjectionInternalV1,
+  parentInstanceId: ManagedSurfaceInstanceIdV1 | null,
+): StableExactParentContextInternalV1 | null {
+  if (parentInstanceId === null) return null;
+  const node = projection.nodes.find((candidate) =>
+    candidate.axis === "stable" && candidate.instance !== null &&
+    candidate.instance.attempt.identity.surfaceInstanceId === parentInstanceId
+  );
+  if (node === undefined || node.axis !== "stable" || node.instance === null) return null;
+  if (
+    node.baseline !== null && node.directTarget !== null && node.retainedSubtree === null
+  ) {
+    const entry = state.stableRuntimeBindings.find((candidate) =>
+      candidate.desiredTarget.admittedTarget === node.directTarget &&
+      candidate.desiredTarget.sourceRevision === node.baseline?.sourceRevision &&
+      candidate.binding.kind === "ready_instance" && candidate.binding.instance === node.instance
+    );
+    return entry?.binding.kind === "ready_instance"
+      ? Object.freeze({
+        node,
+        directTarget: node.directTarget,
+        sourceRevision: node.baseline.sourceRevision,
+        retainedSubtree: null,
+      })
+      : null;
+  }
+  if (
+    node.baseline !== null || node.directTarget !== null || node.retainedSubtree === null
+  ) {
+    return null;
+  }
+  const authorityRecord = compositeStateAuthorityRecordsInternalV1.get(state);
+  const retainedRecord = retainedRuntimeSubtreeAuthorityRecordsInternalV1.get(
+    node.retainedSubtree,
+  );
+  if (authorityRecord === undefined || retainedRecord?.origin !== authorityRecord.origin) {
+    return null;
+  }
+  const retainedInstances = [retainedRecord.root, ...retainedRecord.descendants];
+  const retainedIndex = retainedInstances.indexOf(node.instance);
+  const desiredTarget = retainedIndex < 0
+    ? undefined
+    : retainedRecord.desiredTargets[retainedIndex];
+  const carriers = state.stableRuntimeBindings.filter((entry) =>
+    (entry.binding.kind === "preparing" &&
+      entry.binding.transition === "primary_replacement" &&
+      entry.binding.retainedSubtree === node.retainedSubtree) ||
+    (entry.binding.kind === "gap" && entry.binding.reason === "readiness_failed" &&
+      entry.binding.retainedSubtree === node.retainedSubtree)
+  );
+  if (
+    desiredTarget === undefined || carriers.length !== 1 ||
+    desiredTarget.admittedTarget !== node.instance.attempt.desiredTarget.admittedTarget ||
+    desiredTarget.publisherLease !== carriers[0]!.desiredTarget.publisherLease
+  ) {
+    return null;
+  }
+  try {
+    validateDesiredTargetInternalV1(state, authorityRecord, desiredTarget);
+  } catch {
+    return null;
+  }
+  return Object.freeze({
+    node,
+    directTarget: desiredTarget.admittedTarget,
+    sourceRevision: desiredTarget.sourceRevision,
+    retainedSubtree: node.retainedSubtree,
+  });
+}
+
 type CurrentStableExactParentTransientChildInspectionInternalV1 =
   | Readonly<{
     readonly kind: "current";
     readonly instance: DeepReadonly<ManagedSurfacePublishedInstanceV1>;
     readonly projection: WholeCompositeTopologyProjectionInternalV1;
+    readonly parent: StableExactParentContextInternalV1;
   }>
   | Readonly<{ readonly kind: "unavailable" }>
   | Readonly<{ readonly kind: "faulted" }>;
@@ -4688,17 +5424,15 @@ function inspectCurrentStableExactParentTransientChildInternalV1(
     if (node === undefined || node.axis !== "transient") {
       return stableExactParentTransientChildReadinessFaultedResultInternalV1;
     }
-    const parentInstanceId = instance.parentInstanceId;
-    const parent = parentInstanceId === null
-      ? undefined
-      : projection.nodes.find((candidate) =>
-        candidate.axis === "stable" && candidate.instance !== null &&
-        candidate.instance.attempt.identity.surfaceInstanceId === parentInstanceId
-      );
-    if (parent === undefined || parent.axis !== "stable" || parent.instance === null) {
+    const parent = resolveStableExactParentContextInternalV1(
+      state,
+      projection,
+      instance.parentInstanceId,
+    );
+    if (parent === null) {
       return stableExactParentTransientChildReadinessFaultedResultInternalV1;
     }
-    return Object.freeze({ kind: "current" as const, instance, projection });
+    return Object.freeze({ kind: "current" as const, instance, projection, parent });
   } catch {
     return stableExactParentTransientChildReadinessFaultedResultInternalV1;
   }
@@ -4839,6 +5573,46 @@ function captureStableExactParentTransientChildCommitGuardInternalV1(
   return Object.freeze({ receiver: guard, callable: descriptor.value });
 }
 
+interface CapturedStableRetainedExactParentInputInternalV1 {
+  readonly expectedCarrierEntry: unknown;
+  readonly expectedParentInstanceId: unknown;
+  readonly expectedParent: unknown;
+  readonly expectedSourceRevision: unknown;
+}
+
+function captureStableRetainedExactParentInputInternalV1(
+  input: unknown,
+): CapturedStableRetainedExactParentInputInternalV1 | null {
+  if ((typeof input !== "object" && typeof input !== "function") || input === null) {
+    return null;
+  }
+  const expectedKeys = [
+    "expectedCarrierEntry",
+    "expectedParentInstanceId",
+    "expectedParent",
+    "expectedSourceRevision",
+  ] as const;
+  const keys = Reflect.ownKeys(input);
+  if (
+    !Object.isFrozen(input) || keys.length !== expectedKeys.length ||
+    expectedKeys.some((key) => !keys.includes(key))
+  ) {
+    return null;
+  }
+  const values = new Map<string, unknown>();
+  for (const key of expectedKeys) {
+    const descriptor = Object.getOwnPropertyDescriptor(input, key);
+    if (descriptor === undefined || !("value" in descriptor)) return null;
+    values.set(key, descriptor.value);
+  }
+  return Object.freeze({
+    expectedCarrierEntry: values.get("expectedCarrierEntry"),
+    expectedParentInstanceId: values.get("expectedParentInstanceId"),
+    expectedParent: values.get("expectedParent"),
+    expectedSourceRevision: values.get("expectedSourceRevision"),
+  });
+}
+
 export function claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1(
   kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   exactClaimant: object,
@@ -4852,15 +5626,12 @@ export function claimManagedSurfaceStableExactParentTransientChildAuthorityInter
       "ui.managed_surface_stable_exact_parent_transient_child_claim_invalid",
     );
   }
-  const retained = stableExactParentTransientChildClaimsInternalV1.get(kernel);
-  if (retained !== undefined) {
-    if (retained.exactClaimant !== exactClaimant) {
-      throw new TypeError(
-        "ui.managed_surface_stable_exact_parent_transient_child_claim_invalid",
-      );
-    }
-    return retained.authority;
-  }
+  const claims = exactParentTransientChildClaimPartitionInternalV1(
+    stableExactParentTransientChildClaimsInternalV1,
+    kernel,
+  );
+  const retained = claims.get(exactClaimant);
+  if (retained !== undefined) return retained.authority;
 
   let authority!: ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1;
   const candidate: ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1 = {
@@ -4901,6 +5672,7 @@ export function claimManagedSurfaceStableExactParentTransientChildAuthorityInter
       if (
         proofRecord === undefined || proofRecord.kernel !== kernel ||
         proofRecord.authority !== stableActionRouteAuthoritiesInternalV1.get(kernel) ||
+        (proofRecord.exactClaimant !== null && proofRecord.exactClaimant !== exactClaimant) ||
         captured.expectedParent !== proofRecord.directTarget ||
         captured.expectedSourceRevision !== proofRecord.sourceRevision
       ) {
@@ -4935,25 +5707,60 @@ export function claimManagedSurfaceStableExactParentTransientChildAuthorityInter
         installedOrigin = authorityRecord.origin;
         const publication = currentState.transientState.publication;
         const projection = projectWholeCompositeTopologyInternalV1(currentState);
-        const parentNode = projection.nodes.find((node) =>
-          node.axis === "stable" && node.instance === proofRecord.instance
+        const parentContext = resolveStableExactParentContextInternalV1(
+          currentState,
+          projection,
+          proofRecord.instance.attempt.identity.surfaceInstanceId,
         );
-        const parentEntry = currentState.stableRuntimeBindings.find((entry) =>
-          entry.desiredTarget.admittedTarget === proofRecord.directTarget &&
-          entry.desiredTarget.sourceRevision === proofRecord.sourceRevision &&
-          entry.binding.kind === "ready_instance" &&
-          entry.binding.instance === proofRecord.instance
-        );
+        const claimantChildren = currentStableExactParentTransientChildrenForKernelInternalV1(
+          kernel,
+          currentState,
+        ).filter(({ record }) => record.exactClaimant === exactClaimant);
+        if (claimantChildren.length > 1) {
+          return stableExactParentTransientChildFaultedResultInternalV1;
+        }
+        const retainedChild = claimantChildren[0] ?? null;
         if (
           publication.applicationEpoch !== proofRecord.applicationEpoch ||
           publication.topologyRevision !== proofRecord.topologyRevision ||
-          parentNode === undefined || parentNode.axis !== "stable" ||
-          parentNode.instance !== proofRecord.instance || parentNode.baseline === null ||
-          parentNode.directTarget !== proofRecord.directTarget ||
-          parentNode.retainedSubtree !== null || parentEntry?.binding.kind !== "ready_instance" ||
-          projection.stablePhaseByInstance.get(proofRecord.instance) !== "active"
+          parentContext === null || parentContext.directTarget !== proofRecord.directTarget ||
+          parentContext.sourceRevision !== proofRecord.sourceRevision ||
+          parentContext.node.retainedSubtree !== parentContext.retainedSubtree
         ) {
           return stableExactParentTransientChildStaleResultInternalV1;
+        }
+        const parentNode = parentContext.node;
+        const parentInstance = parentNode.instance;
+        if (parentInstance === null || parentInstance !== proofRecord.instance) {
+          return stableExactParentTransientChildStaleResultInternalV1;
+        }
+        if (retainedChild === null) {
+          if (
+            projection.stablePhaseByInstance.get(parentInstance) !== "active"
+          ) {
+            return stableExactParentTransientChildStaleResultInternalV1;
+          }
+        } else {
+          const inspectedRetained = inspectCurrentStableExactParentTransientChildInternalV1(
+            currentState,
+            retainedChild.record,
+          );
+          if (inspectedRetained.kind === "faulted") {
+            return stableExactParentTransientChildFaultedResultInternalV1;
+          }
+          if (
+            inspectedRetained.kind !== "current" ||
+            inspectedRetained.instance !== retainedChild.instance ||
+            retainedChild.record.parentInstanceId !==
+              parentInstance.attempt.identity.surfaceInstanceId ||
+            retainedChild.instance.readiness.kind !== "ready" ||
+            retainedChild.instance.phase !== "active" ||
+            projection.inputNode?.axis !== "transient" ||
+            projection.inputNode.instance !== retainedChild.instance ||
+            projection.stablePhaseByInstance.get(parentInstance) !== "suspended"
+          ) {
+            return stableExactParentTransientChildStaleResultInternalV1;
+          }
         }
         const parentDefinition = authorityRecord.admissionAuthority
           .inspectAdmittedTargetDefinition(proofRecord.directTarget);
@@ -4965,12 +5772,14 @@ export function claimManagedSurfaceStableExactParentTransientChildAuthorityInter
           definition.placement !== "child" ||
           definition.ownerId !== parentDefinition.ownerId ||
           definition.layerId !== parentDefinition.layerId ||
-          definition.layerOrder < parentDefinition.layerOrder
+          definition.layerOrder < parentDefinition.layerOrder ||
+          (retainedChild !== null &&
+            definition.slotId !== retainedChild.instance.definition.slotId)
         ) {
           return stableExactParentTransientChildFaultedResultInternalV1;
         }
         const parent: ManagedSurfaceReducerCrossAxisParentProjectionInternalV1 = Object.freeze({
-          surfaceInstanceId: proofRecord.instance.attempt.identity.surfaceInstanceId,
+          surfaceInstanceId: parentInstance.attempt.identity.surfaceInstanceId,
           definition: parentDefinition,
           phase: "active" as const,
         });
@@ -4978,8 +5787,33 @@ export function claimManagedSurfaceStableExactParentTransientChildAuthorityInter
           definition,
           semanticOccurrenceId: null,
         });
+        let transientSeedState = currentState.transientState;
+        if (retainedChild !== null) {
+          const closed = reduceManagedSurfaceV1(
+            transientSeedState,
+            Object.freeze({
+              kind: "close_expected" as const,
+              evidence: Object.freeze({
+                applicationEpoch: publication.applicationEpoch,
+                topologyRevision: publication.topologyRevision,
+                surfaceInstanceId: retainedChild.instance.surfaceInstanceId,
+              }),
+            }),
+          );
+          if (
+            closed.receipt.kind !== "applied" ||
+            closed.receipt.code !== "surface.closed" ||
+            closed.receipt.surfaceInstanceId !== retainedChild.instance.surfaceInstanceId ||
+            closed.state.publication.orderedInstances.some((instance) =>
+              instance.surfaceInstanceId === retainedChild.instance.surfaceInstanceId
+            )
+          ) {
+            return stableExactParentTransientChildFaultedResultInternalV1;
+          }
+          transientSeedState = closed.state;
+        }
         const reduced = deriveManagedSurfaceReducerCrossAxisChildPreparationInternalV1({
-          state: currentState.transientState,
+          state: transientSeedState,
           parent,
           candidate: transientCandidate,
         });
@@ -4989,7 +5823,13 @@ export function claimManagedSurfaceStableExactParentTransientChildAuthorityInter
         ) {
           return stableExactParentTransientChildFaultedResultInternalV1;
         }
-        const seedState = replaceTransientStateInternalV1(currentState, reduced.state);
+        const reducedState = retainedChild === null
+          ? reduced.state
+          : coalesceExactParentTransientChildReplacementRevisionsInternalV1(
+            currentState.transientState,
+            reduced.state,
+          );
+        const seedState = replaceTransientStateInternalV1(currentState, reducedState);
         const reflow = planWholeCompositeReflowInternalV1({
           beforeState: currentState,
           seedState,
@@ -4999,9 +5839,11 @@ export function claimManagedSurfaceStableExactParentTransientChildAuthorityInter
         const preparedInstance = nextState.transientState.publication.orderedInstances.find(
           (instance) => instance.surfaceInstanceId === transientCandidate.surfaceInstanceId,
         );
-        const phasedParent = nextState.stableRuntimeBindings.find((entry) =>
-          entry.binding.kind === "ready_instance" &&
-          entry.binding.instance.attempt === proofRecord.instance.attempt
+        const successorProjection = projectWholeCompositeTopologyInternalV1(nextState);
+        const successorParent = resolveStableExactParentContextInternalV1(
+          nextState,
+          successorProjection,
+          parent.surfaceInstanceId,
         );
         if (
           preparedInstance === undefined ||
@@ -5009,8 +5851,18 @@ export function claimManagedSurfaceStableExactParentTransientChildAuthorityInter
           preparedInstance.definition.definitionId !== definition.definitionId ||
           preparedInstance.readiness.kind !== "preparing" ||
           preparedInstance.readiness.transition !== "child_open" ||
-          phasedParent?.binding.kind !== "ready_instance" ||
-          phasedParent.binding.instance.phase !== "suspended"
+          (retainedChild !== null &&
+            nextState.transientState.publication.orderedInstances.some((instance) =>
+              instance.surfaceInstanceId === retainedChild.instance.surfaceInstanceId
+            )) ||
+          successorParent === null ||
+          successorParent.directTarget !== proofRecord.directTarget ||
+          successorParent.sourceRevision !== proofRecord.sourceRevision ||
+          (parentContext.retainedSubtree === null) !==
+            (successorParent.retainedSubtree === null) ||
+          successorParent.node.instance === null ||
+          successorProjection.stablePhaseByInstance.get(successorParent.node.instance) !==
+            "suspended"
         ) {
           return stableExactParentTransientChildFaultedResultInternalV1;
         }
@@ -5031,6 +5883,7 @@ export function claimManagedSurfaceStableExactParentTransientChildAuthorityInter
       const candidateRecord:
         ManagedSurfaceStableExactParentTransientChildCandidateRecordInternalV1 = Object.freeze({
           kernel,
+          exactClaimant,
           origin: installedOrigin,
           surfaceInstanceId: installedInstance.surfaceInstanceId,
           definition: installedInstance.definition,
@@ -5087,12 +5940,122 @@ export function claimManagedSurfaceStableExactParentTransientChildAuthorityInter
       }
       return installedResult;
     },
+    captureRetainedExactParentInputInternalV1(
+      this: ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1,
+      input: Readonly<{
+        readonly expectedCarrierEntry: unknown;
+        readonly expectedParentInstanceId: unknown;
+        readonly expectedParent: unknown;
+        readonly expectedSourceRevision: unknown;
+      }>,
+    ): ManagedSurfaceStableActionInputCaptureResultInternalV1 {
+      if (this !== authority) {
+        throw new TypeError(
+          "ui.managed_surface_stable_exact_parent_transient_child_claim_invalid",
+        );
+      }
+      let captured: CapturedStableRetainedExactParentInputInternalV1 | null;
+      try {
+        captured = captureStableRetainedExactParentInputInternalV1(input);
+      } catch {
+        return stableExactParentTransientChildActionFaultedResultInternalV1;
+      }
+      if (captured === null) {
+        return stableExactParentTransientChildActionFaultedResultInternalV1;
+      }
+      if (kernel.getTransientSnapshotInternalV1().coordinatorDisposed) {
+        return stableExactParentTransientChildActionUnavailableResultInternalV1;
+      }
+      return kernel.transitionStateInternalV1<
+        ManagedSurfaceStableActionInputCaptureResultInternalV1
+      >((state) => {
+        try {
+          const authorityRecord = compositeStateAuthorityRecordsInternalV1.get(state);
+          const inventory = authorityRecord === undefined
+            ? null
+            : inspectCurrentStableBaselineInventoryInternalV1(state, authorityRecord);
+          const carrier = state.stableRuntimeBindings.find((entry) =>
+            entry === captured.expectedCarrierEntry
+          );
+          if (
+            authorityRecord === undefined || inventory === null ||
+            !hasExpectedStableBaselineRuntimeCoherenceInternalV1(state, inventory) ||
+            carrier === undefined || carrier.binding.kind !== "preparing" ||
+            carrier.binding.transition !== "primary_replacement" ||
+            carrier.binding.retainedSubtree === null
+          ) {
+            return Object.freeze({
+              state,
+              result: stableExactParentTransientChildActionUnavailableResultInternalV1,
+            });
+          }
+          const retainedRoot = carrier.binding.retainedSubtree.root;
+          if (
+            retainedRoot.attempt.identity.surfaceInstanceId !==
+              captured.expectedParentInstanceId
+          ) {
+            return Object.freeze({
+              state,
+              result: stableExactParentTransientChildActionUnavailableResultInternalV1,
+            });
+          }
+          const projection = projectWholeCompositeTopologyInternalV1(state);
+          const parent = resolveStableExactParentContextInternalV1(
+            state,
+            projection,
+            retainedRoot.attempt.identity.surfaceInstanceId,
+          );
+          const contract = managedSurfaceInputBindingContractForCompositeStateInternalV1(state);
+          const parentAuthority = stableActionRouteAuthoritiesInternalV1.get(kernel);
+          if (
+            parent === null || parent.retainedSubtree !== carrier.binding.retainedSubtree ||
+            parent.node.instance !== retainedRoot ||
+            parent.directTarget !== captured.expectedParent ||
+            parent.sourceRevision !== captured.expectedSourceRevision ||
+            projection.inputNode !== parent.node || contract === null ||
+            contract.surfaceInstanceId !== retainedRoot.attempt.identity.surfaceInstanceId ||
+            parentAuthority === undefined
+          ) {
+            return Object.freeze({
+              state,
+              result: stableExactParentTransientChildActionUnavailableResultInternalV1,
+            });
+          }
+          const publication = state.transientState.publication;
+          const targetProof = Object.freeze(
+            {},
+          ) as ManagedSurfaceStableDirectActionTargetProofInternalV1;
+          stableDirectActionTargetProofRecordsInternalV1.set(targetProof, {
+            authority: parentAuthority,
+            kernel,
+            exactClaimant,
+            applicationEpoch: publication.applicationEpoch,
+            topologyRevision: publication.topologyRevision,
+            instance: retainedRoot,
+            directTarget: parent.directTarget,
+            sourceRevision: parent.sourceRevision,
+          });
+          return Object.freeze({
+            state,
+            result: Object.freeze({
+              kind: "captured" as const,
+              contract,
+              directTarget: parent.directTarget,
+              sourceRevision: parent.sourceRevision,
+              targetProof,
+            }),
+          });
+        } catch {
+          return Object.freeze({
+            state,
+            result: stableExactParentTransientChildActionFaultedResultInternalV1,
+          });
+        }
+      });
+    },
   };
   authority = Object.freeze(candidate);
-  stableExactParentTransientChildClaimsInternalV1.set(kernel, {
-    exactClaimant,
-    authority,
-  });
+  claims.set(exactClaimant, { authority });
   return authority;
 }
 
@@ -5100,26 +6063,23 @@ export function claimManagedSurfaceStableExactParentTransientChildReadinessAutho
   kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   exactClaimant: object,
 ): ManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1 {
-  const preparationClaim = stableExactParentTransientChildClaimsInternalV1.get(kernel);
+  const preparationClaims = stableExactParentTransientChildClaimsInternalV1.get(kernel);
   if (
     !compositeRuntimeKernelConfigurationRecordsInternalV1.has(kernel) ||
     ((typeof exactClaimant !== "object" && typeof exactClaimant !== "function") ||
       exactClaimant === null) ||
-    preparationClaim?.exactClaimant !== exactClaimant
+    preparationClaims?.has(exactClaimant) !== true
   ) {
     throw new TypeError(
       "ui.managed_surface_stable_exact_parent_transient_child_readiness_claim_invalid",
     );
   }
-  const retained = stableExactParentTransientChildReadinessClaimsInternalV1.get(kernel);
-  if (retained !== undefined) {
-    if (retained.exactClaimant !== exactClaimant) {
-      throw new TypeError(
-        "ui.managed_surface_stable_exact_parent_transient_child_readiness_claim_invalid",
-      );
-    }
-    return retained.authority;
-  }
+  const claims = exactParentTransientChildClaimPartitionInternalV1(
+    stableExactParentTransientChildReadinessClaimsInternalV1,
+    kernel,
+  );
+  const retained = claims.get(exactClaimant);
+  if (retained !== undefined) return retained.authority;
 
   let authority!: ManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1;
   const settle = (
@@ -5138,7 +6098,10 @@ export function claimManagedSurfaceStableExactParentTransientChildReadinessAutho
     const record = stableExactParentTransientChildCandidateRecordsInternalV1.get(
       candidateInput,
     );
-    if (record === undefined || record.kernel !== kernel) {
+    if (
+      record === undefined || record.kernel !== kernel ||
+      record.exactClaimant !== exactClaimant
+    ) {
       throw new TypeError(
         "ui.managed_surface_stable_exact_parent_transient_child_readiness_claim_invalid",
       );
@@ -5288,10 +6251,7 @@ export function claimManagedSurfaceStableExactParentTransientChildReadinessAutho
     },
   };
   authority = Object.freeze(candidate);
-  stableExactParentTransientChildReadinessClaimsInternalV1.set(kernel, {
-    exactClaimant,
-    authority,
-  });
+  claims.set(exactClaimant, { authority });
   return authority;
 }
 
@@ -5299,26 +6259,23 @@ export function claimManagedSurfaceStableExactParentTransientChildLifecycleAutho
   kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   exactClaimant: object,
 ): ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1 {
-  const preparationClaim = stableExactParentTransientChildClaimsInternalV1.get(kernel);
+  const preparationClaims = stableExactParentTransientChildClaimsInternalV1.get(kernel);
   if (
     !compositeRuntimeKernelConfigurationRecordsInternalV1.has(kernel) ||
     ((typeof exactClaimant !== "object" && typeof exactClaimant !== "function") ||
       exactClaimant === null) ||
-    preparationClaim?.exactClaimant !== exactClaimant
+    preparationClaims?.has(exactClaimant) !== true
   ) {
     throw new TypeError(
       "ui.managed_surface_stable_exact_parent_transient_child_lifecycle_claim_invalid",
     );
   }
-  const retained = stableExactParentTransientChildLifecycleClaimsInternalV1.get(kernel);
-  if (retained !== undefined) {
-    if (retained.exactClaimant !== exactClaimant) {
-      throw new TypeError(
-        "ui.managed_surface_stable_exact_parent_transient_child_lifecycle_claim_invalid",
-      );
-    }
-    return retained.authority;
-  }
+  const claims = exactParentTransientChildClaimPartitionInternalV1(
+    stableExactParentTransientChildLifecycleClaimsInternalV1,
+    kernel,
+  );
+  const retained = claims.get(exactClaimant);
+  if (retained !== undefined) return retained.authority;
 
   let authority!: ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1;
   const transition = (
@@ -5340,7 +6297,10 @@ export function claimManagedSurfaceStableExactParentTransientChildLifecycleAutho
     const record = stableExactParentTransientChildCandidateRecordsInternalV1.get(
       candidateInput,
     );
-    if (record === undefined || record.kernel !== kernel) {
+    if (
+      record === undefined || record.kernel !== kernel ||
+      record.exactClaimant !== exactClaimant
+    ) {
       throw new TypeError(
         "ui.managed_surface_stable_exact_parent_transient_child_lifecycle_claim_invalid",
       );
@@ -5580,10 +6540,7 @@ export function claimManagedSurfaceStableExactParentTransientChildLifecycleAutho
     },
   };
   authority = Object.freeze(candidate);
-  stableExactParentTransientChildLifecycleClaimsInternalV1.set(kernel, {
-    exactClaimant,
-    authority,
-  });
+  claims.set(exactClaimant, { authority });
   return authority;
 }
 
@@ -5591,26 +6548,23 @@ export function claimManagedSurfaceStableExactParentTransientChildActionRouteAut
   kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   exactClaimant: object,
 ): ManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1 {
-  const preparationClaim = stableExactParentTransientChildClaimsInternalV1.get(kernel);
+  const preparationClaims = stableExactParentTransientChildClaimsInternalV1.get(kernel);
   if (
     !compositeRuntimeKernelConfigurationRecordsInternalV1.has(kernel) ||
     ((typeof exactClaimant !== "object" && typeof exactClaimant !== "function") ||
       exactClaimant === null) ||
-    preparationClaim?.exactClaimant !== exactClaimant
+    preparationClaims?.has(exactClaimant) !== true
   ) {
     throw new TypeError(
       "ui.managed_surface_stable_exact_parent_transient_child_action_claim_invalid",
     );
   }
-  const retained = stableExactParentTransientChildActionClaimsInternalV1.get(kernel);
-  if (retained !== undefined) {
-    if (retained.exactClaimant !== exactClaimant) {
-      throw new TypeError(
-        "ui.managed_surface_stable_exact_parent_transient_child_action_claim_invalid",
-      );
-    }
-    return retained.authority;
-  }
+  const claims = exactParentTransientChildClaimPartitionInternalV1(
+    stableExactParentTransientChildActionClaimsInternalV1,
+    kernel,
+  );
+  const retained = claims.get(exactClaimant);
+  if (retained !== undefined) return retained.authority;
 
   let authority!: ManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1;
   const captureCurrent = (
@@ -5625,7 +6579,10 @@ export function claimManagedSurfaceStableExactParentTransientChildActionRouteAut
       );
     }
     const record = stableExactParentTransientChildCandidateRecordsInternalV1.get(candidateInput);
-    if (record === undefined || record.kernel !== kernel) {
+    if (
+      record === undefined || record.kernel !== kernel ||
+      record.exactClaimant !== exactClaimant
+    ) {
       throw new TypeError(
         "ui.managed_surface_stable_exact_parent_transient_child_action_claim_invalid",
       );
@@ -5665,9 +6622,42 @@ export function claimManagedSurfaceStableExactParentTransientChildActionRouteAut
             result: stableExactParentTransientChildActionFaultedResultInternalV1,
           });
         }
+        const parent = inspected.parent;
+        const parentNode = parent.node;
+        const parentAuthority = stableActionRouteAuthoritiesInternalV1.get(kernel);
+        if (
+          parentNode.instance === null ||
+          inspected.projection.stablePhaseByInstance.get(parentNode.instance) !== "suspended" ||
+          parentAuthority === undefined
+        ) {
+          return Object.freeze({
+            state,
+            result: stableExactParentTransientChildActionFaultedResultInternalV1,
+          });
+        }
+        const publication = state.transientState.publication;
+        const parentTargetProof = Object.freeze(
+          {},
+        ) as ManagedSurfaceStableDirectActionTargetProofInternalV1;
+        stableDirectActionTargetProofRecordsInternalV1.set(parentTargetProof, {
+          authority: parentAuthority,
+          kernel,
+          exactClaimant,
+          applicationEpoch: publication.applicationEpoch,
+          topologyRevision: publication.topologyRevision,
+          instance: parentNode.instance,
+          directTarget: parent.directTarget,
+          sourceRevision: parent.sourceRevision,
+        });
         return Object.freeze({
           state,
-          result: Object.freeze({ kind: "captured" as const, contract }),
+          result: Object.freeze({
+            kind: "captured" as const,
+            contract,
+            parentDirectTarget: parent.directTarget,
+            parentSourceRevision: parent.sourceRevision,
+            parentTargetProof,
+          }),
         });
       } catch {
         return Object.freeze({
@@ -5737,7 +6727,8 @@ export function claimManagedSurfaceStableExactParentTransientChildActionRouteAut
             kernel,
             state,
           );
-          const target = authenticated.find(({ instance }) =>
+          const target = authenticated.find(({ instance, record }) =>
+            record.exactClaimant === exactClaimant &&
             instance.surfaceInstanceId === evidence.surfaceInstanceId
           );
           if (target === undefined) {
@@ -5830,10 +6821,7 @@ export function claimManagedSurfaceStableExactParentTransientChildActionRouteAut
     },
   };
   authority = Object.freeze(candidate);
-  stableExactParentTransientChildActionClaimsInternalV1.set(kernel, {
-    exactClaimant,
-    authority,
-  });
+  claims.set(exactClaimant, { authority });
   return authority;
 }
 
@@ -5888,7 +6876,7 @@ export function claimManagedSurfaceStableActionRouteAuthorityInternalV1(
         actionIds: Object.freeze([...node.definition.actionIds]),
         topologyRevision: publication.topologyRevision,
       });
-      if (node.baseline === null || node.directTarget === null || node.retainedSubtree !== null) {
+      if (node.retainedSubtree !== null) {
         return Object.freeze({
           kind: "captured" as const,
           contract,
@@ -5897,30 +6885,30 @@ export function claimManagedSurfaceStableActionRouteAuthorityInternalV1(
           targetProof: null,
         });
       }
-      const entry = state.stableRuntimeBindings.find((candidate) =>
-        candidate.desiredTarget.admittedTarget === node.directTarget &&
-        candidate.desiredTarget.sourceRevision === node.baseline?.sourceRevision &&
-        candidate.binding.kind === "ready_instance" &&
-        candidate.binding.instance === node.instance
+      const targetContext = resolveStableExactParentContextInternalV1(
+        state,
+        projection,
+        node.instance.attempt.identity.surfaceInstanceId,
       );
-      if (entry?.binding.kind !== "ready_instance") return faultedResult;
+      if (targetContext === null || targetContext.node !== node) return faultedResult;
       const targetProof = Object.freeze(
         {},
       ) as ManagedSurfaceStableDirectActionTargetProofInternalV1;
       stableDirectActionTargetProofRecordsInternalV1.set(targetProof, {
         authority,
         kernel,
+        exactClaimant: null,
         applicationEpoch: publication.applicationEpoch,
         topologyRevision: publication.topologyRevision,
         instance: node.instance,
-        directTarget: node.directTarget,
-        sourceRevision: node.baseline.sourceRevision,
+        directTarget: targetContext.directTarget,
+        sourceRevision: targetContext.sourceRevision,
       });
       return Object.freeze({
         kind: "captured" as const,
         contract,
-        directTarget: node.directTarget,
-        sourceRevision: node.baseline.sourceRevision,
+        directTarget: targetContext.directTarget,
+        sourceRevision: targetContext.sourceRevision,
         targetProof,
       });
     } catch {
@@ -6130,12 +7118,18 @@ export function claimManagedSurfaceStableActionRouteAuthorityInternalV1(
           const publication = state.transientState.publication;
           const projection = projectWholeCompositeTopologyInternalV1(state);
           const node = projection.inputNode;
+          const targetContext = node?.axis === "stable" && node.instance !== null
+            ? resolveStableExactParentContextInternalV1(
+              state,
+              projection,
+              node.instance.attempt.identity.surfaceInstanceId,
+            )
+            : null;
           current = publication.applicationEpoch === record.applicationEpoch &&
             publication.topologyRevision === record.topologyRevision &&
             node?.axis === "stable" && node.instance === record.instance &&
-            node.baseline !== null && node.directTarget === record.directTarget &&
-            node.retainedSubtree === null &&
-            node.baseline.sourceRevision === record.sourceRevision;
+            targetContext?.node === node && targetContext.directTarget === record.directTarget &&
+            targetContext.sourceRevision === record.sourceRevision;
         } catch {
           current = false;
         }

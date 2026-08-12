@@ -16,6 +16,7 @@ const inputContextPrecedenceV1 = Object.freeze(
     "debug",
     "system",
     "overlay",
+    "whole_canvas",
     "narrative",
     "interaction",
     "gameplay",
@@ -28,6 +29,10 @@ const handledResultsV1 = Object.freeze({
   debug: Object.freeze({ kind: "handled" as const, context: "debug" as const }),
   system: Object.freeze({ kind: "handled" as const, context: "system" as const }),
   overlay: Object.freeze({ kind: "handled" as const, context: "overlay" as const }),
+  whole_canvas: Object.freeze({
+    kind: "handled" as const,
+    context: "whole_canvas" as const,
+  }),
   narrative: Object.freeze({ kind: "handled" as const, context: "narrative" as const }),
   interaction: Object.freeze({ kind: "handled" as const, context: "interaction" as const }),
   gameplay: Object.freeze({ kind: "handled" as const, context: "gameplay" as const }),
