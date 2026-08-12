@@ -16,7 +16,7 @@
 - **Package-owned WholeCanvas 结局**——语义结局状态选中唯一全画布 primary，所有更低 Stage layer 同时 inert。“继续”进入无限后日谈；Restart 直接安装 fresh gameplay，不返回 Title。
 - **确定性模拟**——事件池相遇、回合制运动会、带硬边界的玩家回退、存档安全点。
 - **场景驱动声音层**——BGM/环境声/音效跟随发布的游戏视图；三条音量总线持久在玩家档案里。
-- **双语文本 + 浏览器语言自动检测**、风格统一的 AIGC 美术，以及本机/交叉目标 Desktop 打包 preview（`.app`、Windows `.msi` 或 `.AppImage`）；其文件持久化仍需通过 durability promotion gate。
+- **双语文本 + 浏览器语言自动检测**、风格统一的美术，以及本机/交叉目标 Desktop 打包 preview（`.app`、Windows `.msi` 或 `.AppImage`）；其文件持久化仍需通过 durability promotion gate。
 
 ## SillyOS 98
 

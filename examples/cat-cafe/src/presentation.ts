@@ -446,8 +446,8 @@ export function catcafeTextForLocaleV1(locale: string | null, textId: string): s
 }
 
 // ---------------------------------------------------------------------------
-// Runtime art: AIGC-generated assets in a consistent style. Slots are sealed; code-native
-// renderers remain as fallback; digests establish technical identity (policy in assets-and-references).
+// Runtime art uses a consistent style. Slots are sealed; code-native renderers remain as fallback;
+// digests establish technical identity.
 // ---------------------------------------------------------------------------
 
 export const catcafeAssetIdsV1 = Object.freeze({

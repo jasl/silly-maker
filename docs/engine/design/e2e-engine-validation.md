@@ -17,7 +17,7 @@ Story**：一个短小、确定、可真正游玩的第二消费者，用来证�
 runtime、React/Web Host、自动化和独立构建可以共同工作。
 
 这不是恢复已经撤除的旧 E2E Story。新实现不继承旧 Goal 的 Save/Debug fixture
-集、golden bytes、writer、provenance manifest、视觉基线、固定种子语料、Phase
+集、golden bytes、writer、generated metadata、视觉基线、固定种子语料、Phase
 gate、提交编排或机器证明。
 
 ## 2. Responsibilities
@@ -280,7 +280,7 @@ Player/main page 也不导入或安装 tripwire。workflow 文件能证明 job �
 
 - `fixtures/`、`golden/`、`__screenshots__/`；
 - `regenerate:*`、`update:golden` 或专用 writer；
-- fixture provenance、source manifest、恢复 journal 或 Goal checkpoint；
+- fixture source metadata、恢复 journal 或 Goal checkpoint；
 - 大规模 frozen seed corpus、旧 Goal 的固定 command-log 语料或完整 Snapshot
   baseline。
 

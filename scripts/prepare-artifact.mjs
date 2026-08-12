@@ -10,7 +10,6 @@ export const projectLegalFilesV1 = Object.freeze([
   "LICENSES/CC0-1.0.txt",
   "LICENSES/MIT.txt",
   "NOTICE",
-  "THIRD_PARTY_NOTICES.md",
   "TRADEMARKS.md",
 ]);
 

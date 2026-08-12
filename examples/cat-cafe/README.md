@@ -47,7 +47,7 @@ deno task story diff saveA.json saveB.json
 
 ## 美术与素材
 
-全套 23 张运行时美术（4 背景 + 9 只小雨立绘 + 3 对手 + 7 图鉴插画）为 AIGC 生成的统一水粉绘本风格，webp 格式、声明字节与 sha256 摘要、密封槽位；code-native 渲染器保留为降级路径。源档案与生成说明见 `art-source/aigc/cursor-image-gen/cat-cafe-2026-07/`。桌面图标为 `icon.png`。
+全套 23 张运行时美术（4 背景 + 9 只小雨立绘 + 3 对手 + 7 图鉴插画）采用统一水粉绘本风格，webp 格式、声明字节与 sha256 摘要、密封槽位；code-native 渲染器保留为降级路径。桌面图标为 `icon.png`。
 
 ## 目录
 
@@ -71,4 +71,4 @@ examples/cat-cafe/
 
 ## 授权
 
-代码、文案与设计 MIT；AIGC 生成的美术与合成音频为 CC0 1.0 公共领域贡献（可商用、可演绎、无需署名）。见仓库根 `LICENSE.md`。工程背景：设计规格 [DESIGN.md](DESIGN.md)，已实现的引擎能力见 [features](../../docs/engine/features.md)。
+代码、文案与设计 MIT；项目媒体素材为 CC0 1.0 公共领域贡献（可商用、可演绎、无需署名）。见仓库根 `LICENSE.md`。工程背景：设计规格 [DESIGN.md](DESIGN.md)，已实现的引擎能力见 [features](../../docs/engine/features.md)。

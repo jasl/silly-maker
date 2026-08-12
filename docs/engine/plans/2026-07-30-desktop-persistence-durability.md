@@ -811,10 +811,8 @@ file preview。
   `node:sqlite` 探针的 `libruntime.dylib` 为 `67,351,824` 与
   `67,351,840` bytes；该 `+16` bytes 只说明当前 runtime 已内置 SQLite，不是
   Desktop 包体预算；
-- 当前 probe 没有额外 dependency；SQLite 为
-  [public domain](https://www.sqlite.org/copyright.html)，Deno 为
-  [MIT](https://github.com/denoland/deno/blob/main/LICENSE.md)。正式打包仍需在
-  D2/D4 审计完整 bundled-runtime notices；
+- 当前 probe 没有额外 dependency；正式 implementation 只依赖 Deno 内建的
+  `node:sqlite`，不引入 native addon、FFI 或外部 SQLite library；
 - `node:sqlite` backup probe 生成可 read-only 重开的 `8192`-byte database，
   revision `7`、bytes `[0, 127, 255]` 与 integrity `ok`；仍未形成产品
   backup/restore contract；
@@ -1003,9 +1001,8 @@ Windows、Linux 当前都**没有**通过 D4 promotion。
 5. 验证 prebuilt Vite assets 原样嵌入；若 `deno desktop` 暴露等价的 as-is
    include 能力，优先使用，否则加入包含 `.js`/`.mjs` 资产的 smoke fixture 防止
    module-resolution 改写；
-6. 验证 installed/offline package 随包携带本地 SillyMaker MIT 文本和实际
-   bundled third-party material 要求的 notices，不能只依赖 Web Player 的
-   `rel="license"` 链接；技术 manifest 只描述 bytes，不作为法律清单；
+6. 验证 installed/offline package 随包携带本地 SillyMaker 项目许可证；技术
+   manifest 只描述 bytes；
 7. 记录该平台尚未支持的签名、notarization、installer 与 updater 边界。
 
 剩余 D4 evidence 必须来自仓库可复现的中性 fixture 和对应真实 OS runner；

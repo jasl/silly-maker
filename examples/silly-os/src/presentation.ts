@@ -28,14 +28,13 @@ const zhEntries = [
   { textId: "text.os.shutdown.back", text: "返回桌面" },
 
   { textId: "text.os.app.control-panel", text: "控制面板" },
-  { textId: "text.os.boot.ai-notice", text: "本系统内容完全由 AI 生成 · SillyMaker 引擎" },
+  { textId: "text.os.boot.engine-line", text: "SillyOS 98 · SillyMaker 引擎" },
   { textId: "text.os.volume", text: "音量" },
   { textId: "text.os.volume.mute", text: "静音" },
   { textId: "text.os.settings.about", text: "运行在 SillyMaker 引擎里的复古桌面" },
   {
     textId: "text.os.settings.notice",
-    text:
-      "系统状态（文件、壁纸、扫雷进度）自动保存，下次开机自动恢复。本系统的代码、文案与图标全部由 AI 生成。",
+    text: "系统状态（文件、壁纸、扫雷进度）自动保存，下次开机自动恢复。",
   },
   { textId: "text.os.app.minesweeper", text: "扫雷" },
   { textId: "text.os.mine.beginner", text: "初级" },
@@ -103,8 +102,8 @@ const enEntries = [
 
   { textId: "text.os.app.control-panel", text: "Control Panel" },
   {
-    textId: "text.os.boot.ai-notice",
-    text: "This system is entirely AI-generated · SillyMaker Engine",
+    textId: "text.os.boot.engine-line",
+    text: "SillyOS 98 · SillyMaker Engine",
   },
   { textId: "text.os.volume", text: "Volume" },
   { textId: "text.os.volume.mute", text: "Mute" },
@@ -112,7 +111,7 @@ const enEntries = [
   {
     textId: "text.os.settings.notice",
     text:
-      "System state (files, wallpaper, Minesweeper progress) saves automatically and restores on next boot. Code, copy, and icons are entirely AI-generated.",
+      "System state (files, wallpaper, Minesweeper progress) saves automatically and restores on next boot.",
   },
   { textId: "text.os.app.minesweeper", text: "Minesweeper" },
   { textId: "text.os.mine.beginner", text: "Beginner" },

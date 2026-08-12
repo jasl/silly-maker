@@ -56,7 +56,7 @@ async function advanceRevealedSayV1(page: Page): Promise<void> {
 }
 
 async function playOpeningV1(page: Page): Promise<void> {
-  // The boot splash (AI-generation notice) fronts the title screen; New
+  // The boot splash fronts the title screen; New
   // game then starts the opening scene automatically.
   await dismissSplashV1(page);
   await page.getByRole("button", { name: "新游戏" }).click();

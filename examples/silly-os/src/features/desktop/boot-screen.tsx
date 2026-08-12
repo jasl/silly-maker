@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Desktop slice · boot screen: mimics a classic Windows boot — black screen, centered
 // logo, scrolling progress bar at the bottom; auto-enters the desktop after a few seconds,
-// a click skips immediately. The AI-generation notice shows here (this game uses no engine splash/title screen).
+// a click skips immediately. This game uses no engine splash/title screen.
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 
@@ -21,7 +21,7 @@ export const osBootDurationMsV1 = 2400;
 
 export function OsBootScreenV1(props: {
   readonly title: string;
-  readonly aiNotice: string;
+  readonly subtitle: string;
   onDone(): void;
 }): ReactElement {
   const { onDone } = props;
@@ -70,7 +70,7 @@ export function OsBootScreenV1(props: {
         </span>
       </div>
       <p style={{ margin: 0, font: '12px "MS Sans Serif", Tahoma, sans-serif', opacity: 0.75 }}>
-        {props.aiNotice}
+        {props.subtitle}
       </p>
       <div
         style={{

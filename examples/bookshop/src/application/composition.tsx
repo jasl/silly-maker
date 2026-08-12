@@ -340,11 +340,10 @@ export const bookshopGameApplicationV1: WebGameApplicationV1<
     Object.freeze({
       titleScreen: Object.freeze({
         title: "打烊前的旧书店",
-        // Splash: this script came out of an AI model authoring experiment; code and text are AI-generated.
         splash: Object.freeze({
           lines: Object.freeze([
-            "本游戏内容完全由 AI 生成",
-            "剧本出自模型创作实验 · SillyMaker 引擎",
+            "欢迎来到打烊前的旧书店",
+            "一个由 SillyMaker 驱动的短篇故事",
           ]),
         }),
       }),

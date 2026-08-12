@@ -1,6 +1,6 @@
 # Having a coding agent generate a game
 
-Status: operating guide for the current implementation. For anyone using an LLM coding agent (Claude, Grok, GPT, …) to generate a new game in this repository. Verified case: `examples/bookshop` (Grok 4.5 delivered in one pass following this flow; all five acceptance checks passed).
+Status: operating guide for the current implementation. For anyone using an LLM coding agent to build a new game in this repository. The maintained examples and acceptance commands demonstrate the supported workflow.
 
 ## How it works
 

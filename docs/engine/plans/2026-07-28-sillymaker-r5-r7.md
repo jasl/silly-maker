@@ -8,7 +8,8 @@
 2. **T2 — R6.1/6.2 DevTools 数据面**：runtime inspector（Stage/PendingInteraction/Transition/Audio intent/History inspector 面板）与 Narrative graph 可视化；提高后续真实 Story 中模型自查效率。
 3. **T3 — R7 Player rollback**：依赖 Snapshot/Stage 重投影/Audio intent/PendingInteraction 恢复均已稳定，放最后风险最低；先在 Engine Lab 验证，再谈产品策略。
 
-外部、未发布的验证 workload 与本计划并行，其产出的中性需求证据决定 defer 项是否激活（边界见 [assets-and-references](../../policies/assets-and-references.md) 的 Unpublished validation replicas 节）。
+独立的真实 Story workload 可与本计划并行；只有由公开合同、原创 Story 和正式测试
+重现的中性需求才能激活 defer 项。
 
 ## 明确 defer（本计划不做，激活需真实 Story 证据）
 
@@ -47,7 +48,7 @@
 
 ## 原创 Story 缺口交付记录（2026-07-28，随《雨巷猫舍》）
 
-[中型 SLG 能力验证](../../research/2026-07-28-medium-slg-capability-validation.md)记录的三个通用压力不再 defer；它们已由原创 `examples/cat-cafe`（设计规格 `DESIGN.md`）和正式测试独立交付：
+三个通用产品压力不再 defer；它们已由原创 `examples/cat-cafe`（设计规格 `DESIGN.md`）和正式测试独立交付：
 
 - 内容数据库（缺口 A/B）：`defineContentTableV1`/`createContentDatabaseV1`，六张真实表消费（活动/随机事件/部位反应/技能/对手/图鉴），adoption gate 由设计规格满足。
 - 语义舞台命中区域（缺口 C）：内容目录按 contentId+appearance 解析 `hitRegions`，host 渲染可聚焦命中层，指针/触摸/键盘同路径；抚摸玩法浏览器 spec 验收（`hit-regions.spec.ts`）。
@@ -55,15 +56,15 @@
 
 i18n 工作流保持 defer：架构已支持多 locale 目录，工具在真实翻译需求出现时再立项（猫舍已交付双语目录与缺键对等测试，验证了架构侧无缺口）。
 
-[DoL 对照复查](../../research/2026-07-28-dol-engine-gap-review.md)（2026-07-28）新增证据行：
+Cat Cafe 与 Engine Lab 暴露的通用产品缺口如下：
 
-| 项                                                    | 来源                                | 状态                      |
-| ----------------------------------------------------- | ----------------------------------- | ------------------------- |
-| 条件事件池原语（筛选+加权随机+可解释+强制覆盖）       | DoL 复查 §2A + 猫舍"常客小剧情"设计 | 建议立项，设计先行        |
-| debugCommand 通道的 DevDock 可写面板 + Story 参考实现 | DoL 复查 §2B                        | 建议立项，引擎契约已在    |
-| `story simulate --trace` 数值轨迹输出                 | DoL 复查 §2D                        | 建议立项，纯 CLI 增量     |
-| 快照结构化 diff（Base 纯函数 + `story diff`）         | DoL 复查 §2C                        | 小件，随上两项            |
-| 文本目录合并器、分层立绘合成、场景预览器              | DoL 复查 §2E                        | defer，激活条件见复查文档 |
+| 项                                                    | 来源                            | 状态                   |
+| ----------------------------------------------------- | ------------------------------- | ---------------------- |
+| 条件事件池原语（筛选+加权随机+可解释+强制覆盖）       | 猫舍"常客小剧情"设计与测试      | 建议立项，设计先行     |
+| debugCommand 通道的 DevDock 可写面板 + Story 参考实现 | Cat Cafe 调试工作流             | 建议立项，引擎契约已在 |
+| `story simulate --trace` 数值轨迹输出                 | Engine Lab 与 Cat Cafe 调参需求 | 建议立项，纯 CLI 增量  |
+| 快照结构化 diff（Base 纯函数 + `story diff`）         | Save/rollback 诊断需求          | 小件，随上两项         |
+| 文本目录合并器、分层立绘合成、场景预览器              | 尚缺第二个独立消费者            | defer                  |
 
 ## Promotion 纪律
 

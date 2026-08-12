@@ -16,7 +16,7 @@ What it exercises in the engine:
 - **Package-owned WholeCanvas ending** — semantic ending state selects the sole full-canvas primary while every lower Stage layer is inert. Continue enters the endless epilogue; Restart installs fresh gameplay directly instead of returning to Title.
 - **Deterministic simulation** — event-pool encounters, a turn-based contest, player rollback with hard barriers, save safepoints.
 - **Scene-driven audio** — BGM/ambient/SFX follow the published game view; three volume buses persist in the player profile.
-- **Bilingual text + auto locale**, AIGC art with a consistent storybook style, and host/cross-target Desktop packaging previews (`.app`, Windows `.msi`, or `.AppImage`) whose file-backed persistence still has a durability promotion gate.
+- **Bilingual text + auto locale**, art with a consistent storybook style, and host/cross-target Desktop packaging previews (`.app`, Windows `.msi`, or `.AppImage`) whose file-backed persistence still has a durability promotion gate.
 
 ## SillyOS 98
 

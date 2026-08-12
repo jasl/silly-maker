@@ -1,97 +1,85 @@
-# Assets, AIGC, third-party material, and references
+# Assets, third-party material, and references
 
 状态：持续维护的素材输入与运行时提升政策。
 
-This policy separates source archives, selected product assets, third-party material, and local research. It is a human review boundary, not a metadata-scanning harness.
+This policy keeps product assets deliberate and keeps local research out of the
+runtime. It does not create a source-history or compliance subsystem.
 
 ## 1. Project-owned runtime assets
 
-A product asset becomes part of the game only when a maintainer intentionally copies or creates it in the application project's own `assets/` directory (`<appRoot>/assets/**` — e.g. `e2e/assets/**`, `template/assets/**`, `examples/<story>/assets/**`; runtimePaths are app-root-relative `assets/…`), then references it from the Story's validated asset catalog. A future shared runtime asset package must document its ownership and admission boundary before use.
+A product asset becomes part of a game only when a maintainer intentionally
+creates or copies it into the application's own `assets/` directory
+(`<appRoot>/assets/**`) and references it from the Story's validated asset
+catalog.
 
-Before promotion, review:
+Before promotion, review whether the file is needed, its dimensions and format,
+browser behavior, accessibility and fallback needs, stable asset ID, and intended
+renderer use. Runtime manifests and digests exist for loading, caching,
+diagnostics, and compatibility; they are not legal metadata.
 
-- whether the file is actually needed by the current Story;
-- rights and applicable license scope;
-- dimensions, format, size, browser behavior, and accessibility/fallback needs;
-- stable asset ID and intended renderer/scene use.
+Code-native text, controls, focus states, HUD structure, and small accessible
+symbols should remain code-native unless an intentional design change requires
+an asset.
 
-The promoted runtime manifest and exact file bytes establish technical identity for loading, caching, diagnostics, and compatibility. They do not prove authorship, legal approval, aesthetic approval, or final-game status.
+## 2. Media working archives
 
-Code-native text, controls, focus states, HUD structure, and small accessible symbols should remain code-native unless an intentional design change requires an asset.
-
-## 2. AIGC source archives
-
-Tracked AIGC source material belongs under:
+Project-owned media working material may live under:
 
 ```text
-art-source/aigc/<source>/**
+art-source/<collection>/**
 ```
 
-Only the first-level source directory is conventional. Organization beneath it is free and may change as the archive evolves. Prompt/model naming, pair files, provenance JSON, terms snapshots, review-state sidecars, and source hashes are optional; repository automation does not require or adjudicate them.
+Organization below that directory is a maintainer choice. No prompt log, model
+record, terms snapshot, source hash, sidecar, or other history file is required.
+Archive files are not automatically product assets and must not be bundled into
+a Player. Promotion is a deliberate copy into the application's runtime asset
+directory followed by ordinary technical asset validation.
 
-Archive files may be reorganized or replaced. They are not automatically product assets and must not be bundled into a Player. Promotion is a deliberate manual copy into a runtime asset location followed by technical catalog/manifest validation.
-
-Commercial material and local `references/` content are not generation inputs unless a future owner decision explicitly authorizes a specific use after rights review.
-
-Local candidates and working output may remain in ignored `art-source/**/candidates/` or `art-source/**/work/` paths.
+Local candidates and working output may remain in ignored
+`art-source/**/candidates/` or `art-source/**/work/` paths.
 
 ## 3. Third-party material
 
-Material intentionally copied from a third party into Git belongs under:
+Do not add copied or adapted third-party code, text, data, images, fonts, models,
+audio, translations, purchased assets, or similar material without first
+agreeing the dependency and distribution plan with the owner.
 
-```text
-vendor/**
-```
+When compatible material is intentionally used, follow its license and preserve
+the notices it actually requires. Do not copy commercial material or code with
+incompatible terms. For a clean-room implementation, a spec/test author may
+document public specifications and independently observable behavior; the
+implementer works only from that independent specification and must not inspect
+the incompatible source. Validate the result with ordinary review and tests.
 
-That includes code, fonts, icons, images, models, audio, data, translations, purchased assets, plugins, and other copied files. Each item keeps its original license, contract, notice, or public-domain status and is outside the repository's MIT and CC0 grants.
-
-Preserve notices and enough source/terms context for a human to understand the permitted use. The repository does not mandate an exhaustive license scanner or one universal sidecar schema. Absence of an automated rejection does not establish permission.
-
-Package-manager dependencies are not copied third-party assets for this directory rule; their versions belong in package manifests and the shared lockfile.
+The repository does not maintain a source-history/provenance file, universal
+sidecar schema, legal database, or recursive dependency/vendor scanner. If a
+future change genuinely introduces copied or adapted material, add the required
+license and notice information with that change after owner review.
 
 ## 4. Local references
 
-`references/` is ignored, untracked, local-only research input. Every reference set used for project research must be recorded in [`docs/research/reference-register.md`](../research/reference-register.md) with, where available:
+`references/` is ignored, untracked, local-only research input. It may inform
+general product requirements and established industry practice, but production
+code, tests, fixtures, generators, Image Gen inputs, screenshots, builds, and
+Artifacts must not import, scan, read, or depend on it.
 
-1. source URL and acquisition date;
-2. Git revision, release version, or useful digest;
-3. root license plus relevant README/CREDITS/contract terms;
-4. material type;
-5. allowed research purpose;
-6. explicit no-copy and no-build boundary.
-
-When an exact title, release name, acquisition path, or workspace path is
-publication-sensitive, the public register uses an opaque stable reference ID
-and records the rights assumption plus allowed/prohibited use. Exact provenance
-stays with the owner-controlled external material; it must not be copied into a
-tracked compatibility note merely to make the public register more specific.
-
-References may inform broad ideas such as time ownership, persistence metadata, debugging workflow, and content organization. Do not copy or adapt their code, prose, assets, schemas, constants, data, or distinctive structures into SillyMaker's tracked production tree.
-
-Production code, tests, fixtures, generators, Image Gen inputs, screenshots, builds, and Artifacts must not import, scan, read, or depend on `references/`. This is independent-reimplementation and contamination control, not a claim that every reference has the same license.
-
-### Unpublished validation replicas
-
-Engine-validation replicas of existing games (including material with unclear provenance collected for research) are permitted under these boundaries:
-
-1. They exist to prove engine capability with complete playable games and are never published, distributed, or included in any Artifact or release channel.
-2. Source material remains local and is registered as above. Replica working trees live in a separate owner-controlled workspace outside the SillyMaker checkout; SillyMaker's `tmp/**`, tests, builds, and task graph do not host or depend on them.
-3. Task briefs given to authoring models may describe only high-level functional requirements and general mechanics. They must not reproduce protected narrative text, art, audio, distinctive names, content structure, pacing, data, or implementation details.
-4. A replica working tree is never promoted or copied into `examples/**`. A public example must be a fresh independent implementation in the formal repository, use original expression and assets, rely only on neutral engine requirements, and pass the ordinary licensing review for tracked files.
+Technical research notes may cite public specifications and upstream project
+documentation in the ordinary way. They are not source registries. For
+commercial or incompatibly licensed implementations, tracked specifications and
+tests must define SillyMaker's behavior independently. The implementer must not
+inspect the incompatible source or copy code, data, assets, prose, schemas,
+constants, or distinctive structures.
 
 ## 5. Artifact boundary
 
-A Player Artifact may contain only the runtime assets and notices intentionally selected for that Player. It excludes:
+A Player Artifact contains only the runtime assets intentionally selected by the
+application. It excludes media working archives, `references/`, research notes,
+calibration output, local Saves, DebugBundles, diagnostics,
+screenshots, and test output.
 
-- AIGC source archives and unselected candidates;
-- `references/`;
-- research notes used only during investigation;
-- generation prompts and local working files;
-- calibration reports and provisional golden data;
-- local Saves, DebugBundles, diagnostics, screenshots, and test output.
+Artifact preparation validates actual runtime paths and technical integrity.
 
-Artifact preparation should validate actual runtime file references and package the required legal notices. It should not attempt to infer asset rights from technical hashes or turn archive metadata into a legal gate.
+## 6. Contributions
 
-## 6. External contributions
-
-The lightweight maintainer archive layout above does not replace contribution disclosure. External AI-assisted contributions follow [`CONTRIBUTING.md`](../../CONTRIBUTING.md), including the requested service/model, date, prompt/input, output hash, and terms disclosure. Restricted game/content contributions still require the owner-approved written agreement described there.
+Contributions follow [`CONTRIBUTING.md`](../../CONTRIBUTING.md). Do not add a
+custom disclosure database or source-history artifact.

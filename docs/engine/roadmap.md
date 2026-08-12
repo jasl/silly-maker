@@ -38,7 +38,7 @@ stable deterministic core
 - Save 是 plain、versioned、validated data 与稳定 ID；不保存 DOM、renderer object、Promise、clock handle、audio node、cache 或动画进度。
 - Headless、玩家 UI、Browser Automation 与 Agent 使用同一 semantic/application contract，不各自重写规则。
 - 输入先成为语义 action，由当前 input owner/context 处理；物理设备不直接改 gameplay State。
-- 素材通过 manifest ID；加载、readiness、失败、fallback、预算和 provenance 是一等构建/Host 边界。
+- 素材通过 manifest ID；加载、readiness、失败、fallback、预算和 technical identity 是一等构建/Host 边界。
 - 内容数据库只读；mutable gameplay 只能经 Session transaction；Host persistence 不是 runtime ORM。
 - 公共 API 由真实第二消费者、行为测试与迁移路径证明；design 文档或 passing typecheck 不足以冻结接口。
 - 新作者层减少样板，但不引入第二套 DSL、动态 eval 或模糊的万能 context。

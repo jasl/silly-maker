@@ -1,15 +1,11 @@
-# 许可证与第三方声明
+# 项目许可证
 
-SillyMaker 自有的引擎代码采用 MIT 许可证。Engine Lab、starter template 与第一方
-examples 的基线 HTML 提供两个稳定的 `rel="license"` 链接：
+SillyMaker 自有的软件、配置和文档采用 MIT 许可证；项目自有媒体素材
+通过 CC0 1.0 贡献到公共领域。
 
-- [SillyMaker MIT 许可证](https://github.com/jasl/silly-maker/blob/main/LICENSES/MIT.txt)
-- [Hosted Player 基线的维护中第三方声明](https://github.com/jasl/silly-maker/blob/main/THIRD_PARTY_NOTICES.md)
+- [SillyMaker 许可证范围](https://github.com/jasl/silly-maker/blob/main/LICENSE.md)
+- [MIT 许可证正文](https://github.com/jasl/silly-maker/blob/main/LICENSES/MIT.txt)
+- [CC0 1.0 正文](https://github.com/jasl/silly-maker/blob/main/LICENSES/CC0-1.0.txt)
 
-第三方声明页记录当前第一方 Vite bundles 中实际观察到的最小集合，并提供适用的
-copyright 与许可证文本。它刻意不宣称穷举所有可能的 Story：应用依赖、可选能力与
-未来 bundle 变化都可能加入其他材料。
-
-分发自定义 Player 时，必须检查实际出包内容并让所有适用声明可得。Hosted 构建可以
-使用稳定公开链接；installed/offline 包应在本地携带所需文本。技术 Artifact
-manifest 可选，且不是法律清单。
+仓库不维护依赖归因清单。未来若确实复制或改编第三方材料，会先与项目所有者确认，
+并在同一次变更中加入该材料实际要求的许可证与声明。

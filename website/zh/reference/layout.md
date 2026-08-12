@@ -13,7 +13,7 @@ template/                 最小起点 Story——复制我（MIT）
 examples/bookshop         剧本写法示例（MIT）
 examples/cat-cafe         系统展示：内容数据库、命中区域、事件池、
                           回合制、元进度、i18n
-                          （代码 MIT，AIGC 媒体资产 CC0）
+                          （代码 MIT，项目媒体资产 CC0）
 
 project.config.ts         工作区注册表：应用目录清单
                           （每个应用在自己的 sillymaker.config.ts 里声明）

@@ -186,7 +186,7 @@ function createEnvironmentV1(
 }
 
 describe("runtime asset manifest validation", () => {
-  it("reads only exact runtime providers in manifest order and never enumerates source archives", async () => {
+  it("reads only exact runtime providers in manifest order and never enumerates working archives", async () => {
     const firstPath = "assets/scene.png";
     const secondPath = "assets/menu.png";
     const reads: string[] = [];

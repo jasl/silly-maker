@@ -2,7 +2,7 @@
 
 # OpenUI（Generative UI 开放标准）与 SillyMaker 的兼容性调研
 
-日期：2026-07-29。输入：`references/openui`（thesysdev/openui，MIT，revision `5266f735`，登记见 [reference-register.md](reference-register.md)）。
+日期：2026-07-29。参考 OpenUI 的公开语言规范和发布包。
 
 问题：**Agent 动态生成 UI 的 OpenUI 标准，我们的引擎能支持吗？**
 
@@ -25,7 +25,7 @@
 | MCP SDK      | optional peer                        | function provider is enough for a pilot | optional   |
 | License      | MIT                                  | MIT                                     | compatible |
 
-集成时消费正式 npm Artifact，不从 `references/openui` checkout 复制代码。当前兼容判定只说明依赖可安装，不等于 SillyMaker 已提供 OpenUI package、Agent backend 或生产权限系统。
+集成时消费正式发布包。当前兼容判定只说明依赖可安装，不等于 SillyMaker 已提供 OpenUI package、Agent backend 或生产权限系统。
 
 ## 3. Architectural fit
 

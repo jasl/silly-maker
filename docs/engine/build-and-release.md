@@ -123,11 +123,11 @@ A maintainable prepared Artifact includes:
 
 - the static Player files needed to start the game;
 - a technical manifest describing the built files and identities;
-- `LICENSE.md`, `NOTICE`, applicable license texts, `THIRD_PARTY_NOTICES.md`, and `TRADEMARKS.md`.
+- `LICENSE.md`, `NOTICE`, the project license texts, and `TRADEMARKS.md`.
 
 The technical manifest describes the Artifact's actual bytes and can reject
-missing or tampered files. It is not a license inventory, rights review, or
-hosted-deployment gate, and must not require one exact machine, exact
+missing or tampered files. It is not a hosted-deployment gate and must not
+require one exact machine, exact
 package-manager patch, Git cleanliness, a Phase checkpoint, or a materialization
 attestation. Likewise, a platform manifest such as `wrangler.jsonc`, an app
 bundle plist, or installer metadata configures that platform; it does not
@@ -267,22 +267,10 @@ It does not need an Artifact manifest.
 - **Cloudflare Workers** — the template and each example carry an app-local `wrangler.jsonc` (assets-only Worker serving `./dist-web`) and a `deploy:cf` script. From the application directory: `deno task deploy:cf` (builds, then deploys; authenticate once with `deno run -A npm:wrangler@4.114.0 login`). The Player lands at `https://<worker-name>.<account>.workers.dev/`. The `name` field in `wrangler.jsonc` is the Worker name — template copies rename it with the rest of the project; each application deploys as its own Worker, independent of the composed site. The wrangler version is pinned in each project's `package.json` and task; bump both together.
 - **GitHub Pages** — one repository owns one Pages site, and this repository's Pages slot serves the composed site (which already hosts the Player under `/play/<app>/`). For a truly standalone Pages deployment, publish the built `dist-web/` contents from a dedicated repository; the relative-base bundle works unchanged from any path.
 
-Remote distribution still has a license-availability obligation. Make the
-SillyMaker MIT text and notices that actually apply to bundled material
-available to recipients through at least one durable channel: an in-Player
-licenses page, accompanying files on the same distribution, or a stable public
-link. The Engine Lab, starter template, and first-party examples carry stable
-`rel="license"` links to the SillyMaker MIT text and the maintained
-first-party hosted Player baseline in `THIRD_PARTY_NOTICES.md`. The latter
-contains concrete copyright and license text for runtime packages observed in
-the current first-party bundles. It is a maintained minimum, not an exhaustive
-inventory for arbitrary Stories, and does not discharge the distributor's duty
-to inspect the actual bundle and publish notices for other included material.
-The prepared Artifact is one convenient offline channel, not the only valid
-one. A template copy or example distributed independently must retain the
-SillyMaker MIT notice for the engine code it contains and publish any notices
-required by the material it actually bundles; the new Story may choose its own
-license for its project-owned game content.
+Remote distribution makes the SillyMaker MIT text available through the
+Player's project-license link or the files in an offline Artifact. A template
+copy may choose its own license for new project-owned Story code and content
+while retaining the SillyMaker MIT text for engine code it distributes.
 
 Each application's `<appRoot>/metadata.json` configures the deployed page's share presentation — document title, description, html lang, theme color, Open Graph / Twitter card, share image, and favicon (`parseStoryMetadataV1` validates the shape; the Vite config injects the tags at build time; Stories without the file keep their hand-written head). Share-image paths are story-relative; the site composer absolutizes `og:image`/`twitter:image` and pins `og:url` when `SITE_ORIGIN` is set (the GitHub Pages workflow provides it automatically).
 
@@ -296,20 +284,15 @@ Before deploying a hosted Player:
 2. run browser tests relevant to the change;
 3. run `deno task build:web` (or `deno task story build <app>` from the root);
 4. run the prebuilt browser suite for the application;
-5. confirm the deployed product makes the SillyMaker MIT text and every
-   applicable bundled-material notice available through an in-product surface,
-   accompanying file, or stable link;
+5. confirm the deployed product exposes the SillyMaker project license;
 6. record the source revision and any known gameplay/content/platform
    limitations in the deployment note.
 
 For an offline handoff, integrity workflow, signed package, updater, or store
 submission, also prepare the optional Artifact, inspect its technical manifest
-and legal files, and test the exact package. An installed/offline Desktop
-package must carry local SillyMaker MIT text and every notice applicable to its
-bundled third-party material; the hosted Player's `rel="license"` link alone is
-not sufficient. Current Desktop output remains a preview and has not completed
-that release handoff gate. For a Desktop preview, launch on the named target and
-verify write → exit → reopen.
+and project license files, and test the exact package. Current Desktop output
+remains a preview and has not completed that release handoff gate. For a Desktop
+preview, launch on the named target and verify write → exit → reopen.
 
 Neither a successful build nor Artifact preparation certifies final game
 design, player experience, content approval, or commercial readiness.
@@ -326,7 +309,7 @@ the prepared Artifact.
 ## Asset boundary
 
 Only promoted runtime assets referenced by the Story and its technical asset
-manifest belong in the Player. Local `references/`, AIGC source archives,
+manifest belong in the Player. Local `references/` and media working archives,
 candidates, prompts, calibration reports, browser-test output, Saves, and
 diagnostics enter neither `dist-web/` nor a prepared Artifact. See
 [assets and references policy](../policies/assets-and-references.md).

@@ -76,7 +76,7 @@ export function OsShellV1(props: {
     return (
       <OsBootScreenV1
         title="SillyOS 98"
-        aiNotice={uiText("text.os.boot.ai-notice")}
+        subtitle={uiText("text.os.boot.engine-line")}
         onDone={() => setBooting(false)}
       />
     );

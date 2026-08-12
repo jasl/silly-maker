@@ -4,8 +4,8 @@ import type { ReactElement } from "react";
 
 /**
  * The boot splash: the brief front card games show before the title
- * screen (studio marks, legal lines — here typically an AI-generation
- * notice). Purely presentational: it auto-dismisses after a short beat
+ * screen (for example a studio mark or game introduction). Purely
+ * presentational: it auto-dismisses after a short beat
  * and any click, Enter, or Space skips it immediately.
  */
 

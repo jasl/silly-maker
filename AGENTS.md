@@ -51,9 +51,9 @@ Read only the documents relevant to the change:
 - `website/**` — the public documentation site (VitePress, en + zh); internal
   plans/research/proposals stay under `docs/` and are not published.
 - `docs/policies/licensing.md` and `docs/policies/assets-and-references.md` —
-  durable legal and source-material policy.
-- Root legal files (`LICENSE.md`, `NOTICE`, `THIRD_PARTY_NOTICES.md`,
-  `TRADEMARKS.md`) — controlling legal scope.
+  project licensing and asset-use policy.
+- Root legal files (`LICENSE.md`, `NOTICE`, `TRADEMARKS.md`) — controlling
+  project legal scope.
 
 The roadmap and design documents describe accepted direction; they do not make a
 feature implemented. `architecture.md`, `features.md`, `story-authoring.md`,
@@ -154,26 +154,30 @@ documented migration path.
   `docs/engine/proposals/typed-state-store.md`, not a required migration or
   accepted API.
 
-## Licensing and source-material boundaries
+## Licensing and third-party-code boundaries
 
 - Copyright holder: `Jun Jiang (jasl)`.
 - The whole repository — engine packages, Story packages (e2e, template,
   examples including the cat-cafe), scripts, configuration, and documentation —
-  is MIT. AI-generated and synthesized media assets (`examples/*/assets/**`,
+  is MIT. Project-owned media assets (`examples/*/assets/**`,
   `art-source/**`) are dedicated to the public domain under CC0 1.0 (commercial
   use, derivatives, and redistribution unrestricted). `LICENSE.md` controls.
-- Intentionally copied third-party material belongs under `vendor/**` and
-  retains its own terms. npm dependencies retain their own terms.
-- `references/` is ignored, untracked research input. Register it in
-  `docs/research/reference-register.md`; production code, tests, generators, and
-  artifacts must not depend on it or copy distinctive third-party material from
-  it. Publication-sensitive commercial references use an opaque public register
-  ID; their exact identity and unpublished validation worktree must stay outside
-  the current tracked tree and all future changes. This rule does not claim that
-  older Git objects have been rewritten.
-- AIGC source archives and promoted runtime assets follow
+- Do not add copied or adapted third-party material without first agreeing the
+  dependency, license, and required notices with the owner. Compatible material
+  must follow its license and preserve required notices. Commercial material or
+  code with incompatible terms must be reimplemented clean-room: a spec/test
+  author may document public behavior, while the implementer works only from
+  that independent specification and must not inspect the incompatible source.
+- Do not create a source-history/provenance file, catalog, register, registry,
+  database, architecture subsystem, or enforcement harness. Do not recursively
+  scan dependency, vendor, build, model, or data trees to populate one. Use the
+  ordinary project licenses, SPDX identifiers, package manifests, shared lockfile,
+  and release process instead.
+- `references/` is ignored, untracked research input. Production code, tests,
+  fixtures, generators, builds, and artifacts must not depend on it.
+- Media working archives and promoted runtime assets follow
   `docs/policies/assets-and-references.md`. Runtime digests establish technical
-  identity, not copyright provenance or approval.
+  identity only.
 - Contributions are accepted inbound=outbound MIT (media assets CC0).
 
 ## Generated and local files

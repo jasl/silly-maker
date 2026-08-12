@@ -553,8 +553,10 @@ implementation comparator, or current Host locale.
 
 - Add dependencies at the narrowest package that uses them and keep versions exact.
 - Update the shared lockfile with the manifest.
-- Review browser compatibility, ESM support, license, bundle effect, and maintenance cost in proportion to the dependency's role.
-- Do not add a repository-wide legal scanner or third-party notice inventory as a substitute for direct rights review.
+- Review browser compatibility, ESM support, bundle effect, and maintenance cost
+  in proportion to the dependency's role. Discuss intentionally copied or
+  adapted third-party material with the owner before adding it.
+- Do not add a legal scanner, attribution inventory, or source-history system.
 - Keep direct Node TypeScript tools compatible with the way their package scripts execute them; ordinary project code is still typechecked by TypeScript.
 
 The minimum engine compatibility versions belong in root `package.json#engines`. Do not duplicate a stricter toolchain pin in documentation unless a real upstream incompatibility temporarily requires it.

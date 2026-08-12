@@ -1,12 +1,10 @@
 # Ren'Py engine capability study
 
-状态：只读研究记录。本文不是 SillyMaker 的实现合同，也不授权复制参考项目内容。
+状态：技术研究记录。本文不是 SillyMaker 的实现合同。
 
-## 1. Source identity and research boundary
+## 1. Reference and implementation boundary
 
-本研究使用本地 `references/renpy`，其身份、取得日期、摘要和许可边界记录在 [reference register](reference-register.md)。研究时只阅读上游源码与文档，用来识别成熟 Visual Novel 引擎需要解决的问题；SillyMaker 的类型、命名、数据模型、代码、测试和交互均需独立设计。
-
-`references/renpy` 是忽略且不跟踪的本地资料。生产代码、测试、fixture、构建、生成器、Image Gen 输入和 Artifact 不得读取它。本文只记录一般能力和与 SillyMaker 当前边界的比较，不转录实现代码、独特数据结构或大段原文。
+本文通过 Ren'Py 的公开文档和源码观察成熟 Visual Novel 引擎需要解决的问题。SillyMaker 的产品合同、类型、命名、数据模型、代码、测试和交互均独立设计；本文不转录实现代码、独特数据结构或大段原文。
 
 主要观察区域包括：
 
@@ -17,7 +15,7 @@
 - `sphinx/source/save_load_rollback.rst`、`renpy/rollback.py`：交互边界、保存、历史状态和玩家回滚；
 - `renpy/display/predict.py`、Screen 与 lint 相关文档：素材预测、UI 生命周期、静态检查和作者工具。
 
-这些文件路径只是研究证据定位，不是 SillyMaker 的运行时依赖。
+这些路径只是技术定位，不是 SillyMaker 的运行时依赖。
 
 ## 2. Current SillyMaker baseline
 

@@ -64,4 +64,4 @@ website/                 对外文档站（VitePress，中英双语）
 
 Copyright © 2026 Jun Jiang (jasl)。
 
-整个仓库——引擎、示例、脚本与文档——均为 [MIT](LICENSE.md)。AI 生成与程序合成的媒体资产（`examples/*/assets/**` 与 `art-source/**` 下的图像和音频）以 CC0 1.0 贡献至公共领域：可商用、可演绎、无限制、无需署名。第三方材料保留其自身条款。贡献指南见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+整个仓库——引擎、示例、脚本与文档——均为 [MIT](LICENSE.md)。`examples/*/assets/**` 与 `art-source/**` 下的项目媒体资产以 CC0 1.0 贡献至公共领域：可商用、可演绎、无限制、无需署名。贡献指南见 [CONTRIBUTING.md](CONTRIBUTING.md)。

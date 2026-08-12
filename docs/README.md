@@ -47,9 +47,6 @@ These documents describe accepted targets and planned work. A capability remains
 
 ## Research
 
-- [Reference register](research/reference-register.md) — every ignored local reference and its usage boundary.
-- [Medium-SLG capability validation](research/2026-07-28-medium-slg-capability-validation.md) — the publication-safe boundary around private validation evidence; maintained content-table, hit-region, and meta-progress evidence lives in the original Cat Cafe Story.
-- [DoL engine gap review](research/2026-07-28-dol-engine-gap-review.md) — the research evidence behind the event pool and tuning channel.
 - [Game-engine surface/state/verification survey](research/2026-07-30-game-engine-surface-state-harness.md) — the cross-engine comparison behind the Surface Contract Harness design.
 - [OpenUI Generative UI research](research/2026-07-29-openui-genui-support.md) — dependency/architecture fit, the Query/Mutation permission boundary, and the durable UI Artifact model.
 
@@ -63,9 +60,7 @@ New game-design documents should be added under `docs/game/` and linked from tha
 ## Durable policies and research
 
 - [Licensing](policies/licensing.md)
-- [Assets, AIGC, third-party material, and local references](policies/assets-and-references.md)
-- [Reference register](research/reference-register.md)
-- [Existing reference-study notes](research/degrees-of-lewdity-notes.md)
+- [Assets, third-party material, and local references](policies/assets-and-references.md)
 - [Ren'Py engine capability study](research/renpy-engine-study.md)
 
 Root legal files remain controlling when a summary conflicts with them.

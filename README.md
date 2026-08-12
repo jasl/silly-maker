@@ -64,4 +64,4 @@ Workspace packages are private; “public export” means a supported in-repo pa
 
 Copyright © 2026 Jun Jiang (jasl).
 
-The whole repository — engine, examples, scripts, and documentation — is [MIT](LICENSE.md). AI-generated and synthesized media assets (images and audio under `examples/*/assets/**` and `art-source/**`) are dedicated to the public domain under CC0 1.0: commercial use, derivatives, and redistribution without restriction. Third-party materials keep their own terms. Contribution guidelines: [CONTRIBUTING.md](CONTRIBUTING.md).
+The whole repository — engine, examples, scripts, and documentation — is [MIT](LICENSE.md). Project-owned media assets under `examples/*/assets/**` and `art-source/**` are dedicated to the public domain under CC0 1.0: commercial use, derivatives, and redistribution without restriction. Contribution guidelines: [CONTRIBUTING.md](CONTRIBUTING.md).

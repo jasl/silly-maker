@@ -62,7 +62,7 @@ export default defineConfig({
             items: [
               { text: "Story CLI", link: "/reference/cli" },
               { text: "Repository layout", link: "/reference/layout" },
-              { text: "Licenses and notices", link: "/reference/licenses" },
+              { text: "Project license", link: "/reference/licenses" },
             ],
           },
         ],
@@ -113,7 +113,7 @@ export default defineConfig({
             items: [
               { text: "Story CLI", link: "/zh/reference/cli" },
               { text: "仓库结构", link: "/zh/reference/layout" },
-              { text: "许可证与第三方声明", link: "/zh/reference/licenses" },
+              { text: "项目许可证", link: "/zh/reference/licenses" },
             ],
           },
         ],

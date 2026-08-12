@@ -402,7 +402,7 @@ Aggregate compatibility identity 至少分为：
 - gameplay/content stable reference-closure identity；
 - Presentation identity；
 - Tooling identity；
-- 仅用于来源/诊断的 physical code/resource provenance。
+- 仅用于诊断的 physical code/resource digest 与 build metadata。
 
 Simulation behavior identity 的预期构成是语义投影而非整包 import-closure code
 digest：module topology 与 command/rule/query 的确定性投影，加上每个 executable
@@ -425,15 +425,15 @@ stop rule 不冲突。
 Save 记录的是影响该 Snapshot 的 resolved Mod provenance，而不只是 application
 semver。Load 先比较聚合身份，再按以下矩阵处理：
 
-| Identity difference                                                                           | Default load policy                                   | Explicit escape                                                                                              |
-| --------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| exact State + Simulation + reference identity                                                 | load normally                                         | none needed                                                                                                  |
-| State schema/contract changed                                                                 | reject normal load                                    | ordered pure migration with exact source/target State and Simulation identities                              |
-| same State schema, Simulation rules/commands/topology changed                                 | reject normal load; inspect-only may remain available | exact adoption declaration from old Simulation identity to new, then references/invariants/digest validation |
-| gameplay/content reference closure changed                                                    | reject when any saved ID cannot be resolved           | explicit rename/adoption mapping or State migration, followed by full reference validation                   |
-| Presentation identity/reference only changed                                                  | load with warning and fallback policy                 | optional presentation adoption; never gameplay migration                                                     |
-| Tooling identity only changed                                                                 | ignore for player Save compatibility                  | none                                                                                                         |
-| physical code/resource provenance changed while all relevant semantic identities remain exact | diagnostic/warning, not automatic gameplay rejection  | policy may require exact build for a competitive/audited product                                             |
+| Identity difference                                                                       | Default load policy                                   | Explicit escape                                                                                              |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| exact State + Simulation + reference identity                                             | load normally                                         | none needed                                                                                                  |
+| State schema/contract changed                                                             | reject normal load                                    | ordered pure migration with exact source/target State and Simulation identities                              |
+| same State schema, Simulation rules/commands/topology changed                             | reject normal load; inspect-only may remain available | exact adoption declaration from old Simulation identity to new, then references/invariants/digest validation |
+| gameplay/content reference closure changed                                                | reject when any saved ID cannot be resolved           | explicit rename/adoption mapping or State migration, followed by full reference validation                   |
+| Presentation identity/reference only changed                                              | load with warning and fallback policy                 | optional presentation adoption; never gameplay migration                                                     |
+| Tooling identity only changed                                                             | ignore for player Save compatibility                  | none                                                                                                         |
+| physical code/resource digest changed while all relevant semantic identities remain exact | diagnostic/warning, not automatic gameplay rejection  | policy may require exact build for a competitive/audited product                                             |
 
 Migration 转换 State，并精确绑定 source/target State 与 Simulation
 identity；adoption 明确声明“旧 State 无需转换也可由新 Simulation
@@ -516,7 +516,7 @@ package。它与应用同 bundle、同 realm，拥有普通 JavaScript 可获得
 
 优先开放可验证的纯数据/content/assets、Mod-owned OpenUI template/catalog
 或受约束 IR。它们无任意代码，可在 rebootstrap 时进入 resolver；schema、ID
-closure、resource budgets、digests 和许可元数据必须通过后才激活。Conversation
+closure、resource budgets 和 digests 必须通过后才激活。Conversation
 中动态产生的 UiArtifactRevision 仍是产品数据，不因采用相同文档格式而成为 Mod。
 
 这是最适合真正“发布后
@@ -536,13 +536,12 @@ mod.json
 main.mjs
 assets/**
 integrity.json
-licenses/**
 ```
 
 扩展名（例如 `.sillymod`）和文件格式在实现前不冻结。manifest 必须显式声明
 `declarative`、`trusted_same_realm_code` 或未来隔离模式，不能让安装 UI
 把数据包和可执行代码显示成同一信任级别。浏览器不会运行 npm
-resolver；构建工具必须提前解析依赖、产出 ESM/资源和 resolved source
+resolver；构建工具必须提前解析依赖、产出 ESM/资源和 resolved bundle
 metadata。安装或启用后仍通过完整 rebootstrap 创建新 instance。
 
 同 realm ESM 是**完全可信代码**。签名与 digest
@@ -568,7 +567,7 @@ Mod SDK。开放第三方代码 Mod 之前至少需要：
 - 明确 conditional exports、side-effects 和 browser/Node/Deno 支持面；
 - SillyMaker public API 与 first-party Mod 的 semver/兼容策略；
 - 在仓库外 consumer 中完成 Deno、Vite/browser 和 headless install/build smoke；
-- package、Mod、transitive dependencies、资源和许可的 Artifact provenance；
+- package、Mod、transitive dependencies 与资源的可复现 build identity；
 - 一条旧 Save + 新 Mod 版本的兼容/迁移验收。
 
 只发布类型或让 monorepo 内 `workspace:*` 编译通过，不满足这个 gate。
@@ -678,7 +677,7 @@ Activation gate，并在独立 active plan 中记录证据。
 ### M1 — first-party build-time prototype
 
 - focused type prototype：metadata + Base/UI facet factories、显式 application
-  activation 和 source metadata；
+  activation 和 bundle metadata；
 - 一个 first-party VN composition + 至少两个独立 application consumers（VN Mod
   本身不算 consumer）；
 - headless resolution 不加载 React/UI facet，两个 consumers 不用 `unknown`/cast
@@ -719,7 +718,7 @@ Activation gate，并在独立 active plan 中记录证据。
 
 - 承载 content/assets/OpenUI templates/restricted IR 的 declarative Mod
   Artifact；
-- 安装、校验、预算、许可、启用/禁用与 rebootstrap 产品流程。
+- 安装、校验、预算、启用/禁用与 rebootstrap 产品流程。
 
 ### M6+ — code Artifact or isolation
 

@@ -2,7 +2,7 @@
 
 # Event pool (conditional weighted draws)
 
-状态：2026-07-28 接受。来源证据：[DoL 对照复查 §2A](../../research/2026-07-28-dol-engine-gap-review.md) 与《雨巷猫舍》"每周常客小剧情"设计。本文是接受的目标合同；实现落地后 `features.md` 记录实况。
+状态：2026-07-28 接受。产品证据来自《雨巷猫舍》"每周常客小剧情"与正式测试。本文是接受的目标合同；实现落地后 `features.md` 记录实况。
 
 ## 问题
 

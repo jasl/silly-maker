@@ -426,16 +426,15 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
           "text.cc.app.name",
         ),
         backgroundUrl: "assets/cc-bg-title.webp",
-        // Splash: this game is entirely AI-generated (code, text, art, audio).
         splash: Object.freeze({
           lines: playerProfile.current().preferences.locale === "en"
             ? Object.freeze([
-              "This game is entirely AI-generated",
-              "Code, story, art, and audio · SillyMaker Engine",
+              "Rainy Alley Cat Cafe",
+              "A SillyMaker game",
             ])
             : Object.freeze([
-              "本游戏内容完全由 AI 生成",
-              "代码 · 剧本 · 美术 · 音频 — SillyMaker 引擎",
+              "雨巷猫舍",
+              "一款由 SillyMaker 驱动的游戏",
             ]),
         }),
       }),
