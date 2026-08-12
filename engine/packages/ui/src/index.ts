@@ -115,6 +115,31 @@ export type {
   NarrativeSurfaceResolutionRequestV1,
   NarrativeSurfaceSelectionV1,
 } from "./narrative/narrative-surface-composition.tsx";
+export {
+  createWholeCanvasApplicationSourceV1,
+  defineWholeCanvasSurfaceV1,
+} from "./whole-canvas/whole-canvas-surface-composition.tsx";
+export type {
+  DefineWholeCanvasSurfaceInputV1,
+  WholeCanvasApplicationSourceV1,
+  WholeCanvasSurfaceActionAvailabilityV1,
+  WholeCanvasSurfaceActionDispatchRequestV1,
+  WholeCanvasSurfaceActionIntentV1,
+  WholeCanvasSurfaceCatalogEntryV1,
+  WholeCanvasSurfaceDefinitionV1,
+  WholeCanvasSurfaceDetailRendererPropsV1,
+  WholeCanvasSurfacePlacementV1,
+  WholeCanvasSurfacePreparationTargetV1,
+  WholeCanvasSurfacePrimaryRendererPropsV1,
+  WholeCanvasSurfacePublicationSourceV1,
+  WholeCanvasSurfaceRendererActionV1,
+  WholeCanvasSurfaceRendererPropsV1,
+  WholeCanvasSurfaceResolvedTargetV1,
+  WholeCanvasSurfaceResolveTargetRequestV1,
+  WholeCanvasSurfaceSelectionV1,
+  WholeCanvasSurfaceSourceV1,
+  WholeCanvasSurfaceTargetV1,
+} from "./whole-canvas/whole-canvas-surface-composition.tsx";
 export { useLocaleTextV1 } from "./system/use-locale-text.ts";
 export { useReducedMotionV1 } from "./system/use-reduced-motion.ts";
 export { defineWorkspaceOverlayV1, maximumOverlayDetailDepthV1 } from "./overlays/index.ts";

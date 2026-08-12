@@ -7,7 +7,7 @@ import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 import { osGameApplicationV1 } from "../application/composition.tsx";
 import { createOsApplicationInstanceV1 } from "../application/core-application.ts";
 
-it("omits Narrative from both the application declaration and root slots", async () => {
+it("omits Narrative, Title, and Whole Canvas from the application and root slots", async () => {
   const instance = await createOsApplicationInstanceV1();
   const playerProfile = await createPlayerProfileStoreV1({
     records: createMemoryHostRecordStoreV1(),
@@ -17,9 +17,11 @@ it("omits Narrative from both the application declaration and root slots", async
     const ui = osGameApplicationV1.ui(
       { instance, playerProfile } as unknown as Parameters<typeof osGameApplicationV1.ui>[0],
     );
-    expect(Object.hasOwn(ui, "narrative")).toBe(false);
-    expect(Reflect.ownKeys(ui).includes("narrative")).toBe(false);
-    expect(Object.hasOwn(ui.slots ?? {}, "narrative")).toBe(false);
+    for (const key of ["narrative", "titleScreen", "wholeCanvas"] as const) {
+      expect(Object.hasOwn(ui, key)).toBe(false);
+      expect(Reflect.ownKeys(ui).includes(key)).toBe(false);
+      expect(Object.hasOwn(ui.slots ?? {}, key)).toBe(false);
+    }
   } finally {
     await instance.dispose();
   }

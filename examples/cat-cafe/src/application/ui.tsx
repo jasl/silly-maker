@@ -25,7 +25,6 @@ import {
 import { useCatcafeAutoAdvanceV1 } from "../features/calendar/use-auto-advance.ts";
 import { useCatcafeAutoBeginV1 } from "../features/dialogue/use-auto-begin.ts";
 import { useCatcafeEncounterNoticeV1 } from "../features/encounters/notice.ts";
-import { CatcafeEndingScreenV1 } from "../features/endings/ending-screen.tsx";
 import { CatcafeStatBarV1 } from "./stat-bar.tsx";
 import { catcafeLocalesV1 } from "../presentation.ts";
 import { catcafeSlotsV1 } from "../content.ts";
@@ -263,18 +262,6 @@ export function CatcafeHudV1(props: {
     padding: "10px 14px",
     backdropFilter: "blur(4px)",
   } as const;
-
-  if (game.ending !== null) {
-    return (
-      <CatcafeEndingScreenV1
-        ending={game.ending}
-        semantic={props.semantic}
-        registry={props.registry}
-        uiText={uiText}
-        onRestart={() => void props.instance.lifecycle.restart()}
-      />
-    );
-  }
 
   return (
     <div

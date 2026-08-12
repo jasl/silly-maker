@@ -728,6 +728,7 @@ function NarrativeSurfaceEntryShellInternalV1(
 ): ReactElement {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const mountGeneration = useRef(0);
+  const [readinessExposureGeneration, setReadinessExposureGeneration] = useState(0);
   const backdropPointer = useRef<number | null>(null);
   const entryKind = entry.kind;
   const entryRenderKey = entry.renderKey;
@@ -776,7 +777,12 @@ function NarrativeSurfaceEntryShellInternalV1(
       kind: entryKind,
       shell,
     };
-    if (!suppressImmediateFocus) focusNarrativeSurfaceElementInternalV1(shell);
+    if (
+      !suppressImmediateFocus && shell.closest("[inert]") === null &&
+      lifecycle.portalContainer.closest("[inert]") === null
+    ) {
+      focusNarrativeSurfaceElementInternalV1(shell);
+    }
   }, [
     entryKind,
     entryRenderKey,
@@ -793,8 +799,50 @@ function NarrativeSurfaceEntryShellInternalV1(
         if (mountGeneration.current === generation) mountGeneration.current += 1;
       };
     }
+    if (gate.status !== "pending") {
+      return () => {
+        if (mountGeneration.current === generation) mountGeneration.current += 1;
+      };
+    }
     const shell = shellRef.current;
     if (shell === null) return undefined;
+    let effectActive = true;
+    let awaitingExposure = false;
+    let exposureObserver: MutationObserver | null = null;
+    let exposureObservationActive = false;
+    const stopExposureObservation = (): void => {
+      effectActive = false;
+      if (!exposureObservationActive) return;
+      exposureObservationActive = false;
+      exposureObserver?.disconnect();
+      exposureObserver = null;
+    };
+    const externalInert = (): boolean => portalContainer.closest("[inert]") !== null;
+    for (
+      let ancestor: Element | null = portalContainer;
+      ancestor !== null;
+      ancestor = ancestor.parentElement
+    ) {
+      if (typeof MutationObserver !== "function") break;
+      exposureObserver ??= new MutationObserver(() => {
+        if (
+          !effectActive || !awaitingExposure || shellRef.current !== shell ||
+          !shell.isConnected || externalInert()
+        ) return;
+        awaitingExposure = false;
+        stopExposureObservation();
+        setReadinessExposureGeneration((current) => current + 1);
+      });
+      exposureObserver.observe(ancestor, { attributes: true, attributeFilter: ["inert"] });
+      exposureObservationActive = true;
+    }
+    if (externalInert()) {
+      awaitingExposure = true;
+      return () => {
+        stopExposureObservation();
+        if (mountGeneration.current === generation) mountGeneration.current += 1;
+      };
+    }
     const prepared = prepareNarrativeStableHostReadyCommitInternalV1({
       hostRuntime: runtime,
       renderEntry: entry,
@@ -802,9 +850,11 @@ function NarrativeSurfaceEntryShellInternalV1(
       initialFocusTarget: shell,
     });
     if (prepared.kind === "reattached") {
+      stopExposureObservation();
       gate.status = "accepted";
       gate.runtime = runtime;
     } else if (prepared.kind !== "prepared" || entry.preparation === null) {
+      stopExposureObservation();
       if (entry.preparation !== null) {
         failNarrativeSurfaceEntryBeforeReadyInternalV1(
           runtime.attachment,
@@ -831,9 +881,11 @@ function NarrativeSurfaceEntryShellInternalV1(
           gate.status !== "pending" || mountGeneration.current !== generation ||
           shellRef.current !== shell
         ) {
+          stopExposureObservation();
           return;
         }
         if (!shell.isConnected || !portalContainer.contains(shell)) {
+          stopExposureObservation();
           failNarrativeSurfaceEntryBeforeReadyInternalV1(
             runtime.attachment,
             entry,
@@ -841,15 +893,21 @@ function NarrativeSurfaceEntryShellInternalV1(
           );
           return;
         }
+        if (externalInert()) {
+          awaitingExposure = true;
+          return;
+        }
+        stopExposureObservation();
         const result = settleReady();
         gate.status = result.kind === "settled" ? "accepted" : "cancelled";
         if (result.kind === "settled") gate.runtime = runtime;
       });
     }
     return () => {
+      stopExposureObservation();
       if (mountGeneration.current === generation) mountGeneration.current += 1;
     };
-  }, [entry, gate, portalContainer, runtime]);
+  }, [entry, gate, portalContainer, readinessExposureGeneration, runtime]);
 
   const inactive = entry.phase !== "active";
   const preparing = entry.phase === "preparing";
@@ -1034,7 +1092,8 @@ function NarrativeSurfaceRuntimeInternalV1(
       const target = event.target;
       if (
         owner === null || !(target instanceof HTMLElement) || owner.shell.contains(target) ||
-        isDevDockEscapeOwnerTargetV1(target)
+        isDevDockEscapeOwnerTargetV1(target) || owner.shell.closest("[inert]") !== null ||
+        lifecycle.portalContainer.closest("[inert]") !== null
       ) return;
       const generation = lifecycle.outsideFocusGeneration.current + 1;
       lifecycle.outsideFocusGeneration.current = generation;
@@ -1042,7 +1101,9 @@ function NarrativeSurfaceRuntimeInternalV1(
         if (
           !lifecycle.active.current ||
           lifecycle.outsideFocusGeneration.current !== generation ||
-          lifecycle.owner.current !== owner || !owner.shell.isConnected
+          lifecycle.owner.current !== owner || !owner.shell.isConnected ||
+          owner.shell.closest("[inert]") !== null ||
+          lifecycle.portalContainer.closest("[inert]") !== null
         ) return;
         const currentOwner = findNarrativeSurfaceFocusOwnerInternalV1(
           lifecycle.snapshot.current.entries,
@@ -1099,7 +1160,8 @@ function NarrativeSurfaceRuntimeInternalV1(
           const parentShell = lifecycle.shells.get(opener.parentRenderKey);
           if (
             parent?.kind !== "dialogue" || parentShell === undefined ||
-            !parentShell.isConnected
+            !parentShell.isConnected || parentShell.closest("[inert]") !== null ||
+            lifecycle.portalContainer.closest("[inert]") !== null
           ) return;
           const activeElement = parentShell.ownerDocument.activeElement;
           if (
@@ -1136,7 +1198,8 @@ function NarrativeSurfaceRuntimeInternalV1(
           const target = previousOwner.target;
           if (
             target === null || !target.isConnected ||
-            target.ownerDocument !== lifecycle.portalContainer.ownerDocument
+            target.ownerDocument !== lifecycle.portalContainer.ownerDocument ||
+            lifecycle.portalContainer.closest("[inert]") !== null
           ) return;
           const activeElement = target.ownerDocument.activeElement;
           if (

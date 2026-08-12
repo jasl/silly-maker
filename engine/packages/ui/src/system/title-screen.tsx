@@ -2,18 +2,13 @@
 import type { ReactElement } from "react";
 
 import { Button } from "../primitives/button.tsx";
-import { SavesLauncherV1 } from "./saves-launcher.tsx";
-import { SettingsLauncherV1 } from "./settings-launcher.tsx";
 
 /**
  * The default title screen: the front door a finished game presents
  * before any gameplay UI. New game restarts the session to its initial
- * state (DefaultGameRoot may then run `titleScreen.beginNewGame`);
- * continue reveals the session the Host already restored (the autosave);
- * settings opens the ordinary system Settings dialog. The screen renders
- * inside the system layer above every gameplay surface and unmounts once
- * dismissed — debug tooling stays behind capabilities and is never part
- * of this surface.
+ * state; continue reveals the session the Host already restored. Every
+ * action is bound by the owning whole-canvas frame, so this component is a
+ * passive renderer with no direct System-dialog or lifecycle authority.
  */
 
 export interface TitleScreenLabelsV1 {
@@ -27,10 +22,11 @@ export type TitleScreenMiddleActionV1 =
   | {
     readonly kind: "continue";
     readonly available: boolean;
-    onActivate(): void;
+    readonly onActivate: () => void;
   }
   | {
     readonly kind: "load";
+    readonly onActivate: () => void;
   };
 
 export function TitleScreenV1(props: {
@@ -38,11 +34,13 @@ export function TitleScreenV1(props: {
   readonly labels: TitleScreenLabelsV1;
   /** Optional key-art URL painted behind the menu. */
   readonly backgroundUrl?: string;
-  onNewGame(): void;
+  readonly onNewGame: () => void;
   /** Required runnable contract for the title's middle action. */
   readonly middleAction: TitleScreenMiddleActionV1;
-  /** Shows a separate Load-game entry (opens the system Save dialog). */
+  /** Shows a separate Load-game entry in addition to Continue. */
   readonly showLoadGame?: boolean;
+  readonly onLoadGame: () => void;
+  readonly onSettings: () => void;
 }): ReactElement {
   const middleAction = props.middleAction;
   return (
@@ -84,7 +82,11 @@ export function TitleScreenV1(props: {
           {props.labels.newGameLabel}
         </Button>
         {middleAction.kind === "load"
-          ? <SavesLauncherV1 data-title-load-game="true" label={props.labels.loadGameLabel} />
+          ? (
+            <Button data-title-load-game="true" onClick={() => middleAction.onActivate()}>
+              {props.labels.loadGameLabel}
+            </Button>
+          )
           : (
             <Button
               data-title-continue="true"
@@ -96,9 +98,15 @@ export function TitleScreenV1(props: {
             </Button>
           )}
         {props.showLoadGame === true && middleAction.kind === "continue"
-          ? <SavesLauncherV1 data-title-load-game="true" label={props.labels.loadGameLabel} />
+          ? (
+            <Button data-title-load-game="true" onClick={() => props.onLoadGame()}>
+              {props.labels.loadGameLabel}
+            </Button>
+          )
           : null}
-        <SettingsLauncherV1 data-title-settings="true" label={props.labels.settingsLabel} />
+        <Button data-title-settings="true" onClick={() => props.onSettings()}>
+          {props.labels.settingsLabel}
+        </Button>
       </div>
     </section>
   );

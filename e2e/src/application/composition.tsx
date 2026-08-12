@@ -58,6 +58,11 @@ import {
   type LabOverlayConformanceIdV1,
   type LabOverlayConformanceV1,
 } from "./workspace-overlay-conformance.tsx";
+import {
+  createLabWholeCanvasConformanceV1,
+  type LabWholeCanvasConformanceV1,
+  labWholeCanvasKeyboardMapV1,
+} from "./whole-canvas-conformance.tsx";
 
 /** The Engine Lab logical canvas: a 16:10 design resolution. */
 export const labViewportCanvasV1 = Object.freeze({ width: 1600, height: 1000 });
@@ -206,11 +211,15 @@ export function createLabUiSlotsV1(input: {
   readonly instance: LabApplicationInstanceV1;
   readonly createAudioHost: () => AudioHostV1;
   readonly overlayConformance?: LabOverlayConformanceV1;
+  readonly wholeCanvasConformance?: LabWholeCanvasConformanceV1;
   readonly registerReplayVoice?: (replay: (() => boolean) | null) => void;
 }): DefaultGameRootSlotsV1<LabUiPublicationV1, LabSemanticPortV1, LabUiOverlayIdV1> {
   const registerReplayVoice = input.registerReplayVoice ?? (() => undefined);
   const overlayConformance = input.overlayConformance ??
     createLabOverlayConformanceV1({ enabled: false });
+  const restartApplication = async (): Promise<void> => {
+    await input.instance.lifecycle.restart();
+  };
   const slots: DefaultGameRootSlotsV1<LabUiPublicationV1, LabSemanticPortV1, LabUiOverlayIdV1> = {
     ...labUiSlotsDefinitionV1,
     hud: (context) => (
@@ -244,8 +253,9 @@ export function createLabUiSlotsV1(input: {
         {labUiSlotsDefinitionV1.systemMenuExtras?.(context)}
         {overlayConformance.renderLaunchers(
           asLabOverlayControllerV1(context.overlays),
-          context.systemDialogs.returnToTitle,
+          restartApplication,
         )}
+        {input.wholeCanvasConformance?.renderLaunchers(restartApplication)}
       </>
     ),
     overlayResolver: (context) => {
@@ -375,6 +385,7 @@ export const labSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
 
 function createLabUiDisposeV1(
   overlayConformance: LabOverlayConformanceV1,
+  wholeCanvasConformance: LabWholeCanvasConformanceV1 | null,
   clearReplayVoice: () => void,
 ): () => void {
   let disposed = false;
@@ -395,6 +406,12 @@ function createLabUiDisposeV1(
       if (!failed) firstFailure = error;
       failed = true;
     }
+    try {
+      wholeCanvasConformance?.dispose();
+    } catch (error) {
+      if (!failed) firstFailure = error;
+      failed = true;
+    }
     if (failed) throw firstFailure;
   };
 }
@@ -408,10 +425,14 @@ export function createLabGameUiDefinitionV1(
 ) {
   const applicationSearch = new URLSearchParams(globalThis.location?.search ?? "");
   const overlayConformanceEnabled = applicationSearch.has("overlay_conformance");
+  const wholeCanvasConformanceEnabled = applicationSearch.get("whole_canvas_conformance") === "1";
   const overlayConformance = createLabOverlayConformanceV1({
     enabled: overlayConformanceEnabled,
     eventTarget: globalThis.window,
   });
+  const wholeCanvasConformance = wholeCanvasConformanceEnabled
+    ? createLabWholeCanvasConformanceV1({ eventTarget: globalThis.window })
+    : null;
   const replayVoiceRef: { current: (() => boolean) | null } = { current: null };
   const registerReplayVoice = (replay: (() => boolean) | null): void => {
     replayVoiceRef.current = replay;
@@ -423,11 +444,13 @@ export function createLabGameUiDefinitionV1(
   return Object.freeze({
     projector: labUiProjectorV1,
     narrative,
+    ...(wholeCanvasConformance === null ? {} : { wholeCanvas: wholeCanvasConformance.definition }),
     overlayDefinitions: labWorkspaceOverlayDefinitionsV1,
     cueIds: Object.freeze([labBeaconPulseCueIdV1]),
     slots: createLabUiSlotsV1({
       instance: input.instance,
       overlayConformance,
+      ...(wholeCanvasConformance === null ? {} : { wholeCanvasConformance }),
       registerReplayVoice,
       createAudioHost: input.createAudioHost ?? (() =>
         createWebAudioHostV1({
@@ -438,9 +461,11 @@ export function createLabGameUiDefinitionV1(
     labels: labRootLabelsV1,
     saveLabels: labSaveOverlayLabelsV1,
     inputMaps: Object.freeze({
-      keyboard: labKeyboardMapV1,
+      keyboard: wholeCanvasConformanceEnabled
+        ? Object.freeze({ ...labKeyboardMapV1, ...labWholeCanvasKeyboardMapV1 })
+        : labKeyboardMapV1,
       gamepad: labGamepadMapV1,
-      ...(overlayConformanceEnabled
+      ...(overlayConformanceEnabled || wholeCanvasConformanceEnabled
         ? { pointer: Object.freeze({ secondary: systemInputActionIdsV1.cancel }) }
         : {}),
     }),
@@ -448,7 +473,11 @@ export function createLabGameUiDefinitionV1(
       import("./dev-dock.tsx").then((module) =>
         module.createLabDevDockContributionsV1({ instance: input.instance })
       ),
-    dispose: createLabUiDisposeV1(overlayConformance, () => registerReplayVoice(null)),
+    dispose: createLabUiDisposeV1(
+      overlayConformance,
+      wholeCanvasConformance,
+      () => registerReplayVoice(null),
+    ),
   });
 }
 

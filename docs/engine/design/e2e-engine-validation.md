@@ -1,8 +1,10 @@
 # E2E engine validation design
 
 状态：2026-07-19 接受；Engine Lab、Headless/Browser/Prebuilt conformance 和
-Agent parity 基线已实现并进入 [features](../features.md)。2026-07-30 接受的
-whole-canvas Managed Surface 与 Contract Harness 扩展尚未实现，见
+Agent parity 基线已实现并进入 [features](../features.md)。2026-08-12
+PF4/S4b.1c 已交付 exact WholeCanvas tracked-consumer cutover 与 browser promotion；
+S5/S6 的 generalized structural/model/shrink、locked-modal、presentation
+postcondition receipt 与 stable builder 仍待后续，见
 [Surface design](surface-contract-harness.md)。2026-07-31 接受的多 JavaScript
 引擎逐 command determinism matrix 已于 2026-08-02 按同一 Session 合同实现、完成
 promotion verification 并进入 live，见
@@ -66,22 +68,25 @@ config、Composer、Browser Agent 与独立 browser/prebuilt conformance；R3 �
 Semantic Stage、PendingInteraction 与 Transition；R4 再加入 media/audio、VN
 player、keyboard/gamepad 和 prediction。以上基线已完成。
 
-### 3.2 Pending Managed Surface target extension
+### 3.2 Delivered WholeCanvas consumer slice and pending generalized target
 
-2026-07-30 接受、但尚未实现的 Surface track 将在不改变 Engine Lab 业务数字的
-前提下增加：
+S4b.1c 已在不改变 Engine Lab 业务数字或 Save-visible route state 的前提下交付：
 
-- 中性的 whole-canvas primary targets（home/status/storage/catalog）；
-- detail、locked modal、History 和 delayed-readiness Managed Surfaces；
-- stable target owner、target occurrence 与 Coordinator reconcile；
-- application epoch、instance/topology revision、managed routing lease 与
-  readiness fence；
-- 对声明 presentation postcondition 的 action 组合分层 receipt、frame-aware
-  input 和真实浏览器 hit/focus/capture 证明；普通 action 不引入 universal
-  envelope。
+- query-gated Engine Lab primary targets（home/status/storage/catalog）与一个
+  package-owned transient exact-parent specimen detail；
+- public definition/application-source seam、stable target reconcile，以及
+  package-internal application epoch、instance/topology revision、managed routing
+  lease 与 readiness fence；
+- Engine Lab 的 primary replacement、detail Back/dismiss、readiness/failure/retry、
+  focus/opener restore 与 stale pointer/restart browser evidence；
+- Cat Cafe ending 第一消费者的 Continue 与 Restart 产品浏览器路线。
 
-这些条目是目标验收，不是当前 R4 能力。实施期间每一阶段都必须保持 live baseline
-scenario 绿色，不能用未来 Surface 能力作为当前基线的前置条件。
+这是一条 exact tracked-consumer cutover，不等于 generalized Contract Harness
+已经完成。S5 仍拥有 structural diagnostics、pure model、seeded exploration 与
+shrunk trace；S6 仍拥有 locked modal、完整 authoring/browser matrix、declared
+presentation postcondition receipt 和 stable builder promotion。普通 action 仍不引入
+universal envelope。每一后续阶段都必须保持 live baseline 与上述 S4b.1c 路线绿色，
+不能用未来 Surface 能力改写当前基线。
 
 ## 4. Driver model
 
@@ -117,10 +122,10 @@ inspection，而不是扩张玩家自动化权限。
 Live baseline 中的 Browser transition lifecycle、asset readiness、actual audio
 和 focus 由只读 Presentation Observation/DOM conformance 面验证，不进入 core
 Agent transcript parity。Headless 比较 Stage target、PendingInteraction、Audio
-intent 等稳定 semantic projection。Pending Surface extension
-将沿用这个隔离：Surface testkit 验证纯 topology、transition receipt 与 stale
-fencing，Browser Presentation Observation 验证
-topology/readiness/focus；两者都不能向 core Agent 暴露 DOM 或 live Coordinator
+intent 等稳定 semantic projection。S4b.1c 的 exact browser evidence 也沿用这个
+隔离；后续 S5/S6 由 Surface testkit 验证 generalized topology、model/shrink、
+transition receipt 与 stale fencing，由 Browser Presentation Observation 验证
+topology/readiness/focus。两者都不能向 core Agent 暴露 DOM 或 live Coordinator
 setter。
 
 Node 与 Browser 执行同一份语义 transcript，运行时比较：
@@ -177,13 +182,20 @@ Browser Agent 仍不获得 raw Snapshot、RNG 或 CommandLog。
 VN 能力按 [VN presentation design](vn-presentation-runtime.md)
 落地时，继续扩展同一个垂直路线，而不是为每项能力创建互不相干的测试游戏。
 
-### 5.2 Pending Managed Surface extension matrix
+### 5.2 Delivered S4b.1c browser slice and pending generalized matrix
 
-下表描述 Surface plan 完成时的目标覆盖；“target”不表示当前测试已通过：
+S4b.1c 已在 Chromium 与 WebKit 用 stable managed definition/action locators 覆盖
+Engine Lab 的 mutually-exclusive primary replacement、exact-parent detail
+open/Back/dismiss、readiness failure/retry、focus/opener restore 与 stale
+pointer/restart；Cat Cafe 另覆盖真实 ending 的 Continue 与 Restart。package/runtime
+tests 同时覆盖该 exact family 的 instance、readiness、input 与 successor fences。
+
+下表描述 S5/S6 完成时仍需补齐的 generalized 覆盖；“target”不表示整张矩阵已由
+S4b.1c 完成，也不否定上面的具体 browser evidence：
 
 | 场景                                                   | Headless/model target | Browser target             | Prebuilt target  |
 | ------------------------------------------------------ | --------------------- | -------------------------- | ---------------- |
-| whole-canvas primary/detail/modal/Back topology        | pure model            | DOM + presentation observe | refresh rebuild  |
+| generalized primary/detail/locked-modal/Back topology  | pure model            | DOM + presentation observe | refresh rebuild  |
 | 同 gesture 跨 replace、stale instance/occurrence       | frame-aware harness   | real pointer               |                  |
 | async readiness、focus restore、visibility loss        | virtual clock         | presentation + DOM observe | fallback/recover |
 | 声明 postcondition 的 action 组合分层 receipt          | evidence composition  | UI/Browser Agent evidence  |                  |
@@ -199,10 +211,11 @@ smoke route。前四项沿用 live baseline；最后一项属于 pending Surface
   recovery；
 - Advanced input/media：synthetic gamepad，以及被真实 Story 采用的 renderer
   adapter fallback。
-- **Pending Managed Surface**：whole-canvas replace、detail/modal/Back、async
-  readiness、application epoch/topology revision、pointer gesture fence；只有
-  Coordinator invariant failure 要求最小 model trace，browser-only failure
-  保留稳定 action/publication/DOM-hit-focus trace。
+- **Pending generalized Surface harness**：locked modal、完整
+  primary/detail/Back authoring matrix、structural diagnostics、seeded model/shrink
+  与 declared presentation postcondition receipt；只有 Coordinator invariant
+  failure 要求最小 model trace，browser-only failure 保留稳定
+  action/publication/DOM-hit-focus trace。
 
 ## 6. Browser conformance ownership
 
@@ -301,11 +314,12 @@ E2E Story 可以被独立 build 并由静态服务器启动，但它不是发行
    bytes；
 9. current implementation docs 和命令文档已同步更新。
 
-### 9.2 Pending Managed Surface acceptance
+### 9.2 Pending generalized S5/S6 Surface acceptance
 
-Surface extension 只有在以下目标全部实现后才可标为 live：
+S4b.1c 只关闭 exact tracked-consumer 与对应 browser evidence。Generalized Surface
+extension 只有在以下目标全部实现后才可标为 live：
 
-1. whole-canvas/detail/modal/Back 与 stable target reconcile 有 pure-model
+1. generalized whole-canvas/detail/locked-modal/Back 与 stable target reconcile 有 pure-model
    证明，包括无关 source revision 不 remount、同参数 reopen 创建新 instance；
 2. stale instance/occurrence、同 gesture 跨 replace、readiness 和 focus restore
    有 frame-aware runtime 证明；

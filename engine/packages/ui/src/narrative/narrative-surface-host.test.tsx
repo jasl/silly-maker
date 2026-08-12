@@ -660,6 +660,38 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     expect(NarrativeSurfaceHostInternalV1).toEqual(expect.any(Function));
   });
 
+  it("does not reclaim focus after a higher Stage layer makes Narrative inert", async () => {
+    const Renderer = () => <button type="button" data-testid="inert-narrative">Narrative</button>;
+    const harness = hostHarnessV1(Renderer);
+    expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1())).toMatchObject({
+      kind: "applied",
+    });
+    const narrativeLayer = document.createElement("div");
+    const portalContainer = document.createElement("div");
+    const higherOwner = document.createElement("button");
+    narrativeLayer.append(portalContainer);
+    document.body.append(narrativeLayer, higherOwner);
+    const view = render(
+      <NarrativeSurfaceHostInternalV1
+        session={harness.session}
+        portalContainer={portalContainer}
+        inputRouter={harness.inputRouter}
+        isGestureCurrent={harness.isGestureCurrent}
+      />,
+    );
+    await flushHostMicrotasksV1();
+    expect(portalContainer.querySelector('[data-testid="inert-narrative"]')).not.toBeNull();
+
+    narrativeLayer.setAttribute("inert", "");
+    act(() => higherOwner.focus());
+    await flushHostMicrotasksV1();
+
+    expect(document.activeElement).toBe(higherOwner);
+    view.unmount();
+    narrativeLayer.remove();
+    higherOwner.remove();
+  });
+
   it("freezes the physical-ingress source-relative API and rejects malformed registration before Host work", () => {
     expectTypeOf<keyof NarrativeSurfaceHostPhysicalIngressContextInternalV1>()
       .toEqualTypeOf<"inputRouter" | "isGestureCurrent" | "isCurrentInternalV1">();
@@ -3137,6 +3169,128 @@ describe("NarrativeSurfaceHostInternalV1", () => {
 
     view.unmount();
     await flushHostMicrotasksV1();
+    portalContainer.remove();
+  });
+
+  it("keeps a physically inert candidate preparing until its Stage layer is exposed", async () => {
+    const Renderer = () => (
+      <button type="button" data-testid="inert-ready-dialogue">Dialogue</button>
+    );
+    const harness = hostHarnessV1(Renderer);
+    expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1())).toMatchObject({
+      kind: "applied",
+    });
+    const narrativeLayer = document.createElement("div");
+    narrativeLayer.setAttribute("inert", "");
+    const portalContainer = document.createElement("div");
+    narrativeLayer.append(portalContainer);
+    document.body.append(narrativeLayer);
+
+    const view = render(
+      <NarrativeSurfaceHostInternalV1
+        session={harness.session}
+        portalContainer={portalContainer}
+        inputRouter={harness.inputRouter}
+        isGestureCurrent={() => true}
+      />,
+    );
+    await flushHostMicrotasksV1();
+
+    expect(harness.kernel.getStateInternalV1().stableRuntimeBindings[0]?.binding)
+      .toMatchObject({ kind: "preparing" });
+    const renderShell = portalContainer.querySelector(
+      '[data-narrative-surface-render-shell="dialogue"]',
+    );
+    expect(renderShell).toHaveAttribute("inert");
+    expect(renderShell).toHaveStyle({ visibility: "hidden" });
+
+    act(() => narrativeLayer.removeAttribute("inert"));
+    await flushHostMicrotasksV1();
+
+    expect(harness.kernel.getStateInternalV1().stableRuntimeBindings[0]?.binding)
+      .toMatchObject({ kind: "ready_instance" });
+    expect(renderShell).not.toHaveAttribute("inert");
+    expect(renderShell).not.toHaveStyle({ visibility: "hidden" });
+
+    view.unmount();
+    await flushHostMicrotasksV1();
+    narrativeLayer.remove();
+  });
+
+  it("fences readiness when the Stage layer becomes inert before its queued settlement", async () => {
+    const Renderer = () => <output data-testid="raced-inert-dialogue">Dialogue</output>;
+    const harness = hostHarnessV1(Renderer);
+    expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1())).toMatchObject({
+      kind: "applied",
+    });
+    const narrativeLayer = document.createElement("div");
+    const portalContainer = document.createElement("div");
+    narrativeLayer.append(portalContainer);
+    document.body.append(narrativeLayer);
+
+    const view = render(
+      <NarrativeSurfaceHostInternalV1
+        session={harness.session}
+        portalContainer={portalContainer}
+        inputRouter={harness.inputRouter}
+        isGestureCurrent={() => true}
+      />,
+    );
+    narrativeLayer.setAttribute("inert", "");
+    await flushHostMicrotasksV1();
+
+    expect(harness.kernel.getStateInternalV1().stableRuntimeBindings[0]?.binding)
+      .toMatchObject({ kind: "preparing" });
+    const renderShell = portalContainer.querySelector(
+      '[data-narrative-surface-render-shell="dialogue"]',
+    );
+    expect(renderShell).toHaveAttribute("inert");
+    expect(renderShell).toHaveStyle({ visibility: "hidden" });
+
+    act(() => narrativeLayer.removeAttribute("inert"));
+    await flushHostMicrotasksV1();
+
+    expect(harness.kernel.getStateInternalV1().stableRuntimeBindings[0]?.binding)
+      .toMatchObject({ kind: "ready_instance" });
+    expect(renderShell).not.toHaveAttribute("inert");
+    expect(renderShell).not.toHaveStyle({ visibility: "hidden" });
+
+    view.unmount();
+    await flushHostMicrotasksV1();
+    narrativeLayer.remove();
+  });
+
+  it("disconnects the exposure observer immediately after a ready Host reattach", () => {
+    const Renderer = () => <output data-testid="reattached-dialogue">Dialogue</output>;
+    const entry = syntheticDialogueRenderEntryV1({
+      phase: "active",
+      preparation: null,
+      rendererComponent: Renderer,
+      playerObservation: mutableDialoguePlayerObservationV1(
+        passiveDialoguePlayerViewV1("active"),
+      ).port,
+    });
+    const runtime = syntheticHostRuntimeV1(entry);
+    vi.spyOn(narrativeFamilyModuleV1, "prepareNarrativeStableHostReadyCommitInternalV1")
+      .mockReturnValue(Object.freeze({ kind: "reattached" as const, completion: null }));
+    const disconnect = vi.spyOn(MutationObserver.prototype, "disconnect");
+    const portalContainer = document.createElement("div");
+    document.body.append(portalContainer);
+
+    const view = render(
+      <NarrativeSurfaceHostInternalV1
+        session={Object.freeze({}) as unknown as NarrativeStableSessionInternalV1}
+        portalContainer={portalContainer}
+        inputRouter={createInputRouterV1()}
+        isGestureCurrent={() => true}
+      />,
+    );
+
+    expect(portalContainer.querySelector('[data-testid="reattached-dialogue"]')).not.toBeNull();
+    expect(disconnect).toHaveBeenCalledOnce();
+    view.unmount();
+    expect(disconnect).toHaveBeenCalledOnce();
+    expect(runtime.release).toHaveBeenCalledOnce();
     portalContainer.remove();
   });
 

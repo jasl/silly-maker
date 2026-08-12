@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 // SPDX-License-Identifier: MIT
+import "@testing-library/jest-dom/vitest";
 import { parseNonNegativeSafeInteger } from "@sillymaker/base";
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
@@ -20,6 +21,7 @@ import type {
   WholeCanvasManagedSurfaceRootDesiredInternalV1,
 } from "./whole-canvas-managed-surface-session.ts";
 import {
+  bindWholeCanvasSurfaceCompositionPrivateMetadataInternalV1,
   createWholeCanvasSurfaceCompositionDefinitionInternalV1,
   createWholeCanvasSurfaceCompositionRuntimeInternalV1,
   resolveWholeCanvasSurfaceCompositionFamilyContractInternalV1,
@@ -150,6 +152,13 @@ function hostHarnessInternalV1(
     prepareTargetInternalV1: input.prepare ?? (() => Promise.resolve()),
     renderInternalV1: input.renderer,
   }));
+  bindWholeCanvasSurfaceCompositionPrivateMetadataInternalV1(
+    definition,
+    Object.freeze({
+      resolveTextInternalV1: (textId: string) => `Resolved ${textId}`,
+      applyAcceptedNavigationInternalV1: () => undefined,
+    }),
+  );
   const family = resolveWholeCanvasSurfaceCompositionFamilyContractInternalV1(definition);
   const bundle = createManagedSurfaceCompositeKernelBundleInternalV1(Object.freeze({
     applicationEpoch: parseNonNegativeSafeInteger(71),
@@ -218,6 +227,10 @@ function hostHarnessInternalV1(
       });
       for (const listener of [...listeners]) listener();
     },
+    closeRoot(): void {
+      desired = Object.freeze({ bootSplash: null, title: null, story: null });
+      for (const listener of [...listeners]) listener();
+    },
     dispose(): void {
       releasePhysical();
       composition.disposeInternalV1();
@@ -258,6 +271,19 @@ describe("S4b.1b WholeCanvas React Host", () => {
       '[data-whole-canvas-phase="preparing"]',
     )!;
     const pendingRenderer = pendingShell.querySelector<HTMLElement>("[inert]")!;
+    expect(pendingShell).toHaveAttribute(
+      "data-managed-surface-definition",
+      "surface.whole-canvas.primary",
+    );
+    expect(pendingShell).toHaveAttribute(
+      "data-managed-surface-target",
+      "test.whole-canvas.root",
+    );
+    expect(pendingShell.getAttribute("data-managed-surface-instance")).toMatch(
+      /^surface-instance\./u,
+    );
+    expect(pendingShell).toHaveAttribute("data-managed-surface-readiness", "pending");
+    expect(pendingShell).toHaveAccessibleName("Resolved text.whole-canvas.root");
     expect(pendingShell.hasAttribute("inert")).toBe(false);
     expect(pendingRenderer.getAttribute("aria-hidden")).toBe("true");
     expect(harness.portalContainer.querySelector(
@@ -291,6 +317,7 @@ describe("S4b.1b WholeCanvas React Host", () => {
       '[data-whole-canvas-phase="current"]',
     )!;
     expect(currentShell).toBe(pendingShell);
+    expect(currentShell).not.toHaveAttribute("data-managed-surface-readiness");
     expect(currentPublication).toHaveBeenCalledTimes(1);
     expect(harness.dispatchOwner).toHaveBeenCalledTimes(1);
     expect(Object.isFrozen(rendererProps.at(-1)?.entry)).toBe(true);
@@ -392,6 +419,92 @@ describe("S4b.1b WholeCanvas React Host", () => {
     harness.dispose();
   });
 
+  it("atomically closes an initial pending root before its readiness settles", async () => {
+    const readiness = deferredInternalV1();
+    const harness = hostHarnessInternalV1({
+      prepare: () => readiness.promise,
+      renderer: ({ entry }) => (
+        <button type="button" data-testid="pending-root">
+          {(entry.resolved.view as Readonly<{ targetId: string }>).targetId}
+        </button>
+      ),
+    });
+    render(hostElementInternalV1(harness));
+    const pending = await waitFor(() =>
+      harness.bindingRuntime.getSnapshotInternalV1().root.pending!
+    );
+    const pendingShell = await waitFor(() =>
+      harness.portalContainer.querySelector<HTMLElement>(
+        '[data-whole-canvas-phase="preparing"]',
+      )!
+    );
+    expect(pendingShell).toHaveAttribute("data-whole-canvas-phase", "preparing");
+
+    act(() => harness.closeRoot());
+
+    await waitFor(() => {
+      expect(harness.bindingRuntime.getSnapshotInternalV1().root).toEqual({
+        current: null,
+        pending: null,
+        failure: null,
+      });
+    });
+    expect(pendingShell.isConnected).toBe(false);
+    expect(harness.bindingRuntime.settleReadinessInternalV1(pending, "ready"))
+      .toMatchObject({ kind: "stale" });
+    expect(harness.router.registrationCount()).toBe(1);
+    expect(harness.router.router.route(Object.freeze({
+      kind: "action" as const,
+      actionId: parseInputActionIdV1(ownerActionIdInternalV1),
+    }))).toEqual({ kind: "ignored" });
+
+    readiness.resolve();
+    await act(async () => {
+      await readiness.promise;
+      await Promise.resolve();
+    });
+    expect(harness.bindingRuntime.getSnapshotInternalV1().root.current).toBeNull();
+    harness.dispose();
+  });
+
+  it("closes a current root before restoring its exact lower owner after Stage release", async () => {
+    const reportFailure = vi.fn();
+    const sealFailure = vi.fn();
+    const lowerStage = document.createElement("div");
+    const lowerOwner = document.createElement("button");
+    lowerOwner.type = "button";
+    lowerStage.append(lowerOwner);
+    document.body.append(lowerStage);
+    lowerOwner.focus();
+    const harness = hostHarnessInternalV1({
+      renderer: () => <button type="button">current</button>,
+      reportFailure,
+      sealFailure,
+    });
+    render(hostElementInternalV1(harness));
+    await waitFor(() => {
+      expect(harness.bindingRuntime.getSnapshotInternalV1().root.current).not.toBeNull();
+    });
+
+    lowerStage.setAttribute("inert", "");
+    act(() => {
+      harness.closeRoot();
+      lowerStage.removeAttribute("inert");
+    });
+    await act(async () => await Promise.resolve());
+
+    expect(harness.bindingRuntime.getSnapshotInternalV1().root).toEqual({
+      current: null,
+      pending: null,
+      failure: null,
+    });
+    expect(reportFailure).not.toHaveBeenCalled();
+    expect(sealFailure).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(lowerOwner);
+    harness.dispose();
+    lowerStage.remove();
+  });
+
   it("keeps the exact current primary and focus when replacement readiness fails", async () => {
     const replacement = deferredInternalV1();
     const harness = hostHarnessInternalV1({
@@ -477,6 +590,11 @@ describe("S4b.1b WholeCanvas React Host", () => {
     const failed = harness.portalContainer.querySelector<HTMLElement>(
       '[data-whole-canvas-phase="failed"]',
     )!;
+    expect(failed).toHaveAttribute("data-managed-surface-readiness", "failed");
+    expect(failed.querySelector("button")).toHaveAttribute(
+      "data-managed-surface-retry",
+      "true",
+    );
     expect(failed.ownerDocument.activeElement).toBe(failed);
     expect(fireEvent.keyDown(failed, { key: "Tab" })).toBe(false);
     fireEvent.click(failed.querySelector("button")!);
@@ -489,7 +607,7 @@ describe("S4b.1b WholeCanvas React Host", () => {
     harness.dispose();
   });
 
-  it("blocks the root for detail preparation and restores the exact opener on Back", async () => {
+  it("blocks the root for detail preparation and restores the exact pointer opener on Back", async () => {
     const detailReady = deferredInternalV1();
     const Renderer = ({ entry, onAction, onBack }: WholeCanvasSurfaceRendererPropsInternalV1) =>
       entry.placement === "primary"
@@ -514,7 +632,12 @@ describe("S4b.1b WholeCanvas React Host", () => {
     const opener = harness.portalContainer.querySelector<HTMLButtonElement>(
       '[data-testid="open-detail"]',
     )!;
-    opener.focus();
+    const parentShell = opener.closest<HTMLElement>(
+      '[data-whole-canvas-surface="primary"]',
+    )!;
+    fireEvent.pointerDown(opener, { pointerId: 1 });
+    parentShell.focus();
+    expect(document.activeElement).toBe(parentShell);
     fireEvent.click(opener);
     await waitFor(() => {
       expect(harness.portalContainer.querySelector(

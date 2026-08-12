@@ -129,7 +129,7 @@ Reuse the engine pattern, not the Tavern-specific ten-module partition, names, n
 
 ### Compose a Host application
 
-A Story ships one `WebGameApplicationV1` declaration (core definition with the semantic adapter, validators, and optional Story extensions; projector; optional Narrative definition; UI slots; Workspace Overlay definitions; labels; input maps) and boots it with `startWebGameApplicationV1`. The composers own the Session, persistence, capability session, diagnostics construction, input adapters, automation, and the dev HMR boundary — an entry never assembles engine services by hand. The Engine Lab follows this path.
+A Story ships one `WebGameApplicationV1` declaration (core definition with the semantic adapter, validators, and optional Story extensions; projector; optional Narrative and WholeCanvas definitions; UI slots; Workspace Overlay definitions; labels; input maps) and boots it with `startWebGameApplicationV1`. The composers own the Session, persistence, capability session, diagnostics construction, input adapters, automation, and the dev HMR boundary — an entry never assembles engine services by hand. The Engine Lab follows this path.
 
 When a Story has Narrative, create one frozen five-key input with
 `selectNarrative`, `dispatchResolution`, `renderer`, `resolveText`, and
@@ -143,6 +143,21 @@ the composition definition, so do not add `slots.narrative`, a direct semantic
 writer, or a second stage claimant. Engine Lab, the starter template, Bookshop,
 and Cat Cafe are the maintained examples. SillyOS intentionally omits the
 definition and therefore mounts no Narrative surface.
+
+For a whole-canvas primary or exact-parent detail, freeze the seven-key input
+to `defineWholeCanvasSurfaceV1`: `catalog`, `source`, `resolveTarget`,
+`dispatchAction`, `renderer`, `prepareTarget`, and `resolveText`. Use a
+publication source when semantic state selects the primary, as Cat Cafe does
+for `catcafe.ending`; use `createWholeCanvasApplicationSourceV1` when local
+navigation is the product contract, as in Engine Lab's opt-in conformance
+route. The renderer is passive: it receives immutable primary/detail data and
+frame-bound `onAction`/`onBack`, while the package owns readiness, routed input,
+focus, and detail lifecycle. Existing `titleScreen` declarations automatically
+use the same package-owned Splash/Title authority without requiring
+`ui.wholeCanvas`. A Story-defined WholeCanvas consumer omits `ui.wholeCanvas`
+when unused; an application allocates no WholeCanvas Host, source, lease, or
+subscription only when both that field and `titleScreen` are absent, as SillyOS
+demonstrates.
 
 Declare each gameplay window with `defineWorkspaceOverlayV1`, including its
 contract revision, dismissal policy, and required port IDs. Supply concrete
@@ -185,7 +200,7 @@ finalizer that could target the successor.
 1. creates a `GameHostV1` (IndexedDB, files, clock, navigation, logging, entropy);
 2. builds the persisted capability session (Host records overlaid by the page query);
 3. resolves the Story and creates the core application instance (Session, semantic port, persistence lease, autosave, Story extensions);
-4. composes the UI (presentation store, input router, intent router, one shared Workspace Overlay/System/Narrative Managed Surface authority, plus the interaction session) and mounts the default GameRoot with the Story's ordinary slots and, when declared, the composition-owned Narrative Host;
+4. composes the UI (presentation store, input router, intent router, one shared Workspace Overlay/System/Narrative/WholeCanvas Managed Surface authority, plus the interaction session) and mounts the default GameRoot with the Story's ordinary slots and, when declared, the composition-owned Narrative and WholeCanvas Hosts;
 5. installs the automation bridge and optional pointer adapter, binds the DebugBundle UI context, and registers page-lifecycle teardown;
 6. owns disposal and — through `installWebGameApplicationHmrV1` — the dev HMR rebootstrap with persistence handoff.
 

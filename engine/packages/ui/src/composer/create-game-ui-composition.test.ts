@@ -42,6 +42,12 @@ import {
   type NarrativeSurfaceSelectionInternalV1,
 } from "../narrative/narrative-surface-composition.tsx";
 import { createManualPresentationClockV1 } from "../presentation-run/presentation-clock.ts";
+import * as runtimePresentationStoreModuleV1 from "../runtime/runtime-presentation-store.ts";
+import {
+  defineWholeCanvasSurfaceV1,
+  resolveWholeCanvasSurfaceHostBindingRuntimeInternalV1,
+  type WholeCanvasSurfaceDefinitionV1,
+} from "../whole-canvas/whole-canvas-surface-composition.tsx";
 import {
   createGameUiCompositionV1,
   createGameUiCompositionWithEpochAllocatorInternalV1,
@@ -135,6 +141,183 @@ function createSuccessorProducerFixtureV1(
     },
   });
   return Object.freeze({ producer, installed, failed });
+}
+
+const hostedWholeCanvasLabelsV1 = Object.freeze({
+  newGame: "New game",
+  newGameFailed: "New game failed",
+  continue: "Continue",
+  load: "Load",
+  settings: "Settings",
+});
+
+function createHostedWholeCanvasDefinitionV1(): WholeCanvasSurfaceDefinitionV1<
+  Readonly<{ readonly revision: number }>
+> {
+  const target = Object.freeze({
+    targetId: "test.composer.whole-canvas",
+    parameters: Object.freeze({}),
+  });
+  return defineWholeCanvasSurfaceV1(Object.freeze({
+    catalog: Object.freeze([Object.freeze({
+      targetId: target.targetId,
+      contractRevision: 1 as const,
+      placements: Object.freeze(["primary" as const]),
+      actionIds: Object.freeze([]),
+      defaultActionId: null,
+    })]),
+    source: Object.freeze({
+      kind: "publication" as const,
+      selectPrimary: Object.freeze(() => Object.freeze({ primary: target })),
+    }),
+    resolveTarget: Object.freeze(() =>
+      Object.freeze({
+        accessibleNameTextId: "text.test.composer.whole-canvas",
+        view: Object.freeze({}),
+        actions: Object.freeze([]),
+      })
+    ),
+    dispatchAction: null,
+    renderer: Object.freeze(() => null),
+    prepareTarget: null,
+    resolveText: Object.freeze((_locale: string | null, textId: string) => textId),
+  }));
+}
+
+function createHostedWholeCanvasPlayerProfileV1(
+  subscribe: (listener: () => void) => unknown = () => Object.freeze(() => undefined),
+) {
+  return Object.freeze({
+    current: () => defaultPlayerProfileV1,
+    subscribe,
+    markSeen: async (_definitionId: string, _seenRevision: number) => undefined,
+    markMeta: async (_entryId: string, _value?: number) => undefined,
+    updatePreferences: async (
+      _update: Partial<typeof defaultPlayerProfileV1.preferences>,
+    ) => undefined,
+  });
+}
+
+function createHostedWholeCanvasAggregateV1(input: Readonly<{
+  readonly definition?:
+    | WholeCanvasSurfaceDefinitionV1<
+      Readonly<{ readonly revision: number }>
+    >
+    | null;
+  readonly titleScreen?: unknown;
+  readonly playerProfile?: ReturnType<typeof createHostedWholeCanvasPlayerProfileV1>;
+  readonly restart?: unknown;
+}> = {}) {
+  return Object.freeze({
+    narrative: null,
+    wholeCanvas: Object.freeze({
+      definition: input.definition ?? null,
+      titleScreen: input.titleScreen ?? null,
+      lifecycle: Object.freeze({
+        restart: input.restart ?? Object.freeze(async () =>
+          Object.freeze({
+            kind: "anchored" as const,
+            commandSequence: parseNonNegativeSafeInteger(0),
+          })
+        ),
+      }),
+      savePort: null,
+      customSavesConfigured: false,
+      labels: hostedWholeCanvasLabelsV1,
+    }),
+    environment: Object.freeze({
+      playerProfile: input.playerProfile ?? createHostedWholeCanvasPlayerProfileV1(),
+      presentationClock: createManualPresentationClockV1(),
+      prefersReducedMotion: Object.freeze(() => false),
+    }),
+  });
+}
+
+interface HostedWholeCanvasCompositionCountsV1 {
+  allocations: number;
+  semanticSubscriptions: number;
+  semanticUnsubscriptions: number;
+}
+
+function createHostedWholeCanvasCompositionForTestV1(
+  hostedSurfaces: unknown,
+  counts: HostedWholeCanvasCompositionCountsV1 = {
+    allocations: 0,
+    semanticSubscriptions: 0,
+    semanticUnsubscriptions: 0,
+  },
+) {
+  const anchorEvents = createExactAnchorEventSourceV1();
+  const producer = createSuccessorProducerFixtureV1();
+  return createHostedGameUiCompositionInternalV1(
+    {
+      semantic: Object.freeze({
+        observe: () => Object.freeze({ revision: 0 }),
+        subscribe: () => {
+          counts.semanticSubscriptions += 1;
+          let active = true;
+          return () => {
+            if (!active) return;
+            active = false;
+            counts.semanticUnsubscriptions += 1;
+          };
+        },
+      }),
+      projector: Object.freeze({
+        resolvedCatalog: Object.freeze({}),
+        initialUiState: Object.freeze({}),
+        project: () =>
+          Object.freeze({
+            view: Object.freeze({}),
+            requiredAssetIds: Object.freeze([]),
+          }),
+      }),
+    },
+    Object.freeze({
+      managedSurfaceEpochAllocator: Object.freeze({
+        allocate: () => parseNonNegativeSafeInteger(++counts.allocations),
+      }),
+      anchorEvents: anchorEvents.source,
+      successorProducer: producer.producer,
+    }),
+    hostedSurfaces as never,
+  );
+}
+
+function installPresentationSubscriptionProbeV1() {
+  const actualCreateRuntimePresentationStoreV1 =
+    runtimePresentationStoreModuleV1.createRuntimePresentationStoreV1;
+  let subscriptions = 0;
+  let unsubscriptions = 0;
+  const createSpy = vi.spyOn(
+    runtimePresentationStoreModuleV1,
+    "createRuntimePresentationStoreV1",
+  ).mockImplementation(
+    ((input: unknown) => {
+      const store = Reflect.apply(actualCreateRuntimePresentationStoreV1, undefined, [
+        input,
+      ]) as ReturnType<typeof actualCreateRuntimePresentationStoreV1>;
+      return Object.freeze({
+        getSnapshot: store.getSnapshot,
+        subscribe(listener: () => void): () => void {
+          subscriptions += 1;
+          const release = store.subscribe(listener);
+          let active = true;
+          return Object.freeze(() => {
+            if (!active) return;
+            active = false;
+            unsubscriptions += 1;
+            release();
+          });
+        },
+        dispose: store.dispose,
+      });
+    }) as typeof actualCreateRuntimePresentationStoreV1,
+  );
+  return Object.freeze({
+    counts: () => Object.freeze({ subscriptions, unsubscriptions }),
+    restore: () => createSpy.mockRestore(),
+  });
 }
 
 function createExactHostedCompositionFixtureV1(
@@ -1696,6 +1879,162 @@ const narrativeChurnTransitionV1 = parseStageTransitionDefinitionV1({
 });
 
 describe("Game UI production Narrative shared-kernel substrate", () => {
+  it("rejects an aggregate with neither hosted family before allocation or subscription", () => {
+    const counts: HostedWholeCanvasCompositionCountsV1 = {
+      allocations: 0,
+      semanticSubscriptions: 0,
+      semanticUnsubscriptions: 0,
+    };
+
+    expect(() =>
+      createHostedWholeCanvasCompositionForTestV1(
+        Object.freeze({
+          narrative: null,
+          wholeCanvas: null,
+          environment: Object.freeze({
+            playerProfile: createHostedWholeCanvasPlayerProfileV1(),
+            presentationClock: createManualPresentationClockV1(),
+            prefersReducedMotion: Object.freeze(() => false),
+          }),
+        }),
+        counts,
+      )
+    ).toThrow("ui.hosted_surface_composition_environment_invalid");
+    expect(counts).toEqual({
+      allocations: 0,
+      semanticSubscriptions: 0,
+      semanticUnsubscriptions: 0,
+    });
+  });
+
+  it("rejects a non-null Whole Canvas bundle without a definition or Title", () => {
+    const counts: HostedWholeCanvasCompositionCountsV1 = {
+      allocations: 0,
+      semanticSubscriptions: 0,
+      semanticUnsubscriptions: 0,
+    };
+
+    expect(() =>
+      createHostedWholeCanvasCompositionForTestV1(
+        createHostedWholeCanvasAggregateV1(),
+        counts,
+      )
+    ).toThrow("ui.whole_canvas_hosted_input_invalid");
+    expect(counts).toEqual({
+      allocations: 0,
+      semanticSubscriptions: 0,
+      semanticUnsubscriptions: 0,
+    });
+  });
+
+  it("never executes hostile callable or Splash accessors during hosted capture", () => {
+    let callableGetterReads = 0;
+    let splashGetterReads = 0;
+    const hostileRestart = Object.freeze(Object.defineProperty(
+      async () =>
+        Object.freeze({
+          kind: "anchored" as const,
+          commandSequence: parseNonNegativeSafeInteger(0),
+        }),
+      // oxlint-disable-next-line unicorn/no-thenable -- adversarial callable admission
+      "then",
+      {
+        configurable: false,
+        get: () => {
+          callableGetterReads += 1;
+          throw new Error("hostile callable getter executed");
+        },
+      },
+    ));
+    const hostileLines = ["unreachable"];
+    Object.defineProperty(hostileLines, "0", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        splashGetterReads += 1;
+        throw new Error("hostile Splash getter executed");
+      },
+    });
+    Object.freeze(hostileLines);
+    const titleScreen = Object.freeze({
+      title: "Composer title",
+      backgroundUrl: null,
+      splash: Object.freeze({
+        lines: hostileLines,
+        durationMs: null,
+      }),
+      beginNewGame: null,
+    });
+
+    expect(() =>
+      createHostedWholeCanvasCompositionForTestV1(
+        createHostedWholeCanvasAggregateV1({
+          titleScreen,
+          restart: hostileRestart,
+        }),
+      )
+    ).toThrow("ui.whole_canvas_hosted_input_invalid");
+    expect({ callableGetterReads, splashGetterReads }).toEqual({
+      callableGetterReads: 0,
+      splashGetterReads: 0,
+    });
+  });
+
+  it("admits only dense own-data string Splash lines", () => {
+    const definition = createHostedWholeCanvasDefinitionV1();
+    const titleScreen = Object.freeze({
+      title: "Composer title",
+      backgroundUrl: null,
+      splash: Object.freeze({
+        lines: Object.freeze(["First", "Second"]),
+        durationMs: null,
+      }),
+      beginNewGame: null,
+    });
+    const composition = createHostedWholeCanvasCompositionForTestV1(
+      createHostedWholeCanvasAggregateV1({ definition, titleScreen }),
+    );
+
+    composition.dispose();
+  });
+
+  for (const profileFailure of ["throw", "invalid_cleanup"] as const) {
+    it(`transactionally rolls back presentation when profile subscribe ${profileFailure}`, () => {
+      const definition = createHostedWholeCanvasDefinitionV1();
+      const presentationProbe = installPresentationSubscriptionProbeV1();
+      let profileSubscriptions = 0;
+      try {
+        const playerProfile = createHostedWholeCanvasPlayerProfileV1(() => {
+          profileSubscriptions += 1;
+          if (profileFailure === "throw") throw new Error("profile subscribe fault");
+          return null;
+        });
+
+        expect(() =>
+          createHostedWholeCanvasCompositionForTestV1(
+            createHostedWholeCanvasAggregateV1({ definition, playerProfile }),
+          )
+        ).toThrow(
+          profileFailure === "throw"
+            ? "profile subscribe fault"
+            : "ui.whole_canvas_surface_subscription_invalid",
+        );
+        expect(profileSubscriptions).toBe(1);
+        expect(presentationProbe.counts()).toEqual({
+          subscriptions: 1,
+          unsubscriptions: 1,
+        });
+      } finally {
+        presentationProbe.restore();
+      }
+
+      const reusableComposition = createHostedWholeCanvasCompositionForTestV1(
+        createHostedWholeCanvasAggregateV1({ definition }),
+      );
+      reusableComposition.dispose();
+    });
+  }
+
   it("captures the exact hosted Narrative environment before allocating the production runtime", () => {
     let allocations = 0;
     let semanticSubscriptions = 0;
@@ -1773,11 +2112,14 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
         });
       },
     }));
-    const narrativeEnvironment = Object.freeze({
-      definition,
-      playerProfile,
-      presentationClock,
-      prefersReducedMotion: () => reducedMotion,
+    const hostedSurfaces = Object.freeze({
+      narrative: definition,
+      wholeCanvas: null,
+      environment: Object.freeze({
+        playerProfile,
+        presentationClock,
+        prefersReducedMotion: () => reducedMotion,
+      }),
     });
     const composition = createHostedGameUiCompositionInternalV1(
       {
@@ -1799,7 +2141,7 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
         }),
       },
       host,
-      narrativeEnvironment,
+      hostedSurfaces,
     );
 
     try {
@@ -1808,8 +2150,12 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
         "anchorEvents",
         "successorProducer",
       ]);
-      expect(Reflect.ownKeys(narrativeEnvironment)).toEqual([
-        "definition",
+      expect(Reflect.ownKeys(hostedSurfaces)).toEqual([
+        "narrative",
+        "wholeCanvas",
+        "environment",
+      ]);
+      expect(Reflect.ownKeys(hostedSurfaces.environment)).toEqual([
         "playerProfile",
         "presentationClock",
         "prefersReducedMotion",
@@ -1891,7 +2237,7 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
           prefersReducedMotion: () => false,
         }) as never,
       )
-    ).toThrow("ui.narrative_surface_composition_environment_invalid");
+    ).toThrow("ui.hosted_surface_composition_environment_invalid");
     expect({ allocations, semanticSubscriptions }).toEqual({
       allocations: 0,
       semanticSubscriptions: 0,
@@ -2002,18 +2348,21 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
           successorProducer: producer.producer,
         }),
         Object.freeze({
-          definition: Object.freeze({}) as NarrativeSurfaceCompositionDefinitionInternalV1<{
+          narrative: Object.freeze({}) as NarrativeSurfaceCompositionDefinitionInternalV1<{
             readonly pending: null;
           }>,
-          playerProfile: Object.freeze({
-            current: () => defaultPlayerProfileV1,
-            subscribe: () => () => undefined,
-            markSeen: async () => undefined,
-            markMeta: async () => undefined,
-            updatePreferences: async () => undefined,
+          wholeCanvas: null,
+          environment: Object.freeze({
+            playerProfile: Object.freeze({
+              current: () => defaultPlayerProfileV1,
+              subscribe: () => () => undefined,
+              markSeen: async () => undefined,
+              markMeta: async () => undefined,
+              updatePreferences: async () => undefined,
+            }),
+            presentationClock: createManualPresentationClockV1(),
+            prefersReducedMotion: () => false,
           }),
-          presentationClock: createManualPresentationClockV1(),
-          prefersReducedMotion: () => false,
         }),
       );
     } catch (error) {
@@ -2246,6 +2595,118 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
 });
 
 describe("hosted presentation successor acknowledgment", () => {
+  it("restores the package-owned Title in the restart successor after load closes it", async () => {
+    const anchorEvents = createExactAnchorEventSourceV1();
+    const producer = createSuccessorProducerFixtureV1();
+    let restartSequence = 0;
+    const restart = vi.fn(async () => {
+      restartSequence += 1;
+      anchorEvents.publish(Object.freeze({
+        anchor: Object.freeze({ epoch: restartSequence + 1, origin: "restart" }),
+        token: Object.freeze({ operation: `return-${restartSequence}` }),
+      }));
+      return Object.freeze({
+        kind: "anchored" as const,
+        commandSequence: parseNonNegativeSafeInteger(restartSequence),
+      });
+    });
+    const playerProfile = Object.freeze({
+      current: () => defaultPlayerProfileV1,
+      subscribe: (_listener: () => void) => () => undefined,
+      markSeen: async (_definitionId: string, _seenRevision: number) => undefined,
+      markMeta: async (_entryId: string, _value?: number) => undefined,
+      updatePreferences: async (
+        _update: Partial<typeof defaultPlayerProfileV1.preferences>,
+      ) => undefined,
+    });
+    const composition = createHostedGameUiCompositionInternalV1(
+      {
+        semantic: Object.freeze({
+          observe: () => Object.freeze({ revision: 0 }),
+          subscribe: () => () => undefined,
+        }),
+        projector: Object.freeze({
+          resolvedCatalog: Object.freeze({}),
+          initialUiState: Object.freeze({}),
+          project: () =>
+            Object.freeze({
+              view: Object.freeze({}),
+              requiredAssetIds: Object.freeze([]),
+            }),
+        }),
+      },
+      Object.freeze({
+        managedSurfaceEpochAllocator: Object.freeze({
+          allocate: (() => {
+            let epoch = 0;
+            return () => parseNonNegativeSafeInteger(++epoch);
+          })(),
+        }),
+        anchorEvents: anchorEvents.source,
+        successorProducer: producer.producer,
+      }),
+      Object.freeze({
+        narrative: null,
+        wholeCanvas: Object.freeze({
+          definition: null,
+          titleScreen: Object.freeze({
+            title: "Composer title",
+            backgroundUrl: null,
+            splash: null,
+            beginNewGame: null,
+          }),
+          lifecycle: Object.freeze({ restart }),
+          savePort: null,
+          customSavesConfigured: false,
+          labels: Object.freeze({
+            newGame: "New game",
+            newGameFailed: "New game failed",
+            continue: "Continue",
+            load: "Load",
+            settings: "Settings",
+          }),
+        }),
+        environment: Object.freeze({
+          playerProfile,
+          presentationClock: createManualPresentationClockV1(),
+          prefersReducedMotion: () => false,
+        }),
+      }),
+    );
+    const managed = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
+    const readRootKind = (): "boot_splash" | "title" | "primary" | null => {
+      const binding = managed.wholeCanvas.getCurrentHostBindingInternalV1();
+      if (binding === null) return null;
+      const snapshot = resolveWholeCanvasSurfaceHostBindingRuntimeInternalV1(binding)
+        .getSnapshotInternalV1();
+      return snapshot.root.current?.rootKind ??
+        snapshot.root.pending?.renderEntry.rootKind ?? null;
+    };
+
+    try {
+      expect(readRootKind()).toBe("title");
+
+      anchorEvents.publish(Object.freeze({
+        anchor: Object.freeze({ epoch: 1, origin: "load" }),
+        token: Object.freeze({ operation: "load" }),
+      }));
+      expect(readRootKind()).toBeNull();
+
+      await expect(managed.returnToTitleInternalV1()).resolves.toBeUndefined();
+
+      expect(restart).toHaveBeenCalledTimes(1);
+      expect(readRootKind()).toBe("title");
+      expect(composition.anchor.getCurrent()).toEqual({ epoch: 2, origin: "restart" });
+      expect(producer.failed).toEqual([]);
+      expect(producer.installed.map(({ anchor }) => anchor.origin)).toEqual([
+        "load",
+        "restart",
+      ]);
+    } finally {
+      composition.dispose();
+    }
+  });
+
   it("drains reentrant exact token events FIFO without consulting the latest anchor", () => {
     const anchorEvents = createExactAnchorEventSourceV1();
     const producer = createSuccessorProducerFixtureV1();

@@ -49,6 +49,8 @@ interface SurfaceDomLifecycleInternalV1 {
   readonly ownerKey: { current: string | null };
   readonly rootPreviousOwner: { current: HTMLElement | null };
   readonly detailOpener: { current: HTMLElement | null };
+  readonly pointerActivationTarget: { current: HTMLElement | null };
+  readonly pointerActivationSequence: { current: number };
   readonly active: { current: boolean };
   readonly restoreGeneration: { current: number };
   readonly focusGeneration: { current: number };
@@ -100,6 +102,15 @@ function focusMarkerInternalV1(
   return "surface-focus.whole-canvas.primary";
 }
 
+function definitionIdInternalV1(
+  entry: WholeCanvasManagedSurfaceRenderEntryInternalV1,
+): string {
+  if (entry.placement === "detail") return "surface.whole-canvas.detail";
+  if (entry.rootKind === "boot_splash") return "surface.whole-canvas.boot-splash";
+  if (entry.rootKind === "title") return "surface.whole-canvas.title";
+  return "surface.whole-canvas.primary";
+}
+
 function focusElementInternalV1(target: HTMLElement): void {
   try {
     target.focus({ preventScroll: true });
@@ -111,6 +122,19 @@ function focusElementInternalV1(target: HTMLElement): void {
 function isFocusableInternalV1(element: HTMLElement): boolean {
   return element.isConnected && !element.hasAttribute("disabled") &&
     element.getAttribute("aria-hidden") !== "true" && element.closest("[inert]") === null;
+}
+
+const wholeCanvasActivationTargetSelectorInternalV1 =
+  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+function readActivationTargetInternalV1(event: Event): HTMLElement | null {
+  for (const target of event.composedPath()) {
+    if (
+      target instanceof HTMLElement &&
+      target.matches(wholeCanvasActivationTargetSelectorInternalV1)
+    ) return target;
+  }
+  return null;
 }
 
 function trapTabInternalV1(
@@ -270,9 +294,8 @@ function WholeCanvasSurfaceEntryInternalV1(
     const active = shell.ownerDocument.activeElement;
     if (!(active instanceof HTMLElement) || active === shell.ownerDocument.body) return;
     if (view.entry.placement === "detail") {
-      if (!shell.contains(active) && lifecycle.detailOpener.current === null) {
-        lifecycle.detailOpener.current = active;
-      }
+      // The opener is captured by the detail_prepare two-phase commit before
+      // the exact parent becomes inert. Child layout is too late in WebKit.
       return;
     }
     if (
@@ -292,6 +315,11 @@ function WholeCanvasSurfaceEntryInternalV1(
     ) {
       return;
     }
+    const active = shell.ownerDocument.activeElement;
+    if (
+      active instanceof HTMLElement && shell.contains(active) &&
+      isFocusableInternalV1(active)
+    ) return;
     captureOwnerBeforeFocus(shell);
     focusElementInternalV1(shell);
   }, [blocked, captureOwnerBeforeFocus, focusOwner, hostIdentity, runtime]);
@@ -396,12 +424,23 @@ function WholeCanvasSurfaceEntryInternalV1(
       data-whole-canvas-root-kind={view.entry.rootKind}
       data-whole-canvas-phase={view.phase}
       data-whole-canvas-focus-target={focusMarkerInternalV1(view.entry)}
-      aria-label={view.entry.resolved.accessibleNameTextId}
+      data-managed-surface-definition={definitionIdInternalV1(view.entry)}
+      data-managed-surface-target={view.entry.target.targetId}
+      data-managed-surface-instance={view.entry.placement === "detail"
+        ? view.entry.frame.detailInstanceId
+        : view.entry.frame.primaryInstanceId}
+      data-managed-surface-readiness={view.phase === "preparing"
+        ? "pending"
+        : view.phase === "failed"
+        ? "failed"
+        : undefined}
+      aria-label={runtime.resolveTextInternalV1(view.entry.resolved.accessibleNameTextId)}
       aria-modal="true"
       aria-hidden={view.concealed || blocked ? "true" : undefined}
       inert={view.concealed || blocked ? true : undefined}
       role="dialog"
       tabIndex={-1}
+      style={{ pointerEvents: view.concealed || blocked ? "none" : "auto" }}
       onKeyDown={onKeyDown}
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
@@ -410,7 +449,9 @@ function WholeCanvasSurfaceEntryInternalV1(
       {view.phase === "failed"
         ? (
           <div className={styles.failure} data-whole-canvas-readiness-failure="true">
-            <button type="button" onClick={onRetry}>Retry</button>
+            <button type="button" data-managed-surface-retry="true" onClick={onRetry}>
+              Retry
+            </button>
           </div>
         )
         : (
@@ -458,6 +499,7 @@ interface FocusCommitElementStateInternalV1 {
   readonly ariaHidden: string | null;
   readonly inert: boolean;
   readonly phase: string | null;
+  readonly pointerEvents: string;
 }
 
 function prepareFocusCommitInternalV1(
@@ -476,6 +518,7 @@ function prepareFocusCommitInternalV1(
         ariaHidden: element.getAttribute("aria-hidden"),
         inert: element.hasAttribute("inert"),
         phase: element.getAttribute("data-whole-canvas-phase"),
+        pointerEvents: element.style.pointerEvents,
       }),
     );
   };
@@ -485,6 +528,7 @@ function prepareFocusCommitInternalV1(
     element.removeAttribute("aria-hidden");
     element.removeAttribute("inert");
     element.setAttribute("data-whole-canvas-phase", phase);
+    element.style.pointerEvents = "auto";
   };
   const revealRenderer = (element: HTMLElement): void => {
     const renderer = element.querySelector<HTMLElement>(`.${styles.rendererConcealed}`);
@@ -499,10 +543,57 @@ function prepareFocusCommitInternalV1(
     element.classList.add(styles.concealed!);
     element.setAttribute("aria-hidden", "true");
     element.setAttribute("inert", "");
+    element.style.pointerEvents = "none";
   };
   const previousFocus = lifecycle.portalContainer.ownerDocument.activeElement;
   let focusTarget: HTMLElement | null = null;
+  const rollback = Object.freeze((): void => {
+    for (const state of [...touched.values()].toReversed()) {
+      state.element.className = state.className;
+      if (state.ariaHidden === null) state.element.removeAttribute("aria-hidden");
+      else state.element.setAttribute("aria-hidden", state.ariaHidden);
+      if (state.inert) state.element.setAttribute("inert", "");
+      else state.element.removeAttribute("inert");
+      if (state.phase === null) state.element.removeAttribute("data-whole-canvas-phase");
+      else state.element.setAttribute("data-whole-canvas-phase", state.phase);
+      state.element.style.pointerEvents = state.pointerEvents;
+    }
+    if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
+      focusElementInternalV1(previousFocus);
+    }
+  });
 
+  if (request.kind === "detail_prepare") {
+    if (request.transition !== "open") return null;
+    const parent = snapshot.root.current;
+    if (parent === null || parent.frame !== request.parentFrame) {
+      throw new TypeError("ui.whole_canvas_surface_focus_commit_invalid");
+    }
+    const parentShell = lifecycle.shells.get(entryKeyInternalV1(parent)) ?? null;
+    const active = parentShell?.ownerDocument.activeElement;
+    const activeDescendant = active instanceof HTMLElement && active !== parentShell &&
+        parentShell?.contains(active) === true && isFocusableInternalV1(active)
+      ? active
+      : null;
+    const pointerTarget = lifecycle.pointerActivationTarget.current;
+    const exactOpener = activeDescendant ??
+      (parentShell !== null && pointerTarget !== null && parentShell.contains(pointerTarget) &&
+          isFocusableInternalV1(pointerTarget)
+        ? pointerTarget
+        : null);
+    if (
+      parentShell === null || exactOpener === null
+    ) return null;
+    const previousOpener = lifecycle.detailOpener.current;
+    lifecycle.detailOpener.current = exactOpener;
+    lifecycle.pointerActivationSequence.current += 1;
+    lifecycle.pointerActivationTarget.current = null;
+    return Object.freeze((): void => {
+      if (lifecycle.detailOpener.current === exactOpener) {
+        lifecycle.detailOpener.current = previousOpener;
+      }
+    });
+  }
   if (request.kind === "root_readiness") {
     const pending = snapshot.root.pending;
     if (pending === null || pending.preparation !== request.preparation) {
@@ -563,16 +654,16 @@ function prepareFocusCommitInternalV1(
     reveal(parentShell, "current");
     focusTarget = lifecycle.detailOpener.current ?? parentShell;
   } else if (request.kind === "root_admission" && request.transition === "primary_close") {
-    const current = snapshot.root.current;
-    const shell = current === null
+    const closing = snapshot.root.current ?? snapshot.root.pending?.renderEntry ??
+      snapshot.root.failure?.renderEntry ?? null;
+    const shell = closing === null
       ? null
-      : lifecycle.shells.get(entryKeyInternalV1(current)) ?? null;
+      : lifecycle.shells.get(entryKeyInternalV1(closing)) ?? null;
     if (shell === null) throw new TypeError("ui.whole_canvas_surface_focus_commit_invalid");
     conceal(shell);
-    focusTarget = lifecycle.rootPreviousOwner.current;
   }
 
-  if (focusTarget === null) return null;
+  if (focusTarget === null) return touched.size === 0 ? null : rollback;
   if (
     !focusTarget.isConnected || focusTarget.closest("[inert]") !== null ||
     lifecycle.portalContainer.closest("[inert]") !== null
@@ -581,20 +672,13 @@ function prepareFocusCommitInternalV1(
   if (focusTarget.ownerDocument.activeElement !== focusTarget) {
     throw new TypeError("ui.whole_canvas_surface_focus_commit_invalid");
   }
-  return Object.freeze((): void => {
-    for (const state of [...touched.values()].toReversed()) {
-      state.element.className = state.className;
-      if (state.ariaHidden === null) state.element.removeAttribute("aria-hidden");
-      else state.element.setAttribute("aria-hidden", state.ariaHidden);
-      if (state.inert) state.element.setAttribute("inert", "");
-      else state.element.removeAttribute("inert");
-      if (state.phase === null) state.element.removeAttribute("data-whole-canvas-phase");
-      else state.element.setAttribute("data-whole-canvas-phase", state.phase);
-    }
-    if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
-      focusElementInternalV1(previousFocus);
-    }
-  });
+  if (
+    request.kind === "detail_lifecycle" ||
+    (request.kind === "detail_readiness" && request.outcome === "failed")
+  ) {
+    lifecycle.focusGeneration.current += 1;
+  }
+  return rollback;
 }
 
 function WholeCanvasSurfaceRuntimeInternalV1(
@@ -620,6 +704,8 @@ function WholeCanvasSurfaceRuntimeInternalV1(
       ownerKey: { current: null },
       rootPreviousOwner: { current: null },
       detailOpener: { current: null },
+      pointerActivationTarget: { current: null },
+      pointerActivationSequence: { current: 0 },
       active: { current: false },
       restoreGeneration: { current: 0 },
       focusGeneration: { current: 0 },
@@ -638,8 +724,21 @@ function WholeCanvasSurfaceRuntimeInternalV1(
     const active = lifecycle.active;
     const restoreGeneration = lifecycle.restoreGeneration;
     const focusGeneration = lifecycle.focusGeneration;
+    const pointerActivationSequence = lifecycle.pointerActivationSequence;
+    const pointerActivationTarget = lifecycle.pointerActivationTarget;
     active.current = true;
     const ownerDocument = lifecycle.portalContainer.ownerDocument;
+    const onPointerActivation = (event: Event): void => {
+      const target = readActivationTargetInternalV1(event);
+      if (target === null || !lifecycle.portalContainer.contains(target)) return;
+      const sequence = lifecycle.pointerActivationSequence.current + 1;
+      lifecycle.pointerActivationSequence.current = sequence;
+      lifecycle.pointerActivationTarget.current = target;
+      setTimeout(() => {
+        if (lifecycle.pointerActivationSequence.current !== sequence) return;
+        lifecycle.pointerActivationTarget.current = null;
+      }, 0);
+    };
     const onFocusIn = (event: FocusEvent): void => {
       const key = lifecycle.ownerKey.current;
       const shell = key === null ? null : lifecycle.shells.get(key) ?? null;
@@ -665,11 +764,19 @@ function WholeCanvasSurfaceRuntimeInternalV1(
       });
     };
     ownerDocument.addEventListener("focusin", onFocusIn, true);
+    ownerDocument.addEventListener("pointerdown", onPointerActivation, true);
+    ownerDocument.addEventListener("pointerup", onPointerActivation, true);
+    ownerDocument.addEventListener("click", onPointerActivation, true);
     return () => {
       active.current = false;
       restoreGeneration.current += 1;
       focusGeneration.current += 1;
       ownerDocument.removeEventListener("focusin", onFocusIn, true);
+      ownerDocument.removeEventListener("pointerdown", onPointerActivation, true);
+      ownerDocument.removeEventListener("pointerup", onPointerActivation, true);
+      ownerDocument.removeEventListener("click", onPointerActivation, true);
+      pointerActivationSequence.current += 1;
+      pointerActivationTarget.current = null;
     };
   }, [hostIdentity, lifecycle, runtime]);
 
@@ -688,15 +795,15 @@ function WholeCanvasSurfaceRuntimeInternalV1(
     if (hasDetailInternalV1(previous) && !hasDetailInternalV1(snapshot)) {
       const opener = lifecycle.detailOpener.current;
       lifecycle.detailOpener.current = null;
-      restoreFocusInternalV1(
-        lifecycle,
-        runtime,
-        hostIdentity,
-        opener,
-        () =>
-          !hasDetailInternalV1(lifecycle.snapshot.current) &&
-          hasRootInternalV1(lifecycle.snapshot.current),
-      );
+      lifecycle.focusGeneration.current += 1;
+      if (
+        opener !== null && opener.isConnected && opener.closest("[inert]") === null &&
+        lifecycle.portalContainer.closest("[inert]") === null &&
+        runtime.isCurrentInternalV1() && runtime.isHostMountCurrentInternalV1(hostIdentity) &&
+        hasRootInternalV1(snapshot)
+      ) {
+        focusElementInternalV1(opener);
+      }
     }
     if (hasRootInternalV1(previous) && !hasRootInternalV1(snapshot)) {
       const previousOwner = lifecycle.rootPreviousOwner.current;

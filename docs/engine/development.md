@@ -40,7 +40,7 @@ Dependency reference rule: engine and Story sources (everything Vite builds or v
 ```text
 engine/packages/base     framework-neutral authoring, contracts, and runtime
 engine/packages/tooling  non-browser CLI, Vite/identity, JSONL, and Desktop preview tools
-engine/packages/ui       generic React presentation, Narrative surfaces, and input
+engine/packages/ui       generic React presentation, Narrative/WholeCanvas surfaces, and input
 engine/packages/web      browser Host and application adapters
 e2e/                     neutral Engine Conformance Story (MIT test consumer)
 template    minimal starter Story (new-project skeleton)
@@ -480,6 +480,10 @@ Registry inspection and callback counting use the repository-only
 Story code must use the ordinary authoring/runtime contracts and must not depend
 on this instrumentation seam.
 
+PF5/M3 Save migration product surface is the current production-floor slice;
+its release fixtures and player inspection/backup/recovery workflow remain
+planned rather than delivered.
+
 Strict JSON numeric regression tests use exact decimal token vectors rather
 than wall-clock timing: rounded fractions, safe boundaries, negative-zero
 spellings, long coefficient/exponent inputs, and legacy parser-error precedence.
@@ -506,7 +510,7 @@ Commits can be organized for reviewability, but there is no required Phase-to-co
 
 ## Testing policy
 
-Browser commands exercise the Engine Lab Story ([E2E engine validation design](design/e2e-engine-validation.md)); the retired PoC product suite left with its application. Production Narrative coverage also runs through the starter template, Bookshop, and Cat Cafe, while SillyOS proves that omitting Narrative remains valid. The promoted browser matrix exercises the same public definition and default Host used by applications rather than a conformance-only entry.
+Browser commands exercise the Engine Lab Story ([E2E engine validation design](design/e2e-engine-validation.md)); the retired PoC product suite left with its application. Production Narrative coverage also runs through the starter template, Bookshop, and Cat Cafe, while SillyOS proves that omitting Narrative remains valid. WholeCanvas browser coverage uses Engine Lab's exact `whole_canvas_conformance=1` opt-in plus Cat Cafe's real ending, and SillyOS proves omission. The promoted matrix exercises the same public definitions and default Hosts used by applications rather than conformance-only engine entries.
 
 Headless Story tests should drive gameplay through `createGameHarnessV1` from `@sillymaker/base/testkit` rather than assembling private Session/semantic/persistence fixtures.
 
@@ -573,6 +577,15 @@ For Narrative UI, external Story code uses `NarrativeSurfaceDefinitionV1` and
 exports, and do not add a `slots.narrative` writer. Tests should drive the
 public renderer actions and observe authoritative publication, Host focus/inert
 behavior, and Semantic Stage settlement.
+
+For WholeCanvas UI, external Story code uses `defineWholeCanvasSurfaceV1` and,
+when navigation is not semantic-publication selected,
+`createWholeCanvasApplicationSourceV1` from `@sillymaker/ui`. Return the opaque
+definition as `ui.wholeCanvas`; do not import the private Host/session, add a
+Root slot, or retain frame/topology evidence. Tests should drive renderer
+actions and assert immutable primary/detail replacement, readiness, focus,
+input isolation, successor fencing, and omission. Title/Splash tests exercise
+the same package-owned WholeCanvas front door rather than a direct Root writer.
 
 ## Debugging failures
 

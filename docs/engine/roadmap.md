@@ -80,9 +80,11 @@ workload 证据；仓库外私有实验只能提供匿名需求反馈，正式 p
 第 7 项的 `PF4/S4.3.1b Narrative/History` 已完成生产迁移：一个
 composition-owned Managed Surface authority、公开
 `NarrativeSurfaceDefinitionV1`/`defineNarrativeSurfaceV1`、四个 Story 消费方、SillyOS
-省略路径和 browser promotion 均已落地，旧 conformance/player exports 已删除。当前
-默认 linear-core 入口是 S4b whole-canvas primary/detail；Save 的产品级
-dry-run/backup/release fixture corpus 属于其后的 PF5/M3。
+省略路径和 browser promotion 均已落地，旧 conformance/player exports 已删除。
+`PF4/S4b.1c` WholeCanvas 也已完成：公开 definition/application-source seam、
+package-owned Splash/Title 与 exact-parent detail、Cat Cafe 第一消费者、Engine Lab
+opt-in 第二消费者和 SillyOS 省略均已 promotion。当前默认 linear-core 入口是
+PF5/M3 Save 产品级 dry-run/backup/release fixture corpus。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实
@@ -218,11 +220,14 @@ AI-friendly promotion 时，声明 presentation postcondition 的 action 必须�
 evidence，并能返回 `postcondition_failed`；普通 action 不统一 envelope。弱模型
 canary 用于冻结作者 API，不阻塞每个 runtime migration commit。
 
-System dialogs、Workspace Overlay 与 Narrative/History 已共享同一个
+System dialogs、Workspace Overlay、Narrative/History 与 WholeCanvas 已共享同一个
 composition-owned Managed Surface authority，没有平行 writable lifecycle。Narrative
 通过公开 definition factory 进入一个 production Host，并绑定同一 Semantic Stage
 authority；Engine Lab、template、Bookshop、Cat Cafe 已迁移，SillyOS 显式省略。
-S4.3.1b 已完成，当前 active family 是 S4b whole-canvas primary/detail。
+WholeCanvas 通过公开 definition 或 narrow application source 进入同一 kernel；
+Splash/Title 属于 package front door，Cat Cafe ending 与 Engine Lab opt-in route 是两名
+消费者，SillyOS 继续省略。S4b.1c 已完成，当前 core slice 是 PF5/M3 Save migration
+product surface。
 
 ## 8. Strategic track D — content platform and creator tooling
 

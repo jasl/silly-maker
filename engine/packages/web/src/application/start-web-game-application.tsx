@@ -37,6 +37,7 @@ import type {
   RuntimePresentationPublicationV1,
   SaveOverlayLabelsV1,
   SystemDialogCustomSavesV1,
+  WholeCanvasSurfaceDefinitionV1,
   WorkspaceOverlayDefinitionV1,
   WorkspaceOverlayPortBindingV1,
 } from "@sillymaker/ui";
@@ -44,6 +45,7 @@ import type { DevDockContributionSetV1, DevDockOpenStateV1 } from "@sillymaker/u
 import {
   createAnimationFramePresentationClockV1,
   DefaultGameRootV1,
+  defaultGameRootLabelsV1,
   installNativeBehaviorResetV1,
 } from "@sillymaker/ui";
 import {
@@ -110,6 +112,8 @@ export interface WebGameUiDefinitionV1<
   >;
   /** The composition-owned production Narrative surface, when this Story has one. */
   readonly narrative?: NarrativeSurfaceDefinitionV1<TSemanticPublication>;
+  /** A Story-owned whole-canvas surface resolved by the production composition. */
+  readonly wholeCanvas?: WholeCanvasSurfaceDefinitionV1<TSemanticPublication>;
   readonly overlayDefinitions?: readonly WorkspaceOverlayDefinitionV1<TOverlayId>[];
   readonly overlayPorts?: readonly WorkspaceOverlayPortBindingV1[];
   /** Cue IDs the presentation intent router accepts for play_cue. */
@@ -141,7 +145,7 @@ export interface WebGameUiDefinitionV1<
       readonly lines: readonly string[];
       readonly durationMs?: number;
     };
-    /** After restart on New game — Story-specific boot (see DefaultGameRoot). */
+    /** After the composition-anchored New-game restart, run Story-specific boot. */
     beginNewGame?(semantic: unknown): void | Promise<unknown>;
   };
   /**
@@ -588,6 +592,56 @@ export async function startWebGameApplicationV1<
       ...(uiDefinition.customSaves === undefined ? {} : { customSaves: uiDefinition.customSaves }),
     });
 
+    const narrativeDefinition = uiDefinition.narrative ?? null;
+    const wholeCanvasDefinition = uiDefinition.wholeCanvas ?? null;
+    const titleScreenInput = uiDefinition.titleScreen ?? null;
+    const normalizedTitleScreen = titleScreenInput === null ? null : (() => {
+      const beginNewGame = titleScreenInput.beginNewGame;
+      return Object.freeze({
+        title: titleScreenInput.title,
+        backgroundUrl: titleScreenInput.backgroundUrl ?? null,
+        splash: titleScreenInput.splash === undefined ? null : Object.freeze({
+          lines: Object.freeze([...titleScreenInput.splash.lines]),
+          durationMs: titleScreenInput.splash.durationMs ?? null,
+        }),
+        beginNewGame: beginNewGame === undefined
+          ? null
+          : () => Reflect.apply(beginNewGame, titleScreenInput, [instance.semantic]),
+      });
+    })();
+    const wholeCanvas = wholeCanvasDefinition === null && normalizedTitleScreen === null
+      ? null
+      : (() => {
+        const labels = Object.freeze({ ...defaultGameRootLabelsV1, ...uiDefinition.labels });
+        return Object.freeze({
+          definition: wholeCanvasDefinition,
+          titleScreen: normalizedTitleScreen,
+          lifecycle: composedLifecycle,
+          savePort: saveSurfaces.saveUi?.port ?? null,
+          customSavesConfigured: saveSurfaces.customSaves !== undefined,
+          labels: Object.freeze({
+            newGame: labels.titleNewGameLabel,
+            newGameFailed: labels.titleNewGameFailedText,
+            continue: labels.titleContinueLabel,
+            load: labels.titleLoadGameLabel,
+            settings: labels.settingsLabel,
+          }),
+        });
+      })();
+    const hostedSurfaceDefinitions = narrativeDefinition === null && wholeCanvas === null
+      ? null
+      : Object.freeze({
+        narrative: narrativeDefinition,
+        wholeCanvas,
+        environment: Object.freeze({
+          playerProfile,
+          presentationClock: createAnimationFramePresentationClockV1(),
+          prefersReducedMotion: () =>
+            typeof globalThis.window.matchMedia === "function" &&
+            globalThis.window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+        }),
+      });
+
     composition = createHostedGameUiCompositionInternalV1<
       WebSemanticPublicationV1<TGameView, TNarrativeView, TActionDescriptor>,
       TResolvedCatalog,
@@ -640,14 +694,7 @@ export async function startWebGameApplicationV1<
         successorProducer: successorAcknowledgments.producer,
         reportFailure,
       },
-      uiDefinition.narrative === undefined ? null : Object.freeze({
-        definition: uiDefinition.narrative,
-        playerProfile,
-        presentationClock: createAnimationFramePresentationClockV1(),
-        prefersReducedMotion: () =>
-          typeof globalThis.window.matchMedia === "function" &&
-          globalThis.window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-      }),
+      hostedSurfaceDefinitions,
     );
 
     automation = installBrowserAutomationBridgeV1({
@@ -671,9 +718,6 @@ export async function startWebGameApplicationV1<
         capabilities={capabilities}
         playerProfile={playerProfile}
         lifecycle={composedLifecycle}
-        {...(uiDefinition.titleScreen === undefined
-          ? {}
-          : { titleScreen: uiDefinition.titleScreen })}
         {...(uiDefinition.resolveStageAccessibleName === undefined ? {} : {
           resolveStageAccessibleName: uiDefinition.resolveStageAccessibleName as (
             publication: never,

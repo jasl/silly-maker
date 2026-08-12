@@ -4,7 +4,6 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
-  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -40,13 +39,10 @@ import { useReadonlyViewV1 } from "../runtime/create-view-bridge.ts";
 import type { RuntimePresentationPublicationV1 } from "../runtime/runtime-presentation-store.ts";
 import { GameShell } from "../shell/game-shell.tsx";
 import type { GameShellViewportOptionsV1 } from "../shell/game-shell.tsx";
-import { BootSplashV1 } from "../system/boot-splash.tsx";
 import { MuteToggleV1 } from "../system/mute-toggle.tsx";
-import type { BootSplashDefinitionV1 } from "../system/boot-splash.tsx";
 import { SavesLauncherV1 } from "../system/saves-launcher.tsx";
 import { SettingsLauncherV1 } from "../system/settings-launcher.tsx";
 import { DefaultSettingsSectionsV1 } from "../system/default-settings-sections.tsx";
-import { TitleScreenV1 } from "../system/title-screen.tsx";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import { SystemDialogHostV1 } from "../system/system-dialog-host.tsx";
 import type { SystemDialogCustomSavesV1 } from "../system/system-dialog-host.tsx";
@@ -65,7 +61,6 @@ import type {
   GameUiOverlayIdV1,
 } from "./create-game-ui-composition.ts";
 import { resolveOptionalGameUiManagedSurfaceCompositionInternalV1 } from "./create-game-ui-composition.ts";
-import { admitSettledSessionAnchorResultInternalV1 } from "./session-anchor-result-admission-internal.ts";
 import { SemanticStageCompositionClaimantProviderInternalV1 } from "../stage/semantic-stage.tsx";
 import styles from "./default-game-root.module.css";
 
@@ -212,19 +207,6 @@ export interface DefaultGameRootPropsV1<
   readonly capabilities?: RuntimeCapabilityPortV1;
   /** Enables the engine-baseline Settings sections (volume, fullscreen…). */
   readonly playerProfile?: PlayerProfileStoreV1;
-  /** Shows the default title screen before gameplay; New game restarts. */
-  readonly titleScreen?: {
-    readonly title: string;
-    readonly backgroundUrl?: string;
-    /** Front card before the title (studio marks, AI-generation notice…). */
-    readonly splash?: BootSplashDefinitionV1;
-    /**
-     * After `lifecycle.restart()` on New game: Stories whose opening is an
-     * explicit semantic command (not implied by the initial Snapshot) boot
-     * here. Called before the title dismisses so the first frame is ready.
-     */
-    beginNewGame?(semantic: TSemantic): void | Promise<unknown>;
-  };
   readonly lifecycle?: { restart(): Promise<SessionAnchorResultV1> };
   readonly saveUi?: {
     readonly port: SaveOverlayPortV1;
@@ -277,43 +259,6 @@ const closedDevDockStateV1 = Object.freeze({
 const emptyDevDockContributionsV1 = createDevDockContributionSetV1({
   panels: [],
 });
-
-function lifecycleRestartFailureV1(
-  result: Exclude<SessionAnchorResultV1, { readonly kind: "anchored" }>,
-): Error {
-  return new Error(`ui.lifecycle_restart_${result.kind}:${result.code}`);
-}
-
-function restartLifecycleV1(
-  lifecycle: DefaultGameRootPropsV1<
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    string,
-    unknown
-  >["lifecycle"],
-): Promise<SessionAnchorResultV1> {
-  return Promise.resolve()
-    .then(() => {
-      if (lifecycle === undefined) {
-        throw new Error("ui.lifecycle_restart_unavailable");
-      }
-      return lifecycle.restart();
-    })
-    .then(admitSettledSessionAnchorResultInternalV1);
-}
-
-/** Continue is only available when the autosave slot can be loaded. */
-function continueAvailableFromSlotsV1(
-  slots: readonly { readonly slotId: string; readonly health: string }[],
-): boolean {
-  const autosave = slots.find((slot) => slot.slotId === "auto.current");
-  return (
-    autosave !== undefined &&
-    (autosave.health === "valid" || autosave.health === "recovery_candidate")
-  );
-}
 
 function createDefaultOverlayResolverV1<TOverlayId extends string>(input: {
   readonly storyResolver: OverlayRendererResolverV1<TOverlayId> | null;
@@ -476,7 +421,11 @@ function DefaultWholeCanvasSurfaceHostInternalV1(props: {
   if (binding === null) return null;
   return (
     <>
-      <div ref={capturePortal} data-default-whole-canvas-surface-portal="true" />
+      <div
+        ref={capturePortal}
+        data-default-whole-canvas-surface-portal="true"
+        style={{ pointerEvents: "none" }}
+      />
       {registered === null ? null : (
         <WholeCanvasSurfaceHostInternalV1
           binding={registered.binding}
@@ -517,11 +466,6 @@ export function DefaultGameRootV1<
   }
   type PublicationV1 = RuntimePresentationPublicationV1<TSemanticPublication, TView, TAssetId>;
   const labels = Object.freeze({ ...defaultGameRootLabelsV1, ...props.labels });
-  const [titleDismissed, setTitleDismissed] = useState(props.titleScreen === undefined);
-  const [splashDismissed, setSplashDismissed] = useState(props.titleScreen?.splash === undefined);
-  const [titleLifecycleFailureCode, setTitleLifecycleFailureCode] = useState<string | null>(null);
-  const titleLifecycleGenerationRef = useRef(0);
-  const [continueAvailable, setContinueAvailable] = useState(false);
   const publication = useSyncExternalStore(
     props.composition.presentation.subscribe,
     props.composition.presentation.getSnapshot,
@@ -545,39 +489,6 @@ export function DefaultGameRootV1<
     });
   }, [props.composition.presentation, props.customSaves, props.saveUi]);
 
-  // Loading (or importing) a save from the title screen's Load-game dialog
-  // enters gameplay: the anchored epoch origin is the authoritative signal.
-  const anchorOrigin = anchor.origin;
-  useEffect(() => {
-    if (anchorOrigin === "load" || anchorOrigin === "import") {
-      setTitleDismissed(true);
-    }
-  }, [anchorOrigin]);
-
-  // Continue must stay disabled until a runnable autosave is confirmed.
-  // Without a save UI port there is no slot inventory to consult.
-  const savePort = props.saveUi?.port;
-  useEffect(() => {
-    let cancelled = false;
-    if (savePort === undefined || titleDismissed) {
-      setContinueAvailable(false);
-    } else {
-      void savePort
-        .listSlots()
-        .then((slots) => {
-          if (!cancelled) {
-            setContinueAvailable(continueAvailableFromSlotsV1(slots));
-          }
-        })
-        .catch(() => {
-          if (!cancelled) setContinueAvailable(false);
-        });
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, [savePort, titleDismissed, splashDismissed]);
-
   // Composition-backed members stay referentially stable across renders so
   // Story lifecycle effects can depend on them without re-subscribing.
   const updateStoryUiState = props.composition.updateUiState as (
@@ -594,16 +505,12 @@ export function DefaultGameRootV1<
         openSettings: () => props.composition.systemDialogSession.openSettings(),
         openSaves: () => props.composition.systemDialogSession.openSaves(),
         returnToTitle: () => {
-          return restartLifecycleV1(props.lifecycle)
-            .then((result) => {
-              if (result.kind !== "anchored") {
-                throw lifecycleRestartFailureV1(result);
-              }
-              titleLifecycleGenerationRef.current += 1;
-              setTitleLifecycleFailureCode(null);
-              setSplashDismissed(true);
-              setTitleDismissed(false);
-            });
+          const managed = resolveOptionalGameUiManagedSurfaceCompositionInternalV1(
+            props.composition,
+          );
+          return managed === null
+            ? Promise.reject(new Error("ui.whole_canvas_front_door_unavailable"))
+            : managed.returnToTitleInternalV1();
         },
       }),
       overlays: props.composition.overlaySession,
@@ -691,8 +598,7 @@ export function DefaultGameRootV1<
         />
       )
       : null,
-    wholeCanvas: wholeCanvasComposition === null ||
-        wholeCanvasComposition.getCurrentHostBindingInternalV1() === null
+    wholeCanvas: wholeCanvasComposition?.isHostEnabledInternalV1() !== true
       ? null
       : (
         <DefaultWholeCanvasSurfaceHostInternalV1
@@ -734,87 +640,6 @@ export function DefaultGameRootV1<
           emptyText: labels.settingsEmptyText,
         })}
       >
-        {props.titleScreen?.splash === undefined || splashDismissed || titleDismissed
-          ? null
-          : (
-            <BootSplashV1
-              splash={props.titleScreen.splash}
-              onDismiss={() => setSplashDismissed(true)}
-            />
-          )}
-        {props.titleScreen === undefined || titleDismissed || !splashDismissed ? null : (
-          <>
-            <TitleScreenV1
-              title={props.titleScreen.title}
-              {...(props.titleScreen.backgroundUrl === undefined
-                ? {}
-                : { backgroundUrl: props.titleScreen.backgroundUrl })}
-              labels={Object.freeze({
-                newGameLabel: labels.titleNewGameLabel,
-                continueLabel: labels.titleContinueLabel,
-                loadGameLabel: labels.titleLoadGameLabel,
-                settingsLabel: labels.settingsLabel,
-              })}
-              onNewGame={() => {
-                const generation = titleLifecycleGenerationRef.current + 1;
-                titleLifecycleGenerationRef.current = generation;
-                setTitleLifecycleFailureCode(null);
-                const begin = props.titleScreen?.beginNewGame;
-                void restartLifecycleV1(props.lifecycle)
-                  .then(async (result) => {
-                    if (titleLifecycleGenerationRef.current !== generation) {
-                      return;
-                    }
-                    if (result.kind !== "anchored") {
-                      setTitleLifecycleFailureCode(`${result.kind}:${result.code}`);
-                      return;
-                    }
-                    if (begin !== undefined) await begin(props.semantic);
-                    if (titleLifecycleGenerationRef.current === generation) {
-                      setTitleDismissed(true);
-                    }
-                  })
-                  .catch((error: unknown) => {
-                    if (titleLifecycleGenerationRef.current === generation) {
-                      setTitleLifecycleFailureCode(
-                        error instanceof Error &&
-                          error.message === "ui.lifecycle_restart_unavailable"
-                          ? "unavailable"
-                          : "unexpected",
-                      );
-                    }
-                  });
-              }}
-              middleAction={props.customSaves === undefined
-                ? Object.freeze({
-                  kind: "continue" as const,
-                  available: continueAvailable,
-                  onActivate: () => setTitleDismissed(true),
-                })
-                : Object.freeze({ kind: "load" as const })}
-              showLoadGame={props.saveUi !== undefined}
-            />
-            {titleLifecycleFailureCode === null ? null : (
-              <p
-                role="alert"
-                data-title-lifecycle-failure={titleLifecycleFailureCode}
-                style={{
-                  position: "absolute",
-                  insetInline: "var(--silly-space-4)",
-                  insetBlockEnd: "var(--silly-space-4)",
-                  zIndex: "var(--silly-surface-z-front-door)",
-                  margin: 0,
-                  padding: "var(--silly-space-2)",
-                  textAlign: "center",
-                  color: "#fff",
-                  background: "rgba(96, 24, 24, 0.94)",
-                }}
-              >
-                {labels.titleNewGameFailedText}
-              </p>
-            )}
-          </>
-        )}
         {props.hideSystemMenu === true ? null : (
           <div
             role="group"

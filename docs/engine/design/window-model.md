@@ -1,12 +1,12 @@
 # 窗体与 UI 组件体系：引擎契约、分层与上提清单
 
 状态：2026-07-28 接受；S4.3.1b 已让 Workspace Overlay、System 与
-Narrative/History 共用一个 composition-owned Managed Surface authority。S4b broad
-checkpoint 已转为 historical；S4b.0 docs-only exact entry 已冻结同一 whole-canvas
-authority 下的 built-in Splash/Title、Cat Cafe ending 第一消费者、Engine Lab 中性第二消费者，
-以及 package-owned transient exact-parent detail。当前 implementation gate 是 S4b.1a
-whole-canvas family + routed-input substrate。本文回答引擎 UI 的分层结构与上提规则、
-窗体产品模型和通用 WindowManager 的取舍。
+Narrative/History 共用一个 composition-owned Managed Surface authority。S4b.1c
+WholeCanvas product layer 也已交付：同一 authority 下的 built-in Splash/Title、
+Cat Cafe ending 第一消费者、Engine Lab 中性第二消费者，以及 package-owned
+transient exact-parent detail 均已完成 cutover 与 promotion。当前 implementation gate 是
+PF5/M3 Save migration product surface。本文回答引擎 UI 的分层结构与上提规则、窗体产品
+模型和通用 WindowManager 的取舍。
 
 ## 调研摘要：各引擎怎么处理窗体
 
@@ -37,8 +37,9 @@ whole-canvas family + routed-input substrate。本文回答引擎 UI 的分层�
 Narrative/History 现在通过同一个 Coordinator publication 原子绑定 modality、focus、
 input、dismiss、readiness 与 pointer gesture；各 Story 不再镜像另一份 writable
 lifecycle。system 单槽、workspace primary + detail stack 与确认层仍是产品 topology
-recipe，而不是自由桌面 WindowManager。whole-canvas primary/detail 的同权威迁移由
-S4b 继续完成。
+recipe，而不是自由桌面 WindowManager。S4b.1c 已把 WholeCanvas primary 与单层
+exact-parent transient detail 作为独立 product layer 迁入同一 authority；这不扩张为
+自由 detail stack、locked modal 或 MDI WindowManager。
 
 ## 立场：拖拽/最大最小化暂不进引擎
 
@@ -80,15 +81,16 @@ Surface track 登记为 managed contribution，而不是另建一套全局输入
 
 SillyOS 也验证了 Narrative 的显式省略路径：它不声明
 `NarrativeSurfaceDefinitionV1`，root slots 中也没有 narrative writer，因此自定义桌面
-shell 不会意外分配 Narrative Host、player 或 Stage claimant。S4b.0 同样明确省略
+shell 不会意外分配 Narrative Host、player 或 Stage claimant。S4b.1c 同样保持显式省略
 `WholeCanvasSurfaceDefinitionV1`：SillyOS 的 MDI geometry、focus/z-order、最小化与任务栏仍是
 单一 custom-shell product store，不是 whole-canvas primary/detail 消费者。
 
 该省略**不是新的 fullscreen writer 逃逸口**。当前 SillyOS boot/shutdown screen 仍以 custom-shell
-local state 改变全局 input/focus/modality，是已登记但尚未迁移的 tracked debt；它不计入 S4b 的
-Cat Cafe 第一消费者、Engine Lab 第二消费者或 promotion evidence，也不能证明 whole-canvas
-authority 已覆盖全仓库。若后续要把 custom-root front door 纳入 managed authority，必须先有新的
-exact entry 与原子 removal gate；本次 S4b.0 不顺带迁移 MDI、boot 或 shutdown。
+local state 改变全局 input/focus/modality，是已登记但尚未迁移的 tracked debt；它不计入
+S4b.1c 的 Cat Cafe 第一消费者、Engine Lab 第二消费者或 promotion evidence，已完成的
+WholeCanvas cutover 也不宣称覆盖该 custom-shell fullscreen debt。若后续要把 custom-root
+front door 纳入 managed authority，必须先有新的 exact entry 与原子 removal gate；
+S4b.1c 没有顺带迁移 MDI、boot 或 shutdown。
 
 实证出的关键配方（新增到手册）：
 
@@ -122,13 +124,13 @@ exact entry 与原子 removal gate；本次 S4b.0 不顺带迁移 MDI、boot 或
 
 ## 组件体系分层（自下而上）
 
-| 层            | 内容                                                                                               | 状态                                     |
-| ------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| L0 令牌       | 主题（色/距/圆角/触控尺寸）、层叠双刻度（stage-z / surface-z，测试盯守）、表单元素主题化           | ✅ 已交付                                |
-| L1 原语       | `Button` / `IconButton` / `ProgressMeter` / `PanelV1`（窗体外壳）/ `BootSplashV1` / `MuteToggleV1` | ✅ 已交付                                |
-| L2 窗体与槽位 | 系统对话框单槽、工作区主窗+详情栈、嵌套确认层、标题屏前门、关闭惯例与锁定（`dismissible`）         | ✅ 共享 lifecycle；whole-canvas 进入 S4b |
-| L3 组装件     | `NarrativeSurfaceDefinitionV1` Story renderer + composition-owned player/Host/Stage authority      | ✅ 已交付                                |
-| 横切 hooks    | `useAssetUrlV1` / `resolveAssetUrlV1` / `useReducedMotionV1` / `useLocaleTextV1`                   | ✅ 已交付                                |
+| 层            | 内容                                                                                               | 状态                                  |
+| ------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| L0 令牌       | 主题（色/距/圆角/触控尺寸）、层叠双刻度（stage-z / surface-z，测试盯守）、表单元素主题化           | ✅ 已交付                             |
+| L1 原语       | `Button` / `IconButton` / `ProgressMeter` / `PanelV1`（窗体外壳）/ `BootSplashV1` / `MuteToggleV1` | ✅ 已交付                             |
+| L2 窗体与槽位 | 系统对话框单槽、工作区主窗+详情栈、嵌套确认层、标题屏前门、关闭惯例与锁定（`dismissible`）         | ✅ 共享 lifecycle；WholeCanvas 已交付 |
+| L3 组装件     | `NarrativeSurfaceDefinitionV1` Story renderer + composition-owned player/Host/Stage authority      | ✅ 已交付                             |
+| 横切 hooks    | `useAssetUrlV1` / `resolveAssetUrlV1` / `useReducedMotionV1` / `useLocaleTextV1`                   | ✅ 已交付                             |
 
 上提规则不变：**两个以上真实 Story 重复且形状稳定**才进引擎，带契约测试。
 

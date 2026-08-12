@@ -363,7 +363,7 @@ test("the system menu is one modal at a time and saves honor the safepoint", asy
   await expect(page.locator("[data-cc-calendar='1.0.0']")).toBeVisible();
 });
 
-test("the ending settles once and Keep-the-shop-open enters the endless epilogue", async ({ page }) => {
+async function reachCatCafeEndingV1(page: Page): Promise<void> {
   await page.goto(catcafeTargetUrlV1("?capability=debug_tools&capability=cheats"));
   await playOpeningV1(page);
 
@@ -380,10 +380,21 @@ test("the ending settles once and Keep-the-shop-open enters the endless epilogue
   for (let step = 0; step < 3; step += 1) {
     await page.locator("[data-cc-action-id='cc.advance_slot']").click();
   }
+  await expect(page.locator("[data-cc-ending]")).toBeVisible();
+}
 
-  // The ending scene appears with both doors: restart, or keep going.
+test("the ending settles once and Keep-the-shop-open enters the endless epilogue", async ({ page }) => {
+  await reachCatCafeEndingV1(page);
+
+  // The package-owned WholeCanvas surface is the only ending writer. The HUD
+  // remains mounted as lower-plane gameplay, but its Stage layer is inert.
   const ending = page.locator("[data-cc-ending]");
   await expect(ending).toBeVisible();
+  await expect(
+    page.locator("[data-whole-canvas-surface='primary'][data-whole-canvas-phase='current']"),
+  ).toContainText("七周之后");
+  await expect(page.locator("[data-cc-hud]")).toHaveCount(1);
+  await expect(page.locator("[data-stage-layer='hud']")).toHaveAttribute("inert", "");
   await page.locator("[data-cc-ending-continue]").click();
 
   // The epilogue is authoritative state: the badge shows, week 8 begins,
@@ -391,7 +402,21 @@ test("the ending settles once and Keep-the-shop-open enters the endless epilogue
   await expect(page.locator("[data-cc-epilogue]")).toBeVisible();
   await expect(page.locator("[data-cc-calendar='8.0.0']")).toBeVisible();
   await expect(page.locator("[data-cc-ending]")).toHaveCount(0);
+  await expect(page.locator("[data-whole-canvas-surface]")).toHaveCount(0);
+  await expect(page.locator("[data-stage-layer='hud']")).not.toHaveAttribute("inert");
   await expect(page.locator("[data-cc-activity='activity.clean']")).toBeEnabled();
+});
+
+test("the ending Restart owner action resets to fresh gameplay without returning to Title", async ({ page }) => {
+  await reachCatCafeEndingV1(page);
+
+  await page.locator("[data-cc-ending-restart]").click();
+
+  await expect(page.locator("[data-cc-ending]")).toHaveCount(0);
+  await expect(page.locator("[data-whole-canvas-surface]")).toHaveCount(0);
+  await expect(page.locator("[data-title-screen]")).toHaveCount(0);
+  await expect(page.locator("[data-cc-calendar='1.0.0']")).toBeVisible();
+  await expect(page.locator("[data-dialogue]")).toBeVisible();
 });
 
 test("right-click routes the VN back action: the album overlay closes", async ({ page }) => {

@@ -7,7 +7,11 @@ import type {
   StoryId,
 } from "@sillymaker/base";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
-import type { NarrativeSurfaceDefinitionV1, PointerActionMapV1 } from "@sillymaker/ui";
+import type {
+  NarrativeSurfaceDefinitionV1,
+  PointerActionMapV1,
+  WholeCanvasSurfaceDefinitionV1,
+} from "@sillymaker/ui";
 import {
   createRuntimeCapabilitySessionOverlayV1,
   createWebContentPreferencePortV1,
@@ -35,6 +39,59 @@ type WebNarrativeDefinitionV1 = NonNullable<
 >;
 const webNarrativeDefinitionV1: WebNarrativeDefinitionV1 = narrativeSurfaceDefinitionV1;
 void webNarrativeDefinitionV1;
+
+interface WebWholeCanvasSemanticV1 {
+  readonly kind: "web.whole-canvas.semantic";
+}
+
+declare const wholeCanvasSurfaceDefinitionV1: WholeCanvasSurfaceDefinitionV1<
+  WebWholeCanvasSemanticV1
+>;
+type WebWholeCanvasDefinitionV1 = NonNullable<
+  WebGameUiDefinitionV1<
+    WebWholeCanvasSemanticV1,
+    unknown,
+    unknown,
+    unknown,
+    unknown,
+    string,
+    unknown
+  >["wholeCanvas"]
+>;
+type WebWholeCanvasPropertyV1 = Pick<
+  WebGameUiDefinitionV1<
+    WebWholeCanvasSemanticV1,
+    unknown,
+    unknown,
+    unknown,
+    unknown,
+    string,
+    unknown
+  >,
+  "wholeCanvas"
+>;
+const omittedWebWholeCanvasDefinitionV1: WebWholeCanvasPropertyV1 = {};
+const webWholeCanvasDefinitionV1: WebWholeCanvasDefinitionV1 = wholeCanvasSurfaceDefinitionV1;
+void omittedWebWholeCanvasDefinitionV1;
+void webWholeCanvasDefinitionV1;
+
+declare const mismatchedWholeCanvasSurfaceDefinitionV1: WholeCanvasSurfaceDefinitionV1<{
+  readonly kind: "different.semantic";
+}>;
+// @ts-expect-error A whole-canvas definition is bound to this Web UI's semantic publication.
+const mismatchedWebWholeCanvasDefinitionV1: WebWholeCanvasDefinitionV1 =
+  mismatchedWholeCanvasSurfaceDefinitionV1;
+void mismatchedWebWholeCanvasDefinitionV1;
+
+// @ts-expect-error Public authoring omits wholeCanvas; null exists only in the hosted aggregate.
+const nullWebWholeCanvasDefinitionV1: WebWholeCanvasPropertyV1 = { wholeCanvas: null };
+void nullWebWholeCanvasDefinitionV1;
+
+// @ts-expect-error Web accepts only the opaque public definition, never raw Host authority.
+const invalidWebWholeCanvasDefinitionV1: WebWholeCanvasDefinitionV1 = Object.freeze({
+  getSnapshotInternalV1: () => null,
+});
+void invalidWebWholeCanvasDefinitionV1;
 
 const injectedRecordsV1 = createMemoryHostRecordStoreV1();
 createWebHostV1({ databaseName: "sillymaker.type-test.runtime" });

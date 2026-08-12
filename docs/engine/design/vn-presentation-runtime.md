@@ -6,8 +6,9 @@
 authority 统一处理 Say/Choice/Pause/Barrier/History、player timing、输入、focus/inert、
 恢复与 stale fencing。Engine Lab、template、Bookshop、Cat Cafe 已迁移，SillyOS 显式
 省略，production browser promotion 已通过。旧 conformance entry、
-`DialoguePanelV1`、`VnLayerV1`、advance surface 和 raw playback exports 已删除。S4b
-whole-canvas primary/detail 是当前 Surface lane。
+`DialoguePanelV1`、`VnLayerV1`、advance surface 和 raw playback exports 已删除。
+S4b.1c WholeCanvas primary/detail 已完成并转为 historical；当前 core slice 是 PF5/M3
+Save migration product surface。
 
 ### S4.3.1b 前的历史实现记录
 
@@ -153,6 +154,13 @@ composition-owned player、Host、Semantic Stage binding 与 shared Managed Surf
 clock、reveal、输入、focus/inert、History、Barrier completion 与 successor fencing。
 `DefaultGameRootV1` 不接受任意 narrative slot，也不会与 Story renderer 并行安装第二个
 writer。
+
+S4b.1c 的 Title/WholeCanvas 共存浏览器路线暴露并关闭了一项 Narrative Host
+corrective：readiness/focus settlement 必须在入队与 microtask 执行时复验 portal shell
+的 ancestor `[inert]`，祖先仍隔离时保持 preparing，并在重新 exposed 后才完成当前
+candidate。该规则属于 package-internal Host 与 shared-kernel 协调纪律；它没有增加
+`NarrativeSurfaceDefinitionV1` key、Story renderer prop、公开 focus/readiness port 或第二个
+writable lifecycle authority。
 
 基础 VN Player 包含相互独立的系统：
 

@@ -21,6 +21,9 @@ test("boots straight to the desktop with no engine chrome", async ({ page }) => 
   await bootDesktopV1(page);
   await expect(page.locator("[data-default-system-menu]")).toHaveCount(0);
   await expect(page.locator("[data-title-screen]")).toHaveCount(0);
+  await expect(page.locator("[data-whole-canvas-surface-host]")).toHaveCount(0);
+  await expect(page.locator("[data-managed-surface-definition^='surface.whole-canvas.']"))
+    .toHaveCount(0);
   // The Start menu has only two system items, Settings and Shut down (no saves item).
   await page.locator("[data-os-start-button]").click();
   await expect(page.locator("[data-os-start-item='system.save']")).toHaveCount(0);
@@ -105,6 +108,9 @@ test("start menu shutdown shows the classic screen and returns", async ({ page }
   await page.locator("[data-os-start-button]").click();
   await page.locator("[data-os-start-item='system.shutdown']").click();
   await expect(page.locator("[data-os-shutdown]")).toBeVisible();
+  await expect(page.locator("[data-whole-canvas-surface-host]")).toHaveCount(0);
+  await expect(page.locator("[data-managed-surface-definition^='surface.whole-canvas.']"))
+    .toHaveCount(0);
   await page.locator("[data-os-shutdown-back]").click();
   await expect(page.locator("[data-os-taskbar]")).toBeVisible();
 });

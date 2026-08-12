@@ -13,6 +13,7 @@ What it exercises in the engine:
 - **Content database** — activities, petting reactions, contest moves, rivals, and album entries are typed, validated tables; tuning is editing a row.
 - **Stage hit regions** — petting routes through content-declared zones that scale with the cat's growth stage; feedback bursts in place (emoji + speech bubble).
 - **Production Narrative surface** — Cat Cafe declares one `application.ui().narrative`; the engine owns typewriter, auto/skip-read, History, and Seen tracking while the Story supplies the passive skin.
+- **Package-owned WholeCanvas ending** — semantic ending state selects the sole full-canvas primary while every lower Stage layer is inert. Continue enters the endless epilogue; Restart installs fresh gameplay directly instead of returning to Title.
 - **Deterministic simulation** — event-pool encounters, a turn-based contest, player rollback with hard barriers, save safepoints.
 - **Scene-driven audio** — BGM/ambient/SFX follow the published game view; three volume buses persist in the player profile.
 - **Bilingual text + auto locale**, AIGC art with a consistent storybook style, and host/cross-target Desktop packaging previews (`.app`, Windows `.msi`, or `.AppImage`) whose file-backed persistence still has a durability promotion gate.
@@ -30,6 +31,7 @@ Why it exists: to prove the engine outside visual novels.
 - **Hard disk, not save UI** — persistence is entirely internal; players never see slots or save dialogs. Close the tab, reboot, your files are back.
 - **Custom shell chrome** — the engine's default system menu, title screen, and settings dialog are all hidden; Win98-style pressed-button and inset-field styling is plain CSS.
 - **No Narrative writer** — `application.ui()` intentionally omits `narrative`; the desktop does not pay for or imitate a dialogue runtime it does not use.
+- **No WholeCanvas allocation** — the custom shell omits both `titleScreen` and `application.ui().wholeCanvas`, including on its shutdown path, so no WholeCanvas Host or Story definition is mounted.
 
 ## Bookshop 《打烊前的旧书店》
 

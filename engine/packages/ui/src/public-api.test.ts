@@ -8,6 +8,7 @@ import type {
   DefaultGameRootPropsV1,
   DefaultGameRootSlotsV1,
   DefineNarrativeSurfaceInputV1,
+  DefineWholeCanvasSurfaceInputV1,
   GameStageLayersV1,
   GameUiCompositionV1,
   InputContextIdV1,
@@ -38,6 +39,24 @@ import type {
   SystemDialogSessionSnapshotV1,
   SystemDialogSessionV1,
   SystemDialogSettingsV1,
+  WholeCanvasApplicationSourceV1,
+  WholeCanvasSurfaceActionAvailabilityV1,
+  WholeCanvasSurfaceActionDispatchRequestV1,
+  WholeCanvasSurfaceActionIntentV1,
+  WholeCanvasSurfaceCatalogEntryV1,
+  WholeCanvasSurfaceDefinitionV1,
+  WholeCanvasSurfaceDetailRendererPropsV1,
+  WholeCanvasSurfacePlacementV1,
+  WholeCanvasSurfacePreparationTargetV1,
+  WholeCanvasSurfacePrimaryRendererPropsV1,
+  WholeCanvasSurfacePublicationSourceV1,
+  WholeCanvasSurfaceRendererActionV1,
+  WholeCanvasSurfaceRendererPropsV1,
+  WholeCanvasSurfaceResolvedTargetV1,
+  WholeCanvasSurfaceResolveTargetRequestV1,
+  WholeCanvasSurfaceSelectionV1,
+  WholeCanvasSurfaceSourceV1,
+  WholeCanvasSurfaceTargetV1,
 } from "./index.ts";
 
 type EqualPublicTypeV1<TLeft, TRight> = (<T>() => T extends TLeft ? 1 : 2) extends
@@ -1126,6 +1145,30 @@ import type { CreateWholeCanvasSurfaceCompositionRuntimeInputInternalV1 as Forbi
 import type { createWholeCanvasSurfaceCompositionRuntimeInternalV1 as ForbiddenPublicWholeCanvasSurfaceCompositionRuntimeFactoryV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose whole-canvas composition runtime construction.
 import type { createWholeCanvasSurfaceCompositionRuntimeInternalV1 as ForbiddenInternalWholeCanvasSurfaceCompositionRuntimeFactoryV1 } from "./internal.ts";
+// @ts-expect-error Hosted whole-canvas publication snapshots remain source-relative in S4b.1c.
+import type { WholeCanvasSurfaceHostedPublicationSnapshotInternalV1 as ForbiddenPublicWholeCanvasHostedPublicationSnapshotV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose hosted whole-canvas publication snapshots.
+import type { WholeCanvasSurfaceHostedPublicationSnapshotInternalV1 as ForbiddenInternalWholeCanvasHostedPublicationSnapshotV1 } from "./internal.ts";
+// @ts-expect-error Hosted whole-canvas publication binding inputs remain source-relative in S4b.1c.
+import type { BindWholeCanvasSurfaceHostedPublicationInputInternalV1 as ForbiddenPublicWholeCanvasHostedPublicationInputV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose hosted whole-canvas publication binding inputs.
+import type { BindWholeCanvasSurfaceHostedPublicationInputInternalV1 as ForbiddenInternalWholeCanvasHostedPublicationInputV1 } from "./internal.ts";
+// @ts-expect-error Hosted whole-canvas adapters remain source-relative in S4b.1c.
+import type { WholeCanvasSurfaceHostedAdapterInternalV1 as ForbiddenPublicWholeCanvasHostedAdapterV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose hosted whole-canvas adapters.
+import type { WholeCanvasSurfaceHostedAdapterInternalV1 as ForbiddenInternalWholeCanvasHostedAdapterV1 } from "./internal.ts";
+// @ts-expect-error Hosted whole-canvas adapter claims remain source-relative in S4b.1c.
+import type { claimWholeCanvasSurfaceHostedAdapterInternalV1 as ForbiddenPublicWholeCanvasHostedAdapterClaimV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose hosted whole-canvas adapter claims.
+import type { claimWholeCanvasSurfaceHostedAdapterInternalV1 as ForbiddenInternalWholeCanvasHostedAdapterClaimV1 } from "./internal.ts";
+// @ts-expect-error Whole-canvas private metadata inputs remain source-relative in S4b.1c.
+import type { BindWholeCanvasSurfaceCompositionPrivateMetadataInputInternalV1 as ForbiddenPublicWholeCanvasPrivateMetadataInputV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose whole-canvas private metadata inputs.
+import type { BindWholeCanvasSurfaceCompositionPrivateMetadataInputInternalV1 as ForbiddenInternalWholeCanvasPrivateMetadataInputV1 } from "./internal.ts";
+// @ts-expect-error Whole-canvas private metadata binding remains source-relative in S4b.1c.
+import type { bindWholeCanvasSurfaceCompositionPrivateMetadataInternalV1 as ForbiddenPublicWholeCanvasPrivateMetadataBinderV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose whole-canvas private metadata binding.
+import type { bindWholeCanvasSurfaceCompositionPrivateMetadataInternalV1 as ForbiddenInternalWholeCanvasPrivateMetadataBinderV1 } from "./internal.ts";
 // @ts-expect-error Whole-canvas Host props remain source-relative in S4b.1b.
 import type { WholeCanvasSurfaceHostPropsInternalV1 as ForbiddenPublicWholeCanvasSurfaceHostPropsV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose whole-canvas Host props.
@@ -1143,88 +1186,46 @@ import type { claimManagedSurfaceStablePendingProjectionRefreshAuthorityInternal
 // @ts-expect-error The Host-only internal barrel does not expose pending projection refresh claims.
 import type { claimManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1 as ForbiddenInternalPendingProjectionRefreshClaimV1 } from "./internal.ts";
 
-// @ts-expect-error S4b.1a does not yet expose the public whole-canvas placement contract.
-import type { WholeCanvasSurfacePlacementV1 as DeferredPublicWholeCanvasPlacementV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { WholeCanvasSurfacePlacementV1 as DeferredInternalWholeCanvasPlacementV1 } from "./internal.ts";
-// @ts-expect-error S4b.1a does not yet expose the public whole-canvas catalog contract.
-import type { WholeCanvasSurfaceCatalogEntryV1 as DeferredPublicWholeCanvasCatalogEntryV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { WholeCanvasSurfaceCatalogEntryV1 as DeferredInternalWholeCanvasCatalogEntryV1 } from "./internal.ts";
-// @ts-expect-error S4b.1a does not yet expose public whole-canvas targets.
-import type { WholeCanvasSurfaceTargetV1 as DeferredPublicWholeCanvasTargetV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { WholeCanvasSurfaceTargetV1 as DeferredInternalWholeCanvasTargetV1 } from "./internal.ts";
-// @ts-expect-error S4b.1a does not yet expose public whole-canvas selections.
-import type { WholeCanvasSurfaceSelectionV1 as DeferredPublicWholeCanvasSelectionV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { WholeCanvasSurfaceSelectionV1 as DeferredInternalWholeCanvasSelectionV1 } from "./internal.ts";
-// @ts-expect-error S4b.1a does not yet expose public whole-canvas publication sources.
-import type { WholeCanvasSurfacePublicationSourceV1 as DeferredPublicWholeCanvasPublicationSourceV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { WholeCanvasSurfacePublicationSourceV1 as DeferredInternalWholeCanvasPublicationSourceV1 } from "./internal.ts";
-// @ts-expect-error S4b.1a does not yet expose application-owned whole-canvas source ports.
-import type { WholeCanvasApplicationSourceV1 as DeferredPublicWholeCanvasApplicationSourceV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { WholeCanvasApplicationSourceV1 as DeferredInternalWholeCanvasApplicationSourceV1 } from "./internal.ts";
-// @ts-expect-error S4b.1a does not yet expose application-owned whole-canvas source construction.
-import type { createWholeCanvasApplicationSourceV1 as DeferredPublicWholeCanvasApplicationSourceFactoryV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { createWholeCanvasApplicationSourceV1 as DeferredInternalWholeCanvasApplicationSourceFactoryV1 } from "./internal.ts";
-// @ts-expect-error S4b.1a does not yet expose the public whole-canvas source union.
-import type { WholeCanvasSurfaceSourceV1 as DeferredPublicWholeCanvasSourceV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { WholeCanvasSurfaceSourceV1 as DeferredInternalWholeCanvasSourceV1 } from "./internal.ts";
-// @ts-expect-error S4b.1a does not yet expose public whole-canvas action intents.
-import type { WholeCanvasSurfaceActionIntentV1 as DeferredPublicWholeCanvasActionIntentV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { WholeCanvasSurfaceActionIntentV1 as DeferredInternalWholeCanvasActionIntentV1 } from "./internal.ts";
-// @ts-expect-error S4b.1a does not yet expose public whole-canvas action availability.
-import type { WholeCanvasSurfaceActionAvailabilityV1 as DeferredPublicWholeCanvasActionAvailabilityV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { WholeCanvasSurfaceActionAvailabilityV1 as DeferredInternalWholeCanvasActionAvailabilityV1 } from "./internal.ts";
-// @ts-expect-error S4b.1a does not yet expose public whole-canvas renderer actions.
-import type { WholeCanvasSurfaceRendererActionV1 as DeferredPublicWholeCanvasRendererActionV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { WholeCanvasSurfaceRendererActionV1 as DeferredInternalWholeCanvasRendererActionV1 } from "./internal.ts";
-// @ts-expect-error S4b.1a does not yet expose public whole-canvas resolved targets.
-import type { WholeCanvasSurfaceResolvedTargetV1 as DeferredPublicWholeCanvasResolvedTargetV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { WholeCanvasSurfaceResolvedTargetV1 as DeferredInternalWholeCanvasResolvedTargetV1 } from "./internal.ts";
-// @ts-expect-error S4b.1a does not yet expose public whole-canvas resolution requests.
-import type { WholeCanvasSurfaceResolveTargetRequestV1 as DeferredPublicWholeCanvasResolveRequestV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { WholeCanvasSurfaceResolveTargetRequestV1 as DeferredInternalWholeCanvasResolveRequestV1 } from "./internal.ts";
-// @ts-expect-error S4b.1a does not yet expose public whole-canvas preparation targets.
-import type { WholeCanvasSurfacePreparationTargetV1 as DeferredPublicWholeCanvasPreparationTargetV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { WholeCanvasSurfacePreparationTargetV1 as DeferredInternalWholeCanvasPreparationTargetV1 } from "./internal.ts";
-// @ts-expect-error S4b.1a does not yet expose public whole-canvas action requests.
-import type { WholeCanvasSurfaceActionDispatchRequestV1 as DeferredPublicWholeCanvasActionRequestV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { WholeCanvasSurfaceActionDispatchRequestV1 as DeferredInternalWholeCanvasActionRequestV1 } from "./internal.ts";
-// @ts-expect-error S4b.1a does not yet expose public whole-canvas primary renderer props.
-import type { WholeCanvasSurfacePrimaryRendererPropsV1 as DeferredPublicWholeCanvasPrimaryRendererPropsV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { WholeCanvasSurfacePrimaryRendererPropsV1 as DeferredInternalWholeCanvasPrimaryRendererPropsV1 } from "./internal.ts";
-// @ts-expect-error S4b.1a does not yet expose public whole-canvas detail renderer props.
-import type { WholeCanvasSurfaceDetailRendererPropsV1 as DeferredPublicWholeCanvasDetailRendererPropsV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { WholeCanvasSurfaceDetailRendererPropsV1 as DeferredInternalWholeCanvasDetailRendererPropsV1 } from "./internal.ts";
-// @ts-expect-error S4b.1a does not yet expose the public whole-canvas renderer props union.
-import type { WholeCanvasSurfaceRendererPropsV1 as DeferredPublicWholeCanvasRendererPropsV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { WholeCanvasSurfaceRendererPropsV1 as DeferredInternalWholeCanvasRendererPropsV1 } from "./internal.ts";
-// @ts-expect-error S4b.1a does not yet expose public whole-canvas definition inputs.
-import type { DefineWholeCanvasSurfaceInputV1 as DeferredPublicDefineWholeCanvasSurfaceInputV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { DefineWholeCanvasSurfaceInputV1 as DeferredInternalDefineWholeCanvasSurfaceInputV1 } from "./internal.ts";
-// @ts-expect-error S4b.1a does not yet expose opaque public whole-canvas definitions.
-import type { WholeCanvasSurfaceDefinitionV1 as DeferredPublicWholeCanvasDefinitionV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { WholeCanvasSurfaceDefinitionV1 as DeferredInternalWholeCanvasDefinitionV1 } from "./internal.ts";
-// @ts-expect-error S4b.1a does not yet expose public whole-canvas definition construction.
-import type { defineWholeCanvasSurfaceV1 as DeferredPublicDefineWholeCanvasSurfaceV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel never exposes public whole-canvas authoring contracts.
 import type { defineWholeCanvasSurfaceV1 as DeferredInternalDefineWholeCanvasSurfaceV1 } from "./internal.ts";
 /* oxlint-enable no-unused-vars */
@@ -1278,6 +1279,83 @@ describe("@sillymaker/ui public managed System surface", () => {
         "createPlaybackControllerV1",
       ] as const
     ) expect(publicUiV1).not.toHaveProperty(removedExport);
+  });
+
+  it("exports the exact high-level whole-canvas authoring contract only from root", () => {
+    expect(publicUiV1.createWholeCanvasApplicationSourceV1).toBeTypeOf("function");
+    expect(publicUiV1.defineWholeCanvasSurfaceV1).toBeTypeOf("function");
+    expect(internalUiV1).not.toHaveProperty("createWholeCanvasApplicationSourceV1");
+    expect(internalUiV1).not.toHaveProperty("defineWholeCanvasSurfaceV1");
+
+    expectTypeOf<WholeCanvasSurfacePlacementV1>().toEqualTypeOf<"primary" | "detail">();
+    expectTypeOf<keyof WholeCanvasSurfaceCatalogEntryV1<string, string>>().toEqualTypeOf<
+      "targetId" | "contractRevision" | "placements" | "actionIds" | "defaultActionId"
+    >();
+    expectTypeOf<keyof WholeCanvasSurfaceTargetV1<string>>().toEqualTypeOf<
+      "targetId" | "parameters"
+    >();
+    expectTypeOf<keyof WholeCanvasSurfaceSelectionV1<string>>().toEqualTypeOf<"primary">();
+    expectTypeOf<keyof WholeCanvasSurfacePublicationSourceV1<unknown, string>>().toEqualTypeOf<
+      "kind" | "selectPrimary"
+    >();
+    expectTypeOf<Extract<keyof WholeCanvasApplicationSourceV1<string>, string>>().toEqualTypeOf<
+      "replacePrimary" | "closePrimary"
+    >();
+    expectTypeOf<WholeCanvasSurfaceSourceV1<unknown, string>>().toEqualTypeOf<
+      | WholeCanvasSurfacePublicationSourceV1<unknown, string>
+      | WholeCanvasApplicationSourceV1<string>
+    >();
+    expectTypeOf<WholeCanvasSurfaceActionIntentV1<string>["kind"]>().toEqualTypeOf<
+      "replace_primary" | "open_detail" | "back" | "close_primary" | "owner"
+    >();
+    expectTypeOf<keyof WholeCanvasSurfaceActionAvailabilityV1<string, string>>().toEqualTypeOf<
+      "actionId" | "status" | "reasonTextIds" | "intent"
+    >();
+    expectTypeOf<keyof WholeCanvasSurfaceRendererActionV1<string>>().toEqualTypeOf<
+      "actionId" | "status" | "reasonTextIds"
+    >();
+    expectTypeOf<keyof WholeCanvasSurfaceResolvedTargetV1<string, string>>().toEqualTypeOf<
+      "accessibleNameTextId" | "view" | "actions"
+    >();
+    expectTypeOf<keyof WholeCanvasSurfaceResolveTargetRequestV1<unknown, string>>().toEqualTypeOf<
+      "publication" | "placement" | "target"
+    >();
+    expectTypeOf<WholeCanvasSurfacePreparationTargetV1<string>["kind"]>().toEqualTypeOf<
+      "primary" | "detail"
+    >();
+    expectTypeOf<keyof WholeCanvasSurfaceActionDispatchRequestV1<string, string>>()
+      .toEqualTypeOf<"placement" | "primary" | "detail" | "actionId" | "payload">();
+    expectTypeOf<keyof WholeCanvasSurfacePrimaryRendererPropsV1<string, string>>()
+      .toEqualTypeOf<
+        "kind" | "target" | "view" | "actions" | "resolveText" | "onAction" | "onBack"
+      >();
+    expectTypeOf<keyof WholeCanvasSurfaceDetailRendererPropsV1<string, string>>()
+      .toEqualTypeOf<
+        | "kind"
+        | "primary"
+        | "target"
+        | "view"
+        | "actions"
+        | "resolveText"
+        | "onAction"
+        | "onBack"
+      >();
+    expectTypeOf<WholeCanvasSurfaceRendererPropsV1<string, string>>().toEqualTypeOf<
+      | WholeCanvasSurfacePrimaryRendererPropsV1<string, string>
+      | WholeCanvasSurfaceDetailRendererPropsV1<string, string>
+    >();
+    expectTypeOf<keyof DefineWholeCanvasSurfaceInputV1<unknown, string, string>>()
+      .toEqualTypeOf<
+        | "catalog"
+        | "source"
+        | "resolveTarget"
+        | "dispatchAction"
+        | "renderer"
+        | "prepareTarget"
+        | "resolveText"
+      >();
+    expectTypeOf<Extract<keyof WholeCanvasSurfaceDefinitionV1<unknown>, string>>()
+      .toEqualTypeOf<never>();
   });
 
   it("exports the exact eight-layer Stage ABI and five isolation contexts", () => {
@@ -1382,6 +1460,12 @@ describe("@sillymaker/ui public managed System surface", () => {
       >
     >().toEqualTypeOf<never>();
     expectTypeOf<
+      Extract<
+        keyof DefaultGameRootPropsV1<unknown, unknown, unknown, unknown, string, unknown>,
+        "titleScreen"
+      >
+    >().toEqualTypeOf<never>();
+    expectTypeOf<
       ExpectPublicTypeV1<
         EqualPublicTypeV1<
           Extract<
@@ -1456,32 +1540,17 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "WholeCanvasSurfaceCompositionRuntimeInternalV1"
       | "CreateWholeCanvasSurfaceCompositionRuntimeInputInternalV1"
       | "createWholeCanvasSurfaceCompositionRuntimeInternalV1"
+      | "WholeCanvasSurfaceHostedPublicationSnapshotInternalV1"
+      | "BindWholeCanvasSurfaceHostedPublicationInputInternalV1"
+      | "WholeCanvasSurfaceHostedAdapterInternalV1"
+      | "claimWholeCanvasSurfaceHostedAdapterInternalV1"
+      | "BindWholeCanvasSurfaceCompositionPrivateMetadataInputInternalV1"
+      | "bindWholeCanvasSurfaceCompositionPrivateMetadataInternalV1"
       | "WholeCanvasSurfaceHostPropsInternalV1"
       | "WholeCanvasSurfaceHostInternalV1"
       | "ManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1"
       | "claimManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1"
       | "applyPendingProjectionRefreshWithCommitGuardInternalV1"
-      | "WholeCanvasSurfacePlacementV1"
-      | "WholeCanvasSurfaceCatalogEntryV1"
-      | "WholeCanvasSurfaceTargetV1"
-      | "WholeCanvasSurfaceSelectionV1"
-      | "WholeCanvasSurfacePublicationSourceV1"
-      | "WholeCanvasApplicationSourceV1"
-      | "createWholeCanvasApplicationSourceV1"
-      | "WholeCanvasSurfaceSourceV1"
-      | "WholeCanvasSurfaceActionIntentV1"
-      | "WholeCanvasSurfaceActionAvailabilityV1"
-      | "WholeCanvasSurfaceRendererActionV1"
-      | "WholeCanvasSurfaceResolvedTargetV1"
-      | "WholeCanvasSurfaceResolveTargetRequestV1"
-      | "WholeCanvasSurfacePreparationTargetV1"
-      | "WholeCanvasSurfaceActionDispatchRequestV1"
-      | "WholeCanvasSurfacePrimaryRendererPropsV1"
-      | "WholeCanvasSurfaceDetailRendererPropsV1"
-      | "WholeCanvasSurfaceRendererPropsV1"
-      | "DefineWholeCanvasSurfaceInputV1"
-      | "WholeCanvasSurfaceDefinitionV1"
-      | "defineWholeCanvasSurfaceV1"
       | "applyStableAdmissionProposalWithCommitGuardInternalV1"
       | "ManagedSurfaceRuntimeStateInstallParticipantInternalV1"
       | "ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1"
@@ -1853,6 +1922,12 @@ describe("@sillymaker/ui public managed System surface", () => {
         "WholeCanvasSurfaceCompositionRuntimeInternalV1",
         "CreateWholeCanvasSurfaceCompositionRuntimeInputInternalV1",
         "createWholeCanvasSurfaceCompositionRuntimeInternalV1",
+        "WholeCanvasSurfaceHostedPublicationSnapshotInternalV1",
+        "BindWholeCanvasSurfaceHostedPublicationInputInternalV1",
+        "WholeCanvasSurfaceHostedAdapterInternalV1",
+        "claimWholeCanvasSurfaceHostedAdapterInternalV1",
+        "BindWholeCanvasSurfaceCompositionPrivateMetadataInputInternalV1",
+        "bindWholeCanvasSurfaceCompositionPrivateMetadataInternalV1",
         "WholeCanvasSurfaceHostPropsInternalV1",
         "WholeCanvasSurfaceHostInternalV1",
         "ManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1",
@@ -1864,7 +1939,6 @@ describe("@sillymaker/ui public managed System surface", () => {
         "WholeCanvasSurfaceSelectionV1",
         "WholeCanvasSurfacePublicationSourceV1",
         "WholeCanvasApplicationSourceV1",
-        "createWholeCanvasApplicationSourceV1",
         "WholeCanvasSurfaceSourceV1",
         "WholeCanvasSurfaceActionIntentV1",
         "WholeCanvasSurfaceActionAvailabilityV1",
@@ -1878,7 +1952,6 @@ describe("@sillymaker/ui public managed System surface", () => {
         "WholeCanvasSurfaceRendererPropsV1",
         "DefineWholeCanvasSurfaceInputV1",
         "WholeCanvasSurfaceDefinitionV1",
-        "defineWholeCanvasSurfaceV1",
         "managedSurfaceStableApplyPreconditionChecksInternalV1",
         "managedSurfaceStableReadinessDeltaContractInternalV1",
         "managedSurfaceStableReadinessFenceChecksInternalV1",

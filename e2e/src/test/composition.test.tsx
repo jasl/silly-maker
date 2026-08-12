@@ -147,8 +147,69 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
           document.querySelector('[data-narrative-surface-render-shell="dialogue"]'),
         ).toBeInTheDocument();
       });
+      expect(document.querySelector("[data-whole-canvas-surface-host]")).toBeNull();
+      expect(document.querySelector("[data-lab-whole-canvas-conformance-launchers]"))
+        .toBeNull();
     } finally {
       await started.dispose();
+    }
+  });
+
+  it("installs the exact query-gated Whole Canvas consumer through the Web composition", async () => {
+    globalThis.window.history.replaceState({}, "", "/?whole_canvas_conformance=1");
+    const started = await startLabV1("");
+    try {
+      const home = await waitFor(() => {
+        const candidate = document.querySelector<HTMLElement>(
+          '[data-managed-surface-definition="surface.whole-canvas.primary"]' +
+            '[data-managed-surface-target="lab.whole-canvas.home"]',
+        );
+        expect(candidate).toBeInTheDocument();
+        expect(candidate).toHaveAttribute("data-whole-canvas-phase", "current");
+        return candidate!;
+      });
+      expect(home).toHaveAccessibleName("Whole Canvas 首页");
+      expect(document.querySelector("[data-lab-whole-canvas-conformance-launchers]"))
+        .toBeInTheDocument();
+
+      await userEvent.setup().click(
+        home.querySelector<HTMLButtonElement>(
+          '[data-managed-surface-action="lab.whole-canvas.show-status"]',
+        )!,
+      );
+      await waitFor(() => {
+        expect(document.querySelector(
+          '[data-managed-surface-definition="surface.whole-canvas.primary"]' +
+            '[data-managed-surface-target="lab.whole-canvas.status"]',
+        )).toBeInTheDocument();
+      });
+      expect(document.querySelector(
+        '[data-managed-surface-target="lab.whole-canvas.home"]',
+      )).toBeNull();
+    } finally {
+      await started.dispose();
+      globalThis.window.history.replaceState({}, "", "/");
+    }
+    expect(document.querySelector("[data-whole-canvas-surface-host]")).toBeNull();
+  });
+
+  it("restarts the application from the conformance launcher without a Whole Canvas front door", async () => {
+    globalThis.window.history.replaceState({}, "", "/?overlay_conformance=1");
+    const started = await startLabV1("");
+    try {
+      const host = await screen.findByTestId("overlay-host");
+      const predecessorEpoch = host.getAttribute("data-overlay-application-epoch");
+      expect(predecessorEpoch).not.toBeNull();
+
+      await userEvent.setup().click(screen.getByRole("button", { name: "重置观测会话" }));
+
+      await waitFor(() => {
+        expect(host).not.toHaveAttribute("data-overlay-application-epoch", predecessorEpoch);
+      });
+      expect(document.querySelector("[data-whole-canvas-surface-host]")).toBeNull();
+    } finally {
+      await started.dispose();
+      globalThis.window.history.replaceState({}, "", "/");
     }
   });
 

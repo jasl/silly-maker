@@ -3,16 +3,22 @@ import { projectStageRenderTarget } from "@sillymaker/base/story";
 import type {
   DefaultGameRootSlotsV1,
   DefineNarrativeSurfaceInputV1,
+  DefineWholeCanvasSurfaceInputV1,
   GameUiProjectorV1,
   KeyboardActionMapV1,
   NarrativeSurfaceSelectionV1,
   AudioHostV1,
   RuntimeAssetLoaderV1,
   PointerActionMapV1,
+  WholeCanvasSurfaceActionDispatchRequestV1,
+  WholeCanvasSurfaceRendererPropsV1,
+  WholeCanvasSurfaceResolveTargetRequestV1,
+  WholeCanvasSurfaceSelectionV1,
 } from "@sillymaker/ui";
 import {
   createAssetRegistryV1,
   defineNarrativeSurfaceV1,
+  defineWholeCanvasSurfaceV1,
   defineWorkspaceOverlayV1,
   GameAudioV1,
   systemInputActionIdsV1,
@@ -63,6 +69,7 @@ import type {
 import { catcafeAudioManifestV1, resolveCatcafeEffectAssetV1 } from "../features/audio/index.ts";
 import { catcafeStageContentCatalogV1, catcafeTextForLocaleV1 } from "../presentation.ts";
 import { CatcafeHudV1, CatcafeNarrativeRendererV1, CatcafeSettingsV1 } from "./ui.tsx";
+import { CatcafeEndingScreenV1 } from "../features/endings/ending-screen.tsx";
 
 export const catcafeViewportCanvasV1 = Object.freeze({ width: 1280, height: 720 });
 
@@ -93,6 +100,140 @@ const projectorDefinitionV1: GameUiProjectorV1<
 export const catcafeUiProjectorV1 = Object.freeze(projectorDefinitionV1);
 
 const noNarrativeChoiceReasonsV1: readonly string[] = Object.freeze([]);
+
+type CatcafeWholeCanvasTargetIdV1 = "catcafe.ending";
+type CatcafeWholeCanvasActionIdV1 = "cc.enter_postgame" | "cc.restart";
+
+const catcafeWholeCanvasTargetIdV1: CatcafeWholeCanvasTargetIdV1 = "catcafe.ending";
+const noWholeCanvasActionReasonsV1: readonly string[] = Object.freeze([]);
+const emptyWholeCanvasActionPayloadV1 = Object.freeze({});
+const catcafeWholeCanvasCatalogV1 = Object.freeze([
+  Object.freeze({
+    targetId: catcafeWholeCanvasTargetIdV1,
+    contractRevision: 1 as const,
+    placements: Object.freeze(["primary" as const]),
+    actionIds: Object.freeze([
+      "cc.enter_postgame" as const,
+      "cc.restart" as const,
+    ]),
+    defaultActionId: "cc.enter_postgame" as const,
+  }),
+]);
+
+function catcafeEndingFromParametersV1(parameters: unknown): string {
+  if (
+    parameters === null ||
+    typeof parameters !== "object" ||
+    Array.isArray(parameters) ||
+    Object.keys(parameters).join("\u0000") !== "ending"
+  ) {
+    throw new TypeError("catcafe.whole_canvas_ending_invalid");
+  }
+  const ending = (parameters as { readonly ending?: unknown }).ending;
+  if (
+    ending !== "champion" &&
+    ending !== "signboard" &&
+    ending !== "adopted" &&
+    ending !== "ordinary"
+  ) {
+    throw new TypeError("catcafe.whole_canvas_ending_invalid");
+  }
+  return ending;
+}
+
+/** Pure semantic selection for Cat Cafe's sole whole-canvas primary. */
+export function projectCatcafeWholeCanvasSurfaceSelectionV1(
+  publication: DeepReadonly<CatcafeSemanticPublicationV1>,
+): WholeCanvasSurfaceSelectionV1<CatcafeWholeCanvasTargetIdV1> {
+  const ending = publication.game.ending;
+  if (ending === null) return Object.freeze({ primary: null });
+  const admittedEnding = catcafeEndingFromParametersV1(Object.freeze({ ending }));
+  return Object.freeze({
+    primary: Object.freeze({
+      targetId: catcafeWholeCanvasTargetIdV1,
+      parameters: Object.freeze({ ending: admittedEnding }),
+    }),
+  });
+}
+
+const catcafeWholeCanvasSourceV1 = Object.freeze({
+  kind: "publication" as const,
+  selectPrimary: projectCatcafeWholeCanvasSurfaceSelectionV1,
+});
+
+function resolveCatcafeWholeCanvasTargetV1(
+  request: WholeCanvasSurfaceResolveTargetRequestV1<
+    CatcafeSemanticPublicationV1,
+    CatcafeWholeCanvasTargetIdV1
+  >,
+) {
+  if (
+    request.placement !== "primary" ||
+    request.target.targetId !== catcafeWholeCanvasTargetIdV1
+  ) {
+    throw new TypeError("catcafe.whole_canvas_target_invalid");
+  }
+  const ending = catcafeEndingFromParametersV1(request.target.parameters);
+  if (request.publication.game.ending !== ending) {
+    throw new TypeError("catcafe.whole_canvas_target_stale");
+  }
+  return Object.freeze({
+    accessibleNameTextId: `text.cc.ending.${ending}`,
+    view: Object.freeze({ ending }),
+    actions: Object.freeze([
+      Object.freeze({
+        actionId: "cc.enter_postgame" as const,
+        status: "enabled" as const,
+        reasonTextIds: noWholeCanvasActionReasonsV1,
+        intent: Object.freeze({
+          kind: "owner" as const,
+          payload: emptyWholeCanvasActionPayloadV1,
+        }),
+      }),
+      Object.freeze({
+        actionId: "cc.restart" as const,
+        status: "enabled" as const,
+        reasonTextIds: noWholeCanvasActionReasonsV1,
+        intent: Object.freeze({
+          kind: "owner" as const,
+          payload: emptyWholeCanvasActionPayloadV1,
+        }),
+      }),
+    ]),
+  });
+}
+
+function createCatcafeWholeCanvasActionDispatcherV1(
+  instance: CatcafeApplicationInstanceV1,
+): (
+  request: WholeCanvasSurfaceActionDispatchRequestV1<
+    CatcafeWholeCanvasTargetIdV1,
+    CatcafeWholeCanvasActionIdV1
+  >,
+) => Promise<unknown> {
+  return async (request) => {
+    if (
+      request.placement !== "primary" ||
+      request.primary.targetId !== catcafeWholeCanvasTargetIdV1 ||
+      request.detail !== null
+    ) {
+      throw new TypeError("catcafe.whole_canvas_action_invalid");
+    }
+    catcafeEndingFromParametersV1(request.primary.parameters);
+    switch (request.actionId) {
+      case "cc.enter_postgame":
+        return await instance.semantic.dispatch(
+          Object.freeze({ kind: "invoke" as const, actionId: "cc.enter_postgame" }) as never,
+        );
+      case "cc.restart":
+        return await instance.lifecycle.restart();
+      default: {
+        const exhaustive: never = request.actionId;
+        throw new TypeError(`catcafe.whole_canvas_action_unknown:${String(exhaustive)}`);
+      }
+    }
+  };
+}
 
 /** Pure Story projection consumed by the public Narrative definition. */
 export function projectCatcafeNarrativeSurfaceSelectionV1(
@@ -250,6 +391,33 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
           reportFailure?.("catcafe.asset_fault", diagnostic);
         }) as CatcafeAssetRegistryV1)
         : null;
+    const endingRendererV1 = (
+      frame: WholeCanvasSurfaceRendererPropsV1<
+        CatcafeWholeCanvasTargetIdV1,
+        CatcafeWholeCanvasActionIdV1
+      >,
+    ) => <CatcafeEndingScreenV1 frame={frame} registry={registry} />;
+    const wholeCanvas = defineWholeCanvasSurfaceV1<
+      CatcafeSemanticPublicationV1,
+      CatcafeWholeCanvasTargetIdV1,
+      CatcafeWholeCanvasActionIdV1
+    >(
+      Object.freeze(
+        {
+          catalog: catcafeWholeCanvasCatalogV1,
+          source: catcafeWholeCanvasSourceV1,
+          resolveTarget: resolveCatcafeWholeCanvasTargetV1,
+          dispatchAction: createCatcafeWholeCanvasActionDispatcherV1(instance),
+          renderer: endingRendererV1,
+          prepareTarget: null,
+          resolveText: catcafeTextForLocaleV1,
+        } satisfies DefineWholeCanvasSurfaceInputV1<
+          CatcafeSemanticPublicationV1,
+          CatcafeWholeCanvasTargetIdV1,
+          CatcafeWholeCanvasActionIdV1
+        >,
+      ),
+    );
     return Object.freeze({
       dispose: () => registry?.dispose(),
       titleScreen: Object.freeze({
@@ -290,6 +458,7 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
           } satisfies DefineNarrativeSurfaceInputV1<CatcafeSemanticPublicationV1>,
         ),
       ),
+      wholeCanvas,
       overlayDefinitions: Object.freeze([
         defineWorkspaceOverlayV1({ id: "overlay.catcafe.album", contractRevision: 1 }),
       ]),

@@ -33,7 +33,7 @@ Story；UI 和 Web 可以依赖 Base；具体 Story/application 可以依赖三�
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@sillymaker/base`      | `.`, `./authoring`, `./runtime`, `./story`, `./testkit` + testkit subentries; workspace-only `./runtime/internal` | Contracts, the Story prelude and authoring kit, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, the agent port, and reusable behavior-test helpers.                                                                               |
 | `@sillymaker/tooling`   | `.`, `./project` + subentries, `./vite` + subentries, `./identity/*`                                              | Non-browser project and Story CLI, Vite assembly, build identity, JSONL agent protocol/client, and package-internal Desktop preview packaging/local-server tools. Never imported by Base or browser bundles.                                                                        |
-| `@sillymaker/ui`        | `.`, `./assets`, `./conformance`, `./debug`, `./diagnostics`, `./styles.css`; workspace-only `./internal`         | React shell, GameViewport, UI composition and default GameRoot, stage, characters, assets, interaction/input, overlays, narrative, settings, semantic/presentation bridges, recovery UI, the Engine-Lab-only dormant conformance seam, and the published global theme stylesheet.   |
+| `@sillymaker/ui`        | `.`, `./assets`, `./debug`, `./diagnostics`, `./styles.css`; workspace-only `./internal`                          | React shell, GameViewport, UI composition and default GameRoot, stage, characters, assets, interaction/input, overlays, Narrative/WholeCanvas presentation, settings, semantic/presentation bridges, recovery UI, and the published global theme stylesheet.                        |
 | `@sillymaker/web`       | `.`                                                                                                               | Browser Host, IndexedDB record storage, files/images, Desktop-channel HTTP record/file adapters, `startWebGameApplicationV1`, mounting, routing, pointer input, capabilities, automation, Loader, and HMR rebootstrap.                                                              |
 | `@sillymaker/story-e2e` | `.`                                                                                                               | The neutral Engine Conformance Story (Engine Lab, `e2e/`): gameplay modules, narrative script, presentation catalogs, semantic actions, and application composition used to validate engine contracts.                                                                              |
 | Story packages          | `.` per package                                                                                                   | `template/` (the minimal starter, MIT) and `examples/*` (bookshop, cat-cafe, silly-os) each compose one self-contained application project (`sillymaker.config.ts` + `vite.config.ts`); the root `project.config.ts` only lists their directories for repository-level aggregation. |
@@ -52,13 +52,14 @@ export visibility needs an explicit audience policy.
 
 `@sillymaker/ui/internal` is the equivalent Host-only composition seam. Web
 uses it to inject the realm-stable Managed Surface epoch allocator and the
-validated hosted Narrative environment. Stories use the ordinary UI exports:
-`NarrativeSurfaceDefinitionV1`, `defineNarrativeSurfaceV1`, and their renderer
-types. They cannot reach Overlay/Narrative lifecycle internals through the
+validated hosted Narrative/WholeCanvas environment. Stories use the ordinary UI
+exports: `NarrativeSurfaceDefinitionV1`, `defineNarrativeSurfaceV1`,
+`WholeCanvasSurfaceDefinitionV1`, `defineWholeCanvasSurfaceV1`,
+`createWholeCanvasApplicationSourceV1`, and their renderer/source types. They
+cannot reach Overlay, Narrative, or WholeCanvas lifecycle internals through the
 public composition facade. The former `@sillymaker/ui/conformance` entry was
 removed at production promotion; raw family, session, bridge, player, lease,
-source, attempt, readiness, Host, and Stage-binding authorities remain
-package-private.
+attempt, readiness, Host, and Stage-binding authorities remain package-private.
 
 Implementation anchors:
 
@@ -453,7 +454,8 @@ appearance and content:
 
 - a shell and central layered stage;
 - stable renderer-ID contribution registries;
-- scene, character, HUD, narrative, overlay, system, and interaction surfaces;
+- scene, character, HUD, Narrative, WholeCanvas, overlay, system, and
+  interaction surfaces;
 - semantic-publication and runtime-presentation stores;
 - asset registry, exact-demand loading, diagnostics, and code-native fallback;
 - input routing, pointer hit testing, accessibility-oriented controls, and
@@ -464,21 +466,34 @@ Story presentation code maps its immutable semantic publication and catalogs
 into these generic surfaces. Missing assets or renderer contributions can
 degrade to a visible fallback without changing authoritative gameplay.
 
-Workspace Overlay, System dialogs, and Narrative/History are the live Managed
-Surface families. They share one composition-owned kernel and Coordinator,
-application epoch, immutable publication, input/focus ownership, and successor
-lifetime. A Story declares validated Overlay definitions and a renderer
-resolver, then sends `openPrimary`, `pushDetail`, `closeTop`, or `closeAll`
+Workspace Overlay, System dialogs, Narrative/History, and WholeCanvas are the
+live Managed Surface families. They share one composition-owned kernel and
+Coordinator, application epoch, immutable publication, input/focus ownership,
+and successor lifetime. A Story declares validated Overlay definitions and a
+renderer resolver, then sends `openPrimary`, `pushDetail`, `closeTop`, or `closeAll`
 intents through the composition facade. System Settings and Saves share one
 root slot; a load, clear, or import confirmation is the exact-parent child of
 the current Saves root. Narrative Stories construct one
 `NarrativeSurfaceDefinitionV1` with `defineNarrativeSurfaceV1`; Web binds its
 definition, player profile, presentation clock, and live reduced-motion query
-before allocating the composition. `DefaultGameRootV1` mounts the one current
-Narrative Host and binds it to the composition's Semantic Stage authority. It
+before allocating the composition. `DefaultGameRootV1` mounts the current
+Narrative Host when present and binds it to the composition's Semantic Stage
+authority. It
 does not accept an arbitrary narrative slot or expose a second writer. None of
 these public facades exposes Coordinator, epoch, instance, readiness, or
 writable topology evidence.
+
+WholeCanvas enters through the public `defineWholeCanvasSurfaceV1` definition
+factory. A Story chooses either a semantic-publication selector or the narrow
+`createWholeCanvasApplicationSourceV1` navigation port; its renderer receives
+immutable primary/detail data and frame-bound actions, while the package owns
+readiness, exact-parent detail, routed input, focus, and topology. Web also
+normalizes the existing `titleScreen` declaration into the same WholeCanvas
+authority, so Splash and Title are package-owned front-door renderers rather
+than a parallel System or Root writer. Cat Cafe's ending is the first real
+consumer, Engine Lab's `whole_canvas_conformance=1` route is the opt-in second
+consumer. SillyOS declares neither `titleScreen` nor `ui.wholeCanvas`, so it
+intentionally allocates no WholeCanvas Host, source, lease, or subscription.
 
 The composition-owned Coordinator remains the sole lifecycle facade through which
 topology, input, focus, instance, and readiness are writable. Its only state
@@ -1645,8 +1660,19 @@ definition. The former `@sillymaker/ui/conformance` entry,
 `DialoguePanelV1`, `VnLayerV1`, advance surface, and raw playback-controller
 exports were removed instead of leaving parallel authorities. Headless, UI,
 Story, production-browser, and build promotion gates are green. S4.3.1b is
-complete; S4b whole-canvas primary/detail migration is the current Surface
-lane.
+complete; S4b whole-canvas primary/detail migration is also complete.
+
+### S4b.1c production WholeCanvas promotion
+
+The public WholeCanvas seam, package-owned Splash/Title front door, stable
+primary plus package-owned transient exact-parent detail, and the required
+`whole_canvas` Stage/input layer now run through the same shared kernel as the
+other Managed Surface families. Cat Cafe owns the publication-selected
+`catcafe.ending` primary; Engine Lab owns a query-gated application source for
+replacement/detail conformance; SillyOS proves omission. Replacement,
+readiness, focus, action, and successor callbacks are generation-fenced, and a
+lower family cannot reclaim focus while its Stage ancestor is inert. The next
+production-floor slice is PF5/M3 Save migration product surface.
 
 ## 9. Changing the architecture
 
@@ -1668,9 +1694,10 @@ Implemented portions of the [AI authoring design](design/ai-authoring.md),
 described above and in [features](features.md). Further accepted evolution is
 tracked in the [engine roadmap](roadmap.md). The current Managed Surface
 architecture has one composition-owned authority for Workspace Overlay, System,
-and Narrative/History. Narrative is authored through the public definition
-factory, rendered by one production Host, and reconciled through the same
-Semantic Stage binding; S4b is the current Surface lane.
+Narrative/History, and WholeCanvas. Narrative and WholeCanvas are authored
+through public definition factories and rendered by at most one current
+production Host per present family; Splash/Title use the same WholeCanvas owner.
+PF5/M3 Save migration product surface is the current production-floor lane.
 
 ### Historical S4 delivery trail
 

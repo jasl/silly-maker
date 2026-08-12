@@ -3,7 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import { StrictMode, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 
@@ -79,8 +79,11 @@ import {
   type GameUiPresentationAnchorV1,
   type GameUiPresentationSuccessorProducerInternalV1,
 } from "./create-game-ui-composition.ts";
-import type { DefaultGameRootSlotContextV1 } from "./default-game-root.tsx";
-import type { DefaultGameRootLabelsV1 } from "./default-game-root.tsx";
+import type {
+  DefaultGameRootLabelsV1,
+  DefaultGameRootPropsV1,
+  DefaultGameRootSlotContextV1,
+} from "./default-game-root.tsx";
 import { DefaultGameRootV1 } from "./default-game-root.tsx";
 
 afterEach(cleanup);
@@ -347,8 +350,6 @@ const stageLifetimeTimelinesV1: TimelineCatalogV1 = Object.freeze({
 });
 
 function renderLifecycleRootV1(input: {
-  readonly restart?: () => Promise<SessionAnchorResultV1>;
-  readonly beginNewGame?: () => void | Promise<unknown>;
   readonly playerProfile?: PlayerProfileStoreV1;
   readonly capabilities?: RuntimeCapabilityPortV1;
   readonly labels?: Partial<DefaultGameRootLabelsV1>;
@@ -435,13 +436,6 @@ function renderLifecycleRootV1(input: {
       {...(input.playerProfile === undefined ? {} : { playerProfile: input.playerProfile })}
       {...(input.capabilities === undefined ? {} : { capabilities: input.capabilities })}
       {...(input.labels === undefined ? {} : { labels: input.labels })}
-      {...(input.restart === undefined
-        ? {}
-        : { lifecycle: Object.freeze({ restart: input.restart }) })}
-      titleScreen={Object.freeze({
-        title: "Lifecycle fixture",
-        ...(input.beginNewGame === undefined ? {} : { beginNewGame: input.beginNewGame }),
-      })}
       slots={Object.freeze({
         ...(input.stageLifetime === undefined ? {} : {
           background: () => (
@@ -938,6 +932,8 @@ function renderCompositionOwnedNarrativeRootInternalV1(
 function renderHostedLifecycleRootV1(
   options: {
     readonly withSaveUi?: boolean;
+    readonly withFrontDoor?: boolean;
+    readonly withSplash?: boolean;
     readonly stageLifetime?: {
       readonly onMount: () => void;
       readonly onUnmount: () => void;
@@ -978,7 +974,7 @@ function renderHostedLifecycleRootV1(
     listSlots: async () =>
       Object.freeze([
         Object.freeze({
-          slotId: "quick" as const,
+          slotId: options.withSplash === true ? "auto.current" as const : "quick" as const,
           health: "valid" as const,
           recordRevision: null,
           capturedCommandSequence: null,
@@ -1002,52 +998,6 @@ function renderHostedLifecycleRootV1(
       throw new TypeError("hosted save export is outside this fixture");
     },
   }) satisfies SaveOverlayPortV1;
-  const semanticPublication = Object.freeze({ revision: 0 });
-  const composition = createHostedGameUiCompositionInternalV1({
-    semantic: Object.freeze({
-      observe: () => semanticPublication,
-      subscribe: () => () => undefined,
-    }),
-    projector: Object.freeze({
-      resolvedCatalog: Object.freeze({}),
-      initialUiState: Object.freeze({}),
-      project: (input: { readonly uiState: { readonly anchor: GameUiPresentationAnchorV1 } }) =>
-        Object.freeze({
-          view: Object.freeze({ anchorEpoch: input.uiState.anchor.epoch }),
-          requiredAssetIds: Object.freeze([]),
-        }),
-    }),
-    overlayDefinitions: lifecycleOverlayDefinitionsV1,
-  }, {
-    managedSurfaceEpochAllocator: Object.freeze({
-      allocate() {
-        const nextEpoch = epochSequence[epochCursor];
-        if (nextEpoch === undefined) {
-          throw new TypeError("hosted lifecycle epoch fixture exhausted");
-        }
-        const epoch = parseNonNegativeSafeInteger(nextEpoch);
-        epochCursor += 1;
-        allocatedEpochs.push(epoch);
-        return epoch;
-      },
-    }),
-    anchorEvents: anchorEvents.source,
-    successorProducer: Object.freeze({
-      installed(
-        outcome: Parameters<GameUiPresentationSuccessorProducerInternalV1["installed"]>[0],
-      ) {
-        installed.push(outcome);
-      },
-      failed(
-        outcome: Parameters<GameUiPresentationSuccessorProducerInternalV1["failed"]>[0],
-      ) {
-        failed.push(outcome);
-      },
-    }),
-  });
-  let returnToTitle:
-    | DefaultGameRootSlotContextV1<unknown, unknown>["systemDialogs"]["returnToTitle"]
-    | undefined;
   const restartToken = Object.freeze({ kind: "return-to-title-test-token" });
   const restart = vi.fn(async () => {
     anchorEvents.publish(Object.freeze({
@@ -1059,6 +1009,97 @@ function renderHostedLifecycleRootV1(
     }
     return anchoredV1;
   });
+  const rootLifecycleRestart = vi.fn(async () => anchoredV1);
+  const playerProfile = Object.freeze({
+    current: () => defaultPlayerProfileV1,
+    subscribe: () => Object.freeze(() => undefined),
+    markSeen: async () => undefined,
+    markMeta: async () => undefined,
+    updatePreferences: async () => undefined,
+  }) satisfies PlayerProfileStoreV1;
+  const semanticPublication = Object.freeze({ revision: 0 });
+  const composition = createHostedGameUiCompositionInternalV1(
+    {
+      semantic: Object.freeze({
+        observe: () => semanticPublication,
+        subscribe: () => () => undefined,
+      }),
+      projector: Object.freeze({
+        resolvedCatalog: Object.freeze({}),
+        initialUiState: Object.freeze({}),
+        project: (input: { readonly uiState: { readonly anchor: GameUiPresentationAnchorV1 } }) =>
+          Object.freeze({
+            view: Object.freeze({ anchorEpoch: input.uiState.anchor.epoch }),
+            requiredAssetIds: Object.freeze([]),
+          }),
+      }),
+      overlayDefinitions: lifecycleOverlayDefinitionsV1,
+    },
+    {
+      managedSurfaceEpochAllocator: Object.freeze({
+        allocate() {
+          const nextEpoch = epochSequence[epochCursor];
+          if (nextEpoch === undefined) {
+            throw new TypeError("hosted lifecycle epoch fixture exhausted");
+          }
+          const epoch = parseNonNegativeSafeInteger(nextEpoch);
+          epochCursor += 1;
+          allocatedEpochs.push(epoch);
+          return epoch;
+        },
+      }),
+      anchorEvents: anchorEvents.source,
+      successorProducer: Object.freeze({
+        installed(
+          outcome: Parameters<GameUiPresentationSuccessorProducerInternalV1["installed"]>[0],
+        ) {
+          installed.push(outcome);
+        },
+        failed(
+          outcome: Parameters<GameUiPresentationSuccessorProducerInternalV1["failed"]>[0],
+        ) {
+          failed.push(outcome);
+        },
+      }),
+    },
+    options.withFrontDoor === true
+      ? Object.freeze({
+        narrative: null,
+        wholeCanvas: Object.freeze({
+          definition: null,
+          titleScreen: Object.freeze({
+            title: "Hosted lifecycle fixture",
+            backgroundUrl: null,
+            splash: options.withSplash === true
+              ? Object.freeze({
+                lines: Object.freeze(["Hosted splash"]),
+                durationMs: null,
+              })
+              : null,
+            beginNewGame: null,
+          }),
+          lifecycle: Object.freeze({ restart }),
+          savePort: options.withSaveUi === true ? savePort : null,
+          customSavesConfigured: false,
+          labels: Object.freeze({
+            newGame: "New game",
+            newGameFailed: "Unable to start a new game.",
+            continue: "Continue",
+            load: "Load game",
+            settings: "Settings",
+          }),
+        }),
+        environment: Object.freeze({
+          playerProfile,
+          presentationClock: createManualPresentationClockV1(),
+          prefersReducedMotion: () => false,
+        }),
+      })
+      : null,
+  );
+  let returnToTitle:
+    | DefaultGameRootSlotContextV1<unknown, unknown>["systemDialogs"]["returnToTitle"]
+    | undefined;
   const overlayResolver = Object.freeze({
     resolve: (id: LifecycleOverlayIdV1) =>
       Object.freeze({
@@ -1074,11 +1115,10 @@ function renderHostedLifecycleRootV1(
       accessibleName="Hosted lifecycle fixture"
       applicationId="hosted-lifecycle-fixture"
       viewport={undefined as never}
-      lifecycle={Object.freeze({ restart })}
+      lifecycle={Object.freeze({ restart: rootLifecycleRestart })}
       {...(options.withSaveUi === true
         ? { saveUi: Object.freeze({ port: savePort, labels: hostedSaveLabelsV1 }) }
         : {})}
-      titleScreen={Object.freeze({ title: "Hosted lifecycle fixture" })}
       slots={Object.freeze({
         ...(options.stageLifetime === undefined ? {} : {
           background: (context: DefaultGameRootSlotContextV1<unknown, unknown>) => (
@@ -1112,6 +1152,7 @@ function renderHostedLifecycleRootV1(
     loadToken,
     restart,
     restartToken,
+    rootLifecycleRestart,
     returnToTitle: () => {
       if (returnToTitle === undefined) {
         throw new TypeError("missing hosted returnToTitle fixture");
@@ -1122,6 +1163,31 @@ function renderHostedLifecycleRootV1(
 }
 
 describe("DefaultGameRootV1 lifecycle result handling", () => {
+  it("promotes a saved-session Title after dismissing the package-owned Splash", async () => {
+    const fixture = renderHostedLifecycleRootV1({
+      withFrontDoor: true,
+      withSaveUi: true,
+      withSplash: true,
+    });
+
+    const splash = await waitFor(() => {
+      const candidate = document.querySelector<HTMLElement>("[data-boot-splash='true']");
+      expect(candidate).toBeVisible();
+      return candidate!;
+    });
+    await userEvent.setup().click(splash);
+
+    const title = await waitFor(() => {
+      const candidate = document.querySelector<HTMLElement>("[data-title-screen='true']");
+      expect(candidate).toBeVisible();
+      return candidate!;
+    });
+    expect(title.closest("[data-whole-canvas-phase='current']")).not.toBeNull();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled());
+
+    fixture.composition.dispose();
+  });
+
   it("pre-registers the production Narrative Host and dual-fences device and renderer actions", async () => {
     const getGamepadsDescriptor = Object.getOwnPropertyDescriptor(navigator, "getGamepads");
     const requestAnimationFrameDescriptor = Object.getOwnPropertyDescriptor(
@@ -1570,6 +1636,17 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
   });
 
   it("renders no optional managed writer while retaining the required WholeCanvas layer", () => {
+    type HasPublicTitleScreenIngressV1 = "titleScreen" extends keyof DefaultGameRootPropsV1<
+      unknown,
+      unknown,
+      unknown,
+      unknown,
+      string,
+      unknown
+    > ? true
+      : false;
+    expectTypeOf<HasPublicTitleScreenIngressV1>().toEqualTypeOf<false>();
+
     const fixture = renderHostedLifecycleRootV1();
 
     expect(
@@ -1598,6 +1675,7 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     expect(initialBinding).not.toBeNull();
     expect(wholeCanvasLayer).not.toBeNull();
     expect(portal).not.toBeNull();
+    expect(portal).toHaveStyle({ pointerEvents: "none" });
     expect(document.querySelectorAll(
       '[data-default-whole-canvas-surface-portal="true"]',
     )).toHaveLength(1);
@@ -1607,6 +1685,8 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       ),
     ).toBeNull();
     const initialPrimary = await screen.findByTestId("default-root-whole-canvas-primary");
+    expect(initialPrimary.closest("[data-whole-canvas-surface='primary']"))
+      .toHaveStyle({ pointerEvents: "auto" });
     const initialInstanceId = initialPrimary.getAttribute("data-instance-id");
     expect(initialInstanceId).not.toBeNull();
     expect(initialPrimary.closest('[data-whole-canvas-surface-host="true"]')).not.toBeNull();
@@ -1702,7 +1782,7 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
   });
 
   it("returns managed structured System results through the Story slot context", async () => {
-    const fixture = renderLifecycleRootV1({ restart: async () => anchoredV1 });
+    const fixture = renderLifecycleRootV1({});
     let settingsResult: ReturnType<typeof fixture.openSettings> | undefined;
 
     act(() => {
@@ -1730,27 +1810,12 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     expect(fixture.systemDialogSession.getSnapshot()).toEqual({ active: "settings" });
   });
 
-  it("keeps New game unavailable without lifecycle and never calls the opening hook", async () => {
-    const beginNewGame = vi.fn();
-    renderLifecycleRootV1({ beginNewGame });
-
-    await userEvent.setup().click(screen.getByRole("button", { name: "New game" }));
-
-    expect(await screen.findByRole("alert")).toHaveAttribute(
-      "data-title-lifecycle-failure",
-      "unavailable",
-    );
-    expect(beginNewGame).not.toHaveBeenCalled();
-    expect(screen.getByRole("dialog", { name: "Lifecycle fixture" })).toBeInTheDocument();
-  });
-
   it("forwards the Story opt-in cutscene label to the default Settings control", async () => {
     const playerProfile = await createPlayerProfileStoreV1({
       records: createMemoryHostRecordStoreV1(),
       storyId: "story.test.default-root-settings",
     });
     const fixture = renderLifecycleRootV1({
-      restart: async () => anchoredV1,
       playerProfile,
       capabilities: disabledCapabilitiesV1,
       labels: Object.freeze({ settingsSkipCutscenesLabel: "Skip cinematic waits" }),
@@ -1771,143 +1836,7 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     ).toBeInTheDocument();
   });
 
-  it.each(
-    [
-      Object.freeze({
-        kind: "rejected" as const,
-        code: "validation_failed" as const,
-      }),
-      Object.freeze({
-        kind: "faulted" as const,
-        code: "runtime.anchor_failed",
-      }),
-    ] satisfies readonly SessionAnchorResultV1[],
-  )(
-    "keeps the title in place and skips the opening hook when restart returns $kind",
-    async (result) => {
-      const beginNewGame = vi.fn();
-      const restart = vi.fn(async () => result);
-      renderLifecycleRootV1({ restart, beginNewGame });
-
-      await userEvent.setup().click(screen.getByRole("button", { name: "New game" }));
-      await waitFor(() => expect(restart).toHaveBeenCalledTimes(1));
-
-      expect(beginNewGame).not.toHaveBeenCalled();
-      expect(screen.getByRole("dialog", { name: "Lifecycle fixture" })).toBeInTheDocument();
-      expect(screen.getByRole("alert")).toHaveTextContent("Unable to start a new game.");
-      expect(screen.getByRole("alert")).toHaveAttribute(
-        "data-title-lifecycle-failure",
-        `${result.kind}:${result.code}`,
-      );
-    },
-  );
-
-  it.each([
-    () => {
-      throw new Error("synthetic restart throw");
-    },
-    async () => {
-      throw new Error("synthetic restart rejection");
-    },
-  ])(
-    "presents an unexpected New game restart failure without dismissing the title",
-    async (restart) => {
-      const beginNewGame = vi.fn();
-      renderLifecycleRootV1({ restart, beginNewGame });
-
-      await userEvent.setup().click(screen.getByRole("button", { name: "New game" }));
-
-      expect(await screen.findByRole("alert")).toHaveTextContent("Unable to start a new game.");
-      expect(screen.getByRole("alert")).toHaveAttribute(
-        "data-title-lifecycle-failure",
-        "unexpected",
-      );
-      expect(beginNewGame).not.toHaveBeenCalled();
-      expect(screen.getByRole("dialog", { name: "Lifecycle fixture" })).toBeInTheDocument();
-    },
-  );
-
-  it.each([
-    () => {
-      throw new Error("synthetic begin throw");
-    },
-    async () => {
-      throw new Error("synthetic begin rejection");
-    },
-  ])("presents an opening-hook failure without dismissing the title", async (beginNewGame) => {
-    const restart = vi.fn(async () => anchoredV1);
-    renderLifecycleRootV1({ restart, beginNewGame });
-
-    await userEvent.setup().click(screen.getByRole("button", { name: "New game" }));
-
-    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to start a new game.");
-    expect(screen.getByRole("alert")).toHaveAttribute("data-title-lifecycle-failure", "unexpected");
-    expect(screen.getByRole("dialog", { name: "Lifecycle fixture" })).toBeInTheDocument();
-  });
-
-  it.each(
-    [
-      Object.freeze({
-        kind: "rejected" as const,
-        code: "validation_failed" as const,
-      }),
-      Object.freeze({
-        kind: "faulted" as const,
-        code: "runtime.anchor_failed",
-      }),
-    ] satisfies readonly SessionAnchorResultV1[],
-  )(
-    "rejects returnToTitle on $kind and retains the current foreground",
-    async (result) => {
-      const restart = vi
-        .fn<() => Promise<SessionAnchorResultV1>>()
-        .mockResolvedValueOnce(anchoredV1)
-        .mockResolvedValueOnce(result);
-      const fixture = renderLifecycleRootV1({ restart });
-
-      await userEvent.setup().click(screen.getByRole("button", { name: "New game" }));
-      await waitFor(() =>
-        expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull()
-      );
-      const topology = await openActiveTopologyV1(fixture);
-
-      await expect(fixture.returnToTitle()).rejects.toThrow(
-        `ui.lifecycle_restart_${result.kind}:${result.code}`,
-      );
-      expect(fixture.systemDialogSession.getSnapshot()).toEqual(topology.system);
-      expect(fixture.overlaySession.getSnapshot()).toEqual(topology.overlay);
-      expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull();
-    },
-  );
-
-  it("returns a rejected Promise for a synchronous returnToTitle restart failure", async () => {
-    const restart = vi
-      .fn<() => Promise<SessionAnchorResultV1>>()
-      .mockResolvedValueOnce(anchoredV1)
-      .mockImplementationOnce(() => {
-        throw new Error("synthetic return-to-title throw");
-      });
-    const fixture = renderLifecycleRootV1({ restart });
-
-    await userEvent.setup().click(screen.getByRole("button", { name: "New game" }));
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull()
-    );
-    const topology = await openActiveTopologyV1(fixture);
-
-    let outcome: Promise<void> | undefined;
-    expect(() => {
-      outcome = fixture.returnToTitle();
-      void outcome.catch(() => undefined);
-    }).not.toThrow();
-    expect(outcome).toBeDefined();
-    await expect(outcome).rejects.toThrow("synthetic return-to-title throw");
-    expect(fixture.systemDialogSession.getSnapshot()).toEqual(topology.system);
-    expect(fixture.overlaySession.getSnapshot()).toEqual(topology.overlay);
-    expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull();
-  });
-
-  it("rejects an unavailable returnToTitle before mutating active presentation topology", async () => {
+  it("fails closed without composition-owned front-door authority", async () => {
     const fixture = renderLifecycleRootV1({});
     const topology = await openActiveTopologyV1(fixture);
     const before = fixture.managedSurfaceRuntimeOwner.getCurrent().coordinator.getSnapshot();
@@ -1922,51 +1851,17 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       void outcome.catch(() => undefined);
     }).not.toThrow();
     expect(outcome).toBeDefined();
-    await expect(outcome).rejects.toThrow("ui.lifecycle_restart_unavailable");
+    await expect(outcome).rejects.toThrow("ui.whole_canvas_front_door_unavailable");
 
     expect(fixture.managedSurfaceRuntimeOwner.getCurrent().coordinator.getSnapshot()).toBe(before);
     expect(fixture.systemDialogSession.getSnapshot()).toEqual(topology.system);
     expect(fixture.overlaySession.getSnapshot()).toEqual(topology.overlay);
     expect(systemNotifications).not.toHaveBeenCalled();
     expect(overlayNotifications).not.toHaveBeenCalled();
-  });
-
-  it("rejects a malformed anchored result before mutating active presentation topology", async () => {
-    const malformedAnchored = Object.freeze({
-      ...anchoredV1,
-      extra: true,
-    }) as unknown as SessionAnchorResultV1;
-    const restart = vi
-      .fn<() => Promise<SessionAnchorResultV1>>()
-      .mockResolvedValueOnce(anchoredV1)
-      .mockResolvedValueOnce(malformedAnchored);
-    const fixture = renderLifecycleRootV1({ restart });
-
-    await userEvent.setup().click(screen.getByRole("button", { name: "New game" }));
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull()
-    );
-    const topology = await openActiveTopologyV1(fixture);
-    const before = fixture.managedSurfaceRuntimeOwner.getCurrent().coordinator.getSnapshot();
-    const systemNotifications = vi.fn();
-    const overlayNotifications = vi.fn();
-    fixture.systemDialogInternal.subscribeInternalV1(systemNotifications);
-    fixture.overlaySession.subscribe(overlayNotifications);
-
-    await expect(fixture.returnToTitle()).rejects.toThrow(
-      "ui.lifecycle_restart_result_invalid",
-    );
-
-    expect(fixture.managedSurfaceRuntimeOwner.getCurrent().coordinator.getSnapshot()).toBe(before);
-    expect(fixture.systemDialogSession.getSnapshot()).toEqual(topology.system);
-    expect(fixture.overlaySession.getSnapshot()).toEqual(topology.overlay);
-    expect(systemNotifications).not.toHaveBeenCalled();
-    expect(overlayNotifications).not.toHaveBeenCalled();
-    expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull();
   });
 
   it("preserves a fresh Overlay synchronously opened by the exact successor subscriber", async () => {
-    const fixture = renderHostedLifecycleRootV1();
+    const fixture = renderHostedLifecycleRootV1({ withFrontDoor: true });
     const managedComposition = resolveGameUiManagedSurfaceCompositionInternalV1(
       fixture.composition,
     );
@@ -2010,8 +1905,9 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       });
 
       expect(fixture.restart).toHaveBeenCalledTimes(1);
+      expect(fixture.rootLifecycleRestart).not.toHaveBeenCalled();
       expect(openResult).toEqual({ kind: "executed" });
-      expect(freshInstanceId).toBe("surface-instance.e23.n1");
+      expect(freshInstanceId).toBe("surface-instance.e23.n2");
       expect(fixture.installed).toEqual([
         {
           anchor: { epoch: 2, origin: "restart" },
@@ -2027,9 +1923,10 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       expect(afterReturn.orderedInstances.map((instance) => instance.surfaceInstanceId)).toEqual([
         freshInstanceId,
       ]);
-      expect(screen.getByRole("dialog", {
-        name: "Hosted lifecycle fixture",
-      })).toBeInTheDocument();
+      expect(document.querySelector(
+        '[data-managed-surface-definition="surface.whole-canvas.title"]' +
+          '[data-managed-surface-instance="surface-instance.e23.n1"]',
+      )).toBeInTheDocument();
       await waitFor(() =>
         expect(fixture.composition.overlaySession.getSnapshot()).toEqual({
           primaryId: "lifecycle.primary",
@@ -2055,7 +1952,7 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
   });
 
   it("preserves a fresh System root synchronously opened by the exact restart successor subscriber", async () => {
-    const fixture = renderHostedLifecycleRootV1();
+    const fixture = renderHostedLifecycleRootV1({ withFrontDoor: true });
     const systemInternal = resolveSystemDialogSessionInternalV1(
       fixture.composition.systemDialogSession,
     );
@@ -2093,7 +1990,9 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
         kind: "preparing",
         code: "system_dialog.preparation_started",
       });
-      expect(freshInstanceId).toBe("surface-instance.e23.n1");
+      expect(fixture.restart).toHaveBeenCalledTimes(1);
+      expect(fixture.rootLifecycleRestart).not.toHaveBeenCalled();
+      expect(freshInstanceId).toBe("surface-instance.e23.n2");
       expect(fixture.failed).toEqual([]);
       expect(fixture.installed).toEqual([
         {
@@ -2209,102 +2108,5 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       unsubscribe();
       fixture.composition.dispose();
     }
-  });
-
-  it("keeps active presentation topology after an exact anchored return", async () => {
-    const restart = vi.fn(async () => anchoredV1);
-    const fixture = renderLifecycleRootV1({ restart });
-
-    await userEvent.setup().click(screen.getByRole("button", { name: "New game" }));
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull()
-    );
-    const topology = await openActiveTopologyV1(fixture);
-    const before = fixture.managedSurfaceRuntimeOwner.getCurrent().coordinator.getSnapshot();
-
-    await act(async () => {
-      await fixture.returnToTitle();
-    });
-
-    expect(fixture.managedSurfaceRuntimeOwner.getCurrent().coordinator.getSnapshot()).toBe(before);
-    expect(fixture.systemDialogSession.getSnapshot()).toEqual(topology.system);
-    expect(fixture.overlaySession.getSnapshot()).toEqual(topology.overlay);
-    expect(document.querySelector('[data-title-screen="true"]')).toBeInTheDocument();
-  });
-
-  it("does not invoke a System close subscriber after an exact anchored return", async () => {
-    const restart = vi.fn(async () => anchoredV1);
-    const fixture = renderLifecycleRootV1({ restart });
-
-    await userEvent.setup().click(screen.getByRole("button", { name: "New game" }));
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull()
-    );
-    const topology = await openActiveTopologyV1(fixture);
-    const systemFailure = new Error("synthetic System close subscriber failure");
-    const systemSubscriber = vi.fn(() => {
-      throw systemFailure;
-    });
-    fixture.systemDialogInternal.subscribeInternalV1(systemSubscriber);
-
-    await act(async () => {
-      await expect(fixture.returnToTitle()).resolves.toBeUndefined();
-    });
-
-    expect(systemSubscriber).not.toHaveBeenCalled();
-    expect(fixture.systemDialogSession.getSnapshot()).toEqual(topology.system);
-    expect(fixture.overlaySession.getSnapshot()).toEqual(topology.overlay);
-    expect(document.querySelector('[data-title-screen="true"]')).toBeInTheDocument();
-  });
-
-  it("does not invoke either family subscriber for post-anchor cleanup", async () => {
-    const restart = vi.fn(async () => anchoredV1);
-    const fixture = renderLifecycleRootV1({ restart });
-
-    await userEvent.setup().click(screen.getByRole("button", { name: "New game" }));
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull()
-    );
-    const topology = await openActiveTopologyV1(fixture);
-    const systemFailure = new Error("synthetic System close subscriber failure");
-    const overlayFailure = new Error("synthetic Overlay close subscriber failure");
-    const systemSubscriber = vi.fn(() => {
-      throw systemFailure;
-    });
-    const overlaySubscriber = vi.fn(() => {
-      throw overlayFailure;
-    });
-    fixture.systemDialogInternal.subscribeInternalV1(systemSubscriber);
-    fixture.overlaySession.subscribe(overlaySubscriber);
-
-    await act(async () => {
-      await expect(fixture.returnToTitle()).resolves.toBeUndefined();
-    });
-
-    expect(systemSubscriber).not.toHaveBeenCalled();
-    expect(overlaySubscriber).not.toHaveBeenCalled();
-    expect(fixture.overlayFailures).toEqual([]);
-    expect(fixture.systemDialogSession.getSnapshot()).toEqual(topology.system);
-    expect(fixture.overlaySession.getSnapshot()).toEqual(topology.overlay);
-    expect(document.querySelector('[data-title-screen="true"]')).toBeInTheDocument();
-  });
-
-  it("keeps the successful restart and opening-hook order unchanged", async () => {
-    const order: string[] = [];
-    const restart = vi.fn(async () => {
-      order.push("restart");
-      return anchoredV1;
-    });
-    const beginNewGame = vi.fn(() => {
-      order.push("begin");
-    });
-    renderLifecycleRootV1({ restart, beginNewGame });
-
-    await userEvent.setup().click(screen.getByRole("button", { name: "New game" }));
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "Lifecycle fixture" })).toBeNull()
-    );
-
-    expect(order).toEqual(["restart", "begin"]);
   });
 });
