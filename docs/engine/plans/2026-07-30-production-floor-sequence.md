@@ -4867,7 +4867,7 @@ recipe/kernel/successor。新增generic composite-kernel bundle聚合Narrative�
 Narrative命名的bundle反向拥有four-family kernel。`GameStageLayersV1.wholeCanvas`保持required，所有direct fixed-layer fixture都显式补
 `wholeCanvas: null`；legacy Title在`.1b`仍由System writer显示，而required wholeCanvas Host layer精确disabled/null，因此没有live双writer。
 
-`.1b` exact source/test allowlist为二十九文件；new路径必须kebab-case，未需修改者允许zero-diff，不得以inventory外文件补洞：
+`.1b` exact source/test allowlist为三十三文件；new路径必须kebab-case，未需修改者允许zero-diff，不得以inventory外文件补洞：
 
 1. `engine/packages/ui/src/managed-surfaces/managed-surface-composite-kernel-bundle.ts`（new）
 2. `engine/packages/ui/src/managed-surfaces/managed-surface-composite-kernel-bundle.test.ts`（new）
@@ -4898,6 +4898,14 @@ Narrative命名的bundle反向拥有four-family kernel。`GameStageLayersV1.whol
 27. `engine/packages/ui/src/system/system-dialog-host.test.tsx`
 28. `engine/packages/ui/src/system/system-dialog-managed-host.test.tsx`
 29. `engine/packages/ui/src/system/title-screen.test.tsx`
+30. `engine/packages/ui/src/managed-surfaces/managed-surface-stable-composite-state.ts`
+31. `engine/packages/ui/src/managed-surfaces/managed-surface-stable-composite-state.test.ts`
+32. `engine/packages/ui/src/whole-canvas/whole-canvas-managed-surface-session.ts`
+33. `engine/packages/ui/src/whole-canvas/whole-canvas-managed-surface-session.test.ts`
+
+Replacement readiness失败形成的`readiness_failed` gap必须继续保留exact current primary predecessor：同claimant/current gap下，旧primary的DOM、focus、
+captured action与exact-parent proof保持current，并仍可打开一个detail；foreign claimant、clone、旧generation或非current gap均在guard/dispatcher前stale且zero。
+retry、primary close、fresh replacement ready cutover或terminal successor后，旧frame/proof/action须exact stale；不得由Host绕过session/generic authority伪造currentness。
 
 Mutation-sensitive RED必须覆盖four-family prepare/arm/activation/reentry/dispose、higher Overlay/System与lower Narrative/interaction isolation、Host
 single-lease/portal/focus/readiness/StrictMode、required Stage layer exact order/token、application successor late predecessor zero、optional omission zero allocation，以及
