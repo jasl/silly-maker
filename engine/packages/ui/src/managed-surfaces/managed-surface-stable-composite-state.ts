@@ -272,30 +272,6 @@ export interface ManagedSurfaceStableCompositeStateInternalV1 {
   readonly stableRuntimeBindings: readonly ManagedSurfaceStableRuntimeEntryInternalV1[];
 }
 
-interface ManagedSurfaceStableCompositePrivateCollectionComparisonInternalV1 {
-  readonly sameIdentity: boolean;
-  readonly beforeSize: number;
-  readonly afterSize: number;
-}
-
-export interface ManagedSurfaceStableCompositePrivateProvenanceComparisonInternalV1 {
-  readonly sameOrigin: boolean;
-  readonly sameAdmissionAuthority: boolean;
-  readonly samePublisherLeaseRegistry: boolean;
-  readonly boundRuntimeAttempts: ManagedSurfaceStableCompositePrivateCollectionComparisonInternalV1;
-  readonly pendingRuntimeAttempts:
-    ManagedSurfaceStableCompositePrivateCollectionComparisonInternalV1;
-  readonly preservedReadinessFailureGaps:
-    ManagedSurfaceStableCompositePrivateCollectionComparisonInternalV1;
-  readonly stableContributorCandidates:
-    ManagedSurfaceStableCompositePrivateCollectionComparisonInternalV1;
-  readonly after: Readonly<{
-    readonly installable: boolean;
-    readonly derivedFromPresent: boolean;
-    readonly derivationDepth: number;
-  }>;
-}
-
 type ManagedSurfaceStableUnpublishedBaselineInternalV1 = Extract<
   ManagedSurfaceStableAcceptedBaselineInternalV1,
   { readonly kind: "unpublished" }
@@ -761,67 +737,6 @@ export function matchesManagedSurfaceStableCompositeRuntimeKernelConfigurationIn
   );
   return record !== undefined && record.admissionAuthority === admissionAuthority &&
     record.publisherLeaseRegistry === publisherLeaseRegistry;
-}
-
-/**
- * Deterministic source-relative audit seam. It exposes only frozen identity
- * comparisons and collection sizes, never the private provenance containers.
- */
-export function compareManagedSurfaceStableCompositePrivateProvenanceInternalV1(
-  before: ManagedSurfaceStableCompositeStateInternalV1,
-  after: ManagedSurfaceStableCompositeStateInternalV1,
-): ManagedSurfaceStableCompositePrivateProvenanceComparisonInternalV1 {
-  const beforeRecord = compositeStateAuthorityRecordsInternalV1.get(before);
-  const afterRecord = compositeStateAuthorityRecordsInternalV1.get(after);
-  if (beforeRecord === undefined || afterRecord === undefined) {
-    throw new TypeError("ui.managed_surface_stable_composite_state_invalid");
-  }
-  const compareCollection = (
-    beforeCollection: object,
-    afterCollection: object,
-    beforeSize: number,
-    afterSize: number,
-  ): ManagedSurfaceStableCompositePrivateCollectionComparisonInternalV1 =>
-    Object.freeze({
-      sameIdentity: beforeCollection === afterCollection,
-      beforeSize,
-      afterSize,
-    });
-  return Object.freeze({
-    sameOrigin: beforeRecord.origin === afterRecord.origin,
-    sameAdmissionAuthority: beforeRecord.admissionAuthority === afterRecord.admissionAuthority,
-    samePublisherLeaseRegistry:
-      beforeRecord.publisherLeaseRegistry === afterRecord.publisherLeaseRegistry,
-    boundRuntimeAttempts: compareCollection(
-      beforeRecord.boundRuntimeAttempts,
-      afterRecord.boundRuntimeAttempts,
-      beforeRecord.boundRuntimeAttempts.size,
-      afterRecord.boundRuntimeAttempts.size,
-    ),
-    pendingRuntimeAttempts: compareCollection(
-      beforeRecord.pendingRuntimeAttempts,
-      afterRecord.pendingRuntimeAttempts,
-      beforeRecord.pendingRuntimeAttempts.size,
-      afterRecord.pendingRuntimeAttempts.size,
-    ),
-    preservedReadinessFailureGaps: compareCollection(
-      beforeRecord.preservedReadinessFailureGaps,
-      afterRecord.preservedReadinessFailureGaps,
-      beforeRecord.preservedReadinessFailureGaps.size,
-      afterRecord.preservedReadinessFailureGaps.size,
-    ),
-    stableContributorCandidates: compareCollection(
-      beforeRecord.stableContributorCandidates,
-      afterRecord.stableContributorCandidates,
-      beforeRecord.stableContributorCandidates.length,
-      afterRecord.stableContributorCandidates.length,
-    ),
-    after: Object.freeze({
-      installable: afterRecord.installable,
-      derivedFromPresent: afterRecord.derivedFrom !== null,
-      derivationDepth: afterRecord.derivationDepth,
-    }),
-  });
 }
 
 const stalePublisherLeaseResultInternalV1 = Object.freeze({

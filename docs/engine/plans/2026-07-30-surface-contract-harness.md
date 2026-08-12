@@ -53,8 +53,8 @@ exact claimant 或 captured intrinsic。
 [production-floor sequence](2026-07-30-production-floor-sequence.md) 排序的候选工作：
 
 1. 简化 runtime state-install participant（已完成）；
-2. 删除 Narrative cached intrinsics，合并 captured port sidecars；
-3. 删除 test-only stable private-provenance comparator；
+2. 删除 Narrative cached intrinsics，合并 captured port sidecars（已完成）；
+3. 删除 test-only stable private-provenance comparator（已完成）；
 4. 整体传递 composition-owned typed bundle，去除重复 look-alike admission；
 5. 行为稳定后拆分 Narrative 与 stable composite 巨型文件；
 6. 建立真实 lifecycle/browser/build 性能趋势；

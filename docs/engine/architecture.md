@@ -1,6 +1,6 @@
 # SillyMaker architecture
 
-状态：持续维护的现状文档。最后结构性复核：2026-08-11。
+状态：持续维护的现状文档。最后结构性复核：2026-08-12。
 
 本文描述当前实现的主要边界和数据流。它不是冻结 ABI；修改包职责、权威状态、Story
 组合、持久化格式或公开入口时，应同时更新本文、相应类型和行为测试。
@@ -508,6 +508,19 @@ consumer, Engine Lab's `whole_canvas_conformance=1` route is the opt-in second
 consumer. SillyOS declares neither `titleScreen` nor `ui.wholeCanvas`, so it
 intentionally allocates no WholeCanvas Host, source, lease, or subscription.
 
+Narrative keeps strict admission at its public definition/Web boundary and for
+the tagged candidate-preflight result and snapshot. During that admission, its
+seven package-internal semantic, voice, History-availability,
+History-observation, profile, clock, and text ports are checked once for their
+required callables and normalized into frozen
+ordinary typed records with the same method names. Each normalized method
+closes over the admitted receiver and callable, so later consumers call it
+directly without rereading the raw port. These collaborator records use no
+authenticity brand, private `WeakMap` binding, repeated descriptor/exact-key
+admission, or cached language intrinsic. Target/frame/source-revision,
+generation, ready-active, one-shot/semantic-in-flight, listener, async-currentness,
+and terminal fences remain the lifecycle and authority proofs.
+
 The composition-owned Coordinator remains the sole lifecycle facade through which
 topology, input, focus, instance, and readiness are writable. Its only state
 owner is one composition-owned runtime authority and generic kernel: the exact
@@ -545,7 +558,12 @@ without the terminal seam retain the exact prior reducer behavior.
 The following delivery trail records the incremental dormant and
 source-relative steps that preceded the production Narrative cutover. Its
 checkpoint pointers describe those historical commits, not the current public
-surface or execution lane.
+surface or execution lane. Complexity Reset CR2.2 also supersedes descriptions
+below that model Narrative collaborator ports as branded zero-key handles,
+private-`WeakMap` bindings, descriptor-authenticated records, or cached-intrinsic
+calls. Those descriptions remain as commit history; references to separate
+attempt/proof/currentness identities still apply where they protect a real
+one-shot, stale/ABA, cross-owner, or cross-lifetime invariant.
 
 A dormant, source-relative stable composite seam now reuses that same internal
 kernel. It binds admitted targets to exact registry/configuration provenance,

@@ -126,10 +126,6 @@ import type { ManagedSurfaceRuntimeAuthorityInternalV1 as ForbiddenInternalRunti
 import type { ManagedSurfaceStableCompositeStateInternalV1 as ForbiddenPublicStableCompositeStateV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose stable composite state.
 import type { ManagedSurfaceStableCompositeStateInternalV1 as ForbiddenInternalStableCompositeStateV1 } from "./internal.ts";
-// @ts-expect-error Stable composite private-provenance comparisons stay source-relative.
-import type { ManagedSurfaceStableCompositePrivateProvenanceComparisonInternalV1 as ForbiddenPublicStableCompositePrivateProvenanceV1 } from "./index.ts";
-// @ts-expect-error The Host-only internal barrel does not expose stable composite private provenance.
-import type { ManagedSurfaceStableCompositePrivateProvenanceComparisonInternalV1 as ForbiddenInternalStableCompositePrivateProvenanceV1 } from "./internal.ts";
 // @ts-expect-error Dormant stable runtime bindings stay source-relative.
 import type { ManagedSurfaceStableRuntimeBindingInternalV1 as ForbiddenPublicStableRuntimeBindingV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose stable runtime bindings.
@@ -298,18 +294,6 @@ import type { NarrativeStableDialoguePlayerProfilePortInternalV1 as ForbiddenInt
 import type { NarrativeStableDialoguePlayerTextResolverPortInternalV1 as ForbiddenPublicNarrativeDialoguePlayerTextResolverPortV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative Dialogue player text-resolver ports.
 import type { NarrativeStableDialoguePlayerTextResolverPortInternalV1 as ForbiddenInternalNarrativeDialoguePlayerTextResolverPortV1 } from "./internal.ts";
-// @ts-expect-error Captured Narrative Dialogue player clock ports remain source-relative.
-import type { NarrativeStableCapturedDialoguePlayerClockPortInternalV1 as ForbiddenPublicNarrativeCapturedDialoguePlayerClockPortV1 } from "./index.ts";
-// @ts-expect-error The Host-only internal barrel does not expose captured Narrative Dialogue player clock ports.
-import type { NarrativeStableCapturedDialoguePlayerClockPortInternalV1 as ForbiddenInternalNarrativeCapturedDialoguePlayerClockPortV1 } from "./internal.ts";
-// @ts-expect-error Captured Narrative Dialogue player profile ports remain source-relative.
-import type { NarrativeStableCapturedDialoguePlayerProfilePortInternalV1 as ForbiddenPublicNarrativeCapturedDialoguePlayerProfilePortV1 } from "./index.ts";
-// @ts-expect-error The Host-only internal barrel does not expose captured Narrative Dialogue player profile ports.
-import type { NarrativeStableCapturedDialoguePlayerProfilePortInternalV1 as ForbiddenInternalNarrativeCapturedDialoguePlayerProfilePortV1 } from "./internal.ts";
-// @ts-expect-error Captured Narrative Dialogue player text-resolver ports remain source-relative.
-import type { NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1 as ForbiddenPublicNarrativeCapturedDialoguePlayerTextResolverPortV1 } from "./index.ts";
-// @ts-expect-error The Host-only internal barrel does not expose captured Narrative Dialogue player text-resolver ports.
-import type { NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1 as ForbiddenInternalNarrativeCapturedDialoguePlayerTextResolverPortV1 } from "./internal.ts";
 // @ts-expect-error Narrative Dialogue player policy snapshots remain source-relative.
 import type { NarrativeStableDialoguePlayerPolicySnapshotInternalV1 as ForbiddenPublicNarrativeDialoguePlayerPolicySnapshotV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative Dialogue player policy snapshots.
@@ -362,18 +346,6 @@ import type { NarrativeStableSaySkipDispatchResultInternalV1 as ForbiddenInterna
 import type { NarrativeStablePlaybackModeResetDispatchResultInternalV1 as ForbiddenPublicNarrativePlaybackModeResetDispatchResultV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative playback-mode reset dispatch results.
 import type { NarrativeStablePlaybackModeResetDispatchResultInternalV1 as ForbiddenInternalNarrativePlaybackModeResetDispatchResultV1 } from "./internal.ts";
-// @ts-expect-error Captured Narrative semantic-resolution ports remain source-relative.
-import type { NarrativeStableCapturedSemanticResolutionPortInternalV1 as ForbiddenPublicNarrativeCapturedSemanticResolutionPortV1 } from "./index.ts";
-// @ts-expect-error The Host-only internal barrel does not expose captured Narrative semantic-resolution ports.
-import type { NarrativeStableCapturedSemanticResolutionPortInternalV1 as ForbiddenInternalNarrativeCapturedSemanticResolutionPortV1 } from "./internal.ts";
-// @ts-expect-error Captured Narrative voice-replay ports remain source-relative.
-import type { NarrativeStableCapturedVoiceReplayPortInternalV1 as ForbiddenPublicNarrativeCapturedVoiceReplayPortV1 } from "./index.ts";
-// @ts-expect-error The Host-only internal barrel does not expose captured Narrative voice-replay ports.
-import type { NarrativeStableCapturedVoiceReplayPortInternalV1 as ForbiddenInternalNarrativeCapturedVoiceReplayPortV1 } from "./internal.ts";
-// @ts-expect-error Captured Narrative History availability ports remain source-relative.
-import type { NarrativeStableCapturedHistoryAvailabilityPortInternalV1 as ForbiddenPublicNarrativeCapturedHistoryAvailabilityPortV1 } from "./index.ts";
-// @ts-expect-error The Host-only internal barrel does not expose captured Narrative History availability ports.
-import type { NarrativeStableCapturedHistoryAvailabilityPortInternalV1 as ForbiddenInternalNarrativeCapturedHistoryAvailabilityPortV1 } from "./internal.ts";
 // @ts-expect-error Narrative choice-action attempts remain source-relative.
 import type { NarrativeStableChoiceActionAttemptInternalV1 as ForbiddenPublicNarrativeChoiceActionAttemptV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative choice-action attempts.
@@ -478,10 +450,6 @@ import type { createNarrativeStableSessionInternalV1 as ForbiddenInternalNarrati
 import type { NarrativeStableHistoryObservationPortInternalV1 as ForbiddenPublicNarrativeHistoryObservationPortV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative History observation ports.
 import type { NarrativeStableHistoryObservationPortInternalV1 as ForbiddenInternalNarrativeHistoryObservationPortV1 } from "./internal.ts";
-// @ts-expect-error Captured Narrative History observation ports remain source-relative.
-import type { NarrativeStableCapturedHistoryObservationPortInternalV1 as ForbiddenPublicNarrativeCapturedHistoryObservationPortV1 } from "./index.ts";
-// @ts-expect-error The Host-only internal barrel does not expose captured Narrative History observation ports.
-import type { NarrativeStableCapturedHistoryObservationPortInternalV1 as ForbiddenInternalNarrativeCapturedHistoryObservationPortV1 } from "./internal.ts";
 // @ts-expect-error Narrative History render observations remain source-relative.
 import type { NarrativeStableHistoryRenderObservationInternalV1 as ForbiddenPublicNarrativeHistoryRenderObservationV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative History render observations.
@@ -1577,9 +1545,6 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "NarrativeStableDialoguePlayerClockPortInternalV1"
       | "NarrativeStableDialoguePlayerProfilePortInternalV1"
       | "NarrativeStableDialoguePlayerTextResolverPortInternalV1"
-      | "NarrativeStableCapturedDialoguePlayerClockPortInternalV1"
-      | "NarrativeStableCapturedDialoguePlayerProfilePortInternalV1"
-      | "NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1"
       | "NarrativeStableDialoguePlayerPolicySnapshotInternalV1"
       | "NarrativeStableDialoguePlayerSnapshotInternalV1"
       | "CreateNarrativeStableDialoguePlayerControllerInputInternalV1"
@@ -1593,9 +1558,6 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "NarrativeStableSayPlayerAutoDispatchResultInternalV1"
       | "NarrativeStableSaySkipDispatchResultInternalV1"
       | "NarrativeStablePlaybackModeResetDispatchResultInternalV1"
-      | "NarrativeStableCapturedSemanticResolutionPortInternalV1"
-      | "NarrativeStableCapturedVoiceReplayPortInternalV1"
-      | "NarrativeStableCapturedHistoryAvailabilityPortInternalV1"
       | "NarrativeStableChoiceActionAttemptInternalV1"
       | "NarrativeStableCustomActionAttemptInternalV1"
       | "NarrativeStablePauseResumeActionAttemptInternalV1"
@@ -1625,7 +1587,6 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "NarrativeStableSessionInternalV1"
       | "createNarrativeStableSessionInternalV1"
       | "NarrativeStableHistoryObservationPortInternalV1"
-      | "NarrativeStableCapturedHistoryObservationPortInternalV1"
       | "NarrativeStableHistoryRenderObservationInternalV1"
       | "NarrativeStableDialogueRendererPropsInternalV1"
       | "NarrativeStableHistoryRendererPropsInternalV1"
@@ -1953,7 +1914,6 @@ describe("@sillymaker/ui public managed System surface", () => {
         "ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1",
         "createManagedSurfaceCoordinatorRuntimeBundleInternalV1",
         "createManagedSurfaceStableCompositeStateInternalV1",
-        "compareManagedSurfaceStableCompositePrivateProvenanceInternalV1",
         "reconcileManagedSurfaceStableRootReservationsInternalV1",
         "createManagedSurfaceCoordinatorFacadeInternalV1",
         "createManagedSurfaceRuntimeAuthorityInternalV1",
@@ -2004,9 +1964,6 @@ describe("@sillymaker/ui public managed System surface", () => {
         "NarrativeStableDialoguePlayerClockPortInternalV1",
         "NarrativeStableDialoguePlayerProfilePortInternalV1",
         "NarrativeStableDialoguePlayerTextResolverPortInternalV1",
-        "NarrativeStableCapturedDialoguePlayerClockPortInternalV1",
-        "NarrativeStableCapturedDialoguePlayerProfilePortInternalV1",
-        "NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1",
         "NarrativeStableDialoguePlayerPolicySnapshotInternalV1",
         "NarrativeStableDialoguePlayerSnapshotInternalV1",
         "CreateNarrativeStableDialoguePlayerControllerInputInternalV1",
@@ -2020,9 +1977,6 @@ describe("@sillymaker/ui public managed System surface", () => {
         "NarrativeStableSayPlayerAutoDispatchResultInternalV1",
         "NarrativeStableSaySkipDispatchResultInternalV1",
         "NarrativeStablePlaybackModeResetDispatchResultInternalV1",
-        "NarrativeStableCapturedSemanticResolutionPortInternalV1",
-        "NarrativeStableCapturedVoiceReplayPortInternalV1",
-        "NarrativeStableCapturedHistoryAvailabilityPortInternalV1",
         "NarrativeStableChoiceActionAttemptInternalV1",
         "NarrativeStableCustomActionAttemptInternalV1",
         "NarrativeStablePauseResumeActionAttemptInternalV1",
@@ -2052,7 +2006,6 @@ describe("@sillymaker/ui public managed System surface", () => {
         "NarrativeStableSessionInternalV1",
         "createNarrativeStableSessionInternalV1",
         "NarrativeStableHistoryObservationPortInternalV1",
-        "NarrativeStableCapturedHistoryObservationPortInternalV1",
         "NarrativeStableHistoryRenderObservationInternalV1",
         "NarrativeStableDialogueRendererPropsInternalV1",
         "NarrativeStableHistoryRendererPropsInternalV1",

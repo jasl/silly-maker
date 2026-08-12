@@ -31,7 +31,6 @@ import {
   type ManagedSurfaceStableRootReservationSnapshotInternalV1,
 } from "./managed-surface-stable-admission.ts";
 import {
-  compareManagedSurfaceStableCompositePrivateProvenanceInternalV1,
   createManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   type ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   type ManagedSurfaceStableRuntimeEntryInternalV1,
@@ -535,43 +534,13 @@ describe("neutral dormant stable aggregate harness", () => {
     for (let index = 0; index < 10_000; index += 1) {
       const root = rawRootV1(harness.alpha, alphaRootDefinitionIdV1);
       applyV1({ harness, publisher: harness.alpha, targets: [root] });
-      const prepared = harness.kernel.getStateInternalV1();
       const candidate = preparingEntryV1(harness, root.occurrenceId);
       expect(harness.kernel.settleStableReadinessFailedInternalV1(
         envelopeV1(candidate),
       )).toMatchObject({ kind: "applied", code: "surface.readiness_failed" });
-      const failed = harness.kernel.getStateInternalV1();
-      const failedPrivate = compareManagedSurfaceStableCompositePrivateProvenanceInternalV1(
-        prepared,
-        failed,
-      );
-      expect(failedPrivate.boundRuntimeAttempts.afterSize).toBe(0);
-      expect(failedPrivate.pendingRuntimeAttempts.afterSize).toBe(0);
-      expect(failedPrivate.preservedReadinessFailureGaps).toEqual({
-        sameIdentity: false,
-        beforeSize: 0,
-        afterSize: 1,
-      });
 
       applyV1({ harness, publisher: harness.alpha, targets: [] });
       const empty = harness.kernel.getStateInternalV1();
-      const emptyPrivate = compareManagedSurfaceStableCompositePrivateProvenanceInternalV1(
-        failed,
-        empty,
-      );
-      expect(emptyPrivate.boundRuntimeAttempts.afterSize).toBe(0);
-      expect(emptyPrivate.pendingRuntimeAttempts.afterSize).toBe(0);
-      expect(emptyPrivate.preservedReadinessFailureGaps).toEqual({
-        sameIdentity: false,
-        beforeSize: 1,
-        afterSize: 0,
-      });
-      expect(emptyPrivate.stableContributorCandidates.afterSize).toBe(0);
-      expect(emptyPrivate.after).toEqual({
-        installable: true,
-        derivedFromPresent: false,
-        derivationDepth: 0,
-      });
       expect(empty.stableAcceptedBaselines).toHaveLength(2);
       expect(empty.stableRuntimeBindings).toHaveLength(0);
       expect(empty.rootReservationContributors).toHaveLength(0);
@@ -600,7 +569,7 @@ describe("neutral dormant stable aggregate harness", () => {
     expect(transientNotifications).toBe(0);
   }, 120_000);
 
-  it("terminally clears both owners, private provenance, and captured listeners once", () => {
+  it("terminally clears both owners and captured listeners once", () => {
     let diagnostics = 0;
     const harness = harnessV1({ reportSubscriberFailure: () => diagnostics += 1 });
     const root = rawRootV1(harness.alpha, alphaRootDefinitionIdV1);
@@ -609,7 +578,6 @@ describe("neutral dormant stable aggregate harness", () => {
     expect(harness.kernel.settleStableReadinessFailedInternalV1(
       envelopeV1(candidate),
     )).toMatchObject({ kind: "applied", code: "surface.readiness_failed" });
-    const before = harness.kernel.getStateInternalV1();
     const trace: string[] = [];
     let nestedRepeat: ManagedSurfaceTransitionReceiptV1 | null = null;
     let terminalFence = "";
@@ -651,28 +619,6 @@ describe("neutral dormant stable aggregate harness", () => {
     expect(terminal.stableAcceptedBaselines).toEqual([]);
     expect(terminal.stableRuntimeBindings).toEqual([]);
     expect(terminal.rootReservationContributors).toEqual([]);
-    const privateComparison = compareManagedSurfaceStableCompositePrivateProvenanceInternalV1(
-      before,
-      terminal,
-    );
-    expect(Object.isFrozen(privateComparison.preservedReadinessFailureGaps)).toBe(true);
-    expect(privateComparison.boundRuntimeAttempts).toMatchObject({
-      sameIdentity: false,
-      afterSize: 0,
-    });
-    expect(privateComparison.pendingRuntimeAttempts).toMatchObject({
-      sameIdentity: false,
-      afterSize: 0,
-    });
-    expect(privateComparison.preservedReadinessFailureGaps).toMatchObject({
-      sameIdentity: false,
-      beforeSize: 1,
-      afterSize: 0,
-    });
-    expect(privateComparison.stableContributorCandidates).toMatchObject({
-      sameIdentity: false,
-      afterSize: 0,
-    });
     expect(harness.kernel.transitionTransientInternalV1({ kind: "dispose_coordinator" }))
       .toMatchObject({
         kind: "unchanged",

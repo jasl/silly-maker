@@ -32,7 +32,6 @@ import {
 } from "./managed-surface-stable-admission.ts";
 import {
   allocateManagedSurfaceStableRuntimeAttemptInternalV1,
-  compareManagedSurfaceStableCompositePrivateProvenanceInternalV1,
   createManagedSurfaceStableCompositeStateInternalV1,
   createManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   createManagedSurfaceStableGapRuntimeBindingInternalV1,
@@ -995,38 +994,6 @@ describe("dormant managed stable atomic reconcile", () => {
       previousResolvedSlotDescriptors,
     );
     expect(terminal.transientState.disposedOwnerIds).toEqual(previousDisposedOwnerIds);
-    const privateProvenance = compareManagedSurfaceStableCompositePrivateProvenanceInternalV1(
-      before,
-      terminal,
-    );
-    expect(Object.isFrozen(privateProvenance)).toBe(true);
-    expect(Object.isFrozen(privateProvenance.boundRuntimeAttempts)).toBe(true);
-    expect(Object.isFrozen(privateProvenance.pendingRuntimeAttempts)).toBe(true);
-    expect(Object.isFrozen(privateProvenance.stableContributorCandidates)).toBe(true);
-    expect(Object.isFrozen(privateProvenance.after)).toBe(true);
-    expect(privateProvenance.sameOrigin).toBe(true);
-    expect(privateProvenance.sameAdmissionAuthority).toBe(true);
-    expect(privateProvenance.samePublisherLeaseRegistry).toBe(true);
-    expect(privateProvenance.boundRuntimeAttempts).toMatchObject({
-      sameIdentity: false,
-      afterSize: 0,
-    });
-    expect(privateProvenance.boundRuntimeAttempts.beforeSize).toBeGreaterThan(0);
-    expect(privateProvenance.pendingRuntimeAttempts).toEqual({
-      sameIdentity: false,
-      beforeSize: 0,
-      afterSize: 0,
-    });
-    expect(privateProvenance.stableContributorCandidates).toMatchObject({
-      sameIdentity: false,
-      afterSize: 0,
-    });
-    expect(privateProvenance.stableContributorCandidates.beforeSize).toBeGreaterThan(0);
-    expect(privateProvenance.after).toEqual({
-      installable: true,
-      derivedFromPresent: false,
-      derivationDepth: 0,
-    });
     const staleGate = vi.fn(() => true);
     expect(
       harness.kernel.commitPreparedStateInstallInternalV1(stalePreparedInstall, staleGate),
@@ -1064,25 +1031,6 @@ describe("dormant managed stable atomic reconcile", () => {
     expect(terminal.rootReservationContributors).toEqual([]);
     expect(terminal.rootReservationGenerationToken).toBe(previousGeneration);
     expect(terminal.transientState.identitySequenceHighWater).toBe(previousHighWater);
-    const privateProvenance = compareManagedSurfaceStableCompositePrivateProvenanceInternalV1(
-      before,
-      terminal,
-    );
-    expect(privateProvenance.boundRuntimeAttempts).toEqual({
-      sameIdentity: false,
-      beforeSize: 0,
-      afterSize: 0,
-    });
-    expect(privateProvenance.pendingRuntimeAttempts).toEqual({
-      sameIdentity: false,
-      beforeSize: 0,
-      afterSize: 0,
-    });
-    expect(privateProvenance.stableContributorCandidates).toEqual({
-      sameIdentity: false,
-      beforeSize: 0,
-      afterSize: 0,
-    });
     expect(harness.registry.getSnapshot().disposed).toBe(true);
     expect(coordinator.dispose()).toMatchObject({
       kind: "unchanged",

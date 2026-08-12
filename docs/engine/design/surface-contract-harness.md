@@ -136,6 +136,17 @@ PF5/M3 现也已完成并转为 historical。当前 active execution pointer 只
 [production-floor sequence](../plans/2026-07-30-production-floor-sequence.md) 拥有；
 PF6/S5 broad harness 已在 Complexity Reset 期间暂停。本文后续 delivery records 中的
 旧 current pointer 只记录当时顺序，不再是 live gate。
+
+2026-08-12 的 Complexity Reset CR2.2 进一步 supersede 本文后续历史 delivery
+records 中将 Narrative collaborator ports 描述为 private-brand zero-key handle、
+`WeakMap` receiver binding、exact descriptor admission 或 cached-intrinsic call 的内部形状。
+现行合同是：public definition/Web 输入与 tagged candidate-preflight result/snapshot
+继续在 package boundary 严格准入；七个 package-internal ports 只在该边界检查
+required callable，然后一次 normalize 为 frozen、保留同名 method 的普通 typed
+record。Method closure 保留当时的 receiver/callable，后续直接调用且不重读
+raw port。这一 supersession 不改变 target/frame/source revision、generation、
+ready-active、semantic in-flight/one-shot attempt、listener/terminal fencing、atomicity
+或 async currentness；历史段落及其当时验证记录不重写。
 R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0、S4.1a、S4.1b.0、S4.1b.1a、S4.1b.1b.0与
 S4.1b.1b.1a、S4.1b.1b.1b.1、S4.1b.1b.1b.2a、S4.1b.1b.1b.2b.0与
 S4.1b.1b.1b.2b.1a、S4.1b.1b.1b.2b.1b、S4.1b.1b.1b.2b.2a、

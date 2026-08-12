@@ -25,21 +25,6 @@ export interface NarrativeStableDialoguePlayerTextResolverPortInternalV1 {
   resolveTextInternalV1(textId: string): string;
 }
 
-declare const narrativeStableCapturedDialoguePlayerClockPortBrandInternalV1: unique symbol;
-export interface NarrativeStableCapturedDialoguePlayerClockPortInternalV1 {
-  readonly [narrativeStableCapturedDialoguePlayerClockPortBrandInternalV1]: true;
-}
-
-declare const narrativeStableCapturedDialoguePlayerProfilePortBrandInternalV1: unique symbol;
-export interface NarrativeStableCapturedDialoguePlayerProfilePortInternalV1 {
-  readonly [narrativeStableCapturedDialoguePlayerProfilePortBrandInternalV1]: true;
-}
-
-declare const narrativeStableCapturedDialoguePlayerTextResolverPortBrandInternalV1: unique symbol;
-export interface NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1 {
-  readonly [narrativeStableCapturedDialoguePlayerTextResolverPortBrandInternalV1]: true;
-}
-
 export interface NarrativeStableDialoguePlayerPolicySnapshotInternalV1 {
   readonly textRevealCharsPerSecond: number;
   readonly autoWaitMs: number;

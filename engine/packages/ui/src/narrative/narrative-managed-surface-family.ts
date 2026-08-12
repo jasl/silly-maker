@@ -134,9 +134,6 @@ import type {
 } from "./narrative-managed-surface-session.ts";
 import type {
   CreateNarrativeStableDialoguePlayerControllerInputInternalV1,
-  NarrativeStableCapturedDialoguePlayerClockPortInternalV1,
-  NarrativeStableCapturedDialoguePlayerProfilePortInternalV1,
-  NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1,
   NarrativeStableDialoguePlayerClockPortInternalV1,
   NarrativeStableDialoguePlayerControllerInternalV1,
   NarrativeStableDialoguePlayerProfilePortInternalV1,
@@ -149,10 +146,6 @@ import type {
   NarrativeStableDialoguePlayerSnapshotInternalV1,
   NarrativeStableDialoguePlayerTextResolverPortInternalV1,
 } from "./dialogue-player-controller.ts";
-
-const freezeNarrativePhysicalActionDataInternalV1 = Object.freeze;
-const applyNarrativePhysicalActionInternalV1 = Reflect.apply;
-const setNarrativeWeakMapValueInternalV1 = WeakMap.prototype.set;
 
 const narrativeStableHostReadyCommitFaultedResultInternalV1 = Object.freeze({
   kind: "faulted" as const,
@@ -242,33 +235,9 @@ export interface NarrativeStableHistoryAvailabilityPortInternalV1 {
   readonly readHistoryAvailabilityInternalV1: () => boolean;
 }
 
-declare const narrativeStableCapturedSemanticResolutionPortBrandInternalV1: unique symbol;
-
-export interface NarrativeStableCapturedSemanticResolutionPortInternalV1 {
-  readonly [narrativeStableCapturedSemanticResolutionPortBrandInternalV1]: true;
-}
-
-declare const narrativeStableCapturedVoiceReplayPortBrandInternalV1: unique symbol;
-
-export interface NarrativeStableCapturedVoiceReplayPortInternalV1 {
-  readonly [narrativeStableCapturedVoiceReplayPortBrandInternalV1]: true;
-}
-
-declare const narrativeStableCapturedHistoryAvailabilityPortBrandInternalV1: unique symbol;
-
-export interface NarrativeStableCapturedHistoryAvailabilityPortInternalV1 {
-  readonly [narrativeStableCapturedHistoryAvailabilityPortBrandInternalV1]: true;
-}
-
 export interface NarrativeStableHistoryObservationPortInternalV1 {
   getSnapshotInternalV1(): DeepReadonly<NarrativeHistoryV1>;
   subscribeInternalV1(listener: () => void): () => void;
-}
-
-declare const narrativeStableCapturedHistoryObservationPortBrandInternalV1: unique symbol;
-
-export interface NarrativeStableCapturedHistoryObservationPortInternalV1 {
-  readonly [narrativeStableCapturedHistoryObservationPortBrandInternalV1]: true;
 }
 
 export interface NarrativeStableHistoryRenderObservationInternalV1 {
@@ -314,13 +283,13 @@ export type NarrativeStableRendererComponentInternalV1 = ElementType<
 export interface NarrativeStableCandidateSnapshotInternalV1 {
   readonly rendererComponent: NarrativeStableRendererComponentInternalV1;
   readonly visualConfig: Readonly<object>;
-  readonly semanticDispatchPort: NarrativeStableCapturedSemanticResolutionPortInternalV1;
-  readonly historyObservationPort: NarrativeStableCapturedHistoryObservationPortInternalV1;
-  readonly historyAvailabilityPort: NarrativeStableCapturedHistoryAvailabilityPortInternalV1;
-  readonly playerProfile: NarrativeStableCapturedDialoguePlayerProfilePortInternalV1;
-  readonly presentationClock: NarrativeStableCapturedDialoguePlayerClockPortInternalV1;
-  readonly textResolver: NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1;
-  readonly voiceReplayPort: NarrativeStableCapturedVoiceReplayPortInternalV1 | null;
+  readonly semanticDispatchPort: NarrativeStableSemanticResolutionPortInternalV1;
+  readonly historyObservationPort: NarrativeStableHistoryObservationPortInternalV1;
+  readonly historyAvailabilityPort: NarrativeStableHistoryAvailabilityPortInternalV1;
+  readonly playerProfile: NarrativeStableDialoguePlayerProfilePortInternalV1;
+  readonly presentationClock: NarrativeStableDialoguePlayerClockPortInternalV1;
+  readonly textResolver: NarrativeStableDialoguePlayerTextResolverPortInternalV1;
+  readonly voiceReplayPort: NarrativeStableVoiceReplayPortInternalV1 | null;
   readonly quickMenuContribution: object | ((...args: never[]) => unknown) | null;
 }
 
@@ -890,67 +859,12 @@ const narrativeStablePublisherBridgeRecordsByKernelInternalV1 = new WeakMap<
   NarrativeStablePublisherBridgeRecordInternalV1
 >();
 
-interface NarrativeStableSemanticResolutionPortBindingInternalV1 {
-  readonly receiver: NarrativeStableSemanticResolutionPortInternalV1;
-  readonly dispatchResolution: NarrativeStableSemanticResolutionPortInternalV1[
-    "dispatchResolutionInternalV1"
-  ];
-}
-
-interface NarrativeStableVoiceReplayPortBindingInternalV1 {
-  readonly receiver: NarrativeStableVoiceReplayPortInternalV1;
-  readonly replayCurrentVoice: NarrativeStableVoiceReplayPortInternalV1[
-    "replayCurrentVoiceInternalV1"
-  ];
-}
-
-interface NarrativeStableHistoryAvailabilityPortBindingInternalV1 {
-  readonly receiver: NarrativeStableHistoryAvailabilityPortInternalV1;
-  readonly readHistoryAvailability: NarrativeStableHistoryAvailabilityPortInternalV1[
-    "readHistoryAvailabilityInternalV1"
-  ];
-}
-
-interface NarrativeStableHistoryObservationPortBindingInternalV1 {
-  readonly receiver: NarrativeStableHistoryObservationPortInternalV1;
-  readonly getSnapshot: NarrativeStableHistoryObservationPortInternalV1[
-    "getSnapshotInternalV1"
-  ];
-  readonly subscribe: NarrativeStableHistoryObservationPortInternalV1[
-    "subscribeInternalV1"
-  ];
-}
-
-interface NarrativeStableDialoguePlayerClockPortBindingInternalV1 {
-  readonly receiver: NarrativeStableDialoguePlayerClockPortInternalV1;
-  readonly now: NarrativeStableDialoguePlayerClockPortInternalV1["nowInternalV1"];
-  readonly requestTick: NarrativeStableDialoguePlayerClockPortInternalV1[
-    "requestTickInternalV1"
-  ];
-  readonly prefersReducedMotion: NarrativeStableDialoguePlayerClockPortInternalV1[
-    "prefersReducedMotionInternalV1"
-  ];
-}
-
-interface NarrativeStableDialoguePlayerProfilePortBindingInternalV1 {
-  readonly receiver: NarrativeStableDialoguePlayerProfilePortInternalV1;
-  readonly getSnapshot: NarrativeStableDialoguePlayerProfilePortInternalV1[
-    "getSnapshotInternalV1"
-  ];
-  readonly subscribe: NarrativeStableDialoguePlayerProfilePortInternalV1[
-    "subscribeInternalV1"
-  ];
-  readonly markSeen: NarrativeStableDialoguePlayerProfilePortInternalV1[
-    "markSeenInternalV1"
-  ];
-}
-
-interface NarrativeStableDialoguePlayerTextResolverPortBindingInternalV1 {
-  readonly receiver: NarrativeStableDialoguePlayerTextResolverPortInternalV1;
-  readonly resolveText: NarrativeStableDialoguePlayerTextResolverPortInternalV1[
-    "resolveTextInternalV1"
-  ];
-}
+type NarrativeStableDialoguePlayerClockPortBindingInternalV1 =
+  NarrativeStableDialoguePlayerClockPortInternalV1;
+type NarrativeStableDialoguePlayerProfilePortBindingInternalV1 =
+  NarrativeStableDialoguePlayerProfilePortInternalV1;
+type NarrativeStableDialoguePlayerTextResolverPortBindingInternalV1 =
+  NarrativeStableDialoguePlayerTextResolverPortInternalV1;
 
 interface NarrativeStablePhysicalActionAttemptRecordBaseInternalV1 {
   readonly authority: NarrativeStablePhysicalActionAdmissionInternalV1;
@@ -958,7 +872,7 @@ interface NarrativeStablePhysicalActionAttemptRecordBaseInternalV1 {
   readonly directTarget: ManagedSurfaceStableAdmittedTargetInternalV1;
   readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
   readonly frame: NarrativeStableAdmittedFrameInternalV1;
-  readonly semanticDispatchPort: NarrativeStableCapturedSemanticResolutionPortInternalV1;
+  readonly semanticDispatchPort: NarrativeStableSemanticResolutionPortInternalV1;
   spent: boolean;
 }
 
@@ -991,35 +905,6 @@ type NarrativeStablePhysicalActionAttemptRecordInternalV1 =
       readonly controllerClaim: object;
     }>
   );
-
-const narrativeStableSemanticResolutionPortBindingsInternalV1 = new WeakMap<
-  NarrativeStableCapturedSemanticResolutionPortInternalV1,
-  NarrativeStableSemanticResolutionPortBindingInternalV1
->();
-const narrativeStableVoiceReplayPortBindingsInternalV1 = new WeakMap<
-  NarrativeStableCapturedVoiceReplayPortInternalV1,
-  NarrativeStableVoiceReplayPortBindingInternalV1
->();
-const narrativeStableHistoryAvailabilityPortBindingsInternalV1 = new WeakMap<
-  NarrativeStableCapturedHistoryAvailabilityPortInternalV1,
-  NarrativeStableHistoryAvailabilityPortBindingInternalV1
->();
-const narrativeStableHistoryObservationPortBindingsInternalV1 = new WeakMap<
-  NarrativeStableCapturedHistoryObservationPortInternalV1,
-  NarrativeStableHistoryObservationPortBindingInternalV1
->();
-const narrativeStableDialoguePlayerClockPortBindingsInternalV1 = new WeakMap<
-  NarrativeStableCapturedDialoguePlayerClockPortInternalV1,
-  NarrativeStableDialoguePlayerClockPortBindingInternalV1
->();
-const narrativeStableDialoguePlayerProfilePortBindingsInternalV1 = new WeakMap<
-  NarrativeStableCapturedDialoguePlayerProfilePortInternalV1,
-  NarrativeStableDialoguePlayerProfilePortBindingInternalV1
->();
-const narrativeStableDialoguePlayerTextResolverPortBindingsInternalV1 = new WeakMap<
-  NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1,
-  NarrativeStableDialoguePlayerTextResolverPortBindingInternalV1
->();
 
 interface NarrativeStableDialoguePlayerControllerRecordInternalV1 {
   controller: NarrativeStableDialoguePlayerControllerInternalV1 | null;
@@ -1132,7 +1017,7 @@ interface NarrativeStableVoiceReplayActionAttemptRecordInternalV1 {
   readonly directTarget: ManagedSurfaceStableAdmittedTargetInternalV1;
   readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
   readonly frame: NarrativeStableAdmittedFrameInternalV1;
-  readonly voiceReplayPort: NarrativeStableCapturedVoiceReplayPortInternalV1 | null;
+  readonly voiceReplayPort: NarrativeStableVoiceReplayPortInternalV1 | null;
   spent: boolean;
 }
 
@@ -1165,7 +1050,7 @@ interface NarrativeStableHistoryOpenActionAttemptRecordInternalV1 {
   readonly directParent: ManagedSurfaceStableAdmittedTargetInternalV1;
   readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
   readonly frame: NarrativeStableAdmittedFrameInternalV1;
-  readonly historyAvailabilityPort: NarrativeStableCapturedHistoryAvailabilityPortInternalV1;
+  readonly historyAvailabilityPort: NarrativeStableHistoryAvailabilityPortInternalV1;
   spent: boolean;
 }
 
@@ -1306,7 +1191,7 @@ interface NarrativeStableHostFocusAttachmentRecordInternalV1 {
 }
 
 interface NarrativeStableHistoryRenderObservationRecordInternalV1 {
-  binding: NarrativeStableHistoryObservationPortBindingInternalV1 | null;
+  binding: NarrativeStableHistoryObservationPortInternalV1 | null;
   readonly listeners: Set<() => void>;
   readonly listenerHolders: Set<{ listener: (() => void) | null }>;
   currentSnapshot: DeepReadonly<NarrativeHistoryV1> | null;
@@ -1540,7 +1425,7 @@ function reconcileNarrativeStableHostFallbackInputInternalV1(
   try {
     runtimeRecord.fallbackInputUnregister = registerManagedInputHandlerV1(
       runtimeRecord.inputRouter,
-      freezeNarrativePhysicalActionDataInternalV1({
+      Object.freeze({
         context: "narrative" as const,
         handle: (event: DeepReadonly<InputEventV1>) =>
           handleNarrativeStableHostFallbackInputInternalV1(runtimeRecord, event),
@@ -1559,7 +1444,7 @@ interface NarrativeStableSayContentAutoAttemptRecordInternalV1 {
   readonly directTarget: ManagedSurfaceStableAdmittedTargetInternalV1;
   readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
   readonly frame: NarrativeStableAdmittedFrameInternalV1;
-  readonly semanticDispatchPort: NarrativeStableCapturedSemanticResolutionPortInternalV1;
+  readonly semanticDispatchPort: NarrativeStableSemanticResolutionPortInternalV1;
   spent: boolean;
 }
 
@@ -1588,7 +1473,7 @@ interface NarrativeStableSayRevealControllerRecordInternalV1 {
   readonly directTarget: ManagedSurfaceStableAdmittedTargetInternalV1;
   readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
   readonly frame: NarrativeStableAdmittedFrameInternalV1;
-  readonly semanticDispatchPort: NarrativeStableCapturedSemanticResolutionPortInternalV1;
+  readonly semanticDispatchPort: NarrativeStableSemanticResolutionPortInternalV1;
   readonly receiver: NarrativeStableSayRevealGenerationPortInternalV1;
   readonly capturePhase: NarrativeStableSayRevealGenerationPortInternalV1[
     "capturePhaseInternalV1"
@@ -1653,7 +1538,7 @@ interface NarrativeStableBarrierRecoveryAttemptRecordInternalV1 {
   readonly directTarget: ManagedSurfaceStableAdmittedTargetInternalV1;
   readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
   readonly frame: NarrativeStableAdmittedFrameInternalV1;
-  readonly semanticDispatchPort: NarrativeStableCapturedSemanticResolutionPortInternalV1;
+  readonly semanticDispatchPort: NarrativeStableSemanticResolutionPortInternalV1;
   spent: boolean;
 }
 
@@ -1726,7 +1611,7 @@ interface NarrativeStablePauseExpiryControllerAttemptRecordInternalV1 {
   readonly directTarget: ManagedSurfaceStableAdmittedTargetInternalV1;
   readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
   readonly frame: NarrativeStableAdmittedFrameInternalV1;
-  readonly semanticDispatchPort: NarrativeStableCapturedSemanticResolutionPortInternalV1;
+  readonly semanticDispatchPort: NarrativeStableSemanticResolutionPortInternalV1;
   spent: boolean;
 }
 
@@ -1788,7 +1673,7 @@ const stableReconcileFaultedResultInternalV1 = Object.freeze({
 function createNarrativePlaybackModeStateInternalV1(
   mode: NarrativeStablePlaybackModeInternalV1,
 ): NarrativeStablePlaybackModeStateInternalV1 {
-  return freezeNarrativePhysicalActionDataInternalV1({ mode });
+  return Object.freeze({ mode });
 }
 
 const narrativePlaybackModeToggledNormalResultInternalV1 = Object.freeze({
@@ -1991,7 +1876,7 @@ function narrativeBarrierStageFaultedResultInternalV1(
     | "stage.acknowledged_run_ambiguous"
     | "stage.acknowledged_run_faulted",
 ): NarrativeStableBarrierStageRetargetResultInternalV1 {
-  return freezeNarrativePhysicalActionDataInternalV1({
+  return Object.freeze({
     kind: "faulted" as const,
     code,
     completion: null,
@@ -2249,207 +2134,117 @@ function isOpaqueCandidatePortInternalV1(
 
 function captureSemanticResolutionPortInternalV1(
   value: unknown,
-): NarrativeStableCapturedSemanticResolutionPortInternalV1 | null {
+): NarrativeStableSemanticResolutionPortInternalV1 | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
-  if (Reflect.getPrototypeOf(value) !== Object.prototype) return null;
-  const ownKeys = Reflect.ownKeys(value);
-  if (ownKeys.length !== 1 || ownKeys[0] !== "dispatchResolutionInternalV1") return null;
-  const descriptor = Reflect.getOwnPropertyDescriptor(value, "dispatchResolutionInternalV1");
-  if (
-    descriptor === undefined || !("value" in descriptor) ||
-    typeof descriptor.value !== "function"
-  ) {
-    return null;
-  }
-  const handle = Object.freeze(
-    {},
-  ) as NarrativeStableCapturedSemanticResolutionPortInternalV1;
-  narrativeStableSemanticResolutionPortBindingsInternalV1.set(handle, {
-    receiver: value as NarrativeStableSemanticResolutionPortInternalV1,
-    dispatchResolution: descriptor.value as NarrativeStableSemanticResolutionPortInternalV1[
-      "dispatchResolutionInternalV1"
-    ],
-  });
-  return handle;
+  const receiver = value as NarrativeStableSemanticResolutionPortInternalV1;
+  const dispatchResolution = receiver.dispatchResolutionInternalV1;
+  if (typeof dispatchResolution !== "function") return null;
+  return Object.freeze(
+    {
+      dispatchResolutionInternalV1: (request) => dispatchResolution.call(receiver, request),
+    } satisfies NarrativeStableSemanticResolutionPortInternalV1,
+  );
 }
 
 function captureVoiceReplayPortInternalV1(
   value: unknown,
-): NarrativeStableCapturedVoiceReplayPortInternalV1 | null {
-  const record = captureOwnDataRecordInternalV1(value);
-  if (
-    record === null ||
-    !capturedRecordHasExactKeysInternalV1(record, ["replayCurrentVoiceInternalV1"]) ||
-    typeof record.values.replayCurrentVoiceInternalV1 !== "function"
-  ) {
-    return null;
-  }
-  const handle = Object.freeze({}) as NarrativeStableCapturedVoiceReplayPortInternalV1;
-  narrativeStableVoiceReplayPortBindingsInternalV1.set(handle, {
-    receiver: value as NarrativeStableVoiceReplayPortInternalV1,
-    replayCurrentVoice: record.values
-      .replayCurrentVoiceInternalV1 as NarrativeStableVoiceReplayPortInternalV1[
-        "replayCurrentVoiceInternalV1"
-      ],
-  });
-  return handle;
+): NarrativeStableVoiceReplayPortInternalV1 | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const receiver = value as NarrativeStableVoiceReplayPortInternalV1;
+  const replayCurrentVoice = receiver.replayCurrentVoiceInternalV1;
+  if (typeof replayCurrentVoice !== "function") return null;
+  return Object.freeze(
+    {
+      replayCurrentVoiceInternalV1: () => replayCurrentVoice.call(receiver),
+    } satisfies NarrativeStableVoiceReplayPortInternalV1,
+  );
 }
 
 function captureHistoryAvailabilityPortInternalV1(
   value: unknown,
-): NarrativeStableCapturedHistoryAvailabilityPortInternalV1 | null {
-  const record = captureOwnDataRecordInternalV1(value);
-  if (
-    record === null ||
-    !capturedRecordHasExactKeysInternalV1(record, [
-      "readHistoryAvailabilityInternalV1",
-    ]) ||
-    typeof record.values.readHistoryAvailabilityInternalV1 !== "function"
-  ) {
-    return null;
-  }
-  const handle = freezeNarrativePhysicalActionDataInternalV1(
-    {},
-  ) as NarrativeStableCapturedHistoryAvailabilityPortInternalV1;
-  narrativeStableHistoryAvailabilityPortBindingsInternalV1.set(handle, {
-    receiver: value as NarrativeStableHistoryAvailabilityPortInternalV1,
-    readHistoryAvailability: record.values
-      .readHistoryAvailabilityInternalV1 as NarrativeStableHistoryAvailabilityPortInternalV1[
-        "readHistoryAvailabilityInternalV1"
-      ],
-  });
-  return handle;
+): NarrativeStableHistoryAvailabilityPortInternalV1 | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const receiver = value as NarrativeStableHistoryAvailabilityPortInternalV1;
+  const readHistoryAvailability = receiver.readHistoryAvailabilityInternalV1;
+  if (typeof readHistoryAvailability !== "function") return null;
+  return Object.freeze(
+    {
+      readHistoryAvailabilityInternalV1: () => readHistoryAvailability.call(receiver),
+    } satisfies NarrativeStableHistoryAvailabilityPortInternalV1,
+  );
 }
 
 function captureHistoryObservationPortInternalV1(
   value: unknown,
-): NarrativeStableCapturedHistoryObservationPortInternalV1 | null {
-  const record = captureOwnDataRecordInternalV1(value);
-  if (
-    record === null ||
-    !capturedRecordHasExactKeysInternalV1(record, [
-      "getSnapshotInternalV1",
-      "subscribeInternalV1",
-    ]) ||
-    typeof record.values.getSnapshotInternalV1 !== "function" ||
-    typeof record.values.subscribeInternalV1 !== "function"
-  ) {
-    return null;
-  }
-  const handle = freezeNarrativePhysicalActionDataInternalV1(
-    {},
-  ) as NarrativeStableCapturedHistoryObservationPortInternalV1;
-  narrativeStableHistoryObservationPortBindingsInternalV1.set(handle, {
-    receiver: value as NarrativeStableHistoryObservationPortInternalV1,
-    getSnapshot: record.values
-      .getSnapshotInternalV1 as NarrativeStableHistoryObservationPortInternalV1[
-        "getSnapshotInternalV1"
-      ],
-    subscribe: record.values
-      .subscribeInternalV1 as NarrativeStableHistoryObservationPortInternalV1[
-        "subscribeInternalV1"
-      ],
-  });
-  return handle;
+): NarrativeStableHistoryObservationPortInternalV1 | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const receiver = value as NarrativeStableHistoryObservationPortInternalV1;
+  const getSnapshot = receiver.getSnapshotInternalV1;
+  const subscribe = receiver.subscribeInternalV1;
+  if (typeof getSnapshot !== "function" || typeof subscribe !== "function") return null;
+  return Object.freeze(
+    {
+      getSnapshotInternalV1: () => getSnapshot.call(receiver),
+      subscribeInternalV1: (listener) => subscribe.call(receiver, listener),
+    } satisfies NarrativeStableHistoryObservationPortInternalV1,
+  );
 }
 
 function captureDialoguePlayerClockPortInternalV1(
   value: unknown,
-): NarrativeStableCapturedDialoguePlayerClockPortInternalV1 | null {
-  const record = captureOwnDataRecordInternalV1(value);
+): NarrativeStableDialoguePlayerClockPortInternalV1 | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const receiver = value as NarrativeStableDialoguePlayerClockPortInternalV1;
+  const now = receiver.nowInternalV1;
+  const requestTick = receiver.requestTickInternalV1;
+  const prefersReducedMotion = receiver.prefersReducedMotionInternalV1;
   if (
-    record === null ||
-    !capturedRecordHasExactKeysInternalV1(record, [
-      "nowInternalV1",
-      "requestTickInternalV1",
-      "prefersReducedMotionInternalV1",
-    ]) ||
-    typeof record.values.nowInternalV1 !== "function" ||
-    typeof record.values.requestTickInternalV1 !== "function" ||
-    typeof record.values.prefersReducedMotionInternalV1 !== "function"
-  ) {
-    return null;
-  }
-  const handle = freezeNarrativePhysicalActionDataInternalV1(
-    {},
-  ) as NarrativeStableCapturedDialoguePlayerClockPortInternalV1;
-  narrativeStableDialoguePlayerClockPortBindingsInternalV1.set(handle, {
-    receiver: value as NarrativeStableDialoguePlayerClockPortInternalV1,
-    now: record.values.nowInternalV1 as NarrativeStableDialoguePlayerClockPortInternalV1[
-      "nowInternalV1"
-    ],
-    requestTick: record.values
-      .requestTickInternalV1 as NarrativeStableDialoguePlayerClockPortInternalV1[
-        "requestTickInternalV1"
-      ],
-    prefersReducedMotion: record.values
-      .prefersReducedMotionInternalV1 as NarrativeStableDialoguePlayerClockPortInternalV1[
-        "prefersReducedMotionInternalV1"
-      ],
-  });
-  return handle;
+    typeof now !== "function" || typeof requestTick !== "function" ||
+    typeof prefersReducedMotion !== "function"
+  ) return null;
+  return Object.freeze(
+    {
+      nowInternalV1: () => now.call(receiver),
+      requestTickInternalV1: (callback) => requestTick.call(receiver, callback),
+      prefersReducedMotionInternalV1: () => prefersReducedMotion.call(receiver),
+    } satisfies NarrativeStableDialoguePlayerClockPortInternalV1,
+  );
 }
 
 function captureDialoguePlayerProfilePortInternalV1(
   value: unknown,
-): NarrativeStableCapturedDialoguePlayerProfilePortInternalV1 | null {
-  const record = captureOwnDataRecordInternalV1(value);
+): NarrativeStableDialoguePlayerProfilePortInternalV1 | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const receiver = value as NarrativeStableDialoguePlayerProfilePortInternalV1;
+  const getSnapshot = receiver.getSnapshotInternalV1;
+  const subscribe = receiver.subscribeInternalV1;
+  const markSeen = receiver.markSeenInternalV1;
   if (
-    record === null ||
-    !capturedRecordHasExactKeysInternalV1(record, [
-      "getSnapshotInternalV1",
-      "subscribeInternalV1",
-      "markSeenInternalV1",
-    ]) ||
-    typeof record.values.getSnapshotInternalV1 !== "function" ||
-    typeof record.values.subscribeInternalV1 !== "function" ||
-    typeof record.values.markSeenInternalV1 !== "function"
-  ) {
-    return null;
-  }
-  const handle = freezeNarrativePhysicalActionDataInternalV1(
-    {},
-  ) as NarrativeStableCapturedDialoguePlayerProfilePortInternalV1;
-  narrativeStableDialoguePlayerProfilePortBindingsInternalV1.set(handle, {
-    receiver: value as NarrativeStableDialoguePlayerProfilePortInternalV1,
-    getSnapshot: record.values
-      .getSnapshotInternalV1 as NarrativeStableDialoguePlayerProfilePortInternalV1[
-        "getSnapshotInternalV1"
-      ],
-    subscribe: record.values
-      .subscribeInternalV1 as NarrativeStableDialoguePlayerProfilePortInternalV1[
-        "subscribeInternalV1"
-      ],
-    markSeen: record.values
-      .markSeenInternalV1 as NarrativeStableDialoguePlayerProfilePortInternalV1[
-        "markSeenInternalV1"
-      ],
-  });
-  return handle;
+    typeof getSnapshot !== "function" || typeof subscribe !== "function" ||
+    typeof markSeen !== "function"
+  ) return null;
+  return Object.freeze(
+    {
+      getSnapshotInternalV1: () => getSnapshot.call(receiver),
+      subscribeInternalV1: (listener) => subscribe.call(receiver, listener),
+      markSeenInternalV1: (definitionId, seenRevision) =>
+        markSeen.call(receiver, definitionId, seenRevision),
+    } satisfies NarrativeStableDialoguePlayerProfilePortInternalV1,
+  );
 }
 
 function captureDialoguePlayerTextResolverPortInternalV1(
   value: unknown,
-): NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1 | null {
-  const record = captureOwnDataRecordInternalV1(value);
-  if (
-    record === null ||
-    !capturedRecordHasExactKeysInternalV1(record, ["resolveTextInternalV1"]) ||
-    typeof record.values.resolveTextInternalV1 !== "function"
-  ) {
-    return null;
-  }
-  const handle = freezeNarrativePhysicalActionDataInternalV1(
-    {},
-  ) as NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1;
-  narrativeStableDialoguePlayerTextResolverPortBindingsInternalV1.set(handle, {
-    receiver: value as NarrativeStableDialoguePlayerTextResolverPortInternalV1,
-    resolveText: record.values
-      .resolveTextInternalV1 as NarrativeStableDialoguePlayerTextResolverPortInternalV1[
-        "resolveTextInternalV1"
-      ],
-  });
-  return handle;
+): NarrativeStableDialoguePlayerTextResolverPortInternalV1 | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const receiver = value as NarrativeStableDialoguePlayerTextResolverPortInternalV1;
+  const resolveText = receiver.resolveTextInternalV1;
+  if (typeof resolveText !== "function") return null;
+  return Object.freeze(
+    {
+      resolveTextInternalV1: (textId) => resolveText.call(receiver, textId),
+    } satisfies NarrativeStableDialoguePlayerTextResolverPortInternalV1,
+  );
 }
 
 function captureCandidateSnapshotInternalV1(
@@ -2579,7 +2374,7 @@ export function createNarrativeStablePublisherBridgeInternalV1(
   const exactAggregateDefinitionSidecars = input.exactAggregateDefinitionSidecars;
   const exactAggregateSlotDescriptors = input.exactAggregateSlotDescriptors;
   const barrierStageClaimant = input.barrierStageClaimant ??
-    freezeNarrativePhysicalActionDataInternalV1({});
+    Object.freeze({});
   if (
     (typeof barrierStageClaimant !== "object" && typeof barrierStageClaimant !== "function") ||
     barrierStageClaimant === null
@@ -3173,7 +2968,7 @@ export function createNarrativeStablePublisherBridgeInternalV1(
 function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
   kernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
 ): ManagedSurfaceStableCompositeStateInstallParticipantInternalV1 {
-  const participant = freezeNarrativePhysicalActionDataInternalV1({
+  const participant = Object.freeze({
     prepareStateInstallInternalV1(
       this: ManagedSurfaceStableCompositeStateInstallParticipantInternalV1,
       previousState: ManagedSurfaceStableCompositeStateInternalV1,
@@ -3252,11 +3047,7 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
         ) {
           let nowValue: unknown;
           try {
-            nowValue = applyNarrativePhysicalActionInternalV1(
-              record.clockBinding.now,
-              record.clockBinding.receiver,
-              [],
-            );
+            nowValue = record.clockBinding.nowInternalV1();
           } catch {
             clockFault = true;
             nowValue = null;
@@ -3305,7 +3096,7 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
         : null;
       if (plans.length === 0 && frameRetirements.length === 0 && !resetsMode) return null;
       let state: "prepared" | "committed" | "aborted" | "completed" = "prepared";
-      const prepared = freezeNarrativePhysicalActionDataInternalV1({
+      const prepared = Object.freeze({
         validateInternalV1(
           this: ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1,
         ): boolean {
@@ -3343,17 +3134,6 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
           ) {
             throw new TypeError("ui.narrative_stable_dialogue_player_participant_invalid");
           }
-          for (const retirement of frameRetirements) {
-            narrativeStableDialoguePlayerClockPortBindingsInternalV1.delete(
-              retirement.targetRecord.frame.candidateSnapshot.presentationClock,
-            );
-            narrativeStableDialoguePlayerProfilePortBindingsInternalV1.delete(
-              retirement.targetRecord.frame.candidateSnapshot.playerProfile,
-            );
-            narrativeStableDialoguePlayerTextResolverPortBindingsInternalV1.delete(
-              retirement.targetRecord.frame.candidateSnapshot.textResolver,
-            );
-          }
           for (const plan of plans) {
             const record = plan.record;
             const nextPhase = plan.clockFault ? null : plan.nextPhase;
@@ -3381,7 +3161,7 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
                 record.snapshot.revealLength,
                 record.snapshot.revealedCharacters + advanced,
               );
-              record.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+              record.snapshot = Object.freeze({
                 ...record.snapshot,
                 revealedCharacters: nextCharacters,
                 revealComplete: nextCharacters === record.snapshot.revealLength,
@@ -3416,25 +3196,13 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
               plan.pauseToDispose = record.pauseExpiryController;
               record.pauseExpiryController = null;
             }
-            record.phaseGeneration = freezeNarrativePhysicalActionDataInternalV1({});
+            record.phaseGeneration = Object.freeze({});
             plan.committedGeneration = record.phaseGeneration;
             if (nextPhase === null) {
               if (plan.clockFault) {
                 resetNarrativeStableDialoguePlayerModeInternalV1(record);
               }
               narrativeStableDialoguePlayerControllersByTargetInternalV1.delete(plan.target);
-              const frame = record.frame;
-              if (frame !== null) {
-                narrativeStableDialoguePlayerClockPortBindingsInternalV1.delete(
-                  frame.candidateSnapshot.presentationClock,
-                );
-                narrativeStableDialoguePlayerProfilePortBindingsInternalV1.delete(
-                  frame.candidateSnapshot.playerProfile,
-                );
-                narrativeStableDialoguePlayerTextResolverPortBindingsInternalV1.delete(
-                  frame.candidateSnapshot.textResolver,
-                );
-              }
               record.active = false;
               plan.rawUnsubscribeToCall = record.rawUnsubscribe;
               record.rawUnsubscribe = null;
@@ -3454,7 +3222,7 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
               record.lastTickMs = null;
               record.revealRemainder = 0;
               record.automaticRemainingMs = null;
-              record.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+              record.snapshot = Object.freeze({
                 kind: "passive" as const,
                 phase: "suspended" as const,
                 playbackMode: "normal" as const,
@@ -3465,13 +3233,13 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
               continue;
             }
             if (record.snapshot.kind === "say") {
-              record.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+              record.snapshot = Object.freeze({
                 ...record.snapshot,
                 phase: nextPhase,
                 playbackMode: record.bridgeRecord?.currentModeState.mode ?? "normal",
               });
             } else {
-              record.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+              record.snapshot = Object.freeze({
                 ...record.snapshot,
                 phase: nextPhase,
               });
@@ -3501,7 +3269,7 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
             plan.cancelled = null;
             if (cancel !== null) {
               try {
-                applyNarrativePhysicalActionInternalV1(cancel, undefined, []);
+                Reflect.apply(cancel, undefined, []);
               } catch {
                 // The logical generation already fences the retired tick.
               }
@@ -3510,7 +3278,7 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
             plan.legacyToDispose = null;
             if (legacy !== null) {
               try {
-                applyNarrativePhysicalActionInternalV1(legacy.disposeInternalV1, legacy, []);
+                Reflect.apply(legacy.disposeInternalV1, legacy, []);
               } catch {
                 // Logical suspension already fenced the legacy admission.
               }
@@ -3519,7 +3287,7 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
             plan.pauseToDispose = null;
             if (pause !== null) {
               try {
-                applyNarrativePhysicalActionInternalV1(
+                Reflect.apply(
                   pause.disposeInternalV1,
                   pause,
                   [],
@@ -3532,7 +3300,7 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
             plan.rawUnsubscribeToCall = null;
             if (rawUnsubscribe !== null) {
               try {
-                applyNarrativePhysicalActionInternalV1(rawUnsubscribe, undefined, []);
+                Reflect.apply(rawUnsubscribe, undefined, []);
               } catch {
                 // Logical retirement already fenced raw profile ingress.
               }
@@ -3540,7 +3308,7 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
             const deliverTerminalObservation = plan.terminalObservationDelivery;
             plan.terminalObservationDelivery = null;
             if (deliverTerminalObservation !== null) {
-              applyNarrativePhysicalActionInternalV1(
+              Reflect.apply(
                 deliverTerminalObservation,
                 undefined,
                 [],
@@ -3584,7 +3352,7 @@ function claimNarrativeStableHistoryChildFamilyAuthorityInternalV1(
 ): ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1 {
   const retained = narrativeStableHistoryChildFamilyClaimsInternalV1.get(kernel);
   if (retained !== undefined) return retained.authority;
-  const claimant = freezeNarrativePhysicalActionDataInternalV1({});
+  const claimant = Object.freeze({});
   const authority = claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1(
     kernel,
     claimant,
@@ -3607,7 +3375,7 @@ function claimNarrativeStableHistoryChildFamilyAuthorityInternalV1(
   const stateInstallParticipant =
     createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(kernel);
   kernel.setStateInstallParticipantInternalV1(stateInstallParticipant);
-  const record = freezeNarrativePhysicalActionDataInternalV1({
+  const record = Object.freeze({
     claimant,
     authority,
     readinessAuthority,
@@ -3840,7 +3608,7 @@ function transitionNarrativeStableHistoryChildControllerInternalV1(
     return narrativeStableHistoryChildLifecycleStaleResultInternalV1;
   }
   let invoked = false;
-  const guard = freezeNarrativePhysicalActionDataInternalV1({
+  const guard = Object.freeze({
     commitInternalV1(
       contract: ManagedSurfacePreparedInputBindingContractInternalV1,
     ): boolean {
@@ -3877,12 +3645,12 @@ function transitionNarrativeStableHistoryChildControllerInternalV1(
   >;
   try {
     result = dismissKind === null
-      ? applyNarrativePhysicalActionInternalV1(
+      ? Reflect.apply(
         familyClaim.lifecycleAuthority.closeExactParentTransientChildInternalV1,
         familyClaim.lifecycleAuthority,
         [candidate, guard],
       ) as typeof result
-      : applyNarrativePhysicalActionInternalV1(
+      : Reflect.apply(
         familyClaim.lifecycleAuthority.dismissExactParentTransientChildInternalV1,
         familyClaim.lifecycleAuthority,
         [candidate, dismissKind, guard],
@@ -3922,7 +3690,7 @@ function createNarrativeStableHistoryChildControllerInternalV1(
   controllerRecord: NarrativeStableHistoryChildControllerRecordInternalV1,
 ): NarrativeStableHistoryChildControllerInternalV1 {
   let controller!: NarrativeStableHistoryChildControllerInternalV1;
-  controller = freezeNarrativePhysicalActionDataInternalV1({
+  controller = Object.freeze({
     closeInternalV1(
       this: NarrativeStableHistoryChildControllerInternalV1,
     ): NarrativeStableHistoryChildLifecycleResultInternalV1 {
@@ -3970,7 +3738,7 @@ function classifyNarrativeStableHistoryChildIntentInternalV1(
   }
 
   try {
-    const readyActive = applyNarrativePhysicalActionInternalV1(
+    const readyActive = Reflect.apply(
       lifecycleRecord.stableActionAuthority.captureReadyActiveStableTargetInternalV1,
       lifecycleRecord.stableActionAuthority,
       [intentRecord.directParent],
@@ -3988,7 +3756,7 @@ function classifyNarrativeStableHistoryChildIntentInternalV1(
       return "stale";
     }
     if (
-      !applyNarrativePhysicalActionInternalV1(
+      !Reflect.apply(
         lifecycleRecord.stableActionAuthority.isCurrentDirectTargetInternalV1,
         lifecycleRecord.stableActionAuthority,
         [intentRecord.targetProof],
@@ -4050,7 +3818,7 @@ function redeemNarrativeStableHistoryChildIntentInternalV1(
     ]
   >[0];
   try {
-    preparation = freezeNarrativePhysicalActionDataInternalV1(
+    preparation = Object.freeze(
       {},
     ) as NarrativeStableHistoryChildPreparationInternalV1;
     controllerRecord = { preparationRecord: null };
@@ -4064,12 +3832,12 @@ function redeemNarrativeStableHistoryChildIntentInternalV1(
       candidate: null,
     };
     controllerRecord.preparationRecord = preparationRecord;
-    preparingResult = freezeNarrativePhysicalActionDataInternalV1({
+    preparingResult = Object.freeze({
       kind: "preparing" as const,
       preparation,
       completion: null,
     });
-    commitGuard = freezeNarrativePhysicalActionDataInternalV1({
+    commitGuard = Object.freeze({
       commitInternalV1(
         candidate: ManagedSurfaceStableExactParentTransientChildCandidateInternalV1,
       ): boolean {
@@ -4094,7 +3862,7 @@ function redeemNarrativeStableHistoryChildIntentInternalV1(
         return true;
       },
     });
-    authorityInput = freezeNarrativePhysicalActionDataInternalV1({
+    authorityInput = Object.freeze({
       parentProof: intentRecord.targetProof,
       expectedParent: intentRecord.directParent,
       expectedSourceRevision: intentRecord.sourceRevision,
@@ -4113,7 +3881,7 @@ function redeemNarrativeStableHistoryChildIntentInternalV1(
     ]
   >;
   try {
-    prepared = applyNarrativePhysicalActionInternalV1(
+    prepared = Reflect.apply(
       lifecycleRecord.childAuthority.prepareExactParentTransientChildInternalV1,
       lifecycleRecord.childAuthority,
       [authorityInput],
@@ -4180,7 +3948,7 @@ export function createNarrativeStableHistoryChildLifecycleInternalV1(
   }
 
   let lifecycle!: NarrativeStableHistoryChildLifecycleInternalV1;
-  lifecycle = freezeNarrativePhysicalActionDataInternalV1({
+  lifecycle = Object.freeze({
     redeemHistoryOpenIntentInternalV1(
       this: NarrativeStableHistoryChildLifecycleInternalV1,
       intent: unknown,
@@ -4194,7 +3962,7 @@ export function createNarrativeStableHistoryChildLifecycleInternalV1(
   });
   narrativeStableHistoryChildLifecycleRecordsInternalV1.set(
     lifecycle,
-    freezeNarrativePhysicalActionDataInternalV1({
+    Object.freeze({
       bridge: exactBridge,
       bridgeRecord,
       compositeRuntimeKernel: bridgeRecord.compositeRuntimeKernel,
@@ -4209,16 +3977,16 @@ export function createNarrativeStableHistoryChildLifecycleInternalV1(
 function createNarrativeStableReadinessSnapshotInternalV1(
   entries: readonly NarrativeStableReadinessEntryInternalV1[],
 ): NarrativeStableReadinessSnapshotInternalV1 {
-  return freezeNarrativePhysicalActionDataInternalV1({
-    entries: freezeNarrativePhysicalActionDataInternalV1([...entries]),
+  return Object.freeze({
+    entries: Object.freeze([...entries]),
   });
 }
 
 function createNarrativeStableHostRenderSnapshotInternalV1(
   entries: readonly NarrativeStableHostRenderEntryInternalV1[],
 ): NarrativeStableHostRenderSnapshotInternalV1 {
-  return freezeNarrativePhysicalActionDataInternalV1({
-    entries: freezeNarrativePhysicalActionDataInternalV1([...entries]),
+  return Object.freeze({
+    entries: Object.freeze([...entries]),
   });
 }
 
@@ -4289,7 +4057,7 @@ function deriveNarrativeStableDialogueRenderEntryInternalV1(
     try {
       materialization = createNarrativeStableDialoguePlayerMaterializationInternalV1(
         createNarrativeStableDialoguePlayerControllerInternalV1(
-          freezeNarrativePhysicalActionDataInternalV1({
+          Object.freeze({
             bridge: record.bridge,
             target: attempt.desiredTarget.admittedTarget,
             frame,
@@ -4326,7 +4094,7 @@ function deriveNarrativeStableDialogueRenderEntryInternalV1(
       narrativeStableHostRenderEntryRecordsInternalV1.get(previous)?.frame === frame &&
       previous.playerObservation === materialization.observation
     ? previous.rendererProps
-    : freezeNarrativePhysicalActionDataInternalV1({
+    : Object.freeze({
       kind: "dialogue" as const,
       pending: frame.pending,
       visualConfig: frame.candidateSnapshot.visualConfig,
@@ -4336,7 +4104,7 @@ function deriveNarrativeStableDialogueRenderEntryInternalV1(
     });
   const focusPolicy = dialogueDefinitionInternalV1.focusPolicy;
   if (focusPolicy.kind !== "owns_focus") return null;
-  const entry = freezeNarrativePhysicalActionDataInternalV1({
+  const entry = Object.freeze({
     kind: "dialogue" as const,
     phase,
     renderKey: previous?.renderKey ?? mintNarrativeStableHostRenderKeyInternalV1(record),
@@ -4356,9 +4124,9 @@ function deriveNarrativeStableDialogueRenderEntryInternalV1(
 }
 
 function createNarrativeStableHistoryRenderObservationInternalV1(
-  capturedPort: NarrativeStableCapturedHistoryObservationPortInternalV1,
+  capturedPort: NarrativeStableHistoryObservationPortInternalV1,
 ): NarrativeStableHistoryRenderObservationInternalV1 {
-  const initialBinding = narrativeStableHistoryObservationPortBindingsInternalV1.get(capturedPort);
+  const initialBinding = capturedPort;
   if (initialBinding === undefined) {
     throw new TypeError("ui.narrative_stable_history_observation_invalid");
   }
@@ -4367,11 +4135,7 @@ function createNarrativeStableHistoryRenderObservationInternalV1(
   const refresh = (): boolean => {
     const binding = record.binding;
     if (!record.active || binding === null) return false;
-    const raw = applyNarrativePhysicalActionInternalV1(
-      binding.getSnapshot,
-      binding.receiver,
-      [],
-    );
+    const raw = binding.getSnapshotInternalV1();
     const parsed = parseNarrativeHistoryV1(raw);
     const bytes = canonicalJsonBytes(parsed);
     if (record.currentBytes !== null && bytesEqualInternalV1(record.currentBytes, bytes)) {
@@ -4381,7 +4145,7 @@ function createNarrativeStableHistoryRenderObservationInternalV1(
     record.currentBytes = Uint8Array.from(bytes);
     return true;
   };
-  observation = freezeNarrativePhysicalActionDataInternalV1({
+  observation = Object.freeze({
     getSnapshotInternalV1(
       this: NarrativeStableHistoryRenderObservationInternalV1,
     ): DeepReadonly<NarrativeHistoryV1> {
@@ -4409,7 +4173,7 @@ function createNarrativeStableHistoryRenderObservationInternalV1(
         throw new TypeError("ui.narrative_stable_history_observation_invalid");
       }
       if (!record.active) {
-        return freezeNarrativePhysicalActionDataInternalV1((): void => {});
+        return Object.freeze((): void => {});
       }
       refresh();
       record.listeners.add(listener);
@@ -4426,7 +4190,7 @@ function createNarrativeStableHistoryRenderObservationInternalV1(
           }
           if (!changed) return;
           for (
-            const current of freezeNarrativePhysicalActionDataInternalV1([
+            const current of Object.freeze([
               ...record.listeners,
             ])
           ) {
@@ -4442,13 +4206,9 @@ function createNarrativeStableHistoryRenderObservationInternalV1(
           record.listeners.delete(listener);
           holder.listener = null;
           record.listenerHolders.delete(holder);
-          return freezeNarrativePhysicalActionDataInternalV1((): void => {});
+          return Object.freeze((): void => {});
         }
-        const unsubscribe = applyNarrativePhysicalActionInternalV1(
-          binding.subscribe,
-          binding.receiver,
-          [rawListener],
-        );
+        const unsubscribe = binding.subscribeInternalV1(rawListener);
         if (typeof unsubscribe !== "function") {
           record.listeners.delete(listener);
           holder.listener = null;
@@ -4458,7 +4218,7 @@ function createNarrativeStableHistoryRenderObservationInternalV1(
         record.unsubscribeRaw = unsubscribe as () => void;
       }
       let active = true;
-      return freezeNarrativePhysicalActionDataInternalV1((): void => {
+      return Object.freeze((): void => {
         if (!active) return;
         active = false;
         const retainedListener = holder.listener;
@@ -4495,7 +4255,7 @@ function retireNarrativeStableHistoryRenderObservationInternalV1(
   record.unsubscribeRaw = null;
   if (unsubscribe === null) return;
   try {
-    applyNarrativePhysicalActionInternalV1(unsubscribe, undefined, []);
+    Reflect.apply(unsubscribe, undefined, []);
   } catch {
     // The retired observation stays fenced when raw cleanup is hostile.
   }
@@ -4587,7 +4347,7 @@ function deriveNarrativeStableHistoryRenderEntryInternalV1(
       previous.rendererProps.playerProfile === parentPlayerProfile &&
       previous.rendererProps.textResolver === parentTextResolver
     ? previous.rendererProps
-    : freezeNarrativePhysicalActionDataInternalV1({
+    : Object.freeze({
       kind: "history" as const,
       visualConfig: frame.candidateSnapshot.visualConfig,
       playerProfile: parentPlayerProfile,
@@ -4600,7 +4360,7 @@ function deriveNarrativeStableHistoryRenderEntryInternalV1(
     );
   const focusPolicy = historyDefinitionInternalV1.focusPolicy;
   if (focusPolicy.kind !== "owns_focus") return null;
-  const entry = freezeNarrativePhysicalActionDataInternalV1({
+  const entry = Object.freeze({
     kind: "history" as const,
     phase,
     renderKey: previous?.renderKey ?? mintNarrativeStableHostRenderKeyInternalV1(record),
@@ -4789,8 +4549,8 @@ function prepareNarrativeStableHostCandidateActionBindingInternalV1(
     sessionRecord,
     provenance,
     authority,
-    admissionClaim: freezeNarrativePhysicalActionDataInternalV1({}),
-    bindingGeneration: freezeNarrativePhysicalActionDataInternalV1({}),
+    admissionClaim: Object.freeze({}),
+    bindingGeneration: Object.freeze({}),
     inputRouter: runtimeRecord.inputRouter,
     isGestureCurrent: runtimeRecord.isGestureCurrent,
     runtimeRecord,
@@ -5125,7 +4885,7 @@ function notifyNarrativeStableHostRenderStateInternalV1(
     changed = true;
   }
   if (!changed) return;
-  const listeners = freezeNarrativePhysicalActionDataInternalV1([...record.renderListeners]);
+  const listeners = Object.freeze([...record.renderListeners]);
   for (const listener of listeners) {
     if (record.terminal || !record.bridgeRecord.active) break;
     try {
@@ -5171,12 +4931,12 @@ function captureNarrativeStableRootPreparationInternalV1(
   ) {
     return record.currentRootPreparation;
   }
-  const preparation = freezeNarrativePhysicalActionDataInternalV1(
+  const preparation = Object.freeze(
     {},
   ) as NarrativeStableRootPreparationInternalV1;
   narrativeStableRootPreparationRecordsInternalV1.set(
     preparation,
-    freezeNarrativePhysicalActionDataInternalV1({
+    Object.freeze({
       session,
       bridgeRecord: record.bridgeRecord,
       attempt,
@@ -5281,7 +5041,7 @@ function refreshNarrativeStableSessionSnapshotInternalV1(
     ? null
     : record.currentRootEntry?.preparation === rootPreparation
     ? record.currentRootEntry
-    : freezeNarrativePhysicalActionDataInternalV1({
+    : Object.freeze({
       kind: "root" as const,
       preparation: rootPreparation,
     });
@@ -5289,7 +5049,7 @@ function refreshNarrativeStableSessionSnapshotInternalV1(
     ? null
     : record.currentHistoryEntry?.preparation === historyPreparation
     ? record.currentHistoryEntry
-    : freezeNarrativePhysicalActionDataInternalV1({
+    : Object.freeze({
       kind: "history" as const,
       preparation: historyPreparation,
     });
@@ -5321,7 +5081,7 @@ function notifyNarrativeStableSessionStateInternalV1(
   notifyNarrativeStableHostRenderStateInternalV1(session, record);
   if (record.currentSnapshot === record.lastNotifiedSnapshot) return;
   record.lastNotifiedSnapshot = record.currentSnapshot;
-  const listeners = freezeNarrativePhysicalActionDataInternalV1([...record.listeners]);
+  const listeners = Object.freeze([...record.listeners]);
   for (const listener of listeners) {
     if (record.terminal || !record.bridgeRecord.active) break;
     try {
@@ -5355,7 +5115,7 @@ function terminalizeNarrativeStableSessionInternalV1(
   record.currentRootPreparation = null;
   record.currentRootEntry = null;
   record.currentHistoryEntry = null;
-  const renderListeners = freezeNarrativePhysicalActionDataInternalV1([
+  const renderListeners = Object.freeze([
     ...record.renderListeners,
   ]);
   for (const entry of record.currentRenderSnapshot.entries) {
@@ -5498,7 +5258,7 @@ export function createNarrativeStableSessionInternalV1(
 
   let session!: NarrativeStableSessionInternalV1;
   let sessionRecord!: NarrativeStableSessionRecordInternalV1;
-  session = freezeNarrativePhysicalActionDataInternalV1({
+  session = Object.freeze({
     getReadinessSnapshotInternalV1(
       this: NarrativeStableSessionInternalV1,
     ): NarrativeStableReadinessSnapshotInternalV1 {
@@ -5528,11 +5288,11 @@ export function createNarrativeStableSessionInternalV1(
           sessionRecord.bridgeRecord,
         )
       ) {
-        return freezeNarrativePhysicalActionDataInternalV1((): void => {});
+        return Object.freeze((): void => {});
       }
       sessionRecord.listeners.add(listener);
       let subscribed = true;
-      return freezeNarrativePhysicalActionDataInternalV1((): void => {
+      return Object.freeze((): void => {
         if (!subscribed) return;
         subscribed = false;
         sessionRecord.listeners.delete(listener);
@@ -5600,7 +5360,7 @@ export function createNarrativeStableSessionInternalV1(
 
       let lease!: NarrativeStableHostLeaseInternalV1;
       let leaseRecord!: NarrativeStableHostLeaseRecordInternalV1;
-      lease = freezeNarrativePhysicalActionDataInternalV1({
+      lease = Object.freeze({
         isCurrentInternalV1(this: NarrativeStableHostLeaseInternalV1): boolean {
           if (
             this !== lease || narrativeStableHostLeaseRecordsInternalV1.get(lease) !== leaseRecord
@@ -5681,7 +5441,7 @@ export function createNarrativeStableSessionInternalV1(
   refreshNarrativeStableHostRenderSnapshotInternalV1(session, sessionRecord);
   sessionRecord.lastNotifiedSnapshot = sessionRecord.currentSnapshot;
   try {
-    sessionRecord.unsubscribeStateInternalV1 = applyNarrativePhysicalActionInternalV1(
+    sessionRecord.unsubscribeStateInternalV1 = Reflect.apply(
       bridgeRecord.subscribeStateInternalV1,
       bridgeRecord.compositeRuntimeKernel,
       [() => notifyNarrativeStableSessionStateInternalV1(session, sessionRecord)],
@@ -5764,10 +5524,10 @@ export function createNarrativeStableHostRuntimeInternalV1(
 
   let lease: NarrativeStableHostLeaseInternalV1;
   try {
-    lease = applyNarrativePhysicalActionInternalV1(
+    lease = Reflect.apply(
       session.attachHostInternalV1,
       session,
-      [freezeNarrativePhysicalActionDataInternalV1({ hostIdentity })],
+      [Object.freeze({ hostIdentity })],
     ) as NarrativeStableHostLeaseInternalV1;
   } catch (error) {
     if (
@@ -5786,7 +5546,7 @@ export function createNarrativeStableHostRuntimeInternalV1(
     let renderSource = sessionRecord.renderSource;
     if (renderSource === null) {
       let source!: NarrativeStableHostRenderSourceInternalV1;
-      source = freezeNarrativePhysicalActionDataInternalV1({
+      source = Object.freeze({
         getSnapshotInternalV1(
           this: NarrativeStableHostRenderSourceInternalV1,
         ): NarrativeStableHostRenderSnapshotInternalV1 {
@@ -5825,13 +5585,13 @@ export function createNarrativeStableHostRuntimeInternalV1(
             retainedSessionRecord === null || retainedSessionRecord.terminal ||
             retainedSessionRecord.renderSource !== source
           ) {
-            return freezeNarrativePhysicalActionDataInternalV1((): void => {});
+            return Object.freeze((): void => {});
           }
           retainedSessionRecord.renderListeners.add(listener);
           const holder: { listener: (() => void) | null } = { listener };
           sourceRecord.listenerHolders.add(holder);
           let active = true;
-          return freezeNarrativePhysicalActionDataInternalV1((): void => {
+          return Object.freeze((): void => {
             if (!active) return;
             active = false;
             const retainedListener = holder.listener;
@@ -5864,7 +5624,7 @@ export function createNarrativeStableHostRuntimeInternalV1(
         sessionRecord.currentHostRuntime !== runtimeRecord
       ) return false;
       try {
-        return applyNarrativePhysicalActionInternalV1(
+        return Reflect.apply(
           lease.isCurrentInternalV1,
           lease,
           [],
@@ -5922,52 +5682,51 @@ export function createNarrativeStableHostRuntimeInternalV1(
           }
         }
       }
-      const guard: ManagedSurfaceStableReadinessCommitGuardInternalV1 =
-        freezeNarrativePhysicalActionDataInternalV1({
-          commitInternalV1: (
-            contract: ManagedSurfacePreparedInputBindingContractInternalV1 | null,
-          ): boolean => {
-            if (!canSettle()) return false;
-            if (readyRecord !== null) {
-              if (readyRecord.spent) return false;
-              const actionBindingRecord = readyRecord.actionBindingRecord;
-              if (
-                actionBindingRecord === null || actionBindingRecord.kind !== "root" ||
-                actionBindingRecord.provenance !== preparationRecord.attempt ||
-                !commitNarrativeStableHostCandidateActionBindingInternalV1(
-                  runtimeRecord,
-                  actionBindingRecord,
-                  contract,
-                  readyRecord,
-                )
-              ) return false;
-              retireNarrativeStableHostReadyCommitRecordInternalV1(readyRecord);
-            } else if (
-              !detachedCleanup && contract !== null &&
-              (restorationRecord === null ||
-                !commitNarrativeStableHostCandidateActionBindingInternalV1(
-                  runtimeRecord,
-                  restorationRecord,
-                  contract,
-                ))
-            ) {
-              return false;
-            }
-            if (readyRecord === null && contract === null && restorationRecord !== null) {
-              retireNarrativeStableHostCandidateActionBindingInternalV1(restorationRecord);
-            }
-            runtimeRecord.fallbackInputEntry = null;
-            return true;
-          },
-        });
+      const guard: ManagedSurfaceStableReadinessCommitGuardInternalV1 = Object.freeze({
+        commitInternalV1: (
+          contract: ManagedSurfacePreparedInputBindingContractInternalV1 | null,
+        ): boolean => {
+          if (!canSettle()) return false;
+          if (readyRecord !== null) {
+            if (readyRecord.spent) return false;
+            const actionBindingRecord = readyRecord.actionBindingRecord;
+            if (
+              actionBindingRecord === null || actionBindingRecord.kind !== "root" ||
+              actionBindingRecord.provenance !== preparationRecord.attempt ||
+              !commitNarrativeStableHostCandidateActionBindingInternalV1(
+                runtimeRecord,
+                actionBindingRecord,
+                contract,
+                readyRecord,
+              )
+            ) return false;
+            retireNarrativeStableHostReadyCommitRecordInternalV1(readyRecord);
+          } else if (
+            !detachedCleanup && contract !== null &&
+            (restorationRecord === null ||
+              !commitNarrativeStableHostCandidateActionBindingInternalV1(
+                runtimeRecord,
+                restorationRecord,
+                contract,
+              ))
+          ) {
+            return false;
+          }
+          if (readyRecord === null && contract === null && restorationRecord !== null) {
+            retireNarrativeStableHostCandidateActionBindingInternalV1(restorationRecord);
+          }
+          runtimeRecord.fallbackInputEntry = null;
+          return true;
+        },
+      });
       let result: ReturnType<
         ManagedSurfaceStableCompositeRuntimeKernelInternalV1[
           "settleStableReadinessReadyWithCommitGuardInternalV1"
         ]
       >;
       try {
-        const envelope = freezeNarrativePhysicalActionDataInternalV1({
-          readinessEvidence: freezeNarrativePhysicalActionDataInternalV1({
+        const envelope = Object.freeze({
+          readinessEvidence: Object.freeze({
             applicationEpoch: preparationRecord.attempt.identity.allocation.applicationEpoch,
             surfaceInstanceId: preparationRecord.attempt.identity.surfaceInstanceId,
           }),
@@ -5976,12 +5735,12 @@ export function createNarrativeStableHostRuntimeInternalV1(
         });
         const kernel = sessionRecord.bridgeRecord.compositeRuntimeKernel;
         result = outcome === "ready"
-          ? applyNarrativePhysicalActionInternalV1(
+          ? Reflect.apply(
             kernel.settleStableReadinessReadyWithCommitGuardInternalV1,
             kernel,
             [envelope, guard],
           ) as typeof result
-          : applyNarrativePhysicalActionInternalV1(
+          : Reflect.apply(
             kernel.settleStableReadinessFailedWithCommitGuardInternalV1,
             kernel,
             [envelope, guard],
@@ -6067,53 +5826,52 @@ export function createNarrativeStableHostRuntimeInternalV1(
         sessionRecord.bridgeRecord.compositeRuntimeKernel,
       );
       if (familyClaim === undefined) return narrativeStableReadinessFaultedResultInternalV1;
-      const guard: ManagedSurfaceStableReadinessCommitGuardInternalV1 =
-        freezeNarrativePhysicalActionDataInternalV1({
-          commitInternalV1: (
-            contract: ManagedSurfacePreparedInputBindingContractInternalV1 | null,
-          ): boolean => {
-            if (!canSettle()) return false;
-            if (readyRecord !== null) {
-              if (readyRecord.spent) return false;
-              const actionBindingRecord = readyRecord.actionBindingRecord;
-              if (
-                actionBindingRecord === null || actionBindingRecord.kind !== "history" ||
-                actionBindingRecord.provenance !== preparationRecord.candidate ||
-                !commitNarrativeStableHostCandidateActionBindingInternalV1(
-                  runtimeRecord,
-                  actionBindingRecord,
-                  contract,
-                  readyRecord,
-                )
-              ) return false;
-              retireNarrativeStableHostReadyCommitRecordInternalV1(readyRecord);
-            } else if (
-              !detachedCleanup && contract !== null &&
-              (restorationRecord === null ||
-                !commitNarrativeStableHostCandidateActionBindingInternalV1(
-                  runtimeRecord,
-                  restorationRecord,
-                  contract,
-                ))
-            ) {
-              return false;
-            }
-            if (readyRecord === null && contract === null && restorationRecord !== null) {
-              retireNarrativeStableHostCandidateActionBindingInternalV1(restorationRecord);
-            }
-            runtimeRecord.fallbackInputEntry = null;
-            return true;
-          },
-        });
+      const guard: ManagedSurfaceStableReadinessCommitGuardInternalV1 = Object.freeze({
+        commitInternalV1: (
+          contract: ManagedSurfacePreparedInputBindingContractInternalV1 | null,
+        ): boolean => {
+          if (!canSettle()) return false;
+          if (readyRecord !== null) {
+            if (readyRecord.spent) return false;
+            const actionBindingRecord = readyRecord.actionBindingRecord;
+            if (
+              actionBindingRecord === null || actionBindingRecord.kind !== "history" ||
+              actionBindingRecord.provenance !== preparationRecord.candidate ||
+              !commitNarrativeStableHostCandidateActionBindingInternalV1(
+                runtimeRecord,
+                actionBindingRecord,
+                contract,
+                readyRecord,
+              )
+            ) return false;
+            retireNarrativeStableHostReadyCommitRecordInternalV1(readyRecord);
+          } else if (
+            !detachedCleanup && contract !== null &&
+            (restorationRecord === null ||
+              !commitNarrativeStableHostCandidateActionBindingInternalV1(
+                runtimeRecord,
+                restorationRecord,
+                contract,
+              ))
+          ) {
+            return false;
+          }
+          if (readyRecord === null && contract === null && restorationRecord !== null) {
+            retireNarrativeStableHostCandidateActionBindingInternalV1(restorationRecord);
+          }
+          runtimeRecord.fallbackInputEntry = null;
+          return true;
+        },
+      });
       try {
         const result = outcome === "ready"
-          ? applyNarrativePhysicalActionInternalV1(
+          ? Reflect.apply(
             familyClaim.readinessAuthority
               .settleExactParentTransientChildReadinessReadyInternalV1,
             familyClaim.readinessAuthority,
             [preparationRecord.candidate, guard],
           )
-          : applyNarrativePhysicalActionInternalV1(
+          : Reflect.apply(
             familyClaim.readinessAuthority
               .settleExactParentTransientChildReadinessFailedInternalV1,
             familyClaim.readinessAuthority,
@@ -6165,7 +5923,7 @@ export function createNarrativeStableHostRuntimeInternalV1(
         retireNarrativeStableHostReadyCommitRecordInternalV1(readyRecord);
       }
       try {
-        applyNarrativePhysicalActionInternalV1(lease.releaseInternalV1, lease, []);
+        Reflect.apply(lease.releaseInternalV1, lease, []);
       } catch {
         // The runtime generation remains fenced when lease release fails closed.
       }
@@ -6198,7 +5956,7 @@ export function createNarrativeStableHostRuntimeInternalV1(
             ) return;
           }
           try {
-            applyNarrativePhysicalActionInternalV1(
+            Reflect.apply(
               sessionRecord.bridge.disposeInternalV1,
               sessionRecord.bridge,
               [],
@@ -6210,7 +5968,7 @@ export function createNarrativeStableHostRuntimeInternalV1(
       }
       retireNarrativeStableHostRuntimeExposureInternalV1(runtimeRecord);
     };
-    attachment = freezeNarrativePhysicalActionDataInternalV1({
+    attachment = Object.freeze({
       settleRootReadinessReadyInternalV1(
         this: NarrativeStableHostAttachmentInternalV1,
         preparation: NarrativeStableRootPreparationInternalV1,
@@ -6258,7 +6016,7 @@ export function createNarrativeStableHostRuntimeInternalV1(
       settleHistoryFailed: (preparation) => settleHistory(preparation, null, "failed"),
       release,
     };
-    runtime = freezeNarrativePhysicalActionDataInternalV1({ attachment, renderSource });
+    runtime = Object.freeze({ attachment, renderSource });
     runtimeRecord = {
       sessionRecord,
       hostIdentity: hostIdentity as object,
@@ -6269,7 +6027,7 @@ export function createNarrativeStableHostRuntimeInternalV1(
       runtime,
       attachment,
       readyCommits: new Set(),
-      focusGeneration: freezeNarrativePhysicalActionDataInternalV1({}),
+      focusGeneration: Object.freeze({}),
       attachmentHolder,
       fallbackInputUnregister: null,
       fallbackInputEntry: null,
@@ -6334,7 +6092,7 @@ export function createNarrativeStableHostRuntimeInternalV1(
       }
     }
     try {
-      applyNarrativePhysicalActionInternalV1(lease.releaseInternalV1, lease, []);
+      Reflect.apply(lease.releaseInternalV1, lease, []);
     } catch {
       // Exact lease cleanup is best-effort after setup failure.
     }
@@ -6437,7 +6195,7 @@ export function prepareNarrativeStableHostReadyCommitInternalV1(
     ) return narrativeStableHostReadyCommitStaleResultInternalV1;
     actionBindingRecord.runtimeRecord = runtimeRecord;
     actionBindingRecord.focusAttachment = focusAttachment;
-    return freezeNarrativePhysicalActionDataInternalV1({
+    return Object.freeze({
       kind: "reattached" as const,
       completion: null,
     });
@@ -6456,7 +6214,7 @@ export function prepareNarrativeStableHostReadyCommitInternalV1(
     }
   }
   let readyCommit!: NarrativeStableHostReadyCommitInternalV1;
-  readyCommit = freezeNarrativePhysicalActionDataInternalV1(
+  readyCommit = Object.freeze(
     {},
   ) as NarrativeStableHostReadyCommitInternalV1;
   const readyRecord: NarrativeStableHostReadyCommitRecordInternalV1 = {
@@ -6477,7 +6235,7 @@ export function prepareNarrativeStableHostReadyCommitInternalV1(
   };
   narrativeStableHostReadyCommitRecordsInternalV1.set(readyCommit, readyRecord);
   runtimeRecord.readyCommits.add(readyRecord);
-  return freezeNarrativePhysicalActionDataInternalV1({
+  return Object.freeze({
     kind: "prepared" as const,
     readyCommit,
     completion: null,
@@ -6510,7 +6268,7 @@ function captureNarrativeBarrierActivationGateInternalV1(
   ) {
     return null;
   }
-  return freezeNarrativePhysicalActionDataInternalV1({
+  return Object.freeze({
     receiver: value as ManagedSurfaceFamilyActivationGateInternalV1,
     isOpen: record.values.isOpen as ManagedSurfaceFamilyActivationGateInternalV1["isOpen"],
   });
@@ -6657,17 +6415,17 @@ function collectNarrativeDialoguePlayerTargetsFromStateInternalV1(
       }
     }
   }
-  return freezeNarrativePhysicalActionDataInternalV1(targets);
+  return Object.freeze(targets);
 }
 
 function notifyNarrativeStableDialoguePlayerControllerInternalV1(
   record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
 ): void {
-  const listeners = freezeNarrativePhysicalActionDataInternalV1([...record.listeners]);
+  const listeners = Object.freeze([...record.listeners]);
   for (const listener of listeners) {
     if (!record.active) break;
     try {
-      applyNarrativePhysicalActionInternalV1(listener, undefined, []);
+      Reflect.apply(listener, undefined, []);
     } catch {
       // Dialogue player observers are isolated after the cached update.
     }
@@ -6728,7 +6486,7 @@ function publishNarrativeStableDialoguePlayerMaterializationInternalV1(
       notifyNarrativeStableHostRenderStateInternalV1(session, sessionRecord);
     }
   }
-  const listenerHolders = freezeNarrativePhysicalActionDataInternalV1([
+  const listenerHolders = Object.freeze([
     ...materialization.listenerHolders,
   ]);
   for (const holder of listenerHolders) {
@@ -6742,7 +6500,7 @@ function publishNarrativeStableDialoguePlayerMaterializationInternalV1(
       ) || materialization.snapshot !== snapshot
     ) break;
     try {
-      applyNarrativePhysicalActionInternalV1(listener, undefined, []);
+      Reflect.apply(listener, undefined, []);
     } catch {
       // Dialogue player observation subscribers are isolated after the cached update.
     }
@@ -6758,7 +6516,7 @@ function retireNarrativeStableDialoguePlayerMaterializationInternalV1(
   if (!materialization.active) return null;
   materialization.snapshot = controllerRecord.snapshot;
   materialization.notifiedSnapshot = controllerRecord.snapshot;
-  const listenerHolders = freezeNarrativePhysicalActionDataInternalV1([
+  const listenerHolders = Object.freeze([
     ...materialization.listenerHolders,
   ]);
   materialization.active = false;
@@ -6769,13 +6527,13 @@ function retireNarrativeStableDialoguePlayerMaterializationInternalV1(
   materialization.controllerUnsubscribe = null;
   if (unsubscribe !== null) {
     try {
-      applyNarrativePhysicalActionInternalV1(unsubscribe, undefined, []);
+      Reflect.apply(unsubscribe, undefined, []);
     } catch {
       // The materialization is already logically fenced when cleanup is hostile.
     }
   }
   let pendingHolders: readonly { listener: (() => void) | null }[] | null = listenerHolders;
-  return freezeNarrativePhysicalActionDataInternalV1((): void => {
+  return Object.freeze((): void => {
     const retained = pendingHolders;
     pendingHolders = null;
     if (retained === null) return;
@@ -6785,7 +6543,7 @@ function retireNarrativeStableDialoguePlayerMaterializationInternalV1(
       materialization.listenerHolders.delete(holder);
       if (listener === null) continue;
       try {
-        applyNarrativePhysicalActionInternalV1(listener, undefined, []);
+        Reflect.apply(listener, undefined, []);
       } catch {
         // Terminal observation subscribers are isolated after logical retirement.
       }
@@ -6811,7 +6569,7 @@ function createNarrativeStableDialoguePlayerMaterializationInternalV1(
   const resolverHolder: {
     materialization: NarrativeStableDialoguePlayerMaterializationRecordInternalV1 | null;
   } = { materialization: null };
-  const textResolver = freezeNarrativePhysicalActionDataInternalV1(
+  const textResolver = Object.freeze(
     ((textId: string): string => {
       const current = resolverHolder.materialization;
       const currentControllerRecord = current?.controllerRecord ?? null;
@@ -6832,11 +6590,7 @@ function createNarrativeStableDialoguePlayerMaterializationInternalV1(
       }
       let resolved: unknown;
       try {
-        resolved = applyNarrativePhysicalActionInternalV1(
-          binding.resolveText,
-          binding.receiver,
-          [textId],
-        );
+        resolved = binding.resolveTextInternalV1(textId);
       } catch {
         throw new TypeError("ui.narrative_stable_dialogue_player_text_resolver_invalid");
       }
@@ -6852,7 +6606,7 @@ function createNarrativeStableDialoguePlayerMaterializationInternalV1(
       return resolved;
     }) satisfies NarrativeStableDialoguePlayerTextResolverInternalV1,
   );
-  observation = freezeNarrativePhysicalActionDataInternalV1({
+  observation = Object.freeze({
     getSnapshotInternalV1(
       this: NarrativeStableDialoguePlayerObservationInternalV1,
     ): NarrativeStableDialoguePlayerSnapshotInternalV1 {
@@ -6879,7 +6633,7 @@ function createNarrativeStableDialoguePlayerMaterializationInternalV1(
       const holder: { listener: (() => void) | null } = { listener };
       current.listeners.add(listener);
       current.listenerHolders.add(holder);
-      return freezeNarrativePhysicalActionDataInternalV1((): void => {
+      return Object.freeze((): void => {
         const retainedListener = holder.listener;
         holder.listener = null;
         current.listenerHolders.delete(holder);
@@ -6906,7 +6660,7 @@ function createNarrativeStableDialoguePlayerMaterializationInternalV1(
   controllerRecord.materialization = materialization;
   narrativeStableDialoguePlayerObservationRecordsInternalV1.set(observation, materialization);
   try {
-    materialization.controllerUnsubscribe = applyNarrativePhysicalActionInternalV1(
+    materialization.controllerUnsubscribe = Reflect.apply(
       controller.subscribeInternalV1,
       controller,
       [() => publishNarrativeStableDialoguePlayerMaterializationInternalV1(materialization)],
@@ -6938,7 +6692,7 @@ function retireNarrativeStableDialoguePlayerFaultMaterializationInternalV1(
   ) {
     narrativeStableDialoguePlayerFaultMaterializationsByTargetInternalV1.delete(target);
   }
-  materialization.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+  materialization.snapshot = Object.freeze({
     kind: "passive" as const,
     phase: "suspended" as const,
     playbackMode: "normal" as const,
@@ -6969,7 +6723,7 @@ function createNarrativeStableDialoguePlayerFaultMaterializationInternalV1(
   if (retained !== undefined) {
     retireNarrativeStableDialoguePlayerFaultMaterializationInternalV1(retained);
   }
-  const snapshot = freezeNarrativePhysicalActionDataInternalV1({
+  const snapshot = Object.freeze({
     kind: "passive" as const,
     phase,
     playbackMode: "normal" as const,
@@ -6980,12 +6734,12 @@ function createNarrativeStableDialoguePlayerFaultMaterializationInternalV1(
   const resolverHolder: {
     materialization: NarrativeStableDialoguePlayerMaterializationRecordInternalV1 | null;
   } = { materialization: null };
-  const textResolver = freezeNarrativePhysicalActionDataInternalV1(
+  const textResolver = Object.freeze(
     ((_textId: string): string => {
       throw new TypeError("ui.narrative_stable_dialogue_player_text_resolver_invalid");
     }) satisfies NarrativeStableDialoguePlayerTextResolverInternalV1,
   );
-  observation = freezeNarrativePhysicalActionDataInternalV1({
+  observation = Object.freeze({
     getSnapshotInternalV1(
       this: NarrativeStableDialoguePlayerObservationInternalV1,
     ): NarrativeStableDialoguePlayerSnapshotInternalV1 {
@@ -7012,7 +6766,7 @@ function createNarrativeStableDialoguePlayerFaultMaterializationInternalV1(
       const holder: { listener: (() => void) | null } = { listener };
       current.listeners.add(listener);
       current.listenerHolders.add(holder);
-      return freezeNarrativePhysicalActionDataInternalV1((): void => {
+      return Object.freeze((): void => {
         const retainedListener = holder.listener;
         holder.listener = null;
         current.listenerHolders.delete(holder);
@@ -7052,7 +6806,7 @@ function publishNarrativeStableDialoguePlayerModeInternalV1(
     !record.active || record.snapshot.kind !== "say" ||
     record.snapshot.playbackMode === mode
   ) return;
-  record.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+  record.snapshot = Object.freeze({
     ...record.snapshot,
     playbackMode: mode,
   });
@@ -7110,7 +6864,7 @@ function issueNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(
     ((kind === "skip" || kind === "mode_reset") && expectedModeState.mode !== "skip")
   ) return null;
   retireNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(record);
-  const attempt = freezeNarrativePhysicalActionDataInternalV1(
+  const attempt = Object.freeze(
     {},
   ) as NarrativeStableDialoguePlayerAutomaticAttemptInternalV1;
   narrativeStableDialoguePlayerAutomaticAttemptRecordsInternalV1.set(attempt, {
@@ -7198,7 +6952,7 @@ function dispatchNarrativeStableDialoguePlayerAutomaticAdvanceInternalV1(
     finalizeAttempt();
     return narrativeSayPlayerAutomaticStaleResultInternalV1;
   }
-  const boundaryClaim = freezeNarrativePhysicalActionDataInternalV1({});
+  const boundaryClaim = Object.freeze({});
   legacyRecord.callbackClaim = boundaryClaim;
   bridgeRecord.sayCallbackClaim = boundaryClaim;
   finalizeAttempt();
@@ -7262,7 +7016,7 @@ function dispatchNarrativeStableDialoguePlayerModeResetInternalV1(
   record.currentAutomaticAttempt = null;
   record.automaticRemainingMs = null;
   publishNarrativeStableDialoguePlayerModeInternalV1(record, "normal");
-  return freezeNarrativePhysicalActionDataInternalV1({
+  return Object.freeze({
     kind: "reset" as const,
     mode: "normal" as const,
     completion: null,
@@ -7278,10 +7032,9 @@ function markNarrativeStableDialoguePlayerSeenInternalV1(
   ) return;
   record.seenCommitted = true;
   try {
-    applyNarrativePhysicalActionInternalV1(
-      record.profileBinding.markSeen,
-      record.profileBinding.receiver,
-      [record.frame.pending.definitionId, record.frame.pending.seenRevision],
+    record.profileBinding.markSeenInternalV1(
+      record.frame.pending.definitionId,
+      record.frame.pending.seenRevision,
     );
   } catch {
     // Seen is logical-once even when the external profile writer fails.
@@ -7306,14 +7059,14 @@ function faultNarrativeStableDialoguePlayerControllerInternalV1(
   record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
 ): void {
   if (!record.active) return;
-  record.phaseGeneration = freezeNarrativePhysicalActionDataInternalV1({});
+  record.phaseGeneration = Object.freeze({});
   const cancel = record.cancelTick;
   record.cancelTick = null;
   resetNarrativeStableDialoguePlayerModeInternalV1(record);
   disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(record);
   if (cancel !== null) {
     try {
-      applyNarrativePhysicalActionInternalV1(cancel, undefined, []);
+      Reflect.apply(cancel, undefined, []);
     } catch {
       // The logical controller fence wins over hostile clock cleanup.
     }
@@ -7347,7 +7100,7 @@ function dispatchNarrativeStableDialoguePlayerContentAutoInternalV1(
   if (legacy === null) return null;
   let attempt: NarrativeStableSayContentAutoAttemptInternalV1 | null;
   try {
-    attempt = applyNarrativePhysicalActionInternalV1(
+    attempt = Reflect.apply(
       legacy.issueContentAutoAttemptInternalV1,
       legacy,
       [],
@@ -7357,7 +7110,7 @@ function dispatchNarrativeStableDialoguePlayerContentAutoInternalV1(
   }
   if (attempt === null) return null;
   try {
-    const result = applyNarrativePhysicalActionInternalV1(
+    const result = Reflect.apply(
       legacy.dispatchContentAutoInternalV1,
       legacy,
       [attempt],
@@ -7386,7 +7139,7 @@ function processNarrativeStableDialoguePlayerSkipTickInternalV1(
   let profile: unknown;
   let profileFault = false;
   try {
-    profile = applyNarrativePhysicalActionInternalV1(binding.getSnapshot, binding.receiver, []);
+    profile = binding.getSnapshotInternalV1();
   } catch {
     profile = null;
     profileFault = true;
@@ -7421,7 +7174,7 @@ function processNarrativeStableDialoguePlayerSkipTickInternalV1(
   record.revealRemainder = 0;
   record.automaticRemainingMs = null;
   const revealLength = record.snapshot.revealLength;
-  record.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+  record.snapshot = Object.freeze({
     ...record.snapshot,
     playerProfile: profile,
     revealedCharacters: revealLength,
@@ -7500,13 +7253,13 @@ function requestNarrativeStableDialoguePlayerTickInternalV1(
       const pauseController = record.pauseExpiryController;
       let attempt: NarrativeStablePauseExpiryControllerAttemptInternalV1 | null = null;
       try {
-        attempt = applyNarrativePhysicalActionInternalV1(
+        attempt = Reflect.apply(
           pauseController.issueAttemptInternalV1,
           pauseController,
           [],
         ) as NarrativeStablePauseExpiryControllerAttemptInternalV1 | null;
         if (attempt !== null) {
-          const result = applyNarrativePhysicalActionInternalV1(
+          const result = Reflect.apply(
             pauseController.dispatchInternalV1,
             pauseController,
             [attempt],
@@ -7543,7 +7296,7 @@ function requestNarrativeStableDialoguePlayerTickInternalV1(
     }
     const complete = nextCharacters === record.snapshot.revealLength;
     if (nextCharacters !== record.snapshot.revealedCharacters || (!wasComplete && complete)) {
-      record.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+      record.snapshot = Object.freeze({
         ...record.snapshot,
         revealedCharacters: nextCharacters,
         revealComplete: complete,
@@ -7601,11 +7354,7 @@ function requestNarrativeStableDialoguePlayerTickInternalV1(
   };
   let cancel: unknown;
   try {
-    cancel = applyNarrativePhysicalActionInternalV1(
-      binding.requestTick,
-      binding.receiver,
-      [callback],
-    );
+    cancel = binding.requestTickInternalV1(callback);
   } catch {
     faultNarrativeStableDialoguePlayerControllerInternalV1(record);
     return;
@@ -7617,7 +7366,7 @@ function requestNarrativeStableDialoguePlayerTickInternalV1(
   }
   if (callbackEnteredSynchronously) {
     try {
-      applyNarrativePhysicalActionInternalV1(cancel, undefined, []);
+      Reflect.apply(cancel, undefined, []);
     } catch {
       // The synchronous callback is already classified as a current fault.
     }
@@ -7630,7 +7379,7 @@ function requestNarrativeStableDialoguePlayerTickInternalV1(
     !shouldScheduleNarrativeStableDialoguePlayerTickInternalV1(record)
   ) {
     try {
-      applyNarrativePhysicalActionInternalV1(cancel, undefined, []);
+      Reflect.apply(cancel, undefined, []);
     } catch {
       // A synchronously consumed or stale tick stays fenced.
     }
@@ -7656,11 +7405,7 @@ function revealAllNarrativeStableDialoguePlayerInternalV1(
     return;
   }
   try {
-    nowValue = applyNarrativePhysicalActionInternalV1(
-      clockBinding.now,
-      clockBinding.receiver,
-      [],
-    );
+    nowValue = clockBinding.nowInternalV1();
   } catch {
     nowValue = null;
     clockFault = true;
@@ -7681,11 +7426,11 @@ function revealAllNarrativeStableDialoguePlayerInternalV1(
   }
   const cancel = record.cancelTick;
   record.cancelTick = null;
-  record.phaseGeneration = freezeNarrativePhysicalActionDataInternalV1({});
+  record.phaseGeneration = Object.freeze({});
   const generation = record.phaseGeneration;
   record.lastTickMs = nowValue;
   record.revealRemainder = 0;
-  record.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+  record.snapshot = Object.freeze({
     ...record.snapshot,
     revealedCharacters: record.snapshot.revealLength,
     revealComplete: true,
@@ -7694,7 +7439,7 @@ function revealAllNarrativeStableDialoguePlayerInternalV1(
   notifyNarrativeStableDialoguePlayerControllerInternalV1(record);
   if (cancel !== null) {
     try {
-      applyNarrativePhysicalActionInternalV1(cancel, undefined, []);
+      Reflect.apply(cancel, undefined, []);
     } catch {
       // Manual logical reveal remains committed when clock cleanup is hostile.
     }
@@ -7720,7 +7465,7 @@ function ensureNarrativeStableDialoguePlayerLegacyControllerInternalV1(
     !record.active || record.legacySayRevealController !== null || record.bridge === null ||
     record.snapshot.kind !== "say" || record.snapshot.phase !== "active"
   ) return;
-  const revealGenerationPort = freezeNarrativePhysicalActionDataInternalV1({
+  const revealGenerationPort = Object.freeze({
     capturePhaseInternalV1: () =>
       record.active && record.snapshot.kind === "say" && record.snapshot.revealComplete
         ? "complete" as const
@@ -7768,11 +7513,7 @@ function publishNarrativeDialoguePlayerProfileInternalV1(
   let nextProfile: unknown;
   let profileFault = false;
   try {
-    nextProfile = applyNarrativePhysicalActionInternalV1(
-      binding.getSnapshot,
-      binding.receiver,
-      [],
-    );
+    nextProfile = binding.getSnapshotInternalV1();
   } catch {
     nextProfile = null;
     profileFault = true;
@@ -7792,8 +7533,8 @@ function publishNarrativeDialoguePlayerProfileInternalV1(
   record.profile = nextProfile;
   const previous = record.snapshot;
   record.snapshot = previous.kind === "say"
-    ? freezeNarrativePhysicalActionDataInternalV1({ ...previous, playerProfile: nextProfile })
-    : freezeNarrativePhysicalActionDataInternalV1({ ...previous, playerProfile: nextProfile });
+    ? Object.freeze({ ...previous, playerProfile: nextProfile })
+    : Object.freeze({ ...previous, playerProfile: nextProfile });
   notifyNarrativeStableDialoguePlayerControllerInternalV1(record);
 }
 
@@ -7803,7 +7544,7 @@ function disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(
   if (!record.active) return;
   retireNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(record);
   record.active = false;
-  record.phaseGeneration = freezeNarrativePhysicalActionDataInternalV1({});
+  record.phaseGeneration = Object.freeze({});
   const cancelTick = record.cancelTick;
   record.cancelTick = null;
   record.automaticRemainingMs = null;
@@ -7812,24 +7553,12 @@ function disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(
   const pauseExpiryController = record.pauseExpiryController;
   record.pauseExpiryController = null;
   const target = record.target;
-  const frame = record.frame;
   if (
     target !== null &&
     narrativeStableDialoguePlayerControllersByTargetInternalV1.get(target) === record
   ) narrativeStableDialoguePlayerControllersByTargetInternalV1.delete(target);
-  if (frame !== null) {
-    narrativeStableDialoguePlayerClockPortBindingsInternalV1.delete(
-      frame.candidateSnapshot.presentationClock,
-    );
-    narrativeStableDialoguePlayerProfilePortBindingsInternalV1.delete(
-      frame.candidateSnapshot.playerProfile,
-    );
-    narrativeStableDialoguePlayerTextResolverPortBindingsInternalV1.delete(
-      frame.candidateSnapshot.textResolver,
-    );
-  }
   const profile = record.profile;
-  record.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+  record.snapshot = Object.freeze({
     kind: "passive" as const,
     phase: "suspended" as const,
     playbackMode: "normal" as const,
@@ -7855,21 +7584,21 @@ function disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(
   record.textBinding = null;
   if (unsubscribe !== null) {
     try {
-      applyNarrativePhysicalActionInternalV1(unsubscribe, undefined, []);
+      Reflect.apply(unsubscribe, undefined, []);
     } catch {
       // Logical retirement remains complete when raw cleanup is hostile.
     }
   }
   if (cancelTick !== null) {
     try {
-      applyNarrativePhysicalActionInternalV1(cancelTick, undefined, []);
+      Reflect.apply(cancelTick, undefined, []);
     } catch {
       // Logical retirement remains complete when clock cleanup is hostile.
     }
   }
   if (legacySayRevealController !== null) {
     try {
-      applyNarrativePhysicalActionInternalV1(
+      Reflect.apply(
         legacySayRevealController.disposeInternalV1,
         legacySayRevealController,
         [],
@@ -7880,7 +7609,7 @@ function disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(
   }
   if (pauseExpiryController !== null) {
     try {
-      applyNarrativePhysicalActionInternalV1(
+      Reflect.apply(
         pauseExpiryController.disposeInternalV1,
         pauseExpiryController,
         [],
@@ -7890,7 +7619,7 @@ function disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(
     }
   }
   if (terminalObservationDelivery !== null) {
-    applyNarrativePhysicalActionInternalV1(terminalObservationDelivery, undefined, []);
+    Reflect.apply(terminalObservationDelivery, undefined, []);
   }
 }
 
@@ -7945,7 +7674,7 @@ export function createNarrativeStableDialoguePlayerControllerInternalV1(
     existing?.active && existing.target === target && existing.frame === frame &&
     existing.controller !== null
   ) return existing.controller;
-  const factoryClaim = freezeNarrativePhysicalActionDataInternalV1({});
+  const factoryClaim = Object.freeze({});
   narrativeStableDialoguePlayerControllerClaimsByTargetInternalV1.set(target, factoryClaim);
   const failClaim = (): never => {
     if (
@@ -7966,15 +7695,9 @@ export function createNarrativeStableDialoguePlayerControllerInternalV1(
       captureNarrativeDialoguePlayerTargetPhaseInternalV1(bridgeRecord, target) === phase &&
       narrativeStableDialoguePlayerControllerClaimsByTargetInternalV1.get(target) === factoryClaim;
   };
-  const profileBinding = narrativeStableDialoguePlayerProfilePortBindingsInternalV1.get(
-    frame.candidateSnapshot.playerProfile,
-  );
-  const clockBinding = narrativeStableDialoguePlayerClockPortBindingsInternalV1.get(
-    frame.candidateSnapshot.presentationClock,
-  );
-  const textBinding = narrativeStableDialoguePlayerTextResolverPortBindingsInternalV1.get(
-    frame.candidateSnapshot.textResolver,
-  );
+  const profileBinding = frame.candidateSnapshot.playerProfile;
+  const clockBinding = frame.candidateSnapshot.presentationClock;
+  const textBinding = frame.candidateSnapshot.textResolver;
   if (profileBinding === undefined || clockBinding === undefined || textBinding === undefined) {
     return failClaim();
   }
@@ -7983,11 +7706,7 @@ export function createNarrativeStableDialoguePlayerControllerInternalV1(
   let resolvedSpeakerText: string | null = null;
   let resolvedText = "";
   try {
-    profile = applyNarrativePhysicalActionInternalV1(
-      profileBinding.getSnapshot,
-      profileBinding.receiver,
-      [],
-    );
+    profile = profileBinding.getSnapshotInternalV1();
   } catch {
     return failClaim();
   }
@@ -7995,11 +7714,7 @@ export function createNarrativeStableDialoguePlayerControllerInternalV1(
     return failClaim();
   }
   try {
-    reducedMotion = applyNarrativePhysicalActionInternalV1(
-      clockBinding.prefersReducedMotion,
-      clockBinding.receiver,
-      [],
-    );
+    reducedMotion = clockBinding.prefersReducedMotionInternalV1();
   } catch {
     return failClaim();
   }
@@ -8007,10 +7722,8 @@ export function createNarrativeStableDialoguePlayerControllerInternalV1(
   if (frame.pending.kind === "say") {
     if (frame.pending.speakerTextId !== null) {
       try {
-        resolvedSpeakerText = applyNarrativePhysicalActionInternalV1(
-          textBinding.resolveText,
-          textBinding.receiver,
-          [frame.pending.speakerTextId],
+        resolvedSpeakerText = textBinding.resolveTextInternalV1(
+          frame.pending.speakerTextId,
         );
       } catch {
         return failClaim();
@@ -8020,11 +7733,7 @@ export function createNarrativeStableDialoguePlayerControllerInternalV1(
       }
     }
     try {
-      resolvedText = applyNarrativePhysicalActionInternalV1(
-        textBinding.resolveText,
-        textBinding.receiver,
-        [frame.pending.textId],
-      );
+      resolvedText = textBinding.resolveTextInternalV1(frame.pending.textId);
     } catch {
       return failClaim();
     }
@@ -8033,7 +7742,7 @@ export function createNarrativeStableDialoguePlayerControllerInternalV1(
   const preferences = profile.preferences;
   const instant = reducedMotion || preferences.textRevealCharsPerSecond === 0;
   const snapshot: NarrativeStableDialoguePlayerSnapshotInternalV1 = frame.pending.kind === "say"
-    ? freezeNarrativePhysicalActionDataInternalV1({
+    ? Object.freeze({
       kind: "say" as const,
       phase,
       playbackMode: bridgeRecord.currentModeState.mode,
@@ -8044,7 +7753,7 @@ export function createNarrativeStableDialoguePlayerControllerInternalV1(
       revealLength: resolvedText.length,
       revealComplete: instant,
     })
-    : freezeNarrativePhysicalActionDataInternalV1({
+    : Object.freeze({
       kind: "passive" as const,
       phase,
       playbackMode: "normal" as const,
@@ -8052,7 +7761,7 @@ export function createNarrativeStableDialoguePlayerControllerInternalV1(
     });
   let controller!: NarrativeStableDialoguePlayerControllerInternalV1;
   let record!: NarrativeStableDialoguePlayerControllerRecordInternalV1;
-  controller = freezeNarrativePhysicalActionDataInternalV1({
+  controller = Object.freeze({
     getSnapshotInternalV1(
       this: NarrativeStableDialoguePlayerControllerInternalV1,
     ): NarrativeStableDialoguePlayerSnapshotInternalV1 {
@@ -8081,7 +7790,7 @@ export function createNarrativeStableDialoguePlayerControllerInternalV1(
       } = { record: currentRecord, listener };
       currentRecord.listeners.add(listener);
       currentRecord.listenerHolders.add(holder);
-      return freezeNarrativePhysicalActionDataInternalV1(() => {
+      return Object.freeze(() => {
         const ownedRecord = holder.record;
         const ownedListener = holder.listener;
         holder.record = null;
@@ -8109,14 +7818,14 @@ export function createNarrativeStableDialoguePlayerControllerInternalV1(
     clockBinding,
     textBinding,
     profile,
-    policy: freezeNarrativePhysicalActionDataInternalV1({
+    policy: Object.freeze({
       textRevealCharsPerSecond: preferences.textRevealCharsPerSecond,
       autoWaitMs: preferences.autoWaitMs,
       skipPolicy: preferences.skipPolicy,
       reducedMotion,
     }),
     snapshot,
-    phaseGeneration: freezeNarrativePhysicalActionDataInternalV1({}),
+    phaseGeneration: Object.freeze({}),
     cancelTick: null,
     lastTickMs: null,
     revealRemainder: 0,
@@ -8138,10 +7847,8 @@ export function createNarrativeStableDialoguePlayerControllerInternalV1(
   } = { record };
   let rawUnsubscribe: unknown;
   try {
-    rawUnsubscribe = applyNarrativePhysicalActionInternalV1(
-      profileBinding.subscribe,
-      profileBinding.receiver,
-      [() => publishNarrativeDialoguePlayerProfileInternalV1(rawListenerHolder)],
+    rawUnsubscribe = profileBinding.subscribeInternalV1(
+      () => publishNarrativeDialoguePlayerProfileInternalV1(rawListenerHolder),
     );
   } catch {
     disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(record);
@@ -8158,7 +7865,7 @@ export function createNarrativeStableDialoguePlayerControllerInternalV1(
     if (!rawSubscriptionActive) return;
     rawSubscriptionActive = false;
     rawListenerHolder.record = null;
-    applyNarrativePhysicalActionInternalV1(rawUnsubscribe as () => void, undefined, []);
+    Reflect.apply(rawUnsubscribe as () => void, undefined, []);
   };
   let installedCurrent: NarrativeStableCurrentTargetProjectionInternalV1 | null = null;
   try {
@@ -8187,11 +7894,7 @@ export function createNarrativeStableDialoguePlayerControllerInternalV1(
   let currentProfile: unknown;
   let profileReadFault = false;
   try {
-    currentProfile = applyNarrativePhysicalActionInternalV1(
-      profileBinding.getSnapshot,
-      profileBinding.receiver,
-      [],
-    );
+    currentProfile = profileBinding.getSnapshotInternalV1();
   } catch {
     currentProfile = null;
     profileReadFault = true;
@@ -8209,7 +7912,7 @@ export function createNarrativeStableDialoguePlayerControllerInternalV1(
   }
   if (currentProfile !== record.profile) {
     record.profile = currentProfile;
-    record.snapshot = freezeNarrativePhysicalActionDataInternalV1({
+    record.snapshot = Object.freeze({
       ...record.snapshot,
       playerProfile: currentProfile,
     });
@@ -8241,11 +7944,7 @@ export function createNarrativeStableDialoguePlayerControllerInternalV1(
       let nowValue: unknown;
       let clockFault = false;
       try {
-        nowValue = applyNarrativePhysicalActionInternalV1(
-          clockBinding.now,
-          clockBinding.receiver,
-          [],
-        );
+        nowValue = clockBinding.nowInternalV1();
       } catch {
         nowValue = null;
         clockFault = true;
@@ -8372,10 +8071,7 @@ export function createNarrativeStableSayRevealControllerInternalV1(
     | null => {
     const current = bridgeRecord.captureCurrentTargetInternalV1();
     if (
-      current === null || current.frame.pending.kind !== "say" ||
-      !narrativeStableSemanticResolutionPortBindingsInternalV1.has(
-        current.frame.candidateSnapshot.semanticDispatchPort,
-      )
+      current === null || current.frame.pending.kind !== "say"
     ) {
       return null;
     }
@@ -8407,7 +8103,7 @@ export function createNarrativeStableSayRevealControllerInternalV1(
     throw new TypeError("ui.narrative_stable_say_reveal_controller_unavailable");
   }
 
-  const controllerClaim = freezeNarrativePhysicalActionDataInternalV1({});
+  const controllerClaim = Object.freeze({});
   let unsubscribeState = (): void => {};
   let lifecycleObserverActive = false;
   let controller!: NarrativeStableSayRevealControllerInternalV1;
@@ -8508,9 +8204,7 @@ export function createNarrativeStableSayRevealControllerInternalV1(
       releaseBoundary(boundaryClaim);
       return narrativePhysicalActionStaleResultInternalV1;
     }
-    const portBinding = narrativeStableSemanticResolutionPortBindingsInternalV1.get(
-      record.semanticDispatchPort,
-    );
+    const portBinding = record.semanticDispatchPort;
     if (portBinding === undefined) {
       releaseBoundary(boundaryClaim);
       return narrativePhysicalActionFaultedResultInternalV1;
@@ -8525,10 +8219,10 @@ export function createNarrativeStableSayRevealControllerInternalV1(
     }
     bridgeRecord.sayCallbackClaim = null;
     bridgeRecord.saySemanticInFlightClaim = boundaryClaim;
-    const resolution: InteractionResolutionV1 = freezeNarrativePhysicalActionDataInternalV1({
+    const resolution: InteractionResolutionV1 = Object.freeze({
       kind: "advance" as const,
     });
-    const request = freezeNarrativePhysicalActionDataInternalV1({
+    const request = Object.freeze({
       expectedOccurrenceId: currentFrame.pending.occurrenceId,
       resolution,
     }) satisfies NarrativeStableSemanticResolutionRequestInternalV1;
@@ -8545,7 +8239,7 @@ export function createNarrativeStableSayRevealControllerInternalV1(
     let semanticCompletion: Promise<unknown>;
     try {
       semanticCompletion = Promise.resolve(
-        Reflect.apply(portBinding.dispatchResolution, portBinding.receiver, [request]),
+        portBinding.dispatchResolutionInternalV1(request),
       );
     } catch (error) {
       semanticCompletion = Promise.reject(error);
@@ -8570,13 +8264,13 @@ export function createNarrativeStableSayRevealControllerInternalV1(
         throw error;
       },
     );
-    return freezeNarrativePhysicalActionDataInternalV1({
+    return Object.freeze({
       kind: "dispatched" as const,
       completion,
     });
   };
 
-  controller = freezeNarrativePhysicalActionDataInternalV1({
+  controller = Object.freeze({
     issueContentAutoAttemptInternalV1(
       this: NarrativeStableSayRevealControllerInternalV1,
     ): NarrativeStableSayContentAutoAttemptInternalV1 | null {
@@ -8616,7 +8310,7 @@ export function createNarrativeStableSayRevealControllerInternalV1(
         ) {
           return null;
         }
-        const attempt = freezeNarrativePhysicalActionDataInternalV1(
+        const attempt = Object.freeze(
           {},
         ) as NarrativeStableSayContentAutoAttemptInternalV1;
         narrativeStableSayContentAutoAttemptRecordsInternalV1.set(attempt, {
@@ -8694,7 +8388,7 @@ export function createNarrativeStableSayRevealControllerInternalV1(
         return narrativePhysicalActionStaleResultInternalV1;
       }
 
-      const boundaryClaim = freezeNarrativePhysicalActionDataInternalV1({});
+      const boundaryClaim = Object.freeze({});
       record.callbackClaim = boundaryClaim;
       bridgeRecord.sayCallbackClaim = boundaryClaim;
       attemptRecord.spent = true;
@@ -8841,10 +8535,7 @@ export function createNarrativeStablePauseExpiryControllerInternalV1(
     | null => {
     const current = bridgeRecord.captureCurrentTargetInternalV1();
     if (
-      current === null || current.frame.pending.kind !== "pause" ||
-      !narrativeStableSemanticResolutionPortBindingsInternalV1.has(
-        current.frame.candidateSnapshot.semanticDispatchPort,
-      )
+      current === null || current.frame.pending.kind !== "pause"
     ) {
       return null;
     }
@@ -9016,18 +8707,13 @@ export function createNarrativeStablePauseExpiryControllerInternalV1(
         ) {
           return narrativePauseExpiryStaleResultInternalV1;
         }
-        const portBinding = narrativeStableSemanticResolutionPortBindingsInternalV1.get(
-          record.semanticDispatchPort,
-        );
+        const portBinding = record.semanticDispatchPort;
         if (portBinding === undefined) return narrativePauseExpiryFaultedResultInternalV1;
         const resolution: InteractionResolutionV1 = Object.freeze({ kind: "resume" as const });
         const request = Object.freeze({
           expectedOccurrenceId: current.frame.pending.occurrenceId,
           resolution,
         }) satisfies NarrativeStableSemanticResolutionRequestInternalV1;
-        const dispatchResolution = portBinding.dispatchResolution;
-        const dispatchReceiver = portBinding.receiver;
-        const dispatchArguments = Object.freeze([request]);
         if (
           Reflect.apply(isCurrentReadyActiveTarget, stableActionAuthority, [record.proof]) !== true
         ) {
@@ -9037,7 +8723,7 @@ export function createNarrativeStablePauseExpiryControllerInternalV1(
         let completion: Promise<unknown>;
         try {
           completion = Promise.resolve(
-            Reflect.apply(dispatchResolution, dispatchReceiver, dispatchArguments),
+            portBinding.dispatchResolutionInternalV1(request),
           );
         } catch (error) {
           completion = Promise.reject(error);
@@ -9071,7 +8757,7 @@ function createNarrativeStableHostHistoryPhysicalActionAdmissionInternalV1(
     actionBindingRecord.committed &&
     bridgeRecord.physicalActionAdmissionClaim === actionBindingRecord.admissionClaim &&
     actionBindingRecord.sessionRecord?.actionBindingRecords.includes(actionBindingRecord) === true;
-  authority = freezeNarrativePhysicalActionDataInternalV1({
+  authority = Object.freeze({
     createEnvelopeInternalV1(
       this: NarrativeStablePhysicalActionAdmissionInternalV1,
       request: {
@@ -9241,10 +8927,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
     initialFrame === null ||
     (initialFrame.pending.kind !== "say" && initialFrame.pending.kind !== "choice" &&
       initialFrame.pending.kind !== "pause" && initialFrame.pending.kind !== "custom" &&
-      initialFrame.pending.kind !== "presentation_barrier") ||
-    !narrativeStableSemanticResolutionPortBindingsInternalV1.has(
-      initialFrame.candidateSnapshot.semanticDispatchPort,
-    )
+      initialFrame.pending.kind !== "presentation_barrier")
   ) {
     throw new TypeError("ui.narrative_stable_action_admission_unavailable");
   }
@@ -9376,7 +9059,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         }
 
         try {
-          const readyActive = applyNarrativePhysicalActionInternalV1(
+          const readyActive = Reflect.apply(
             captureReadyActiveTarget,
             stableActionAuthority,
             [record.directParent],
@@ -9394,7 +9077,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
             return "stale";
           }
           if (
-            applyNarrativePhysicalActionInternalV1(
+            Reflect.apply(
               isCurrentDirectTarget,
               stableActionAuthority,
               [record.targetProof],
@@ -9402,7 +9085,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           ) {
             return "stale";
           }
-          const current = applyNarrativePhysicalActionInternalV1(
+          const current = Reflect.apply(
             captureCurrentStableInput,
             stableActionAuthority,
             [],
@@ -9419,7 +9102,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
               current.contract,
               capturedInitial.contract,
             ) ||
-            applyNarrativePhysicalActionInternalV1(
+            Reflect.apply(
                 isCurrentDirectTarget,
                 stableActionAuthority,
                 [current.targetProof],
@@ -9427,7 +9110,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           ) {
             return "stale";
           }
-          const frame = applyNarrativePhysicalActionInternalV1(
+          const frame = Reflect.apply(
             inspectAdmittedTargetFrame,
             bridge,
             [current.directTarget],
@@ -9461,14 +9144,12 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
       ) {
         return narrativeHistoryOpenStaleResultInternalV1;
       }
-      const availabilityBinding = narrativeStableHistoryAvailabilityPortBindingsInternalV1.get(
-        record.historyAvailabilityPort,
-      );
+      const availabilityBinding = record.historyAvailabilityPort;
       if (availabilityBinding === undefined) {
         return narrativeHistoryOpenFaultedResultInternalV1;
       }
 
-      const callbackClaim = freezeNarrativePhysicalActionDataInternalV1({});
+      const callbackClaim = Object.freeze({});
       bridgeRecord.sayCallbackClaim = callbackClaim;
       try {
         const preCallKind = classifyCurrentHistoryParent();
@@ -9485,11 +9166,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         let callbackOutcome: unknown;
         let callbackThrew = false;
         try {
-          callbackOutcome = applyNarrativePhysicalActionInternalV1(
-            availabilityBinding.readHistoryAvailability,
-            availabilityBinding.receiver,
-            [],
-          );
+          callbackOutcome = availabilityBinding.readHistoryAvailabilityInternalV1();
         } catch {
           callbackThrew = true;
         }
@@ -9516,10 +9193,10 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         >;
         let intentRecord: NarrativeStableHistoryOpenIntentRecordInternalV1;
         try {
-          intent = freezeNarrativePhysicalActionDataInternalV1(
+          intent = Object.freeze(
             {},
           ) as NarrativeStableHistoryOpenIntentInternalV1;
-          requestedResult = freezeNarrativePhysicalActionDataInternalV1({
+          requestedResult = Object.freeze({
             kind: "requested" as const,
             intent,
             completion: null,
@@ -9548,11 +9225,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           return narrativeHistoryOpenFaultedResultInternalV1;
         }
         try {
-          applyNarrativePhysicalActionInternalV1(
-            setNarrativeWeakMapValueInternalV1,
-            narrativeStableHistoryOpenIntentRecordsInternalV1,
-            [intent, intentRecord],
-          );
+          narrativeStableHistoryOpenIntentRecordsInternalV1.set(intent, intentRecord);
         } catch {
           return narrativeHistoryOpenFaultedResultInternalV1;
         }
@@ -9717,11 +9390,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           return narrativePlaybackModeFaultedResultInternalV1;
         }
         try {
-          nowValue = applyNarrativePhysicalActionInternalV1(
-            clockBinding.now,
-            clockBinding.receiver,
-            [],
-          );
+          nowValue = clockBinding.nowInternalV1();
         } catch {
           nowValue = null;
           clockFault = true;
@@ -9856,9 +9525,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
       if (record.voiceReplayPort === null) {
         return narrativeVoiceReplayIgnoredResultInternalV1;
       }
-      const voiceBinding = narrativeStableVoiceReplayPortBindingsInternalV1.get(
-        record.voiceReplayPort,
-      );
+      const voiceBinding = record.voiceReplayPort;
       if (voiceBinding === undefined) return narrativePhysicalActionStaleResultInternalV1;
       if (
         bridgeRecord.sayCallbackClaim !== null ||
@@ -9867,7 +9534,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         return narrativePhysicalActionStaleResultInternalV1;
       }
 
-      const callbackClaim = freezeNarrativePhysicalActionDataInternalV1({});
+      const callbackClaim = Object.freeze({});
       bridgeRecord.sayCallbackClaim = callbackClaim;
       try {
         let currentFrame: NarrativeStableAdmittedFrameInternalV1 | null = null;
@@ -9886,11 +9553,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         let callbackOutcome: unknown;
         let callbackThrew = false;
         try {
-          callbackOutcome = Reflect.apply(
-            voiceBinding.replayCurrentVoice,
-            voiceBinding.receiver,
-            [],
-          );
+          callbackOutcome = voiceBinding.replayCurrentVoiceInternalV1();
         } catch {
           callbackThrew = true;
         }
@@ -10019,7 +9682,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         return narrativePhysicalActionStaleResultInternalV1;
       }
 
-      const boundaryClaim = freezeNarrativePhysicalActionDataInternalV1({});
+      const boundaryClaim = Object.freeze({});
       if (
         controllerRecord.callbackClaim !== null ||
         bridgeRecord.sayCallbackClaim !== null ||
@@ -10152,22 +9815,20 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
       ) {
         return narrativePhysicalActionStaleResultInternalV1;
       }
-      const portBinding = narrativeStableSemanticResolutionPortBindingsInternalV1.get(
-        record.semanticDispatchPort,
-      );
+      const portBinding = record.semanticDispatchPort;
       if (portBinding === undefined) return narrativePhysicalActionFaultedResultInternalV1;
       const resolution: InteractionResolutionV1 = record.kind === "choice"
-        ? freezeNarrativePhysicalActionDataInternalV1({
+        ? Object.freeze({
           kind: "choose" as const,
           choiceId: record.choiceId,
         })
         : record.kind === "pause_resume"
-        ? freezeNarrativePhysicalActionDataInternalV1({ kind: "resume" as const })
-        : freezeNarrativePhysicalActionDataInternalV1({
+        ? Object.freeze({ kind: "resume" as const })
+        : Object.freeze({
           kind: "custom" as const,
           payload: record.payload,
         });
-      const request = freezeNarrativePhysicalActionDataInternalV1({
+      const request = Object.freeze({
         expectedOccurrenceId: currentFrame.pending.occurrenceId,
         resolution,
       }) satisfies NarrativeStableSemanticResolutionRequestInternalV1;
@@ -10180,12 +9841,12 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
       let completion: Promise<unknown>;
       try {
         completion = Promise.resolve(
-          Reflect.apply(portBinding.dispatchResolution, portBinding.receiver, [request]),
+          portBinding.dispatchResolutionInternalV1(request),
         );
       } catch (error) {
         completion = Promise.reject(error);
       }
-      return freezeNarrativePhysicalActionDataInternalV1({
+      return Object.freeze({
         kind: "dispatched" as const,
         completion,
       });
@@ -10305,10 +9966,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         ]) as NarrativeStableAdmittedFrameInternalV1 | null;
         if (
           frame === null || frame.pending.kind !== "choice" ||
-          !frame.pending.options.some((option) => option.choiceId === choiceId) ||
-          !narrativeStableSemanticResolutionPortBindingsInternalV1.has(
-            frame.candidateSnapshot.semanticDispatchPort,
-          )
+          !frame.pending.options.some((option) => option.choiceId === choiceId)
         ) {
           return null;
         }
@@ -10358,10 +10016,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           current.directTarget,
         ]) as NarrativeStableAdmittedFrameInternalV1 | null;
         if (
-          frame === null || frame.pending.kind !== "pause" || !frame.pending.skippable ||
-          !narrativeStableSemanticResolutionPortBindingsInternalV1.has(
-            frame.candidateSnapshot.semanticDispatchPort,
-          )
+          frame === null || frame.pending.kind !== "pause" || !frame.pending.skippable
         ) {
           return null;
         }
@@ -10411,16 +10066,13 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           current.directTarget,
         ]) as NarrativeStableAdmittedFrameInternalV1 | null;
         if (
-          frame === null || frame.pending.kind !== "custom" ||
-          !narrativeStableSemanticResolutionPortBindingsInternalV1.has(
-            frame.candidateSnapshot.semanticDispatchPort,
-          )
+          frame === null || frame.pending.kind !== "custom"
         ) {
           return null;
         }
 
         const resolution = parseInteractionResolutionV1(
-          freezeNarrativePhysicalActionDataInternalV1({ kind: "custom" as const, payload }),
+          Object.freeze({ kind: "custom" as const, payload }),
         );
         if (resolution.kind !== "custom") return null;
         if (!active || bridgeRecord.physicalActionAdmissionClaim !== admissionClaim) return null;
@@ -10453,7 +10105,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           return null;
         }
 
-        const attempt = freezeNarrativePhysicalActionDataInternalV1(
+        const attempt = Object.freeze(
           {},
         ) as NarrativeStableCustomActionAttemptInternalV1;
         narrativeStablePhysicalActionAttemptRecordsInternalV1.set(attempt, {
@@ -10558,7 +10210,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         ) {
           return null;
         }
-        const attempt = freezeNarrativePhysicalActionDataInternalV1(
+        const attempt = Object.freeze(
           {},
         ) as NarrativeStableSayActivationAttemptInternalV1;
         narrativeStablePhysicalActionAttemptRecordsInternalV1.set(attempt, {
@@ -10615,10 +10267,6 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         ]) as NarrativeStableAdmittedFrameInternalV1 | null;
         if (
           frame === null || frame.pending.kind !== "say" ||
-          (frame.candidateSnapshot.voiceReplayPort !== null &&
-            !narrativeStableVoiceReplayPortBindingsInternalV1.has(
-              frame.candidateSnapshot.voiceReplayPort,
-            )) ||
           !active || !bridgeRecord.isActiveInternalV1() ||
           bridgeRecord.physicalActionAdmissionClaim !== admissionClaim ||
           bridgeRecord.sayCallbackClaim !== null ||
@@ -10626,7 +10274,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         ) {
           return null;
         }
-        const attempt = freezeNarrativePhysicalActionDataInternalV1(
+        const attempt = Object.freeze(
           {},
         ) as NarrativeStableVoiceReplayActionAttemptInternalV1;
         narrativeStableVoiceReplayActionAttemptRecordsInternalV1.set(attempt, {
@@ -10691,7 +10339,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         ) {
           return null;
         }
-        const attempt = freezeNarrativePhysicalActionDataInternalV1(
+        const attempt = Object.freeze(
           {},
         ) as NarrativeStablePlaybackModeToggleActionAttemptInternalV1;
         narrativeStablePlaybackModeToggleActionAttemptRecordsInternalV1.set(attempt, {
@@ -10721,7 +10369,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         return null;
       }
       try {
-        const current = applyNarrativePhysicalActionInternalV1(
+        const current = Reflect.apply(
           captureCurrentStableInput,
           stableActionAuthority,
           [],
@@ -10734,7 +10382,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           current.kind !== "captured" || current.directTarget === null ||
           current.sourceRevision === null || current.targetProof === null ||
           !equalManagedSurfaceInputBindingContractV1(current.contract, capturedInitial.contract) ||
-          applyNarrativePhysicalActionInternalV1(
+          Reflect.apply(
               isCurrentDirectTarget,
               stableActionAuthority,
               [current.targetProof],
@@ -10742,12 +10390,12 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         ) {
           return null;
         }
-        const frame = applyNarrativePhysicalActionInternalV1(
+        const frame = Reflect.apply(
           inspectAdmittedTargetFrame,
           bridge,
           [current.directTarget],
         ) as NarrativeStableAdmittedFrameInternalV1 | null;
-        const readyActive = applyNarrativePhysicalActionInternalV1(
+        const readyActive = Reflect.apply(
           captureReadyActiveTarget,
           stableActionAuthority,
           [current.directTarget],
@@ -10764,19 +10412,16 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           (frame.pending.kind !== "say" && frame.pending.kind !== "choice" &&
             frame.pending.kind !== "pause" && frame.pending.kind !== "custom" &&
             frame.pending.kind !== "presentation_barrier") ||
-          !narrativeStableHistoryAvailabilityPortBindingsInternalV1.has(
-            frame.candidateSnapshot.historyAvailabilityPort,
-          ) ||
           !active || !bridgeRecord.isActiveInternalV1() ||
           bridgeRecord.physicalActionAdmissionClaim !== admissionClaim ||
           bridgeRecord.sayCallbackClaim !== null ||
           bridgeRecord.saySemanticInFlightClaim !== null ||
-          applyNarrativePhysicalActionInternalV1(
+          Reflect.apply(
               isCurrentDirectTarget,
               stableActionAuthority,
               [current.targetProof],
             ) !== true ||
-          applyNarrativePhysicalActionInternalV1(
+          Reflect.apply(
               inspectAdmittedTargetFrame,
               bridge,
               [current.directTarget],
@@ -10785,7 +10430,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           return null;
         }
 
-        const attempt = freezeNarrativePhysicalActionDataInternalV1(
+        const attempt = Object.freeze(
           {},
         ) as NarrativeStableHistoryOpenActionAttemptInternalV1;
         const attemptRecord: NarrativeStableHistoryOpenActionAttemptRecordInternalV1 = {
@@ -10799,11 +10444,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           historyAvailabilityPort: frame.candidateSnapshot.historyAvailabilityPort,
           spent: false,
         };
-        applyNarrativePhysicalActionInternalV1(
-          setNarrativeWeakMapValueInternalV1,
-          narrativeStableHistoryOpenActionAttemptRecordsInternalV1,
-          [attempt, attemptRecord],
-        );
+        narrativeStableHistoryOpenActionAttemptRecordsInternalV1.set(attempt, attemptRecord);
         return attempt;
       } catch {
         return null;
@@ -10872,14 +10513,11 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
     if (!bridgeRecord.isActiveInternalV1()) return null;
     const current = bridgeRecord.captureCurrentTargetInternalV1();
     if (
-      current === null || current.frame.pending.kind !== "presentation_barrier" ||
-      !narrativeStableSemanticResolutionPortBindingsInternalV1.has(
-        current.frame.candidateSnapshot.semanticDispatchPort,
-      )
+      current === null || current.frame.pending.kind !== "presentation_barrier"
     ) {
       return null;
     }
-    return freezeNarrativePhysicalActionDataInternalV1({
+    return Object.freeze({
       target: current.target,
       semanticOccurrenceId: current.frame.semanticOccurrenceId,
       canonicalPendingBytes: current.canonicalPendingBytes,
@@ -10905,15 +10543,12 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
     if (!bridgeRecord.isActiveInternalV1()) return null;
     const current = bridgeRecord.captureCurrentTargetInternalV1();
     if (
-      current === null || current.frame.pending.kind !== "presentation_barrier" ||
-      !narrativeStableSemanticResolutionPortBindingsInternalV1.has(
-        current.frame.candidateSnapshot.semanticDispatchPort,
-      )
+      current === null || current.frame.pending.kind !== "presentation_barrier"
     ) {
       return null;
     }
-    return freezeNarrativePhysicalActionDataInternalV1({
-      targetIdentity: freezeNarrativePhysicalActionDataInternalV1({
+    return Object.freeze({
+      targetIdentity: Object.freeze({
         target: current.target,
         semanticOccurrenceId: current.frame.semanticOccurrenceId,
         canonicalPendingBytes: current.canonicalPendingBytes,
@@ -10939,7 +10574,7 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
       );
   };
 
-  const controllerClaim = freezeNarrativePhysicalActionDataInternalV1({});
+  const controllerClaim = Object.freeze({});
   let stageAuthority: StageAcknowledgedRunAuthorityInternalV1;
   let stableActionAuthority: ManagedSurfaceStableActionRouteAuthorityInternalV1;
   try {
@@ -11174,7 +10809,7 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
     return result;
   };
 
-  controller = freezeNarrativePhysicalActionDataInternalV1({
+  controller = Object.freeze({
     retargetPresentationStageInternalV1(
       this: NarrativeStableBarrierAcknowledgmentControllerInternalV1,
       retarget: StageRetargetInputV1,
@@ -11186,7 +10821,7 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
         !record.active || !bridgeRecord.isActiveInternalV1() ||
         bridgeRecord.barrierAcknowledgmentControllerClaim !== controllerClaim
       ) {
-        return freezeNarrativePhysicalActionDataInternalV1({ kind: "stale" as const });
+        return Object.freeze({ kind: "stale" as const });
       }
       const currentGeneration = bridgeRecord.barrierRecoveryGeneration;
       if (
@@ -11194,20 +10829,20 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
         (currentGeneration.stageAuthority !== record.stageAuthority ||
           currentGeneration.callbackClaim !== null)
       ) {
-        return freezeNarrativePhysicalActionDataInternalV1({ kind: "faulted" as const });
+        return Object.freeze({ kind: "faulted" as const });
       }
       if (bridgeRecord.barrierRecoverySynchronizationClaim !== null) {
         bridgeRecord.barrierRecoverySynchronizationPoisoned = true;
-        return freezeNarrativePhysicalActionDataInternalV1({ kind: "faulted" as const });
+        return Object.freeze({ kind: "faulted" as const });
       }
       if (record.stageRetargetInProgress) {
-        return freezeNarrativePhysicalActionDataInternalV1({ kind: "faulted" as const });
+        return Object.freeze({ kind: "faulted" as const });
       }
       record.stageRetargetInProgress = true;
       try {
         return record.stageAuthority.retargetPresentationGenerationInternalV1(retarget);
       } catch {
-        return freezeNarrativePhysicalActionDataInternalV1({ kind: "faulted" as const });
+        return Object.freeze({ kind: "faulted" as const });
       } finally {
         record.stageRetargetInProgress = false;
       }
@@ -11265,7 +10900,7 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
           if (activationGate !== existing.activationGate.receiver) {
             return narrativeBarrierRecoveryGenerationFaultedResultInternalV1;
           }
-          return freezeNarrativePhysicalActionDataInternalV1({
+          return Object.freeze({
             kind: "unchanged" as const,
             generation: existing.generation,
           });
@@ -11279,7 +10914,7 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
         if (bridgeRecord.barrierRecoverySynchronizationClaim !== null) {
           return narrativeBarrierRecoveryGenerationFaultedResultInternalV1;
         }
-        synchronizationClaim = freezeNarrativePhysicalActionDataInternalV1({});
+        synchronizationClaim = Object.freeze({});
         bridgeRecord.barrierRecoverySynchronizationClaim = synchronizationClaim;
         bridgeRecord.barrierRecoverySynchronizationPoisoned = false;
 
@@ -11381,7 +11016,7 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
           return narrativeBarrierRecoveryGenerationFaultedResultInternalV1;
         }
 
-        const generation = freezeNarrativePhysicalActionDataInternalV1(
+        const generation = Object.freeze(
           {},
         ) as NarrativeStableBarrierRecoveryGenerationInternalV1;
         let observerInstalled = false;
@@ -11458,7 +11093,7 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
         if (existing !== null) {
           retireNarrativeBarrierRecoveryGenerationInternalV1(existing);
         }
-        return freezeNarrativePhysicalActionDataInternalV1({
+        return Object.freeze({
           kind: "installed" as const,
           generation,
         });
@@ -11490,7 +11125,7 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
       ) {
         return null;
       }
-      const gateClaim = freezeNarrativePhysicalActionDataInternalV1({});
+      const gateClaim = Object.freeze({});
       generation.callbackClaim = gateClaim;
       record.stageRetargetInProgress = true;
       try {
@@ -11552,9 +11187,6 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
           return null;
         }
         const semanticDispatchPort = current.frame.candidateSnapshot.semanticDispatchPort;
-        if (!narrativeStableSemanticResolutionPortBindingsInternalV1.has(semanticDispatchPort)) {
-          return null;
-        }
         if (
           !record.active || !bridgeRecord.isActiveInternalV1() ||
           bridgeRecord.barrierAcknowledgmentControllerClaim !== controllerClaim ||
@@ -11565,7 +11197,7 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
         ) {
           return null;
         }
-        const attempt = freezeNarrativePhysicalActionDataInternalV1(
+        const attempt = Object.freeze(
           {},
         ) as NarrativeStableBarrierRecoveryAttemptInternalV1;
         narrativeStableBarrierRecoveryAttemptRecordsInternalV1.set(attempt, {
@@ -11614,7 +11246,7 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
         return narrativeBarrierRecoveryStaleResultInternalV1;
       }
 
-      const gateClaim = freezeNarrativePhysicalActionDataInternalV1({});
+      const gateClaim = Object.freeze({});
       generation.callbackClaim = gateClaim;
       record.stageRetargetInProgress = true;
       try {
@@ -11676,9 +11308,7 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
         ) {
           return narrativeBarrierRecoveryStaleResultInternalV1;
         }
-        const portBinding = narrativeStableSemanticResolutionPortBindingsInternalV1.get(
-          attemptRecord.semanticDispatchPort,
-        );
+        const portBinding = attemptRecord.semanticDispatchPort;
         if (portBinding === undefined) return narrativeBarrierRecoveryFaultedResultInternalV1;
 
         attemptRecord.spent = true;
@@ -11692,8 +11322,8 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
           return narrativeBarrierRecoveryStaleResultInternalV1;
         }
 
-        const targetClaim = freezeNarrativePhysicalActionDataInternalV1({});
-        const boundaryClaim = freezeNarrativePhysicalActionDataInternalV1({});
+        const targetClaim = Object.freeze({});
+        const boundaryClaim = Object.freeze({});
         bridgeRecord.barrierTargetTerminalClaim = targetClaim;
         bridgeRecord.barrierCallbackClaim = boundaryClaim;
         let finalGenerationCurrent: "current" | "stale" | "faulted" = "faulted";
@@ -11724,11 +11354,11 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
         }
         bridgeRecord.barrierCallbackClaim = null;
         bridgeRecord.barrierSemanticInFlightClaim = boundaryClaim;
-        const resolution: InteractionResolutionV1 = freezeNarrativePhysicalActionDataInternalV1({
+        const resolution: InteractionResolutionV1 = Object.freeze({
           kind: "barrier_completed" as const,
           transitionId: generation.preexistingTarget.targetIdentity.expectedTransitionId,
         });
-        const request = freezeNarrativePhysicalActionDataInternalV1({
+        const request = Object.freeze({
           expectedOccurrenceId: attemptRecord.frame.pending.occurrenceId,
           resolution,
         }) satisfies NarrativeStableSemanticResolutionRequestInternalV1;
@@ -11736,7 +11366,7 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
         let semanticCompletion: Promise<unknown>;
         try {
           semanticCompletion = Promise.resolve(
-            Reflect.apply(portBinding.dispatchResolution, portBinding.receiver, [request]),
+            portBinding.dispatchResolutionInternalV1(request),
           );
         } catch (error) {
           semanticCompletion = Promise.reject(error);
@@ -11759,7 +11389,7 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
             throw error;
           },
         );
-        return freezeNarrativePhysicalActionDataInternalV1({
+        return Object.freeze({
           kind: "dispatched" as const,
           completion,
         });
@@ -11792,7 +11422,7 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
       ) {
         return null;
       }
-      const gateClaim = freezeNarrativePhysicalActionDataInternalV1({});
+      const gateClaim = Object.freeze({});
       generation.callbackClaim = gateClaim;
       record.stageRetargetInProgress = true;
       try {
@@ -11810,7 +11440,7 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
         if (generation.replayUnsupportedResult !== null) {
           return generation.replayUnsupportedResult;
         }
-        const result = freezeNarrativePhysicalActionDataInternalV1({
+        const result = Object.freeze({
           kind: "unsupported" as const,
           code: "narrative.barrier_replay_unsupported" as const,
           completion: null,
@@ -11883,64 +11513,62 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
 
       let terminalDelivered = false;
       let installedTerminalClaim: object | null = null;
-      const commitGuard: StageAcknowledgedRunCommitGuardInternalV1 =
-        freezeNarrativePhysicalActionDataInternalV1({
-          isCommitCurrentInternalV1(): boolean {
-            return record.active && bridgeRecord.isActiveInternalV1() &&
-              bridgeRecord.barrierAcknowledgmentControllerClaim === controllerClaim &&
-              bridgeRecord.barrierTargetTerminalClaim === expectedTerminalClaim &&
-              identityStillCurrent(targetIdentity!);
-          },
-        });
-      const terminalPort: StageAcknowledgedRunTerminalPortInternalV1 =
-        freezeNarrativePhysicalActionDataInternalV1({
-          deliverTerminalInternalV1(
-            terminal: Parameters<
-              StageAcknowledgedRunTerminalPortInternalV1["deliverTerminalInternalV1"]
-            >[0],
-          ): void {
-            if (terminalDelivered) return;
-            terminalDelivered = true;
-            try {
-              if (
-                !record.active || !bridgeRecord.isActiveInternalV1() ||
-                bridgeRecord.barrierAcknowledgmentControllerClaim !== controllerClaim ||
-                !identityStillCurrent(targetIdentity!)
-              ) {
-                record.evidence = null;
-                record.terminalResult = narrativeBarrierStaleResultInternalV1;
-                return;
-              }
-              if (bridgeRecord.barrierTargetTerminalClaim !== null) return;
-              const terminalClaim = freezeNarrativePhysicalActionDataInternalV1({});
-              installedTerminalClaim = terminalClaim;
-              bridgeRecord.barrierTargetTerminalClaim = terminalClaim;
-              const evidence: NarrativeStableBarrierTerminalEvidenceInternalV1 = {
-                targetIdentity: targetIdentity!,
-                proof: terminal.proof,
-                outcome: terminal.outcome,
-                terminalClaim,
-                retired: false,
-                inFlightClaim: null,
-                dispatchedResult: null,
-              };
-              record.evidence = evidence;
-              record.terminalResult = terminal.outcome === "cancelled"
-                ? narrativeBarrierCancelledResultInternalV1
-                : narrativeBarrierRetainedResultInternalV1;
-            } catch {
-              if (
-                installedTerminalClaim !== null &&
-                bridgeRecord.barrierTargetTerminalClaim === installedTerminalClaim &&
-                record.evidence === null
-              ) {
-                bridgeRecord.barrierTargetTerminalClaim = null;
-              }
+      const commitGuard: StageAcknowledgedRunCommitGuardInternalV1 = Object.freeze({
+        isCommitCurrentInternalV1(): boolean {
+          return record.active && bridgeRecord.isActiveInternalV1() &&
+            bridgeRecord.barrierAcknowledgmentControllerClaim === controllerClaim &&
+            bridgeRecord.barrierTargetTerminalClaim === expectedTerminalClaim &&
+            identityStillCurrent(targetIdentity!);
+        },
+      });
+      const terminalPort: StageAcknowledgedRunTerminalPortInternalV1 = Object.freeze({
+        deliverTerminalInternalV1(
+          terminal: Parameters<
+            StageAcknowledgedRunTerminalPortInternalV1["deliverTerminalInternalV1"]
+          >[0],
+        ): void {
+          if (terminalDelivered) return;
+          terminalDelivered = true;
+          try {
+            if (
+              !record.active || !bridgeRecord.isActiveInternalV1() ||
+              bridgeRecord.barrierAcknowledgmentControllerClaim !== controllerClaim ||
+              !identityStillCurrent(targetIdentity!)
+            ) {
               record.evidence = null;
-              record.terminalResult = narrativeBarrierFaultedResultInternalV1;
+              record.terminalResult = narrativeBarrierStaleResultInternalV1;
+              return;
             }
-          },
-        });
+            if (bridgeRecord.barrierTargetTerminalClaim !== null) return;
+            const terminalClaim = Object.freeze({});
+            installedTerminalClaim = terminalClaim;
+            bridgeRecord.barrierTargetTerminalClaim = terminalClaim;
+            const evidence: NarrativeStableBarrierTerminalEvidenceInternalV1 = {
+              targetIdentity: targetIdentity!,
+              proof: terminal.proof,
+              outcome: terminal.outcome,
+              terminalClaim,
+              retired: false,
+              inFlightClaim: null,
+              dispatchedResult: null,
+            };
+            record.evidence = evidence;
+            record.terminalResult = terminal.outcome === "cancelled"
+              ? narrativeBarrierCancelledResultInternalV1
+              : narrativeBarrierRetainedResultInternalV1;
+          } catch {
+            if (
+              installedTerminalClaim !== null &&
+              bridgeRecord.barrierTargetTerminalClaim === installedTerminalClaim &&
+              record.evidence === null
+            ) {
+              bridgeRecord.barrierTargetTerminalClaim = null;
+            }
+            record.evidence = null;
+            record.terminalResult = narrativeBarrierFaultedResultInternalV1;
+          }
+        },
+      });
 
       let stageResult: StageAcknowledgedRunRetargetResultInternalV1;
       record.stageRetargetInProgress = true;
@@ -12050,15 +11678,13 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
         record.terminalResult = narrativeBarrierRetainedResultInternalV1;
         return record.terminalResult;
       }
-      const portBinding = narrativeStableSemanticResolutionPortBindingsInternalV1.get(
-        current.frame.candidateSnapshot.semanticDispatchPort,
-      );
+      const portBinding = current.frame.candidateSnapshot.semanticDispatchPort;
       if (portBinding === undefined) {
         record.terminalResult = narrativeBarrierFaultedResultInternalV1;
         return record.terminalResult;
       }
 
-      const boundaryClaim = freezeNarrativePhysicalActionDataInternalV1({});
+      const boundaryClaim = Object.freeze({});
       bridgeRecord.barrierCallbackClaim = boundaryClaim;
       evidence.inFlightClaim = boundaryClaim;
       if (
@@ -12070,11 +11696,11 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
       }
       bridgeRecord.barrierCallbackClaim = null;
       bridgeRecord.barrierSemanticInFlightClaim = boundaryClaim;
-      const resolution: InteractionResolutionV1 = freezeNarrativePhysicalActionDataInternalV1({
+      const resolution: InteractionResolutionV1 = Object.freeze({
         kind: "barrier_completed" as const,
         transitionId: evidence.targetIdentity.expectedTransitionId,
       });
-      const request = freezeNarrativePhysicalActionDataInternalV1({
+      const request = Object.freeze({
         expectedOccurrenceId: current.frame.pending.occurrenceId,
         resolution,
       }) satisfies NarrativeStableSemanticResolutionRequestInternalV1;
@@ -12082,7 +11708,7 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
       let semanticCompletion: Promise<unknown>;
       try {
         semanticCompletion = Promise.resolve(
-          Reflect.apply(portBinding.dispatchResolution, portBinding.receiver, [request]),
+          portBinding.dispatchResolutionInternalV1(request),
         );
       } catch (error) {
         semanticCompletion = Promise.reject(error);
@@ -12133,7 +11759,7 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
           throw error;
         },
       );
-      const dispatched = freezeNarrativePhysicalActionDataInternalV1({
+      const dispatched = Object.freeze({
         kind: "dispatched" as const,
         completion,
       });

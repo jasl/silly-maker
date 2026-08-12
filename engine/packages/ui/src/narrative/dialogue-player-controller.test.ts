@@ -30,9 +30,6 @@ import {
 import {
   createNarrativeStableDialoguePlayerControllerInternalV1,
   type CreateNarrativeStableDialoguePlayerControllerInputInternalV1,
-  type NarrativeStableCapturedDialoguePlayerClockPortInternalV1,
-  type NarrativeStableCapturedDialoguePlayerProfilePortInternalV1,
-  type NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1,
   type NarrativeStableDialoguePlayerClockPortInternalV1,
   type NarrativeStableDialoguePlayerControllerInternalV1,
   type NarrativeStableDialoguePlayerPolicySnapshotInternalV1,
@@ -506,24 +503,6 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     expectTypeOf<keyof NarrativeStableDialoguePlayerTextResolverPortInternalV1>().toEqualTypeOf<
       "resolveTextInternalV1"
     >();
-    expectTypeOf<
-      Extract<
-        keyof NarrativeStableCapturedDialoguePlayerClockPortInternalV1,
-        string
-      >
-    >().toEqualTypeOf<never>();
-    expectTypeOf<
-      Extract<
-        keyof NarrativeStableCapturedDialoguePlayerProfilePortInternalV1,
-        string
-      >
-    >().toEqualTypeOf<never>();
-    expectTypeOf<
-      Extract<
-        keyof NarrativeStableCapturedDialoguePlayerTextResolverPortInternalV1,
-        string
-      >
-    >().toEqualTypeOf<never>();
     expectTypeOf<keyof NarrativeStableDialoguePlayerPolicySnapshotInternalV1>().toEqualTypeOf<
       "textRevealCharsPerSecond" | "autoWaitMs" | "skipPolicy" | "reducedMotion"
     >();
@@ -579,7 +558,7 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     >();
   });
 
-  it("descriptor-captures the three raw ports into frozen zero-own-key handles without calling them", () => {
+  it("normalizes the three raw ports once without calling them", () => {
     const harness = dialoguePlayerHarnessV1();
     const { frame } = installSayCandidateV1(harness);
 
@@ -587,16 +566,22 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     expect(frame.candidateSnapshot.playerProfile).not.toBe(harness.profile.port);
     expect(frame.candidateSnapshot.presentationClock).not.toBe(harness.clock.port);
     expect(frame.candidateSnapshot.textResolver).not.toBe(harness.text.port);
-    for (
-      const handle of [
-        frame.candidateSnapshot.playerProfile,
-        frame.candidateSnapshot.presentationClock,
-        frame.candidateSnapshot.textResolver,
-      ]
-    ) {
-      expect(Object.isFrozen(handle)).toBe(true);
-      expect(Reflect.ownKeys(handle)).toEqual([]);
-    }
+    expect(Object.isFrozen(frame.candidateSnapshot.playerProfile)).toBe(true);
+    expect(Reflect.ownKeys(frame.candidateSnapshot.playerProfile)).toEqual([
+      "getSnapshotInternalV1",
+      "subscribeInternalV1",
+      "markSeenInternalV1",
+    ]);
+    expect(Object.isFrozen(frame.candidateSnapshot.presentationClock)).toBe(true);
+    expect(Reflect.ownKeys(frame.candidateSnapshot.presentationClock)).toEqual([
+      "nowInternalV1",
+      "requestTickInternalV1",
+      "prefersReducedMotionInternalV1",
+    ]);
+    expect(Object.isFrozen(frame.candidateSnapshot.textResolver)).toBe(true);
+    expect(Reflect.ownKeys(frame.candidateSnapshot.textResolver)).toEqual([
+      "resolveTextInternalV1",
+    ]);
     expect(Reflect.ownKeys(frame.candidateSnapshot)).toEqual([
       "rendererComponent",
       "visualConfig",
@@ -614,26 +599,22 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
   it.each(
     [
       [
-        "profile extra key",
+        "profile nonfunction",
         {
           rawProfilePort: Object.freeze({
             ...mutableDialogueProfileV1().port,
-            extraInternalV1: true,
+            markSeenInternalV1: true,
           }),
         },
       ],
       [
-        "clock accessor",
+        "clock nonfunction",
         {
-          rawClockPort: Object.freeze(Object.defineProperty(
-            {
-              requestTickInternalV1: (_callback: (nowMs: number) => void) =>
-                Object.freeze(() => {}),
-              prefersReducedMotionInternalV1: () => false,
-            },
-            "nowInternalV1",
-            { enumerable: true, get: () => () => 0 },
-          )),
+          rawClockPort: Object.freeze({
+            nowInternalV1: true,
+            requestTickInternalV1: (_callback: (nowMs: number) => void) => Object.freeze(() => {}),
+            prefersReducedMotionInternalV1: () => false,
+          }),
         },
       ],
       [

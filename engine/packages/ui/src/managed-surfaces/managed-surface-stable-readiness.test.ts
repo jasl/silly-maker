@@ -30,7 +30,6 @@ import {
   type ManagedSurfaceStableRootReservationSnapshotInternalV1,
 } from "./managed-surface-stable-admission.ts";
 import {
-  compareManagedSurfaceStableCompositePrivateProvenanceInternalV1,
   createManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   createManagedSurfaceStableReadyRuntimeBindingInternalV1,
   reconcileManagedSurfaceStableRootReservationsInternalV1,
@@ -806,19 +805,6 @@ describe("dormant stable readiness settlement", () => {
       retainedSubtree: null,
     });
     expect(after.transientState.identitySequenceHighWater).toBe(beforeHighWater);
-    expect(
-      compareManagedSurfaceStableCompositePrivateProvenanceInternalV1(before, after),
-    ).toMatchObject({
-      boundRuntimeAttempts: {
-        sameIdentity: false,
-        beforeSize: 2,
-        afterSize: 1,
-      },
-      pendingRuntimeAttempts: {
-        beforeSize: 0,
-        afterSize: 0,
-      },
-    });
     expect(stateListener).toHaveBeenCalledTimes(1);
     expect(transientListener).not.toHaveBeenCalled();
 
