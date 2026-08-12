@@ -68,8 +68,12 @@ does not itself publish it.
 Build output policy: dependencies split into `vendor`/`vendor-react` chunks
 while application and engine code stay in the entry chunk. Chunk size is a
 measured product trend, not an assumed 500 kB guarantee; the current release
-workflow does not enforce a bundle budget. The active Complexity Reset will add
-entry/preload/lazy and aggregate JS/CSS/assets reporting as raw and gzip bytes.
+workflow does not enforce a bundle budget. Use `deno task bench:player:bundle`
+to fresh-build Engine Lab and report entry/preload/lazy plus aggregate JS/CSS/
+runtime-asset raw and gzip bytes to an OS-temporary JSON file. The first CR3
+sample measured the largest Engine Lab entry at 922,550 raw / 214,643 gzip
+bytes; that is a visible optimization lead, not a compatibility failure or a
+license to raise the warning threshold.
 Production output is minified and mangled by default (Vite's built-in minifier
 — the modern successor to the old "uglify" step); that is baseline code
 protection, not real obfuscation. Debug switches:

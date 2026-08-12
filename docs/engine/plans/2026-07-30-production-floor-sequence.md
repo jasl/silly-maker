@@ -1,6 +1,6 @@
 # Production-floor execution sequence
 
-状态：2026-08-13，PF0–PF5 与 Complexity Reset 的 CR0、CR1、CR2.1–CR2.5 已完成。
+状态：2026-08-13，PF0–PF5 与 Complexity Reset 的 CR0、CR1、CR2.1–CR2.5、CR3 已完成。
 原 PF6/S5 泛化工作暂停；当前执行方向继续降低已交付 Managed Surface/Narrative 的内部
 复杂度，随后建立真实性能基线，再以真实作者工具纵切验证下一步价值。PF6 不会自动恢复。
 
@@ -12,15 +12,13 @@
 
 当前：
 
-1. CR3 — 建立 UI lifecycle、浏览器交互与 Player 构建的真实性能趋势基线。
+1. CR4 — 交付 Cat Cafe Story-local、只读的 Narrative-node Stage preview。
 
 后续默认顺序：
 
-1. CR4 — 先交付 Cat Cafe Story-local、只读的 Narrative-node Stage preview，再决定
-   哪些能力值得提升为 engine authoring API。
-2. 重新审查 PF6；只有真实消费者证明仍需要 structural/model/browser harness 时才激活
+1. 重新审查 PF6；只有真实消费者证明仍需要 structural/model/browser harness 时才激活
    对应最小部分。
-3. PF7 — release stabilization。
+2. PF7 — release stabilization。
 
 一次只领取一个可命名任务。不得把 CR2.2–CR2.5、CR3、CR4 或 PF6 合成一次重写。
 
@@ -65,6 +63,14 @@ definition/schema 与 History render observation 拆成两个 source-relative �
 History child 与 Physical Action 仍共享 family-private lifecycle records；在出现清晰 registry/facade
 边界前不为追求文件尺寸强拆这些 authority clusters。现有 Narrative/session/public-boundary
 characterization tests 继续保护 currentness、listener、teardown 与渲染行为。
+
+CR3 已增加三条独立、trend-only 的真实性能入口：Stable publication 以 1/4/16 targets、
+small/medium parameters 与 initial/equal-noop/one-change/all-change/empty 组成 30-row
+matrix；prebuilt Chromium 对 fresh-context cold start、Narrative、WholeCanvas、retained heap
+与 sampled transition allocations 重复三次；release build 按 entry/preload/lazy、all JS/CSS 与
+runtime assets 报 raw/gzip bytes。报告默认只写 OS temp/artifact，记录 HEAD/dirty 与实际运行
+环境，不进入普通 CI hard gate。首份 Engine Lab release build 的最大 entry 为 922,550 raw /
+214,643 gzip bytes；它是待观察的产品趋势，不是新兼容阈值或 CR4 blocker。
 
 ## 3. Trust boundary
 

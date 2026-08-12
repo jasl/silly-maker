@@ -69,6 +69,9 @@ Package manifests define supported cross-package entries. Do not bypass them wit
 | `deno task test:determinism`                     | Aggregate the Deno and three-browser determinism gates; requires all browser binaries to be installed.                                                     |
 | `deno task bench:snapshot`                       | Write a neutral Snapshot hot-path baseline JSON to a temporary path.                                                                                       |
 | `deno task bench:snapshot:memory`                | Sample retained memory for one long-lived neutral Snapshot Session.                                                                                        |
+| `deno task bench:surfaces`                       | Record the 30-row Stable publication lifecycle matrix as a trend-only temporary JSON report.                                                               |
+| `deno task bench:player`                         | Build Engine Lab, then record three Chromium interaction/heap/allocation trend samples in the OS temp directory.                                           |
+| `deno task bench:player:bundle`                  | Fresh-build Engine Lab release output and report entry/preload/lazy plus aggregate raw/gzip bytes to OS temp.                                              |
 | `deno task test:e2e:engine`                      | Engine browser suite against the Engine Lab Story.                                                                                                         |
 | `deno task test:e2e`                             | Run the engine and example browser suites.                                                                                                                 |
 | `deno task build:web` (in an app directory)      | Canonical web build → `<app>/dist-web` (`build` is its alias; `preview` serves it over HTTP).                                                              |
@@ -498,6 +501,32 @@ before schema/digest mutation.
 `deno task bench:snapshot:memory` is a separate schema-v1 process-isolated memory baseline; it does not change the `bench:snapshot` report. It holds one neutral 1k-entity Session for 1,200 real cross-owner atomic commits, samples `Deno.memoryUsage()` before and after an explicit `gc -> macrotask -> gc` cycle at command sequences 0/200/400/800/1,200, and treats sequence 400 onward as steady state after the 200-entry CommandLog has filled. Dispatch timing excludes collection and sampling; its interval percentiles use each batch's average per-command duration so differently sized checkpoint intervals remain comparable. It likewise writes to an operating-system temporary directory by default and accepts `--output <path>` for a CI artifact. Run it as its own process through the task so the exposed collector and retained-heap measurements are isolated.
 
 Wall-clock, memory, and GC values from either benchmark are trend evidence, not ordinary CI gates. Normal tests assert deterministic schedules, internal work counts, report schemas, and byte-equivalent Snapshot/CommandLog behavior; they do not assert one machine's timing, heap, RSS, or collector result. Raw local baseline JSON is not committed.
+
+The CR3 Player baselines follow the same policy. `deno task bench:surfaces`
+runs 1/4/16-target Stable publication workloads with small and medium parameters
+through initial, equal no-op, one-change, all-change, and empty transitions. It
+reports p50/p95 plus the engine's semantic notification/preparation hints; those
+hints describe engine work and are explicitly not JavaScript object-allocation
+counts. `--warmup`, `--samples`, and `--output` customize the run; the default
+output is an OS-temporary schema-v1 JSON file.
+
+`deno task bench:player` fresh-builds Engine Lab and runs a dedicated prebuilt
+Chromium configuration three times. Each fresh context records cold start,
+Narrative semantic-to-visible readiness, Say, Choice, Auto/Skip, History,
+WholeCanvas initial/replacement/detail, post-GC retained heap, and a CDP sampled
+allocation trend around WholeCanvas transitions. The report records browser,
+Deno/V8, OS/arch, HEAD/dirty, a 4x CPU-throttle factor, and sampling interval;
+it is Chromium-runtime-specific and must not be compared as a cross-browser
+compatibility promise. Playwright writes each `baseline.json` under the OS temp
+directory (or `SILLYMAKER_PERFORMANCE_OUTPUT_DIR`).
+
+`deno task bench:player:bundle` performs a fresh release-profile build and
+reports raw/gzip bytes for entry, preload, lazy, all JavaScript, all CSS,
+runtime assets, and all files. It accepts `--application`, `--out-dir`, and
+`--output`; defaults are Engine Lab and OS-temp output. Byte sizes are build
+facts, while build duration is machine-specific. None of these tasks adds a
+normal per-commit CI threshold. Review at least three comparable samples before
+proposing a product budget, and never commit raw local reports.
 
 ## Change workflow
 
