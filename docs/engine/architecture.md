@@ -125,9 +125,10 @@ derives its whole-Snapshot digest, and returns immutable attempts or a low-level
 receipt. A successful migrated replacement installs that non-durable receipt in
 the Session while one prepared commit updates Persistence/autosave, CommandLog,
 and Session before publication; failures preserve the prior authorities and
-receipt. Engine Lab configures the maintained revision 3/4-to-current
-conformance chain; this proves the mechanism and does not establish a released
-historical-Save compatibility range.
+receipt. Engine Lab configures the maintained revision 3/4-to-current 5 chain.
+Its three checked-in canonical records and Cat Cafe's revision 1 record form the
+explicit supported release corpus; they do not claim capture from a historical
+public release or imply support for any unlisted identity.
 
 The runtime complement remains outside production package lifecycles.
 `e2e/src/testing/**` owns the pure ambient-guard harness, parent runner,
@@ -413,6 +414,18 @@ that explicitly supplies the legacy replacement-prepare callback; migrated
 replacement fails closed before authoritative Snapshot/replay/Persistence
 mutation and is outside the M2 composite guarantee. The source Save is never
 written back.
+
+The player persistence boundary exposes fresh single-slot Save and backup
+inspection plus migration upgrade, lineage re-anchor, backup restore/export,
+and backup discard. Upgrade and re-anchor first preserve the exact source bytes
+as one bounded same-namespace backup and atomically update backup, target, and
+lease on Host stores that support atomic batches. Restore and discard are the
+only consuming operations; export remains byte-exact and retains the backup.
+The managed Saves UI maps these results to bounded player-readable actions and
+never receives raw record bytes, Host keys/revisions, stack traces, or lease
+fences. This atomicity is promoted for Memory and IndexedDB stores; the Desktop
+file channel remains a separate durability preview.
+
 Internal indexes, clients, closures, React values, and database handles must not
 enter a Save.
 
@@ -1671,8 +1684,10 @@ other Managed Surface families. Cat Cafe owns the publication-selected
 `catcafe.ending` primary; Engine Lab owns a query-gated application source for
 replacement/detail conformance; SillyOS proves omission. Replacement,
 readiness, focus, action, and successor callbacks are generation-fenced, and a
-lower family cannot reclaim focus while its Stage ancestor is inert. The next
-production-floor slice is PF5/M3 Save migration product surface.
+lower family cannot reclaim focus while its Stage ancestor is inert. PF5/M3 Save
+migration product surface is complete. The current gate is PF6/S5 docs-only
+exact-entry/adjudication, which must freeze mergeable S5 slices before any broad
+runtime implementation.
 
 ## 9. Changing the architecture
 
@@ -1697,7 +1712,9 @@ architecture has one composition-owned authority for Workspace Overlay, System,
 Narrative/History, and WholeCanvas. Narrative and WholeCanvas are authored
 through public definition factories and rendered by at most one current
 production Host per present family; Splash/Title use the same WholeCanvas owner.
-PF5/M3 Save migration product surface is the current production-floor lane.
+PF5/M3 Save migration product surface is complete. The current production-floor
+lane is PF6/S5 docs-only exact-entry/adjudication; broad S5 runtime work is not
+yet authorized.
 
 ### Historical S4 delivery trail
 

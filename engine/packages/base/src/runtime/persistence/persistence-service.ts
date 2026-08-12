@@ -35,12 +35,18 @@ import type {
   ExportedSaveV1,
   PersistenceOperationResultV1,
   PersistenceStatusV1,
+  SaveBackupExportOperationResultV1,
+  SaveBackupInspectionResultV1,
+  SaveBackupOperationResultV1,
   SaveCodecContextV1,
   SaveExportOperationResultV1,
   SaveImportInvariantViewV1,
   SaveImportValidationContextV1,
   SaveImportValidationResultV1,
+  SaveInspectionDiagnosticsV1,
+  SaveInspectionResultV1,
   SaveRecordEnvelopeV1,
+  SaveRewriteOperationResultV1,
   SaveSlotSummaryV1,
   SessionLeaseOperationResultV1,
   SessionLeaseStatusV1,
@@ -88,12 +94,15 @@ import {
   runPreparedAutoSaveAnchorPostCommitInternalV1,
 } from "./auto-save-queue.ts";
 import {
+  admitAdoptionDeclarationsInternalV1,
   classifySaveCompatibilityV1,
   finishSaveImportCandidateInternalV1,
+  finishSaveReanchorCandidateInternalV1,
   prepareSaveImportCandidateInternalV1,
   resumeSaveImportCandidateInternalV1,
   validateSaveImportCandidateV1,
 } from "./compatibility.ts";
+export { admitAdoptionDeclarationsInternalV1 } from "./compatibility.ts";
 import { encodeSaveRecordInternalV1 } from "./save-codec.ts";
 import type {
   SaveRepositorySlotMetadataV1,
@@ -154,7 +163,12 @@ type PersistencePortV1 = PlayerPersistencePortV1<
   ExportedSaveV1,
   SaveExportOperationResultV1,
   SessionLeaseStatusV1,
-  SessionLeaseOperationResultV1
+  SessionLeaseOperationResultV1,
+  SaveInspectionResultV1,
+  SaveBackupInspectionResultV1,
+  SaveRewriteOperationResultV1,
+  SaveBackupOperationResultV1,
+  SaveBackupExportOperationResultV1
 >;
 
 export type PersistenceRebootstrapDisposalV1 =
@@ -378,7 +392,7 @@ export interface CreateStandardPersistenceServiceOptionsV1<
   readonly records: HostAtomicRecordStoreV1;
   readonly snapshotSchema: RuntimeSchemaV1<TSnapshot>;
   readonly provenance: DeepReadonly<BuildProvenanceV1>;
-  readonly adoptionDeclaration: DeepReadonly<PatchSetAdoptionDeclarationV1> | null;
+  readonly adoptionDeclarations: readonly DeepReadonly<PatchSetAdoptionDeclarationV1>[];
   readonly saveStateMigrations: SaveStateMigrationRegistryV1 | null;
   readonly ownerId: SessionLeaseOwnerId;
   nextHandoffRequestId(): LeaseHandoffRequestId;
@@ -445,6 +459,127 @@ function exportRejectedV1(
   code: Extract<SaveExportOperationResultV1, { readonly kind: "rejected" }>["code"],
 ): SaveExportOperationResultV1 {
   return Object.freeze({ kind: "rejected", code });
+}
+
+function saveInspectionDiagnosticsV1(input: {
+  readonly codes?: readonly string[];
+  readonly validation?: SaveImportValidationResultV1<unknown>;
+} = {}): SaveInspectionDiagnosticsV1 {
+  const validation = input.validation;
+  const migrationAttempt = validation !== undefined && "migrationAttempt" in validation
+    ? validation.migrationAttempt
+    : null;
+  const migrationReasonCode = validation !== undefined && "reasonCode" in validation
+    ? validation.reasonCode
+    : null;
+  const unavailable = validation?.kind === "inspect_only" && "code" in validation
+    ? validation
+    : null;
+  return Object.freeze({
+    codes: Object.freeze([...(input.codes ?? [])]),
+    migrationAttempt,
+    migrationReasonCode,
+    storedStateContractRevision: unavailable?.storedStateContractRevision ?? null,
+    currentStateContractRevision: unavailable?.currentStateContractRevision ?? null,
+  });
+}
+
+function projectSaveInspectionValidationV1(
+  slotId: SaveSlotIdV1,
+  validation: SaveImportValidationResultV1<unknown>,
+): SaveInspectionResultV1 {
+  if (validation.kind === "exact") {
+    return validation.migration === null
+      ? Object.freeze({
+        kind: "direct",
+        slotId,
+        warnings: validation.warnings,
+        diagnostics: saveInspectionDiagnosticsV1({ validation }),
+      })
+      : Object.freeze({
+        kind: "migration_required",
+        slotId,
+        migration: validation.migration,
+        warnings: validation.warnings,
+        diagnostics: saveInspectionDiagnosticsV1({ validation }),
+      });
+  }
+  if (validation.kind === "adopted") {
+    return validation.migration === null
+      ? Object.freeze({
+        kind: "adoption_required",
+        slotId,
+        adoption: validation.adoption,
+        warnings: validation.warnings,
+        diagnostics: saveInspectionDiagnosticsV1({ validation }),
+      })
+      : Object.freeze({
+        kind: "migration_and_adoption_required",
+        slotId,
+        migration: validation.migration,
+        adoption: validation.adoption,
+        warnings: validation.warnings,
+        diagnostics: saveInspectionDiagnosticsV1({ validation }),
+      });
+  }
+  if (validation.kind === "faulted") {
+    return Object.freeze({
+      kind: "faulted",
+      slotId,
+      code: validation.code,
+      diagnostics: saveInspectionDiagnosticsV1({
+        codes: Object.freeze([validation.code]),
+        validation,
+      }),
+    });
+  }
+  if (validation.kind === "inspect_only") {
+    if ("code" in validation) {
+      return Object.freeze({
+        kind: "inspect_only",
+        slotId,
+        code: "migration_unavailable",
+        diagnostics: saveInspectionDiagnosticsV1({
+          codes: Object.freeze([validation.code]),
+          validation,
+        }),
+      });
+    }
+    return Object.freeze({
+      kind: "inspect_only",
+      slotId,
+      code: "incompatible",
+      diagnostics: saveInspectionDiagnosticsV1({
+        codes: Object.freeze([
+          ...validation.mismatches.map(({ code }) => code),
+          ...validation.warnings.map(({ code }) => code),
+        ]),
+        validation,
+      }),
+    });
+  }
+  const migrationFailure = validation.code === "migration.rejected" ||
+    validation.code === "migration.output_invalid";
+  if (validation.code === "compatibility.lineage_limit") {
+    return Object.freeze({
+      kind: "inspect_only",
+      slotId,
+      code: "reanchor_required",
+      diagnostics: saveInspectionDiagnosticsV1({
+        codes: Object.freeze([validation.code]),
+        validation,
+      }),
+    });
+  }
+  return Object.freeze({
+    kind: "rejected",
+    slotId,
+    code: migrationFailure ? "migration_rejected" : "invalid_record",
+    diagnostics: saveInspectionDiagnosticsV1({
+      codes: Object.freeze([validation.code]),
+      validation,
+    }),
+  });
 }
 
 function repositoryRejectionV1(
@@ -1203,7 +1338,7 @@ async function createPersistenceServiceWithDependenciesV1<
   };
   const validateStoredSlotForInspectionV1 = (slotId: SaveSlotIdV1) =>
     validateStoredSlotInternalV1(slotId, false);
-  const validateStoredSlotForLoadV1 = (slotId: SaveSlotIdV1) =>
+  const validateStoredSlotWithMigrationV1 = (slotId: SaveSlotIdV1) =>
     validateStoredSlotInternalV1(slotId, true);
 
   const bindReplacementCommitV1 = <TResult>(
@@ -1437,7 +1572,7 @@ async function createPersistenceServiceWithDependenciesV1<
     }
     return enqueueReplacementV1(
       async () => {
-        const read = await validateStoredSlotForLoadV1(slot);
+        const read = await validateStoredSlotWithMigrationV1(slot);
         if (read.health === "empty") {
           return Object.freeze({
             kind: "preserve" as const,
@@ -1476,6 +1611,73 @@ async function createPersistenceServiceWithDependenciesV1<
       onReplacementCommit,
       publicationContext,
     );
+  };
+
+  const rewriteRejectedV1 = (
+    code: Extract<SaveRewriteOperationResultV1, { readonly kind: "rejected" }>["code"],
+  ): SaveRewriteOperationResultV1 => Object.freeze({ kind: "rejected", code });
+
+  const backupRejectedV1 = (
+    code: Extract<SaveBackupOperationResultV1, { readonly kind: "rejected" }>["code"],
+  ): SaveBackupOperationResultV1 => Object.freeze({ kind: "rejected", code });
+
+  const normalizeStoredRewriteRecordV1 = (
+    record: DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
+    simulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[],
+  ): DeepReadonly<PersistenceSaveRecordV1<TSnapshot>> => {
+    const normalized = options.validation.codec.recordSchema.parse({
+      ...record,
+      provenance: options.provenance,
+      simulationLineage: copyLineageV1(simulationLineage),
+    });
+    options.validation.codec.validateEnvelope(
+      normalized as DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
+    );
+    return normalized as DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>;
+  };
+
+  const mapRewriteValidationFailureV1 = (
+    validation: SaveImportValidationResultV1<PersistenceSaveRecordV1<TSnapshot>>,
+  ): SaveRewriteOperationResultV1 => {
+    if (validation.kind === "faulted") {
+      return Object.freeze({ kind: "faulted", code: validation.code });
+    }
+    if (validation.kind === "inspect_only") {
+      return rewriteRejectedV1("code" in validation ? "migration_unavailable" : "incompatible");
+    }
+    if (validation.kind !== "rejected") return rewriteRejectedV1("invalid_record");
+    if (
+      validation.code === "migration.rejected" || validation.code === "migration.output_invalid"
+    ) {
+      return rewriteRejectedV1("migration_rejected");
+    }
+    if (validation.code === "compatibility.lineage_limit") {
+      return rewriteRejectedV1("reanchor_required");
+    }
+    return rewriteRejectedV1("invalid_record");
+  };
+
+  const runLeaseFencedRecoveryV1 = <
+    TResult extends SaveRewriteOperationResultV1 | SaveBackupOperationResultV1,
+  >(
+    slot: SaveSlotIdV1,
+    faulted: (code: string) => TResult,
+    rejected: (code: "busy" | "unavailable") => TResult,
+    operation: (fence: DeepReadonly<SessionLeaseFenceV1>) => Promise<TResult>,
+  ): Promise<TResult> => {
+    if (!slotWithinCountV1(slot)) return Promise.resolve(faulted("persistence.invalid_slot"));
+    if (lifecycle !== "active" || playerMutationsFenced) {
+      return Promise.resolve(faulted("runtime_disposed"));
+    }
+    if (foregroundWrites > 0) return Promise.resolve(rejected("busy"));
+    const fence = options.lease.captureFence();
+    if (fence === null) return Promise.resolve(rejected("unavailable"));
+    foregroundWrites += 1;
+    return schedulePhysicalV1(() =>
+      lifecycle === "active" ? operation(fence) : Promise.resolve(faulted("runtime_disposed"))
+    ).finally(() => {
+      foregroundWrites -= 1;
+    });
   };
 
   const port: PersistencePortV1 = Object.freeze({
@@ -1584,6 +1786,305 @@ async function createPersistenceServiceWithDependenciesV1<
           ),
         );
       }
+    },
+
+    async inspectSave(slot: SaveSlotIdV1) {
+      if (!slotWithinCountV1(slot)) {
+        return Object.freeze({
+          kind: "faulted" as const,
+          slotId: null,
+          code: "persistence.invalid_slot",
+          diagnostics: saveInspectionDiagnosticsV1({
+            codes: Object.freeze(["persistence.invalid_slot"]),
+          }),
+        });
+      }
+      if (lifecycle !== "active" || playerMutationsFenced) {
+        return Object.freeze({
+          kind: "faulted" as const,
+          slotId: slot,
+          code: "runtime_disposed",
+          diagnostics: saveInspectionDiagnosticsV1({
+            codes: Object.freeze(["runtime_disposed"]),
+          }),
+        });
+      }
+      try {
+        const read = await validateStoredSlotWithMigrationV1(slot);
+        if (read.health === "empty") {
+          return Object.freeze({
+            kind: "rejected" as const,
+            slotId: slot,
+            code: "empty_slot" as const,
+            diagnostics: saveInspectionDiagnosticsV1({
+              codes: Object.freeze(["empty_slot"]),
+            }),
+          });
+        }
+        if (read.health === "unavailable") {
+          return Object.freeze({
+            kind: "rejected" as const,
+            slotId: slot,
+            code: "unavailable" as const,
+            diagnostics: saveInspectionDiagnosticsV1({
+              codes: Object.freeze([read.code]),
+            }),
+          });
+        }
+        if (read.health === "invalid") {
+          return Object.freeze({
+            kind: "rejected" as const,
+            slotId: slot,
+            code: "invalid_record" as const,
+            diagnostics: saveInspectionDiagnosticsV1({
+              codes: Object.freeze([read.code]),
+            }),
+          });
+        }
+        return projectSaveInspectionValidationV1(slot, read.validation);
+      } catch {
+        return Object.freeze({
+          kind: "faulted" as const,
+          slotId: slot,
+          code: "persistence.unexpected",
+          diagnostics: saveInspectionDiagnosticsV1({
+            codes: Object.freeze(["persistence.unexpected"]),
+          }),
+        });
+      }
+    },
+
+    async inspectBackup(slot: SaveSlotIdV1) {
+      if (!slotWithinCountV1(slot)) {
+        return Object.freeze({
+          kind: "faulted" as const,
+          slotId: null,
+          code: "persistence.invalid_slot",
+        });
+      }
+      if (lifecycle !== "active" || playerMutationsFenced) {
+        return Object.freeze({
+          kind: "faulted" as const,
+          slotId: slot,
+          code: "runtime_disposed",
+        });
+      }
+      try {
+        const backup = await options.repository.readMigrationBackup(slot);
+        if (backup.health === "unavailable") {
+          return Object.freeze({
+            kind: "rejected" as const,
+            slotId: slot,
+            code: "unavailable" as const,
+          });
+        }
+        if (backup.health === "empty" || backup.health === "invalid") {
+          return Object.freeze({
+            kind: "rejected" as const,
+            slotId: slot,
+            code: backup.health === "empty" ? "empty_backup" as const : "invalid_backup" as const,
+          });
+        }
+        return Object.freeze({
+          kind: "available" as const,
+          slotId: slot,
+        });
+      } catch {
+        return Object.freeze({
+          kind: "faulted" as const,
+          slotId: slot,
+          code: "persistence.unexpected",
+        });
+      }
+    },
+
+    upgradeSave(slot: SaveSlotIdV1) {
+      return runLeaseFencedRecoveryV1<SaveRewriteOperationResultV1>(
+        slot,
+        (code) => Object.freeze({ kind: "faulted", code }),
+        rewriteRejectedV1,
+        async (fence) => {
+          try {
+            const backup = await options.repository.readMigrationBackup(slot);
+            if (backup.health === "unavailable") return rewriteRejectedV1("unavailable");
+            if (backup.health !== "empty") return rewriteRejectedV1("backup_pending");
+            const read = await validateStoredSlotWithMigrationV1(slot);
+            if (read.health === "empty") return rewriteRejectedV1("empty_slot");
+            if (read.health === "unavailable") return rewriteRejectedV1("unavailable");
+            if (read.health === "invalid") return rewriteRejectedV1("invalid_record");
+            const validation = read.validation;
+            if (validation.kind !== "exact" && validation.kind !== "adopted") {
+              return mapRewriteValidationFailureV1(validation);
+            }
+            if (validation.kind === "exact" && validation.migration === null) {
+              return rewriteRejectedV1("not_required");
+            }
+            const lineage = validation.kind === "adopted"
+              ? Object.freeze([...validation.candidate.simulationLineage, validation.adoption])
+              : validation.candidate.simulationLineage;
+            const candidate = normalizeStoredRewriteRecordV1(validation.candidate, lineage);
+            const written = await options.repository.rewriteWithMigrationBackup(
+              slot,
+              Object.freeze({ hostRevision: read.hostRevision, bytes: read.bytes }),
+              candidate,
+              fence,
+            );
+            if (written.kind === "rejected") {
+              return rewriteRejectedV1(written.code);
+            }
+            return Object.freeze({
+              kind: "upgraded" as const,
+              slotId: slot,
+              compatibility: validation.kind,
+            });
+          } catch {
+            return Object.freeze({ kind: "faulted" as const, code: "persistence.unexpected" });
+          }
+        },
+      );
+    },
+
+    reanchorSave(slot: SaveSlotIdV1) {
+      return runLeaseFencedRecoveryV1<SaveRewriteOperationResultV1>(
+        slot,
+        (code) => Object.freeze({ kind: "faulted", code }),
+        rewriteRejectedV1,
+        async (fence) => {
+          try {
+            const backup = await options.repository.readMigrationBackup(slot);
+            if (backup.health === "unavailable") return rewriteRejectedV1("unavailable");
+            if (backup.health !== "empty") return rewriteRejectedV1("backup_pending");
+            const read = await prepareStoredSlotV1(slot);
+            if (read.health === "empty") return rewriteRejectedV1("empty_slot");
+            if (read.health === "unavailable") return rewriteRejectedV1("unavailable");
+            if (read.health === "invalid") return rewriteRejectedV1("invalid_record");
+            const prepared = read.preparation.kind === "migration_pending"
+              ? resumeSaveImportCandidateInternalV1(
+                read.preparation,
+                options.validation,
+                instrumentation,
+              )
+              : read.preparation;
+            if (prepared.kind !== "prepared") {
+              if (prepared.kind === "inspect_only") {
+                return rewriteRejectedV1(
+                  "code" in prepared ? "migration_unavailable" : "incompatible",
+                );
+              }
+              if (prepared.kind === "faulted") {
+                return Object.freeze({ kind: "faulted" as const, code: prepared.code });
+              }
+              if (prepared.kind === "rejected") {
+                return prepared.code === "migration.rejected" ||
+                    prepared.code === "migration.output_invalid"
+                  ? rewriteRejectedV1("migration_rejected")
+                  : rewriteRejectedV1("invalid_record");
+              }
+              return rewriteRejectedV1("invalid_record");
+            }
+            const validation = finishSaveReanchorCandidateInternalV1(
+              prepared,
+              options.validation,
+              options.provenance,
+            );
+            if (validation.kind !== "ready") {
+              if (validation.code === "reanchor.not_required") {
+                return rewriteRejectedV1("not_required");
+              }
+              if (validation.code === "reanchor.incompatible") {
+                return rewriteRejectedV1("incompatible");
+              }
+              return rewriteRejectedV1("invalid_record");
+            }
+            const candidate = normalizeStoredRewriteRecordV1(validation.candidate, []);
+            const written = await options.repository.rewriteWithMigrationBackup(
+              slot,
+              Object.freeze({ hostRevision: read.hostRevision, bytes: read.bytes }),
+              candidate,
+              fence,
+            );
+            if (written.kind === "rejected") return rewriteRejectedV1(written.code);
+            return Object.freeze({ kind: "reanchored" as const, slotId: slot });
+          } catch {
+            return Object.freeze({ kind: "faulted" as const, code: "persistence.unexpected" });
+          }
+        },
+      );
+    },
+
+    restoreBackup(slot: SaveSlotIdV1) {
+      return runLeaseFencedRecoveryV1<SaveBackupOperationResultV1>(
+        slot,
+        (code) => Object.freeze({ kind: "faulted", code }),
+        backupRejectedV1,
+        async (fence) => {
+          try {
+            const restored = await options.repository.restoreMigrationBackup(slot, fence);
+            return restored.kind === "rejected"
+              ? backupRejectedV1(restored.code)
+              : Object.freeze({ kind: "restored" as const, slotId: slot });
+          } catch {
+            return Object.freeze({ kind: "faulted" as const, code: "persistence.unexpected" });
+          }
+        },
+      );
+    },
+
+    async exportBackup(slot: SaveSlotIdV1) {
+      if (!slotWithinCountV1(slot)) {
+        return Object.freeze({ kind: "faulted" as const, code: "persistence.invalid_slot" });
+      }
+      if (lifecycle !== "active" || playerMutationsFenced) {
+        return Object.freeze({ kind: "faulted" as const, code: "runtime_disposed" });
+      }
+      try {
+        const first = await options.repository.readMigrationBackup(slot);
+        if (first.health === "empty") {
+          return Object.freeze({ kind: "rejected" as const, code: "empty_backup" as const });
+        }
+        if (first.health === "unavailable") {
+          return Object.freeze({ kind: "rejected" as const, code: "unavailable" as const });
+        }
+        if (first.health === "invalid") {
+          return Object.freeze({ kind: "rejected" as const, code: "invalid_backup" as const });
+        }
+        const second = await options.repository.readMigrationBackup(slot);
+        if (second.health === "unavailable") {
+          return Object.freeze({ kind: "rejected" as const, code: "unavailable" as const });
+        }
+        if (
+          second.health !== "stored" ||
+          second.hostRevision !== first.hostRevision ||
+          !bytesEqualV1(second.bytes, first.bytes)
+        ) {
+          return Object.freeze({ kind: "rejected" as const, code: "conflict" as const });
+        }
+        return Object.freeze({
+          kind: "exported" as const,
+          slotId: slot,
+          file: makeStoredExportV1(first.bytes),
+        });
+      } catch {
+        return Object.freeze({ kind: "faulted" as const, code: "persistence.unexpected" });
+      }
+    },
+
+    discardBackup(slot: SaveSlotIdV1) {
+      return runLeaseFencedRecoveryV1<SaveBackupOperationResultV1>(
+        slot,
+        (code) => Object.freeze({ kind: "faulted", code }),
+        backupRejectedV1,
+        async (fence) => {
+          try {
+            const discarded = await options.repository.discardMigrationBackup(slot, fence);
+            return discarded.kind === "rejected"
+              ? backupRejectedV1(discarded.code)
+              : Object.freeze({ kind: "discarded" as const, slotId: slot });
+          } catch {
+            return Object.freeze({ kind: "faulted" as const, code: "persistence.unexpected" });
+          }
+        },
+      );
     },
 
     async getStatus() {
@@ -2308,6 +2809,9 @@ function createStandardPersistenceDependenciesV1<
     PersistenceSaveRecordV1<TSnapshot>
   >;
 } {
+  const adoptionDeclarations = admitAdoptionDeclarationsInternalV1(
+    options.adoptionDeclarations,
+  );
   const recordSchema = createSaveRecordEnvelopeSchemaV1(
     options.snapshotSchema,
     buildProvenanceSchemaV1,
@@ -2373,7 +2877,7 @@ function createStandardPersistenceDependenciesV1<
         stored: record.provenance,
         current: options.provenance,
         simulationLineage: record.simulationLineage,
-        adoptionDeclaration: options.adoptionDeclaration,
+        adoptionDeclarations,
         candidateCommandSequence: record.snapshot.commandSequence,
       });
     },

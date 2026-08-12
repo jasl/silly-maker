@@ -4,8 +4,16 @@
 M0a/M0b metadata ownership 与 PF-DET same-HEAD join 重切片；2026-08-03 M1 已
 promotion，same-HEAD join 已关闭，并按接受的 State-only contract 把 M2 拆为
 M2a–M2e；2026-08-04 M2e 已完成 real-owner/four-runtime promotion，M2 aggregate
-已关闭。M3 仍按
-production-floor sequence 排在 PF4 后。目标合同见
+已关闭；2026-08-12 M3.0 docs-only exact entry 与 M3.1 read-only inspection
+均已完成，M3.1 已转为 historical；M3.2 adoption declaration set 现也已完成并转为
+historical；M3.3 same-namespace bounded backup repository substrate 现也已完成并转为
+historical；M3.4 upgrade/re-anchor and backup-resolution operations 现也已完成并转为
+historical；M3.5 player-readable Save recovery UI 现也已完成并转为 historical；M3.6.0
+docs-only exact inventory corrective 与 M3.6a maintained product corpus and Story lifecycle
+现也已完成并转为 historical；M3.6b four-runtime corpus parity 现也已完成并转为
+historical；M3.6c Browser repeated-download evidence 与 M3.6d live docs/PF5 promotion 也已
+完成并转为 historical，PF5/M3 已关闭。当前 core gate 是 PF6/S5 docs-only
+exact-entry/adjudication；broad S5 runtime implementation 尚未授权。目标合同见
 [Save migration design](../design/save-migration.md)；在
 [production-floor sequence](2026-07-30-production-floor-sequence.md) 中分为 PF3
 与 PF5，并与 PF-DET 按显式 DAG 汇合；不是“完整 PF-DET 后才开始全部 M0–M2”。
@@ -46,14 +54,15 @@ browser parity 或实际 filesystem collision：
 - PF1 unstamped oracle 保持不变；partial/full stamp 与 annotation 使用追加的独立
   expected bytes/SHA，standard receipt 与 opaque-repository fallback 等价；
 - fixed metadata clock 的 UTC `yyyyMMddHHmmss` suggested filename 与 payload
-  independence；同一秒名称可以相同，真正 no-clobber 由 Browser/Desktop Host
-  单独证明；
+  independence；同一秒名称可以相同。Browser只证明两次download request/event与各自
+  bytes，测试自行选择不同临时路径；Desktop真实no-clobber/process-crash durability归PF-D；
 - 每个 valid metadata variant 的 list/export/import/load round-trip，以及 physical
   readback、accepted lease fence 与 post-commit failure semantics。
 
 M0a 同时落一个中性、可维护的 shared corpus/testkit seam。DET-B 只消费其 compact
-pure summary/stamp/bytes vectors做跨 runtime equality，不复制 lifecycle golden；
-Host/Desktop 只消费相同 payload/build receipt 做真实 no-clobber/package integration。
+pure summary/stamp/bytes vectors做跨 runtime equality，不复制 lifecycle golden；Browser只消费
+相同payload验证两次request/event与bytes，Desktop只在PF-D gate消费相同payload/build receipt
+验证真实no-clobber/package integration。
 共同 seam/public export 必须在分叉前完成，避免 DET-B 与 M0b/M1 争改同一文件。
 
 `summarizeSave` 是 Story-owned durable deterministic projection；玩家 note 是
@@ -552,28 +561,669 @@ source bytes、公开 replay/Debug Bundle wire 均未改变。
 Engine Lab 历史中 pre-opacity、同为 revision 5 但 digest 不同的 State 不在 maintained/released
 corpus；M2 不增加 same-revision edge，也不以 adoption 伪装 State 转换。若 M3 的真实 fixture
 要求支持它，必须停止并设计 recovery/migration。M2 机制 gate 据此关闭；下一 Save slice 是
-PF5/M3，而全局 linear core 下一切片是 `PF4/S3 System dialogs`。
+PF5/M3 的表述是当时历史 pointer；M3.0 exact entry、M3.1 inspection、M3.2 adoption set、
+M3.3 backup substrate、M3.4 semantic operations 与 M3.5 player recovery UI 现均已完成；
+M3.6.0 docs-only inventory corrective、M3.6a maintained corpus/Story lifecycle、M3.6b
+four-runtime corpus parity、M3.6c Browser repeated-download evidence 与 M3.6d live docs/PF5
+promotion 均已关闭并转为 historical；PF5/M3 已完成，production-floor pointer 已推进到
+PF6/S5 docs-only exact-entry/adjudication。
 
 ## 6. M3 — Product surface and release corpus
 
-- dry-run/inspect：不写入，按 slot 返回可直载、需 migration、需 adoption、拒绝及原因；
-- 写入前备份：原记录进入可恢复位置或导出流，迁移后的记录才替换目标；
-- adoption declaration set：支持多个历史 resolved provenance，替换单声明入口；候选可由 release tooling 生成，但必须人工确认；
-- lineage policy：re-anchor 上限、触限提示、导出/回退路径；
-- 用户文案：稳定 diagnostic code 映射为人类可理解的结果与操作，不直接展示内部 stack；
-- maintained fixture corpus：Engine Lab + 旗舰示例，至少一条多版本链、一次 adoption、一次 lineage 边界与失败备份恢复；
-- corpus 直接消费 M0a 的 `versionStamp` absent/all-null/partial/fixed full-clean/fixed
-  full-dirty/status-unavailable/malformed/throw 与
-  headless/browser fixed bytes，并逐版本证明 migration、annotation rewrite、
-  autosave rotation 与 stored export 不覆盖 Snapshot capture origin；load/import
-  compatibility 忽略 stamp，post-load/import fresh capture 使用当前 service
-  stamp；
-- Host export acceptance 以 M0a payload 为唯一 expected，固定同一秒重复 suggested
-  filename，证明 Desktop/Browser 实际生成两个不覆盖文件，且各自 payload 等于
-  shared corpus；不得另建 Host/Desktop Save golden；
-- CI：对 corpus 全量执行 inspect → migrate → current schema/reference/invariant/digest → load → save round-trip。
+M3 broad checkpoint 已由 M3.0 重切；M3.0–M3.6d 均已完成并转为 historical，PF5 已关闭。
+其执行严格按 `M3.6c -> M3.6d` 线性推进，没有把 corpus lifecycle、four-runtime parity、
+Browser no-clobber 与 live docs/promotion 合成一个 refactor。当前 core gate 是 PF6/S5
+docs-only exact-entry/adjudication。
 
-**M3 acceptance：** design 的 release acceptance 全部满足；任何被声明支持的 revision 都有 fixture；不存在“代码声称支持但 CI 没有真实字节”的版本。
+### M3.0 — Exact entry contract（docs-only，已完成）
+
+本切片只修改：
+
+- `docs/engine/design/save-migration.md`；
+- `docs/engine/plans/2026-07-30-save-migration.md`；
+- `docs/engine/plans/2026-07-30-production-floor-sequence.md`。
+
+它冻结 design 第 4 节的 single-slot taxonomy、pure staged/零 mutation inspection、
+adoption set、同 namespace 单层 backup、restore owner、lineage 16/re-anchor、真实 fixture
+floor 与下列 implementation allowlist；不交付 source/test/runtime/public/live capability。
+M3.0 完成后的 direct RED gate 是 M3.1；该 historical pointer 已由下述 M3.1 delivery 关闭。
+
+### M3.1 — Single-slot read-only inspection（已完成；historical）
+
+**Outcome：** `PlayerPersistencePortV1` 只增加 `inspectSave(slotId)`，执行纯 staged
+admission，返回 design 4.1 的 exact union：
+`direct | migration_required | adoption_required | migration_and_adoption_required |
+inspect_only | rejected | faulted`。本 slice 不增加 `inspectSaves()`，不改现有单个
+`adoptionDeclaration`，也不交付 backup/action/UI。`listSlots()` 继续保持 State migrator
+execution count `0`，但不跳过 M1/M2 已有 stored admission与适用的Story/reference/invariant
+validation；显式 inspection 可执行 synchronous pure migration callback，但 Host commit、lease
+touch、Session/replay/Persistence mutation 必须全部为 `0`。
+
+`inspect_only.code` 只允许 `migration_unavailable | incompatible | reanchor_required`；
+`rejected.code` 只允许 `empty_slot | unavailable | invalid_record | migration_rejected`。
+`faulted.slotId` 为 `SaveSlotIdV1 | null`：合法 slot 的 unclassified Host/repository throw、
+callback throw 或 runtime fault 保留该 slot，未通过 public slot shape/count admission 的
+programmer input 返回 `null`。recognized Host unavailable 是 `rejected/unavailable`，不得因
+adapter 不同漂移成 `faulted`。
+
+**Exact source/test allowlist（除此之外先停并修订 M3.0，不顺手改 UI/Host/Story）：**
+
+- `engine/packages/base/src/contracts/application.ts`；
+- `engine/packages/base/src/contracts/persistence.ts`；
+- `engine/packages/base/src/contracts/index.ts`；
+- `engine/packages/base/src/index.ts`；
+- `engine/packages/base/src/runtime/persistence/persistence-service.ts`；
+- `engine/packages/base/src/runtime/persistence/current-load-baseline.test.ts`；
+- `engine/packages/base/type-tests/application.test-d.ts`；
+- `engine/packages/base/type-tests/persistence-diagnostics.test-d.ts`。
+
+**Direct RED：** public type exact union/defensive freeze；
+empty、exact、adoption-only、one/two-step migration、migration+adoption、unavailable、identity
+mismatch、invalid/rejected、callback throw、recognized Host unavailable、unclassified Host throw
+与 invalid slot null identity；`listSlots()` State migration callback count `0` 且既有
+Story/reference/invariant validation回归不变，
+explicit inspection exact callback count；每一分支 record commit/delete、lease、Session queue/
+replacement、anchor/receipt、status、clock/export delta 均为 `0`；同一 service 连续 10,000 次
+inspection 不保留 candidate/attempt history。不得只断言 TypeScript shape 或 mock result。
+
+**Gates：** `current-load-baseline.test.ts` focused inspection tests、两个 allowlisted type-test
+files、Base package tests、`deno task test:determinism` 与 `deno task check`。若 RED 证明需要
+修改 allowlist 外的 compatibility/Core/Story 文件、Save
+wire/canonical/digest、Host namespace/store、Session public API、Debug Bundle 或 UI，立即停止。
+
+**2026-08-12 M3.1 single-slot read-only inspection delivery（已完成；historical）：**
+实现严格保持上述八路径 source/test allowlist，交付 public single-slot `inspectSave` exact
+result、defensive freeze、recognized/unclassified Host fault projection、按需同步 State migration
+与全分支零 Host write/lease/Session/replay/Persistence mutation；未增加 `inspectSaves()`、adoption
+set、backup 或 UI。实现前的真实 mutation RED 产生 `7` 个失败，随后同一 mutation-sensitive
+suite 转为 GREEN。
+
+最终 promotion matrix 全绿：focused `17 / 17`、current-load baseline `38 / 38`、Base
+`81 files / 1156 tests`、两个 type-test files、determinism Deno `3 / 3` 与
+Chromium/Firefox/WebKit `6 / 6`；scoped oxlint、fmt、diff、typecheck 均通过。Canonical
+`deno task check` 覆盖 format `955 files`、full lint/style/typecheck/determinism、
+`266 files / 4533 tests`、assets、five registered Story checks 与 Engine Lab production build
+`415 modules`，全部 green。M3.1 据此转为 completed/historical；该 delivery 当时把唯一
+current/next、core slice与 direct RED/implementation gate 推进到 M3.2，该 historical pointer
+现已由下述 M3.2 delivery 关闭。
+
+### M3.2 — Adoption declaration set（已完成；historical）
+
+**Outcome：** 把 application/service/classifier 的单个 `adoptionDeclaration` 替换为 immutable
+`adoptionDeclarations` set，长度上限固定为 256；第 257 项在任何 Host I/O/classifier/runtime
+allocation 前 fail closed。既有七字段 tuple exact match 为唯一 admission；零 match
+`inspect_only`，一 match adoption，多 match `compatibility.adoption_ambiguous` rejected；
+configuration duplicate 在 Host I/O 前 fail closed，array order 不影响结果。M3.1 的四个
+positive inspection kinds 不变；本 slice 不写 backup/Save、不改 Session。
+
+**Exact source/test allowlist：**
+
+- `engine/packages/base/src/contracts/persistence.ts`；
+- `engine/packages/base/src/runtime/application/core-game-application.ts`；
+- `engine/packages/base/src/runtime/application/core-game-application.test.ts`；
+- `engine/packages/base/src/runtime/persistence/compatibility.ts`；
+- `engine/packages/base/src/runtime/persistence/compatibility.test.ts`；
+- `engine/packages/base/src/runtime/persistence/persistence-service.ts`；
+- `engine/packages/base/src/runtime/persistence/persistence-service.test.ts`；
+- `engine/packages/base/src/runtime/persistence/current-load-baseline.test.ts`；
+- `engine/packages/base/src/testkit/snapshot-persistence-workload.ts`；
+- `engine/packages/base/src/testkit/snapshot-persistence-workload.test.ts`；
+- `engine/packages/base/type-tests/application.test-d.ts`；
+- `engine/packages/base/type-tests/persistence.test-d.ts`；
+- `e2e/src/testing/save-state-migration-driver.ts`；
+- `e2e/src/test/save-state-migration-vector.test.ts`。
+
+不得扫描依赖/源码树/Git 历史来生成声明；declaration 必须是fixture-backed、人工审查的
+compatibility input。若 exact public type exposure 需要额外 barrel，停止回 M3.2 entry
+review而不静默扩表。
+
+**Direct RED/gates：** `0/1/256/257` length、`0/1/2` matches、duplicate tuple、permutation、
+hostile array/accessor/Proxy、defensive copy/freeze、pre-I/O fail closed；同一 caller 10,000 次
+over-limit/duplicate attempt不保留数组或增长lookup；single declaration行为回归；Deno/三
+browser vector parity、Base/Engine Lab aggregate与 `deno task check`。若 multiple matches 只能
+first-win或需要改变 Save/lineage wire，停止。
+
+**2026-08-12 M3.2 adoption declaration set delivery（已完成；historical）：** 真实 RED 证明
+旧 classifier 仍读取 singular `adoptionDeclaration` property，focused suite 因而失败。实现将
+application/Core、Persistence service/classifier 与 Engine Lab 统一到 maximum-256 immutable
+exact seven-field declaration set；configuration 在 Host I/O 前完成 descriptor-safe capture、
+validation与freeze，覆盖 `0 / 1 / >1` match、stable ambiguous rejection、permutation independence
+及 10,000-attempt boundedness，未交付 M3.3 backup substrate或后续 operation/UI/corpus。
+
+最终 promotion matrix 全绿：focused `6 files / 274 tests`、Base `81 files / 1163 tests`、两个
+type-test files、typecheck与scoped fmt/oxlint/diff、determinism Deno `3 / 3` 与
+Chromium/Firefox/WebKit `6 / 6`。Canonical `deno task check` 覆盖 format `955 files`、full
+lint/style/typecheck/determinism、`266 files / 4540 tests`、assets、five registered Story checks
+与 Engine Lab production build `415 modules`，全部 green。M3.2 据此转为
+completed/historical；唯一 current/next、core slice与 direct RED/implementation gate 推进到
+M3.3。该 historical pointer 现已由下述 M3.3 delivery 关闭。
+
+### M3.3 — Same-namespace bounded backup repository substrate（已完成；historical）
+
+**Outcome：** 只实现 design 4.3 的 package-internal key、one-generation raw-byte backup 和
+multi-record CAS primitive；不暴露 player operation，不执行 migration/re-anchor/restore。
+backup key 固定为
+`save-migration-backup.v1:${encodeURIComponent(storyId)}:${slotId}`，namespace 固定
+`save`；不得新增 namespace/table/database/history。existing backup 阻止新 backup/migration；
+普通 Save/Auto/clear/annotation 都不得 silently overwrite/delete pending backup。
+
+**Exact allowlist：**
+
+- `engine/packages/base/src/runtime/persistence/slot-keys.ts`；
+- `engine/packages/base/src/runtime/persistence/save-repository.ts`；
+- `engine/packages/base/src/runtime/persistence/save-repository.test.ts`；
+- `engine/packages/base/src/runtime/persistence/save-repository.property.test.ts`；
+- `engine/packages/base/src/runtime/persistence/persistence-service.test.ts`（只加 repository
+  integration/no-mutation oracle）；
+- `engine/packages/web/src/host/indexeddb-record-store.conformance.test.ts`（只加 multi-record
+  atomicity oracle，如 shared conformance 已覆盖则不改）。
+
+**Direct RED：** exact key grammar与 slot bounds；raw bytes byte-for-byte copy与既有 size bound；
+embedded `recordRevision` 属于原 target且不与 backup Host revision比较，restore/export只做
+bounded shell/digest与Story/slot/writeReason identity admission，restore以live target下一
+`recordRevision`重编码；
+每 Story/slot 只有一条 backup；backup/target/lease expected revision conflict 的全无语义；Host
+fault 无 partial write；existing backup 返回 `backup_pending` 且 callback/write delta `0`；
+quick/manual fresh save、Auto rotation、clear、annotation rewrite、list/inspection/load/import/
+export 都保留 pending backup；只有显式 restore/discard 后续 operation消费，export-backup也保留；
+10,000 次尝试记录数保持 slot-count bounded。Host Memory/IndexedDB contract tests必须证明多
+mutation commit atomic，不用 service mock 冒充；Desktop preview不在本 gate。
+
+**Gates：** focused repository/property/Persistence tests，Base package、受影响 Host conformance、
+full unit 与 `deno task check`。若原子语义必须增加 Host namespace、public transaction、第二份
+backup 或跨 namespace ordering，立即停止。
+
+**2026-08-12 M3.3 same-namespace bounded backup repository substrate delivery（已完成；
+historical）：** 实现严格落在上述 allowlist，以 package-internal exact key、bounded
+shell/identity read、one-generation raw-byte backup 与 backup/target/lease 单批 CAS primitive
+关闭 substrate；普通 Save、Auto、clear、annotation、list/inspection/load/import/export 均保留
+pending backup。未暴露 player operation、Host transaction、额外 namespace、第二份 backup，
+也未把 Desktop preview 提升为 crash-durable。
+
+真实 mutation RED 中，反转 existing-backup guard 使 exact one-generation row 产生 `1` 个
+失败；把 IndexedDB 三记录 batch 拆为独立 commit 则分别使 conflict 与 fault rows 转 RED。
+最终 promotion matrix 全绿：focused repository/property/Persistence/IndexedDB
+`4 files / 121 tests`、Base `81 files / 1177 tests`、typecheck 与 scoped fmt/oxlint/diff。
+Canonical `deno task check` 覆盖 format `955 files`、`266 files / 4557 tests`、assets、five
+registered Story checks 与 Engine Lab production build `415 modules`，全部 green。M3.3 据此
+转为 completed/historical；唯一 current/next、core slice 与 direct RED/implementation gate
+当时推进到 M3.4；该 historical pointer 已由下述 M3.4 delivery 关闭。
+
+### M3.4 — Upgrade, re-anchor and backup-resolution operations（已完成；historical）
+
+**Outcome：** Persistence service 消费 M3.1 inspection、M3.2 adoption set 与 M3.3 primitive，
+提供语义化 inspect-backup/upgrade/re-anchor/restore/export-backup/discard-backup operation。
+`inspectBackup(slot)` 每次 fresh-read package-internal backup，只返回 deeply frozen 的
+`available | rejected/{empty_backup,unavailable,invalid_backup} | faulted` player-safe 状态；它不返回
+bytes/key/Host revision，不取得 lease、不写入、不改变 Persistence status 或 live Session。upgrade 从当前
+bytes 重跑 admission；无 pending backup 时成功 CAS
+backup+target+lease；re-anchor 仅用于将会产生第 17 条 lineage 的 otherwise-valid unique
+adoption，写 current exact baseline + empty lineage；pending 时新 migration 返回
+`backup_pending`。restore 验证 backup 后 CAS target+backup delete+lease；export-backup
+只返回defensively copied `ExportedSaveV1` exact raw bytes且不touch lease，Web download后仍保留
+backup；discard只 CAS delete backup+touch lease。
+这些 operation 成功都不 mutation live Session，玩家另行 load。
+
+**Exact allowlist：**
+
+- `engine/packages/base/src/contracts/application.ts`；
+- `engine/packages/base/src/contracts/persistence.ts`；
+- `engine/packages/base/src/contracts/index.ts`；
+- `engine/packages/base/src/index.ts`；
+- `engine/packages/base/src/runtime/application/core-game-application.ts`；
+- `engine/packages/base/src/runtime/application/core-game-application.test.ts`；
+- `engine/packages/base/src/runtime/persistence/compatibility.ts`；
+- `engine/packages/base/src/runtime/persistence/compatibility.test.ts`；
+- `engine/packages/base/src/runtime/persistence/save-repository.ts`；
+- `engine/packages/base/src/runtime/persistence/save-repository.test.ts`；
+- `engine/packages/base/src/runtime/persistence/persistence-service.ts`；
+- `engine/packages/base/src/runtime/persistence/persistence-service.test.ts`；
+- `engine/packages/base/src/runtime/persistence/current-load-baseline.test.ts`；
+- `engine/packages/base/type-tests/application.test-d.ts`；
+- `engine/packages/base/type-tests/persistence.test-d.ts`；
+- `engine/packages/base/type-tests/persistence-diagnostics.test-d.ts`。
+
+**Direct RED：** backup status 的 available/empty/invalid/unavailable/faulted 投影、fresh-read currentness
+与零 lease/write/Session/status mutation；upgrade migration-only/migration+adoption；
+inspection-to-action stale read；backup
+create/pending；target/backup/lease conflicts与callback/validation/Host fault；lineage lengths
+`0/15/16/>16`；16 exact remains loadable，16+adoption requires re-anchor，successful re-anchor
+lineage exactly `[]`；zero/multi adoption match不可 re-anchor；restore invalid/stale/repeat/success；
+export-backup exact bytes/download-failure并始终保留、discard confirmation/conflict；每个
+failure source/target/backup/live Session/anchor/status unchanged，success 仍不 install Session；
+10,000 次 pending attempts不增长 durable history。
+
+**Gates：** focused Base tests、Base aggregate、Host conformance、determinism、full unit与
+`deno task check`。若 action 必须信任 inspection token、绕过重新读取/validation，或 restore
+owner 不能保持 package-internal/lease-fenced，立即停止。
+
+**2026-08-12 M3.4 upgrade, re-anchor and backup-resolution operations delivery（已完成；
+historical）：** public persistence port 现提供 single-slot read-only `inspectBackup` 与
+`upgradeSave`、`reanchorSave`、`restoreBackup`、`exportBackup`、`discardBackup`。每个 action
+都重读当前 Host bytes，不信任 inspection token；upgrade/re-anchor 原子提交一代 raw backup、
+current target 与 lease，pending backup 在 callback/write 前 fail closed。restore/discard 是唯一
+消费 backup 的 action，export defensively copy exact raw bytes 且始终保留 backup。所有成功与
+失败都不安装 Session、不替换 replay anchor、不改变 Persistence status；恰好 16 条 lineage 的
+exact Save 保持可加载，只有 otherwise-valid unique adoption 能 re-anchor 为 empty lineage，
+`>16`、zero/multi adoption 与 validation failure 均不能借此绕过。
+
+真实 public ABI RED 证明这些 semantic entry 尚不存在；mutation-sensitive rows 随后冻结
+backup status 的 fresh-read/zero-mutation、stale inspection-to-action、one-generation pending、
+target/backup/lease conflict与Host/callback/validation fault、migration/adoption combinations、
+lineage `0/15/16/>16`、restore/export/discard 的 repeat与消费边界，以及 10,000 次 pending
+attempts 不增长 durable history。Final gates 全绿：M3.4 specific `4 files / 298 tests`、focused
+integration `6 files / 356 tests`、Base `81 files / 1221 tests`、IndexedDB `13 / 13`、
+determinism Deno `3 / 3` 与 Chromium/Firefox/WebKit `6 / 6`。Canonical `deno task check`
+覆盖 format `955 files`、`266 files / 4604 tests`、lint/style/typecheck/determinism/assets、five
+registered Story checks 与 Engine Lab production build `415 modules`。
+
+首次 canonical 的唯一失败是保留的 10,000-attempt stress row 在并行负载下用时约 `47s`，
+超过测试默认 `30s` budget；没有降低 attempt count 或产品断言，只把该显式 test budget 调整为
+`120s`。随后 focused 用时 `15.11s`，canonical 全绿；这是 test-budget corrective，不是产品
+failure。M3.4 据此转为 completed/historical；其当时推进到 M3.5 的 historical pointer 已由
+下述 M3.5 delivery 关闭。
+
+### M3.5 — Player-readable Save recovery UI（已完成；historical）
+
+**Outcome：** UI/Web 只消费 M3.1/M3.4 public semantic results（包括 read-only backup status），
+把 stable code 映射为本地化、
+可访问、可行动的检查/升级/re-anchor/导出/restore/export-backup/discard-backup/取消流程；不展示 stack/raw bytes/key/
+revision/fence，不让 UI 自行 CAS 或修改 Session。
+
+**Exact allowlist：**
+
+- `engine/packages/ui/src/persistence/save-overlay.tsx`；
+- `engine/packages/ui/src/persistence/save-overlay.test.tsx`；
+- `engine/packages/ui/src/persistence/save-overlay.module.css`；
+- `engine/packages/ui/src/persistence/index.ts`；
+- `engine/packages/ui/src/system/system-dialog-managed-contract.ts`；
+- `engine/packages/ui/src/system/system-dialog-managed-contract.test.ts`；
+- `engine/packages/ui/src/system/system-dialog-managed-session.ts`；
+- `engine/packages/ui/src/system/system-dialog-managed-session.test.ts`；
+- `engine/packages/ui/src/system/system-dialog-managed-host.tsx`；
+- `engine/packages/ui/src/system/system-dialog-managed-host.test.tsx`；
+- `engine/packages/ui/src/system/system-dialog-host.tsx`；
+- `engine/packages/ui/src/system/system-dialog-host.test.tsx`；
+- `engine/packages/ui/src/index.ts`；
+- `engine/packages/ui/src/public-api.test.ts`；
+- `engine/packages/web/src/application/create-player-ui-ports.ts`；
+- `engine/packages/web/src/application/create-player-ui-ports.test.ts`；
+- `engine/packages/web/src/application/create-player-save-surfaces.ts`；
+- `engine/packages/web/src/application/create-player-save-surfaces.test.ts`；
+- `engine/packages/web/src/application/start-web-game-application.tsx`；
+- `engine/packages/web/e2e/engine/shell.spec.ts`；
+- `engine/packages/web/playwright.engine.config.ts`；
+- `e2e/src/application/composition.tsx`；
+- `e2e/src/test/composition.test.tsx`；
+- `examples/cat-cafe/src/application/composition.tsx`；
+- `examples/cat-cafe/src/application/labels.ts`；
+- `examples/e2e/cat-cafe.spec.ts`；
+- `examples/e2e/playwright.examples.config.ts`。
+
+**2026-08-12 M3.5 docs-only scope corrective（已完成；historical）：** 原十五项
+保持不变，新增上述十二个既有 source/test/config path，共二十七项。原表遗漏了已经交付的
+managed System exact-parent confirmation contract/session/Host 及其 tests，导致实现只能在 Save
+overlay 内复制确认 authority；也遗漏了 `system-dialog-host` 的 localized copy mapping source/test。
+本 corrective 只允许把 closed confirmation invocation 从既有 `load | clear | import` 扩为
+`load | clear | import | reanchor | restore | discard`，前三者的 shape 与行为不变；
+re-anchor、restore、discard 必须确认，受 pre-write backup 保护的 explicit upgrade 不确认，
+只读且保留 backup 的 export-backup 不确认。cancel、late/stale settlement、double click、focus
+与 opener restore 必须复用同一个 managed child/session，不得 inline 第二套 confirmation modal。
+
+原表也没有任何能承载冻结 browser gate 的 spec/config。Engine Lab 只在既有
+`engine/packages/web/e2e/engine/shell.spec.ts` 增加 `@save` flow，Cat Cafe 只在既有
+`examples/e2e/cat-cafe.spec.ts` 增加 `@save` flow；两份既有 Playwright config 可各增加一个
+desktop Firefox project，并以 `grep: /@save/` 只运行 Save-tagged specs。Chromium/WebKit
+project 与 Chromium prebuilt smoke 的既有范围不变；不得借 Firefox gate 扩大整套 browser
+matrix。本 corrective 未修改 source/test/config；其 implementation gate 已由下述 delivery
+关闭。
+
+**Direct RED：** 每个 disposition/code 的玩家文案与允许 action；loading/confirm/cancel、double
+click、late/stale result、failure/restore retry；re-anchor 必有 export/restore/cancel 且
+re-anchor/restore/discard 必须走同一 managed confirmation child，upgrade/export-backup 不走确认；
+键盘、focus、screen-reader status 与 reduced-motion；无 stack/digest/raw key 泄漏；single-slot
+exact result；Engine Lab 与 Cat 真实 composition；browser 不靠 sleep/coordinates/text-only selector。
+
+**Gates：** focused UI/Web/Story tests、UI/Web aggregates、Engine Lab + Cat Chromium/Firefox/
+WebKit Save flow（Firefox project 只运行 `@save` specs）、prebuilt smoke 与 `deno task check`。
+若两个 Story需要不同 persistence语义、UI必须取得 raw store或新增第二 authoritative状态，
+立即停止。
+
+**2026-08-12 M3.5 player-readable Save recovery UI delivery（已完成；historical）：** UI/Web
+只经 optional atomic recovery group 消费 M3.1/M3.4 single-slot semantic results，并把每个
+disposition、backup status、operation outcome 与 stable rejection code 映射为本地化、可访问的
+player copy；没有把 stack、digest、raw bytes、Host key/revision/fence 或 exported file authority
+暴露给 UI。re-anchor、restore、discard 复用同一个 managed System exact-parent confirmation
+child；upgrade 与 export-backup 不确认。explicit inspection 保持 slot-local，pending read/write
+mutually exclusive；stale/mismatched result fail closed，成功 operation 不安装 Session。
+
+真实 RED 中，初始 Web recovery bridge 缺失使 focused suite 产生 `6` 个失败；WebKit 随后证明
+delegated pointer capture 与 target callback 之间的 microtask checkpoint 会过早清除 provisional
+opener，使 confirmation 留在 root shell。修复后 request 仍即时消费并重验 exact parent/root
+instance，provisional opener 只在同 task 结束时过期；旧行为会让真实 browser row 转 RED。
+补齐 test-matrix acceptance gap 后相关 suite 为 `79 / 79`。
+
+Final gates 全绿：focused exact `9 files / 219 tests`、UI + Web aggregate
+`113 files / 1942 tests`、typecheck 与 exact 27-path fmt/oxlint/diff；Engine Lab 与 Cat Cafe 的
+Chromium/WebKit/Firefox `@save` flow 各 `3 / 3`。Prebuilt gate 为 Engine Lab build
+`415 modules` + Chromium `44 / 44`（real `52.50s`）。Canonical `deno task check` 覆盖 format
+`955 files`、`266 files / 4682 tests`、assets、five registered Story checks 与 Engine Lab
+production build `415 modules`，real `36.93s`，全部 green。M3.5 据此转为
+completed/historical；唯一 live/current/next、core slice与 direct RED/implementation gate
+当时推进到 M3.6a；该 historical pointer 现已由下述 M3.6a delivery 关闭。
+
+### M3.6.0 — Exact promotion inventory corrective（docs-only，已完成）
+
+M3.6 的 supported floor、fixture authenticity、full lifecycle、four-runtime parity、Browser
+download/no-clobber evidence 与最终 promotion contract 全部保持不变。原 13-path inventory
+只列出 corpus/fixture、两个 Story test 与最终 docs，遗漏了现有 migration driver/worker、
+authoritative matrix 及 Browser `@save` evidence owner，因此无法在 exact scope 内执行已冻结的
+acceptance。本 corrective 只把 execution 拆为 M3.6a–M3.6d；M3.6a 的 formatter corrective
+随后把 aggregate inventory 修正为 24 路径；M3.6b implementation pre-audit corrective 再补入
+两个既有 direct/protocol test owner，形成 26 路径。canonical authority-map gate 随后证明
+broad Base testkit barrel 会污染 migration Worker closure，因此第二个 M3.6b docs-only scope
+corrective 再加入一个既有窄 facade，形成 27 路径。M3.6d closeout pre-audit 先证明原五份
+final docs 会遗漏两个有效 live/current 指针；seven-doc candidate 落盘后的 whole-doc scan 又
+发现两个 active design pointer owner；exact-nine candidate 落盘后的全量 tracked Markdown、
+website 与 config active-pointer/语义扫描再发现三份 live owner。因此三次 stale-pointer
+corrective 依次把 M3.6d 修正为 7、9、12，形成下列 34 路径。七次 corrective 都不声明 M3.6
+runtime delivery。
+
+M3.6a–M3.6d 的 exact allowlist 合集除下列路径外不含其它 source/test/fixture/docs；列内允许
+zero-diff，若 implementation 必须越界则停止并先修订本 `.0`：
+
+- `engine/packages/base/src/testkit/save-migration-release-corpus.ts`（新增）；
+- `engine/packages/base/src/testkit/save-migration-release-corpus.test.ts`（新增）；
+- `engine/packages/base/src/testkit/index.ts`；
+- `engine/packages/base/src/testkit/save-state-migration-determinism.ts`；
+- `deno.json`（只增加下述四个 exact maintained Save byte fixture 的 `fmt.exclude`）；
+- `e2e/fixtures/saves/engine-lab-state-3.save.json`（新增）；
+- `e2e/fixtures/saves/engine-lab-state-4.save.json`（新增）；
+- `e2e/fixtures/saves/engine-lab-state-5.save.json`（新增）；
+- `e2e/src/test/save-migration-release-corpus.test.ts`（新增）；
+- `examples/cat-cafe/fixtures/saves/cat-cafe-state-1.save.json`（新增）；
+- `examples/cat-cafe/src/test/save-migration-release-corpus.test.ts`（新增）；
+- `e2e/src/testing/save-state-migration-driver.ts`；
+- `e2e/src/testing/save-state-migration-runner.ts`；
+- `e2e/src/testing/save-state-migration-worker.ts`；
+- `e2e/src/test/save-state-migration-vector.test.ts`；
+- `e2e/src/test/save-state-migration-worker.test.ts`；
+- `e2e/src/testing/authoritative-determinism-matrix.ts`；
+- `e2e/src/tooling/authoritative-determinism-matrix.ts`；
+- `e2e/src/test/authoritative-determinism-matrix.test.ts`；
+- `engine/packages/web/e2e/determinism/authoritative-determinism.spec.ts`；
+- `engine/packages/web/e2e/engine/shell.spec.ts`；
+- `examples/e2e/cat-cafe.spec.ts`；
+- `docs/engine/features.md`；
+- `docs/engine/build-and-release.md`；
+- `docs/engine/architecture.md`；
+- `docs/engine/development.md`；
+- `docs/engine/roadmap.md`；
+- `docs/engine/design/surface-contract-harness.md`（pointer/current-entry only）；
+- `docs/engine/design/vn-presentation-runtime.md`（pointer/current-entry only）；
+- `docs/engine/design/window-model.md`（pointer/current-entry only）；
+- `docs/engine/design/save-migration.md`（status/promotion record only）；
+- `docs/engine/plans/2026-07-30-save-migration.md`（promotion record only）；
+- `docs/engine/plans/2026-07-30-production-floor-sequence.md`（pointer only）；
+- `docs/engine/plans/2026-07-30-surface-contract-harness.md`（pointer/current-entry only）。
+
+M3.6b pre-audit 当时认为既有 public determinism-vector facade 足以承载 corpus vector；canonical
+authority-map gate 随后反证 driver 若从 broad `@sillymaker/base/testkit` 读取 corpus admission，
+会把 `runtime/application` 与 `persistence-service` 拉入 migration Worker closure。上述新增的
+既有窄 facade 因此只重导出 corpus admission、inventory 与 descriptor types，不扩 production
+barrel或 runtime authority；若 implementation 仍需越界，必须停止并先修订本 `.0`，不得先越界
+再补文档。M3.6.0 据此完成；其当时恢复的 M3.6a implementation gate 现已由下述 delivery 关闭。
+
+**2026-08-12 M3.6d docs-only stale-pointer scope corrective（已完成）：** PF5 closeout
+pre-audit 证明 `docs/engine/roadmap.md` 与
+`docs/engine/plans/2026-07-30-surface-contract-harness.md` 仍各自拥有把 PF5/M3 标为
+live/current 的有效指针。原 M3.6d 五份文档无法合法更新它们，若直接 closeout 会留下错误的
+当前执行入口并违反 frozen stale-pointer gate。因此本 corrective 只把上述两份既有文档加入
+M3.6d/aggregate exact allowlist，使 M3.6d 从 5 修正为 7、aggregate 从 27 修正为 29；它不修改
+新增的两份文档，不交付 runtime/test/fixture/live product capability，也不声明 M3.6c 或 M3.6d
+delivery/promotion。该 corrective 完成时 M3.6c 仍为当前切片，随后已由上文 delivery关闭；
+当时计划的 seven-doc M3.6d 又由下述 whole-doc corrective supersede。
+
+**2026-08-12 M3.6d docs-only whole-doc stale-pointer scope corrective（已完成）：** seven-doc
+candidate 落盘后的 active-pointer scan 进一步证明
+`docs/engine/design/surface-contract-harness.md` 与
+`docs/engine/design/vn-presentation-runtime.md` 的顶层状态仍把 PF5/M3 标为 current。第一轮
+corrective 只覆盖 roadmap 与 focused Surface plan，仍会在 PF5 closeout 后留下两个错误 live
+入口。因此本 corrective 只把上述两份既有 design owner 加入 M3.6d/aggregate exact allowlist，
+使 M3.6d 从 7 修正为 9、aggregate 从 29 修正为 31；它只修改三份 owning Save docs，不修改
+两份新增文档，不交付 runtime/test/fixture/live product capability，不声明 M3.6d
+delivery/promotion，也不推进 production-floor pointer。M3.6d 仍为当前 closeout；待 exact-nine
+candidate 更新两份新增 owner 后继续全量审计；该候选现已由下述 exhaustive-scan corrective
+supersede。
+
+**2026-08-12 M3.6d docs-only exhaustive live-doc scope corrective（已完成）：** exact-nine
+candidate 落盘后，对全部 tracked Markdown、website 与 config 执行 active PF5/M3 pointer 及
+Save migration/corpus/inspection/backup/recovery planned/unimplemented 语义扫描。扫描证明
+`docs/engine/architecture.md` 仍有两个有效 PF5 current/next 指针，
+`docs/engine/development.md` 仍把 PF5 写成 current 且把 release fixtures 与玩家
+inspection/backup/recovery 写成 planned，`docs/engine/design/window-model.md` 的顶层状态仍把
+PF5/M3 写成 current implementation gate。website、Story authoring 与 build/release 文档没有
+额外冲突声明，因此不扩入其它文件。本 corrective 只把上述三份既有 live owner 加入
+M3.6d/aggregate exact allowlist，使 M3.6d 从 9 修正为 12、aggregate 从 31 修正为 34；它只
+修改三份 owning Save docs，不修改三份新增文档，不交付 runtime/test/fixture/live product
+capability，不声明 M3.6d delivery/promotion，也不推进 production-floor pointer。M3.6d 仍是
+当前 pending exact-twelve docs-only closeout。
+
+### M3.6a — Maintained corpus and Story lifecycle（已完成；historical）
+
+**Supported floor：** Cat Cafe 当前 revision 1 是首个支持 floor，只保存真实 current bytes，
+不虚构 revision 0/旧 Cat Save。Engine Lab 维护 revision 3、4 到 current 5 的 compatibility
+fixtures 与既有 `3 -> 4 -> 5` chain，不伪称来自历史 product release capture。发现必须支持的
+same-revision/different-digest revision 5 bytes 时立即
+停止，先接受显式 recovery/migration contract；不得补 `5 -> 5` edge、借 adoption 转换 State
+或从 current encoder 倒造历史 fixture。
+
+**Exact allowlist：**
+
+- `engine/packages/base/src/testkit/save-migration-release-corpus.ts`（新增）；
+- `engine/packages/base/src/testkit/save-migration-release-corpus.test.ts`（新增）；
+- `engine/packages/base/src/testkit/index.ts`；
+- `deno.json`（只增加下述四个 exact maintained Save byte fixture 的 `fmt.exclude`）；
+- `e2e/fixtures/saves/engine-lab-state-3.save.json`（新增）；
+- `e2e/fixtures/saves/engine-lab-state-4.save.json`（新增）；
+- `e2e/fixtures/saves/engine-lab-state-5.save.json`（新增）；
+- `e2e/src/test/save-migration-release-corpus.test.ts`（新增）；
+- `examples/cat-cafe/fixtures/saves/cat-cafe-state-1.save.json`（新增）；
+- `examples/cat-cafe/src/test/save-migration-release-corpus.test.ts`（新增）。
+
+**2026-08-12 M3.6a docs-only formatter scope corrective（已完成）：** 首个真实 fixture
+capture 证明 official Save export 是无尾换行的 canonical compact JSON bytes，而 repository
+canonical `deno fmt --check` 会把 `*.save.json` 重排为 pretty JSON，从而改变 byte length、SHA
+和用户实际导出 payload。fixture 不得为迎合 formatter 而改写，也不得在测试中重新 encode。
+因此本 corrective 只把 `deno.json` 加入 M3.6a/aggregate exact allowlist，并只允许在
+`fmt.exclude` 精确列出上述四个 maintained fixture；不排除 fixture 目录、其它 JSON、source
+或 tests，不改变 runtime/Save wire，也不声明 corpus delivery。Deno 官方 formatter contract
+明确由 `fmt.exclude` 处理不应被格式化的 checked-in bytes；配置落地后 M3.6a implementation
+当时继续为唯一 current gate，该 historical pointer 现已由下述 delivery 关闭。
+
+**Direct RED/acceptance：** checked-in fixture bytes 在测试中不得由待测/current encoder
+重生成；Cat revision 1 initial floor 可一次性用当前 official encoder capture并经review冻结，
+随后只作为immutable input消费。corpus 全量执行
+inspect → migrate/adopt/re-anchor（适用时）→ current schema/reference/invariant/digest → load →
+fresh save round-trip；Engine Lab 3/4/5、Cat 1、adoption、lineage `15/16`、ambiguous declaration、
+failure backup/restore；annotation 与 M0a `versionStamp` matrix保持 capture origin；断言支持清单与
+fixture 一一对应。不得以合成 migration vector 冒充发布 byte corpus。本 slice 只关闭 maintained
+bytes与两个 Story 的完整 lifecycle，不改 four-runtime driver、Browser spec或 live docs。
+
+**Gates：** focused corpus helper与两个 Story lifecycle suites、Base与受影响 Story aggregate、
+`deno task check`。fixture/corpus gate 全绿后才推进 M3.6b。
+
+**2026-08-12 M3.6a maintained corpus and Story lifecycle delivery（已完成；historical）：**
+实现严格命中上述 exact `10` paths（含 `deno.json`），未修改 four-runtime driver、Browser spec
+或 live product docs。真实 RED 首先使三份新增 corpus suites 因 release-corpus helper/barrel
+尚不存在而在 module resolution 失败；实现 helper/barrel 与四份 checked-in fixtures 后，同一
+suites 转 GREEN。Base admission 固定 exact inventory、length/SHA-256、canonical compact bytes、
+Story/State identity 与 fresh defensive copy；Engine Lab 与 Cat Cafe suites 从 physical fixture
+执行完整 lifecycle，并覆盖 failure no-mutation、backup/restore、adoption、lineage `15/16`、
+ambiguous declaration、annotation 与 M0a `versionStamp` capture-origin 保留。
+
+四份无尾换行 canonical fixtures 冻结为：Engine Lab revision 3：`2163` bytes、
+`sha256:f40396978f6c721e147834546809770d368548efc604d8c446c0332df6bba795`；revision 4：
+`2188` bytes、`sha256:42573be3dca88e2e5262c9be7d38356056cba662211e7ff17b117563f6565534`；
+revision 5：`2246` bytes、
+`sha256:e19a79e7c340349b75b89e1fe27d1ce3bfdff5fa72ded9df52260fa771e2f01d`；
+Cat Cafe revision 1：`2092` bytes、
+`sha256:48630fdae6e7edcd69ce4384c9f8aa33ede0f624acf172eb674a01863d5c478a`。
+
+Final gates 全绿：focused `3 files / 19 tests`、Base `82 files / 1227 tests`、Engine Lab
+`27 files / 150 tests`、Cat Cafe `10 files / 38 tests`、typecheck、scoped fmt `6 files`、Deno
+lint `5 files`、oxlint 与 diff。Canonical `deno task check` 覆盖 format `959 files`、
+`269 files / 4701 tests`、assets、five registered Story checks 与 Engine Lab production build
+`415 modules`，real `41.23s`。M3.6a 据此转为 completed/historical；唯一 live/current/next、
+core slice与 direct RED/implementation gate 当时推进到 M3.6b；该 historical pointer 现已由
+下述 M3.6b delivery 关闭。
+
+### M3.6b — Four-runtime corpus parity（已完成；historical）
+
+**Exact allowlist：**
+
+- `engine/packages/base/src/testkit/save-state-migration-determinism.ts`；
+- `e2e/src/testing/save-state-migration-driver.ts`；
+- `e2e/src/testing/save-state-migration-runner.ts`；
+- `e2e/src/testing/save-state-migration-worker.ts`；
+- `e2e/src/test/save-state-migration-vector.test.ts`；
+- `e2e/src/test/save-state-migration-worker.test.ts`；
+- `e2e/src/testing/authoritative-determinism-matrix.ts`；
+- `e2e/src/tooling/authoritative-determinism-matrix.ts`；
+- `e2e/src/test/authoritative-determinism-matrix.test.ts`；
+- `engine/packages/web/e2e/determinism/authoritative-determinism.spec.ts`。
+
+**2026-08-12 M3.6b docs-only async-driver scope corrective（已完成）：** maintained corpus
+必须从 checked-in immutable file bytes 读取，不得在 driver 内复制、重生成或重新 encode；该
+I/O 使 driver corpus path 必须 async。原本同步调用 driver 的既有
+`e2e/src/test/save-state-migration-vector.test.ts` 因而必须进入 allowlist 并显式 `await`；既有
+`e2e/src/test/save-state-migration-worker.test.ts` 是 worker request/result protocol 的 direct
+owner，也进入 allowlist但允许 zero-diff。pre-audit 已证明既有 Base facade 足够，不增加 Base
+source/test；该判断随后由下述 canonical corrective supersede。本 corrective 只修正文档中的
+exact inventory，不修改 driver、test、worker 或 runtime，不声明 M3.6b delivery；其当时保留的
+M3.6a current gate 已由上述 delivery 关闭，并在当时把 implementation gate 推进到 M3.6b；
+该 historical pointer 现已由下述 delivery 关闭。
+
+**2026-08-12 M3.6b docs-only authority-map scope corrective（已完成）：** 首次完整
+`deno task check` 证明 driver 直接 import broad `@sillymaker/base/testkit` 会让 authoritative
+import-closure map 把 `runtime/application` 与 `persistence-service` 归入 migration Worker
+closure，违反既有窄 callback authority。corpus contract 与 runtime 均不需要扩张；本 corrective
+只把既有 `engine/packages/base/src/testkit/save-state-migration-determinism.ts` 加入 exact
+allowlist，使 M3.6b 从 9 修正为 10、aggregate 从 26 修正为 27，并限定它只重导出
+release-corpus admission、inventory 与 descriptor types。它不修改 source/test/runtime，不声明
+M3.6b delivery或 promotion；它当时保留的 M3.6b implementation gate 现已由下述 delivery
+关闭。
+
+**Direct RED/acceptance：** 把 M3.6a 全量 maintained corpus 作为 immutable input 接入现有
+authoritative matrix；Deno、Chromium、Firefox、WebKit 必须比较 normalized result、diagnostic与
+digest，缺任一 browser fail closed。driver 以 async exact-byte read 消费 checked-in fixture，
+所有 direct caller 显式 await；driver/worker 不重生成 fixture，不把 synthetic M2 vector 冒充
+release corpus。driver 只从上述 narrow migration facade 取得 corpus admission/descriptors；
+migration Worker closure 不得因该读取引入 `runtime/application` 或 `persistence-service`。
+
+**Gates：** focused driver/worker/matrix tests、Deno matrix与三 browser repeat matrix、
+`deno task check`。四 runtime parity 全绿后才推进 M3.6c。
+
+**2026-08-12 M3.6b four-runtime corpus parity delivery（已完成；historical）：** 首个
+mutation-sensitive RED 先把 hand-maintained expected vector 增加 ordered four-case
+`releaseCorpus`，而 actual collector 仍为空，direct exact comparison 因而失败；实现随后以四个
+literal `?no-inline` URL 异步读取 checked-in immutable bytes，经 narrow Base migration testkit
+admission 后保持原 synthetic M2 vector 与 release corpus 分离。Engine Lab revision 3/4 执行真实
+`3 -> 4 -> 5` callbacks，revision 5 与 Cat Cafe revision 1 执行 current exact admission；normalized
+result 固定 source/target identity与digest、migration steps/callback count、diagnostic 与
+source-byte preservation。
+
+首次 canonical gate 又产生第二个真实 RED：authority-map `1 / 14` 失败并报告四条 forbidden
+transitive paths，证明 broad `@sillymaker/base/testkit` 把 application/persistence authority 拉入
+migration Worker closure。上述 docs-only corrective 落地后，既有 narrow
+`save-state-migration-determinism` facade 只 direct re-export corpus admission/inventory/type，
+driver 改为单一 narrow specifier，同一 authority-map 转为 `14 / 14` GREEN。
+
+实现严格命中 frozen exact `10` paths：narrow facade、driver、direct vector test 与 worker 共
+`4` paths 有 diff，其余 runner、worker protocol test、authoritative matrix source/tooling/test 与
+Browser spec 共 `6` paths 保持 zero-diff并继续执行 exact-currentness。Final gates 全绿：focused
+direct/worker/matrix `3 files / 6 tests`、authority-map `14 / 14`、Deno matrix `1 file / 3 tests`、
+Chromium/Firefox/WebKit repeat-each-two matrix `6 / 6`（real `10.41s`），以及 exact fmt/oxlint/
+diff与 full typecheck。Canonical `deno task check` 覆盖 format `959 files`、
+`269 files / 4701 tests`、assets、five registered Story checks 与 Engine Lab production build
+`415 modules`，real `41.83s`，全部 green。M3.6b 据此转为 completed/historical；唯一
+live/current/next、core slice与 direct RED/implementation gate推进到 M3.6c。
+
+### M3.6c — Browser repeated-download no-clobber evidence（已完成；historical）
+
+**Exact allowlist：**
+
+- `engine/packages/web/e2e/engine/shell.spec.ts`；
+- `examples/e2e/cat-cafe.spec.ts`。
+
+**Direct RED/acceptance：** 同一秒、同一 suggested filename 的 export 必须触发两次 download
+request/event；Playwright 将它们保存到两个不同临时路径并验证各自 payload bytes。该证据不宣称
+Browser JavaScript 决定最终 suffix，也不声明 Desktop preview 已有 process-crash atomicity。
+
+**Gates：** Engine Lab与 Cat Cafe Chromium/Firefox/WebKit `@save` flow、既有 Chromium
+prebuilt smoke与 `deno task check`。Browser evidence 全绿后才推进 M3.6d。
+
+**2026-08-12 delivery：** 新 assertions 首先消费旧 `void` seed helper，使 Engine Lab 与 Cat
+Cafe 两处 typecheck 产生 TS2769 RED；helper 随后在同一 IndexedDB transaction 内复制 pending
+backup bytes 并返回 defensive oracle。两份 flow 均在首次导航前固定 metadata clock，捕获两次
+download event、断言相同 suggested filename、`saveAs` 到两个 distinct
+`testInfo.outputPath`、逐 byte 对比两份落盘 payload，并在 export 后重新 inspection 证明 backup
+仍 available，再完成既有 discard/restore。
+
+Engine Lab/Cat Cafe × Chromium/Firefox/WebKit `6 / 6`，exact fmt/oxlint/typecheck/diff 全绿；
+prebuilt 为 build `415 modules` + Chromium `44 / 44`（real `54.95s`）。Canonical
+`deno task check` 为 format `959 files`、`269 files / 4701 tests`、assets、five Stories 与
+build `415 modules`（real `42.96s`）。M3.6c 据此转为 completed/historical；未声明 Browser
+filesystem suffix authority或 Desktop process-crash atomicity。
+
+### M3.6d — Live product docs and PF5 promotion（已完成；historical）
+
+**Exact allowlist：**
+
+- `docs/engine/features.md`；
+- `docs/engine/build-and-release.md`；
+- `docs/engine/architecture.md`；
+- `docs/engine/development.md`；
+- `docs/engine/roadmap.md`；
+- `docs/engine/design/surface-contract-harness.md`（pointer/current-entry only）；
+- `docs/engine/design/vn-presentation-runtime.md`（pointer/current-entry only）；
+- `docs/engine/design/window-model.md`（pointer/current-entry only）；
+- `docs/engine/design/save-migration.md`（status/promotion record only）；
+- `docs/engine/plans/2026-07-30-save-migration.md`（promotion record only）；
+- `docs/engine/plans/2026-07-30-production-floor-sequence.md`（pointer only）；
+- `docs/engine/plans/2026-07-30-surface-contract-harness.md`（pointer/current-entry only）。
+
+M3.6a–M3.6c 全部通过后才更新 live capability、supported floor/release workflow并关闭 PF5；
+M3.6d 不补 runtime/test/fixture。Final gate 为十二份 exact docs 的 fmt/diff、stale-pointer audit与
+fresh `deno task check`。
+
+**M3 acceptance：** design 的 release acceptance 全部满足；任何被声明支持的 revision 都有
+真实 fixture；不存在“代码声称支持但 CI 没有真实字节”的版本。
+
+**2026-08-12 exact-seven candidate（未交付）：** 第一轮候选同步了 live capability、supported
+floor 与 release workflow并记录 M3.6c 完整 gate，但 whole-doc scan 随后证明它遗漏上述两份
+active design pointer owner，因此不能构成 M3.6d delivery、PF5 promotion 或 pointer advancement。
+本 slice 仍不修改 runtime/test/fixture/config；后续 exact-nine candidate 虽更新两份新增 owner，
+但 exhaustive live-doc scan 又发现三份 active owner，因此仍未交付。
+
+**2026-08-12 exact-nine candidate（未交付）：** 该候选严格修改当时的九份 docs，但
+`architecture.md`、`development.md` 与 `design/window-model.md` 的上述有效状态/能力声明仍会
+让 PF5 closeout 留下错误 live truth，因此不构成 M3.6d delivery、PF5 promotion 或 pointer
+advancement。待修正后的 exact-twelve overlay 更新三份新增 owner、十二份 docs 的
+fmt/diff/stale-pointer audit 与 fresh `deno task check` 全绿后，才可记录最终 delivery并把
+production-floor pointer 推进到 PF6/S5 docs-only exact-entry/adjudication。
+
+**2026-08-12 final exact-twelve delivery（已完成；historical）：** final overlay 严格命中上述
+十二份 docs，更新 live capability、supported Save floor、release workflow 与全部有效 execution
+pointer；未修改 runtime/test/fixture/config，未扩大 Browser filesystem suffix 或 Desktop
+process-crash atomicity 声明。全量 tracked Markdown、website 与 config scan 没有发现 exact
+scope 外的 live contradiction 或 navigation/link 更新。Scoped format、diff、stale-pointer 与 exact
+inventory gate 全绿；fresh final `deno task check` 覆盖 format `959 files`、
+`269 files / 4701 tests`、assets、five registered Story checks 与 Engine Lab production build
+`415 modules`；`/usr/bin/time -p` 为 real `46.59s`、user `224.14s`、sys `47.21s`，全部 green。
+M3.6d、M3 与 PF5 据此转为 completed/historical；
+current/next、core slice 与 direct gate 推进到 PF6/S5 docs-only exact-entry/adjudication，在该
+entry 冻结 exact allowlist、mergeable slices、RED 与 gates 前不得开始 broad S5 runtime work。
 
 ## 7. API discipline
 
@@ -611,8 +1261,9 @@ PF5/M3，而全局 linear core 下一切片是 `PF4/S3 System dialogs`。
 - 实现需要静默改变已接受 design；
 - 迁移需要改变 `formatRevision`、outer envelope shape 或 engine-owned Snapshot shell；
 - migrator 必须修改 RNG、commandSequence 或 integrity，或必须 async/Promise；
-- migration 需要多个 runtime namespace/Mod ordering、skipped-revision shortcut、自动 State
-  string rewrite、M3 backup/dry-run/durable history或产品 UI；
+- **M1/M2 mechanism slice** 若必须同时实现多个 runtime namespace/Mod ordering、
+  skipped-revision shortcut、自动 State string rewrite、M3 backup/dry-run/durable history或
+  产品 UI；该历史 stop 不禁止已进入 PF5 的 M3 按第 6 节独立切片交付 inspection、backup与UI；
 - receipt 必须进入 Save、Snapshot、CommandLog、replay identity、`simulationLineage` 或 M2
   Debug Bundle；
 - 16-step mechanism bound不足以承载真实已承诺历史版本；

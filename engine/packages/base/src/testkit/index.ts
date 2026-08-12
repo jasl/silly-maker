@@ -9,6 +9,11 @@ export {
   saveMetadataCorpusRevisionV1,
 } from "./save-metadata-corpus.ts";
 export {
+  admitSaveMigrationReleaseFixtureV1,
+  saveMigrationReleaseCorpusRevisionV1,
+  saveMigrationReleaseCorpusV1,
+} from "./save-migration-release-corpus.ts";
+export {
   authoritativeDeterminismCommandClassesV1,
   authoritativeDeterminismDrawPurposeV1,
   prepareAuthoritativeDeterminismWorkloadV1,
@@ -51,6 +56,12 @@ export type {
   SaveMetadataCompactVectorsV1,
   SaveMetadataHostPayloadV1,
 } from "./save-metadata-corpus.ts";
+export type {
+  AdmittedSaveMigrationReleaseFixtureV1,
+  SaveMigrationReleaseFixtureDescriptorV1,
+  SaveMigrationReleaseFixtureIdV1,
+  SaveMigrationReleaseProductIdV1,
+} from "./save-migration-release-corpus.ts";
 export type {
   PreparedSnapshotCommitWorkloadV1,
   SnapshotCommitCommandClassV1,

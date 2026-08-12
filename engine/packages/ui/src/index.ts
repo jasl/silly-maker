@@ -161,6 +161,7 @@ export type {
   SaveOverlayLabelsV1,
   SaveOverlayPortV1,
   SaveOverlaySlotNamesV1,
+  SaveUiBackupExportResultV1,
   SaveUiImportFileRejectionCodeV1,
   SaveUiImportResultV1,
   SaveUiReadableSlotIdV1,

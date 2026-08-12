@@ -64,6 +64,11 @@ export default defineConfig({
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "webkit", use: { ...devices["Desktop Safari"] } },
     {
+      name: "firefox-save",
+      grep: /@save/,
+      use: { ...devices["Desktop Firefox"] },
+    },
+    {
       // Mobile portrait: a minimal watch on SillyOS fluid tiling and touch usability.
       name: "mobile-portrait",
       grep: /@mobile/,

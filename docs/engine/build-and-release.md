@@ -153,6 +153,35 @@ For ordinary browser work against source, use:
 deno task test:e2e
 ```
 
+## Save compatibility release floor
+
+A release may claim Save compatibility only for identities backed by checked-in
+canonical byte fixtures. The maintained corpus currently contains Engine Lab
+State revisions 3, 4, and current 5 (the supported adjacent chain is
+`3 -> 4 -> 5`) plus Cat Cafe revision 1, its first supported Save floor. These
+fixtures are long-lived compatibility inputs, not a claim that every one was
+captured from a historical public release; do not regenerate an older shape from
+the current encoder or infer support for an unlisted revision.
+
+Before changing a supported State contract or publishing a release that retains
+an existing floor:
+
+1. add or review the exact canonical Save bytes and their declared identity;
+2. run the Story lifecycle corpus (inspection, applicable migration/adoption or
+   re-anchor, current validation, load, backup/restore, and fresh-save round-trip);
+3. run the authoritative migration matrix in Deno, Chromium, Firefox, and WebKit;
+4. run the Engine Lab and Cat Cafe `@save` browser flows plus the relevant
+   prebuilt Player suite;
+5. run `deno task check` and record any intentionally unsupported revision in the
+   release note.
+
+The browser flows also export the same pending backup twice under a fixed clock,
+save the two download events to distinct test-owned paths, compare both files to
+the exact backup bytes, and re-inspect retention. This proves browser request and
+payload behavior only. The browser does not promise the final filesystem suffix;
+Desktop collision handling and process-crash durability keep their separate
+promotion gates.
+
 ## Desktop save server (preview local persistence channel)
 
 `deno task desktop:save-server --dist <app>/dist-web --saves <dir> --port 41800` serves a built Player bundle from one fixed loopback port and owns a save directory behind `/sillymaker/records`. Pages started with `?records=local` use `createHttpHostRecordStoreV1` instead of per-origin IndexedDB. The endpoint accepts only the bounded records protocol: same-origin JSON commits, validated namespaces/keys/revisions/base64, and GET-only record reads; the static side only accepts GET/HEAD and rejects malformed, traversing, or symlinked paths. This query-selected server is a trusted local development channel, not the packaged Desktop private-route authority; do not expose it to untrusted pages or treat its fixed port as authorization.
@@ -287,6 +316,11 @@ Before deploying a hosted Player:
 5. confirm the deployed product exposes the SillyMaker project license;
 6. record the source revision and any known gameplay/content/platform
    limitations in the deployment note.
+
+If the release advertises compatibility with maintained Saves, also run the
+four-fixture lifecycle corpus and four-runtime migration matrix described above;
+list the supported floor explicitly rather than promising unbounded historical
+compatibility.
 
 For an offline handoff, integrity workflow, signed package, updater, or store
 submission, also prepare the optional Artifact, inspect its technical manifest

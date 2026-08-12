@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
-import { IDBFactory as FakeIDBFactory } from "fake-indexeddb";
-import { describe, expect, it } from "vitest";
+import { IDBFactory as FakeIDBFactory, IDBObjectStore as FakeIDBObjectStore } from "fake-indexeddb";
+import type { HostRecordMutationV1, HostStoredRecordV1 } from "@sillymaker/base";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createHostRecordStoreCorruptBackingNeighborV1,
@@ -30,6 +31,38 @@ import {
 } from "./indexeddb-record-store.ts";
 
 const databaseNameV1 = "silly-maker.test.host-record-conformance";
+type HostRecordKeyV1 = HostStoredRecordV1["key"];
+type HostRecordNamespaceV1 = HostStoredRecordV1["namespace"];
+
+const hostRecordKeyV1 = (value: string) => value as HostRecordKeyV1;
+
+function putMutationV1(
+  namespace: HostRecordNamespaceV1,
+  key: string,
+  expectedRevision: number | null,
+  bytes: readonly number[],
+): Extract<HostRecordMutationV1, { readonly kind: "put" }> {
+  return Object.freeze({
+    kind: "put",
+    namespace,
+    key: hostRecordKeyV1(key),
+    expectedRevision: expectedRevision as HostStoredRecordV1["revision"] | null,
+    bytes: Uint8Array.from(bytes),
+  });
+}
+
+async function storedBytesV1(
+  store: ReturnType<typeof createIndexedDbRecordStoreV1>,
+  namespace: HostRecordNamespaceV1,
+  key: string,
+): Promise<readonly number[] | null> {
+  const stored = await store.read(namespace, hostRecordKeyV1(key));
+  return stored === null ? null : Object.freeze(Array.from(stored.bytes));
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 function requestResultV1<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -261,6 +294,89 @@ describe("IndexedDB Host record store conformance", () => {
     expect(await runHostRecordStoreReopenConformanceV1(createStore(), createStore)).toEqual(
       hostRecordStoreReopenExpectedV1,
     );
+  });
+
+  it("keeps a three-record backup, target, and lease batch unchanged on a final CAS conflict", async () => {
+    const indexedDB = new FakeIDBFactory();
+    const createStore = () =>
+      createIndexedDbRecordStoreV1({ indexedDB, databaseName: databaseNameV1 });
+    const store = createStore();
+    const backupKey = "conformance.migration-backup";
+    const targetKey = "conformance.migration-target";
+    const leaseKey = "conformance.migration-lease";
+
+    await expect(
+      store.commit([
+        putMutationV1("save", targetKey, null, [10, 11]),
+        putMutationV1("lease", leaseKey, null, [20, 21]),
+      ]),
+    ).resolves.toMatchObject({ kind: "committed" });
+
+    await expect(
+      store.commit([
+        putMutationV1("save", backupKey, null, [30, 31]),
+        putMutationV1("save", targetKey, 1, [12, 13]),
+        putMutationV1("lease", leaseKey, 99, [22, 23]),
+      ]),
+    ).resolves.toEqual({
+      kind: "conflict",
+      namespace: "lease",
+      key: leaseKey,
+      actualRevision: 1,
+    });
+
+    const reopened = createStore();
+    expect(await storedBytesV1(reopened, "save", backupKey)).toBeNull();
+    expect(await storedBytesV1(reopened, "save", targetKey)).toEqual([10, 11]);
+    expect(await storedBytesV1(reopened, "lease", leaseKey)).toEqual([20, 21]);
+  });
+
+  it("rolls back a three-record backup, target, and lease batch when the third write request faults", async () => {
+    const indexedDB = new FakeIDBFactory();
+    const createStore = () =>
+      createIndexedDbRecordStoreV1({ indexedDB, databaseName: databaseNameV1 });
+    const store = createStore();
+    const backupKey = "conformance.fault.migration-backup";
+    const targetKey = "conformance.fault.migration-target";
+    const leaseKey = "conformance.fault.migration-lease";
+
+    await expect(
+      store.commit([
+        putMutationV1("save", targetKey, null, [40, 41]),
+        putMutationV1("lease", leaseKey, null, [50, 51]),
+      ]),
+    ).resolves.toMatchObject({ kind: "committed" });
+
+    const originalPut = FakeIDBObjectStore.prototype.put;
+    const putSpy = vi.spyOn(FakeIDBObjectStore.prototype, "put")
+      .mockImplementationOnce(originalPut)
+      .mockImplementationOnce(originalPut)
+      .mockImplementationOnce(function (
+        this: IDBObjectStore,
+        ...args: Parameters<typeof originalPut>
+      ) {
+        const request = originalPut.apply(this, args);
+        queueMicrotask(() => this.transaction.abort());
+        return request;
+      });
+
+    await expect(
+      store.commit([
+        putMutationV1("save", backupKey, null, [60, 61]),
+        putMutationV1("save", targetKey, 1, [42, 43]),
+        putMutationV1("lease", leaseKey, 1, [52, 53]),
+      ]),
+    ).rejects.toMatchObject({
+      code: "indexeddb.transaction_aborted",
+      operation: "commit",
+    });
+    expect(putSpy).toHaveBeenCalledTimes(3);
+    putSpy.mockRestore();
+
+    const reopened = createStore();
+    expect(await storedBytesV1(reopened, "save", backupKey)).toBeNull();
+    expect(await storedBytesV1(reopened, "save", targetKey)).toEqual([40, 41]);
+    expect(await storedBytesV1(reopened, "lease", leaseKey)).toEqual([50, 51]);
   });
 
   it("rejects the shared malformed mutation corpus without changing state", async () => {

@@ -203,6 +203,141 @@ export type SaveExportOperationResultV1 =
   }
   | { readonly kind: "faulted"; readonly code: string };
 
+export type SaveRewriteOperationResultV1 =
+  | {
+    readonly kind: "upgraded";
+    readonly slotId: SaveSlotIdV1;
+    readonly compatibility: "exact" | "adopted";
+  }
+  | { readonly kind: "reanchored"; readonly slotId: SaveSlotIdV1 }
+  | {
+    readonly kind: "rejected";
+    readonly code:
+      | "busy"
+      | "unavailable"
+      | "empty_slot"
+      | "backup_pending"
+      | "conflict"
+      | "invalid_record"
+      | "migration_unavailable"
+      | "migration_rejected"
+      | "incompatible"
+      | "reanchor_required"
+      | "not_required";
+  }
+  | { readonly kind: "faulted"; readonly code: string };
+
+export type SaveBackupOperationResultV1 =
+  | { readonly kind: "restored" | "discarded"; readonly slotId: SaveSlotIdV1 }
+  | {
+    readonly kind: "rejected";
+    readonly code:
+      | "busy"
+      | "unavailable"
+      | "empty_backup"
+      | "conflict"
+      | "invalid_backup"
+      | "invalid_record";
+  }
+  | { readonly kind: "faulted"; readonly code: string };
+
+/** Player-safe, read-only status of the one bounded migration backup. */
+export type SaveBackupInspectionResultV1 =
+  | {
+    readonly kind: "available";
+    readonly slotId: SaveSlotIdV1;
+  }
+  | {
+    readonly kind: "rejected";
+    readonly slotId: SaveSlotIdV1;
+    readonly code: "empty_backup" | "unavailable" | "invalid_backup";
+  }
+  | {
+    readonly kind: "faulted";
+    readonly slotId: SaveSlotIdV1 | null;
+    readonly code: string;
+  };
+
+export type SaveBackupExportOperationResultV1 =
+  | {
+    readonly kind: "exported";
+    readonly slotId: SaveSlotIdV1;
+    readonly file: ExportedSaveV1;
+  }
+  | {
+    readonly kind: "rejected";
+    readonly code: "unavailable" | "empty_backup" | "conflict" | "invalid_backup";
+  }
+  | { readonly kind: "faulted"; readonly code: string };
+
+/** Stable, player-safe evidence attached to a read-only Save inspection. */
+export interface SaveInspectionDiagnosticsV1 {
+  readonly codes: readonly string[];
+  readonly migrationAttempt: SaveStateMigrationAttemptV1 | null;
+  readonly migrationReasonCode: SaveStateMigrationReasonCodeV1 | null;
+  readonly storedStateContractRevision: PositiveSafeInteger | null;
+  readonly currentStateContractRevision: PositiveSafeInteger | null;
+}
+
+/**
+ * Read-only disposition for one stored Save.
+ *
+ * Inspection may execute the configured synchronous, deterministic migration
+ * chain, but never returns a candidate Snapshot, storage revision, commit
+ * capability, or other authority that can be replayed as a load.
+ */
+export type SaveInspectionResultV1 =
+  | {
+    readonly kind: "direct";
+    readonly slotId: SaveSlotIdV1;
+    readonly warnings: readonly ImportCompatibilityWarningV1[];
+    readonly diagnostics: SaveInspectionDiagnosticsV1;
+  }
+  | {
+    readonly kind: "migration_required";
+    readonly slotId: SaveSlotIdV1;
+    readonly migration: SaveStateMigrationReceiptV1;
+    readonly warnings: readonly ImportCompatibilityWarningV1[];
+    readonly diagnostics: SaveInspectionDiagnosticsV1;
+  }
+  | {
+    readonly kind: "adoption_required";
+    readonly slotId: SaveSlotIdV1;
+    readonly adoption: SimulationAdoptionV1;
+    readonly warnings: readonly ImportCompatibilityWarningV1[];
+    readonly diagnostics: SaveInspectionDiagnosticsV1;
+  }
+  | {
+    readonly kind: "migration_and_adoption_required";
+    readonly slotId: SaveSlotIdV1;
+    readonly migration: SaveStateMigrationReceiptV1;
+    readonly adoption: SimulationAdoptionV1;
+    readonly warnings: readonly ImportCompatibilityWarningV1[];
+    readonly diagnostics: SaveInspectionDiagnosticsV1;
+  }
+  | {
+    readonly kind: "inspect_only";
+    readonly slotId: SaveSlotIdV1;
+    readonly code: "migration_unavailable" | "incompatible" | "reanchor_required";
+    readonly diagnostics: SaveInspectionDiagnosticsV1;
+  }
+  | {
+    readonly kind: "rejected";
+    readonly slotId: SaveSlotIdV1;
+    readonly code:
+      | "empty_slot"
+      | "unavailable"
+      | "invalid_record"
+      | "migration_rejected";
+    readonly diagnostics: SaveInspectionDiagnosticsV1;
+  }
+  | {
+    readonly kind: "faulted";
+    readonly slotId: SaveSlotIdV1 | null;
+    readonly code: string;
+    readonly diagnostics: SaveInspectionDiagnosticsV1;
+  };
+
 export type SessionLeaseStatusV1 =
   | {
     readonly kind: "owned";
@@ -364,6 +499,7 @@ export type ImportRejectionCodeV1 =
   | "digest.invalid_format"
   | "digest.state_mismatch"
   | "digest.normalized_state_mismatch"
+  | "compatibility.adoption_ambiguous"
   | "compatibility.lineage_limit"
   | "reference.unknown_id"
   | "invariant.failed";
@@ -445,7 +581,7 @@ export interface SaveCompatibilityClassificationInputV1 {
   readonly stored: DeepReadonly<BuildProvenanceV1>;
   readonly current: DeepReadonly<BuildProvenanceV1>;
   readonly simulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[];
-  readonly adoptionDeclaration: DeepReadonly<PatchSetAdoptionDeclarationV1> | null;
+  readonly adoptionDeclarations: readonly DeepReadonly<PatchSetAdoptionDeclarationV1>[];
   readonly candidateCommandSequence: NonNegativeSafeInteger;
 }
 

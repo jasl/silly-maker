@@ -24,6 +24,7 @@ import type {
   SaveOverlayLabelsV1,
   SaveOverlayPortV1,
   SaveOverlaySlotNamesV1,
+  SaveUiBackupExportResultV1,
   SavesLauncherPropsV1,
   SemanticStagePropsV1,
   SettingsLauncherPropsV1,
@@ -2297,6 +2298,9 @@ describe("@sillymaker/ui public managed System surface", () => {
     type SessionKeysV1 = Extract<keyof SystemDialogSessionV1, string>;
     type CustomSavesHasRenderCallbackV1 = "render" extends keyof SystemDialogCustomSavesV1 ? true
       : false;
+    type SaveRecoveryPortKeysV1 = keyof NonNullable<SaveOverlayPortV1["recovery"]>;
+    type SaveRecoveryLabelKeysV1 = keyof NonNullable<SaveOverlayLabelsV1["recovery"]>;
+    type SavePortHasFlatInspectionV1 = "inspectSave" extends keyof SaveOverlayPortV1 ? true : false;
 
     expectTypeOf<SessionKeysV1>().toEqualTypeOf<
       "getSnapshot" | "openSettings" | "openSaves"
@@ -2314,6 +2318,19 @@ describe("@sillymaker/ui public managed System surface", () => {
       SystemDialogCustomSavesComponentV1
     >();
     expectTypeOf<CustomSavesHasRenderCallbackV1>().toEqualTypeOf<false>();
+    expectTypeOf<SaveRecoveryPortKeysV1>().toEqualTypeOf<
+      | "inspectSave"
+      | "inspectBackup"
+      | "upgradeSave"
+      | "reanchorSave"
+      | "restoreBackup"
+      | "exportBackup"
+      | "discardBackup"
+    >();
+    expectTypeOf<SaveRecoveryLabelKeysV1>().toEqualTypeOf<
+      "checking" | "disposition" | "backup" | "action" | "confirmation" | "operation"
+    >();
+    expectTypeOf<SavePortHasFlatInspectionV1>().toEqualTypeOf<false>();
 
     // These aliases are intentionally referenced as one package-root consumer
     // so declaration regressions fail the ordinary aggregate typecheck.
@@ -2322,6 +2339,7 @@ describe("@sillymaker/ui public managed System surface", () => {
       | SaveOverlayLabelsV1
       | SaveOverlayPortV1
       | SaveOverlaySlotNamesV1
+      | SaveUiBackupExportResultV1
       | SavesLauncherPropsV1
       | SettingsLauncherPropsV1
       | SystemDialogCustomSavesRenderIntentsV1

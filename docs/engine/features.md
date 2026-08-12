@@ -102,11 +102,27 @@
   the legacy current-revision path, as do callers that explicitly choose the
   legacy replacement-prepare callback; migrated replacement fails closed.
   Engine Lab publishes the first real app-local registry/owner and maintains a
-  neutral revision 3/4-to-current conformance chain. Its one/two-step, failure,
-  and adoption vectors run in Deno, Chromium, Firefox, and WebKit through an
-  isolated Worker. This proves the engine mechanism; without M3 product fixtures,
-  backup, inspection, and recovery UX it is not a released historical-Save
-  compatibility promise.
+  neutral revision 3/4-to-current 5 conformance chain. Cat Cafe revision 1 is its
+  first supported Save floor. Four maintained canonical byte fixtures (Engine Lab
+  3/4/5 and Cat Cafe 1) run inspection, migration/adoption where applicable,
+  current validation, load, backup/restore, and fresh-save round-trip; the same
+  ordered corpus runs normalized parity in Deno, Chromium, Firefox, and WebKit.
+  No unsupported revision is inferred from schema similarity or generated from a
+  current encoder.
+- The player persistence port exposes fresh, single-slot read-only Save and backup
+  inspection rather than an all-slot scan. Applications may declare up to 256
+  exact adoption identities; duplicate or ambiguous declarations fail closed.
+  The managed Saves UI maps direct, migration/adoption-required, rejected,
+  inspect-only, and faulted outcomes to localized actions without exposing raw
+  bytes, Host keys/revisions, stack traces, or lease fences.
+- Migration upgrade and lineage re-anchor preserve one exact pre-write backup in
+  the existing `save` namespace. Restore and discard are the only operations that
+  consume it; export remains retryable and byte-exact. Re-anchor is limited to an
+  otherwise-valid unique adoption at the lineage cap, while all operations reread
+  current Host state and remain lease/CAS fenced. Browser acceptance proves two
+  same-name export download events can be saved to distinct test paths with exact
+  backup bytes and retention; it does not claim Browser JavaScript controls the
+  final filesystem suffix or that the Desktop preview is process-crash atomic.
 - Story, state-contract, engine, simulation, and patch-lineage compatibility information.
 - Validated managed adoption for compatible simulation changes.
 - Atomic record revisions, session lease/fencing, and HMR persistence handoff on conforming Host stores; browser IndexedDB is the production implementation, while the current desktop file backend is explicitly preview until its batch durability gate passes.
@@ -179,17 +195,14 @@ is green.
 
 The engine does not currently provide a backend/account service, networked multiplayer authority, runtime LLM, ECS, SQL query layer, or a general-purpose database client for UI. These are descriptions of the present implementation, not permanent bans.
 
-Save migration has exact registry authoring contracts, a bounded
-package-internal pure callback kernel, staged load/import integration for an
-application-provided exact chain, and atomic Session/Persistence/CommandLog/
-autosave replacement with Session-owned non-durable provenance. Engine Lab now
-publishes the first real owner and its exact vectors have four-runtime promotion.
-Opaque low-level custom runtime controls and explicit legacy prepare-callback
-callers are outside the composite migration guarantee; release fixtures and
-player inspection/backup/recovery workflows remain planned.
-
-PF5/M3 Save migration product surface is the current production-floor slice;
-that current status does not make those remaining workflows delivered.
+The Save migration product surface described above is implemented: supported
+identities have checked-in canonical bytes, single-slot inspection and bounded
+backup/recovery are player-accessible, and the maintained four-fixture corpus
+runs through Story lifecycle and four-runtime parity gates. Opaque low-level
+custom runtime controls and explicit legacy prepare-callback callers remain
+outside the composite migration guarantee. PF5/M3 is complete; the next
+linear-core gate is PF6/S5 docs-only exact-entry/adjudication, before any broad
+S5 runtime implementation.
 
 The script-language decision is durable: Story, Module, Narrative, UI, and official Hotfix code use TypeScript/JavaScript. SillyMaker does not plan Ren'Py DSL/Save compatibility, a custom script interpreter, or an untrusted-code security sandbox. Direct Host-global access remains possible JavaScript but is outside the supported engine API.
 

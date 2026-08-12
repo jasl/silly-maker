@@ -132,8 +132,10 @@ generic exact History-child lifecycle substrate与S4.2.3.2 dormant Narrative clo
 state-install participant substrate、S4.2.4.2 DOM-free Narrative DialoguePlayerController core与S4.2.4.3 dormant Host
 player-view integration现也均已交付。原S4.2.5 broad checkpoint已由completed docs-only `.5.0`细分并转为historical；原`.5.1`
 implementation checkpoint也已由`.5.1a`–`.5.1c`细分并转为historical，`.5.1a`、`.5.1b`与`.5.1c`现均已交付。`.3.1a`与`.3.1b`也已依次交付并转为historical。
-当前active execution pointer的current/next、core slice与direct RED/implementation gate现均为**PF5/M3 Save migration product surface（当前）**；冻结线性顺序为
-**S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（已完成；historical） → S4b broad checkpoint（historical） → S4b.0（docs-only，已完成） → S4b.1a（已完成；historical） → S4b.1b（已完成；historical） → S4b.1c（已完成；historical） → PF5/M3 Save migration product surface（当前）**。
+PF5/M3 现也已完成并转为 historical。当前 active execution pointer 的 current/next、core
+slice 与 direct gate 均为 **PF6/S5 docs-only exact-entry/adjudication（当前）**；S5 broad
+checkpoint 尚无 exact allowlist/mergeable entry，不得直接开始 runtime implementation。冻结线性顺序为
+**S4.3 broad checkpoint（historical） → S4.3.0（docs-only，已完成） → S4.3.1a（已完成；historical） → S4.3.1b（已完成；historical） → S4b broad checkpoint（historical） → S4b.0（docs-only，已完成） → S4b.1a（已完成；historical） → S4b.1b（已完成；historical） → S4b.1c（已完成；historical） → PF5/M3（已完成；historical） → PF6/S5 docs-only exact-entry/adjudication（当前）**。本文后续 delivery records 中残留的 “PF5/M3 Save migration product surface（当前）” 只记录当时顺序，均由本最终 pointer supersede，不是 live gate。
 R3b.1、R4.0、R4a、R4b.0、R4b.1、R5、S4.0、S4.1a、S4.1b.0、S4.1b.1a、S4.1b.1b.0与
 S4.1b.1b.1a、S4.1b.1b.1b.1、S4.1b.1b.1b.2a、S4.1b.1b.1b.2b.0与
 S4.1b.1b.1b.2b.1a、S4.1b.1b.1b.2b.1b、S4.1b.1b.1b.2b.2a、

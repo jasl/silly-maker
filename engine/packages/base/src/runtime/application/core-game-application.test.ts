@@ -21,6 +21,7 @@ import type {
 } from "../../contracts/host.ts";
 import { createMemoryHostRecordStoreV1 } from "../../contracts/host.ts";
 import type { SessionLeaseOwnerId } from "../../contracts/application.ts";
+import type { PatchSetAdoptionDeclarationV1 } from "../../contracts/hotfix.ts";
 import { createTransactionalRngV1, rngStateV1Schema } from "../../contracts/rng.ts";
 import { createGameSnapshotEnvelopeSchemaV1 } from "../../contracts/snapshot.ts";
 import {
@@ -2068,6 +2069,58 @@ const faultV1 = Object.freeze({
 });
 
 describe("resolveCoreGameApplicationV1", () => {
+  it("rejects invalid adoption declaration configuration before Story resolution", () => {
+    const digest = digestBytes(Uint8Array.of(0x61));
+    const declaration: PatchSetAdoptionDeclarationV1 = Object.freeze({
+      storyId: "story.synthetic-counter",
+      storyRevision: parsePositiveSafeInteger(1),
+      stateContractRevision: parsePositiveSafeInteger(1),
+      stateContractDigest: digest,
+      fromSimulationDigest: digest,
+      toSimulationDigest: digest,
+      simulationPatchSetDigest: digest,
+    });
+    const defineCalls = vi.fn();
+    const raw = {
+      ...definitionV1,
+      entry: Object.freeze({
+        ...definitionV1.entry,
+        define: () => {
+          defineCalls();
+          return definitionV1.entry.define();
+        },
+      }),
+      adoptionDeclarations: Array.from({ length: 257 }, () => declaration),
+    };
+    expect(resolveCoreGameApplicationV1(raw)).toMatchObject({
+      kind: "failed",
+      failure: { code: "save_adoption_declarations.invalid" },
+    });
+    expect(defineCalls).not.toHaveBeenCalled();
+
+    expect(
+      resolveCoreGameApplicationV1({
+        ...raw,
+        adoptionDeclarations: Object.freeze([declaration, { ...declaration }]),
+      }),
+    ).toMatchObject({
+      kind: "failed",
+      failure: { code: "save_adoption_declarations.invalid" },
+    });
+    expect(defineCalls).not.toHaveBeenCalled();
+
+    const accessor = { ...raw };
+    Object.defineProperty(accessor, "adoptionDeclarations", {
+      enumerable: true,
+      get: () => Object.freeze([declaration]),
+    });
+    expect(resolveCoreGameApplicationV1(accessor)).toMatchObject({
+      kind: "failed",
+      failure: { code: "save_adoption_declarations.invalid" },
+    });
+    expect(defineCalls).not.toHaveBeenCalled();
+  });
+
   it("reports resolution failures structurally instead of throwing", () => {
     const broken = defineCoreGameApplicationV1({
       ...definitionV1,

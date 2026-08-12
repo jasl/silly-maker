@@ -11,7 +11,12 @@ import {
   type HostFilePortV1,
   type PersistenceOperationResultV1,
   type PersistenceStatusV1,
+  type SaveBackupExportOperationResultV1,
+  type SaveBackupInspectionResultV1,
+  type SaveBackupOperationResultV1,
   type SaveExportOperationResultV1,
+  type SaveInspectionResultV1,
+  type SaveRewriteOperationResultV1,
   type SaveSlotSummaryV1,
 } from "@sillymaker/base";
 import type {
@@ -26,6 +31,13 @@ import type {
 export interface PlayerUiPersistenceSourceV1 {
   getStatus(): PersistenceStatusV1 | Promise<PersistenceStatusV1>;
   listSlots(): Promise<readonly SaveSlotSummaryV1[]>;
+  inspectSave(slotId: SaveUiReadableSlotIdV1): Promise<SaveInspectionResultV1>;
+  inspectBackup(slotId: SaveUiReadableSlotIdV1): Promise<SaveBackupInspectionResultV1>;
+  upgradeSave(slotId: SaveUiReadableSlotIdV1): Promise<SaveRewriteOperationResultV1>;
+  reanchorSave(slotId: SaveUiReadableSlotIdV1): Promise<SaveRewriteOperationResultV1>;
+  restoreBackup(slotId: SaveUiReadableSlotIdV1): Promise<SaveBackupOperationResultV1>;
+  exportBackup(slotId: SaveUiReadableSlotIdV1): Promise<SaveBackupExportOperationResultV1>;
+  discardBackup(slotId: SaveUiReadableSlotIdV1): Promise<SaveBackupOperationResultV1>;
   save(slotId: SaveUiWritableSlotIdV1): Promise<PersistenceOperationResultV1>;
   load(slotId: SaveUiReadableSlotIdV1): Promise<PersistenceOperationResultV1>;
   clear(slotId: SaveUiReadableSlotIdV1): Promise<PersistenceOperationResultV1>;
@@ -175,6 +187,33 @@ export function createPlayerSaveUiPortV1(input: {
   return Object.freeze({
     getStatus: () => input.persistence.getStatus(),
     listSlots: async () => await input.persistence.listSlots(),
+    recovery: Object.freeze({
+      inspectSave: async (slotId: SaveUiReadableSlotIdV1) =>
+        await input.persistence.inspectSave(slotId),
+      inspectBackup: async (slotId: SaveUiReadableSlotIdV1) =>
+        await input.persistence.inspectBackup(slotId),
+      upgradeSave: async (slotId: SaveUiReadableSlotIdV1) =>
+        await input.persistence.upgradeSave(slotId),
+      reanchorSave: async (slotId: SaveUiReadableSlotIdV1) =>
+        await input.persistence.reanchorSave(slotId),
+      restoreBackup: async (slotId: SaveUiReadableSlotIdV1) =>
+        await input.persistence.restoreBackup(slotId),
+      async exportBackup(slotId: SaveUiReadableSlotIdV1) {
+        const result = await input.persistence.exportBackup(slotId);
+        if (result.kind !== "exported") return result;
+        if (result.slotId !== slotId) {
+          return Object.freeze({ kind: "faulted" as const, code: "persistence.invalid_result" });
+        }
+        try {
+          await downloadV1(input.files, result.file);
+        } catch {
+          return Object.freeze({ kind: "faulted" as const, code: "file.download_failed" });
+        }
+        return Object.freeze({ kind: "exported" as const, slotId: result.slotId });
+      },
+      discardBackup: async (slotId: SaveUiReadableSlotIdV1) =>
+        await input.persistence.discardBackup(slotId),
+    }),
     save: async (slotId: SaveUiWritableSlotIdV1) => await input.persistence.save(slotId),
     load: async (slotId: SaveUiReadableSlotIdV1) => await input.persistence.load(slotId),
     clear: async (slotId: SaveUiReadableSlotIdV1) => await input.persistence.clear(slotId),

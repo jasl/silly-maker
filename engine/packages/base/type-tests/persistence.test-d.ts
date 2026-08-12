@@ -200,12 +200,20 @@ codec.write;
 declare const stored: BuildProvenanceV1;
 declare const current: BuildProvenanceV1;
 declare const lineage: readonly SimulationAdoptionV1[];
-declare const adoptionDeclaration: PatchSetAdoptionDeclarationV1 | null;
+declare const adoptionDeclarations: readonly PatchSetAdoptionDeclarationV1[];
 declare const candidateCommandSequence: NonNegativeSafeInteger;
 export const compatibility = classifySaveCompatibilityV1({
   stored,
   current,
   simulationLineage: lineage,
-  adoptionDeclaration,
+  adoptionDeclarations,
+  candidateCommandSequence,
+});
+classifySaveCompatibilityV1({
+  stored,
+  current,
+  simulationLineage: lineage,
+  // @ts-expect-error the singular compatibility declaration was replaced by a finite set
+  adoptionDeclaration: null,
   candidateCommandSequence,
 });

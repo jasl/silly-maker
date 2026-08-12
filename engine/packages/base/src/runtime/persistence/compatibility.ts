@@ -53,6 +53,19 @@ import {
 
 const emptyTupleV1 = (): readonly [] => Object.freeze([]) as readonly [];
 
+interface SaveReanchorClassificationEvidenceInternalV1 {
+  readonly adoption: SimulationAdoptionV1;
+  readonly stored: DeepReadonly<BuildProvenanceV1>;
+  readonly current: DeepReadonly<BuildProvenanceV1>;
+  readonly simulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[];
+  readonly candidateCommandSequence: NonNegativeSafeInteger;
+}
+
+const reanchorEvidenceByClassificationV1 = new WeakMap<
+  object,
+  SaveReanchorClassificationEvidenceInternalV1
+>();
+
 function canonicalBytesEqualV1(left: unknown, right: unknown): boolean {
   const leftBytes = canonicalJsonBytes(left);
   const rightBytes = canonicalJsonBytes(right);
@@ -168,12 +181,160 @@ function collectWarningsV1(
   return Object.freeze(warnings);
 }
 
+const maximumAdoptionDeclarationCountV1 = 256;
+const adoptionDeclarationFieldsV1 = Object.freeze(
+  [
+    "storyId",
+    "storyRevision",
+    "stateContractRevision",
+    "stateContractDigest",
+    "fromSimulationDigest",
+    "toSimulationDigest",
+    "simulationPatchSetDigest",
+  ] as const,
+);
+
+type AdmittedAdoptionDeclarationsV1 = readonly DeepReadonly<PatchSetAdoptionDeclarationV1>[];
+
+const adoptionDeclarationLookupBySetV1 = new WeakMap<
+  object,
+  ReadonlyMap<string, DeepReadonly<PatchSetAdoptionDeclarationV1>>
+>();
+
+function adoptionDeclarationTupleV1(
+  declaration: DeepReadonly<PatchSetAdoptionDeclarationV1>,
+): string {
+  return JSON.stringify([
+    declaration.storyId,
+    declaration.storyRevision,
+    declaration.stateContractRevision,
+    declaration.stateContractDigest,
+    declaration.fromSimulationDigest,
+    declaration.toSimulationDigest,
+    declaration.simulationPatchSetDigest,
+  ]);
+}
+
+function parseAdoptionDeclarationV1(value: unknown): PatchSetAdoptionDeclarationV1 {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    Object.getPrototypeOf(value) !== Object.prototype
+  ) {
+    throw new TypeError("invalid adoption declaration");
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  if (
+    Reflect.ownKeys(descriptors).some((key) => typeof key === "symbol") ||
+    Object.keys(descriptors).toSorted().join("\0") !==
+      [...adoptionDeclarationFieldsV1].toSorted().join("\0") ||
+    Object.values(descriptors).some(({ get, set }) => get !== undefined || set !== undefined)
+  ) {
+    throw new TypeError("invalid adoption declaration fields");
+  }
+  const storyId = descriptors.storyId?.value;
+  if (typeof storyId !== "string" || storyId.length === 0) {
+    throw new TypeError("invalid adoption declaration storyId");
+  }
+  return Object.freeze({
+    storyId,
+    storyRevision: parsePositiveSafeInteger(descriptors.storyRevision?.value),
+    stateContractRevision: parsePositiveSafeInteger(
+      descriptors.stateContractRevision?.value,
+    ),
+    stateContractDigest: parseDigest(descriptors.stateContractDigest?.value),
+    fromSimulationDigest: parseDigest(descriptors.fromSimulationDigest?.value),
+    toSimulationDigest: parseDigest(descriptors.toSimulationDigest?.value),
+    simulationPatchSetDigest: parseDigest(descriptors.simulationPatchSetDigest?.value),
+  });
+}
+
+function parseAdoptionDeclarationsV1(
+  value: unknown,
+  rejectDuplicates: boolean,
+): AdmittedAdoptionDeclarationsV1 {
+  try {
+    if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) {
+      throw new TypeError("invalid adoption declarations");
+    }
+    const lengthDescriptor = Object.getOwnPropertyDescriptor(value, "length");
+    if (
+      lengthDescriptor === undefined ||
+      lengthDescriptor.get !== undefined ||
+      lengthDescriptor.set !== undefined ||
+      !Number.isSafeInteger(lengthDescriptor.value) ||
+      lengthDescriptor.value < 0 ||
+      lengthDescriptor.value > maximumAdoptionDeclarationCountV1
+    ) {
+      throw new TypeError("invalid adoption declarations length");
+    }
+    const length = lengthDescriptor.value as number;
+    const descriptors = Object.getOwnPropertyDescriptors(value) as Record<
+      string,
+      PropertyDescriptor
+    >;
+    if (Reflect.ownKeys(descriptors).some((key) => typeof key === "symbol")) {
+      throw new TypeError("invalid adoption declarations symbols");
+    }
+    const expectedKeys = Array.from({ length }, (_, index) => String(index));
+    expectedKeys.push("length");
+    if (Object.keys(descriptors).toSorted().join("\0") !== expectedKeys.toSorted().join("\0")) {
+      throw new TypeError("invalid adoption declarations fields");
+    }
+    const declarations: PatchSetAdoptionDeclarationV1[] = [];
+    const tuples = new Set<string>();
+    for (let index = 0; index < length; index += 1) {
+      const descriptor = descriptors[String(index)];
+      if (
+        descriptor === undefined ||
+        descriptor.get !== undefined ||
+        descriptor.set !== undefined
+      ) {
+        throw new TypeError("adoption declaration accessors are forbidden");
+      }
+      const declaration = parseAdoptionDeclarationV1(descriptor.value);
+      const tuple = adoptionDeclarationTupleV1(declaration);
+      if (rejectDuplicates && tuples.has(tuple)) {
+        throw new TypeError("duplicate adoption declaration");
+      }
+      tuples.add(tuple);
+      declarations.push(declaration);
+    }
+    return Object.freeze(declarations);
+  } catch {
+    throw new TypeError("invalid adoption declarations");
+  }
+}
+
+/**
+ * Descriptor-safe one-time admission for official application and Persistence
+ * composition. The returned array and declarations are defensive frozen
+ * copies; its exact-tuple lookup remains package-internal and immutable.
+ *
+ * @internal
+ */
+export function admitAdoptionDeclarationsInternalV1(
+  value: unknown,
+): AdmittedAdoptionDeclarationsV1 {
+  if (value !== null && typeof value === "object") {
+    const existing = adoptionDeclarationLookupBySetV1.get(value);
+    if (existing !== undefined) return value as AdmittedAdoptionDeclarationsV1;
+  }
+  const declarations = parseAdoptionDeclarationsV1(value, true);
+  const lookup = new Map<string, DeepReadonly<PatchSetAdoptionDeclarationV1>>();
+  for (const declaration of declarations) {
+    lookup.set(adoptionDeclarationTupleV1(declaration), declaration);
+  }
+  adoptionDeclarationLookupBySetV1.set(declarations, lookup);
+  return declarations;
+}
+
 function matchesAdoptionDeclarationV1(
-  declaration: DeepReadonly<PatchSetAdoptionDeclarationV1> | null,
+  declaration: DeepReadonly<PatchSetAdoptionDeclarationV1>,
   input: DeepReadonly<SaveCompatibilityClassificationInputV1>,
 ): boolean {
   return (
-    declaration !== null &&
     declaration.storyId === input.current.story.id &&
     declaration.storyRevision === input.current.story.revision &&
     declaration.stateContractRevision === input.current.resolved.stateContractRevision &&
@@ -184,11 +345,39 @@ function matchesAdoptionDeclarationV1(
   );
 }
 
+function matchingAdoptionDeclarationCountV1(
+  input: DeepReadonly<SaveCompatibilityClassificationInputV1>,
+): number {
+  const target: PatchSetAdoptionDeclarationV1 = Object.freeze({
+    storyId: input.current.story.id,
+    storyRevision: input.current.story.revision,
+    stateContractRevision: input.current.resolved.stateContractRevision,
+    stateContractDigest: input.current.resolved.stateContractDigest,
+    fromSimulationDigest: input.stored.resolved.simulationDigest,
+    toSimulationDigest: input.current.resolved.simulationDigest,
+    simulationPatchSetDigest: input.current.resolved.patchSet.simulationDigest,
+  });
+  const configured = input.adoptionDeclarations as object;
+  const lookup = adoptionDeclarationLookupBySetV1.get(configured);
+  if (lookup !== undefined) {
+    return lookup.has(adoptionDeclarationTupleV1(target)) ? 1 : 0;
+  }
+  const declarations = parseAdoptionDeclarationsV1(input.adoptionDeclarations, false);
+  let matches = 0;
+  for (const declaration of declarations) {
+    if (matchesAdoptionDeclarationV1(declaration, input)) matches += 1;
+  }
+  return matches;
+}
+
 export function classifySaveCompatibilityV1(
   input: DeepReadonly<SaveCompatibilityClassificationInputV1>,
 ): SaveCompatibilityClassificationV1 {
   if (!Array.isArray(input.simulationLineage)) {
     throw new TypeError("invalid simulation lineage");
+  }
+  if (input.simulationLineage.length > 16) {
+    return Object.freeze({ kind: "rejected", code: "compatibility.lineage_limit" });
   }
   const candidateCommandSequence = parseNonNegativeSafeInteger(input.candidateCommandSequence);
   const mismatches = collectMismatchesV1(input);
@@ -197,16 +386,38 @@ export function classifySaveCompatibilityV1(
     return Object.freeze({ kind: "exact", mismatches: emptyTupleV1(), warnings });
   }
   const simulationOnly = mismatches.length === 1 && mismatches[0]?.field === "simulation_digest";
-  if (simulationOnly && matchesAdoptionDeclarationV1(input.adoptionDeclaration, input)) {
-    if (input.simulationLineage.length >= 16) {
-      return Object.freeze({ kind: "rejected", code: "compatibility.lineage_limit" });
-    }
+  const matchingAdoptionDeclarations = simulationOnly
+    ? matchingAdoptionDeclarationCountV1(input)
+    : 0;
+  if (matchingAdoptionDeclarations > 1) {
+    return Object.freeze({ kind: "rejected", code: "compatibility.adoption_ambiguous" });
+  }
+  if (matchingAdoptionDeclarations === 1) {
     const adoption: SimulationAdoptionV1 = Object.freeze({
       fromSimulationDigest: input.stored.resolved.simulationDigest,
       toSimulationDigest: input.current.resolved.simulationDigest,
       viaSimulationPatchSetDigest: input.current.resolved.patchSet.simulationDigest,
       adoptedAtCommandSequence: candidateCommandSequence,
     });
+    if (input.simulationLineage.length >= 16) {
+      const rejected = Object.freeze({
+        kind: "rejected" as const,
+        code: "compatibility.lineage_limit" as const,
+      });
+      if (input.simulationLineage.length === 16) {
+        reanchorEvidenceByClassificationV1.set(
+          rejected,
+          Object.freeze({
+            adoption,
+            stored: input.stored,
+            current: input.current,
+            simulationLineage: input.simulationLineage,
+            candidateCommandSequence,
+          }),
+        );
+      }
+      return rejected;
+    }
     return Object.freeze({
       kind: "adoption_candidate",
       mismatches: emptyTupleV1(),
@@ -613,6 +824,7 @@ const rejectionCodesV1 = new Set<ImportRejectionCodeV1>([
   "digest.invalid_format",
   "digest.state_mismatch",
   "digest.normalized_state_mismatch",
+  "compatibility.adoption_ambiguous",
   "compatibility.lineage_limit",
   "reference.unknown_id",
   "invariant.failed",
@@ -647,7 +859,12 @@ function normalizeCompatibilityClassificationV1(value: unknown): SaveCompatibili
     if (typeof code !== "string" || !rejectionCodesV1.has(code as ImportRejectionCodeV1)) {
       throw new TypeError("invalid compatibility rejection");
     }
-    return Object.freeze({ kind, code: code as ImportRejectionCodeV1 });
+    const normalized = Object.freeze({ kind, code: code as ImportRejectionCodeV1 });
+    const reanchorEvidence = reanchorEvidenceByClassificationV1.get(value);
+    if (reanchorEvidence !== undefined) {
+      reanchorEvidenceByClassificationV1.set(normalized, reanchorEvidence);
+    }
+    return normalized;
   }
   if (kind === "exact") {
     const fields = exactEnvelopeDescriptorsV1(
@@ -1061,6 +1278,89 @@ export function finishSaveImportCandidateInternalV1<
     mismatches: emptyTupleV1(),
     warnings: classification.warnings,
     candidate: prepared.record,
+    migration: prepared.migration?.receipt ?? null,
+  });
+}
+
+export type SaveReanchorValidationResultInternalV1<TSaveRecord> =
+  | {
+    readonly kind: "ready";
+    readonly candidate: DeepReadonly<TSaveRecord>;
+    readonly adoption: SimulationAdoptionV1;
+    readonly migration: SaveStateMigrationReceiptV1 | null;
+  }
+  | {
+    readonly kind: "rejected";
+    readonly code: ImportRejectionCodeV1 | "reanchor.not_required" | "reanchor.incompatible";
+  };
+
+/** @internal Exact lineage-limit recovery proof; absent from runtime barrels. */
+export function finishSaveReanchorCandidateInternalV1<
+  TState,
+  TSnapshot extends {
+    readonly state: TState;
+    readonly commandSequence: NonNegativeSafeInteger;
+  },
+  TSaveRecord extends SaveRecordEnvelopeV1<TSnapshot, BuildProvenanceV1, unknown, unknown>,
+>(
+  prepared: SaveImportPreparedCandidateInternalV1<TSaveRecord>,
+  context: SaveImportValidationContextV1<TState, TSnapshot, TSaveRecord>,
+  expectedCurrent: DeepReadonly<BuildProvenanceV1>,
+): SaveReanchorValidationResultInternalV1<TSaveRecord> {
+  const classification = normalizeCompatibilityClassificationV1(
+    context.classifyCompatibility(prepared.record),
+  );
+  if (classification.kind !== "rejected") {
+    return Object.freeze({
+      kind: "rejected" as const,
+      code: classification.kind === "inspect_only"
+        ? ("reanchor.incompatible" as const)
+        : ("reanchor.not_required" as const),
+    });
+  }
+  if (classification.code !== "compatibility.lineage_limit") {
+    return Object.freeze({ kind: "rejected" as const, code: classification.code });
+  }
+  const evidence = reanchorEvidenceByClassificationV1.get(classification);
+  const lineage = prepared.record.simulationLineage;
+  if (
+    evidence === undefined ||
+    evidence.stored !== prepared.record.provenance ||
+    evidence.current !== expectedCurrent ||
+    evidence.simulationLineage !== lineage ||
+    evidence.candidateCommandSequence !== prepared.record.snapshot.commandSequence ||
+    !Array.isArray(lineage) ||
+    lineage.length !== 16
+  ) {
+    return Object.freeze({
+      kind: "rejected" as const,
+      code: "compatibility.lineage_limit" as const,
+    });
+  }
+  const referenceErrors = validateStoryErrorsV1(
+    context.validateReferences(prepared.record.snapshot.state),
+    "reference validation",
+  );
+  if (referenceErrors.length > 0) {
+    return Object.freeze({
+      kind: "rejected" as const,
+      code: "reference.unknown_id" as const,
+    });
+  }
+  const invariantErrors = validateStoryErrorsV1(
+    context.validateInvariants(Object.freeze({
+      state: prepared.record.snapshot.state,
+      commandSequence: prepared.record.snapshot.commandSequence,
+    })),
+    "invariant validation",
+  );
+  if (invariantErrors.length > 0) {
+    return Object.freeze({ kind: "rejected" as const, code: "invariant.failed" as const });
+  }
+  return Object.freeze({
+    kind: "ready" as const,
+    candidate: prepared.record,
+    adoption: evidence.adoption,
     migration: prepared.migration?.receipt ?? null,
   });
 }

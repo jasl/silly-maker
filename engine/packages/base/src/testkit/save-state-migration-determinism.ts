@@ -46,6 +46,11 @@ export {
 } from "../contracts/values.ts";
 export type { DeepReadonly, Digest, RuntimeSchemaV1 } from "../contracts/values.ts";
 export { createSaveRecordEnvelopeSchemaV1 } from "../contracts/persistence.ts";
+export {
+  admitSaveMigrationReleaseFixtureV1,
+  saveMigrationReleaseCorpusV1,
+} from "./save-migration-release-corpus.ts";
+export type { SaveMigrationReleaseFixtureDescriptorV1 } from "./save-migration-release-corpus.ts";
 
 export {
   classifySaveCompatibilityV1,

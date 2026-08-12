@@ -4,6 +4,7 @@ import {
   classifySaveCompatibilityV1,
   createGameSnapshotEnvelopeSchemaV1,
   createSaveRecordEnvelopeSchemaV1,
+  admitSaveMigrationReleaseFixtureV1,
   defineSaveStateMigrationRegistryV1,
   digestBytes,
   digestCanonical,
@@ -15,6 +16,7 @@ import {
   parseSaveStateMigrationNamespaceV1,
   parseSaveStateMigrationReasonCodeV1,
   rngStateV1Schema,
+  saveMigrationReleaseCorpusV1,
   validateSaveImportCandidateV1,
 } from "@sillymaker/base/testkit/save-state-migration-determinism";
 import type {
@@ -27,6 +29,7 @@ import type {
   RuntimeSchemaV1,
   SaveCodecContextV1,
   SaveImportValidationContextV1,
+  SaveMigrationReleaseFixtureDescriptorV1,
   SaveRecordEnvelopeV1,
   SaveStateContractIdentityV1,
   SaveStateMigrationAttemptV1,
@@ -82,10 +85,224 @@ export interface SaveStateMigrationDeterminismCaseV1 {
   readonly sourceBytesPreserved: true;
 }
 
+export interface SaveMigrationReleaseCorpusParityCaseV1 {
+  readonly fixtureId:
+    | "engine-lab-state-3"
+    | "engine-lab-state-4"
+    | "engine-lab-state-5"
+    | "cat-cafe-state-1";
+  readonly productId: "engine-lab" | "cat-cafe";
+  readonly source: {
+    readonly stateContractRevision: number;
+    readonly stateContractDigest: Digest;
+    readonly bytesDigest: Digest;
+    readonly stateDigest: Digest;
+  };
+  readonly target: {
+    readonly stateContractRevision: number;
+    readonly stateContractDigest: Digest;
+    readonly stateDigest: Digest;
+  };
+  readonly outcome: "exact";
+  readonly diagnostic: null;
+  readonly migrationSteps: readonly string[];
+  readonly callbackCount: number;
+  readonly sourceBytesPreserved: true;
+}
+
+interface ReleaseSlotMetadataV1 {
+  readonly storyId: string;
+  readonly slotId: string;
+  readonly writeReason: string;
+  readonly capturedCommandSequence: number;
+}
+
+type ReleaseSnapshotV1 = GameSnapshotEnvelopeV1<LabGameStateV1, RngStateV1>;
+type ReleaseRecordV1 = SaveRecordEnvelopeV1<
+  ReleaseSnapshotV1,
+  BuildProvenanceV1,
+  ReleaseSlotMetadataV1,
+  readonly SimulationAdoptionV1[]
+>;
+
 export interface SaveStateMigrationDeterminismVectorV1 {
   readonly schemaVersion: 1;
   readonly cases: readonly SaveStateMigrationDeterminismCaseV1[];
+  readonly releaseCorpus: readonly SaveMigrationReleaseCorpusParityCaseV1[];
 }
+
+const releaseFixtureUrlsV1 = Object.freeze(
+  {
+    "engine-lab-state-3": new URL(
+      "../../fixtures/saves/engine-lab-state-3.save.json?no-inline",
+      import.meta.url,
+    ),
+    "engine-lab-state-4": new URL(
+      "../../fixtures/saves/engine-lab-state-4.save.json?no-inline",
+      import.meta.url,
+    ),
+    "engine-lab-state-5": new URL(
+      "../../fixtures/saves/engine-lab-state-5.save.json?no-inline",
+      import.meta.url,
+    ),
+    "cat-cafe-state-1": new URL(
+      "../../../examples/cat-cafe/fixtures/saves/cat-cafe-state-1.save.json?no-inline",
+      import.meta.url,
+    ),
+  } as const,
+);
+
+interface DenoReadFileV1 {
+  readFile(path: unknown): Promise<Uint8Array>;
+}
+
+function denoReadFileV1(): DenoReadFileV1 | null {
+  const candidate = Reflect.get(globalThis, "Deno");
+  if (candidate === null || typeof candidate !== "object") return null;
+  const readFile = Reflect.get(candidate, "readFile");
+  if (typeof readFile !== "function") return null;
+  return Object.freeze({
+    async readFile(path: unknown): Promise<Uint8Array> {
+      return await Reflect.apply(readFile, candidate, [path]) as Uint8Array;
+    },
+  });
+}
+
+async function readReleaseFixtureBytesV1(
+  descriptor: SaveMigrationReleaseFixtureDescriptorV1,
+): Promise<Uint8Array> {
+  const url = releaseFixtureUrlsV1[descriptor.id];
+  const deno = denoReadFileV1();
+  if (deno !== null) return await deno.readFile(url);
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new TypeError(`release fixture fetch failed: ${String(response.status)}`);
+  }
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+function exactObjectFieldsV1(
+  value: unknown,
+  fields: readonly string[],
+  label: string,
+): Readonly<Record<string, unknown>> {
+  if (
+    value === null || typeof value !== "object" || Array.isArray(value) ||
+    Object.getPrototypeOf(value) !== Object.prototype ||
+    Object.getOwnPropertySymbols(value).length !== 0
+  ) {
+    throw new TypeError(`invalid ${label}`);
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  if (Object.values(descriptors).some(({ get, set }) => get !== undefined || set !== undefined)) {
+    throw new TypeError(`${label} accessors are forbidden`);
+  }
+  const keys = Object.keys(descriptors).sort();
+  if (keys.join("\0") !== [...fields].sort().join("\0")) {
+    throw new TypeError(`invalid ${label} fields`);
+  }
+  return Object.freeze(
+    Object.fromEntries(keys.map((key) => [key, descriptors[key]?.value])),
+  );
+}
+
+const releaseProvenanceSchemaV1: RuntimeSchemaV1<BuildProvenanceV1> = Object.freeze({
+  parse(value: unknown): BuildProvenanceV1 {
+    const root = exactObjectFieldsV1(value, ["story", "engine", "resolved"], "provenance");
+    const story = exactObjectFieldsV1(root.story, ["id", "revision", "digest"], "story");
+    const engine = exactObjectFieldsV1(root.engine, ["version", "digest"], "engine");
+    const resolved = exactObjectFieldsV1(
+      root.resolved,
+      [
+        "stateContractRevision",
+        "stateContractDigest",
+        "simulationDigest",
+        "presentationDigest",
+        "patchSet",
+      ],
+      "resolved",
+    );
+    const patchSet = exactObjectFieldsV1(
+      resolved.patchSet,
+      ["digest", "simulationDigest", "presentationDigest", "appliedHotfixes"],
+      "patchSet",
+    );
+    if (
+      typeof story.id !== "string" || story.id.length === 0 ||
+      typeof engine.version !== "string" || engine.version.length === 0 ||
+      !Array.isArray(patchSet.appliedHotfixes) || patchSet.appliedHotfixes.length !== 0
+    ) throw new TypeError("invalid fixture provenance identity");
+    return Object.freeze({
+      story: Object.freeze({
+        id: story.id,
+        revision: parsePositiveSafeInteger(story.revision),
+        digest: parseDigest(story.digest),
+      }),
+      engine: Object.freeze({ version: engine.version, digest: parseDigest(engine.digest) }),
+      resolved: Object.freeze({
+        stateContractRevision: parsePositiveSafeInteger(resolved.stateContractRevision),
+        stateContractDigest: parseDigest(resolved.stateContractDigest),
+        simulationDigest: parseDigest(resolved.simulationDigest),
+        presentationDigest: parseDigest(resolved.presentationDigest),
+        patchSet: Object.freeze({
+          digest: parseDigest(patchSet.digest),
+          simulationDigest: parseDigest(patchSet.simulationDigest),
+          presentationDigest: parseDigest(patchSet.presentationDigest),
+          appliedHotfixes: Object.freeze([]),
+        }),
+      }),
+    });
+  },
+});
+
+const releaseSlotSchemaV1: RuntimeSchemaV1<ReleaseSlotMetadataV1> = Object.freeze({
+  parse(value: unknown): ReleaseSlotMetadataV1 {
+    const fields = exactObjectFieldsV1(
+      value,
+      ["storyId", "slotId", "writeReason", "capturedCommandSequence"],
+      "slot metadata",
+    );
+    if (
+      typeof fields.storyId !== "string" || fields.storyId.length === 0 ||
+      fields.slotId !== "quick" || fields.writeReason !== "quick"
+    ) throw new TypeError("invalid fixture slot identity");
+    return Object.freeze({
+      storyId: fields.storyId,
+      slotId: "quick",
+      writeReason: "quick",
+      capturedCommandSequence: parseNonNegativeSafeInteger(fields.capturedCommandSequence),
+    });
+  },
+});
+
+const releaseLineageSchemaV1: RuntimeSchemaV1<readonly SimulationAdoptionV1[]> = Object.freeze({
+  parse(value: unknown): readonly SimulationAdoptionV1[] {
+    if (!Array.isArray(value) || value.length !== 0) {
+      throw new TypeError("invalid fixture lineage");
+    }
+    return Object.freeze([]);
+  },
+});
+
+const releaseSnapshotSchemaV1 = createGameSnapshotEnvelopeSchemaV1(
+  labGameStateSchemaV1,
+  rngStateV1Schema,
+);
+const releaseRecordSchemaV1 = createSaveRecordEnvelopeSchemaV1(
+  releaseSnapshotSchemaV1,
+  releaseProvenanceSchemaV1,
+  releaseSlotSchemaV1,
+  releaseLineageSchemaV1,
+);
+const releaseCodecV1: SaveCodecContextV1<ReleaseSnapshotV1, ReleaseRecordV1> = Object.freeze({
+  recordSchema: releaseRecordSchemaV1,
+  validateEnvelope(record: DeepReadonly<ReleaseRecordV1>) {
+    if (
+      record.slot.storyId !== record.provenance.story.id ||
+      record.slot.capturedCommandSequence !== record.snapshot.commandSequence
+    ) throw new TypeError("fixture envelope cross-field mismatch");
+  },
+});
 
 const textEncoderV1 = new TextEncoder();
 const digestV1 = (label: string): Digest =>
@@ -292,7 +509,7 @@ function adoptionDeclarationV1(
 
 function contextV1(
   registry: SaveStateMigrationRegistryV1,
-  adoptionDeclaration: PatchSetAdoptionDeclarationV1 | null,
+  adoptionDeclarations: readonly PatchSetAdoptionDeclarationV1[],
 ): SaveImportValidationContextV1<LabGameStateV1, MigrationSnapshotV1, MigrationRecordV1> {
   return Object.freeze({
     codec: codecV1,
@@ -303,13 +520,173 @@ function contextV1(
         stored: record.provenance,
         current: currentProvenanceV1,
         simulationLineage: record.simulationLineage,
-        adoptionDeclaration,
+        adoptionDeclarations,
         candidateCommandSequence: record.snapshot.commandSequence,
       });
     },
     validateReferences: () => Object.freeze([]),
     validateInvariants: () => Object.freeze([]),
   });
+}
+
+function releaseContextV1(
+  registry: SaveStateMigrationRegistryV1 | null,
+  current: DeepReadonly<BuildProvenanceV1>,
+): SaveImportValidationContextV1<LabGameStateV1, ReleaseSnapshotV1, ReleaseRecordV1> {
+  return Object.freeze({
+    codec: releaseCodecV1,
+    currentStateContractRevision: current.resolved.stateContractRevision,
+    saveStateMigrations: registry,
+    classifyCompatibility(record: DeepReadonly<ReleaseRecordV1>) {
+      return classifySaveCompatibilityV1({
+        stored: record.provenance,
+        current,
+        simulationLineage: record.simulationLineage,
+        adoptionDeclarations: Object.freeze([]),
+        candidateCommandSequence: record.snapshot.commandSequence,
+      });
+    },
+    validateReferences: () => Object.freeze([]),
+    validateInvariants: () => Object.freeze([]),
+  });
+}
+
+function recordFromAdmittedBytesV1(bytes: Uint8Array): ReleaseRecordV1 {
+  const decoded = JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+  return decoded as ReleaseRecordV1;
+}
+
+function collectGenericCurrentReleaseCaseV1(
+  descriptor: SaveMigrationReleaseFixtureDescriptorV1,
+  sourceBytesBefore: Uint8Array,
+  sourceBytesAfter: Uint8Array,
+  sourceRecord: ReleaseRecordV1,
+): SaveMigrationReleaseCorpusParityCaseV1 {
+  if (
+    sourceRecord.formatRevision !== 1 ||
+    sourceRecord.provenance.story.id !== descriptor.storyId ||
+    sourceRecord.provenance.resolved.stateContractRevision !==
+      descriptor.stateContractRevision ||
+    sourceRecord.provenance.resolved.stateContractDigest !== descriptor.stateContractDigest ||
+    sourceRecord.stateDigest !== digestCanonical("sillymaker:state:v1", sourceRecord.snapshot)
+  ) throw new TypeError(`release fixture current identity mismatch: ${descriptor.id}`);
+  if (!sameBytesV1(sourceBytesBefore, sourceBytesAfter)) {
+    throw new TypeError(`release fixture validation mutated source bytes: ${descriptor.id}`);
+  }
+  return Object.freeze({
+    fixtureId: descriptor.id,
+    productId: descriptor.productId,
+    source: Object.freeze({
+      stateContractRevision: descriptor.stateContractRevision,
+      stateContractDigest: descriptor.stateContractDigest,
+      bytesDigest: descriptor.bytesDigest,
+      stateDigest: sourceRecord.stateDigest,
+    }),
+    target: Object.freeze({
+      stateContractRevision: descriptor.stateContractRevision,
+      stateContractDigest: descriptor.stateContractDigest,
+      stateDigest: sourceRecord.stateDigest,
+    }),
+    outcome: "exact",
+    diagnostic: null,
+    migrationSteps: Object.freeze([]),
+    callbackCount: 0,
+    sourceBytesPreserved: true,
+  });
+}
+
+interface LoadedReleaseFixtureV1 {
+  descriptor: SaveMigrationReleaseFixtureDescriptorV1;
+  readonly bytes: Uint8Array;
+  readonly bytesBeforeValidation: Uint8Array;
+}
+
+async function loadReleaseFixtureV1(
+  descriptor: SaveMigrationReleaseFixtureDescriptorV1,
+): Promise<LoadedReleaseFixtureV1> {
+  const physicalBytes = await readReleaseFixtureBytesV1(descriptor);
+  const physicalBytesBeforeAdmission = Uint8Array.from(physicalBytes);
+  const admitted = admitSaveMigrationReleaseFixtureV1(
+    descriptor,
+    physicalBytes,
+  );
+  if (!sameBytesV1(physicalBytesBeforeAdmission, physicalBytes)) {
+    throw new TypeError(`release fixture admission mutated physical bytes: ${descriptor.id}`);
+  }
+  return Object.freeze({
+    descriptor,
+    bytes: admitted.bytes,
+    bytesBeforeValidation: Uint8Array.from(admitted.bytes),
+  });
+}
+
+function collectReleaseCorpusCaseV1(
+  loaded: LoadedReleaseFixtureV1,
+  engineCurrentProvenance: DeepReadonly<BuildProvenanceV1>,
+): SaveMigrationReleaseCorpusParityCaseV1 {
+  const { descriptor } = loaded;
+  const sourceRecord = recordFromAdmittedBytesV1(loaded.bytes);
+  const engineLab = descriptor.productId === "engine-lab";
+  if (!engineLab) {
+    return collectGenericCurrentReleaseCaseV1(
+      descriptor,
+      loaded.bytesBeforeValidation,
+      loaded.bytes,
+      sourceRecord,
+    );
+  }
+  const instrumented = instrumentDeterminismSaveStateMigrationRegistryV1(
+    labSaveStateMigrationRegistryV1,
+  );
+  const result = validateSaveImportCandidateV1(
+    loaded.bytes,
+    releaseContextV1(instrumented.registry, engineCurrentProvenance),
+  );
+  if (result.kind !== "exact") {
+    const code = "code" in result ? result.code : result.kind;
+    throw new TypeError(`release fixture validation failed: ${descriptor.id}:${code}`);
+  }
+  const callbackCount = instrumented.readCallbackCount();
+  const migrationSteps = result.migration?.steps.map(({ migrationId }) => migrationId) ?? [];
+  if (!sameBytesV1(loaded.bytesBeforeValidation, loaded.bytes)) {
+    throw new TypeError(`release fixture validation mutated source bytes: ${descriptor.id}`);
+  }
+  return Object.freeze({
+    fixtureId: descriptor.id,
+    productId: descriptor.productId,
+    source: Object.freeze({
+      stateContractRevision: descriptor.stateContractRevision,
+      stateContractDigest: descriptor.stateContractDigest,
+      bytesDigest: descriptor.bytesDigest,
+      stateDigest: sourceRecord.stateDigest,
+    }),
+    target: Object.freeze({
+      stateContractRevision: result.candidate.provenance.resolved.stateContractRevision,
+      stateContractDigest: result.candidate.provenance.resolved.stateContractDigest,
+      stateDigest: result.candidate.stateDigest,
+    }),
+    outcome: "exact",
+    diagnostic: null,
+    migrationSteps: Object.freeze(migrationSteps),
+    callbackCount,
+    sourceBytesPreserved: true,
+  });
+}
+
+async function collectReleaseCorpusV1(): Promise<
+  readonly SaveMigrationReleaseCorpusParityCaseV1[]
+> {
+  const loaded = await Promise.all(saveMigrationReleaseCorpusV1.map(loadReleaseFixtureV1));
+  const engineCurrent = loaded.find(({ descriptor }) => descriptor.id === "engine-lab-state-5");
+  if (engineCurrent === undefined) {
+    throw new TypeError("Engine Lab current release fixture missing");
+  }
+  const engineCurrentProvenance = recordFromAdmittedBytesV1(
+    engineCurrent.bytes,
+  ).provenance;
+  return Object.freeze(
+    loaded.map((fixture) => collectReleaseCorpusCaseV1(fixture, engineCurrentProvenance)),
+  );
 }
 
 function compactStateV1(state: DeepReadonly<LabGameStateV1>): CompactMigratedLabStateV1 {
@@ -346,10 +723,12 @@ function runCaseV1(input: {
   const sourceBytes = canonicalJsonBytes(record);
   const sourceBytesBefore = new Uint8Array(sourceBytes);
   const instrumented = instrumentDeterminismSaveStateMigrationRegistryV1(input.registry);
-  const declaration = input.adoption ? adoptionDeclarationV1(record.provenance) : null;
+  const declarations = input.adoption
+    ? Object.freeze([adoptionDeclarationV1(record.provenance)])
+    : Object.freeze([]);
   const result = validateSaveImportCandidateV1(
     sourceBytes,
-    contextV1(instrumented.registry, declaration),
+    contextV1(instrumented.registry, declarations),
   );
   const sourceBytesPreserved = sameBytesV1(sourceBytesBefore, sourceBytes);
   if (!sourceBytesPreserved) throw new TypeError("migration validation mutated source bytes");
@@ -442,7 +821,9 @@ const invalidOutputRegistryV1 = conformanceRegistryV1(
 );
 
 /** Executes all M2e cases through the real migration integration path. */
-export function collectSaveStateMigrationVectorV1(): SaveStateMigrationDeterminismVectorV1 {
+export async function collectSaveStateMigrationVectorV1(): Promise<
+  SaveStateMigrationDeterminismVectorV1
+> {
   return Object.freeze({
     schemaVersion: 1,
     cases: Object.freeze([
@@ -489,6 +870,7 @@ export function collectSaveStateMigrationVectorV1(): SaveStateMigrationDetermini
         adoption: true,
       }),
     ]),
+    releaseCorpus: await collectReleaseCorpusV1(),
   });
 }
 
@@ -693,6 +1075,119 @@ export const saveStateMigrationVectorExpectedV1: SaveStateMigrationDeterminismVe
           ),
           adoptedAtCommandSequence: parseNonNegativeSafeInteger(7),
         }),
+        sourceBytesPreserved: true,
+      }),
+    ]),
+    releaseCorpus: Object.freeze([
+      Object.freeze({
+        fixtureId: "engine-lab-state-3",
+        productId: "engine-lab",
+        source: Object.freeze({
+          stateContractRevision: 3,
+          stateContractDigest: expectedRevision3V1.stateContractDigest,
+          bytesDigest: parseDigest(
+            "sha256:f40396978f6c721e147834546809770d368548efc604d8c446c0332df6bba795",
+          ),
+          stateDigest: parseDigest(
+            "sha256:1679d8854ae96eb70009a1de3c8ff7106e67a1e93a29b7278beb4c3e034bca0b",
+          ),
+        }),
+        target: Object.freeze({
+          stateContractRevision: 5,
+          stateContractDigest: expectedRevision5V1.stateContractDigest,
+          stateDigest: parseDigest(
+            "sha256:db57e8ec50a820ac5edd2461b7867bbc175ca0d71ba6a8d92cc00da1e2b9b01e",
+          ),
+        }),
+        outcome: "exact",
+        diagnostic: null,
+        migrationSteps: Object.freeze([
+          "migration.engine-lab.revision-3-to-4",
+          "migration.engine-lab.revision-4-to-5",
+        ]),
+        callbackCount: 2,
+        sourceBytesPreserved: true,
+      }),
+      Object.freeze({
+        fixtureId: "engine-lab-state-4",
+        productId: "engine-lab",
+        source: Object.freeze({
+          stateContractRevision: 4,
+          stateContractDigest: expectedRevision4V1.stateContractDigest,
+          bytesDigest: parseDigest(
+            "sha256:42573be3dca88e2e5262c9be7d38356056cba662211e7ff17b117563f6565534",
+          ),
+          stateDigest: parseDigest(
+            "sha256:6639e7ea42cb4aede04e423a7db75e5a95fc3fc113be005e3dd14a0284bc46a4",
+          ),
+        }),
+        target: Object.freeze({
+          stateContractRevision: 5,
+          stateContractDigest: expectedRevision5V1.stateContractDigest,
+          stateDigest: parseDigest(
+            "sha256:db57e8ec50a820ac5edd2461b7867bbc175ca0d71ba6a8d92cc00da1e2b9b01e",
+          ),
+        }),
+        outcome: "exact",
+        diagnostic: null,
+        migrationSteps: Object.freeze(["migration.engine-lab.revision-4-to-5"]),
+        callbackCount: 1,
+        sourceBytesPreserved: true,
+      }),
+      Object.freeze({
+        fixtureId: "engine-lab-state-5",
+        productId: "engine-lab",
+        source: Object.freeze({
+          stateContractRevision: 5,
+          stateContractDigest: expectedRevision5V1.stateContractDigest,
+          bytesDigest: parseDigest(
+            "sha256:e19a79e7c340349b75b89e1fe27d1ce3bfdff5fa72ded9df52260fa771e2f01d",
+          ),
+          stateDigest: parseDigest(
+            "sha256:db57e8ec50a820ac5edd2461b7867bbc175ca0d71ba6a8d92cc00da1e2b9b01e",
+          ),
+        }),
+        target: Object.freeze({
+          stateContractRevision: 5,
+          stateContractDigest: expectedRevision5V1.stateContractDigest,
+          stateDigest: parseDigest(
+            "sha256:db57e8ec50a820ac5edd2461b7867bbc175ca0d71ba6a8d92cc00da1e2b9b01e",
+          ),
+        }),
+        outcome: "exact",
+        diagnostic: null,
+        migrationSteps: Object.freeze([]),
+        callbackCount: 0,
+        sourceBytesPreserved: true,
+      }),
+      Object.freeze({
+        fixtureId: "cat-cafe-state-1",
+        productId: "cat-cafe",
+        source: Object.freeze({
+          stateContractRevision: 1,
+          stateContractDigest: parseDigest(
+            "sha256:a0f26c983c47fa89b599141ae3d2b8e7653a8cd32533152d17e440bcafc8dd26",
+          ),
+          bytesDigest: parseDigest(
+            "sha256:48630fdae6e7edcd69ce4384c9f8aa33ede0f624acf172eb674a01863d5c478a",
+          ),
+          stateDigest: parseDigest(
+            "sha256:d0a093896429c55e88c447ff90116af9d0362932d23710aace06c541faec41a3",
+          ),
+        }),
+        target: Object.freeze({
+          stateContractRevision: 1,
+          stateContractDigest: parseDigest(
+            "sha256:a0f26c983c47fa89b599141ae3d2b8e7653a8cd32533152d17e440bcafc8dd26",
+          ),
+          stateDigest: parseDigest(
+            "sha256:d0a093896429c55e88c447ff90116af9d0362932d23710aace06c541faec41a3",
+          ),
+        }),
+        outcome: "exact",
+        diagnostic: null,
+        migrationSteps: Object.freeze([]),
+        callbackCount: 0,
         sourceBytesPreserved: true,
       }),
     ]),

@@ -15,6 +15,15 @@ export function createSaveSlotRecordKeyV1(storyId: string, slotId: SaveSlotIdV1)
   return `save-record.v1:${encodeStoryScopeV1(storyId)}:${slotId}` as HostRecordKeyV1;
 }
 
+/** @internal One bounded, pending migration backup per Story/slot. */
+export function createSaveMigrationBackupRecordKeyV1(
+  storyId: string,
+  slotId: SaveSlotIdV1,
+): HostRecordKeyV1 {
+  if (!isSaveSlotIdShapeV1(slotId)) throw new TypeError("invalid Save slot ID");
+  return `save-migration-backup.v1:${encodeStoryScopeV1(storyId)}:${slotId}` as HostRecordKeyV1;
+}
+
 export function createSessionLeaseRecordKeyV1(storyId: string): HostRecordKeyV1 {
   return `session-lease.v1:${encodeStoryScopeV1(storyId)}` as HostRecordKeyV1;
 }

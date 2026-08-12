@@ -51,7 +51,7 @@ globalThis.addEventListener("message", (event: MessageEvent<unknown>) => {
       postWorkerMessageV1({
         kind: "passed",
         runtime: workerRuntimeV1,
-        value: driver.collectSaveStateMigrationVectorV1(),
+        value: await driver.collectSaveStateMigrationVectorV1(),
       });
     } catch {
       postWorkerMessageV1({

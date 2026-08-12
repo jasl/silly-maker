@@ -42,6 +42,22 @@
   gap: var(--silly-space-2);
 }
 
+.save-overlay__recovery {
+  display: grid;
+  gap: var(--silly-space-2);
+  padding-block-start: var(--silly-space-2);
+  border-block-start: 1px solid var(--silly-color-border);
+}
+
+.save-overlay__recovery-status {
+  min-block-size: 1lh;
+  color: var(--silly-color-text-muted);
+}
+
+.save-overlay__recovery-status p {
+  margin-block: 0;
+}
+
 .save-overlay__global-actions {
   justify-content: end;
 }

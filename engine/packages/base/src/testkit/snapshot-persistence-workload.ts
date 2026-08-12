@@ -9,6 +9,7 @@ import type {
   HostRecordRevisionV1,
   IsoUtcInstant,
 } from "../contracts/host.ts";
+import type { PatchSetAdoptionDeclarationV1 } from "../contracts/hotfix.ts";
 import { createMemoryHostRecordStoreV1 } from "../contracts/host.ts";
 import type { VersionStampV1 } from "../contracts/version-stamp.ts";
 import type {
@@ -119,6 +120,7 @@ export async function createSnapshotPersistenceWorkloadV1(input: {
   readonly wrapRepositoryForWriteReceiptFallback?: boolean;
   readonly metadataClock?: { now(): IsoUtcInstant };
   readonly exportFilename?: string;
+  readonly adoptionDeclarations?: readonly PatchSetAdoptionDeclarationV1[];
   summarizeSave?(
     state: DeepReadonly<SnapshotTransactionStateV1>,
   ): readonly string[] | null;
@@ -136,7 +138,7 @@ export async function createSnapshotPersistenceWorkloadV1(input: {
     records,
     snapshotSchema: snapshotTransactionSnapshotSchemaV1,
     provenance: snapshotTransactionProvenanceV1,
-    adoptionDeclaration: null,
+    adoptionDeclarations: input.adoptionDeclarations ?? Object.freeze([]),
     saveStateMigrations: null,
     ownerId: persistenceOwnerIdV1,
     nextHandoffRequestId: () => persistenceHandoffRequestIdV1,

@@ -7,9 +7,9 @@ import {
 } from "../testing/save-state-migration-driver.ts";
 
 describe("M2e Save State migration determinism vector", () => {
-  it("executes the real one/two-step owner and bounded failure/adoption cases exactly", () => {
-    const first = collectSaveStateMigrationVectorV1();
-    const second = collectSaveStateMigrationVectorV1();
+  it("executes the synthetic vectors and maintained release corpus exactly", async () => {
+    const first = await collectSaveStateMigrationVectorV1();
+    const second = await collectSaveStateMigrationVectorV1();
 
     expect(first).toEqual(saveStateMigrationVectorExpectedV1);
     expect(JSON.stringify(first)).toBe(JSON.stringify(saveStateMigrationVectorExpectedV1));
@@ -25,6 +25,27 @@ describe("M2e Save State migration determinism vector", () => {
       { caseId: "callback_throw", outcome: "faulted", callbackCount: 1 },
       { caseId: "invalid_output", outcome: "rejected", callbackCount: 1 },
       { caseId: "migration_plus_adoption", outcome: "adopted", callbackCount: 2 },
+    ]);
+    expect(first.releaseCorpus.map(({ fixtureId, callbackCount, migrationSteps }) => ({
+      fixtureId,
+      callbackCount,
+      migrationSteps,
+    }))).toEqual([
+      {
+        fixtureId: "engine-lab-state-3",
+        callbackCount: 2,
+        migrationSteps: [
+          "migration.engine-lab.revision-3-to-4",
+          "migration.engine-lab.revision-4-to-5",
+        ],
+      },
+      {
+        fixtureId: "engine-lab-state-4",
+        callbackCount: 1,
+        migrationSteps: ["migration.engine-lab.revision-4-to-5"],
+      },
+      { fixtureId: "engine-lab-state-5", callbackCount: 0, migrationSteps: [] },
+      { fixtureId: "cat-cafe-state-1", callbackCount: 0, migrationSteps: [] },
     ]);
   });
 });

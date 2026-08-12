@@ -71,11 +71,17 @@ export type SystemDialogOpenResultV1 =
 
 export type SystemDialogRootRequestInternalV1 = SystemDialogSessionActiveSurfaceV1;
 export type SystemDialogSavesRendererVariantInternalV1 = "standard" | "custom";
-export type SystemDialogConfirmationOperationInternalV1 = "load" | "clear" | "import";
+export type SystemDialogConfirmationOperationInternalV1 =
+  | "load"
+  | "clear"
+  | "import"
+  | "reanchor"
+  | "restore"
+  | "discard";
 
 export type SystemDialogConfirmationInvocationInternalV1 =
   | {
-    readonly kind: "load" | "clear";
+    readonly kind: "load" | "clear" | "reanchor" | "restore" | "discard";
     readonly slotId: SaveSlotIdV1;
   }
   | {
@@ -366,7 +372,10 @@ export function normalizeSystemDialogConfirmationInvocationInternalV1(
       snapshotExactDataRecordV1(input, ["kind"]);
       return Object.freeze({ kind });
     }
-    if (kind !== "load" && kind !== "clear") throw new TypeError();
+    if (
+      kind !== "load" && kind !== "clear" && kind !== "reanchor" && kind !== "restore" &&
+      kind !== "discard"
+    ) throw new TypeError();
     const source = snapshotExactDataRecordV1(input, ["kind", "slotId"]);
     if (!isSaveSlotIdShapeV1(source.slotId)) throw new TypeError();
     return Object.freeze({ kind, slotId: source.slotId });
@@ -437,7 +446,16 @@ export const systemDialogManagedContractInternalV1: SystemDialogManagedContractI
     }),
     rootRequests: Object.freeze(["settings", "saves"] as const),
     savesRendererVariants: Object.freeze(["standard", "custom"] as const),
-    confirmationOperationKinds: Object.freeze(["load", "clear", "import"] as const),
+    confirmationOperationKinds: Object.freeze(
+      [
+        "load",
+        "clear",
+        "import",
+        "reanchor",
+        "restore",
+        "discard",
+      ] as const,
+    ),
     host: Object.freeze({
       logicalLeaseCardinality: "single",
       portalCardinality: "single",

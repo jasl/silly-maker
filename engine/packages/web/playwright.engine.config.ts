@@ -33,6 +33,11 @@ export default defineConfig({
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "webkit", use: { ...devices["Desktop Safari"] } },
     {
+      name: "firefox-save",
+      grep: /@save/,
+      use: { ...devices["Desktop Firefox"] },
+    },
+    {
       name: "chromium-touch",
       grep: /@responsive|@smoke/,
       testIgnore: /authoritative-determinism\.spec\.ts/u,

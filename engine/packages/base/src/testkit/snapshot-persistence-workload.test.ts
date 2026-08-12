@@ -197,6 +197,44 @@ async function corruptQuickSaveV1(records: HostAtomicRecordStoreV1): Promise<voi
 }
 
 describe("Snapshot persistence workload", () => {
+  it("rejects over-limit adoption configuration before any workload Host activity", async () => {
+    const digest = digestBytes(Uint8Array.of(0x61));
+    const declaration = Object.freeze({
+      storyId: snapshotTransactionProvenanceV1.story.id,
+      storyRevision: snapshotTransactionProvenanceV1.story.revision,
+      stateContractRevision: snapshotTransactionProvenanceV1.resolved.stateContractRevision,
+      stateContractDigest: snapshotTransactionProvenanceV1.resolved.stateContractDigest,
+      fromSimulationDigest: digest,
+      toSimulationDigest: snapshotTransactionProvenanceV1.resolved.simulationDigest,
+      simulationPatchSetDigest: snapshotTransactionProvenanceV1.resolved.patchSet.simulationDigest,
+    });
+    const delegate = createMemoryHostRecordStoreV1();
+    let hostOperations = 0;
+    const records: HostAtomicRecordStoreV1 = Object.freeze({
+      read(
+        namespace: Parameters<HostAtomicRecordStoreV1["read"]>[0],
+        key: Parameters<HostAtomicRecordStoreV1["read"]>[1],
+      ) {
+        hostOperations += 1;
+        return delegate.read(namespace, key);
+      },
+      list(namespace: Parameters<HostAtomicRecordStoreV1["list"]>[0]) {
+        hostOperations += 1;
+        return delegate.list(namespace);
+      },
+      commit(mutations: Parameters<HostAtomicRecordStoreV1["commit"]>[0]) {
+        hostOperations += 1;
+        return delegate.commit(mutations);
+      },
+    });
+    await expect(createSnapshotPersistenceWorkloadV1({
+      entityCount: 100,
+      records,
+      adoptionDeclarations: Array.from({ length: 257 }, () => declaration),
+    })).rejects.toThrow(TypeError);
+    expect(hostOperations).toBe(0);
+  });
+
   it("locks the current every-commit and auto.previous rotation baseline", async () => {
     const prepared = await prepareSnapshotPersistenceWorkloadV1({ entityCount: 100 });
 

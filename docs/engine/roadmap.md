@@ -83,8 +83,10 @@ composition-owned Managed Surface authority、公开
 省略路径和 browser promotion 均已落地，旧 conformance/player exports 已删除。
 `PF4/S4b.1c` WholeCanvas 也已完成：公开 definition/application-source seam、
 package-owned Splash/Title 与 exact-parent detail、Cat Cafe 第一消费者、Engine Lab
-opt-in 第二消费者和 SillyOS 省略均已 promotion。当前默认 linear-core 入口是
-PF5/M3 Save 产品级 dry-run/backup/release fixture corpus。
+opt-in 第二消费者和 SillyOS 省略均已 promotion。`PF5/M3` Save inspection、bounded
+backup/recovery、maintained release corpus 与 promotion 也已完成。当前默认 linear-core
+入口是 **PF6/S5 docs-only exact-entry/adjudication**：先把 broad structural tooling/model
+harness 冻结为有 exact allowlist 的 mergeable slices，再开始任何 S5 source implementation。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实
@@ -226,8 +228,8 @@ composition-owned Managed Surface authority，没有平行 writable lifecycle。
 authority；Engine Lab、template、Bookshop、Cat Cafe 已迁移，SillyOS 显式省略。
 WholeCanvas 通过公开 definition 或 narrow application source 进入同一 kernel；
 Splash/Title 属于 package front door，Cat Cafe ending 与 Engine Lab opt-in route 是两名
-消费者，SillyOS 继续省略。S4b.1c 已完成，当前 core slice 是 PF5/M3 Save migration
-product surface。
+消费者，SillyOS 继续省略。S4b.1c 与 PF5/M3 均已完成；当前 core gate 是 PF6/S5
+docs-only exact-entry/adjudication，尚未授权 broad S5 runtime implementation。
 
 ## 8. Strategic track D — content platform and creator tooling
 

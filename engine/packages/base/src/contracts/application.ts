@@ -196,9 +196,32 @@ export interface PlayerPersistencePortV1<
   TSaveExportResult,
   TLeaseStatus,
   TLeaseOperationResult,
+  TSaveInspectionResult,
+  TSaveBackupInspectionResult,
+  TSaveRewriteResult,
+  TSaveBackupResult,
+  TSaveBackupExportResult,
 > {
   readonly lease: SessionLeasePortV1<TLeaseStatus, TLeaseOperationResult>;
   listSlots(): Promise<readonly TSlotSummary[]>;
+  /**
+   * Executes the configured pure Save-admission pipeline for one stored slot
+   * without writing records or replacing the live Session. The result is an
+   * observation, never a token that can later authorize a load.
+   */
+  inspectSave(slot: SaveSlotIdV1): Promise<TSaveInspectionResult>;
+  /** Reports only whether one bounded pending migration backup is actionable. */
+  inspectBackup(slot: SaveSlotIdV1): Promise<TSaveBackupInspectionResult>;
+  /** Rewrites one migration/adoption-ready stored Save without loading it. */
+  upgradeSave(slot: SaveSlotIdV1): Promise<TSaveRewriteResult>;
+  /** Resets a full compatible lineage only through the explicit recovery path. */
+  reanchorSave(slot: SaveSlotIdV1): Promise<TSaveRewriteResult>;
+  /** Restores the one pending pre-upgrade backup without loading it. */
+  restoreBackup(slot: SaveSlotIdV1): Promise<TSaveBackupResult>;
+  /** Exports the exact pending backup bytes without consuming them. */
+  exportBackup(slot: SaveSlotIdV1): Promise<TSaveBackupExportResult>;
+  /** Explicitly consumes the one pending backup without changing the live Save. */
+  discardBackup(slot: SaveSlotIdV1): Promise<TSaveBackupResult>;
   getStatus(): Promise<TPersistenceStatus>;
   save(slot: PlayerWritableSaveSlotIdV1): Promise<TPersistenceResult>;
   load(slot: SaveSlotIdV1): Promise<TPersistenceResult>;

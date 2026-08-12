@@ -422,7 +422,7 @@ const saveSlotHealthFieldsV1 = Object.freeze(
   } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
 );
 
-const saveConfirmationFieldsV1 = Object.freeze(
+const saveLegacyConfirmationFieldsV1 = Object.freeze(
   {
     loadTitle: "function",
     loadDescription: "function",
@@ -435,6 +435,17 @@ const saveConfirmationFieldsV1 = Object.freeze(
     pendingText: "string",
     completedText: "string",
     failedText: "string",
+  } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
+);
+
+const saveRecoveryConfirmationFieldsV1 = Object.freeze(
+  {
+    reanchorTitle: "function",
+    reanchorDescription: "function",
+    restoreTitle: "function",
+    restoreDescription: "function",
+    discardTitle: "function",
+    discardDescription: "function",
   } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
 );
 
@@ -491,9 +502,125 @@ const saveExportRejectionFieldsV1 = Object.freeze(
   } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
 );
 
+const saveRecoveryScalarFieldsV1 = Object.freeze(
+  { checking: "string" } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
+);
+
+const saveRecoveryDispositionFieldsV1 = Object.freeze(
+  {
+    direct: "string",
+    migration_required: "string",
+    adoption_required: "string",
+    migration_and_adoption_required: "string",
+    migration_unavailable: "string",
+    migration_rejected: "string",
+    incompatible: "string",
+    reanchor_required: "string",
+    invalid_record: "string",
+    unavailable: "string",
+    faulted: "string",
+  } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
+);
+
+const saveRecoveryBackupFieldsV1 = Object.freeze(
+  {
+    available: "string",
+    invalid: "string",
+    unavailable: "string",
+  } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
+);
+
+const saveRecoveryActionFieldsV1 = Object.freeze(
+  {
+    inspect: "string",
+    upgrade: "string",
+    reanchor: "string",
+    restore: "string",
+    exportBackup: "string",
+    discard: "string",
+  } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
+);
+
+const saveRecoveryOperationFieldsV1 = Object.freeze(
+  {
+    upgrading: "function",
+    reanchoring: "function",
+    restoring: "function",
+    exportingBackup: "function",
+    discarding: "function",
+    upgradedExact: "string",
+    upgradedAdopted: "string",
+    reanchored: "string",
+    restored: "string",
+    backupExported: "string",
+    discarded: "string",
+    faulted: "string",
+  } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
+);
+
+const saveRecoveryRejectionFieldsV1 = Object.freeze(
+  {
+    busy: "string",
+    unavailable: "string",
+    empty_slot: "string",
+    backup_pending: "string",
+    conflict: "string",
+    invalid_record: "string",
+    migration_unavailable: "string",
+    migration_rejected: "string",
+    incompatible: "string",
+    reanchor_required: "string",
+    not_required: "string",
+    empty_backup: "string",
+    invalid_backup: "string",
+  } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
+);
+
+function snapshotSaveRecoveryLabelsV1(value: unknown): Readonly<Record<string, unknown>> {
+  if (!isRecordV1(value)) throw new TypeError();
+  const operationValue = ownDataValueV1(value, "operation");
+  if (!isRecordV1(operationValue)) throw new TypeError();
+  return Object.freeze({
+    ...snapshotKnownFieldsV1(value, saveRecoveryScalarFieldsV1),
+    confirmation: snapshotKnownFieldsV1(
+      ownDataValueV1(value, "confirmation"),
+      saveRecoveryConfirmationFieldsV1,
+    ),
+    disposition: snapshotKnownFieldsV1(
+      ownDataValueV1(value, "disposition"),
+      saveRecoveryDispositionFieldsV1,
+    ),
+    backup: snapshotKnownFieldsV1(
+      ownDataValueV1(value, "backup"),
+      saveRecoveryBackupFieldsV1,
+    ),
+    action: snapshotKnownFieldsV1(
+      ownDataValueV1(value, "action"),
+      saveRecoveryActionFieldsV1,
+    ),
+    operation: Object.freeze({
+      ...snapshotKnownFieldsV1(operationValue, saveRecoveryOperationFieldsV1),
+      rejected: snapshotKnownFieldsV1(
+        ownDataValueV1(operationValue, "rejected"),
+        saveRecoveryRejectionFieldsV1,
+      ),
+    }),
+  });
+}
+
 function snapshotSaveLabelsV1(value: unknown): SaveOverlayLabelsV1 {
   if (!isRecordV1(value)) throw new TypeError();
   const scalar = snapshotKnownFieldsV1(value, saveLabelScalarFieldsV1);
+  const confirmationValue = ownDataValueV1(value, "confirmation");
+  const legacyConfirmation = snapshotKnownFieldsV1(
+    confirmationValue,
+    saveLegacyConfirmationFieldsV1,
+  );
+  const recoveryDescriptor = Object.getOwnPropertyDescriptor(value, "recovery");
+  if (recoveryDescriptor !== undefined && !("value" in recoveryDescriptor)) throw new TypeError();
+  const recovery = recoveryDescriptor === undefined
+    ? undefined
+    : snapshotSaveRecoveryLabelsV1(recoveryDescriptor.value);
   const operationValue = ownDataValueV1(value, "operation");
   if (!isRecordV1(operationValue)) throw new TypeError();
   const operationScalar = snapshotKnownFieldsV1(operationValue, saveOperationScalarFieldsV1);
@@ -520,11 +647,9 @@ function snapshotSaveLabelsV1(value: unknown): SaveOverlayLabelsV1 {
       ownDataValueV1(value, "slotHealth"),
       saveSlotHealthFieldsV1,
     ),
-    confirmation: snapshotKnownFieldsV1(
-      ownDataValueV1(value, "confirmation"),
-      saveConfirmationFieldsV1,
-    ),
+    confirmation: legacyConfirmation,
     operation,
+    ...(recovery === undefined ? {} : { recovery }),
     ...(savedAtText === undefined ? {} : { savedAtText }),
   }) as unknown as SaveOverlayLabelsV1;
 }
@@ -1415,7 +1540,9 @@ export function createSystemDialogManagedSessionInternalV1(input: {
         const keys = Reflect.ownKeys(outcome);
         if (kind === "successor") {
           if (
-            keys.length !== 1 || keys[0] !== "kind" || candidateInput.invocation.kind === "clear"
+            keys.length !== 1 || keys[0] !== "kind" ||
+            (candidateInput.invocation.kind !== "load" &&
+              candidateInput.invocation.kind !== "import")
           ) {
             throw new TypeError();
           }

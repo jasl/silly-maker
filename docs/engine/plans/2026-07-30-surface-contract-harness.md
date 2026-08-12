@@ -51,9 +51,9 @@ DialoguePlayerController checkpoint现由completed S4.2.4.0 docs-only exact entr
 prepared state-install participant substrate、S4.2.4.2 DOM-free Narrative DialoguePlayerController core与
 S4.2.4.3 dormant Host player-view integration也已交付。原`.5.1`现又由`.5.1a`–`.5.1c`细分并转为historical broad checkpoint；`.5.1a`
 managed InputRouter facade corrective、`.5.1b` Host physical ingress corrective与`.5.1c` dormant Engine Lab Narrative conformance
-implementation也已交付并转为historical；S4.3.1a与S4.3.1b也已依次交付并转为historical。当前独立切片、core slice与implementation gate均为
-PF5/M3 Save migration product surface（当前），唯一有效顺序为S4.3 broad checkpoint（historical）→ S4.3.0（docs-only，已完成）→
-S4.3.1a（已完成；historical）→ S4.3.1b（已完成；historical） → S4b broad checkpoint（historical） → S4b.0（docs-only，已完成） → S4b.1a（已完成；historical） → S4b.1b（已完成；historical） → S4b.1c（已完成；historical） → PF5/M3 Save migration product surface（当前）。原S4.2.5 broad checkpoint已由completed
+implementation也已交付并转为historical；S4.3.1a与S4.3.1b也已依次交付并转为historical。PF5/M3 现也已完成并转为historical；当前独立切片、core slice与gate均为
+PF6/S5 docs-only exact-entry/adjudication（当前），尚未授权 broad S5 runtime implementation。唯一有效顺序为S4.3 broad checkpoint（historical）→ S4.3.0（docs-only，已完成）→
+S4.3.1a（已完成；historical）→ S4.3.1b（已完成；historical） → S4b broad checkpoint（historical） → S4b.0（docs-only，已完成） → S4b.1a（已完成；historical） → S4b.1b（已完成；historical） → S4b.1c（已完成；historical） → PF5/M3 Save migration product surface（已完成；historical） → PF6/S5 docs-only exact-entry/adjudication（当前）。本文后续 delivery records 中残留的 “PF5/M3 Save migration product surface（当前）” 只记录当时顺序，均由本最终 pointer supersede，不是 live gate。原S4.2.5 broad checkpoint已由completed
 docs-only `.5.0`细分并转为historical。R4 entry
 adjudication已先以独立S1-R.4.0关闭
 readiness result/capacity contract。R3b entry audit先以独立S1-R.3a.1 corrective补全ready
@@ -68,13 +68,13 @@ S1-R aggregate gate已关闭。
 中所有可选字段，也不把作者能力评测绑进 runtime migration。
 
 在 [production-floor sequence](2026-07-30-production-floor-sequence.md)
-中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2 与 PF4/S3 已完成；当前 core
-节点是PF5/M3 Save migration product surface（当前）。原S4.2.5 broad checkpoint已由completed docs-only `.5.0`
+中：PF2 的 `S0 -> S1-T -> S2`、PF-DET、PF3/M2、PF4/S3 与 PF5/M3 已完成；当前 core
+节点是PF6/S5 docs-only exact-entry/adjudication（当前）。原S4.2.5 broad checkpoint已由completed docs-only `.5.0`
 细分并转为historical，原`.5.1`也已由`.5.1a`–`.5.1c`细分并转为historical broad checkpoint，`.5.1a`、`.5.1b`与`.5.1c`也已完成并转为historical。
 PF4的顺序是
-`S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1a -> S4.1b.0 -> S4.1b.1a -> S4.1b.1b.0 -> S4.1b.1b.1a -> S4.1b.1b.1b.1 -> S4.1b.1b.1b.2a -> S4.1b.1b.1b.2b.0 -> S4.1b.1b.1b.2b.1a -> S4.1b.1b.1b.2b.1b -> S4.1b.1b.1b.2b.2a -> S4.1b.1b.1b.2b.2b.0 -> S4.1b.1b.1b.2b.2b.1 -> S4.1b.1b.1b.2b.3.0 -> S4.1b.1b.1b.2b.3a -> S4.1b.1b.1b.2b.3b.0 -> S4.1b.1b.1b.2b.3b.1 -> S4.1b.1b.1b.2b.3c.0 -> S4.1b.1b.1b.2b.3c.1 -> S4.1b.1b.1b.2b.3d.0 -> S4.1b.1b.1b.2b.3d.1 -> S4.2.0 -> S4.2.1 -> S4.2.2.0 -> S4.2.2.1 -> S4.2.2.2.0 -> S4.2.2.2.1 -> S4.2.2.2.2 -> S4.2.3.0 -> S4.2.3.1 -> S4.2.3.2 -> S4.2.4.0 -> S4.2.4.1 -> S4.2.4.2 -> S4.2.4.3 -> S4.2.5.0 -> S4.2.5.1(broad historical) -> S4.2.5.1a -> S4.2.5.1b -> S4.2.5.1c -> S4.3 broad checkpoint（historical） -> S4.3.0(docs-only completed) -> S4.3.1a(completed historical) -> S4.3.1b(completed historical) -> S4b broad checkpoint(historical) -> S4b.0(docs-only completed) -> S4b.1a(completed historical) -> S4b.1b(completed historical) -> S4b.1c(completed historical) -> PF5/M3 Save migration product surface（current）`；
+`S3 -> S1-R.0 -> S1-R.1–S1-R.5 -> S4.0 -> S4.1a -> S4.1b.0 -> S4.1b.1a -> S4.1b.1b.0 -> S4.1b.1b.1a -> S4.1b.1b.1b.1 -> S4.1b.1b.1b.2a -> S4.1b.1b.1b.2b.0 -> S4.1b.1b.1b.2b.1a -> S4.1b.1b.1b.2b.1b -> S4.1b.1b.1b.2b.2a -> S4.1b.1b.1b.2b.2b.0 -> S4.1b.1b.1b.2b.2b.1 -> S4.1b.1b.1b.2b.3.0 -> S4.1b.1b.1b.2b.3a -> S4.1b.1b.1b.2b.3b.0 -> S4.1b.1b.1b.2b.3b.1 -> S4.1b.1b.1b.2b.3c.0 -> S4.1b.1b.1b.2b.3c.1 -> S4.1b.1b.1b.2b.3d.0 -> S4.1b.1b.1b.2b.3d.1 -> S4.2.0 -> S4.2.1 -> S4.2.2.0 -> S4.2.2.1 -> S4.2.2.2.0 -> S4.2.2.2.1 -> S4.2.2.2.2 -> S4.2.3.0 -> S4.2.3.1 -> S4.2.3.2 -> S4.2.4.0 -> S4.2.4.1 -> S4.2.4.2 -> S4.2.4.3 -> S4.2.5.0 -> S4.2.5.1(broad historical) -> S4.2.5.1a -> S4.2.5.1b -> S4.2.5.1c -> S4.3 broad checkpoint（historical） -> S4.3.0(docs-only completed) -> S4.3.1a(completed historical) -> S4.3.1b(completed historical) -> S4b broad checkpoint(historical) -> S4b.0(docs-only completed) -> S4b.1a(completed historical) -> S4b.1b(completed historical) -> S4b.1c(completed historical) -> PF5/M3 Save migration product surface（completed historical） -> PF6/S5 docs-only exact-entry/adjudication（current）`；
 其中至S4.2.5.1c均为completed historical prefix，原`.5.1`为historical broad，当前有效PF4余序是
-`S4.3.1a（已完成；historical） -> S4.3.1b（已完成；historical） -> S4b broad checkpoint（historical） → S4b.0（docs-only，已完成） → S4b.1a（已完成；historical） → S4b.1b（已完成；historical） → S4b.1c（已完成；historical） → PF5/M3 Save migration product surface（当前）`。
+`S4.3.1a（已完成；historical） -> S4.3.1b（已完成；historical） -> S4b broad checkpoint（historical） → S4b.0（docs-only，已完成） → S4b.1a（已完成；historical） → S4b.1b（已完成；historical） → S4b.1c（已完成；historical） → PF5/M3 Save migration product surface（已完成；historical） → PF6/S5 docs-only exact-entry/adjudication（当前）`。
 S5–S6 属于 PF6。S1-R
 延后到第一个真实 externally published stable-target family 前完成；按 accepted
 target ownership，S4 Narrative 计划成为该 family，因此 S1-R 位于 S3 与 S4

@@ -32,6 +32,7 @@ import type {
   SaveCodecContextV1,
   SaveCompatibilityClassificationV1,
   SaveImportValidationContextV1,
+  SaveInspectionResultV1,
   SaveRecordEnvelopeV1,
   SimulationAdoptionV1,
 } from "../../contracts/persistence.ts";
@@ -233,6 +234,45 @@ function migrationRegistryV1(
   });
 }
 
+function twoStepMigrationRegistryV1(
+  target: DeepReadonly<BuildProvenanceV1>,
+  migrateFirst: SaveStateMigrationStepV1["migrate"],
+  migrateSecond: SaveStateMigrationStepV1["migrate"],
+): SaveStateMigrationRegistryV1 {
+  const namespace = parseSaveStateMigrationNamespaceV1("state.current-load-baseline.two-step");
+  const sourceIdentity = stateContractIdentityV1(snapshotTransactionProvenanceV1);
+  const middleIdentity = Object.freeze({
+    stateContractRevision: parsePositiveSafeInteger(
+      Number(sourceIdentity.stateContractRevision) + 1,
+    ),
+    stateContractDigest: digestV1("state-contract.migration-middle"),
+  });
+  const targetIdentity = stateContractIdentityV1(target);
+  return defineSaveStateMigrationRegistryV1({
+    namespace,
+    minimumSupported: sourceIdentity,
+    current: targetIdentity,
+    steps: [
+      {
+        migrationId: parseSaveStateMigrationIdV1("migration.current-load-baseline.first"),
+        namespace,
+        from: sourceIdentity,
+        to: middleIdentity,
+        references: { renames: [], deletions: [] },
+        migrate: migrateFirst,
+      },
+      {
+        migrationId: parseSaveStateMigrationIdV1("migration.current-load-baseline.second"),
+        namespace,
+        from: middleIdentity,
+        to: targetIdentity,
+        references: { renames: [], deletions: [] },
+        migrate: migrateSecond,
+      },
+    ],
+  });
+}
+
 function adoptionDeclarationV1(
   stored: DeepReadonly<BuildProvenanceV1>,
   current: DeepReadonly<BuildProvenanceV1>,
@@ -279,9 +319,40 @@ interface SeededSlotV1 {
 function observedStoreV1() {
   const memory = createMemoryHostRecordStoreV1();
   let saveCommitCount = 0;
+  let saveReadFailure: "none" | "unavailable" | "throw" = "none";
+  const unavailable = (operation: "read" | "list") => {
+    const error = new Error("synthetic Save read outage");
+    Object.defineProperties(error, {
+      name: { value: "IndexedDbRecordStoreFailureV1" },
+      code: { value: "indexeddb.unavailable" },
+      operation: { value: operation },
+    });
+    return error;
+  };
   const records: HostAtomicRecordStoreV1 = Object.freeze({
-    read: memory.read,
-    list: memory.list,
+    read(
+      namespace: Parameters<HostAtomicRecordStoreV1["read"]>[0],
+      key: Parameters<HostAtomicRecordStoreV1["read"]>[1],
+    ) {
+      if (namespace === "save" && saveReadFailure !== "none") {
+        return Promise.reject(
+          saveReadFailure === "unavailable"
+            ? unavailable("read")
+            : new Error("unclassified Save read failure"),
+        );
+      }
+      return memory.read(namespace, key);
+    },
+    list(namespace: Parameters<HostAtomicRecordStoreV1["list"]>[0]) {
+      if (namespace === "save" && saveReadFailure !== "none") {
+        return Promise.reject(
+          saveReadFailure === "unavailable"
+            ? unavailable("list")
+            : new Error("unclassified Save list failure"),
+        );
+      }
+      return memory.list(namespace);
+    },
     async commit(mutations: readonly [HostRecordMutationV1, ...HostRecordMutationV1[]]) {
       if (mutations.some(({ namespace }) => namespace === "save")) saveCommitCount += 1;
       return await memory.commit(mutations);
@@ -289,9 +360,13 @@ function observedStoreV1() {
   });
   return Object.freeze({
     records,
+    evidenceRecords: memory,
     saveCommitCount: () => saveCommitCount,
     resetSaveCommitCount() {
       saveCommitCount = 0;
+    },
+    setSaveReadFailure(value: "none" | "unavailable" | "throw") {
+      saveReadFailure = value;
     },
   });
 }
@@ -361,7 +436,7 @@ async function fixtureV1(input: {
   readonly slots?: readonly SeededSlotV1[];
   readonly provenance?: BuildProvenanceV1;
   readonly snapshotSchema?: RuntimeSchemaV1<NeutralSnapshotV1>;
-  readonly adoptionDeclaration?: PatchSetAdoptionDeclarationV1 | null;
+  readonly adoptionDeclarations?: readonly PatchSetAdoptionDeclarationV1[];
   readonly saveStateMigrations?: SaveStateMigrationRegistryV1 | null;
   readonly referenceErrors?: readonly string[];
   readonly invariantErrors?: readonly string[];
@@ -370,9 +445,13 @@ async function fixtureV1(input: {
   readonly autoSaveInitialAnchorEpoch?: number;
   readonly wrapRuntimeControlWithOutcomeClone?: boolean;
   readonly wrapReplacementPrepareCallback?: boolean;
+  readonly unavailableSaveReads?: boolean;
+  readonly throwSaveReads?: boolean;
+  readonly observeRuntimeControl?: (event: "enqueue" | "prepare") => void;
 } = {}) {
   fixtureOrdinalV1 += 1;
   const store = observedStoreV1();
+  let metadataClockCalls = 0;
   await seedSlotsV1(store.records, input.slots ?? Object.freeze([]));
   const session = createSnapshotTransactionWorkloadV1({ entityCount: 100 });
   const service = await createInstrumentedPersistenceServiceV1<
@@ -380,7 +459,33 @@ async function fixtureV1(input: {
     NeutralSnapshotV1
   >(
     {
-      runtimeControl: input.wrapRuntimeControlWithOutcomeClone === true
+      runtimeControl: input.observeRuntimeControl !== undefined
+        ? Object.freeze({
+          ...session.runtimeControl,
+          enqueueAuthoritative<TResult>(
+            operation: (
+              current: DeepReadonly<NeutralSnapshotV1>,
+            ) => Promise<AuthoritativeOutcomeV1<NeutralSnapshotV1, TResult>>,
+            normalizeUnexpectedFault: (error: unknown) => TResult,
+            prepareReplacementCommit?: (
+              snapshot: DeepReadonly<NeutralSnapshotV1>,
+              anchor: "preserve_log" | "replace_replay_base",
+            ) => void,
+            whenHmrInvalidated?: () => TResult,
+          ) {
+            input.observeRuntimeControl?.("enqueue");
+            return session.runtimeControl.enqueueAuthoritative(
+              operation,
+              normalizeUnexpectedFault,
+              prepareReplacementCommit === undefined ? undefined : (snapshot, anchor) => {
+                input.observeRuntimeControl?.("prepare");
+                prepareReplacementCommit(snapshot, anchor);
+              },
+              whenHmrInvalidated,
+            );
+          },
+        })
+        : input.wrapRuntimeControlWithOutcomeClone === true
         ? cloneWrappingRuntimeControlV1(
           session.runtimeControl,
           input.wrapReplacementPrepareCallback === true,
@@ -389,7 +494,7 @@ async function fixtureV1(input: {
       records: store.records,
       snapshotSchema: input.snapshotSchema ?? snapshotTransactionSnapshotSchemaV1,
       provenance: input.provenance ?? snapshotTransactionProvenanceV1,
-      adoptionDeclaration: input.adoptionDeclaration ?? null,
+      adoptionDeclarations: input.adoptionDeclarations ?? Object.freeze([]),
       saveStateMigrations: input.saveStateMigrations ?? null,
       ownerId: `owner.current-load-baseline.${String(fixtureOrdinalV1)}` as SessionLeaseOwnerId,
       nextHandoffRequestId: () =>
@@ -403,7 +508,12 @@ async function fixtureV1(input: {
         return input.invariantErrors ?? Object.freeze([]);
       },
       initialSimulationLineage: Object.freeze([]),
-      metadataClock: Object.freeze({ now: () => fixedInstantV1 }),
+      metadataClock: Object.freeze({
+        now() {
+          metadataClockCalls += 1;
+          return fixedInstantV1;
+        },
+      }),
       exportFilename: "current-load-baseline.json",
       manualSaveSlotCount: 0,
       autoSaveCapture: "external",
@@ -415,8 +525,21 @@ async function fixtureV1(input: {
       ),
     },
   );
+  store.setSaveReadFailure(
+    input.throwSaveReads === true
+      ? "throw"
+      : input.unavailableSaveReads === true
+      ? "unavailable"
+      : "none",
+  );
   store.resetSaveCommitCount();
-  return Object.freeze({ session, service, store });
+  metadataClockCalls = 0;
+  return Object.freeze({
+    session,
+    service,
+    store,
+    metadataClockCalls: () => metadataClockCalls,
+  });
 }
 
 async function rawSaveRecordsV1(records: HostAtomicRecordStoreV1) {
@@ -431,6 +554,27 @@ async function rawSaveRecordsV1(records: HostAtomicRecordStoreV1) {
   );
 }
 
+async function rawLeaseRecordsV1(records: HostAtomicRecordStoreV1) {
+  return Object.freeze(
+    (await records.list("lease")).map((record) =>
+      Object.freeze({
+        key: record.key,
+        revision: record.revision,
+        bytes: Uint8Array.from(record.bytes),
+      })
+    ),
+  );
+}
+
+function expectDeeplyFrozenV1(value: unknown, visited = new Set<object>()): void {
+  if (value === null || typeof value !== "object" || visited.has(value)) return;
+  visited.add(value);
+  expect(Object.isFrozen(value)).toBe(true);
+  for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(value))) {
+    if ("value" in descriptor) expectDeeplyFrozenV1(descriptor.value, visited);
+  }
+}
+
 function authorityEvidenceV1(fixture: Awaited<ReturnType<typeof fixtureV1>>) {
   const snapshot = fixture.session.snapshot();
   return Object.freeze({
@@ -440,7 +584,71 @@ function authorityEvidenceV1(fixture: Awaited<ReturnType<typeof fixtureV1>>) {
     replayBaseStateDigest: fixture.session.replayBaseStateDigest(),
     commandLog: fixture.session.commandLog(),
     lineage: fixture.service.getSimulationLineage(),
+    migrationReceipt: readInstalledSaveStateMigrationReceiptInternalV1(
+      fixture.session.runtimeControl,
+    ),
   });
+}
+
+async function inspectSaveWithoutMutationV1(
+  fixture: Awaited<ReturnType<typeof fixtureV1>>,
+  slot: SaveSlotIdV1,
+): Promise<SaveInspectionResultV1> {
+  const storedExportBefore = await fixture.service.port.exportSave(slot);
+  const currentExportBefore = await fixture.service.port.exportCurrentSave();
+  const statusBefore = await fixture.service.port.getStatus();
+  const leaseBefore = await fixture.service.port.lease.getStatus();
+  const portMethodIdentitiesBefore = Object.freeze({
+    listSlots: fixture.service.port.listSlots,
+    inspectSave: fixture.service.port.inspectSave,
+    getStatus: fixture.service.port.getStatus,
+    save: fixture.service.port.save,
+    load: fixture.service.port.load,
+    clear: fixture.service.port.clear,
+    annotateSave: fixture.service.port.annotateSave,
+    exportSave: fixture.service.port.exportSave,
+    exportCurrentSave: fixture.service.port.exportCurrentSave,
+    importSave: fixture.service.port.importSave,
+  });
+  const authorityBefore = authorityEvidenceV1(fixture);
+  const recordsBefore = await rawSaveRecordsV1(fixture.store.evidenceRecords);
+  const leaseRecordsBefore = await rawLeaseRecordsV1(fixture.store.evidenceRecords);
+  const saveCommitsBefore = fixture.store.saveCommitCount();
+  const metadataClockCallsBefore = fixture.metadataClockCalls();
+
+  const result = await fixture.service.port.inspectSave(slot);
+
+  expectDeeplyFrozenV1(result);
+  const authorityAfter = authorityEvidenceV1(fixture);
+  expect(authorityAfter.snapshot).toBe(authorityBefore.snapshot);
+  expect(authorityAfter.rng).toBe(authorityBefore.rng);
+  expect(authorityAfter.replayBase).toBe(authorityBefore.replayBase);
+  expect(authorityAfter.replayBaseStateDigest).toBe(authorityBefore.replayBaseStateDigest);
+  expect(authorityAfter.commandLog).toBe(authorityBefore.commandLog);
+  expect(authorityAfter.lineage).toBe(authorityBefore.lineage);
+  expect(authorityAfter.migrationReceipt).toBe(authorityBefore.migrationReceipt);
+  expect(await rawSaveRecordsV1(fixture.store.evidenceRecords)).toEqual(recordsBefore);
+  expect(await rawLeaseRecordsV1(fixture.store.evidenceRecords)).toEqual(leaseRecordsBefore);
+  expect(fixture.store.saveCommitCount()).toBe(saveCommitsBefore);
+  expect(fixture.metadataClockCalls()).toBe(metadataClockCallsBefore);
+  expect(fixture.session.status()).toBe("ready");
+  expect({
+    listSlots: fixture.service.port.listSlots,
+    inspectSave: fixture.service.port.inspectSave,
+    getStatus: fixture.service.port.getStatus,
+    save: fixture.service.port.save,
+    load: fixture.service.port.load,
+    clear: fixture.service.port.clear,
+    annotateSave: fixture.service.port.annotateSave,
+    exportSave: fixture.service.port.exportSave,
+    exportCurrentSave: fixture.service.port.exportCurrentSave,
+    importSave: fixture.service.port.importSave,
+  }).toEqual(portMethodIdentitiesBefore);
+  await expect(fixture.service.port.getStatus()).resolves.toEqual(statusBefore);
+  await expect(fixture.service.port.lease.getStatus()).resolves.toEqual(leaseBefore);
+  await expect(fixture.service.port.exportSave(slot)).resolves.toEqual(storedExportBefore);
+  await expect(fixture.service.port.exportCurrentSave()).resolves.toEqual(currentExportBefore);
+  return result;
 }
 
 async function expectRejectedImportV1(
@@ -1282,7 +1490,10 @@ describe("post-DET-A current Save load baseline", () => {
     const current = currentProvenanceV1();
     const declaration = adoptionDeclarationV1(snapshotTransactionProvenanceV1, current);
     const fifteen = bytesWithLineageV1(15);
-    const accepted = await fixtureV1({ provenance: current, adoptionDeclaration: declaration });
+    const accepted = await fixtureV1({
+      provenance: current,
+      adoptionDeclarations: Object.freeze([declaration]),
+    });
     try {
       await accepted.session.dispatch("cross_owner_atomic_committed");
       await expect(accepted.service.port.importSave(fifteen)).resolves.toEqual({
@@ -1305,7 +1516,7 @@ describe("post-DET-A current Save load baseline", () => {
     const loaded = await fixtureV1({
       slots: Object.freeze([{ slotId: "quick", bytes: fifteen }]),
       provenance: current,
-      adoptionDeclaration: declaration,
+      adoptionDeclarations: Object.freeze([declaration]),
     });
     try {
       const rawBefore = await rawSaveRecordsV1(loaded.store.records);
@@ -1325,13 +1536,13 @@ describe("post-DET-A current Save load baseline", () => {
     await expectRejectedImportV1(
       bytesWithLineageV1(16),
       { kind: "rejected", code: "lineage_limit" },
-      { provenance: current, adoptionDeclaration: declaration },
+      { provenance: current, adoptionDeclarations: Object.freeze([declaration]) },
     );
 
     await expectRejectedImportV1(
       fifteen,
       { kind: "rejected", code: "incompatible" },
-      { provenance: current, adoptionDeclaration: null },
+      { provenance: current, adoptionDeclarations: Object.freeze([]) },
     );
   });
 
@@ -1405,7 +1616,7 @@ describe("post-DET-A current Save load baseline", () => {
     const limited = await fixtureV1({
       slots: Object.freeze([{ slotId: "quick", bytes: limitedBytes }]),
       provenance: current,
-      adoptionDeclaration: declaration,
+      adoptionDeclarations: Object.freeze([declaration]),
     });
     try {
       await expectRejectedLoadPreservesAuthorityV1(limited, "quick", {
@@ -1639,7 +1850,7 @@ describe("M2c staged Save State migration integration", () => {
     const declaration = adoptionDeclarationV1(snapshotTransactionProvenanceV1, target);
     const fixture = await fixtureV1({
       provenance: target,
-      adoptionDeclaration: declaration,
+      adoptionDeclarations: Object.freeze([declaration]),
       saveStateMigrations: registry,
     });
     try {
@@ -2027,4 +2238,766 @@ describe("M2c staged Save State migration integration", () => {
       await fixture.service.disposeForRebootstrap();
     }
   });
+});
+
+describe("PF5 single-slot Save inspection", () => {
+  it("reports an exact Save directly without changing stored or Session authority", async () => {
+    const sourceBytes = currentRecordBytesV1();
+    const sourceBefore = Uint8Array.from(sourceBytes);
+    const runtimeEvents: Array<"enqueue" | "prepare"> = [];
+    const fixture = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes: sourceBytes }]),
+      observeRuntimeControl: (event) => runtimeEvents.push(event),
+    });
+    try {
+      await fixture.session.dispatch("cross_owner_atomic_committed");
+
+      await expect(inspectSaveWithoutMutationV1(fixture, "quick")).resolves.toEqual({
+        kind: "direct",
+        slotId: "quick",
+        warnings: [],
+        diagnostics: {
+          codes: [],
+          migrationAttempt: null,
+          migrationReasonCode: null,
+          storedStateContractRevision: null,
+          currentStateContractRevision: null,
+        },
+      });
+      expect(sourceBytes).toEqual(sourceBefore);
+      expect(runtimeEvents).toEqual([]);
+    } finally {
+      await fixture.service.disposeForRebootstrap();
+    }
+  });
+
+  it("reports adoption without migration and preserves its compatibility warning", async () => {
+    const target = currentProvenanceV1();
+    const declaration = adoptionDeclarationV1(snapshotTransactionProvenanceV1, target);
+    const sourceBytes = currentRecordBytesV1();
+    const fixture = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes: sourceBytes }]),
+      provenance: target,
+      adoptionDeclarations: Object.freeze([declaration]),
+    });
+    try {
+      await fixture.session.dispatch("cross_owner_atomic_committed");
+
+      await expect(inspectSaveWithoutMutationV1(fixture, "quick")).resolves.toMatchObject({
+        kind: "adoption_required",
+        slotId: "quick",
+        adoption: {
+          fromSimulationDigest: snapshotTransactionProvenanceV1.resolved.simulationDigest,
+          toSimulationDigest: target.resolved.simulationDigest,
+          viaSimulationPatchSetDigest: target.resolved.patchSet.simulationDigest,
+          adoptedAtCommandSequence: 0,
+        },
+        warnings: [
+          {
+            code: "identity.hotfix_set_mismatch",
+            field: "hotfix_set",
+            stored: snapshotTransactionProvenanceV1.resolved.patchSet,
+            current: target.resolved.patchSet,
+          },
+        ],
+      });
+    } finally {
+      await fixture.service.disposeForRebootstrap();
+    }
+  });
+
+  it("reruns migration callbacks for every inspection and preserves an installed receipt", async () => {
+    const target = migrationTargetProvenanceV1();
+    let migrationCalls = 0;
+    const registry = migrationRegistryV1(target, (state) => {
+      migrationCalls += 1;
+      return Object.freeze({ kind: "migrated" as const, state });
+    });
+    const sourceBytes = currentRecordBytesV1();
+    const sourceBefore = Uint8Array.from(sourceBytes);
+    const fixture = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes: sourceBytes }]),
+      provenance: target,
+      saveStateMigrations: registry,
+    });
+    try {
+      await expect(fixture.service.port.importSave(sourceBytes)).resolves.toMatchObject({
+        kind: "imported",
+        compatibility: "exact",
+      });
+      const installedReceipt = readInstalledSaveStateMigrationReceiptInternalV1(
+        fixture.session.runtimeControl,
+      );
+      expect(installedReceipt).not.toBeNull();
+      await fixture.session.dispatch("cross_owner_atomic_committed");
+      migrationCalls = 0;
+
+      const first = await inspectSaveWithoutMutationV1(fixture, "quick");
+      expect(first).toMatchObject({
+        kind: "migration_required",
+        slotId: "quick",
+        migration: {
+          source: stateContractIdentityV1(snapshotTransactionProvenanceV1),
+          target: stateContractIdentityV1(target),
+        },
+        warnings: [],
+      });
+      expect(migrationCalls).toBe(1);
+      expect(readInstalledSaveStateMigrationReceiptInternalV1(fixture.session.runtimeControl)).toBe(
+        installedReceipt,
+      );
+
+      const second = await inspectSaveWithoutMutationV1(fixture, "quick");
+      expect(second).toEqual(first);
+      expect(migrationCalls).toBe(2);
+      expect(sourceBytes).toEqual(sourceBefore);
+    } finally {
+      await fixture.service.disposeForRebootstrap();
+    }
+  });
+
+  it("projects one aggregate two-step migration receipt", async () => {
+    const baseline = migrationTargetProvenanceV1();
+    const target = Object.freeze({
+      ...baseline,
+      resolved: Object.freeze({
+        ...baseline.resolved,
+        stateContractRevision: parsePositiveSafeInteger(
+          Number(snapshotTransactionProvenanceV1.resolved.stateContractRevision) + 2,
+        ),
+        stateContractDigest: digestV1("state-contract.two-step-current"),
+      }),
+    });
+    let firstCalls = 0;
+    let secondCalls = 0;
+    const registry = twoStepMigrationRegistryV1(
+      target,
+      (state) => {
+        firstCalls += 1;
+        return Object.freeze({ kind: "migrated" as const, state });
+      },
+      (state) => {
+        secondCalls += 1;
+        return Object.freeze({ kind: "migrated" as const, state });
+      },
+    );
+    const fixture = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes: currentRecordBytesV1() }]),
+      provenance: target,
+      saveStateMigrations: registry,
+    });
+    try {
+      const result = await inspectSaveWithoutMutationV1(fixture, "quick");
+      expect(result).toMatchObject({
+        kind: "migration_required",
+        slotId: "quick",
+        migration: {
+          source: stateContractIdentityV1(snapshotTransactionProvenanceV1),
+          target: stateContractIdentityV1(target),
+          steps: [
+            { migrationId: "migration.current-load-baseline.first" },
+            { migrationId: "migration.current-load-baseline.second" },
+          ],
+        },
+        warnings: [],
+        diagnostics: {
+          codes: [],
+          migrationAttempt: null,
+          migrationReasonCode: null,
+          storedStateContractRevision: null,
+          currentStateContractRevision: null,
+        },
+      });
+      expect(firstCalls).toBe(1);
+      expect(secondCalls).toBe(1);
+    } finally {
+      await fixture.service.disposeForRebootstrap();
+    }
+  });
+
+  it("projects invalid migration output as a stable rejection", async () => {
+    const target = migrationTargetProvenanceV1();
+    let migrationCalls = 0;
+    const registry = migrationRegistryV1(target, (_state) => {
+      migrationCalls += 1;
+      return Object.freeze({
+        kind: "migrated",
+        state: Object.freeze({ invalid: undefined }),
+      }) as never;
+    });
+    const fixture = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes: currentRecordBytesV1() }]),
+      provenance: target,
+      saveStateMigrations: registry,
+    });
+    try {
+      await expect(inspectSaveWithoutMutationV1(fixture, "quick")).resolves.toMatchObject({
+        kind: "rejected",
+        slotId: "quick",
+        code: "migration_rejected",
+        diagnostics: {
+          codes: ["migration.output_invalid"],
+          migrationAttempt: {
+            failingPhase: "output_admission",
+            completedSteps: [],
+            migratedStateDigest: null,
+          },
+          migrationReasonCode: null,
+        },
+      });
+      expect(migrationCalls).toBe(1);
+    } finally {
+      await fixture.service.disposeForRebootstrap();
+    }
+  });
+
+  it("observes a physical overwrite instead of reusing prior inspection bytes", async () => {
+    const firstBytes = currentRecordBytesV1();
+    const secondBytes = currentRecordBytesV1({
+      commandSequence: 1,
+      recordRevision: 2,
+    });
+    const fixture = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes: firstBytes }]),
+    });
+    try {
+      const first = await inspectSaveWithoutMutationV1(fixture, "quick");
+      expect(first).toMatchObject({ kind: "direct", slotId: "quick" });
+      const firstStored = await fixture.service.port.exportSave("quick");
+      expect(firstStored).toMatchObject({ kind: "exported", slotId: "quick" });
+      if (firstStored.kind !== "exported") throw new TypeError("expected initial Save export");
+      expect(firstStored.file.bytes).toEqual(firstBytes);
+
+      const overwrite = await fixture.store.records.commit([
+        Object.freeze({
+          kind: "put" as const,
+          namespace: "save" as const,
+          key: createSaveSlotRecordKeyV1(snapshotTransactionProvenanceV1.story.id, "quick"),
+          expectedRevision: parseNonNegativeSafeInteger(1),
+          bytes: Uint8Array.from(secondBytes),
+        }),
+      ]);
+      expect(overwrite).toMatchObject({
+        kind: "committed",
+        records: [{ namespace: "save", revision: 2, bytes: secondBytes }],
+      });
+      fixture.store.resetSaveCommitCount();
+
+      const second = await inspectSaveWithoutMutationV1(fixture, "quick");
+      expect(second).toMatchObject({ kind: "direct", slotId: "quick" });
+      expect(second).not.toBe(first);
+      const stored = await fixture.service.port.exportSave("quick");
+      expect(stored).toMatchObject({ kind: "exported", slotId: "quick" });
+      if (stored.kind !== "exported") throw new TypeError("expected overwritten Save export");
+      expect(stored.file.bytes).toEqual(secondBytes);
+    } finally {
+      await fixture.service.disposeForRebootstrap();
+    }
+  });
+
+  it("does not consume the next autosave anchor epoch", async () => {
+    const bytes = currentRecordBytesV1();
+    const fixture = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes }]),
+      autoSaveInitialAnchorEpoch: Number.MAX_SAFE_INTEGER - 1,
+    });
+    try {
+      await expect(inspectSaveWithoutMutationV1(fixture, "quick")).resolves.toMatchObject({
+        kind: "direct",
+        slotId: "quick",
+      });
+      await expect(fixture.service.port.importSave(bytes)).resolves.toMatchObject({
+        kind: "imported",
+        compatibility: "exact",
+      });
+      expect(fixture.session.status()).toBe("ready");
+      expect(fixture.store.saveCommitCount()).toBe(0);
+    } finally {
+      await fixture.service.disposeForRebootstrap();
+    }
+  });
+
+  it("reports migration plus adoption without installing either candidate", async () => {
+    const stateTarget = migrationTargetProvenanceV1();
+    const simulationTarget = currentProvenanceV1();
+    const target = Object.freeze({
+      ...simulationTarget,
+      resolved: Object.freeze({
+        ...simulationTarget.resolved,
+        stateContractRevision: stateTarget.resolved.stateContractRevision,
+        stateContractDigest: stateTarget.resolved.stateContractDigest,
+      }),
+    });
+    let migrationCalls = 0;
+    const registry = migrationRegistryV1(target, (state) => {
+      migrationCalls += 1;
+      return Object.freeze({ kind: "migrated" as const, state });
+    });
+    const declaration = adoptionDeclarationV1(snapshotTransactionProvenanceV1, target);
+    const sourceBytes = currentRecordBytesV1();
+    const sourceBefore = Uint8Array.from(sourceBytes);
+    const fixture = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes: sourceBytes }]),
+      provenance: target,
+      adoptionDeclarations: Object.freeze([declaration]),
+      saveStateMigrations: registry,
+    });
+    try {
+      await fixture.session.dispatch("cross_owner_atomic_committed");
+
+      const result = await inspectSaveWithoutMutationV1(fixture, "quick");
+      expect(result).toMatchObject({
+        kind: "migration_and_adoption_required",
+        slotId: "quick",
+        migration: {
+          source: stateContractIdentityV1(snapshotTransactionProvenanceV1),
+          target: stateContractIdentityV1(target),
+        },
+        adoption: {
+          fromSimulationDigest: snapshotTransactionProvenanceV1.resolved.simulationDigest,
+          toSimulationDigest: target.resolved.simulationDigest,
+          viaSimulationPatchSetDigest: target.resolved.patchSet.simulationDigest,
+          adoptedAtCommandSequence: 0,
+        },
+        warnings: [
+          {
+            code: "identity.hotfix_set_mismatch",
+            field: "hotfix_set",
+            stored: snapshotTransactionProvenanceV1.resolved.patchSet,
+            current: target.resolved.patchSet,
+          },
+        ],
+      });
+      expect(migrationCalls).toBe(1);
+      expect(sourceBytes).toEqual(sourceBefore);
+    } finally {
+      await fixture.service.disposeForRebootstrap();
+    }
+  });
+
+  it("keeps unavailable migrations inspect-only and reports the exact revision boundary", async () => {
+    const target = migrationTargetProvenanceV1();
+    const fixture = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes: currentRecordBytesV1() }]),
+      provenance: target,
+    });
+    try {
+      await fixture.session.dispatch("cross_owner_atomic_committed");
+
+      await expect(inspectSaveWithoutMutationV1(fixture, "quick")).resolves.toEqual({
+        kind: "inspect_only",
+        slotId: "quick",
+        code: "migration_unavailable",
+        diagnostics: {
+          codes: ["migration.unavailable"],
+          migrationAttempt: null,
+          migrationReasonCode: null,
+          storedStateContractRevision:
+            snapshotTransactionProvenanceV1.resolved.stateContractRevision,
+          currentStateContractRevision: target.resolved.stateContractRevision,
+        },
+      });
+    } finally {
+      await fixture.service.disposeForRebootstrap();
+    }
+  });
+
+  it("keeps incompatible identity changes inspect-only", async () => {
+    const incompatible = Object.freeze({
+      ...snapshotTransactionProvenanceV1,
+      engine: Object.freeze({
+        ...snapshotTransactionProvenanceV1.engine,
+        digest: digestV1("inspection.engine-mismatch"),
+      }),
+    });
+    const fixture = await fixtureV1({
+      slots: Object.freeze([
+        { slotId: "quick", bytes: currentRecordBytesV1({ provenance: incompatible }) },
+      ]),
+    });
+    try {
+      await fixture.session.dispatch("cross_owner_atomic_committed");
+
+      await expect(inspectSaveWithoutMutationV1(fixture, "quick")).resolves.toEqual({
+        kind: "inspect_only",
+        slotId: "quick",
+        code: "incompatible",
+        diagnostics: {
+          codes: ["identity.engine_digest_mismatch"],
+          migrationAttempt: null,
+          migrationReasonCode: null,
+          storedStateContractRevision: null,
+          currentStateContractRevision: null,
+        },
+      });
+    } finally {
+      await fixture.service.disposeForRebootstrap();
+    }
+  });
+
+  it("reports a full lineage as an inspect-only reanchor requirement", async () => {
+    const target = currentProvenanceV1();
+    const fixture = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes: bytesWithLineageV1(16) }]),
+      provenance: target,
+      adoptionDeclarations: Object.freeze([
+        adoptionDeclarationV1(snapshotTransactionProvenanceV1, target),
+      ]),
+    });
+    try {
+      await fixture.session.dispatch("cross_owner_atomic_committed");
+
+      await expect(inspectSaveWithoutMutationV1(fixture, "quick")).resolves.toEqual({
+        kind: "inspect_only",
+        slotId: "quick",
+        code: "reanchor_required",
+        diagnostics: {
+          codes: ["compatibility.lineage_limit"],
+          migrationAttempt: null,
+          migrationReasonCode: null,
+          storedStateContractRevision: null,
+          currentStateContractRevision: null,
+        },
+      });
+    } finally {
+      await fixture.service.disposeForRebootstrap();
+    }
+  });
+
+  it("surfaces an explicit migration rejection with its stable attempt evidence", async () => {
+    const target = migrationTargetProvenanceV1();
+    const reasonCode = parseSaveStateMigrationReasonCodeV1("migration.synthetic.rejected");
+    let migrationCalls = 0;
+    const registry = migrationRegistryV1(target, (_state) => {
+      migrationCalls += 1;
+      return Object.freeze({ kind: "rejected" as const, reasonCode });
+    });
+    const sourceBytes = currentRecordBytesV1();
+    const fixture = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes: sourceBytes }]),
+      provenance: target,
+      saveStateMigrations: registry,
+    });
+    try {
+      await fixture.session.dispatch("cross_owner_atomic_committed");
+
+      const result = await inspectSaveWithoutMutationV1(fixture, "quick");
+      expect(result).toMatchObject({
+        kind: "rejected",
+        slotId: "quick",
+        code: "migration_rejected",
+        diagnostics: {
+          codes: ["migration.rejected"],
+          migrationReasonCode: reasonCode,
+          storedStateContractRevision: null,
+          currentStateContractRevision: null,
+          migrationAttempt: {
+            source: stateContractIdentityV1(snapshotTransactionProvenanceV1),
+            target: stateContractIdentityV1(target),
+            completedSteps: [],
+            failingPhase: "callback_rejected",
+            migratedStateDigest: null,
+          },
+        },
+      });
+      expect(migrationCalls).toBe(1);
+    } finally {
+      await fixture.service.disposeForRebootstrap();
+    }
+  });
+
+  it("surfaces a thrown migration callback as a stable fault without leaking the throw", async () => {
+    const target = migrationTargetProvenanceV1();
+    let migrationCalls = 0;
+    const registry = migrationRegistryV1(target, (_state) => {
+      migrationCalls += 1;
+      throw new Error("private inspection migration failure");
+    });
+    const sourceBytes = currentRecordBytesV1();
+    const fixture = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes: sourceBytes }]),
+      provenance: target,
+      saveStateMigrations: registry,
+    });
+    try {
+      await fixture.session.dispatch("cross_owner_atomic_committed");
+
+      const result = await inspectSaveWithoutMutationV1(fixture, "quick");
+      expect(result).toMatchObject({
+        kind: "faulted",
+        slotId: "quick",
+        code: "migration.callback_threw",
+        diagnostics: {
+          codes: ["migration.callback_threw"],
+          migrationReasonCode: null,
+          storedStateContractRevision: null,
+          currentStateContractRevision: null,
+          migrationAttempt: {
+            source: stateContractIdentityV1(snapshotTransactionProvenanceV1),
+            target: stateContractIdentityV1(target),
+            completedSteps: [],
+            failingPhase: "callback",
+            migratedStateDigest: null,
+          },
+        },
+      });
+      expect(migrationCalls).toBe(1);
+    } finally {
+      await fixture.service.disposeForRebootstrap();
+    }
+  });
+
+  it("executes Story reference and invariant validation and projects stable rejections", async () => {
+    let referenceCalls = 0;
+    let invariantCalls = 0;
+    const referenceFailure = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes: currentRecordBytesV1() }]),
+      referenceErrors: Object.freeze(["reference.missing"]),
+      onValidateReferences: () => {
+        referenceCalls += 1;
+      },
+      onValidateInvariants: () => {
+        invariantCalls += 1;
+      },
+    });
+    try {
+      await expect(inspectSaveWithoutMutationV1(referenceFailure, "quick")).resolves.toMatchObject({
+        kind: "rejected",
+        slotId: "quick",
+        code: "invalid_record",
+        diagnostics: { codes: ["reference.unknown_id"] },
+      });
+      expect(referenceCalls).toBeGreaterThan(0);
+      expect(invariantCalls).toBe(0);
+    } finally {
+      await referenceFailure.service.disposeForRebootstrap();
+    }
+
+    referenceCalls = 0;
+    invariantCalls = 0;
+    const invariantFailure = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes: currentRecordBytesV1() }]),
+      invariantErrors: Object.freeze(["invariant.synthetic"]),
+      onValidateReferences: () => {
+        referenceCalls += 1;
+      },
+      onValidateInvariants: () => {
+        invariantCalls += 1;
+      },
+    });
+    try {
+      await expect(inspectSaveWithoutMutationV1(invariantFailure, "quick")).resolves.toMatchObject({
+        kind: "rejected",
+        slotId: "quick",
+        code: "invalid_record",
+        diagnostics: { codes: ["invariant.failed"] },
+      });
+      expect(referenceCalls).toBeGreaterThan(0);
+      expect(invariantCalls).toBeGreaterThan(0);
+    } finally {
+      await invariantFailure.service.disposeForRebootstrap();
+    }
+  });
+
+  it("distinguishes empty and invalid stored slots without mutation", async () => {
+    const empty = await fixtureV1();
+    try {
+      await empty.session.dispatch("cross_owner_atomic_committed");
+      await expect(inspectSaveWithoutMutationV1(empty, "quick")).resolves.toEqual({
+        kind: "rejected",
+        slotId: "quick",
+        code: "empty_slot",
+        diagnostics: {
+          codes: ["empty_slot"],
+          migrationAttempt: null,
+          migrationReasonCode: null,
+          storedStateContractRevision: null,
+          currentStateContractRevision: null,
+        },
+      });
+    } finally {
+      await empty.service.disposeForRebootstrap();
+    }
+
+    const invalidBytes = textEncoderV1.encode("not-json");
+    const invalidBefore = Uint8Array.from(invalidBytes);
+    const invalid = await fixtureV1({
+      slots: Object.freeze([{ slotId: "quick", bytes: invalidBytes }]),
+    });
+    try {
+      await invalid.session.dispatch("cross_owner_atomic_committed");
+      await expect(inspectSaveWithoutMutationV1(invalid, "quick")).resolves.toEqual({
+        kind: "rejected",
+        slotId: "quick",
+        code: "invalid_record",
+        diagnostics: {
+          codes: ["syntax.invalid"],
+          migrationAttempt: null,
+          migrationReasonCode: null,
+          storedStateContractRevision: null,
+          currentStateContractRevision: null,
+        },
+      });
+      expect(invalidBytes).toEqual(invalidBefore);
+    } finally {
+      await invalid.service.disposeForRebootstrap();
+    }
+  });
+
+  it("returns stable unavailable, invalid-slot, and disposed fault evidence", async () => {
+    const unavailable = await fixtureV1({ unavailableSaveReads: true });
+    try {
+      const recordsBefore = await rawSaveRecordsV1(unavailable.store.evidenceRecords);
+      const leaseRecordsBefore = await rawLeaseRecordsV1(unavailable.store.evidenceRecords);
+      const authorityBefore = authorityEvidenceV1(unavailable);
+      const statusBefore = await unavailable.service.port.getStatus();
+      const leaseBefore = await unavailable.service.port.lease.getStatus();
+      const result = await unavailable.service.port.inspectSave("quick");
+      expectDeeplyFrozenV1(result);
+      expect(result).toEqual({
+        kind: "rejected",
+        slotId: "quick",
+        code: "unavailable",
+        diagnostics: {
+          codes: ["indexeddb.unavailable"],
+          migrationAttempt: null,
+          migrationReasonCode: null,
+          storedStateContractRevision: null,
+          currentStateContractRevision: null,
+        },
+      });
+      const authorityAfter = authorityEvidenceV1(unavailable);
+      expect(authorityAfter).toEqual(authorityBefore);
+      expect(await rawSaveRecordsV1(unavailable.store.evidenceRecords)).toEqual(recordsBefore);
+      expect(await rawLeaseRecordsV1(unavailable.store.evidenceRecords)).toEqual(
+        leaseRecordsBefore,
+      );
+      expect(unavailable.store.saveCommitCount()).toBe(0);
+      expect(unavailable.metadataClockCalls()).toBe(0);
+      await expect(unavailable.service.port.getStatus()).resolves.toEqual(statusBefore);
+      await expect(unavailable.service.port.lease.getStatus()).resolves.toEqual(leaseBefore);
+    } finally {
+      await unavailable.service.disposeForRebootstrap();
+    }
+
+    const throwing = await fixtureV1({ throwSaveReads: true });
+    try {
+      const result = await throwing.service.port.inspectSave("quick");
+      expectDeeplyFrozenV1(result);
+      expect(result).toEqual({
+        kind: "faulted",
+        slotId: "quick",
+        code: "persistence.unexpected",
+        diagnostics: {
+          codes: ["persistence.unexpected"],
+          migrationAttempt: null,
+          migrationReasonCode: null,
+          storedStateContractRevision: null,
+          currentStateContractRevision: null,
+        },
+      });
+      expect(throwing.store.saveCommitCount()).toBe(0);
+      expect(throwing.metadataClockCalls()).toBe(0);
+    } finally {
+      await throwing.service.disposeForRebootstrap();
+    }
+
+    const invalidSlot = await fixtureV1();
+    try {
+      const result = await invalidSlot.service.port.inspectSave("manual.1");
+      expectDeeplyFrozenV1(result);
+      expect(result).toEqual({
+        kind: "faulted",
+        slotId: null,
+        code: "persistence.invalid_slot",
+        diagnostics: {
+          codes: ["persistence.invalid_slot"],
+          migrationAttempt: null,
+          migrationReasonCode: null,
+          storedStateContractRevision: null,
+          currentStateContractRevision: null,
+        },
+      });
+      expect(invalidSlot.store.saveCommitCount()).toBe(0);
+      expect(invalidSlot.metadataClockCalls()).toBe(0);
+    } finally {
+      await invalidSlot.service.disposeForRebootstrap();
+    }
+
+    const disposed = await fixtureV1();
+    await disposed.service.disposeForRebootstrap();
+    const disposedResult = await disposed.service.port.inspectSave("quick");
+    expectDeeplyFrozenV1(disposedResult);
+    expect(disposedResult).toEqual({
+      kind: "faulted",
+      slotId: "quick",
+      code: "runtime_disposed",
+      diagnostics: {
+        codes: ["runtime_disposed"],
+        migrationAttempt: null,
+        migrationReasonCode: null,
+        storedStateContractRevision: null,
+        currentStateContractRevision: null,
+      },
+    });
+    expect(disposed.store.saveCommitCount()).toBe(0);
+    expect(disposed.metadataClockCalls()).toBe(0);
+  });
+
+  it(
+    "reruns a bounded 10k migration workload while listSlots stays callback-free",
+    async () => {
+      const target = migrationTargetProvenanceV1();
+      let migrationCalls = 0;
+      const registry = migrationRegistryV1(target, (state) => {
+        migrationCalls += 1;
+        return Object.freeze({ kind: "migrated" as const, state });
+      });
+      const fixture = await fixtureV1({
+        slots: Object.freeze([{ slotId: "quick", bytes: currentRecordBytesV1() }]),
+        provenance: target,
+        saveStateMigrations: registry,
+      });
+      try {
+        const authorityBefore = authorityEvidenceV1(fixture);
+        const recordsBefore = await rawSaveRecordsV1(fixture.store.evidenceRecords);
+        const leaseRecordsBefore = await rawLeaseRecordsV1(fixture.store.evidenceRecords);
+        const statusBefore = await fixture.service.port.getStatus();
+        const leaseBefore = await fixture.service.port.lease.getStatus();
+
+        await fixture.service.port.listSlots();
+        expect(migrationCalls).toBe(0);
+        for (let index = 0; index < 10_000; index += 1) {
+          const result = await fixture.service.port.inspectSave("quick");
+          expect(result.kind).toBe("migration_required");
+          expectDeeplyFrozenV1(result);
+        }
+        expect(migrationCalls).toBe(10_000);
+
+        await fixture.service.port.listSlots();
+        expect(migrationCalls).toBe(10_000);
+        const authorityAfter = authorityEvidenceV1(fixture);
+        expect(authorityAfter.snapshot).toBe(authorityBefore.snapshot);
+        expect(authorityAfter.rng).toBe(authorityBefore.rng);
+        expect(authorityAfter.replayBase).toBe(authorityBefore.replayBase);
+        expect(authorityAfter.replayBaseStateDigest).toBe(
+          authorityBefore.replayBaseStateDigest,
+        );
+        expect(authorityAfter.commandLog).toBe(authorityBefore.commandLog);
+        expect(authorityAfter.lineage).toBe(authorityBefore.lineage);
+        expect(authorityAfter.migrationReceipt).toBe(authorityBefore.migrationReceipt);
+        expect(await rawSaveRecordsV1(fixture.store.evidenceRecords)).toEqual(recordsBefore);
+        expect(await rawLeaseRecordsV1(fixture.store.evidenceRecords)).toEqual(
+          leaseRecordsBefore,
+        );
+        expect(fixture.store.saveCommitCount()).toBe(0);
+        expect(fixture.metadataClockCalls()).toBe(0);
+        await expect(fixture.service.port.getStatus()).resolves.toEqual(statusBefore);
+        await expect(fixture.service.port.lease.getStatus()).resolves.toEqual(leaseBefore);
+      } finally {
+        await fixture.service.disposeForRebootstrap();
+      }
+    },
+    120_000,
+  );
 });

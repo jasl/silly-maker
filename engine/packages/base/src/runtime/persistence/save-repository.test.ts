@@ -31,7 +31,11 @@ import {
 } from "./save-repository.ts";
 import type { SaveRepositorySlotMetadataV1 } from "./save-repository.ts";
 import { createSessionLeaseV1 } from "./session-lease.ts";
-import { createSaveSlotRecordKeyV1, createSessionLeaseRecordKeyV1 } from "./slot-keys.ts";
+import {
+  createSaveMigrationBackupRecordKeyV1,
+  createSaveSlotRecordKeyV1,
+  createSessionLeaseRecordKeyV1,
+} from "./slot-keys.ts";
 
 const storyIdV1 = "story.save-repository-test";
 const ownerIdV1 = "owner.primary" as SessionLeaseOwnerId;
@@ -220,6 +224,55 @@ function throwingStoreV1(error: Error): HostAtomicRecordStoreV1 {
   });
 }
 
+function createBeforeMigrationCommitStoreV1() {
+  const delegate = createMemoryHostRecordStoreV1();
+  let beforeMigrationCommit:
+    | ((records: HostAtomicRecordStoreV1) => void | Promise<void>)
+    | null = null;
+  const records: HostAtomicRecordStoreV1 = Object.freeze({
+    read: delegate.read,
+    list: delegate.list,
+    async commit(mutations: readonly [HostRecordMutationV1, ...HostRecordMutationV1[]]) {
+      if (
+        beforeMigrationCommit !== null &&
+        mutations.some(({ key }) => key.startsWith("save-migration-backup.v1:"))
+      ) {
+        const callback = beforeMigrationCommit;
+        beforeMigrationCommit = null;
+        await callback(delegate);
+      }
+      return delegate.commit(mutations);
+    },
+  });
+  return Object.freeze({
+    records,
+    arm(callback: (records: HostAtomicRecordStoreV1) => void | Promise<void>) {
+      if (beforeMigrationCommit !== null) {
+        throw new TypeError("migration commit hook is already armed");
+      }
+      beforeMigrationCommit = callback;
+    },
+  });
+}
+
+async function createRepositoryFixtureForStoreV1(records: HostAtomicRecordStoreV1) {
+  const lease = createSessionLeaseV1({
+    records,
+    storyId: storyIdV1,
+    ownerId: ownerIdV1,
+    nextHandoffRequestId: () => "request.primary" as never,
+  });
+  await lease.acquireInitial();
+  const fence = lease.captureFence();
+  if (fence === null) throw new TypeError("expected owned lease fence");
+  return Object.freeze({
+    records,
+    lease,
+    fence,
+    repository: createSaveRepositoryV1({ records, storyId: storyIdV1, codec: codecV1 }),
+  });
+}
+
 async function createFixtureV1(input?: { readonly writeReceiptEvidence?: boolean }) {
   const instrumented = createInstrumentedStoreV1();
   const lease = createSessionLeaseV1({
@@ -254,6 +307,13 @@ async function physicalRecordV1(
   slotId: SaveSlotIdV1,
 ): Promise<HostStoredRecordV1 | null> {
   return records.read("save", createSaveSlotRecordKeyV1(storyIdV1, slotId));
+}
+
+async function physicalMigrationBackupV1(
+  records: HostAtomicRecordStoreV1,
+  slotId: SaveSlotIdV1,
+): Promise<HostStoredRecordV1 | null> {
+  return records.read("save", createSaveMigrationBackupRecordKeyV1(storyIdV1, slotId));
 }
 
 async function overwritePhysicalV1(
@@ -298,6 +358,25 @@ describe("Save repository", () => {
       createSessionLeaseRecordKeyV1("story.second"),
     );
     expect(firstStory.every((key) => key.includes("save-record.v1"))).toBe(true);
+  });
+
+  it("creates one exact, bounded, Story-scoped migration-backup key per slot", () => {
+    const storyId = "story /?% backup";
+    expect(createSaveMigrationBackupRecordKeyV1(storyId, "manual.99")).toBe(
+      `save-migration-backup.v1:${encodeURIComponent(storyId)}:manual.99`,
+    );
+    expect(
+      new Set(slotIdsV1.map((slotId) => createSaveMigrationBackupRecordKeyV1(storyId, slotId))),
+    ).toHaveLength(slotIdsV1.length);
+    expect(createSaveMigrationBackupRecordKeyV1("story.first", "quick")).not.toBe(
+      createSaveMigrationBackupRecordKeyV1("story.second", "quick"),
+    );
+    expect(() => createSaveMigrationBackupRecordKeyV1("", "quick")).toThrow(TypeError);
+    for (const invalid of ["manual.0", "manual.01", "manual.100", "unknown", null]) {
+      expect(() => createSaveMigrationBackupRecordKeyV1(storyId, invalid as never)).toThrow(
+        TypeError,
+      );
+    }
   });
 
   it("distinguishes empty, valid, revision-mismatched, and slot-mismatched records", async () => {
@@ -513,6 +592,855 @@ describe("Save repository", () => {
     ).resolves.toEqual({ kind: "rejected", code: "conflict" });
     expectValidSequenceV1(await fixture.repository.read("quick"), 2);
   });
+
+  it("atomically preserves exact source bytes before rewriting target and touching the lease", async () => {
+    const fixture = await createFixtureV1();
+    await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
+    await fixture.repository.writePlayer("quick", makeRecordV1(2), fixture.fence);
+    const source = await fixture.repository.read("quick");
+    if (source.health !== "valid") throw new TypeError("expected a valid migration source");
+    fixture.batches.length = 0;
+
+    await expect(
+      fixture.repository.rewriteWithMigrationBackup(
+        "quick",
+        Object.freeze({ hostRevision: source.hostRevision, bytes: source.bytes }),
+        makeRecordV1(3),
+        fixture.fence,
+      ),
+    ).resolves.toEqual({ kind: "saved", slotId: "quick", recordRevision: 3 });
+
+    expect(fixture.batches).toHaveLength(1);
+    expect(fixture.batches[0]).toHaveLength(3);
+    expect(fixture.batches[0]).toMatchObject([
+      {
+        kind: "put",
+        namespace: "save",
+        key: createSaveMigrationBackupRecordKeyV1(storyIdV1, "quick"),
+        expectedRevision: null,
+        bytes: source.bytes,
+      },
+      {
+        kind: "put",
+        namespace: "save",
+        key: createSaveSlotRecordKeyV1(storyIdV1, "quick"),
+        expectedRevision: source.hostRevision,
+      },
+      {
+        kind: "put",
+        namespace: "lease",
+        key: createSessionLeaseRecordKeyV1(storyIdV1),
+      },
+    ]);
+
+    const physicalBackup = await physicalMigrationBackupV1(fixture.records, "quick");
+    expect(physicalBackup).toMatchObject({ revision: 1, bytes: source.bytes });
+    const firstRead = await fixture.repository.readMigrationBackup("quick");
+    if (firstRead.health !== "stored") throw new TypeError("expected a stored migration backup");
+    expect(firstRead).toMatchObject({
+      slotId: "quick",
+      hostRevision: 1,
+      bytes: source.bytes,
+      envelope: {
+        recordRevision: 2,
+        slot: { storyId: storyIdV1, slotId: "quick", writeReason: "quick" },
+      },
+    });
+    expect(firstRead.envelope.recordRevision).not.toBe(firstRead.hostRevision);
+    expect(Object.isFrozen(firstRead)).toBe(true);
+    expect(Object.isFrozen(firstRead.envelope)).toBe(true);
+    expect(firstRead.bytes).not.toBe(physicalBackup?.bytes);
+
+    firstRead.bytes.fill(0);
+    const secondRead = await fixture.repository.readMigrationBackup("quick");
+    if (secondRead.health !== "stored") throw new TypeError("expected a second backup read");
+    expect(secondRead.bytes).toEqual(source.bytes);
+    expect(secondRead.bytes).not.toBe(firstRead.bytes);
+    expectValidSequenceV1(await fixture.repository.read("quick"), 3);
+  });
+
+  it("keeps exactly one pending backup and rejects before candidate encoding or another commit", async () => {
+    const fixture = await createFixtureV1();
+    await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
+    const source = await fixture.repository.read("quick");
+    if (source.health !== "valid") throw new TypeError("expected a valid migration source");
+    await expect(
+      fixture.repository.rewriteWithMigrationBackup(
+        "quick",
+        Object.freeze({ hostRevision: source.hostRevision, bytes: source.bytes }),
+        makeRecordV1(2),
+        fixture.fence,
+      ),
+    ).resolves.toEqual({ kind: "saved", slotId: "quick", recordRevision: 2 });
+    const current = await fixture.repository.read("quick");
+    if (current.health !== "valid") throw new TypeError("expected a rewritten target");
+    const backupBefore = await physicalMigrationBackupV1(fixture.records, "quick");
+    if (backupBefore === null) throw new TypeError("expected the first pending backup generation");
+    const targetBefore = await physicalRecordV1(fixture.records, "quick");
+    const leaseBefore = await fixture.records.read(
+      "lease",
+      createSessionLeaseRecordKeyV1(storyIdV1),
+    );
+    const valid = makeRecordV1(3);
+    const invalidCandidate = Object.freeze({
+      ...valid,
+      provenance: Object.freeze({ ...valid.provenance, marker: "\ud800" }),
+    }) as SyntheticSaveRecordV1;
+    fixture.batches.length = 0;
+
+    await expect(
+      fixture.repository.rewriteWithMigrationBackup(
+        "quick",
+        Object.freeze({ hostRevision: current.hostRevision, bytes: current.bytes }),
+        invalidCandidate,
+        fixture.fence,
+      ),
+    ).resolves.toEqual({ kind: "rejected", code: "backup_pending" });
+    expect(fixture.batches).toHaveLength(0);
+    expect(await physicalMigrationBackupV1(fixture.records, "quick")).toEqual(backupBefore);
+    expect(await physicalRecordV1(fixture.records, "quick")).toEqual(targetBefore);
+    expect(
+      await fixture.records.read("lease", createSessionLeaseRecordKeyV1(storyIdV1)),
+    ).toEqual(leaseBefore);
+  });
+
+  it("admits backup shell identity without treating its Host revision as target revision", async () => {
+    const fixture = await createFixtureV1();
+    await fixture.repository.writePlayer("manual.1", makeRecordV1(1), fixture.fence);
+    await fixture.repository.writePlayer("manual.1", makeRecordV1(2), fixture.fence);
+    const manual = await physicalRecordV1(fixture.records, "manual.1");
+    if (manual === null) throw new TypeError("expected a Manual Save source");
+    const seeded = await fixture.records.commit([
+      {
+        kind: "put",
+        namespace: "save",
+        key: createSaveMigrationBackupRecordKeyV1(storyIdV1, "quick"),
+        expectedRevision: null,
+        bytes: manual.bytes,
+      },
+    ]);
+    expect(seeded.kind).toBe("committed");
+
+    await expect(fixture.repository.readMigrationBackup("quick")).resolves.toEqual({
+      health: "invalid",
+      slotId: "quick",
+      hostRevision: 1,
+      code: "persistence.slot_identity_mismatch",
+    });
+    await expect(fixture.repository.readMigrationBackup("manual.1")).resolves.toEqual({
+      health: "empty",
+      slotId: "manual.1",
+      hostRevision: null,
+    });
+  });
+
+  it("rejects a backup whose bounded shell carries a mismatched raw state digest", async () => {
+    const fixture = await createFixtureV1();
+    await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
+    const source = await fixture.repository.read("quick");
+    if (source.health !== "valid") throw new TypeError("expected a digest-test source");
+    await fixture.repository.rewriteWithMigrationBackup(
+      "quick",
+      Object.freeze({ hostRevision: source.hostRevision, bytes: source.bytes }),
+      makeRecordV1(2),
+      fixture.fence,
+    );
+    const backup = await physicalMigrationBackupV1(fixture.records, "quick");
+    if (backup === null) throw new TypeError("expected a digest-test backup");
+    const decoded = JSON.parse(new TextDecoder().decode(backup.bytes)) as Record<string, unknown>;
+    const snapshot = decoded.snapshot as Record<string, unknown>;
+    await overwritePhysicalV1(
+      fixture.records,
+      backup,
+      canonicalJsonBytes({
+        ...decoded,
+        snapshot: { ...snapshot, value: 9_999 },
+      }),
+    );
+
+    await expect(fixture.repository.readMigrationBackup("quick")).resolves.toEqual({
+      health: "invalid",
+      slotId: "quick",
+      hostRevision: 2,
+      code: "digest.state_mismatch",
+    });
+  });
+
+  it("preserves a pending backup through ordinary player writes, rewrites, and clear", async () => {
+    const fixture = await createFixtureV1();
+    await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
+    const source = await fixture.repository.read("quick");
+    if (source.health !== "valid") throw new TypeError("expected a preservation source");
+    await fixture.repository.rewriteWithMigrationBackup(
+      "quick",
+      Object.freeze({ hostRevision: source.hostRevision, bytes: source.bytes }),
+      makeRecordV1(2),
+      fixture.fence,
+    );
+    const backup = await physicalMigrationBackupV1(fixture.records, "quick");
+    if (backup === null) throw new TypeError("expected a pending backup");
+
+    await expect(
+      fixture.repository.writePlayer("quick", makeRecordV1(3), fixture.fence),
+    ).resolves.toMatchObject({ kind: "saved" });
+    expect(await physicalMigrationBackupV1(fixture.records, "quick")).toEqual(backup);
+
+    const current = await fixture.repository.read("quick");
+    if (current.health !== "valid") throw new TypeError("expected a current Save");
+    await expect(
+      fixture.repository.rewritePlayer(
+        "quick",
+        Object.freeze({ hostRevision: current.hostRevision, bytes: current.bytes }),
+        makeRecordV1(4),
+        fixture.fence,
+      ),
+    ).resolves.toMatchObject({ kind: "saved" });
+    expect(await physicalMigrationBackupV1(fixture.records, "quick")).toEqual(backup);
+
+    await expect(fixture.repository.clear("quick", fixture.fence)).resolves.toEqual({
+      kind: "cleared",
+      slotId: "quick",
+    });
+    expect(await physicalMigrationBackupV1(fixture.records, "quick")).toEqual(backup);
+  });
+
+  it("preserves Auto-slot pending backups through later rotation", async () => {
+    const fixture = await createFixtureV1();
+    await fixture.repository.writeAuto(makeRecordV1(1), fixture.fence);
+    await fixture.repository.writeAuto(makeRecordV1(2), fixture.fence);
+    const previous = await fixture.repository.read("auto.previous");
+    if (previous.health !== "valid") throw new TypeError("expected previous Auto Save");
+    await fixture.repository.rewriteWithMigrationBackup(
+      "auto.previous",
+      Object.freeze({ hostRevision: previous.hostRevision, bytes: previous.bytes }),
+      makeRecordV1(3),
+      fixture.fence,
+    );
+    const backup = await physicalMigrationBackupV1(fixture.records, "auto.previous");
+    if (backup === null) throw new TypeError("expected an Auto backup");
+
+    await expect(fixture.repository.writeAuto(makeRecordV1(4), fixture.fence)).resolves
+      .toMatchObject(
+        { kind: "saved" },
+      );
+    expect(await physicalMigrationBackupV1(fixture.records, "auto.previous")).toEqual(backup);
+  });
+
+  it("rejects empty and over-limit source slots without creating a backup", async () => {
+    const empty = await createFixtureV1();
+    await expect(
+      empty.repository.rewriteWithMigrationBackup(
+        "quick",
+        Object.freeze({
+          hostRevision: parseNonNegativeSafeInteger(1),
+          bytes: Uint8Array.of(1),
+        }),
+        makeRecordV1(1),
+        empty.fence,
+      ),
+    ).resolves.toEqual({ kind: "rejected", code: "empty_slot" });
+    expect(await physicalMigrationBackupV1(empty.records, "quick")).toBeNull();
+
+    const overLimit = await createFixtureV1();
+    const oversizedBytes = new Uint8Array(5_242_881);
+    oversizedBytes.fill(0x20);
+    expect(
+      (await overLimit.records.commit([
+        {
+          kind: "put",
+          namespace: "save",
+          key: createSaveSlotRecordKeyV1(storyIdV1, "quick"),
+          expectedRevision: null,
+          bytes: oversizedBytes,
+        },
+      ])).kind,
+    ).toBe("committed");
+    const oversized = await physicalRecordV1(overLimit.records, "quick");
+    if (oversized === null) throw new TypeError("expected an oversized source record");
+
+    await expect(
+      overLimit.repository.rewriteWithMigrationBackup(
+        "quick",
+        Object.freeze({ hostRevision: oversized.revision, bytes: oversized.bytes }),
+        makeRecordV1(2),
+        overLimit.fence,
+      ),
+    ).resolves.toEqual({ kind: "rejected", code: "invalid_record" });
+    expect(await physicalMigrationBackupV1(overLimit.records, "quick")).toBeNull();
+    expect(await physicalRecordV1(overLimit.records, "quick")).toEqual(oversized);
+  }, 30_000);
+
+  it("leaves target, backup, and lease all-or-none across target and lease conflicts", async () => {
+    const targetRace = await createFixtureV1();
+    await targetRace.repository.writePlayer("quick", makeRecordV1(1), targetRace.fence);
+    const stale = await targetRace.repository.read("quick");
+    if (stale.health !== "valid") throw new TypeError("expected a target-race source");
+    await targetRace.repository.writePlayer("quick", makeRecordV1(2), targetRace.fence);
+    const newerTarget = await physicalRecordV1(targetRace.records, "quick");
+    const newerLease = await targetRace.records.read(
+      "lease",
+      createSessionLeaseRecordKeyV1(storyIdV1),
+    );
+    await expect(
+      targetRace.repository.rewriteWithMigrationBackup(
+        "quick",
+        Object.freeze({ hostRevision: stale.hostRevision, bytes: stale.bytes }),
+        makeRecordV1(3),
+        targetRace.fence,
+      ),
+    ).resolves.toEqual({ kind: "rejected", code: "conflict" });
+    expect(await physicalRecordV1(targetRace.records, "quick")).toEqual(newerTarget);
+    expect(await physicalMigrationBackupV1(targetRace.records, "quick")).toBeNull();
+    expect(
+      await targetRace.records.read("lease", createSessionLeaseRecordKeyV1(storyIdV1)),
+    ).toEqual(newerLease);
+
+    const leaseRace = await createFixtureV1();
+    await leaseRace.repository.writePlayer("quick", makeRecordV1(4), leaseRace.fence);
+    const leaseSource = await leaseRace.repository.read("quick");
+    if (leaseSource.health !== "valid") throw new TypeError("expected a lease-race source");
+    const replacement = createSessionLeaseV1({
+      records: leaseRace.records,
+      storyId: storyIdV1,
+      ownerId: "owner.replacement" as SessionLeaseOwnerId,
+      nextHandoffRequestId: () => "request.replacement" as never,
+    });
+    await replacement.getStatus();
+    await replacement.takeOver();
+    const targetBefore = await physicalRecordV1(leaseRace.records, "quick");
+    const leaseBefore = await leaseRace.records.read(
+      "lease",
+      createSessionLeaseRecordKeyV1(storyIdV1),
+    );
+    await expect(
+      leaseRace.repository.rewriteWithMigrationBackup(
+        "quick",
+        Object.freeze({ hostRevision: leaseSource.hostRevision, bytes: leaseSource.bytes }),
+        makeRecordV1(5),
+        leaseRace.fence,
+      ),
+    ).resolves.toEqual({ kind: "rejected", code: "conflict" });
+    expect(await physicalRecordV1(leaseRace.records, "quick")).toEqual(targetBefore);
+    expect(await physicalMigrationBackupV1(leaseRace.records, "quick")).toBeNull();
+    expect(
+      await leaseRace.records.read("lease", createSessionLeaseRecordKeyV1(storyIdV1)),
+    ).toEqual(leaseBefore);
+  });
+
+  it("keeps the migration batch all-or-none when a backup wins the commit race", async () => {
+    const controlled = createBeforeMigrationCommitStoreV1();
+    const fixture = await createRepositoryFixtureForStoreV1(controlled.records);
+    await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
+    const source = await fixture.repository.read("quick");
+    if (source.health !== "valid") throw new TypeError("expected a backup-race source");
+    const targetBefore = await physicalRecordV1(fixture.records, "quick");
+    const leaseBefore = await fixture.records.read(
+      "lease",
+      createSessionLeaseRecordKeyV1(storyIdV1),
+    );
+    controlled.arm(async (records) => {
+      const raced = await records.commit([
+        {
+          kind: "put",
+          namespace: "save",
+          key: createSaveMigrationBackupRecordKeyV1(storyIdV1, "quick"),
+          expectedRevision: null,
+          bytes: source.bytes,
+        },
+      ]);
+      expect(raced.kind).toBe("committed");
+    });
+
+    await expect(
+      fixture.repository.rewriteWithMigrationBackup(
+        "quick",
+        Object.freeze({ hostRevision: source.hostRevision, bytes: source.bytes }),
+        makeRecordV1(2),
+        fixture.fence,
+      ),
+    ).resolves.toEqual({ kind: "rejected", code: "conflict" });
+    expect(await physicalRecordV1(fixture.records, "quick")).toEqual(targetBefore);
+    expect(
+      await fixture.records.read("lease", createSessionLeaseRecordKeyV1(storyIdV1)),
+    ).toEqual(leaseBefore);
+    expect(await physicalMigrationBackupV1(fixture.records, "quick")).toMatchObject({
+      revision: 1,
+      bytes: source.bytes,
+    });
+  });
+
+  it.each([
+    Object.freeze({ stable: false, label: "unexpected" }),
+    Object.freeze({ stable: true, label: "stable unavailable" }),
+  ])("preserves all three records on a $label migration commit fault", async ({ stable }) => {
+    const controlled = createBeforeMigrationCommitStoreV1();
+    const fixture = await createRepositoryFixtureForStoreV1(controlled.records);
+    await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
+    const source = await fixture.repository.read("quick");
+    if (source.health !== "valid") throw new TypeError("expected a fault source");
+    const targetBefore = await physicalRecordV1(fixture.records, "quick");
+    const leaseBefore = await fixture.records.read(
+      "lease",
+      createSessionLeaseRecordKeyV1(storyIdV1),
+    );
+    const fault = stable
+      ? Object.assign(new Error("indexeddb transaction aborted"), {
+        name: "IndexedDbRecordStoreFailureV1",
+        code: "indexeddb.transaction_aborted",
+        operation: "commit",
+      })
+      : new Error("unexpected migration commit fault");
+    controlled.arm(() => {
+      throw fault;
+    });
+    const operation = fixture.repository.rewriteWithMigrationBackup(
+      "quick",
+      Object.freeze({ hostRevision: source.hostRevision, bytes: source.bytes }),
+      makeRecordV1(2),
+      fixture.fence,
+    );
+    if (stable) {
+      await expect(operation).resolves.toEqual({ kind: "rejected", code: "unavailable" });
+    } else {
+      await expect(operation).rejects.toBe(fault);
+    }
+    expect(await physicalRecordV1(fixture.records, "quick")).toEqual(targetBefore);
+    expect(await physicalMigrationBackupV1(fixture.records, "quick")).toBeNull();
+    expect(
+      await fixture.records.read("lease", createSessionLeaseRecordKeyV1(storyIdV1)),
+    ).toEqual(leaseBefore);
+  });
+
+  it("restores an admitted backup over an existing target with its live next revision", async () => {
+    const fixture = await createFixtureV1();
+    await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
+    await fixture.repository.writePlayer("quick", makeRecordV1(2), fixture.fence);
+    const source = await fixture.repository.read("quick");
+    if (source.health !== "valid") throw new TypeError("expected a restore source");
+    await fixture.repository.rewriteWithMigrationBackup(
+      "quick",
+      Object.freeze({ hostRevision: source.hostRevision, bytes: source.bytes }),
+      makeRecordV1(3),
+      fixture.fence,
+    );
+    await fixture.repository.writePlayer("quick", makeRecordV1(4), fixture.fence);
+    const targetBefore = await physicalRecordV1(fixture.records, "quick");
+    if (targetBefore === null) throw new TypeError("expected a restore target");
+    fixture.batches.length = 0;
+
+    await expect(
+      fixture.repository.restoreMigrationBackup("quick", fixture.fence),
+    ).resolves.toEqual({
+      kind: "restored",
+      slotId: "quick",
+      recordRevision: targetBefore.revision + 1,
+    });
+
+    expect(fixture.batches).toHaveLength(1);
+    expect(fixture.batches[0]).toMatchObject([
+      {
+        kind: "put",
+        namespace: "save",
+        key: createSaveSlotRecordKeyV1(storyIdV1, "quick"),
+        expectedRevision: targetBefore.revision,
+      },
+      {
+        kind: "delete",
+        namespace: "save",
+        key: createSaveMigrationBackupRecordKeyV1(storyIdV1, "quick"),
+        expectedRevision: 1,
+      },
+      {
+        kind: "put",
+        namespace: "lease",
+        key: createSessionLeaseRecordKeyV1(storyIdV1),
+      },
+    ]);
+    expectValidSequenceV1(await fixture.repository.read("quick"), 2);
+    const restored = await physicalRecordV1(fixture.records, "quick");
+    expect(restored?.bytes).toEqual(canonicalJsonBytes({
+      ...(JSON.parse(new TextDecoder().decode(source.bytes)) as Record<string, unknown>),
+      recordRevision: targetBefore.revision + 1,
+    }));
+    expect(await physicalMigrationBackupV1(fixture.records, "quick")).toBeNull();
+    await expect(
+      fixture.repository.restoreMigrationBackup("quick", fixture.fence),
+    ).resolves.toEqual({ kind: "rejected", code: "empty_backup" });
+  });
+
+  it("restores a bounded historical shell over an empty target without current Snapshot admission", async () => {
+    const fixture = await createFixtureV1();
+    const current = makeRecordV1(1);
+    const historicalSnapshot = Object.freeze({
+      commandIndex: 17,
+      legacyValue: "historical",
+    });
+    const historical = Object.freeze({
+      ...current,
+      recordRevision: 9,
+      slot: Object.freeze({
+        ...current.slot,
+        slotId: "quick" as const,
+        writeReason: "quick" as const,
+      }),
+      stateDigest: digestCanonical("sillymaker:state:v1", historicalSnapshot),
+      snapshot: historicalSnapshot,
+    });
+    const canonical = canonicalJsonBytes(historical);
+    const padded = new TextEncoder().encode(`  ${new TextDecoder().decode(canonical)}\n`);
+    expect(
+      (await fixture.records.commit([
+        {
+          kind: "put",
+          namespace: "save",
+          key: createSaveMigrationBackupRecordKeyV1(storyIdV1, "quick"),
+          expectedRevision: null,
+          bytes: padded,
+        },
+      ])).kind,
+    ).toBe("committed");
+
+    await expect(
+      fixture.repository.restoreMigrationBackup("quick", fixture.fence),
+    ).resolves.toEqual({ kind: "restored", slotId: "quick", recordRevision: 1 });
+    const restored = await physicalRecordV1(fixture.records, "quick");
+    expect(restored).toMatchObject({
+      revision: 1,
+      bytes: canonicalJsonBytes({ ...historical, recordRevision: 1 }),
+    });
+    await expect(fixture.repository.read("quick")).resolves.toMatchObject({
+      health: "invalid",
+      code: "envelope.schema_invalid",
+    });
+    expect(await physicalMigrationBackupV1(fixture.records, "quick")).toBeNull();
+  });
+
+  it("restores over a current-invalid target using only its fresh Host revision", async () => {
+    const fixture = await createFixtureV1();
+    await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
+    const source = await fixture.repository.read("quick");
+    if (source.health !== "valid") throw new TypeError("expected an invalid-target source");
+    await fixture.repository.rewriteWithMigrationBackup(
+      "quick",
+      Object.freeze({ hostRevision: source.hostRevision, bytes: source.bytes }),
+      makeRecordV1(2),
+      fixture.fence,
+    );
+    const target = await physicalRecordV1(fixture.records, "quick");
+    if (target === null) throw new TypeError("expected a target to corrupt");
+    await overwritePhysicalV1(
+      fixture.records,
+      target,
+      new TextEncoder().encode('{"corrupt":'),
+    );
+    const invalidTarget = await physicalRecordV1(fixture.records, "quick");
+    if (invalidTarget === null) throw new TypeError("expected an invalid target");
+
+    await expect(
+      fixture.repository.restoreMigrationBackup("quick", fixture.fence),
+    ).resolves.toEqual({
+      kind: "restored",
+      slotId: "quick",
+      recordRevision: invalidTarget.revision + 1,
+    });
+    expectValidSequenceV1(await fixture.repository.read("quick"), 1);
+    expect(await physicalMigrationBackupV1(fixture.records, "quick")).toBeNull();
+  });
+
+  it("rejects an invalid backup without changing target, backup, or lease", async () => {
+    const fixture = await createFixtureV1();
+    await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
+    const source = await fixture.repository.read("quick");
+    if (source.health !== "valid") throw new TypeError("expected an invalid-backup source");
+    await fixture.repository.rewriteWithMigrationBackup(
+      "quick",
+      Object.freeze({ hostRevision: source.hostRevision, bytes: source.bytes }),
+      makeRecordV1(2),
+      fixture.fence,
+    );
+    const backup = await physicalMigrationBackupV1(fixture.records, "quick");
+    if (backup === null) throw new TypeError("expected an invalid-backup record");
+    await overwritePhysicalV1(
+      fixture.records,
+      backup,
+      new TextEncoder().encode('{"corrupt":'),
+    );
+    const targetBefore = await physicalRecordV1(fixture.records, "quick");
+    const backupBefore = await physicalMigrationBackupV1(fixture.records, "quick");
+    const leaseBefore = await fixture.records.read(
+      "lease",
+      createSessionLeaseRecordKeyV1(storyIdV1),
+    );
+
+    await expect(
+      fixture.repository.restoreMigrationBackup("quick", fixture.fence),
+    ).resolves.toEqual({ kind: "rejected", code: "invalid_backup" });
+    expect(await physicalRecordV1(fixture.records, "quick")).toEqual(targetBefore);
+    expect(await physicalMigrationBackupV1(fixture.records, "quick")).toEqual(backupBefore);
+    expect(
+      await fixture.records.read("lease", createSessionLeaseRecordKeyV1(storyIdV1)),
+    ).toEqual(leaseBefore);
+  });
+
+  it("rejects a shell-valid backup whose Story-slot identity belongs elsewhere", async () => {
+    const fixture = await createFixtureV1();
+    await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
+    await fixture.repository.writePlayer("manual.1", makeRecordV1(2), fixture.fence);
+    const foreign = await physicalRecordV1(fixture.records, "manual.1");
+    if (foreign === null) throw new TypeError("expected a foreign-slot backup source");
+    expect(
+      (await fixture.records.commit([
+        {
+          kind: "put",
+          namespace: "save",
+          key: createSaveMigrationBackupRecordKeyV1(storyIdV1, "quick"),
+          expectedRevision: null,
+          bytes: foreign.bytes,
+        },
+      ])).kind,
+    ).toBe("committed");
+    const targetBefore = await physicalRecordV1(fixture.records, "quick");
+    const backupBefore = await physicalMigrationBackupV1(fixture.records, "quick");
+
+    await expect(
+      fixture.repository.restoreMigrationBackup("quick", fixture.fence),
+    ).resolves.toEqual({ kind: "rejected", code: "invalid_backup" });
+    expect(await physicalRecordV1(fixture.records, "quick")).toEqual(targetBefore);
+    expect(await physicalMigrationBackupV1(fixture.records, "quick")).toEqual(backupBefore);
+  });
+
+  it("discards even an invalid backup with one lease-fenced CAS and leaves target untouched", async () => {
+    const fixture = await createFixtureV1();
+    await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
+    const targetBefore = await physicalRecordV1(fixture.records, "quick");
+    expect(
+      (await fixture.records.commit([
+        {
+          kind: "put",
+          namespace: "save",
+          key: createSaveMigrationBackupRecordKeyV1(storyIdV1, "quick"),
+          expectedRevision: null,
+          bytes: new TextEncoder().encode("not-json"),
+        },
+      ])).kind,
+    ).toBe("committed");
+    fixture.batches.length = 0;
+
+    await expect(
+      fixture.repository.discardMigrationBackup("quick", fixture.fence),
+    ).resolves.toEqual({ kind: "discarded", slotId: "quick" });
+    expect(fixture.batches).toHaveLength(1);
+    expect(fixture.batches[0]).toMatchObject([
+      {
+        kind: "delete",
+        namespace: "save",
+        key: createSaveMigrationBackupRecordKeyV1(storyIdV1, "quick"),
+        expectedRevision: 1,
+      },
+      {
+        kind: "put",
+        namespace: "lease",
+        key: createSessionLeaseRecordKeyV1(storyIdV1),
+      },
+    ]);
+    expect(await physicalRecordV1(fixture.records, "quick")).toEqual(targetBefore);
+    expect(await physicalMigrationBackupV1(fixture.records, "quick")).toBeNull();
+    await expect(
+      fixture.repository.discardMigrationBackup("quick", fixture.fence),
+    ).resolves.toEqual({ kind: "rejected", code: "empty_backup" });
+  });
+
+  it.each(["target", "backup", "lease"] as const)(
+    "keeps restore all-or-none when the fresh %s revision loses its CAS race",
+    async (racedRecord) => {
+      const controlled = createBeforeMigrationCommitStoreV1();
+      const fixture = await createRepositoryFixtureForStoreV1(controlled.records);
+      await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
+      const source = await fixture.repository.read("quick");
+      if (source.health !== "valid") throw new TypeError("expected a restore-race source");
+      await fixture.repository.rewriteWithMigrationBackup(
+        "quick",
+        Object.freeze({ hostRevision: source.hostRevision, bytes: source.bytes }),
+        makeRecordV1(2),
+        fixture.fence,
+      );
+      const targetBefore = await physicalRecordV1(fixture.records, "quick");
+      const backupBefore = await physicalMigrationBackupV1(fixture.records, "quick");
+      const leaseBefore = await fixture.records.read(
+        "lease",
+        createSessionLeaseRecordKeyV1(storyIdV1),
+      );
+      if (targetBefore === null || backupBefore === null || leaseBefore === null) {
+        throw new TypeError("expected three restore authorities");
+      }
+
+      controlled.arm(async (records) => {
+        if (racedRecord === "lease") {
+          const replacement = createSessionLeaseV1({
+            records,
+            storyId: storyIdV1,
+            ownerId: "owner.restore-race" as SessionLeaseOwnerId,
+            nextHandoffRequestId: () => "request.restore-race" as never,
+          });
+          await replacement.getStatus();
+          await replacement.takeOver();
+          return;
+        }
+        const raced = racedRecord === "target" ? targetBefore : backupBefore;
+        const result = await records.commit([
+          {
+            kind: "put",
+            namespace: "save",
+            key: raced.key,
+            expectedRevision: raced.revision,
+            bytes: raced.bytes,
+          },
+        ]);
+        expect(result.kind).toBe("committed");
+      });
+
+      await expect(
+        fixture.repository.restoreMigrationBackup("quick", fixture.fence),
+      ).resolves.toEqual({ kind: "rejected", code: "conflict" });
+
+      const targetAfter = await physicalRecordV1(fixture.records, "quick");
+      const backupAfter = await physicalMigrationBackupV1(fixture.records, "quick");
+      const leaseAfter = await fixture.records.read(
+        "lease",
+        createSessionLeaseRecordKeyV1(storyIdV1),
+      );
+      expect(targetAfter).toEqual(
+        racedRecord === "target"
+          ? { ...targetBefore, revision: targetBefore.revision + 1 }
+          : targetBefore,
+      );
+      expect(backupAfter).toEqual(
+        racedRecord === "backup"
+          ? { ...backupBefore, revision: backupBefore.revision + 1 }
+          : backupBefore,
+      );
+      if (racedRecord === "lease") {
+        expect(leaseAfter).not.toEqual(leaseBefore);
+      } else {
+        expect(leaseAfter).toEqual(leaseBefore);
+      }
+    },
+  );
+
+  it("keeps discard all-or-none across backup and lease races", async () => {
+    const controlled = createBeforeMigrationCommitStoreV1();
+    const fixture = await createRepositoryFixtureForStoreV1(controlled.records);
+    await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
+    const source = await fixture.repository.read("quick");
+    if (source.health !== "valid") throw new TypeError("expected a discard-race source");
+    await fixture.repository.rewriteWithMigrationBackup(
+      "quick",
+      Object.freeze({ hostRevision: source.hostRevision, bytes: source.bytes }),
+      makeRecordV1(2),
+      fixture.fence,
+    );
+    const targetBefore = await physicalRecordV1(fixture.records, "quick");
+    const backupBefore = await physicalMigrationBackupV1(fixture.records, "quick");
+    const leaseBefore = await fixture.records.read(
+      "lease",
+      createSessionLeaseRecordKeyV1(storyIdV1),
+    );
+    if (backupBefore === null) throw new TypeError("expected a discard-race backup");
+    controlled.arm(async (records) => {
+      expect(
+        (await records.commit([
+          {
+            kind: "put",
+            namespace: "save",
+            key: backupBefore.key,
+            expectedRevision: backupBefore.revision,
+            bytes: backupBefore.bytes,
+          },
+        ])).kind,
+      ).toBe("committed");
+    });
+
+    await expect(
+      fixture.repository.discardMigrationBackup("quick", fixture.fence),
+    ).resolves.toEqual({ kind: "rejected", code: "conflict" });
+    expect(await physicalRecordV1(fixture.records, "quick")).toEqual(targetBefore);
+    expect(await physicalMigrationBackupV1(fixture.records, "quick")).toEqual({
+      ...backupBefore,
+      revision: backupBefore.revision + 1,
+    });
+    expect(
+      await fixture.records.read("lease", createSessionLeaseRecordKeyV1(storyIdV1)),
+    ).toEqual(leaseBefore);
+
+    const replacement = createSessionLeaseV1({
+      records: fixture.records,
+      storyId: storyIdV1,
+      ownerId: "owner.discard-race" as SessionLeaseOwnerId,
+      nextHandoffRequestId: () => "request.discard-race" as never,
+    });
+    await replacement.getStatus();
+    await replacement.takeOver();
+    const targetAfterRace = await physicalRecordV1(fixture.records, "quick");
+    const backupAfterRace = await physicalMigrationBackupV1(fixture.records, "quick");
+    await expect(
+      fixture.repository.discardMigrationBackup("quick", fixture.fence),
+    ).resolves.toEqual({ kind: "rejected", code: "conflict" });
+    expect(await physicalRecordV1(fixture.records, "quick")).toEqual(targetAfterRace);
+    expect(await physicalMigrationBackupV1(fixture.records, "quick")).toEqual(backupAfterRace);
+  });
+
+  it.each(
+    [
+      { operation: "restore", stable: false },
+      { operation: "restore", stable: true },
+      { operation: "discard", stable: false },
+      { operation: "discard", stable: true },
+    ] as const,
+  )(
+    "keeps records unchanged on $operation commit fault (stable=$stable)",
+    async ({ operation, stable }) => {
+      const controlled = createBeforeMigrationCommitStoreV1();
+      const fixture = await createRepositoryFixtureForStoreV1(controlled.records);
+      await fixture.repository.writePlayer("quick", makeRecordV1(1), fixture.fence);
+      const source = await fixture.repository.read("quick");
+      if (source.health !== "valid") throw new TypeError("expected a backup-fault source");
+      await fixture.repository.rewriteWithMigrationBackup(
+        "quick",
+        Object.freeze({ hostRevision: source.hostRevision, bytes: source.bytes }),
+        makeRecordV1(2),
+        fixture.fence,
+      );
+      const targetBefore = await physicalRecordV1(fixture.records, "quick");
+      const backupBefore = await physicalMigrationBackupV1(fixture.records, "quick");
+      const leaseBefore = await fixture.records.read(
+        "lease",
+        createSessionLeaseRecordKeyV1(storyIdV1),
+      );
+      const fault = stable
+        ? Object.assign(new Error("indexeddb transaction aborted"), {
+          name: "IndexedDbRecordStoreFailureV1",
+          code: "indexeddb.transaction_aborted",
+          operation: "commit",
+        })
+        : new Error(`unexpected ${operation} fault`);
+      controlled.arm(() => {
+        throw fault;
+      });
+      const result = operation === "restore"
+        ? fixture.repository.restoreMigrationBackup("quick", fixture.fence)
+        : fixture.repository.discardMigrationBackup("quick", fixture.fence);
+      if (stable) {
+        await expect(result).resolves.toEqual({ kind: "rejected", code: "unavailable" });
+      } else {
+        await expect(result).rejects.toBe(fault);
+      }
+      expect(await physicalRecordV1(fixture.records, "quick")).toEqual(targetBefore);
+      expect(await physicalMigrationBackupV1(fixture.records, "quick")).toEqual(backupBefore);
+      expect(
+        await fixture.records.read("lease", createSessionLeaseRecordKeyV1(storyIdV1)),
+      ).toEqual(leaseBefore);
+    },
+  );
 
   it("binds a successful conditional rewrite to its committed physical bytes", async () => {
     const fixture = await createFixtureV1({ writeReceiptEvidence: true });
@@ -864,7 +1792,19 @@ describe("Save repository", () => {
       health: "unavailable",
       code: "indexeddb.unavailable",
     });
+    await expect(unavailable.readMigrationBackup("quick")).resolves.toMatchObject({
+      health: "unavailable",
+      code: "indexeddb.unavailable",
+    });
     await expect(unavailable.writePlayer("quick", makeRecordV1(1), fence)).resolves.toEqual({
+      kind: "rejected",
+      code: "unavailable",
+    });
+    await expect(unavailable.restoreMigrationBackup("quick", fence)).resolves.toEqual({
+      kind: "rejected",
+      code: "unavailable",
+    });
+    await expect(unavailable.discardMigrationBackup("quick", fence)).resolves.toEqual({
       kind: "rejected",
       code: "unavailable",
     });
@@ -876,7 +1816,10 @@ describe("Save repository", () => {
       codec: codecV1,
     });
     await expect(broken.read("quick")).rejects.toBe(unexpected);
+    await expect(broken.readMigrationBackup("quick")).rejects.toBe(unexpected);
     await expect(broken.writePlayer("quick", makeRecordV1(1), fence)).rejects.toBe(unexpected);
+    await expect(broken.restoreMigrationBackup("quick", fence)).rejects.toBe(unexpected);
+    await expect(broken.discardMigrationBackup("quick", fence)).rejects.toBe(unexpected);
 
     const codedUnexpected = Object.assign(new Error("unexpected coded Host bug"), {
       code: "indexeddb.unavailable",
@@ -888,7 +1831,14 @@ describe("Save repository", () => {
       codec: codecV1,
     });
     await expect(codedBroken.read("quick")).rejects.toBe(codedUnexpected);
+    await expect(codedBroken.readMigrationBackup("quick")).rejects.toBe(codedUnexpected);
     await expect(codedBroken.writePlayer("quick", makeRecordV1(1), fence)).rejects.toBe(
+      codedUnexpected,
+    );
+    await expect(codedBroken.restoreMigrationBackup("quick", fence)).rejects.toBe(
+      codedUnexpected,
+    );
+    await expect(codedBroken.discardMigrationBackup("quick", fence)).rejects.toBe(
       codedUnexpected,
     );
   });

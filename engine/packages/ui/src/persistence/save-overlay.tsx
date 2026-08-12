@@ -5,7 +5,12 @@ import type {
   ManualSaveSlotIdV1,
   PersistenceOperationResultV1,
   PersistenceStatusV1,
+  SaveBackupExportOperationResultV1,
+  SaveBackupInspectionResultV1,
+  SaveBackupOperationResultV1,
   SaveExportOperationResultV1,
+  SaveInspectionResultV1,
+  SaveRewriteOperationResultV1,
   SaveSlotHealthV1,
   SaveSlotSummaryV1,
 } from "@sillymaker/base";
@@ -35,6 +40,20 @@ export type SaveUiImportResultV1 =
   | { readonly kind: "cancelled" }
   | { readonly kind: "rejected"; readonly code: SaveUiImportFileRejectionCodeV1 };
 
+export type SaveUiBackupExportResultV1 =
+  | { readonly kind: "exported"; readonly slotId: SaveUiReadableSlotIdV1 }
+  | Extract<SaveBackupExportOperationResultV1, { readonly kind: "rejected" | "faulted" }>;
+
+interface SaveOverlayRecoveryPortV1 {
+  inspectSave(slotId: SaveUiReadableSlotIdV1): Promise<SaveInspectionResultV1>;
+  inspectBackup(slotId: SaveUiReadableSlotIdV1): Promise<SaveBackupInspectionResultV1>;
+  upgradeSave(slotId: SaveUiReadableSlotIdV1): Promise<SaveRewriteOperationResultV1>;
+  reanchorSave(slotId: SaveUiReadableSlotIdV1): Promise<SaveRewriteOperationResultV1>;
+  restoreBackup(slotId: SaveUiReadableSlotIdV1): Promise<SaveBackupOperationResultV1>;
+  exportBackup(slotId: SaveUiReadableSlotIdV1): Promise<SaveUiBackupExportResultV1>;
+  discardBackup(slotId: SaveUiReadableSlotIdV1): Promise<SaveBackupOperationResultV1>;
+}
+
 /**
  * The UI consumes the existing player-safe persistence port. The sync-or-Promise status return
  * is the only structural compatibility allowance: the runtime exposes an asynchronous
@@ -43,6 +62,7 @@ export type SaveUiImportResultV1 =
 export interface SaveOverlayPortV1 {
   getStatus(): DeepReadonly<PersistenceStatusV1> | Promise<DeepReadonly<PersistenceStatusV1>>;
   listSlots(): Promise<readonly DeepReadonly<SaveSlotSummaryV1>[]>;
+  readonly recovery?: SaveOverlayRecoveryPortV1;
   save(slotId: SaveUiWritableSlotIdV1): Promise<PersistenceOperationResultV1>;
   load(slotId: SaveUiReadableSlotIdV1): Promise<PersistenceOperationResultV1>;
   clear(slotId: SaveUiReadableSlotIdV1): Promise<PersistenceOperationResultV1>;
@@ -61,6 +81,10 @@ type ExportRejectedCodeV1 = Extract<
   SaveExportOperationResultV1,
   { readonly kind: "rejected" }
 >["code"];
+type RecoveryRejectedCodeV1 =
+  | Extract<SaveRewriteOperationResultV1, { readonly kind: "rejected" }>["code"]
+  | Extract<SaveBackupOperationResultV1, { readonly kind: "rejected" }>["code"]
+  | Extract<SaveUiBackupExportResultV1, { readonly kind: "rejected" }>["code"];
 
 /** Fixed names for the system slots plus a formatter for numbered manual slots. */
 export interface SaveOverlaySlotNamesV1 {
@@ -126,6 +150,58 @@ export interface SaveOverlayLabelsV1 {
     readonly faulted: (code: string) => string;
     readonly unexpectedFailure: string;
   };
+  readonly recovery?: {
+    readonly checking: string;
+    readonly disposition: Readonly<{
+      direct: string;
+      migration_required: string;
+      adoption_required: string;
+      migration_and_adoption_required: string;
+      migration_unavailable: string;
+      migration_rejected: string;
+      incompatible: string;
+      reanchor_required: string;
+      invalid_record: string;
+      unavailable: string;
+      faulted: string;
+    }>;
+    readonly backup: Readonly<{
+      available: string;
+      invalid: string;
+      unavailable: string;
+    }>;
+    readonly action: Readonly<{
+      inspect: string;
+      upgrade: string;
+      reanchor: string;
+      restore: string;
+      exportBackup: string;
+      discard: string;
+    }>;
+    readonly confirmation: Readonly<{
+      reanchorTitle: (slotName: string) => string;
+      reanchorDescription: (slotName: string) => string;
+      restoreTitle: (slotName: string) => string;
+      restoreDescription: (slotName: string) => string;
+      discardTitle: (slotName: string) => string;
+      discardDescription: (slotName: string) => string;
+    }>;
+    readonly operation: Readonly<{
+      upgrading: (slotName: string) => string;
+      reanchoring: (slotName: string) => string;
+      restoring: (slotName: string) => string;
+      exportingBackup: (slotName: string) => string;
+      discarding: (slotName: string) => string;
+      upgradedExact: string;
+      upgradedAdopted: string;
+      reanchored: string;
+      restored: string;
+      backupExported: string;
+      discarded: string;
+      rejected: Readonly<Record<RecoveryRejectedCodeV1, string>>;
+      faulted: string;
+    }>;
+  };
 }
 
 /**
@@ -169,6 +245,18 @@ function writableSlotIdV1(slotId: SaveUiReadableSlotIdV1): SaveUiWritableSlotIdV
   return manualSaveSlotIndexV1(slotId) === null ? null : (slotId as SaveUiWritableSlotIdV1);
 }
 
+interface SlotRecoveryReadV1 {
+  readonly inspection: DeepReadonly<SaveInspectionResultV1>;
+  readonly backup: DeepReadonly<SaveBackupInspectionResultV1>;
+}
+
+type SlotRecoveryReadStateV1 =
+  | { readonly kind: "pending" }
+  | { readonly kind: "ready"; readonly value: SlotRecoveryReadV1 }
+  | { readonly kind: "failed" };
+
+type SlotRecoveryByIdV1 = Readonly<Record<string, SlotRecoveryReadStateV1>>;
+
 type SlotReadStateV1 =
   | {
     readonly kind: "loading";
@@ -187,7 +275,12 @@ type SaveOperationContextV1 =
   | { readonly kind: "load"; readonly slotId: SaveUiReadableSlotIdV1 }
   | { readonly kind: "clear"; readonly slotId: SaveUiReadableSlotIdV1 }
   | { readonly kind: "export"; readonly slotId: SaveUiReadableSlotIdV1 }
-  | { readonly kind: "import" | "export_current" };
+  | {
+    readonly kind: "upgrade" | "reanchor" | "restore_backup" | "export_backup" | "discard_backup";
+    readonly slotId: SaveUiReadableSlotIdV1;
+  }
+  | { readonly kind: "import" }
+  | { readonly kind: "export_current" };
 
 type PersistenceOperationViewResultV1 =
   | { readonly kind: "saved" | "cleared"; readonly slotId: SaveUiReadableSlotIdV1 }
@@ -224,15 +317,29 @@ type SaveOperationViewV1 =
     readonly kind: "import_file_selection_result";
     readonly result: SaveImportFileSelectionViewResultV1;
   }
+  | { readonly kind: "recovery_result"; readonly text: string }
   | { readonly kind: "current_exported" }
   | { readonly kind: "unexpected_failure" };
 
 type ConfirmedSaveOperationV1 =
-  | { readonly kind: "load" | "clear"; readonly slotId: SaveUiReadableSlotIdV1 }
+  | { readonly kind: "load"; readonly slotId: SaveUiReadableSlotIdV1 }
+  | { readonly kind: "clear"; readonly slotId: SaveUiReadableSlotIdV1 }
+  | { readonly kind: "reanchor"; readonly slotId: SaveUiReadableSlotIdV1 }
+  | { readonly kind: "restore"; readonly slotId: SaveUiReadableSlotIdV1 }
+  | { readonly kind: "discard"; readonly slotId: SaveUiReadableSlotIdV1 }
   | { readonly kind: "import" };
 
 function unreachableV1(value: never): never {
   throw new TypeError(`ui.save_overlay_unreachable:${String(value)}`);
+}
+
+function requiredRecoveryLabelsV1(
+  labels: SaveOverlayLabelsV1,
+): NonNullable<SaveOverlayLabelsV1["recovery"]> {
+  if (labels.recovery === undefined) {
+    throw new TypeError("ui.save_overlay_recovery_labels_unavailable");
+  }
+  return labels.recovery;
 }
 
 function slotHealthTextV1(health: SaveSlotHealthV1, labels: SaveOverlayLabelsV1): string {
@@ -294,6 +401,123 @@ function exportRejectedTextV1(code: ExportRejectedCodeV1, labels: SaveOverlayLab
       return labels.operation.exportRejected.invalid_record;
     default:
       return unreachableV1(code);
+  }
+}
+
+function inspectionTextV1(
+  result: DeepReadonly<SaveInspectionResultV1>,
+  recovery: NonNullable<SaveOverlayLabelsV1["recovery"]>,
+): string {
+  switch (result.kind) {
+    case "direct":
+    case "migration_required":
+    case "adoption_required":
+    case "migration_and_adoption_required":
+      return recovery.disposition[result.kind];
+    case "inspect_only":
+      return recovery.disposition[result.code];
+    case "rejected":
+      return result.code === "empty_slot"
+        ? ""
+        : result.code === "unavailable"
+        ? recovery.disposition.unavailable
+        : result.code === "migration_rejected"
+        ? recovery.disposition.migration_rejected
+        : recovery.disposition.invalid_record;
+    case "faulted":
+      return recovery.disposition.faulted;
+    default:
+      return unreachableV1(result);
+  }
+}
+
+function backupTextV1(
+  result: DeepReadonly<SaveBackupInspectionResultV1>,
+  recovery: NonNullable<SaveOverlayLabelsV1["recovery"]>,
+): string {
+  switch (result.kind) {
+    case "available":
+      return recovery.backup.available;
+    case "rejected":
+      if (result.code === "empty_backup") return "";
+      return result.code === "invalid_backup"
+        ? recovery.backup.invalid
+        : recovery.backup.unavailable;
+    case "faulted":
+      return recovery.backup.unavailable;
+    default:
+      return unreachableV1(result);
+  }
+}
+
+function rewriteResultTextV1(
+  result: SaveRewriteOperationResultV1,
+  recovery: NonNullable<SaveOverlayLabelsV1["recovery"]>,
+  expectedKind: "upgrade" | "reanchor",
+  expectedSlotId: SaveUiReadableSlotIdV1,
+): string {
+  switch (result.kind) {
+    case "upgraded":
+      if (expectedKind !== "upgrade" || result.slotId !== expectedSlotId) {
+        return recovery.operation.faulted;
+      }
+      return result.compatibility === "exact"
+        ? recovery.operation.upgradedExact
+        : recovery.operation.upgradedAdopted;
+    case "reanchored":
+      if (expectedKind !== "reanchor" || result.slotId !== expectedSlotId) {
+        return recovery.operation.faulted;
+      }
+      return recovery.operation.reanchored;
+    case "rejected":
+      return recovery.operation.rejected[result.code];
+    case "faulted":
+      return recovery.operation.faulted;
+    default:
+      return unreachableV1(result);
+  }
+}
+
+function backupResultTextV1(
+  result: SaveBackupOperationResultV1,
+  recovery: NonNullable<SaveOverlayLabelsV1["recovery"]>,
+  expectedKind: "restore" | "discard",
+  expectedSlotId: SaveUiReadableSlotIdV1,
+): string {
+  switch (result.kind) {
+    case "restored":
+      return expectedKind === "restore" && result.slotId === expectedSlotId
+        ? recovery.operation.restored
+        : recovery.operation.faulted;
+    case "discarded":
+      return expectedKind === "discard" && result.slotId === expectedSlotId
+        ? recovery.operation.discarded
+        : recovery.operation.faulted;
+    case "rejected":
+      return recovery.operation.rejected[result.code];
+    case "faulted":
+      return recovery.operation.faulted;
+    default:
+      return unreachableV1(result);
+  }
+}
+
+function backupExportResultTextV1(
+  result: SaveUiBackupExportResultV1,
+  recovery: NonNullable<SaveOverlayLabelsV1["recovery"]>,
+  expectedSlotId: SaveUiReadableSlotIdV1,
+): string {
+  switch (result.kind) {
+    case "exported":
+      return result.slotId === expectedSlotId
+        ? recovery.operation.backupExported
+        : recovery.operation.faulted;
+    case "rejected":
+      return recovery.operation.rejected[result.code];
+    case "faulted":
+      return recovery.operation.faulted;
+    default:
+      return unreachableV1(result);
   }
 }
 
@@ -418,6 +642,23 @@ function projectImportResultV1(
   });
 }
 
+function confirmedContextV1(invocation: ConfirmedSaveOperationV1): SaveOperationContextV1 {
+  switch (invocation.kind) {
+    case "load":
+    case "clear":
+    case "reanchor":
+      return invocation;
+    case "restore":
+      return Object.freeze({ kind: "restore_backup", slotId: invocation.slotId });
+    case "discard":
+      return Object.freeze({ kind: "discard_backup", slotId: invocation.slotId });
+    case "import":
+      return invocation;
+    default:
+      return unreachableV1(invocation);
+  }
+}
+
 function pendingTextV1(context: SaveOperationContextV1, labels: SaveOverlayLabelsV1): string {
   switch (context.kind) {
     case "save":
@@ -432,6 +673,26 @@ function pendingTextV1(context: SaveOperationContextV1, labels: SaveOverlayLabel
       return labels.operation.exporting(slotNameV1(labels, context.slotId));
     case "export_current":
       return labels.operation.exportingCurrent;
+    case "upgrade": {
+      const recovery = requiredRecoveryLabelsV1(labels);
+      return recovery.operation.upgrading(slotNameV1(labels, context.slotId));
+    }
+    case "reanchor": {
+      const recovery = requiredRecoveryLabelsV1(labels);
+      return recovery.operation.reanchoring(slotNameV1(labels, context.slotId));
+    }
+    case "restore_backup": {
+      const recovery = requiredRecoveryLabelsV1(labels);
+      return recovery.operation.restoring(slotNameV1(labels, context.slotId));
+    }
+    case "export_backup": {
+      const recovery = requiredRecoveryLabelsV1(labels);
+      return recovery.operation.exportingBackup(slotNameV1(labels, context.slotId));
+    }
+    case "discard_backup": {
+      const recovery = requiredRecoveryLabelsV1(labels);
+      return recovery.operation.discarding(slotNameV1(labels, context.slotId));
+    }
     default:
       return unreachableV1(context);
   }
@@ -451,6 +712,8 @@ function operationTextV1(state: SaveOperationViewV1, labels: SaveOverlayLabelsV1
       return state.result.kind === "cancelled"
         ? labels.operation.importCancelled
         : labels.operation.importFileRejected[state.result.code];
+    case "recovery_result":
+      return state.text;
     case "current_exported":
       return labels.operation.exportedCurrent;
     case "unexpected_failure":
@@ -508,11 +771,14 @@ export function SaveOverlayContentInternalV1(
   const [readState, setReadState] = useState<SlotReadStateV1>(() =>
     Object.freeze({ kind: "loading", slots: null })
   );
+  const [recoveryBySlot, setRecoveryBySlot] = useState<SlotRecoveryByIdV1>(() => Object.freeze({}));
   const [operationState, setOperationState] = useState<SaveOperationViewV1>(() =>
     Object.freeze({ kind: "idle" })
   );
   const mountedRef = useRef(true);
   const readGenerationRef = useRef(0);
+  const recoveryGenerationRef = useRef(0);
+  const recoveryReadActiveRef = useRef(false);
   const operationActiveRef = useRef(false);
   const confirmedOperationTokenRef = useRef<object | null>(null);
 
@@ -530,6 +796,8 @@ export function SaveOverlayContentInternalV1(
     return () => {
       mountedRef.current = false;
       readGenerationRef.current += 1;
+      recoveryGenerationRef.current += 1;
+      recoveryReadActiveRef.current = false;
       confirmedOperationTokenRef.current = null;
     };
   }, []);
@@ -565,10 +833,70 @@ export function SaveOverlayContentInternalV1(
     void refresh();
   }, [refresh]);
 
-  const finishOperationV1 = useCallback((): void => {
-    operationActiveRef.current = false;
-    if (mountedRef.current) void refresh();
-  }, [refresh]);
+  const recoveryPort = props.port.recovery;
+  const recoveryLabels = props.labels.recovery;
+  const recoveryEnabled = recoveryPort !== undefined && recoveryLabels !== undefined;
+
+  const inspectRecoveryV1 = useCallback(
+    async (slotId: SaveUiReadableSlotIdV1): Promise<void> => {
+      if (recoveryPort === undefined || recoveryLabels === undefined) return;
+      if (recoveryReadActiveRef.current || operationActiveRef.current) return;
+      recoveryReadActiveRef.current = true;
+      const generation = recoveryGenerationRef.current + 1;
+      recoveryGenerationRef.current = generation;
+      setRecoveryBySlot(Object.freeze({
+        [slotId]: Object.freeze({ kind: "pending" as const }),
+      }));
+      try {
+        const [inspection, backup] = await Promise.all([
+          recoveryPort.inspectSave(slotId),
+          recoveryPort.inspectBackup(slotId),
+        ]);
+        if (!mountedRef.current || recoveryGenerationRef.current !== generation) return;
+        recoveryReadActiveRef.current = false;
+        if (
+          (inspection.slotId !== null && inspection.slotId !== slotId) ||
+          (backup.slotId !== null && backup.slotId !== slotId)
+        ) {
+          setRecoveryBySlot(Object.freeze({
+            [slotId]: Object.freeze({ kind: "failed" as const }),
+          }));
+          return;
+        }
+        setRecoveryBySlot(Object.freeze({
+          [slotId]: Object.freeze({
+            kind: "ready" as const,
+            value: Object.freeze({ inspection, backup }),
+          }),
+        }));
+      } catch {
+        if (!mountedRef.current || recoveryGenerationRef.current !== generation) return;
+        recoveryReadActiveRef.current = false;
+        setRecoveryBySlot(Object.freeze({
+          [slotId]: Object.freeze({ kind: "failed" as const }),
+        }));
+      }
+    },
+    [recoveryLabels, recoveryPort],
+  );
+
+  const finishOperationV1 = useCallback(
+    (invalidateSlot?: SaveUiReadableSlotIdV1 | null): void => {
+      operationActiveRef.current = false;
+      if (!mountedRef.current) return;
+      if (invalidateSlot !== undefined) {
+        recoveryGenerationRef.current += 1;
+        setRecoveryBySlot((previous) => {
+          if (invalidateSlot === null) return Object.freeze({});
+          const next = { ...previous };
+          delete next[invalidateSlot];
+          return Object.freeze(next);
+        });
+      }
+      void refresh();
+    },
+    [refresh],
+  );
 
   const runPersistenceOperationV1 = useCallback(
     async (
@@ -596,7 +924,7 @@ export function SaveOverlayContentInternalV1(
         }
         throw new Error("ui.persistence_operation_threw");
       } finally {
-        finishOperationV1();
+        finishOperationV1(context.kind === "import" ? null : context.slotId);
       }
     },
     [finishOperationV1],
@@ -646,9 +974,59 @@ export function SaveOverlayContentInternalV1(
     }
   }, [finishOperationV1, props.port]);
 
+  const runRecoveryOperationV1 = useCallback(
+    async (
+      context: Extract<SaveOperationContextV1, { readonly slotId: SaveUiReadableSlotIdV1 }>,
+      operation: () => Promise<
+        | SaveRewriteOperationResultV1
+        | SaveBackupOperationResultV1
+        | SaveUiBackupExportResultV1
+      >,
+    ): Promise<void> => {
+      if (operationActiveRef.current || recoveryLabels === undefined) return;
+      operationActiveRef.current = true;
+      if (mountedRef.current) setOperationState(Object.freeze({ kind: "pending", context }));
+      try {
+        const result = await operation();
+        if (!mountedRef.current) return;
+        const text = context.kind === "upgrade" || context.kind === "reanchor"
+          ? rewriteResultTextV1(
+            result as SaveRewriteOperationResultV1,
+            recoveryLabels,
+            context.kind,
+            context.slotId,
+          )
+          : context.kind === "export_backup"
+          ? backupExportResultTextV1(
+            result as SaveUiBackupExportResultV1,
+            recoveryLabels,
+            context.slotId,
+          )
+          : backupResultTextV1(
+            result as SaveBackupOperationResultV1,
+            recoveryLabels,
+            context.kind === "restore_backup" ? "restore" : "discard",
+            context.slotId,
+          );
+        setOperationState(Object.freeze({ kind: "recovery_result", text }));
+      } catch {
+        if (mountedRef.current) {
+          setOperationState(Object.freeze({
+            kind: "recovery_result",
+            text: recoveryLabels.operation.faulted,
+          }));
+        }
+      } finally {
+        finishOperationV1(context.kind === "export_backup" ? undefined : context.slotId);
+      }
+    },
+    [finishOperationV1, recoveryLabels],
+  );
+
   const requestConfirmedOperationV1 = useCallback(
     (invocation: ConfirmedSaveOperationV1): void => {
       const exactInvocation = Object.freeze(invocation);
+      const context = confirmedContextV1(exactInvocation);
       const operationToken = Object.freeze({});
       let resultDelivered = false;
 
@@ -658,7 +1036,7 @@ export function SaveOverlayContentInternalV1(
         ) {
           if (
             dispatchedInvocation.kind !== exactInvocation.kind ||
-            ((exactInvocation.kind === "load" || exactInvocation.kind === "clear") &&
+            (exactInvocation.kind !== "import" &&
               (dispatchedInvocation.kind === "import" ||
                 dispatchedInvocation.slotId !== exactInvocation.slotId))
           ) {
@@ -671,7 +1049,7 @@ export function SaveOverlayContentInternalV1(
           operationActiveRef.current = true;
           confirmedOperationTokenRef.current = operationToken;
           if (mountedRef.current) {
-            setOperationState(Object.freeze({ kind: "pending", context: exactInvocation }));
+            setOperationState(Object.freeze({ kind: "pending", context }));
           }
 
           switch (exactInvocation.kind) {
@@ -690,6 +1068,27 @@ export function SaveOverlayContentInternalV1(
               return result.kind === "imported"
                 ? Object.freeze({ kind: "successor" as const })
                 : Object.freeze({ kind: "retain_root" as const, result });
+            }
+            case "reanchor": {
+              if (recoveryPort === undefined) {
+                throw new TypeError("ui.save_overlay_recovery_port_unavailable");
+              }
+              const result = await recoveryPort.reanchorSave(exactInvocation.slotId);
+              return Object.freeze({ kind: "retain_root" as const, result });
+            }
+            case "restore": {
+              if (recoveryPort === undefined) {
+                throw new TypeError("ui.save_overlay_recovery_port_unavailable");
+              }
+              const result = await recoveryPort.restoreBackup(exactInvocation.slotId);
+              return Object.freeze({ kind: "retain_root" as const, result });
+            }
+            case "discard": {
+              if (recoveryPort === undefined) {
+                throw new TypeError("ui.save_overlay_recovery_port_unavailable");
+              }
+              const result = await recoveryPort.discardBackup(exactInvocation.slotId);
+              return Object.freeze({ kind: "retain_root" as const, result });
             }
             default:
               return unreachableV1(exactInvocation);
@@ -724,6 +1123,29 @@ export function SaveOverlayContentInternalV1(
               case "import":
                 setOperationState(projectImportResultV1(delivery.result as SaveUiImportResultV1));
                 break;
+              case "reanchor":
+                setOperationState(Object.freeze({
+                  kind: "recovery_result",
+                  text: rewriteResultTextV1(
+                    delivery.result as SaveRewriteOperationResultV1,
+                    requiredRecoveryLabelsV1(props.labels),
+                    "reanchor",
+                    exactInvocation.slotId,
+                  ),
+                }));
+                break;
+              case "restore":
+              case "discard":
+                setOperationState(Object.freeze({
+                  kind: "recovery_result",
+                  text: backupResultTextV1(
+                    delivery.result as SaveBackupOperationResultV1,
+                    requiredRecoveryLabelsV1(props.labels),
+                    exactInvocation.kind,
+                    exactInvocation.slotId,
+                  ),
+                }));
+                break;
               default:
                 unreachableV1(exactInvocation);
             }
@@ -740,15 +1162,14 @@ export function SaveOverlayContentInternalV1(
             !mountedRef.current
           ) return;
           confirmedOperationTokenRef.current = null;
-          operationActiveRef.current = false;
           if (!resultDelivered) {
             setOperationState((previous) =>
-              previous.kind === "pending" && previous.context === exactInvocation
+              previous.kind === "pending" && previous.context === context
                 ? Object.freeze({ kind: "idle" })
                 : previous
             );
           }
-          void refresh();
+          finishOperationV1(exactInvocation.kind === "import" ? null : exactInvocation.slotId);
         },
       }) satisfies SystemDialogConfirmationOperationBindingInternalV1;
 
@@ -756,11 +1177,14 @@ export function SaveOverlayContentInternalV1(
         Object.freeze({ invocation: exactInvocation, operationBinding }),
       );
     },
-    [props.confirmationIntent, props.port, refresh],
+    [finishOperationV1, props.confirmationIntent, props.labels, props.port, recoveryPort],
   );
 
   const status = readState.kind === "ready" ? readState.status : null;
-  const operationPending = operationState.kind === "pending";
+  const recoveryReadPending = Object.values(recoveryBySlot).some(
+    (state) => state.kind === "pending",
+  );
+  const operationPending = operationState.kind === "pending" || recoveryReadPending;
   const storageOperationsEnabled = status?.available === true && !status.busy && !operationPending;
   const saveAllowed = guard?.allowed !== false;
   const writeOperationsEnabled = storageOperationsEnabled && saveAllowed;
@@ -801,6 +1225,24 @@ export function SaveOverlayContentInternalV1(
           const health = readState.kind === "ready" ? summary.health : null;
           const slotName = slotNameV1(props.labels, slotId);
           const writableSlotId = writableSlotIdV1(slotId);
+          const recoveryState = recoveryBySlot[slotId];
+          const recoveryRead = recoveryState?.kind === "ready" ? recoveryState.value : null;
+          const inspection = recoveryRead?.inspection ?? null;
+          const backup = recoveryRead?.backup ?? null;
+          const backupEmpty = backup?.kind === "rejected" && backup.code === "empty_backup";
+          const upgradeAvailable = inspection?.kind === "migration_required" ||
+            inspection?.kind === "adoption_required" ||
+            inspection?.kind === "migration_and_adoption_required";
+          const reanchorAvailable = inspection?.kind === "inspect_only" &&
+            inspection.code === "reanchor_required";
+          const backupAvailable = backup?.kind === "available";
+          const invalidBackup = backup?.kind === "rejected" && backup.code === "invalid_backup";
+          const inspectionText = recoveryRead === null || recoveryLabels === undefined
+            ? ""
+            : inspectionTextV1(recoveryRead.inspection, recoveryLabels);
+          const backupText = recoveryRead === null || recoveryLabels === undefined
+            ? ""
+            : backupTextV1(recoveryRead.backup, recoveryLabels);
           return (
             <li key={slotId} className={styles["save-overlay__slot"]} data-slot-id={slotId}>
               <h3>{slotName}</h3>
@@ -849,6 +1291,121 @@ export function SaveOverlayContentInternalV1(
                   {props.labels.exportSlot(slotName)}
                 </Button>
               </div>
+              {!recoveryEnabled || recoveryPort === undefined || recoveryLabels === undefined
+                ? null
+                : (
+                  <div
+                    className={styles["save-overlay__recovery"]}
+                    data-save-recovery={slotId}
+                  >
+                    <Button
+                      data-save-recovery-action="inspect"
+                      disabled={!storageOperationsEnabled || recoveryState?.kind === "pending"}
+                      onClick={() => void inspectRecoveryV1(slotId)}
+                    >
+                      {recoveryLabels.action.inspect}
+                    </Button>
+                    <div
+                      className={styles["save-overlay__recovery-status"]}
+                      role="status"
+                      aria-live="polite"
+                      aria-atomic="true"
+                    >
+                      {recoveryState?.kind === "pending"
+                        ? <p>{recoveryLabels.checking}</p>
+                        : recoveryState?.kind === "failed"
+                        ? <p>{recoveryLabels.disposition.faulted}</p>
+                        : recoveryRead === null
+                        ? null
+                        : (
+                          <>
+                            {inspectionText === ""
+                              ? null
+                              : (
+                                <p data-save-inspection={recoveryRead.inspection.kind}>
+                                  {inspectionText}
+                                </p>
+                              )}
+                            {backupText === ""
+                              ? null
+                              : (
+                                <p data-save-backup={recoveryRead.backup.kind}>
+                                  {backupText}
+                                </p>
+                              )}
+                          </>
+                        )}
+                    </div>
+                    {recoveryRead === null
+                      ? null
+                      : (
+                        <div className={styles["save-overlay__slot-actions"]}>
+                          {!upgradeAvailable || !backupEmpty ? null : (
+                            <Button
+                              data-save-recovery-action="upgrade"
+                              disabled={!storageOperationsEnabled}
+                              onClick={() =>
+                                void runRecoveryOperationV1(
+                                  Object.freeze({ kind: "upgrade", slotId }),
+                                  () => recoveryPort.upgradeSave(slotId),
+                                )}
+                            >
+                              {recoveryLabels.action.upgrade}
+                            </Button>
+                          )}
+                          {!reanchorAvailable || !backupEmpty ? null : (
+                            <Button
+                              data-save-recovery-action="reanchor"
+                              disabled={!storageOperationsEnabled}
+                              onClick={() =>
+                                requestConfirmedOperationV1(
+                                  Object.freeze({ kind: "reanchor", slotId }),
+                                )}
+                            >
+                              {recoveryLabels.action.reanchor}
+                            </Button>
+                          )}
+                          {!backupAvailable ? null : (
+                            <>
+                              <Button
+                                data-save-recovery-action="restore"
+                                disabled={!storageOperationsEnabled}
+                                onClick={() =>
+                                  requestConfirmedOperationV1(
+                                    Object.freeze({ kind: "restore", slotId }),
+                                  )}
+                              >
+                                {recoveryLabels.action.restore}
+                              </Button>
+                              <Button
+                                data-save-recovery-action="export-backup"
+                                disabled={!storageOperationsEnabled}
+                                onClick={() =>
+                                  void runRecoveryOperationV1(
+                                    Object.freeze({ kind: "export_backup", slotId }),
+                                    () => recoveryPort.exportBackup(slotId),
+                                  )}
+                              >
+                                {recoveryLabels.action.exportBackup}
+                              </Button>
+                            </>
+                          )}
+                          {!backupAvailable && !invalidBackup ? null : (
+                            <Button
+                              data-save-recovery-action="discard"
+                              disabled={!storageOperationsEnabled}
+                              onClick={() =>
+                                requestConfirmedOperationV1(
+                                  Object.freeze({ kind: "discard", slotId }),
+                                )}
+                            >
+                              {recoveryLabels.action.discard}
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                  </div>
+                )}
             </li>
           );
         })}

@@ -740,6 +740,72 @@ describe("dormant managed System dialog session", () => {
           faulted: formatter,
           unexpectedFailure: "unexpected",
         },
+        recovery: {
+          checking: "checking",
+          confirmation: {
+            reanchorTitle: formatter,
+            reanchorDescription: formatter,
+            restoreTitle: formatter,
+            restoreDescription: formatter,
+            discardTitle: formatter,
+            discardDescription: formatter,
+          },
+          disposition: {
+            direct: "direct",
+            migration_required: "migration required",
+            adoption_required: "adoption required",
+            migration_and_adoption_required: "migration and adoption required",
+            migration_unavailable: "migration unavailable",
+            migration_rejected: "migration rejected",
+            incompatible: "incompatible",
+            reanchor_required: "reanchor required",
+            invalid_record: "invalid record",
+            unavailable: "unavailable",
+            faulted: "faulted",
+          },
+          backup: {
+            available: "backup available",
+            invalid: "backup invalid",
+            unavailable: "backup unavailable",
+          },
+          action: {
+            inspect: "inspect",
+            upgrade: "upgrade",
+            reanchor: "reanchor",
+            restore: "restore",
+            exportBackup: "export backup",
+            discard: "discard",
+          },
+          operation: {
+            upgrading: formatter,
+            reanchoring: formatter,
+            restoring: formatter,
+            exportingBackup: formatter,
+            discarding: formatter,
+            upgradedExact: "upgraded exact",
+            upgradedAdopted: "upgraded adopted",
+            reanchored: "reanchored",
+            restored: "restored",
+            backupExported: "backup exported",
+            discarded: "discarded",
+            rejected: {
+              busy: "busy",
+              unavailable: "unavailable",
+              empty_slot: "empty slot",
+              backup_pending: "backup pending",
+              conflict: "conflict",
+              invalid_record: "invalid record",
+              migration_unavailable: "migration unavailable",
+              migration_rejected: "migration rejected",
+              incompatible: "incompatible",
+              reanchor_required: "reanchor required",
+              not_required: "not required",
+              empty_backup: "empty backup",
+              invalid_backup: "invalid backup",
+            },
+            faulted: "faulted",
+          },
+        },
       },
     };
     const snapshot = snapshotSystemDialogSavesContentConfigInternalV1(source);
@@ -747,6 +813,7 @@ describe("dormant managed System dialog session", () => {
     source.labels.title = "Title R2";
     source.labels.slotNames.quick = "quick R2";
     source.labels.operation.rejected.busy = "busy R2";
+    source.labels.recovery.action.restore = "restore R2";
 
     expect(snapshot.value.variant).toBe("standard");
     if (snapshot.value.variant !== "standard") throw new TypeError();
@@ -757,8 +824,55 @@ describe("dormant managed System dialog session", () => {
     expect(snapshot.value.labels.title).toBe("Title R1");
     expect(snapshot.value.labels.slotNames.quick).toBe("quick");
     expect(snapshot.value.labels.operation.rejected.busy).toBe("busy");
+    const recovery = snapshot.value.labels.recovery;
+    expect(recovery).toBeDefined();
+    if (recovery === undefined) throw new TypeError();
+    expect(recovery.confirmation.reanchorTitle("quick")).toBe("quick");
+    expect(recovery.action.restore).toBe("restore");
     expect(snapshot.value.labels.savedAtText).toBe(formatter);
     expect(Object.isFrozen(snapshot.value.labels.operation.rejected)).toBe(true);
+    expect(Object.isFrozen(recovery.operation)).toBe(true);
+
+    const reanchorTitleGetter = vi.fn(() => formatter);
+    const accessorRecoveryConfirmation = {
+      ...source.labels.recovery.confirmation,
+    } as Record<string, unknown>;
+    Object.defineProperty(accessorRecoveryConfirmation, "reanchorTitle", {
+      enumerable: true,
+      get: reanchorTitleGetter,
+    });
+    expect(() =>
+      snapshotSystemDialogSavesContentConfigInternalV1({
+        ...source,
+        labels: {
+          ...source.labels,
+          recovery: {
+            ...source.labels.recovery,
+            confirmation: accessorRecoveryConfirmation,
+          },
+        } as never,
+      })
+    ).toThrowError("ui.system_dialog_saves_config_invalid");
+    expect(reanchorTitleGetter).not.toHaveBeenCalled();
+
+    const legacyLabels = { ...source.labels } as Record<string, unknown>;
+    Reflect.deleteProperty(legacyLabels, "recovery");
+    const legacySnapshot = snapshotSystemDialogSavesContentConfigInternalV1({
+      variant: "standard",
+      closeLabel: "Legacy close",
+      labels: legacyLabels as never,
+    });
+    if (legacySnapshot.value.variant !== "standard") throw new TypeError();
+    expect(legacySnapshot.value.labels).not.toHaveProperty("recovery");
+    expect(legacySnapshot.value.labels.confirmation).not.toHaveProperty("reanchorTitle");
+    const partialRecovery = { ...source.labels.recovery } as Record<string, unknown>;
+    Reflect.deleteProperty(partialRecovery, "confirmation");
+    expect(() =>
+      snapshotSystemDialogSavesContentConfigInternalV1({
+        ...source,
+        labels: { ...source.labels, recovery: partialRecovery } as never,
+      })
+    ).toThrowError("ui.system_dialog_saves_config_invalid");
 
     const evaluateGetter = vi.fn(() => evaluate);
     const accessorProjection = { getSnapshot, subscribe } as Record<string, unknown>;
@@ -1039,6 +1153,98 @@ describe("dormant managed System dialog session", () => {
 
     expect(resultSink).toHaveBeenCalledTimes(1);
     expect(resultSink).toHaveBeenCalledWith({ kind: "settled", result: "cleared" });
+    expect(finalizeExactRoot).toHaveBeenCalledOnce();
+    expect(session.getHostRenderSnapshotInternalV1().entries).toMatchObject([
+      { kind: "root", surfaceInstanceId: "surface-instance.e31.n1", phase: "active" },
+    ]);
+    fixture.dispose();
+  });
+
+  it.each(
+    [
+      ["reanchor", "manual.1"],
+      ["restore", "auto.previous"],
+      ["discard", "quick"],
+    ] as const,
+  )(
+    "keeps %s single-dispatch and revokes its late result after cancel",
+    async (kind, slotId) => {
+      const fixture = sessionFixtureV1(catalogV1());
+      const { session } = fixture;
+      session.openRootInternalV1("saves");
+      fixture.readyCandidate("surface-instance.e31.n1" as never);
+      const root = session.getHostRenderSnapshotInternalV1().entries[0];
+      if (root?.kind !== "root" || root.lifecycleIntents === null) throw new TypeError();
+      const deferred = deferredV1<{ readonly kind: "retain_root"; readonly result: string }>();
+      const dispatch = vi.fn(() => deferred.promise);
+      const resultSink = vi.fn();
+      const finalizeExactRoot = vi.fn();
+      const invocation = Object.freeze({ kind, slotId });
+      root.lifecycleIntents.requestConfirmationInternalV1({
+        invocation,
+        operationBinding: Object.freeze({ dispatch, resultSink, finalizeExactRoot }),
+      });
+      fixture.readyCandidate("surface-instance.e31.n2" as never);
+      const child = session.getHostRenderSnapshotInternalV1().entries[1];
+      if (child?.kind !== "confirmation") throw new TypeError();
+
+      expect(child.invocation).toEqual(invocation);
+      expect(child.invocation).not.toBe(invocation);
+      expect(Object.isFrozen(child.invocation)).toBe(true);
+      expect(child.controller.dispatchOnceInternalV1()).toMatchObject({ kind: "applied" });
+      expect(child.controller.dispatchOnceInternalV1()).toEqual({
+        kind: "unchanged",
+        code: "system_dialog.confirmation_operation_already_dispatched",
+      });
+      expect(dispatch).toHaveBeenCalledOnce();
+      expect(dispatch).toHaveBeenCalledWith(invocation);
+      expect(child.controller.cancelInternalV1("routed_cancel")).toMatchObject({ kind: "applied" });
+      const afterCancel = session.getManagedSnapshotInternalV1();
+
+      deferred.resolve(Object.freeze({ kind: "retain_root", result: `${kind}-done` }));
+      await deferred.promise;
+      await new Promise<void>((complete) => queueMicrotask(complete));
+
+      expect(resultSink).not.toHaveBeenCalled();
+      expect(finalizeExactRoot).toHaveBeenCalledOnce();
+      expect(session.getManagedSnapshotInternalV1()).toBe(afterCancel);
+      expect(session.getHostRenderSnapshotInternalV1().entries).toHaveLength(1);
+      fixture.dispose();
+    },
+  );
+
+  it.each(
+    [
+      ["reanchor", "manual.1"],
+      ["restore", "auto.previous"],
+      ["discard", "quick"],
+    ] as const,
+  )("rejects a successor outcome from retained-root %s", async (kind, slotId) => {
+    const fixture = sessionFixtureV1(catalogV1());
+    const { session } = fixture;
+    session.openRootInternalV1("saves");
+    fixture.readyCandidate("surface-instance.e31.n1" as never);
+    const root = session.getHostRenderSnapshotInternalV1().entries[0];
+    if (root?.kind !== "root" || root.lifecycleIntents === null) throw new TypeError();
+    const resultSink = vi.fn();
+    const finalizeExactRoot = vi.fn();
+    root.lifecycleIntents.requestConfirmationInternalV1({
+      invocation: Object.freeze({ kind, slotId }),
+      operationBinding: Object.freeze({
+        dispatch: () => Promise.resolve(Object.freeze({ kind: "successor" as const })),
+        resultSink,
+        finalizeExactRoot,
+      }),
+    });
+    fixture.readyCandidate("surface-instance.e31.n2" as never);
+    const child = session.getHostRenderSnapshotInternalV1().entries[1];
+    if (child?.kind !== "confirmation") throw new TypeError();
+
+    child.controller.dispatchOnceInternalV1();
+    await new Promise<void>((complete) => queueMicrotask(complete));
+
+    expect(resultSink).toHaveBeenCalledOnce();
+    expect(resultSink.mock.calls[0]?.[0]).toMatchObject({ kind: "faulted" });
     expect(finalizeExactRoot).toHaveBeenCalledOnce();
     expect(session.getHostRenderSnapshotInternalV1().entries).toMatchObject([
       { kind: "root", surfaceInstanceId: "surface-instance.e31.n1", phase: "active" },

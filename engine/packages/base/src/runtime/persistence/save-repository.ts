@@ -9,8 +9,11 @@ import type {
 import type {
   SaveCodecContextV1,
   SaveRecordEnvelopeV1,
+  SaveRecordEnvelopeShellInternalV1,
   SaveWriteReasonV1,
 } from "../../contracts/persistence.ts";
+import { saveJsonLimitsV1 } from "../../contracts/persistence.ts";
+import { canonicalJsonBytesWithStrictLimitsInternalV1 } from "../../contracts/strict-json.ts";
 import type {
   DeepReadonly,
   NonNegativeSafeInteger,
@@ -18,10 +21,19 @@ import type {
 } from "../../contracts/values.ts";
 import { parsePositiveSafeInteger } from "../../contracts/values.ts";
 import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
-import { decodeSaveRecordInternalV1, encodeSaveRecordInternalV1 } from "./save-codec.ts";
+import { recordSnapshotWorkV1 } from "../../internal/snapshot-work-instrumentation.ts";
+import {
+  decodeSaveRecordEnvelopeShellInternalV1,
+  decodeSaveRecordInternalV1,
+  encodeSaveRecordInternalV1,
+} from "./save-codec.ts";
 import { decodeSessionLeaseRecordV1 } from "./session-lease.ts";
 import type { SessionLeaseFenceV1 } from "./session-lease.ts";
-import { createSaveSlotRecordKeyV1, createSessionLeaseRecordKeyV1 } from "./slot-keys.ts";
+import {
+  createSaveMigrationBackupRecordKeyV1,
+  createSaveSlotRecordKeyV1,
+  createSessionLeaseRecordKeyV1,
+} from "./slot-keys.ts";
 
 export interface SaveRepositorySlotMetadataV1 {
   readonly storyId: string;
@@ -138,6 +150,69 @@ export interface SaveRepositoryRewriteExpectationV1 {
   readonly bytes: Uint8Array;
 }
 
+export type SaveRepositoryMigrationBackupReadResultV1<
+  TSaveRecord extends SaveRecordEnvelopeV1<unknown, unknown, unknown, unknown>,
+> =
+  | {
+    readonly health: "empty";
+    readonly slotId: SaveSlotIdV1;
+    readonly hostRevision: null;
+  }
+  | {
+    readonly health: "stored";
+    readonly slotId: SaveSlotIdV1;
+    readonly hostRevision: HostRecordRevisionV1;
+    readonly bytes: Uint8Array;
+    readonly envelope: SaveRecordEnvelopeShellInternalV1<TSaveRecord>;
+  }
+  | {
+    readonly health: "invalid";
+    readonly slotId: SaveSlotIdV1;
+    readonly hostRevision: HostRecordRevisionV1;
+    readonly code: string;
+  }
+  | {
+    readonly health: "unavailable";
+    readonly slotId: SaveSlotIdV1;
+    readonly hostRevision: null;
+    readonly code: string;
+  };
+
+export type SaveRepositoryMigrationBackupRewriteResultV1 =
+  | Extract<SaveRepositoryWriteResultV1, { readonly kind: "saved" }>
+  | {
+    readonly kind: "rejected";
+    readonly code:
+      | "backup_pending"
+      | "conflict"
+      | "unavailable"
+      | "invalid_record"
+      | "empty_slot";
+  };
+
+export type SaveRepositoryMigrationBackupRestoreResultV1 =
+  | {
+    readonly kind: "restored";
+    readonly slotId: SaveSlotIdV1;
+    readonly recordRevision: PositiveSafeInteger;
+  }
+  | {
+    readonly kind: "rejected";
+    readonly code:
+      | "empty_backup"
+      | "conflict"
+      | "unavailable"
+      | "invalid_backup"
+      | "invalid_record";
+  };
+
+export type SaveRepositoryMigrationBackupDiscardResultV1 =
+  | { readonly kind: "discarded"; readonly slotId: SaveSlotIdV1 }
+  | {
+    readonly kind: "rejected";
+    readonly code: "empty_backup" | "conflict" | "unavailable" | "invalid_record";
+  };
+
 interface SaveRepositoryPhysicalEnvelopeV1 {
   readonly recordRevision: PositiveSafeInteger;
   readonly slot: DeepReadonly<SaveRepositorySlotMetadataV1>;
@@ -175,6 +250,31 @@ export interface SaveRepositoryV1<
     record: DeepReadonly<TSaveRecord>,
     fence: DeepReadonly<SessionLeaseFenceV1>,
   ): Promise<SaveRepositoryWriteResultV1>;
+  /** Package-internal bounded shell/digest read of the one pending backup. */
+  readMigrationBackup(
+    slotId: SaveSlotIdV1,
+  ): Promise<SaveRepositoryMigrationBackupReadResultV1<TSaveRecord>>;
+  /**
+   * Package-internal three-record CAS: exact raw source backup, rewritten
+   * target, and lease touch. The caller must have produced `expected` from
+   * the same admitted target read and must not treat it as a reusable token.
+   */
+  rewriteWithMigrationBackup(
+    slotId: SaveSlotIdV1,
+    expected: DeepReadonly<SaveRepositoryRewriteExpectationV1>,
+    record: DeepReadonly<TSaveRecord>,
+    fence: DeepReadonly<SessionLeaseFenceV1>,
+  ): Promise<SaveRepositoryMigrationBackupRewriteResultV1>;
+  /** Package-internal lease-fenced restore; reads every CAS authority afresh. */
+  restoreMigrationBackup(
+    slotId: SaveSlotIdV1,
+    fence: DeepReadonly<SessionLeaseFenceV1>,
+  ): Promise<SaveRepositoryMigrationBackupRestoreResultV1>;
+  /** Package-internal lease-fenced consumption; an invalid backup remains discardable. */
+  discardMigrationBackup(
+    slotId: SaveSlotIdV1,
+    fence: DeepReadonly<SessionLeaseFenceV1>,
+  ): Promise<SaveRepositoryMigrationBackupDiscardResultV1>;
   clear(
     slotId: SaveSlotIdV1,
     fence: DeepReadonly<SessionLeaseFenceV1>,
@@ -345,6 +445,16 @@ export function createSaveRepositoryInternalV1<
     return null;
   };
 
+  const backupIdentityFailureV1 = (
+    slotId: SaveSlotIdV1,
+    envelope: Pick<SaveRepositoryPhysicalEnvelopeV1, "slot">,
+  ): string | null =>
+    envelope.slot.storyId !== options.storyId ||
+      envelope.slot.slotId !== slotId ||
+      envelope.slot.writeReason !== expectedWriteReasonV1(slotId)
+      ? "persistence.slot_identity_mismatch"
+      : null;
+
   const encodeForSlotV1 = (
     candidate: DeepReadonly<TSaveRecord>,
     slotId: SaveSlotIdV1,
@@ -361,6 +471,19 @@ export function createSaveRepositoryInternalV1<
       }),
     }) as DeepReadonly<TSaveRecord>;
     return encodeSaveRecordInternalV1(normalized, options.codec, instrumentation);
+  };
+
+  const encodeRestoredBackupV1 = (
+    backup: SaveRecordEnvelopeShellInternalV1<TSaveRecord>,
+    recordRevision: PositiveSafeInteger,
+  ): Uint8Array | null => {
+    recordSnapshotWorkV1(instrumentation, "save_canonical_serialization");
+    const encoded = canonicalJsonBytesWithStrictLimitsInternalV1(
+      Object.freeze({ ...backup, recordRevision }),
+      saveJsonLimitsV1,
+      instrumentation,
+    );
+    return encoded.ok ? encoded.bytes : null;
   };
 
   const readLeaseTouchV1 = async (
@@ -392,6 +515,15 @@ export function createSaveRepositoryInternalV1<
 
   const rejectedV1 = (code: "conflict" | "unavailable" | "invalid_record" | "empty_slot") =>
     Object.freeze({ kind: "rejected" as const, code });
+
+  const migrationBackupRejectedV1 = (
+    code:
+      | "empty_backup"
+      | "conflict"
+      | "unavailable"
+      | "invalid_backup"
+      | "invalid_record",
+  ) => Object.freeze({ kind: "rejected" as const, code });
 
   let repository: SaveRepositoryV1<TSaveRecord>;
 
@@ -643,6 +775,219 @@ export function createSaveRepositoryInternalV1<
 
     rewritePlayer(slotId, expected, candidate, fence) {
       return rewriteSingleV1(slotId, expected, candidate, fence);
+    },
+
+    async readMigrationBackup(slotId) {
+      try {
+        const stored = await callHostRecordStoreV1(() =>
+          options.records.read(
+            "save",
+            createSaveMigrationBackupRecordKeyV1(options.storyId, slotId),
+          )
+        );
+        if (stored === null) {
+          return Object.freeze({
+            health: "empty" as const,
+            slotId,
+            hostRevision: null,
+          });
+        }
+        const decoded = decodeSaveRecordEnvelopeShellInternalV1(
+          stored.bytes,
+          options.codec,
+          instrumentation,
+        );
+        if (decoded.kind === "rejected") {
+          return Object.freeze({
+            health: "invalid" as const,
+            slotId,
+            hostRevision: stored.revision,
+            code: decoded.code,
+          });
+        }
+        const identityFailure = backupIdentityFailureV1(slotId, decoded.record);
+        if (identityFailure !== null) {
+          return Object.freeze({
+            health: "invalid" as const,
+            slotId,
+            hostRevision: stored.revision,
+            code: identityFailure,
+          });
+        }
+        return Object.freeze({
+          health: "stored" as const,
+          slotId,
+          hostRevision: stored.revision,
+          bytes: Uint8Array.from(stored.bytes),
+          envelope: decoded.record,
+        });
+      } catch (error) {
+        if (!(error instanceof HostRecordStoreUnavailableV1)) throw error;
+        return Object.freeze({
+          health: "unavailable" as const,
+          slotId,
+          hostRevision: null,
+          code: error.code,
+        });
+      }
+    },
+
+    rewriteWithMigrationBackup(slotId, expected, candidate, fence) {
+      const expectedHostRevision = expected.hostRevision;
+      const expectedBytes = Uint8Array.from(expected.bytes);
+      return runWriteV1(async () => {
+        const backupKey = createSaveMigrationBackupRecordKeyV1(options.storyId, slotId);
+        const existingBackup = await callHostRecordStoreV1(() =>
+          options.records.read("save", backupKey)
+        );
+        if (existingBackup !== null) {
+          return Object.freeze({ kind: "rejected" as const, code: "backup_pending" as const });
+        }
+
+        const targetKey = createSaveSlotRecordKeyV1(options.storyId, slotId);
+        const [current, lease] = await Promise.all([
+          callHostRecordStoreV1(() => options.records.read("save", targetKey)),
+          readLeaseTouchV1(fence),
+        ]);
+        if (lease.kind === "rejected") return rejectedV1(lease.code);
+        if (current === null) return rejectedV1("empty_slot");
+        if (
+          current.revision !== expectedHostRevision ||
+          !bytesEqualV1(current.bytes, expectedBytes)
+        ) {
+          return rejectedV1("conflict");
+        }
+
+        const source = decodeSaveRecordEnvelopeShellInternalV1(
+          current.bytes,
+          options.codec,
+          instrumentation,
+        );
+        if (source.kind === "rejected") return rejectedV1("invalid_record");
+        if (physicalFailureV1(slotId, current.revision, source.record) !== null) {
+          return rejectedV1("invalid_record");
+        }
+
+        const recordRevision = nextRecordRevisionV1(current.revision);
+        if (recordRevision === null) return rejectedV1("invalid_record");
+        let targetBytes: Uint8Array;
+        try {
+          targetBytes = encodeForSlotV1(candidate, slotId, recordRevision);
+        } catch {
+          return rejectedV1("invalid_record");
+        }
+        const receiptBytes = internalOptions?.writeReceiptEvidence === true
+          ? Uint8Array.from(targetBytes)
+          : null;
+        const result = await callHostRecordStoreV1(() =>
+          options.records.commit([
+            Object.freeze({
+              kind: "put",
+              namespace: "save",
+              key: backupKey,
+              expectedRevision: null,
+              bytes: Uint8Array.from(current.bytes),
+            }),
+            Object.freeze({
+              kind: "put",
+              namespace: "save",
+              key: targetKey,
+              expectedRevision: current.revision,
+              bytes: targetBytes,
+            }),
+            lease.mutation,
+          ])
+        );
+        return result.kind === "conflict"
+          ? rejectedV1("conflict")
+          : savedWithReceiptV1(slotId, recordRevision, receiptBytes);
+      });
+    },
+
+    restoreMigrationBackup(slotId, fence) {
+      return runWriteV1(async () => {
+        const backupKey = createSaveMigrationBackupRecordKeyV1(options.storyId, slotId);
+        const targetKey = createSaveSlotRecordKeyV1(options.storyId, slotId);
+        const [backup, target, lease] = await Promise.all([
+          callHostRecordStoreV1(() => options.records.read("save", backupKey)),
+          callHostRecordStoreV1(() => options.records.read("save", targetKey)),
+          readLeaseTouchV1(fence),
+        ]);
+        if (lease.kind === "rejected") {
+          return Object.freeze({ kind: "rejected" as const, code: lease.code });
+        }
+        if (backup === null) {
+          return Object.freeze({ kind: "rejected" as const, code: "empty_backup" as const });
+        }
+
+        const decoded = decodeSaveRecordEnvelopeShellInternalV1(
+          backup.bytes,
+          options.codec,
+          instrumentation,
+        );
+        if (
+          decoded.kind === "rejected" ||
+          backupIdentityFailureV1(slotId, decoded.record) !== null
+        ) {
+          return migrationBackupRejectedV1("invalid_backup");
+        }
+
+        const recordRevision = nextRecordRevisionV1(target?.revision ?? null);
+        if (recordRevision === null) return migrationBackupRejectedV1("invalid_record");
+        const targetBytes = encodeRestoredBackupV1(decoded.record, recordRevision);
+        if (targetBytes === null) return migrationBackupRejectedV1("invalid_record");
+        const result = await callHostRecordStoreV1(() =>
+          options.records.commit([
+            Object.freeze({
+              kind: "put",
+              namespace: "save",
+              key: targetKey,
+              expectedRevision: target?.revision ?? null,
+              bytes: targetBytes,
+            }),
+            Object.freeze({
+              kind: "delete",
+              namespace: "save",
+              key: backupKey,
+              expectedRevision: backup.revision,
+            }),
+            lease.mutation,
+          ])
+        );
+        return result.kind === "conflict"
+          ? migrationBackupRejectedV1("conflict")
+          : Object.freeze({ kind: "restored" as const, slotId, recordRevision });
+      });
+    },
+
+    discardMigrationBackup(slotId, fence) {
+      return runWriteV1(async () => {
+        const backupKey = createSaveMigrationBackupRecordKeyV1(options.storyId, slotId);
+        const [backup, lease] = await Promise.all([
+          callHostRecordStoreV1(() => options.records.read("save", backupKey)),
+          readLeaseTouchV1(fence),
+        ]);
+        if (lease.kind === "rejected") {
+          return Object.freeze({ kind: "rejected" as const, code: lease.code });
+        }
+        if (backup === null) {
+          return Object.freeze({ kind: "rejected" as const, code: "empty_backup" as const });
+        }
+        const result = await callHostRecordStoreV1(() =>
+          options.records.commit([
+            Object.freeze({
+              kind: "delete",
+              namespace: "save",
+              key: backupKey,
+              expectedRevision: backup.revision,
+            }),
+            lease.mutation,
+          ])
+        );
+        return result.kind === "conflict"
+          ? Object.freeze({ kind: "rejected" as const, code: "conflict" as const })
+          : Object.freeze({ kind: "discarded" as const, slotId });
+      });
     },
 
     clear(slotId, fence) {

@@ -5,7 +5,8 @@ Narrative/History 共用一个 composition-owned Managed Surface authority。S4b
 WholeCanvas product layer 也已交付：同一 authority 下的 built-in Splash/Title、
 Cat Cafe ending 第一消费者、Engine Lab 中性第二消费者，以及 package-owned
 transient exact-parent detail 均已完成 cutover 与 promotion。当前 implementation gate 是
-PF5/M3 Save migration product surface。本文回答引擎 UI 的分层结构与上提规则、窗体产品
+PF6/S5 docs-only exact-entry/adjudication；PF5/M3 已完成并转为 historical，S5 broad
+runtime implementation 尚未授权。本文回答引擎 UI 的分层结构与上提规则、窗体产品
 模型和通用 WindowManager 的取舍。
 
 ## 调研摘要：各引擎怎么处理窗体

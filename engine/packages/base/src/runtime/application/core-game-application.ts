@@ -12,6 +12,7 @@ import type {
   GameSimulationV1,
 } from "../../contracts/gameplay-module.ts";
 import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../../contracts/host.ts";
+import type { PatchSetAdoptionDeclarationV1 } from "../../contracts/hotfix.ts";
 import {
   createTransactionalRngV1,
   parseRngDrawTraceInternalV1,
@@ -81,6 +82,7 @@ import type {
   SaveSummaryProjectionInstrumentationInternalV1,
 } from "../persistence/persistence-service.ts";
 import {
+  admitAdoptionDeclarationsInternalV1,
   bindPersistenceAnchorReplacementInternalV1,
   captureAutoSaveWithReceiptInternalV1,
   createInstrumentedPersistenceServiceV1,
@@ -250,6 +252,8 @@ export interface CoreGameApplicationDefinitionV1<
    * inspection, stored export, and annotation never execute callbacks.
    */
   readonly saveStateMigrations?: SaveStateMigrationRegistryV1;
+  /** Explicit finite Save compatibility declarations, admitted before composition. */
+  readonly adoptionDeclarations?: readonly PatchSetAdoptionDeclarationV1[];
   readonly semantic: CoreSemanticAdapterV1<
     TTypes,
     TQueries,
@@ -400,7 +404,8 @@ export function defineCoreGameApplicationV1<
   TPreview,
   TResult
 > {
-  const captured = { ...definition };
+  const adoptionDeclarations = captureCoreAdoptionDeclarationsV1(definition);
+  const captured = { ...definition, adoptionDeclarations };
   if (typeof captured.entry?.define !== "function") {
     throw new TypeError("core application definition requires a GamePackage entry");
   }
@@ -411,6 +416,23 @@ export function defineCoreGameApplicationV1<
     readSaveStateMigrationRegistryInternalV1(captured.saveStateMigrations);
   }
   return Object.freeze(captured);
+}
+
+function captureCoreAdoptionDeclarationsV1(
+  definition: object,
+): readonly DeepReadonly<PatchSetAdoptionDeclarationV1>[] {
+  const descriptors = Object.getOwnPropertyDescriptors(definition);
+  const adoptionDescriptor = descriptors.adoptionDeclarations;
+  if (
+    adoptionDescriptor !== undefined &&
+    (adoptionDescriptor.get !== undefined || adoptionDescriptor.set !== undefined)
+  ) {
+    throw new TypeError("core application adoptionDeclarations accessors are forbidden");
+  }
+  const adoptionDeclarations = admitAdoptionDeclarationsInternalV1(
+    adoptionDescriptor?.value ?? Object.freeze([]),
+  );
+  return adoptionDeclarations;
 }
 
 interface ResolvedGamePackageSliceV1 {
@@ -542,8 +564,24 @@ export function resolveCoreGameApplicationV1<
     TResult
   >
 > {
+  let adoptionDeclarations: readonly DeepReadonly<PatchSetAdoptionDeclarationV1>[];
+  try {
+    adoptionDeclarations = captureCoreAdoptionDeclarationsV1(definition);
+  } catch {
+    return Object.freeze({
+      kind: "failed" as const,
+      failure: Object.freeze({
+        code: "save_adoption_declarations.invalid",
+        details: Object.freeze({}),
+      }),
+    });
+  }
+  const admittedDefinition = Object.freeze({
+    ...definition,
+    adoptionDeclarations,
+  });
   const result = resolveGamePackageV1(
-    definition.entry,
+    admittedDefinition.entry,
     [],
     options.buildIdentityInput ?? defaultComposerBuildIdentityV1,
   );
@@ -557,10 +595,10 @@ export function resolveCoreGameApplicationV1<
     });
   }
   const resolved = result.resolved as unknown as ResolvedGamePackageSliceV1;
-  if (definition.saveStateMigrations !== undefined) {
+  if (admittedDefinition.saveStateMigrations !== undefined) {
     try {
       assertSaveStateMigrationRegistryCurrentIdentityInternalV1(
-        definition.saveStateMigrations,
+        admittedDefinition.saveStateMigrations,
         {
           stateContractRevision: resolved.provenance.resolved.stateContractRevision,
           stateContractDigest: resolved.provenance.resolved.stateContractDigest,
@@ -579,7 +617,7 @@ export function resolveCoreGameApplicationV1<
   return Object.freeze({
     kind: "resolved" as const,
     application: Object.freeze({
-      definition,
+      definition: admittedDefinition,
       resolved: result.resolved,
       provenance: resolved.provenance as ResolvedCoreGameApplicationV1<
         TSimulationFacet,
@@ -1349,7 +1387,7 @@ export async function createCoreGameApplicationInstanceV1<
       records: options.host.records,
       snapshotSchema: snapshotSchema as never,
       provenance: application.provenance as never,
-      adoptionDeclaration: null,
+      adoptionDeclarations: definition.adoptionDeclarations ?? Object.freeze([]),
       saveStateMigrations: definition.saveStateMigrations ?? null,
       ownerId: options.host.ownerId,
       nextHandoffRequestId: () => options.host.nextHandoffRequestId() as never,

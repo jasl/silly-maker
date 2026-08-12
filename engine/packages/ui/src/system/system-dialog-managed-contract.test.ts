@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import { parseNonNegativeSafeInteger } from "@sillymaker/base";
-import { describe, expect, expectTypeOf, it } from "vitest";
+import { parseNonNegativeSafeInteger, type SaveSlotIdV1 } from "@sillymaker/base";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { createManagedSurfaceCoordinatorV1 } from "../managed-surfaces/managed-surface-coordinator.ts";
 import {
@@ -38,11 +38,22 @@ function snapshotFixtureContentConfigV1(input: {
 }
 
 describe("dormant managed System dialog contract", () => {
-  it("normalizes only the closed load, clear, and import confirmation invocation shapes", () => {
+  it("normalizes only the closed slot-bound and import confirmation invocation shapes", () => {
+    type ExactInvocationV1 =
+      | {
+        readonly kind: "load" | "clear" | "reanchor" | "restore" | "discard";
+        readonly slotId: SaveSlotIdV1;
+      }
+      | { readonly kind: "import" };
+    expectTypeOf<SystemDialogConfirmationInvocationInternalV1>().toEqualTypeOf<ExactInvocationV1>();
+
     const accepted = [
       { kind: "load", slotId: "auto.current" },
       { kind: "clear", slotId: "manual.99" },
       { kind: "import" },
+      { kind: "reanchor", slotId: "quick" },
+      { kind: "restore", slotId: "auto.previous" },
+      { kind: "discard", slotId: "manual.1" },
     ] as const;
 
     expect(accepted.map(normalizeSystemDialogConfirmationInvocationInternalV1)).toEqual(accepted);
@@ -56,6 +67,9 @@ describe("dormant managed System dialog contract", () => {
       const rejected of [
         { kind: "load" },
         { kind: "import", slotId: "auto.current" },
+        { kind: "reanchor" },
+        { kind: "restore", slotId: "manual.100" },
+        { kind: "discard", slotId: "quick", extra: true },
         { kind: "clear", slotId: "manual.0" },
         { kind: "load", slotId: "manual.100" },
         { kind: "save", slotId: "quick" },
@@ -77,6 +91,18 @@ describe("dormant managed System dialog contract", () => {
     expect(() => normalizeSystemDialogConfirmationInvocationInternalV1(accessor)).toThrowError(
       "ui.system_dialog_confirmation_invocation_invalid",
     );
+
+    const slotAccessor = { kind: "restore" } as Record<string, unknown>;
+    const slotGetter = vi.fn(() => "quick");
+    Object.defineProperty(slotAccessor, "slotId", {
+      configurable: true,
+      enumerable: true,
+      get: slotGetter,
+    });
+    expect(() => normalizeSystemDialogConfirmationInvocationInternalV1(slotAccessor)).toThrowError(
+      "ui.system_dialog_confirmation_invocation_invalid",
+    );
+    expect(slotGetter).not.toHaveBeenCalled();
   });
 
   it("freezes one confirmation renderer and required-port resolution per fresh child", () => {
@@ -111,7 +137,14 @@ describe("dormant managed System dialog contract", () => {
 
     expect(contract.rootRequests).toEqual(["settings", "saves"]);
     expect(contract.savesRendererVariants).toEqual(["standard", "custom"]);
-    expect(contract.confirmationOperationKinds).toEqual(["load", "clear", "import"]);
+    expect(contract.confirmationOperationKinds).toEqual([
+      "load",
+      "clear",
+      "import",
+      "reanchor",
+      "restore",
+      "discard",
+    ]);
     expect(contract.resolvedOwnerIds).toEqual(["surface-owner.system"]);
     expect(contract.resolvedSlotDescriptors).toEqual([
       {

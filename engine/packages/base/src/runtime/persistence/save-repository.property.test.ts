@@ -28,7 +28,7 @@ import { createSaveRepositoryV1 } from "./save-repository.ts";
 import type { SaveRepositorySlotMetadataV1 } from "./save-repository.ts";
 import { createSessionLeaseV1 } from "./session-lease.ts";
 import type { SessionLeaseFenceV1 } from "./session-lease.ts";
-import { createSaveSlotRecordKeyV1 } from "./slot-keys.ts";
+import { createSaveMigrationBackupRecordKeyV1, createSaveSlotRecordKeyV1 } from "./slot-keys.ts";
 
 const storyIdV1 = "story.save-repository-property";
 
@@ -194,6 +194,10 @@ async function saveRecordsV1(records: HostAtomicRecordStoreV1) {
 
 async function physicalV1(records: HostAtomicRecordStoreV1, slotId: SaveSlotIdV1) {
   return records.read("save", createSaveSlotRecordKeyV1(storyIdV1, slotId));
+}
+
+async function migrationBackupV1(records: HostAtomicRecordStoreV1, slotId: SaveSlotIdV1) {
+  return records.read("save", createSaveMigrationBackupRecordKeyV1(storyIdV1, slotId));
 }
 
 function callWriteV1(
@@ -448,4 +452,93 @@ describe("Save repository interleaving properties", () => {
       { numRuns: 30 },
     );
   });
+
+  it("keeps one exact pending generation across randomized repeated migration attempts", async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        fc.constantFrom("auto", "quick", "manual.1"),
+        fc.integer({ min: 1, max: 9_000 }),
+        fc.integer({ min: 1, max: 20 }),
+        async (kind, sequence, repeatCount) => {
+          const fixture = await fixtureV1();
+          await expect(
+            callWriteV1(kind, fixture.repository, recordV1(sequence), fixture.fence),
+          ).resolves.toMatchObject({ kind: "saved" });
+          const slotId = (kind === "auto" ? "auto.current" : kind) as SaveSlotIdV1;
+          const source = await fixture.repository.read(slotId);
+          if (source.health !== "valid") throw new TypeError("missing property migration source");
+          await expect(
+            fixture.repository.rewriteWithMigrationBackup(
+              slotId,
+              Object.freeze({ hostRevision: source.hostRevision, bytes: source.bytes }),
+              recordV1(sequence + 1),
+              fixture.fence,
+            ),
+          ).resolves.toMatchObject({ kind: "saved" });
+          const current = await fixture.repository.read(slotId);
+          const backupBefore = await migrationBackupV1(fixture.records, slotId);
+          if (current.health !== "valid" || backupBefore === null) {
+            throw new TypeError("missing property migration result");
+          }
+          const targetBefore = await physicalV1(fixture.records, slotId);
+          const saveRecordsBefore = await saveRecordsV1(fixture.records);
+
+          for (let index = 0; index < repeatCount; index += 1) {
+            await expect(
+              fixture.repository.rewriteWithMigrationBackup(
+                slotId,
+                Object.freeze({ hostRevision: current.hostRevision, bytes: current.bytes }),
+                recordV1(sequence + 2 + index),
+                fixture.fence,
+              ),
+            ).resolves.toEqual({ kind: "rejected", code: "backup_pending" });
+          }
+
+          expect(await migrationBackupV1(fixture.records, slotId)).toEqual(backupBefore);
+          expect(await physicalV1(fixture.records, slotId)).toEqual(targetBefore);
+          expect(await saveRecordsV1(fixture.records)).toEqual(saveRecordsBefore);
+          expect(
+            (await fixture.records.list("save")).filter(({ key }) =>
+              key === createSaveMigrationBackupRecordKeyV1(storyIdV1, slotId)
+            ),
+          ).toHaveLength(1);
+        },
+      ),
+      { numRuns: 30 },
+    );
+  });
+
+  it("keeps Save-record cardinality bounded across 10,000 blocked attempts", async () => {
+    const fixture = await fixtureV1();
+    await fixture.repository.writePlayer("quick", recordV1(1), fixture.fence);
+    const source = await fixture.repository.read("quick");
+    if (source.health !== "valid") throw new TypeError("missing boundedness source");
+    await fixture.repository.rewriteWithMigrationBackup(
+      "quick",
+      Object.freeze({ hostRevision: source.hostRevision, bytes: source.bytes }),
+      recordV1(2),
+      fixture.fence,
+    );
+    const current = await fixture.repository.read("quick");
+    if (current.health !== "valid") throw new TypeError("missing boundedness target");
+    const candidate = recordV1(3);
+    const before = await saveRecordsV1(fixture.records);
+
+    for (let attempt = 0; attempt < 10_000; attempt += 1) {
+      const result = await fixture.repository.rewriteWithMigrationBackup(
+        "quick",
+        Object.freeze({ hostRevision: current.hostRevision, bytes: current.bytes }),
+        candidate,
+        fixture.fence,
+      );
+      expect(result).toEqual({ kind: "rejected", code: "backup_pending" });
+    }
+
+    expect(await saveRecordsV1(fixture.records)).toEqual(before);
+    expect(
+      (await fixture.records.list("save")).filter(({ key }) =>
+        key === createSaveMigrationBackupRecordKeyV1(storyIdV1, "quick")
+      ),
+    ).toHaveLength(1);
+  }, 30_000);
 });

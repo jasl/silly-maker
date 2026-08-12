@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: MIT
+import { readFile } from "node:fs/promises";
+
 import type { Page } from "@playwright/test";
 
 import { catcafeTargetUrlV1, expect, test } from "./fixtures.ts";
@@ -46,6 +48,67 @@ async function clearCatCafeRecordsV1(page: Page): Promise<void> {
       request.addEventListener("blocked", () => resolve());
     });
   });
+}
+
+/** Seed a pending backup from this test's real same-slot Player save. */
+async function seedCatCafePendingBackupV1(page: Page, slotId: string): Promise<Uint8Array> {
+  const expectedBackupBytes = await page.evaluate(async (slot) => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("sillymaker.example-cat-cafe", 1);
+      request.addEventListener("success", () => resolve(request.result));
+      request.addEventListener(
+        "error",
+        () => reject(request.error ?? new Error("save recovery fixture could not open IndexedDB")),
+      );
+    });
+    try {
+      const storyId = encodeURIComponent("story.example.cat-cafe");
+      const sourceKey = `save-record.v1:${storyId}:${slot}`;
+      const backupKey = `save-migration-backup.v1:${storyId}:${slot}`;
+      return await new Promise<number[]>((resolve, reject) => {
+        const transaction = database.transaction("records", "readwrite");
+        const store = transaction.objectStore("records");
+        let expectedBytes: number[] | undefined;
+        const sourceRequest = store.get(["save", sourceKey]);
+        sourceRequest.addEventListener("success", () => {
+          const source = sourceRequest.result as
+            | { readonly bytes: ArrayBuffer }
+            | undefined;
+          if (source === undefined) {
+            transaction.abort();
+            reject(new Error("save recovery fixture source record is missing"));
+            return;
+          }
+          const backupBytes = source.bytes.slice(0);
+          expectedBytes = Array.from(new Uint8Array(backupBytes.slice(0)));
+          store.put({
+            namespace: "save",
+            key: backupKey,
+            revision: 1,
+            bytes: backupBytes,
+          });
+        });
+        transaction.addEventListener("complete", () => {
+          if (expectedBytes === undefined) {
+            reject(new Error("save recovery fixture source bytes are missing"));
+            return;
+          }
+          resolve(expectedBytes);
+        });
+        transaction.addEventListener(
+          "error",
+          () => reject(transaction.error ?? new Error("save recovery fixture write failed")),
+        );
+        transaction.addEventListener(
+          "abort",
+          () => reject(transaction.error ?? new Error("save recovery fixture write aborted")),
+        );
+      });
+    } finally {
+      database.close();
+    }
+  }, slotId);
+  return Uint8Array.from(expectedBackupBytes);
 }
 
 async function advanceRevealedSayV1(page: Page): Promise<void> {
@@ -362,6 +425,77 @@ test("the system menu is one modal at a time and saves honor the safepoint", asy
   await expect(page.locator("[data-title-screen]")).toHaveCount(0);
   await expect(page.locator("[data-cc-calendar='1.0.0']")).toBeVisible();
 });
+
+test(
+  "@save exposes localized inspection and restores a pending backup through managed confirmation",
+  async ({
+    page,
+  }, testInfo) => {
+    await page.clock.setFixedTime(new Date("2026-08-12T12:34:56.000Z"));
+    await page.goto(catcafeTargetUrlV1());
+    await playOpeningV1(page);
+    await page.getByRole("button", { name: "保存", exact: true }).click();
+    const saves = page.getByRole("dialog", { name: "保存" });
+    const quick = saves.locator("[data-slot-id='quick']");
+    const quickRecovery = quick.locator("[data-save-recovery='quick']");
+
+    await quick.getByRole("button", { name: "快速保存" }).click();
+    await expect(page.getByTestId("save-operation-result")).toContainText("已保存到快速存档");
+    await expect(quickRecovery.locator("[data-save-inspection]")).toHaveCount(0);
+    await quickRecovery.getByRole("button", { name: "检查兼容性与备份" }).click();
+    await expect(quickRecovery.locator("[data-save-inspection='direct']")).toHaveText(
+      "可直接载入",
+    );
+
+    const expectedBackupBytes = await seedCatCafePendingBackupV1(page, "quick");
+    await quickRecovery.getByRole("button", { name: "检查兼容性与备份" }).click();
+    await expect(quickRecovery.locator("[data-save-backup='available']")).toHaveText(
+      "升级前备份可用",
+    );
+
+    const exportBackup = quickRecovery.getByRole("button", { name: "导出升级前备份" });
+    const exportPaths = [
+      testInfo.outputPath("cat-cafe-backup-export-1.json"),
+      testInfo.outputPath("cat-cafe-backup-export-2.json"),
+    ] as const;
+    expect(exportPaths[0]).not.toBe(exportPaths[1]);
+    const suggestedFilenames: string[] = [];
+    for (const exportPath of exportPaths) {
+      const [download] = await Promise.all([page.waitForEvent("download"), exportBackup.click()]);
+      suggestedFilenames.push(download.suggestedFilename());
+      await download.saveAs(exportPath);
+      await expect(page.getByTestId("save-operation-result")).toHaveText("升级前备份已导出");
+    }
+    expect(suggestedFilenames).toHaveLength(2);
+    expect(suggestedFilenames[0]).toBe(suggestedFilenames[1]);
+    expect(suggestedFilenames[0]).toMatch(/\.json$/u);
+    for (const exportPath of exportPaths) {
+      expect(Array.from(await readFile(exportPath))).toEqual(Array.from(expectedBackupBytes));
+    }
+    await quickRecovery.getByRole("button", { name: "检查兼容性与备份" }).click();
+    await expect(quickRecovery.locator("[data-save-backup='available']")).toHaveText(
+      "升级前备份可用",
+    );
+
+    await quickRecovery.getByRole("button", { name: "恢复升级前备份" }).click();
+    const confirmation = page.getByRole("dialog", { name: "恢复快速存档备份" });
+    await expect(confirmation).toContainText("快速存档将被升级前备份替换。");
+    await confirmation.getByRole("button", { name: "确认" }).click();
+    await expect(page.getByTestId("save-operation-result")).toHaveText(
+      "升级前备份已恢复；请载入该存档槽以继续",
+    );
+    await expect(saves).toBeVisible();
+    await expect
+      .poll(() => saves.evaluate((element) => element.contains(document.activeElement)))
+      .toBe(true);
+
+    await quickRecovery.getByRole("button", { name: "检查兼容性与备份" }).click();
+    await expect(quickRecovery.locator("[data-save-inspection='direct']")).toHaveText(
+      "可直接载入",
+    );
+    await expect(quickRecovery.locator("[data-save-backup]")).toHaveCount(0);
+  },
+);
 
 async function reachCatCafeEndingV1(page: Page): Promise<void> {
   await page.goto(catcafeTargetUrlV1("?capability=debug_tools&capability=cheats"));

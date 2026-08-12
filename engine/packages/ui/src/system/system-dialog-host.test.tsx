@@ -16,6 +16,7 @@ import {
   createSystemDialogSessionFacadeInternalV1,
 } from "./system-dialog-managed-session.ts";
 import {
+  resolveSystemDialogConfirmationCopyInternalV1,
   SystemDialogHostV1,
   type SystemDialogCustomSavesRenderIntentsV1,
   type SystemDialogCustomSavesV1,
@@ -112,6 +113,93 @@ function PublicHostHarnessV1(props: {
 }
 
 describe("SystemDialogHostV1", () => {
+  it("maps every closed confirmation invocation from the captured Save labels", () => {
+    const labels = {
+      slotNames: {
+        "auto.current": "Current autosave",
+        "auto.previous": "Previous autosave",
+        quick: "Quick save",
+        manualSlot: (index: number) => `Manual save ${index}`,
+      },
+      confirmation: {
+        loadTitle: (slotName: string) => `load title:${slotName}`,
+        loadDescription: (slotName: string) => `load description:${slotName}`,
+        clearTitle: (slotName: string) => `clear title:${slotName}`,
+        clearDescription: (slotName: string) => `clear description:${slotName}`,
+        importTitle: "import title",
+        importDescription: "import description",
+      },
+      recovery: {
+        confirmation: {
+          reanchorTitle: (slotName: string) => `reanchor title:${slotName}`,
+          reanchorDescription: (slotName: string) => `reanchor description:${slotName}`,
+          restoreTitle: (slotName: string) => `restore title:${slotName}`,
+          restoreDescription: (slotName: string) => `restore description:${slotName}`,
+          discardTitle: (slotName: string) => `discard title:${slotName}`,
+          discardDescription: (slotName: string) => `discard description:${slotName}`,
+        },
+      },
+    } satisfies Parameters<typeof resolveSystemDialogConfirmationCopyInternalV1>[0];
+
+    expect(resolveSystemDialogConfirmationCopyInternalV1(labels, { kind: "import" })).toEqual({
+      title: "import title",
+      description: "import description",
+    });
+    expect(resolveSystemDialogConfirmationCopyInternalV1(labels, {
+      kind: "load",
+      slotId: "auto.current",
+    })).toEqual({
+      title: "load title:Current autosave",
+      description: "load description:Current autosave",
+    });
+    expect(resolveSystemDialogConfirmationCopyInternalV1(labels, {
+      kind: "clear",
+      slotId: "manual.2",
+    })).toEqual({
+      title: "clear title:Manual save 2",
+      description: "clear description:Manual save 2",
+    });
+    expect(resolveSystemDialogConfirmationCopyInternalV1(labels, {
+      kind: "reanchor",
+      slotId: "quick",
+    })).toEqual({
+      title: "reanchor title:Quick save",
+      description: "reanchor description:Quick save",
+    });
+    expect(resolveSystemDialogConfirmationCopyInternalV1(labels, {
+      kind: "restore",
+      slotId: "auto.previous",
+    })).toEqual({
+      title: "restore title:Previous autosave",
+      description: "restore description:Previous autosave",
+    });
+    expect(resolveSystemDialogConfirmationCopyInternalV1(labels, {
+      kind: "discard",
+      slotId: "manual.1",
+    })).toEqual({
+      title: "discard title:Manual save 1",
+      description: "discard description:Manual save 1",
+    });
+
+    const legacyLabels = Object.freeze({
+      slotNames: labels.slotNames,
+      confirmation: labels.confirmation,
+    });
+    expect(resolveSystemDialogConfirmationCopyInternalV1(legacyLabels, {
+      kind: "load",
+      slotId: "quick",
+    })).toEqual({
+      title: "load title:Quick save",
+      description: "load description:Quick save",
+    });
+    expect(() =>
+      resolveSystemDialogConfirmationCopyInternalV1(legacyLabels, {
+        kind: "reanchor",
+        slotId: "quick",
+      })
+    ).toThrowError("ui.system_dialog_recovery_confirmation_missing");
+  });
+
   it("requires the composition session and returns exact structured controller results", async () => {
     const fixture = fixtureV1();
     const results: unknown[] = [];

@@ -10,7 +10,11 @@ import {
   useSyncExternalStore,
 } from "react";
 import type { ElementType, ErrorInfo, ReactElement } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import type {
+  KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+} from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -108,6 +112,19 @@ export interface SystemDialogManagedHostPropsInternalV1 {
 
 const systemDialogTabbableTargetSelectorInternalV1 =
   'button, [href], input, select, textarea, summary, [contenteditable="true"], [role="button"], [role="link"], [tabindex]:not([tabindex="-1"])';
+
+function readSystemDialogActivationTargetInternalV1(event: Event): HTMLElement | null {
+  if (typeof HTMLElement === "undefined") return null;
+  for (const target of event.composedPath()) {
+    if (
+      target instanceof HTMLElement &&
+      target.matches(systemDialogTabbableTargetSelectorInternalV1)
+    ) {
+      return target;
+    }
+  }
+  return null;
+}
 
 function systemDialogTabbableTargetsInternalV1(root: HTMLElement): readonly HTMLElement[] {
   const view = root.ownerDocument.defaultView;
@@ -304,6 +321,82 @@ function SystemDialogCandidateEntryInternalV1(props: {
   const rootLifecycleIntents = rootEntry?.lifecycleIntents ?? null;
   const rootSurfaceInstanceId = rootEntry?.surfaceInstanceId ?? null;
   const rootController = rootEntry?.controller ?? null;
+  const provisionalPointerOpenerRef = useRef<ProvisionalPointerOpenerInternalV1 | null>(null);
+  const pointerActivationSequenceRef = useRef(0);
+  const clearProvisionalPointerOpenerInternalV1 = useCallback((): void => {
+    pointerActivationSequenceRef.current += 1;
+    provisionalPointerOpenerRef.current = null;
+  }, []);
+  const captureProvisionalPointerOpenerInternalV1 = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>): void => {
+      clearProvisionalPointerOpenerInternalV1();
+      const rootShell = shellRef.current;
+      const opener = readSystemDialogActivationTargetInternalV1(event.nativeEvent);
+      if (
+        !activeRoot || event.button !== 0 || rootSurfaceInstanceId === null ||
+        rootShell === null || opener === null || !opener.isConnected ||
+        !rootShell.contains(opener)
+      ) return;
+      provisionalPointerOpenerRef.current = Object.freeze({
+        parentSurfaceInstanceId: rootSurfaceInstanceId,
+        opener,
+        pointerId: event.pointerId,
+        released: false,
+        requestArmed: false,
+        sequence: pointerActivationSequenceRef.current,
+      });
+    },
+    [activeRoot, clearProvisionalPointerOpenerInternalV1, rootSurfaceInstanceId],
+  );
+  const releaseProvisionalPointerOpenerInternalV1 = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>): void => {
+      const provisional = provisionalPointerOpenerRef.current;
+      const target = readSystemDialogActivationTargetInternalV1(event.nativeEvent);
+      if (
+        provisional === null || event.pointerId !== provisional.pointerId ||
+        target !== provisional.opener
+      ) {
+        clearProvisionalPointerOpenerInternalV1();
+        return;
+      }
+      provisionalPointerOpenerRef.current = Object.freeze({
+        ...provisional,
+        released: true,
+      });
+      const sequence = provisional.sequence;
+      setTimeout(() => {
+        if (provisionalPointerOpenerRef.current?.sequence === sequence) {
+          clearProvisionalPointerOpenerInternalV1();
+        }
+      }, 0);
+    },
+    [clearProvisionalPointerOpenerInternalV1],
+  );
+  const armProvisionalPointerOpenerInternalV1 = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>): void => {
+      const provisional = provisionalPointerOpenerRef.current;
+      const target = readSystemDialogActivationTargetInternalV1(event.nativeEvent);
+      if (provisional === null || !provisional.released || target !== provisional.opener) {
+        clearProvisionalPointerOpenerInternalV1();
+        return;
+      }
+      provisionalPointerOpenerRef.current = Object.freeze({
+        ...provisional,
+        requestArmed: true,
+      });
+      const sequence = provisional.sequence;
+      setTimeout(() => {
+        if (provisionalPointerOpenerRef.current?.sequence === sequence) {
+          clearProvisionalPointerOpenerInternalV1();
+        }
+      }, 0);
+    },
+    [clearProvisionalPointerOpenerInternalV1],
+  );
+  useLayoutEffect(() => {
+    if (!activeRoot) clearProvisionalPointerOpenerInternalV1();
+    return clearProvisionalPointerOpenerInternalV1;
+  }, [activeRoot, clearProvisionalPointerOpenerInternalV1, rootSurfaceInstanceId]);
   const rootIntent = useMemo<SystemDialogRootIntentInternalV1 | null>(() => {
     if (rootController === null) return null;
     return Object.freeze({
@@ -319,7 +412,14 @@ function SystemDialogCandidateEntryInternalV1(props: {
         input: SystemDialogHostConfirmationRequestInternalV1,
       ): SystemDialogHostConfirmationRequestResultInternalV1 {
         const rootShell = shellRef.current;
-        const opener = rootShell?.ownerDocument.activeElement;
+        const provisional = provisionalPointerOpenerRef.current;
+        clearProvisionalPointerOpenerInternalV1();
+        const pointerOpener = provisional?.requestArmed === true &&
+            provisional.parentSurfaceInstanceId === rootSurfaceInstanceId &&
+            provisional.opener.isConnected && rootShell?.contains(provisional.opener) === true
+          ? provisional.opener
+          : null;
+        const opener = pointerOpener ?? rootShell?.ownerDocument.activeElement;
         if (
           rootShell === null ||
           !(opener instanceof HTMLElement) ||
@@ -368,6 +468,7 @@ function SystemDialogCandidateEntryInternalV1(props: {
     });
   }, [
     props.childFocusLedger,
+    clearProvisionalPointerOpenerInternalV1,
     rootLifecycleIntents,
     rootSurfaceInstanceId,
   ]);
@@ -509,6 +610,10 @@ function SystemDialogCandidateEntryInternalV1(props: {
       tabIndex={-1}
       data-blocking-focus-scope={activeFocusOwner ? "system" : undefined}
       style={preparing ? { pointerEvents: "none", visibility: "hidden" } : { position: "absolute" }}
+      onClickCapture={activeRoot ? armProvisionalPointerOpenerInternalV1 : undefined}
+      onPointerDownCapture={activeRoot ? captureProvisionalPointerOpenerInternalV1 : undefined}
+      onPointerUpCapture={activeRoot ? releaseProvisionalPointerOpenerInternalV1 : undefined}
+      onPointerCancelCapture={activeRoot ? clearProvisionalPointerOpenerInternalV1 : undefined}
       onClick={props.entry.kind === "confirmation" ? (event) => event.stopPropagation() : undefined}
       onPointerDown={props.entry.kind === "confirmation"
         ? (event) => event.stopPropagation()
@@ -596,6 +701,13 @@ function SystemDialogCandidateEntryInternalV1(props: {
 interface ChildFocusRecordInternalV1 {
   readonly parentSurfaceInstanceId: ManagedSurfaceInstanceIdV1;
   readonly opener: HTMLElement;
+}
+
+interface ProvisionalPointerOpenerInternalV1 extends ChildFocusRecordInternalV1 {
+  readonly pointerId: number;
+  readonly released: boolean;
+  readonly requestArmed: boolean;
+  readonly sequence: number;
 }
 
 interface RootFocusRecordInternalV1 {

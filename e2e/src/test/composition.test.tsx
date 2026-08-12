@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // SPDX-License-Identifier: MIT
 import "@testing-library/jest-dom/vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -132,6 +132,30 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
 
     // Idempotent disposal.
     await started.dispose();
+  });
+
+  it("uses the standard semantic Save inspection path after a real player save", async () => {
+    const started = await startLabV1("");
+    try {
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole("button", { name: "保存" }));
+      await user.click(await screen.findByRole("button", { name: "快速保存" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("已保存到快速存档")).toBeInTheDocument();
+      });
+      const quickSlot = document.querySelector<HTMLElement>('[data-slot-id="quick"]');
+      expect(quickSlot).not.toBeNull();
+      await user.click(
+        within(quickSlot!).getByRole("button", { name: "检查兼容性与备份" }),
+      );
+
+      await waitFor(() => expect(within(quickSlot!).getByText("可直接载入")).toBeInTheDocument());
+      expect(document.body).not.toHaveTextContent("empty_backup");
+      expect(document.body).not.toHaveTextContent("persistence.unavailable");
+    } finally {
+      await started.dispose();
+    }
   });
 
   it("uses the production Narrative writer by default without a query opt-in", async () => {

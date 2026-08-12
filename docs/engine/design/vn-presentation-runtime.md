@@ -7,8 +7,10 @@ authority 统一处理 Say/Choice/Pause/Barrier/History、player timing、输入
 恢复与 stale fencing。Engine Lab、template、Bookshop、Cat Cafe 已迁移，SillyOS 显式
 省略，production browser promotion 已通过。旧 conformance entry、
 `DialoguePanelV1`、`VnLayerV1`、advance surface 和 raw playback exports 已删除。
-S4b.1c WholeCanvas primary/detail 已完成并转为 historical；当前 core slice 是 PF5/M3
-Save migration product surface。
+S4b.1c WholeCanvas primary/detail 与 PF5/M3 Save migration product surface 均已完成并转为
+historical；当前 core gate 是 PF6/S5 docs-only exact-entry/adjudication。S5 broad checkpoint
+尚无 exact allowlist/mergeable entry，不得直接开始 runtime implementation；本文其余历史
+段落中的旧 current pointer 均由本状态 supersede。
 
 ### S4.3.1b 前的历史实现记录
 

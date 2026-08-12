@@ -473,16 +473,19 @@ maintained Engine Lab registry now exercises one/two-step, rejection, throw,
 invalid-output, and migration-plus-adoption cases in a separate short-lived
 Worker. `deno task test:determinism` compares its exact callback counts,
 attempt/receipt, whole-Snapshot digests, adoption, and source-byte preservation
-twice in Deno and twice in Chromium, Firefox, and WebKit. This is M2 mechanism
-promotion, not the M3 release fixture/backup/recovery workflow.
+twice in Deno and twice in Chromium, Firefox, and WebKit. The same authoritative
+matrix now also consumes the checked-in four-record release corpus: Engine Lab
+State revisions 3/4/current 5 and Cat Cafe revision 1. Story-local lifecycle
+suites own inspection, applicable migration/adoption or re-anchor, current
+validation, load, backup/restore, and fresh-save round-trip.
 Registry inspection and callback counting use the repository-only
 `@sillymaker/base/testkit/save-state-migration-determinism` subpath. Production
 Story code must use the ordinary authoring/runtime contracts and must not depend
 on this instrumentation seam.
 
-PF5/M3 Save migration product surface is the current production-floor slice;
-its release fixtures and player inspection/backup/recovery workflow remain
-planned rather than delivered.
+PF5/M3 Save migration product surface is complete. The current linear-core gate
+is PF6/S5 docs-only exact-entry/adjudication; do not begin broad S5 source work
+until that entry freezes an exact allowlist, mergeable slices, RED, and gates.
 
 Strict JSON numeric regression tests use exact decimal token vectors rather
 than wall-clock timing: rounded fractions, safe boundaries, negative-zero
@@ -535,6 +538,15 @@ Avoid tests or fixtures that exist only to prove development choreography, such 
 - copied fixture trees when a small in-memory builder can express the business case.
 
 A checked-in fixture is justified when its bytes are themselves a maintained external format or compatibility promise—for example, a Save migration sample. Document what compatibility it protects and provide an intentional update path.
+
+The Save compatibility release corpus keeps its four canonical records as
+physical, immutable files: Engine Lab revisions 3/4/5 and Cat Cafe revision 1.
+Do not regenerate an older record from the current encoder, re-encode it inside
+a test, or infer an unlisted compatibility floor. A supported State change must
+update the deliberate fixture declaration and rerun the Story lifecycle corpus,
+the Deno/Chromium/Firefox/WebKit migration matrix, affected `@save` browser
+flows, relevant prebuilt Player gate, and `deno task check`; the exact release
+workflow is in [build and release](build-and-release.md).
 
 The reusable `@sillymaker/base/testkit` package is appropriate for compact behavior-level setup shared by real engine/Story tests. A “harness” is not a problem by name; a harness with no maintained product contract is. Its revisioned Save-metadata corpus is the shared byte authority for runtime/Host parity work: expected records use lossless base64 plus maintained lengths and SHA-256 values, while Host payload helpers return fresh byte copies. Update that corpus only with an intentional Save-contract change, record the old/new bytes in the active migration plan, and rerun the focused lifecycle matrix before aggregate checks; do not regenerate it from the implementation under test or duplicate it in Browser/Desktop fixtures.
 

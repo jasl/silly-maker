@@ -79,6 +79,30 @@ describe("createPlayerSaveSurfacesV1", () => {
     expect(surfaces.saveUi?.port).toBe(surfaces.maintenance.savePort);
   });
 
+  it("shares the one semantic inspection and recovery surface with UI and maintenance", async () => {
+    const inspectSave = vi.fn(async () =>
+      Object.freeze({ kind: "rejected" as const, slotId: "quick" as const, code: "empty_slot" })
+    );
+    const restoreBackup = vi.fn(async () =>
+      Object.freeze({ kind: "restored" as const, slotId: "quick" as const })
+    );
+    const surfaces = createPlayerSaveSurfacesV1({
+      files: Object.freeze({ selectOne: vi.fn(), download: vi.fn() }) as never,
+      persistence: Object.freeze({ inspectSave, restoreBackup }) as never,
+      clearAllSaves: vi.fn(),
+      saveLabels: Object.freeze({}) as never,
+    });
+
+    expect(surfaces.saveUi?.port).toBe(surfaces.maintenance.savePort);
+    await surfaces.saveUi?.port.recovery?.inspectSave("quick");
+    await surfaces.maintenance.savePort.recovery?.restoreBackup("quick");
+
+    expect(inspectSave).toHaveBeenCalledOnce();
+    expect(inspectSave).toHaveBeenCalledWith("quick");
+    expect(restoreBackup).toHaveBeenCalledOnce();
+    expect(restoreBackup).toHaveBeenCalledWith("quick");
+  });
+
   it("preserves one declarative custom Saves component without creating the default Save UI", () => {
     const CustomSavesV1 = () => null;
     const customSaves = Object.freeze({

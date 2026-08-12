@@ -14,6 +14,17 @@ import { createMemoryHostRecordStoreV1 } from "../../contracts/host.ts";
 import type { PatchSetAdoptionDeclarationV1, PatchSetIdentityV1 } from "../../contracts/hotfix.ts";
 import type { BuildProvenanceV1 } from "../../contracts/provenance.ts";
 import {
+  defineSaveStateMigrationRegistryV1,
+  parseSaveStateMigrationIdV1,
+  parseSaveStateMigrationNamespaceV1,
+  parseSaveStateMigrationReasonCodeV1,
+} from "../../contracts/save-state-migration.ts";
+import type {
+  SaveStateContractIdentityV1,
+  SaveStateMigrationRegistryV1,
+  SaveStateMigrationStepV1,
+} from "../../contracts/save-state-migration.ts";
+import {
   createSaveRecordEnvelopeSchemaV1,
   parseIsoUtcInstantV1,
 } from "../../contracts/persistence.ts";
@@ -63,7 +74,11 @@ import { createSaveRepositoryV1 } from "./save-repository.ts";
 import type { SaveRepositorySlotMetadataV1, SaveRepositoryV1 } from "./save-repository.ts";
 import { createSessionLeaseV1 } from "./session-lease.ts";
 import type { SessionLeaseV1 } from "./session-lease.ts";
-import { createSaveSlotRecordKeyV1 } from "./slot-keys.ts";
+import {
+  createSaveMigrationBackupRecordKeyV1,
+  createSaveSlotRecordKeyV1,
+  createSessionLeaseRecordKeyV1,
+} from "./slot-keys.ts";
 
 interface SyntheticStateV1 {
   readonly count: NonNegativeSafeInteger;
@@ -178,6 +193,56 @@ function adoptionDeclarationV1(
     fromSimulationDigest: stored.resolved.simulationDigest,
     toSimulationDigest: current.resolved.simulationDigest,
     simulationPatchSetDigest: current.resolved.patchSet.simulationDigest,
+  });
+}
+
+function stateContractIdentityV1(
+  provenance: DeepReadonly<BuildProvenanceV1>,
+): SaveStateContractIdentityV1 {
+  return Object.freeze({
+    stateContractRevision: provenance.resolved.stateContractRevision,
+    stateContractDigest: provenance.resolved.stateContractDigest,
+  });
+}
+
+function migrationTargetProvenanceV1(input: { readonly simulation?: string } = {}) {
+  const source = provenanceV1();
+  return Object.freeze({
+    ...source,
+    resolved: Object.freeze({
+      ...source.resolved,
+      stateContractRevision: parsePositiveSafeInteger(
+        Number(source.resolved.stateContractRevision) + 1,
+      ),
+      stateContractDigest: digestV1("state-contract.migrated"),
+      ...(input.simulation === undefined ? {} : {
+        simulationDigest: digestV1(input.simulation),
+        patchSet: patchSetV1("migrated"),
+      }),
+    }),
+  });
+}
+
+function migrationRegistryV1(
+  source: DeepReadonly<BuildProvenanceV1>,
+  target: DeepReadonly<BuildProvenanceV1>,
+  migrate: SaveStateMigrationStepV1["migrate"],
+): SaveStateMigrationRegistryV1 {
+  const namespace = parseSaveStateMigrationNamespaceV1("state.persistence-service-test");
+  return defineSaveStateMigrationRegistryV1({
+    namespace,
+    minimumSupported: stateContractIdentityV1(source),
+    current: stateContractIdentityV1(target),
+    steps: Object.freeze([
+      Object.freeze({
+        migrationId: parseSaveStateMigrationIdV1("migration.persistence-service-test.one"),
+        namespace,
+        from: stateContractIdentityV1(source),
+        to: stateContractIdentityV1(target),
+        references: Object.freeze({ renames: Object.freeze([]), deletions: Object.freeze([]) }),
+        migrate,
+      }),
+    ]),
   });
 }
 
@@ -404,7 +469,13 @@ interface FixtureOptionsV1 {
   readonly leaseAcquisition?: "acquire_initial" | "deferred_rebootstrap";
   readonly initial?: SyntheticSnapshotV1;
   readonly provenance?: BuildProvenanceV1;
-  readonly adoptionDeclaration?: PatchSetAdoptionDeclarationV1 | null;
+  readonly adoptionDeclarations?: readonly PatchSetAdoptionDeclarationV1[];
+  readonly classifyCompatibility?: SaveImportValidationContextV1<
+    SyntheticStateV1,
+    SyntheticSnapshotV1,
+    SyntheticSaveRecordV1
+  >["classifyCompatibility"];
+  readonly saveStateMigrations?: SaveStateMigrationRegistryV1 | null;
   readonly initialLineage?: readonly SimulationAdoptionV1[];
   decorateRuntimeControl?(
     runtimeControl: GameSessionRuntimeControlV1<SyntheticSnapshotV1>,
@@ -490,16 +561,16 @@ async function fixtureV1(options: FixtureOptionsV1 = {}) {
   > = Object.freeze({
     codec: codecV1,
     currentStateContractRevision: provenance.resolved.stateContractRevision,
-    saveStateMigrations: null,
-    classifyCompatibility(record: DeepReadonly<SyntheticSaveRecordV1>) {
+    saveStateMigrations: options.saveStateMigrations ?? null,
+    classifyCompatibility: options.classifyCompatibility ?? ((record) => {
       return classifySaveCompatibilityV1({
         stored: record.provenance,
         current: provenance,
         simulationLineage: record.simulationLineage,
-        adoptionDeclaration: options.adoptionDeclaration ?? null,
+        adoptionDeclarations: options.adoptionDeclarations ?? Object.freeze([]),
         candidateCommandSequence: record.snapshot.commandSequence,
       });
-    },
+    }),
     validateReferences(state: DeepReadonly<SyntheticStateV1>) {
       return state.referenceId === "reference.valid" ? Object.freeze([]) : ["reference.unknown"];
     },
@@ -658,6 +729,32 @@ function createSwitchableUnavailableStoreV1() {
   });
 }
 
+function createSwitchableCommitFailureStoreV1() {
+  const memory = createMemoryHostRecordStoreV1();
+  let failure: "none" | "unavailable" | "throw" = "none";
+  const records: HostAtomicRecordStoreV1 = Object.freeze({
+    read: memory.read,
+    list: memory.list,
+    async commit(mutations: Parameters<HostAtomicRecordStoreV1["commit"]>[0]) {
+      if (failure === "none") return await memory.commit(mutations);
+      if (failure === "throw") throw new Error("unclassified Save commit failure");
+      const error = new Error("synthetic Save commit outage");
+      Object.defineProperties(error, {
+        name: { value: "IndexedDbRecordStoreFailureV1" },
+        code: { value: "indexeddb.transaction_aborted" },
+        operation: { value: "commit" },
+      });
+      throw error;
+    },
+  });
+  return Object.freeze({
+    records,
+    setFailure(value: "none" | "unavailable" | "throw") {
+      failure = value;
+    },
+  });
+}
+
 async function ownedFenceV1(fixture: Awaited<ReturnType<typeof fixtureV1>>) {
   await fixture.lease.getStatus();
   const fence = fixture.lease.captureFence();
@@ -671,6 +768,70 @@ async function saveRecordsV1(records: HostAtomicRecordStoreV1) {
     revision: record.revision,
     bytes: [...record.bytes],
   }));
+}
+
+async function leaseRecordsV1(records: HostAtomicRecordStoreV1) {
+  return (await records.list("lease")).map((record) => ({
+    key: record.key,
+    revision: record.revision,
+    bytes: [...record.bytes],
+  }));
+}
+
+async function seedQuickRecordV1(
+  fixture: Awaited<ReturnType<typeof fixtureV1>>,
+  record: SyntheticSaveRecordV1,
+) {
+  await expect(
+    fixture.repository.writePlayer("quick", record, await ownedFenceV1(fixture)),
+  ).resolves.toMatchObject({ kind: "saved", slotId: "quick" });
+  const stored = await fixture.repository.read("quick");
+  if (stored.health !== "valid") throw new TypeError("expected a valid Quick Save");
+  return stored;
+}
+
+async function seedPendingBackupWithoutRewriteV1(
+  fixture: Awaited<ReturnType<typeof fixtureV1>>,
+  bytes: Uint8Array,
+) {
+  const result = await fixture.records.commit([
+    Object.freeze({
+      kind: "put" as const,
+      namespace: "save" as const,
+      key: createSaveMigrationBackupRecordKeyV1(storyIdV1, "quick"),
+      expectedRevision: null,
+      bytes: Uint8Array.from(bytes),
+    }),
+  ]);
+  expect(result.kind).toBe("committed");
+}
+
+async function seedRewrittenQuickWithBackupV1(
+  fixture: Awaited<ReturnType<typeof fixtureV1>>,
+  source: SyntheticSaveRecordV1,
+  replacement: SyntheticSaveRecordV1,
+) {
+  const stored = await seedQuickRecordV1(fixture, source);
+  await expect(
+    fixture.repository.rewriteWithMigrationBackup(
+      "quick",
+      Object.freeze({ hostRevision: stored.hostRevision, bytes: stored.bytes }),
+      replacement,
+      await ownedFenceV1(fixture),
+    ),
+  ).resolves.toMatchObject({ kind: "saved", slotId: "quick" });
+  const backup = await fixture.repository.readMigrationBackup("quick");
+  if (backup.health !== "stored") throw new TypeError("expected a pending migration backup");
+  return Object.freeze({ source: stored, backup });
+}
+
+function expectDeeplyFrozenV1(value: unknown, visited = new Set<object>()): void {
+  if (value === null || typeof value !== "object" || visited.has(value)) return;
+  visited.add(value);
+  expect(Object.isFrozen(value)).toBe(true);
+  for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(value))) {
+    if ("value" in descriptor) expectDeeplyFrozenV1(descriptor.value, visited);
+  }
 }
 
 async function corruptAutoCurrentV1(fixture: Awaited<ReturnType<typeof fixtureV1>>) {
@@ -707,6 +868,11 @@ describe("PersistenceServiceV1", () => {
 
     for (
       const operation of [
+        fixture.service.port.upgradeSave("quick"),
+        fixture.service.port.reanchorSave("quick"),
+        fixture.service.port.restoreBackup("quick"),
+        fixture.service.port.exportBackup("quick"),
+        fixture.service.port.discardBackup("quick"),
         fixture.service.port.save("quick"),
         fixture.service.port.annotateSave("quick", "blocked"),
         fixture.service.port.load("quick"),
@@ -1682,6 +1848,17 @@ describe("PersistenceServiceV1", () => {
     await expect(fixture.service.port.load("manual.3")).resolves.toEqual(invalidSlot);
     await expect(fixture.service.port.clear("manual.3")).resolves.toEqual(invalidSlot);
     await expect(fixture.service.port.exportSave("manual.3")).resolves.toEqual(invalidSlot);
+    for (
+      const operation of [
+        fixture.service.port.upgradeSave("manual.3"),
+        fixture.service.port.reanchorSave("manual.3"),
+        fixture.service.port.restoreBackup("manual.3"),
+        fixture.service.port.exportBackup("manual.3"),
+        fixture.service.port.discardBackup("manual.3"),
+      ]
+    ) {
+      await expect(operation).resolves.toEqual(invalidSlot);
+    }
     // Writes never target autosave slots even through untyped callers.
     await expect(fixture.service.port.save("auto.current" as unknown as "quick")).resolves.toEqual(
       invalidSlot,
@@ -1968,7 +2145,7 @@ describe("PersistenceServiceV1", () => {
     });
     const lineageFixture = await fixtureV1({
       provenance: adoptedCurrent,
-      adoptionDeclaration: adoptionDeclarationV1(stored, adoptedCurrent),
+      adoptionDeclarations: Object.freeze([adoptionDeclarationV1(stored, adoptedCurrent)]),
     });
     const lineageFence = await ownedFenceV1(lineageFixture);
     await lineageFixture.repository.writeAuto(
@@ -1997,7 +2174,7 @@ describe("PersistenceServiceV1", () => {
 
     const limitedCurrentFixture = await fixtureV1({
       provenance: adoptedCurrent,
-      adoptionDeclaration: adoptionDeclarationV1(stored, adoptedCurrent),
+      adoptionDeclarations: Object.freeze([adoptionDeclarationV1(stored, adoptedCurrent)]),
     });
     const limitedCurrentFence = await ownedFenceV1(limitedCurrentFixture);
     await limitedCurrentFixture.repository.writeAuto(
@@ -2165,6 +2342,1039 @@ describe("PersistenceServiceV1", () => {
     });
   });
 
+  it("projects ambiguous adoption as invalid inspection without mutating authority", async () => {
+    const fixture = await fixtureV1({
+      classifyCompatibility: () =>
+        Object.freeze({
+          kind: "rejected" as const,
+          code: "compatibility.adoption_ambiguous" as const,
+        }),
+    });
+    const saved = recordV1({ snapshot: snapshotV1(7) });
+    await fixture.repository.writePlayer("quick", saved, await ownedFenceV1(fixture));
+    const before = fixture.session.getCurrentSnapshot();
+    const recordsBefore = await saveRecordsV1(fixture.records);
+
+    await expect(fixture.service.port.inspectSave("quick")).resolves.toEqual({
+      kind: "rejected",
+      slotId: "quick",
+      code: "invalid_record",
+      diagnostics: {
+        codes: ["compatibility.adoption_ambiguous"],
+        migrationAttempt: null,
+        migrationReasonCode: null,
+        storedStateContractRevision: null,
+        currentStateContractRevision: null,
+      },
+    });
+    expect(fixture.session.getCurrentSnapshot()).toBe(before);
+    expect(await saveRecordsV1(fixture.records)).toEqual(recordsBefore);
+  });
+
+  describe("M3.4 migration and recovery operations", () => {
+    it("reports fresh player-safe backup status without touching lease, records, Session, or status", async () => {
+      const fixture = await fixtureV1({ initial: snapshotV1(22) });
+      const sessionBefore = fixture.session.getCurrentSnapshot();
+      const lineageBefore = fixture.service.getSimulationLineage();
+      const statusBefore = await fixture.service.port.getStatus();
+      const leasesBefore = await leaseRecordsV1(fixture.records);
+      const recordsBefore = await saveRecordsV1(fixture.records);
+
+      const empty = await fixture.service.port.inspectBackup("quick");
+      expectDeeplyFrozenV1(empty);
+      expect(empty).toEqual({ kind: "rejected", slotId: "quick", code: "empty_backup" });
+      expect(await saveRecordsV1(fixture.records)).toEqual(recordsBefore);
+      expect(await leaseRecordsV1(fixture.records)).toEqual(leasesBefore);
+
+      const sourceBytes = encodeSaveRecordV1(
+        recordV1({ snapshot: snapshotV1(2), slotId: "quick" }),
+        codecV1,
+      );
+      await seedPendingBackupWithoutRewriteV1(fixture, sourceBytes);
+      const recordsWithBackup = await saveRecordsV1(fixture.records);
+      const available = await fixture.service.port.inspectBackup("quick");
+      expectDeeplyFrozenV1(available);
+      expect(available).toEqual({ kind: "available", slotId: "quick" });
+      expect(available).not.toHaveProperty("bytes");
+      expect(available).not.toHaveProperty("hostRevision");
+      expect(available).not.toHaveProperty("key");
+      expect(await saveRecordsV1(fixture.records)).toEqual(recordsWithBackup);
+      expect(await leaseRecordsV1(fixture.records)).toEqual(leasesBefore);
+
+      const backupKey = createSaveMigrationBackupRecordKeyV1(storyIdV1, "quick");
+      const pending = await fixture.records.read("save", backupKey);
+      if (pending === null) throw new TypeError("expected pending backup");
+      await fixture.records.commit([
+        Object.freeze({
+          kind: "put" as const,
+          namespace: "save" as const,
+          key: backupKey,
+          expectedRevision: pending.revision,
+          bytes: textEncoderV1.encode("corrupt"),
+        }),
+      ]);
+      const invalidRecords = await saveRecordsV1(fixture.records);
+      const invalid = await fixture.service.port.inspectBackup("quick");
+      expectDeeplyFrozenV1(invalid);
+      expect(invalid).toEqual({
+        kind: "rejected",
+        slotId: "quick",
+        code: "invalid_backup",
+      });
+      expect(await saveRecordsV1(fixture.records)).toEqual(invalidRecords);
+      expect(await leaseRecordsV1(fixture.records)).toEqual(leasesBefore);
+      const corrupted = await fixture.records.read("save", backupKey);
+      if (corrupted === null) throw new TypeError("expected corrupt backup");
+      await fixture.records.commit([
+        Object.freeze({
+          kind: "delete" as const,
+          namespace: "save" as const,
+          key: backupKey,
+          expectedRevision: corrupted.revision,
+        }),
+      ]);
+      const emptyAgain = await fixture.service.port.inspectBackup("quick");
+      expectDeeplyFrozenV1(emptyAgain);
+      expect(emptyAgain).toEqual({
+        kind: "rejected",
+        slotId: "quick",
+        code: "empty_backup",
+      });
+
+      expect(recordsWithBackup).toHaveLength(1);
+      expect(await leaseRecordsV1(fixture.records)).toEqual(leasesBefore);
+      expect(fixture.session.getCurrentSnapshot()).toBe(sessionBefore);
+      expect(fixture.service.getSimulationLineage()).toBe(lineageBefore);
+      expect(fixture.session.getStatus()).toBe("ready");
+      await expect(fixture.service.port.getStatus()).resolves.toEqual(statusBefore);
+    });
+
+    it("classifies invalid slots, unavailable reads, unclassified faults, and disposal", async () => {
+      const invalidSlot = await fixtureV1({ manualSaveSlotCount: 0 });
+      const invalid = await invalidSlot.service.port.inspectBackup("manual.1");
+      expectDeeplyFrozenV1(invalid);
+      expect(invalid).toEqual({
+        kind: "faulted",
+        slotId: null,
+        code: "persistence.invalid_slot",
+      });
+
+      const unavailable = await fixtureV1({ records: unavailableStoreV1() });
+      const unavailableResult = await unavailable.service.port.inspectBackup("quick");
+      expectDeeplyFrozenV1(unavailableResult);
+      expect(unavailableResult).toEqual({
+        kind: "rejected",
+        slotId: "quick",
+        code: "unavailable",
+      });
+
+      const unexpected = new Error("unclassified backup read fault");
+      const throwing = await fixtureV1({
+        decorateRepository(repository) {
+          return Object.freeze({
+            ...repository,
+            async readMigrationBackup(): Promise<never> {
+              throw unexpected;
+            },
+          });
+        },
+      });
+      const faulted = await throwing.service.port.inspectBackup("quick");
+      expectDeeplyFrozenV1(faulted);
+      expect(faulted).toEqual({
+        kind: "faulted",
+        slotId: "quick",
+        code: "persistence.unexpected",
+      });
+
+      const disposed = await fixtureV1();
+      await disposed.service.disposeForRebootstrap();
+      const disposedResult = await disposed.service.port.inspectBackup("quick");
+      expectDeeplyFrozenV1(disposedResult);
+      expect(disposedResult).toEqual({
+        kind: "faulted",
+        slotId: "quick",
+        code: "runtime_disposed",
+      });
+    });
+
+    it("keeps 10,000 empty backup inspections bounded and mutation-free", {
+      timeout: 30_000,
+    }, async () => {
+      const fixture = await fixtureV1({ initial: snapshotV1(11) });
+      const recordsBefore = await saveRecordsV1(fixture.records);
+      const leasesBefore = await leaseRecordsV1(fixture.records);
+      const sessionBefore = fixture.session.getCurrentSnapshot();
+      const statusBefore = await fixture.service.port.getStatus();
+      for (let attempt = 0; attempt < 10_000; attempt += 1) {
+        expect(await fixture.service.port.inspectBackup("quick")).toEqual({
+          kind: "rejected",
+          slotId: "quick",
+          code: "empty_backup",
+        });
+      }
+      expect(await saveRecordsV1(fixture.records)).toEqual(recordsBefore);
+      expect(await leaseRecordsV1(fixture.records)).toEqual(leasesBefore);
+      expect(fixture.session.getCurrentSnapshot()).toBe(sessionBefore);
+      await expect(fixture.service.port.getStatus()).resolves.toEqual(statusBefore);
+    });
+
+    it("upgrades a freshly reread migration-only Save with an exact raw backup and no live install", async () => {
+      const sourceProvenance = provenanceV1();
+      const targetProvenance = migrationTargetProvenanceV1();
+      let migrationCalls = 0;
+      const fixture = await fixtureV1({
+        provenance: targetProvenance,
+        saveStateMigrations: migrationRegistryV1(sourceProvenance, targetProvenance, (state) => {
+          migrationCalls += 1;
+          return Object.freeze({ kind: "migrated" as const, state });
+        }),
+      });
+      const source = await seedQuickRecordV1(
+        fixture,
+        recordV1({ snapshot: snapshotV1(7), provenance: sourceProvenance, slotId: "quick" }),
+      );
+      const liveSnapshot = fixture.session.getCurrentSnapshot();
+      const liveLineage = fixture.service.getSimulationLineage();
+      const sessionStatus = fixture.session.getStatus();
+      const persistenceStatus = await fixture.service.port.getStatus();
+
+      await expect(fixture.service.port.inspectSave("quick")).resolves.toMatchObject({
+        kind: "migration_required",
+        slotId: "quick",
+      });
+      expect(migrationCalls).toBe(1);
+      await expect(fixture.service.port.upgradeSave("quick")).resolves.toEqual({
+        kind: "upgraded",
+        slotId: "quick",
+        compatibility: "exact",
+      });
+      expect(migrationCalls).toBe(2);
+
+      const target = await fixture.repository.read("quick");
+      expect(target).toMatchObject({
+        health: "valid",
+        hostRevision: 2,
+        record: {
+          recordRevision: 2,
+          provenance: targetProvenance,
+          simulationLineage: [],
+          snapshot: { commandSequence: 7 },
+        },
+      });
+      const backup = await fixture.repository.readMigrationBackup("quick");
+      expect(backup).toMatchObject({ health: "stored", bytes: source.bytes });
+      const leaseBeforeExport = await leaseRecordsV1(fixture.records);
+      const firstExport = await fixture.service.port.exportBackup("quick");
+      expect(firstExport).toMatchObject({
+        kind: "exported",
+        slotId: "quick",
+        file: {
+          mediaType: "application/json",
+          digest: digestBytes(source.bytes),
+          bytes: source.bytes,
+        },
+      });
+      if (firstExport.kind !== "exported") throw new TypeError("expected backup export");
+      firstExport.file.bytes[0] = firstExport.file.bytes[0] === 0x7b ? 0x5b : 0x7b;
+      const secondExport = await fixture.service.port.exportBackup("quick");
+      expect(secondExport).toMatchObject({ kind: "exported", file: { bytes: source.bytes } });
+      expect(await leaseRecordsV1(fixture.records)).toEqual(leaseBeforeExport);
+      expect(await fixture.repository.readMigrationBackup("quick")).toMatchObject({
+        health: "stored",
+        bytes: source.bytes,
+      });
+
+      expect(fixture.session.getCurrentSnapshot()).toBe(liveSnapshot);
+      expect(fixture.service.getSimulationLineage()).toBe(liveLineage);
+      expect(fixture.session.getStatus()).toBe(sessionStatus);
+      await expect(fixture.service.port.getStatus()).resolves.toEqual(persistenceStatus);
+    });
+
+    it("upgrades migration plus unique adoption and appends exactly one lineage entry", async () => {
+      const sourceProvenance = provenanceV1({ simulation: "simulation.old", patch: "old" });
+      const targetProvenance = migrationTargetProvenanceV1({ simulation: "simulation.new" });
+      let migrationCalls = 0;
+      const fixture = await fixtureV1({
+        provenance: targetProvenance,
+        adoptionDeclarations: Object.freeze([
+          adoptionDeclarationV1(sourceProvenance, targetProvenance),
+        ]),
+        saveStateMigrations: migrationRegistryV1(sourceProvenance, targetProvenance, (state) => {
+          migrationCalls += 1;
+          return Object.freeze({ kind: "migrated" as const, state });
+        }),
+      });
+      const source = await seedQuickRecordV1(
+        fixture,
+        recordV1({ snapshot: snapshotV1(9), provenance: sourceProvenance, slotId: "quick" }),
+      );
+      const liveSnapshot = fixture.session.getCurrentSnapshot();
+
+      await expect(fixture.service.port.inspectSave("quick")).resolves.toMatchObject({
+        kind: "migration_and_adoption_required",
+      });
+      await expect(fixture.service.port.upgradeSave("quick")).resolves.toEqual({
+        kind: "upgraded",
+        slotId: "quick",
+        compatibility: "adopted",
+      });
+      expect(migrationCalls).toBe(2);
+      expect(await fixture.repository.read("quick")).toMatchObject({
+        health: "valid",
+        record: {
+          provenance: targetProvenance,
+          simulationLineage: [{
+            fromSimulationDigest: sourceProvenance.resolved.simulationDigest,
+            toSimulationDigest: targetProvenance.resolved.simulationDigest,
+            viaSimulationPatchSetDigest: targetProvenance.resolved.patchSet.simulationDigest,
+            adoptedAtCommandSequence: 9,
+          }],
+        },
+      });
+      expect(await fixture.repository.readMigrationBackup("quick")).toMatchObject({
+        health: "stored",
+        bytes: source.bytes,
+      });
+      expect(fixture.session.getCurrentSnapshot()).toBe(liveSnapshot);
+      expect(fixture.service.getSimulationLineage()).toEqual([]);
+    });
+
+    it("never trusts inspection state and checks a pending backup before invoking migration", async () => {
+      const sourceProvenance = provenanceV1();
+      const targetProvenance = migrationTargetProvenanceV1();
+      let migrationCalls = 0;
+      const registry = migrationRegistryV1(sourceProvenance, targetProvenance, (state) => {
+        migrationCalls += 1;
+        return Object.freeze({ kind: "migrated" as const, state });
+      });
+      const stale = await fixtureV1({
+        provenance: targetProvenance,
+        saveStateMigrations: registry,
+      });
+      const staleSource = await seedQuickRecordV1(
+        stale,
+        recordV1({ snapshot: snapshotV1(3), provenance: sourceProvenance, slotId: "quick" }),
+      );
+      await expect(stale.service.port.inspectSave("quick")).resolves.toMatchObject({
+        kind: "migration_required",
+      });
+      expect(migrationCalls).toBe(1);
+      await expect(
+        stale.repository.rewritePlayer(
+          "quick",
+          Object.freeze({
+            hostRevision: staleSource.hostRevision,
+            bytes: staleSource.bytes,
+          }),
+          recordV1({ snapshot: snapshotV1(4), provenance: targetProvenance, slotId: "quick" }),
+          await ownedFenceV1(stale),
+        ),
+      ).resolves.toMatchObject({ kind: "saved" });
+      await expect(stale.service.port.upgradeSave("quick")).resolves.toEqual({
+        kind: "rejected",
+        code: "not_required",
+      });
+      expect(migrationCalls).toBe(1);
+      await expect(stale.repository.readMigrationBackup("quick")).resolves.toMatchObject({
+        health: "empty",
+      });
+
+      const pending = await fixtureV1({
+        provenance: targetProvenance,
+        saveStateMigrations: registry,
+      });
+      const pendingSource = await seedQuickRecordV1(
+        pending,
+        recordV1({ snapshot: snapshotV1(5), provenance: sourceProvenance, slotId: "quick" }),
+      );
+      await seedPendingBackupWithoutRewriteV1(pending, pendingSource.bytes);
+      const recordsBefore = await saveRecordsV1(pending.records);
+      const leasesBefore = await leaseRecordsV1(pending.records);
+      const callbacksBefore = migrationCalls;
+      await expect(pending.service.port.upgradeSave("quick")).resolves.toEqual({
+        kind: "rejected",
+        code: "backup_pending",
+      });
+      expect(migrationCalls).toBe(callbacksBefore);
+      expect(await saveRecordsV1(pending.records)).toEqual(recordsBefore);
+      expect(await leaseRecordsV1(pending.records)).toEqual(leasesBefore);
+    });
+
+    it.each(
+      [
+        [
+          "callback rejection",
+          () =>
+            Object.freeze({
+              kind: "rejected" as const,
+              reasonCode: parseSaveStateMigrationReasonCodeV1(
+                "migration.persistence-service-test.rejected",
+              ),
+            }),
+          { kind: "rejected", code: "migration_rejected" },
+        ],
+        [
+          "invalid migrated references",
+          () =>
+            Object.freeze({
+              kind: "migrated" as const,
+              state: Object.freeze({ count: 12, referenceId: "reference.unknown" }),
+            }),
+          { kind: "rejected", code: "invalid_record" },
+        ],
+        [
+          "callback throw",
+          () => {
+            throw new Error("private migration callback failure");
+          },
+          { kind: "faulted", code: "migration.callback_threw" },
+        ],
+      ] as const,
+    )("keeps every authority unchanged for %s", async (_label, migrate, expected) => {
+      const sourceProvenance = provenanceV1();
+      const targetProvenance = migrationTargetProvenanceV1();
+      let migrationCalls = 0;
+      const fixture = await fixtureV1({
+        provenance: targetProvenance,
+        saveStateMigrations: migrationRegistryV1(sourceProvenance, targetProvenance, (_state) => {
+          migrationCalls += 1;
+          return migrate() as ReturnType<SaveStateMigrationStepV1["migrate"]>;
+        }),
+      });
+      await seedQuickRecordV1(
+        fixture,
+        recordV1({ snapshot: snapshotV1(7), provenance: sourceProvenance, slotId: "quick" }),
+      );
+      const recordsBefore = await saveRecordsV1(fixture.records);
+      const leasesBefore = await leaseRecordsV1(fixture.records);
+      const liveSnapshot = fixture.session.getCurrentSnapshot();
+      const liveLineage = fixture.service.getSimulationLineage();
+      const statusBefore = await fixture.service.port.getStatus();
+
+      await expect(fixture.service.port.upgradeSave("quick")).resolves.toEqual(expected);
+      expect(migrationCalls).toBe(1);
+      expect(await saveRecordsV1(fixture.records)).toEqual(recordsBefore);
+      expect(await leaseRecordsV1(fixture.records)).toEqual(leasesBefore);
+      await expect(fixture.repository.readMigrationBackup("quick")).resolves.toMatchObject({
+        health: "empty",
+      });
+      expect(fixture.session.getCurrentSnapshot()).toBe(liveSnapshot);
+      expect(fixture.service.getSimulationLineage()).toBe(liveLineage);
+      await expect(fixture.service.port.getStatus()).resolves.toEqual(statusBefore);
+    });
+
+    it.each(["unavailable", "throw"] as const)(
+      "leaves target, backup, lease, and Session unchanged when the upgrade commit is %s",
+      async (failure) => {
+        const store = createSwitchableCommitFailureStoreV1();
+        const sourceProvenance = provenanceV1();
+        const targetProvenance = migrationTargetProvenanceV1();
+        let migrationCalls = 0;
+        const fixture = await fixtureV1({
+          records: store.records,
+          provenance: targetProvenance,
+          saveStateMigrations: migrationRegistryV1(
+            sourceProvenance,
+            targetProvenance,
+            (state) => {
+              migrationCalls += 1;
+              return Object.freeze({ kind: "migrated" as const, state });
+            },
+          ),
+        });
+        await seedQuickRecordV1(
+          fixture,
+          recordV1({ snapshot: snapshotV1(7), provenance: sourceProvenance, slotId: "quick" }),
+        );
+        const recordsBefore = await saveRecordsV1(fixture.records);
+        const leasesBefore = await leaseRecordsV1(fixture.records);
+        const liveSnapshot = fixture.session.getCurrentSnapshot();
+        store.setFailure(failure);
+
+        await expect(fixture.service.port.upgradeSave("quick")).resolves.toEqual(
+          failure === "unavailable"
+            ? { kind: "rejected", code: "unavailable" }
+            : { kind: "faulted", code: "persistence.unexpected" },
+        );
+        expect(migrationCalls).toBe(1);
+        expect(await saveRecordsV1(fixture.records)).toEqual(recordsBefore);
+        expect(await leaseRecordsV1(fixture.records)).toEqual(leasesBefore);
+        expect(fixture.session.getCurrentSnapshot()).toBe(liveSnapshot);
+      },
+    );
+
+    it("maps the final target/backup/lease CAS conflict without any operation-owned partial write", async () => {
+      const sourceProvenance = provenanceV1();
+      const targetProvenance = migrationTargetProvenanceV1();
+      let migrationCalls = 0;
+      const fixture = await fixtureV1({
+        provenance: targetProvenance,
+        saveStateMigrations: migrationRegistryV1(sourceProvenance, targetProvenance, (state) => {
+          migrationCalls += 1;
+          return Object.freeze({ kind: "migrated" as const, state });
+        }),
+        decorateRepository(repository) {
+          return Object.freeze({
+            ...repository,
+            async rewriteWithMigrationBackup() {
+              return Object.freeze({ kind: "rejected" as const, code: "conflict" as const });
+            },
+          });
+        },
+      });
+      await seedQuickRecordV1(
+        fixture,
+        recordV1({ snapshot: snapshotV1(7), provenance: sourceProvenance, slotId: "quick" }),
+      );
+      const recordsBefore = await saveRecordsV1(fixture.records);
+      const leasesBefore = await leaseRecordsV1(fixture.records);
+      const liveSnapshot = fixture.session.getCurrentSnapshot();
+
+      await expect(fixture.service.port.upgradeSave("quick")).resolves.toEqual({
+        kind: "rejected",
+        code: "conflict",
+      });
+      expect(migrationCalls).toBe(1);
+      expect(await saveRecordsV1(fixture.records)).toEqual(recordsBefore);
+      expect(await leaseRecordsV1(fixture.records)).toEqual(leasesBefore);
+      expect(fixture.session.getCurrentSnapshot()).toBe(liveSnapshot);
+    });
+
+    it.each([0, 15] as const)(
+      "upgrades an adoptable lineage of length %s without re-anchor",
+      async (length) => {
+        const sourceProvenance = provenanceV1({ simulation: "simulation.old", patch: "old" });
+        const targetProvenance = provenanceV1({ simulation: "simulation.new", patch: "new" });
+        const fixture = await fixtureV1({
+          provenance: targetProvenance,
+          adoptionDeclarations: Object.freeze([
+            adoptionDeclarationV1(sourceProvenance, targetProvenance),
+          ]),
+        });
+        await seedQuickRecordV1(
+          fixture,
+          recordV1({
+            snapshot: snapshotV1(10),
+            provenance: sourceProvenance,
+            lineage: lineageV1(length, sourceProvenance.resolved.simulationDigest),
+            slotId: "quick",
+          }),
+        );
+
+        await expect(fixture.service.port.upgradeSave("quick")).resolves.toEqual({
+          kind: "upgraded",
+          slotId: "quick",
+          compatibility: "adopted",
+        });
+        expect(await fixture.repository.read("quick")).toMatchObject({
+          health: "valid",
+          record: { simulationLineage: { length: length + 1 } },
+        });
+        await expect(fixture.service.port.reanchorSave("quick")).resolves.toEqual({
+          kind: "rejected",
+          code: "backup_pending",
+        });
+      },
+    );
+
+    it("re-anchors only a unique adoption that would create lineage entry 17", async () => {
+      const sourceProvenance = provenanceV1({ simulation: "simulation.old", patch: "old" });
+      const targetProvenance = provenanceV1({ simulation: "simulation.new", patch: "new" });
+      const fixture = await fixtureV1({
+        provenance: targetProvenance,
+        adoptionDeclarations: Object.freeze([
+          adoptionDeclarationV1(sourceProvenance, targetProvenance),
+        ]),
+      });
+      const source = await seedQuickRecordV1(
+        fixture,
+        recordV1({
+          snapshot: snapshotV1(16),
+          provenance: sourceProvenance,
+          lineage: lineageV1(16, sourceProvenance.resolved.simulationDigest),
+          slotId: "quick",
+        }),
+      );
+      const liveSnapshot = fixture.session.getCurrentSnapshot();
+      await expect(fixture.service.port.upgradeSave("quick")).resolves.toEqual({
+        kind: "rejected",
+        code: "reanchor_required",
+      });
+      await expect(fixture.repository.readMigrationBackup("quick")).resolves.toMatchObject({
+        health: "empty",
+      });
+      await expect(fixture.service.port.reanchorSave("quick")).resolves.toEqual({
+        kind: "reanchored",
+        slotId: "quick",
+      });
+      expect(await fixture.repository.read("quick")).toMatchObject({
+        health: "valid",
+        record: {
+          provenance: targetProvenance,
+          snapshot: { commandSequence: 16 },
+          simulationLineage: [],
+        },
+      });
+      expect(await fixture.repository.readMigrationBackup("quick")).toMatchObject({
+        health: "stored",
+        bytes: source.bytes,
+      });
+      expect(fixture.session.getCurrentSnapshot()).toBe(liveSnapshot);
+      expect(fixture.service.getSimulationLineage()).toEqual([]);
+    });
+
+    it("reruns a required migration before re-anchoring a uniquely adoptable full lineage", async () => {
+      const sourceProvenance = provenanceV1({ simulation: "simulation.old", patch: "old" });
+      const targetProvenance = migrationTargetProvenanceV1({ simulation: "simulation.new" });
+      let migrationCalls = 0;
+      const fixture = await fixtureV1({
+        provenance: targetProvenance,
+        adoptionDeclarations: Object.freeze([
+          adoptionDeclarationV1(sourceProvenance, targetProvenance),
+        ]),
+        saveStateMigrations: migrationRegistryV1(sourceProvenance, targetProvenance, (state) => {
+          migrationCalls += 1;
+          return Object.freeze({ kind: "migrated" as const, state });
+        }),
+      });
+      const source = await seedQuickRecordV1(
+        fixture,
+        recordV1({
+          snapshot: snapshotV1(16),
+          provenance: sourceProvenance,
+          lineage: lineageV1(16, sourceProvenance.resolved.simulationDigest),
+          slotId: "quick",
+        }),
+      );
+
+      await expect(fixture.service.port.reanchorSave("quick")).resolves.toEqual({
+        kind: "reanchored",
+        slotId: "quick",
+      });
+      expect(migrationCalls).toBe(1);
+      expect(await fixture.repository.read("quick")).toMatchObject({
+        health: "valid",
+        record: { provenance: targetProvenance, simulationLineage: [] },
+      });
+      expect(await fixture.repository.readMigrationBackup("quick")).toMatchObject({
+        health: "stored",
+        bytes: source.bytes,
+      });
+    });
+
+    it("keeps exact lineage 16 loadable and rejects re-anchor for exact, over-limit, zero-match, and ambiguous inputs", async () => {
+      const current = provenanceV1();
+      const exact = await fixtureV1({ provenance: current });
+      await seedQuickRecordV1(
+        exact,
+        recordV1({
+          snapshot: snapshotV1(16),
+          provenance: current,
+          lineage: lineageV1(16, current.resolved.simulationDigest),
+          slotId: "quick",
+        }),
+      );
+      await expect(exact.service.port.upgradeSave("quick")).resolves.toEqual({
+        kind: "rejected",
+        code: "not_required",
+      });
+      await expect(exact.service.port.reanchorSave("quick")).resolves.toEqual({
+        kind: "rejected",
+        code: "not_required",
+      });
+      await expect(exact.service.port.load("quick")).resolves.toMatchObject({ kind: "loaded" });
+
+      const overLimit = await fixtureV1({ provenance: current });
+      await seedQuickRecordV1(
+        overLimit,
+        recordV1({
+          snapshot: snapshotV1(17),
+          provenance: current,
+          lineage: lineageV1(17, current.resolved.simulationDigest),
+          slotId: "quick",
+        }),
+      );
+      await expect(overLimit.service.port.reanchorSave("quick")).resolves.toEqual({
+        kind: "rejected",
+        code: "invalid_record",
+      });
+
+      const old = provenanceV1({ simulation: "simulation.old", patch: "old" });
+      const changed = provenanceV1({ simulation: "simulation.new", patch: "new" });
+      const noMatch = await fixtureV1({ provenance: changed });
+      await seedQuickRecordV1(
+        noMatch,
+        recordV1({
+          snapshot: snapshotV1(16),
+          provenance: old,
+          lineage: lineageV1(16, old.resolved.simulationDigest),
+          slotId: "quick",
+        }),
+      );
+      await expect(noMatch.service.port.reanchorSave("quick")).resolves.toEqual({
+        kind: "rejected",
+        code: "incompatible",
+      });
+
+      const ambiguous = await fixtureV1({
+        provenance: changed,
+        classifyCompatibility: () =>
+          Object.freeze({
+            kind: "rejected" as const,
+            code: "compatibility.adoption_ambiguous" as const,
+          }),
+      });
+      await seedQuickRecordV1(
+        ambiguous,
+        recordV1({
+          snapshot: snapshotV1(16),
+          provenance: old,
+          lineage: lineageV1(16, old.resolved.simulationDigest),
+          slotId: "quick",
+        }),
+      );
+      await expect(ambiguous.service.port.reanchorSave("quick")).resolves.toEqual({
+        kind: "rejected",
+        code: "invalid_record",
+      });
+    });
+
+    it("restores an existing or cleared target without installing it and consumes the backup once", async () => {
+      for (const targetState of ["existing", "empty"] as const) {
+        const fixture = await fixtureV1({ initial: snapshotV1(40) });
+        const sourceRecord = recordV1({ snapshot: snapshotV1(6), slotId: "quick" });
+        const seeded = await seedRewrittenQuickWithBackupV1(
+          fixture,
+          sourceRecord,
+          recordV1({ snapshot: snapshotV1(8), slotId: "quick" }),
+        );
+        if (targetState === "empty") {
+          await expect(
+            fixture.repository.clear("quick", await ownedFenceV1(fixture)),
+          ).resolves.toMatchObject({ kind: "cleared" });
+        }
+        const liveSnapshot = fixture.session.getCurrentSnapshot();
+        const liveLineage = fixture.service.getSimulationLineage();
+
+        await expect(fixture.service.port.restoreBackup("quick")).resolves.toEqual({
+          kind: "restored",
+          slotId: "quick",
+        });
+        expect(await fixture.repository.read("quick")).toMatchObject({
+          health: "valid",
+          record: {
+            recordRevision: targetState === "existing" ? 3 : 1,
+            snapshot: { commandSequence: 6 },
+          },
+        });
+        await expect(fixture.repository.readMigrationBackup("quick")).resolves.toMatchObject({
+          health: "empty",
+        });
+        await expect(fixture.service.port.restoreBackup("quick")).resolves.toEqual({
+          kind: "rejected",
+          code: "empty_backup",
+        });
+        expect(fixture.session.getCurrentSnapshot()).toBe(liveSnapshot);
+        expect(fixture.service.getSimulationLineage()).toBe(liveLineage);
+        expect(seeded.backup.bytes).toEqual(seeded.source.bytes);
+      }
+    });
+
+    it("exports without consuming or touching the lease, and discards without changing the target", async () => {
+      const fixture = await fixtureV1();
+      const seeded = await seedRewrittenQuickWithBackupV1(
+        fixture,
+        recordV1({ snapshot: snapshotV1(2), slotId: "quick" }),
+        recordV1({ snapshot: snapshotV1(3), slotId: "quick" }),
+      );
+      const targetBefore = await fixture.repository.read("quick");
+      const leasesBefore = await leaseRecordsV1(fixture.records);
+      const exported = await fixture.service.port.exportBackup("quick");
+      expect(exported).toMatchObject({
+        kind: "exported",
+        slotId: "quick",
+        file: { bytes: seeded.source.bytes, digest: digestBytes(seeded.source.bytes) },
+      });
+      expect(await leaseRecordsV1(fixture.records)).toEqual(leasesBefore);
+      expect(await fixture.repository.readMigrationBackup("quick")).toMatchObject({
+        health: "stored",
+      });
+
+      await expect(fixture.service.port.discardBackup("quick")).resolves.toEqual({
+        kind: "discarded",
+        slotId: "quick",
+      });
+      expect(await fixture.repository.read("quick")).toEqual(targetBefore);
+      await expect(fixture.repository.readMigrationBackup("quick")).resolves.toMatchObject({
+        health: "empty",
+      });
+      await expect(fixture.service.port.discardBackup("quick")).resolves.toEqual({
+        kind: "rejected",
+        code: "empty_backup",
+      });
+    });
+
+    it("fails stale backup export closed while retaining the pending backup and lease", async () => {
+      let backupReads = 0;
+      const fixture = await fixtureV1({
+        decorateRepository(repository) {
+          return Object.freeze({
+            ...repository,
+            async readMigrationBackup(slotId: SaveSlotIdV1) {
+              backupReads += 1;
+              const read = await repository.readMigrationBackup(slotId);
+              return backupReads === 2 && read.health === "stored"
+                ? Object.freeze({
+                  health: "empty" as const,
+                  slotId,
+                  hostRevision: null,
+                })
+                : read;
+            },
+          });
+        },
+      });
+      await seedRewrittenQuickWithBackupV1(
+        fixture,
+        recordV1({ snapshot: snapshotV1(2), slotId: "quick" }),
+        recordV1({ snapshot: snapshotV1(3), slotId: "quick" }),
+      );
+      const recordsBefore = await saveRecordsV1(fixture.records);
+      const leasesBefore = await leaseRecordsV1(fixture.records);
+
+      await expect(fixture.service.port.exportBackup("quick")).resolves.toEqual({
+        kind: "rejected",
+        code: "conflict",
+      });
+      expect(backupReads).toBe(2);
+      expect(await saveRecordsV1(fixture.records)).toEqual(recordsBefore);
+      expect(await leaseRecordsV1(fixture.records)).toEqual(leasesBefore);
+    });
+
+    it.each(["restoreBackup", "discardBackup"] as const)(
+      "maps a %s CAS conflict without changing target, backup, lease, or Session",
+      async (operation) => {
+        const fixture = await fixtureV1({
+          decorateRepository(repository) {
+            return Object.freeze({
+              ...repository,
+              async restoreMigrationBackup() {
+                return Object.freeze({ kind: "rejected" as const, code: "conflict" as const });
+              },
+              async discardMigrationBackup() {
+                return Object.freeze({ kind: "rejected" as const, code: "conflict" as const });
+              },
+            });
+          },
+        });
+        await seedRewrittenQuickWithBackupV1(
+          fixture,
+          recordV1({ snapshot: snapshotV1(2), slotId: "quick" }),
+          recordV1({ snapshot: snapshotV1(3), slotId: "quick" }),
+        );
+        const recordsBefore = await saveRecordsV1(fixture.records);
+        const leasesBefore = await leaseRecordsV1(fixture.records);
+        const liveSnapshot = fixture.session.getCurrentSnapshot();
+
+        await expect(fixture.service.port[operation]("quick")).resolves.toEqual({
+          kind: "rejected",
+          code: "conflict",
+        });
+        expect(await saveRecordsV1(fixture.records)).toEqual(recordsBefore);
+        expect(await leaseRecordsV1(fixture.records)).toEqual(leasesBefore);
+        expect(fixture.session.getCurrentSnapshot()).toBe(liveSnapshot);
+      },
+    );
+
+    it.each(["restoreBackup", "discardBackup"] as const)(
+      "keeps a valid pending backup intact when %s encounters a corrupt lease record",
+      async (operation) => {
+        const fixture = await fixtureV1({ initial: snapshotV1(41) });
+        await seedRewrittenQuickWithBackupV1(
+          fixture,
+          recordV1({ snapshot: snapshotV1(2), slotId: "quick" }),
+          recordV1({ snapshot: snapshotV1(3), slotId: "quick" }),
+        );
+        const leaseKey = createSessionLeaseRecordKeyV1(storyIdV1);
+        const lease = await fixture.records.read("lease", leaseKey);
+        if (lease === null) throw new TypeError("expected a lease record to corrupt");
+        await expect(
+          fixture.records.commit([
+            Object.freeze({
+              kind: "put" as const,
+              namespace: "lease" as const,
+              key: leaseKey,
+              expectedRevision: lease.revision,
+              bytes: textEncoderV1.encode("corrupt lease"),
+            }),
+          ]),
+        ).resolves.toMatchObject({ kind: "committed" });
+        const recordsBefore = await saveRecordsV1(fixture.records);
+        const leasesBefore = await leaseRecordsV1(fixture.records);
+        const liveSnapshot = fixture.session.getCurrentSnapshot();
+        const liveLineage = fixture.service.getSimulationLineage();
+
+        await expect(fixture.service.port[operation]("quick")).resolves.toEqual({
+          kind: "rejected",
+          code: "invalid_record",
+        });
+        expect(await saveRecordsV1(fixture.records)).toEqual(recordsBefore);
+        expect(await leaseRecordsV1(fixture.records)).toEqual(leasesBefore);
+        expect(fixture.session.getCurrentSnapshot()).toBe(liveSnapshot);
+        expect(fixture.service.getSimulationLineage()).toBe(liveLineage);
+      },
+    );
+
+    it.each(["restoreBackup", "discardBackup"] as const)(
+      "preserves the repository invalid_record projection for %s",
+      async (operation) => {
+        const fixture = await fixtureV1({
+          decorateRepository(repository) {
+            return Object.freeze({
+              ...repository,
+              async restoreMigrationBackup() {
+                return Object.freeze({
+                  kind: "rejected" as const,
+                  code: "invalid_record" as const,
+                });
+              },
+              async discardMigrationBackup() {
+                return Object.freeze({
+                  kind: "rejected" as const,
+                  code: "invalid_record" as const,
+                });
+              },
+            });
+          },
+        });
+        await seedRewrittenQuickWithBackupV1(
+          fixture,
+          recordV1({ snapshot: snapshotV1(2), slotId: "quick" }),
+          recordV1({ snapshot: snapshotV1(3), slotId: "quick" }),
+        );
+        const recordsBefore = await saveRecordsV1(fixture.records);
+        const leasesBefore = await leaseRecordsV1(fixture.records);
+        const liveSnapshot = fixture.session.getCurrentSnapshot();
+
+        await expect(fixture.service.port[operation]("quick")).resolves.toEqual({
+          kind: "rejected",
+          code: "invalid_record",
+        });
+        expect(await saveRecordsV1(fixture.records)).toEqual(recordsBefore);
+        expect(await leaseRecordsV1(fixture.records)).toEqual(leasesBefore);
+        expect(fixture.session.getCurrentSnapshot()).toBe(liveSnapshot);
+      },
+    );
+
+    it.each(
+      [
+        ["restoreBackup", "unavailable"],
+        ["restoreBackup", "throw"],
+        ["discardBackup", "unavailable"],
+        ["discardBackup", "throw"],
+      ] as const,
+    )("keeps recovery atomic when %s commit is %s", async (operation, failure) => {
+      const store = createSwitchableCommitFailureStoreV1();
+      const fixture = await fixtureV1({ records: store.records, initial: snapshotV1(50) });
+      await seedRewrittenQuickWithBackupV1(
+        fixture,
+        recordV1({ snapshot: snapshotV1(2), slotId: "quick" }),
+        recordV1({ snapshot: snapshotV1(3), slotId: "quick" }),
+      );
+      const recordsBefore = await saveRecordsV1(fixture.records);
+      const leasesBefore = await leaseRecordsV1(fixture.records);
+      const liveSnapshot = fixture.session.getCurrentSnapshot();
+      store.setFailure(failure);
+
+      await expect(fixture.service.port[operation]("quick")).resolves.toEqual(
+        failure === "unavailable"
+          ? { kind: "rejected", code: "unavailable" }
+          : { kind: "faulted", code: "persistence.unexpected" },
+      );
+      expect(await saveRecordsV1(fixture.records)).toEqual(recordsBefore);
+      expect(await leaseRecordsV1(fixture.records)).toEqual(leasesBefore);
+      expect(fixture.session.getCurrentSnapshot()).toBe(liveSnapshot);
+    });
+
+    it("rejects invalid backup resolution without consuming target, backup, lease, or live authority", async () => {
+      const fixture = await fixtureV1({ initial: snapshotV1(30) });
+      const stored = await seedQuickRecordV1(
+        fixture,
+        recordV1({ snapshot: snapshotV1(4), slotId: "quick" }),
+      );
+      const backupKey = createSaveMigrationBackupRecordKeyV1(storyIdV1, "quick");
+      const commit = await fixture.records.commit([
+        Object.freeze({
+          kind: "put" as const,
+          namespace: "save" as const,
+          key: backupKey,
+          expectedRevision: null,
+          bytes: textEncoderV1.encode("invalid backup"),
+        }),
+      ]);
+      expect(commit.kind).toBe("committed");
+      const recordsBefore = await saveRecordsV1(fixture.records);
+      const leasesBefore = await leaseRecordsV1(fixture.records);
+      const liveSnapshot = fixture.session.getCurrentSnapshot();
+      const liveLineage = fixture.service.getSimulationLineage();
+
+      await expect(fixture.service.port.exportBackup("quick")).resolves.toEqual({
+        kind: "rejected",
+        code: "invalid_backup",
+      });
+      await expect(fixture.service.port.restoreBackup("quick")).resolves.toEqual({
+        kind: "rejected",
+        code: "invalid_backup",
+      });
+      expect(await saveRecordsV1(fixture.records)).toEqual(recordsBefore);
+      expect(await leaseRecordsV1(fixture.records)).toEqual(leasesBefore);
+      await expect(fixture.service.port.discardBackup("quick")).resolves.toEqual({
+        kind: "discarded",
+        slotId: "quick",
+      });
+      await expect(fixture.repository.readMigrationBackup("quick")).resolves.toMatchObject({
+        health: "empty",
+      });
+      await expect(fixture.repository.read("quick")).resolves.toMatchObject({
+        health: "valid",
+        record: { snapshot: { commandSequence: 4 } },
+      });
+      expect(fixture.session.getCurrentSnapshot()).toBe(liveSnapshot);
+      expect(fixture.service.getSimulationLineage()).toBe(liveLineage);
+      expect(stored.record.snapshot.commandSequence).toBe(4);
+    });
+
+    it("bounds 10,000 pending upgrade attempts to one target and one backup", {
+      timeout: 30_000,
+    }, async () => {
+      const sourceProvenance = provenanceV1();
+      const targetProvenance = migrationTargetProvenanceV1();
+      let migrationCalls = 0;
+      const fixture = await fixtureV1({
+        provenance: targetProvenance,
+        saveStateMigrations: migrationRegistryV1(sourceProvenance, targetProvenance, (state) => {
+          migrationCalls += 1;
+          return Object.freeze({ kind: "migrated" as const, state });
+        }),
+      });
+      const source = await seedQuickRecordV1(
+        fixture,
+        recordV1({ snapshot: snapshotV1(1), provenance: sourceProvenance, slotId: "quick" }),
+      );
+      await seedPendingBackupWithoutRewriteV1(fixture, source.bytes);
+      const recordsBefore = await saveRecordsV1(fixture.records);
+      const leasesBefore = await leaseRecordsV1(fixture.records);
+      for (let attempt = 0; attempt < 10_000; attempt += 1) {
+        const result = await fixture.service.port.upgradeSave("quick");
+        expect(result).toEqual({ kind: "rejected", code: "backup_pending" });
+      }
+      expect(migrationCalls).toBe(0);
+      expect(await saveRecordsV1(fixture.records)).toEqual(recordsBefore);
+      expect(await leaseRecordsV1(fixture.records)).toEqual(leasesBefore);
+    });
+  });
+
   it("imports an adopted Save using current provenance, appends lineage, and writes no slot", async () => {
     const stored = provenanceV1({ simulation: "simulation.old", patch: "old" });
     const current = provenanceV1({
@@ -2189,7 +3399,7 @@ describe("PersistenceServiceV1", () => {
     });
     const fixture = await fixtureV1({
       provenance: current,
-      adoptionDeclaration: adoptionDeclarationV1(stored, current),
+      adoptionDeclarations: Object.freeze([adoptionDeclarationV1(stored, current)]),
     });
     await expect(fixture.session.dispatch({ kind: "increment" })).resolves.toMatchObject({
       kind: "executed",
@@ -2295,7 +3505,7 @@ describe("PersistenceServiceV1", () => {
     });
     const limitFixture = await fixtureV1({
       provenance: current,
-      adoptionDeclaration: adoptionDeclarationV1(stored, current),
+      adoptionDeclarations: Object.freeze([adoptionDeclarationV1(stored, current)]),
     });
     await expect(limitFixture.session.dispatch({ kind: "increment" })).resolves.toMatchObject({
       kind: "executed",
@@ -2607,7 +3817,7 @@ describe("PersistenceServiceV1", () => {
     });
     const fixture = await fixtureV1({
       provenance: current,
-      adoptionDeclaration: adoptionDeclarationV1(stored, current),
+      adoptionDeclarations: Object.freeze([adoptionDeclarationV1(stored, current)]),
     });
     const limited = recordV1({
       snapshot: snapshotV1(16),
@@ -2831,7 +4041,7 @@ describe("PersistenceService standard composition", () => {
       records,
       snapshotSchema: snapshotSchemaV1,
       provenance,
-      adoptionDeclaration: null,
+      adoptionDeclarations: Object.freeze([]),
       saveStateMigrations: null,
       ownerId: ownerIdV1,
       nextHandoffRequestId: () => "handoff.standard" as never,
@@ -3741,6 +4951,61 @@ describe("PersistenceService standard composition", () => {
       lastFailureCode: "indexeddb.quota_exceeded",
     });
     await fixture.service.autoSaveIdle();
+  });
+
+  it("preserves a pending migration backup across every existing service path", async () => {
+    const fixture = await fixtureV1();
+    await expect(fixture.service.port.save("quick")).resolves.toMatchObject({ kind: "saved" });
+    const source = await fixture.repository.read("quick");
+    if (source.health !== "valid") throw new TypeError("expected a service migration source");
+    const fence = await ownedFenceV1(fixture);
+    await expect(
+      fixture.repository.rewriteWithMigrationBackup(
+        "quick",
+        Object.freeze({ hostRevision: source.hostRevision, bytes: source.bytes }),
+        recordV1({ snapshot: snapshotV1(1), slotId: "quick" }),
+        fence,
+      ),
+    ).resolves.toEqual({ kind: "saved", slotId: "quick", recordRevision: 2 });
+    const backupKey = createSaveMigrationBackupRecordKeyV1(storyIdV1, "quick");
+    const backup = await fixture.records.read("save", backupKey);
+    if (backup === null) throw new TypeError("expected a pending service backup");
+    const expectBackupUnchangedV1 = async () => {
+      expect(await fixture.records.read("save", backupKey)).toEqual(backup);
+    };
+
+    await fixture.service.port.listSlots();
+    await expectBackupUnchangedV1();
+    await fixture.service.port.inspectSave("quick");
+    await expectBackupUnchangedV1();
+    await expect(fixture.service.port.exportSave("quick")).resolves.toMatchObject({
+      kind: "exported",
+    });
+    await expectBackupUnchangedV1();
+    await expect(fixture.service.port.load("quick")).resolves.toMatchObject({ kind: "loaded" });
+    await expectBackupUnchangedV1();
+    await expect(fixture.service.port.annotateSave("quick", "pending backup")).resolves
+      .toMatchObject(
+        { kind: "saved" },
+      );
+    await expectBackupUnchangedV1();
+    await expect(fixture.service.port.save("quick")).resolves.toMatchObject({ kind: "saved" });
+    await expectBackupUnchangedV1();
+
+    fixture.service.captureAutoSave(fixture.session.getCurrentSnapshot());
+    await fixture.service.autoSaveIdle();
+    await expectBackupUnchangedV1();
+    await expect(fixture.service.port.importSave(backup.bytes)).resolves.toMatchObject({
+      kind: "imported",
+    });
+    await expectBackupUnchangedV1();
+    await fixture.service.port.exportCurrentSave();
+    await expectBackupUnchangedV1();
+    await expect(fixture.service.port.clear("quick")).resolves.toEqual({
+      kind: "cleared",
+      slotId: "quick",
+    });
+    await expectBackupUnchangedV1();
   });
 
   it("annotateSave rejects invalid notes and empty slots", async () => {

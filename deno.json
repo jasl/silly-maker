@@ -13,6 +13,12 @@
     "./website"
   ],
   "fmt": {
+    "exclude": [
+      "e2e/fixtures/saves/engine-lab-state-3.save.json",
+      "e2e/fixtures/saves/engine-lab-state-4.save.json",
+      "e2e/fixtures/saves/engine-lab-state-5.save.json",
+      "examples/cat-cafe/fixtures/saves/cat-cafe-state-1.save.json"
+    ],
     "useTabs": false,
     "lineWidth": 100,
     "indentWidth": 2,

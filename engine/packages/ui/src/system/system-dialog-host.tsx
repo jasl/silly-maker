@@ -136,7 +136,7 @@ function SystemDialogSavesRendererInternalV1(
 }
 
 function saveSlotNameInternalV1(
-  labels: SaveOverlayLabelsV1,
+  labels: Pick<SaveOverlayLabelsV1, "slotNames">,
   slotId: SaveUiReadableSlotIdV1,
 ): string {
   if (slotId === "auto.current" || slotId === "auto.previous" || slotId === "quick") {
@@ -147,8 +147,32 @@ function saveSlotNameInternalV1(
   return labels.slotNames.manualSlot(index);
 }
 
-function confirmationCopyInternalV1(
-  labels: SaveOverlayLabelsV1,
+type SystemDialogConfirmationCopyLabelsInternalV1 = Readonly<{
+  slotNames: SaveOverlayLabelsV1["slotNames"];
+  confirmation: Pick<
+    SaveOverlayLabelsV1["confirmation"],
+    | "loadTitle"
+    | "loadDescription"
+    | "clearTitle"
+    | "clearDescription"
+    | "importTitle"
+    | "importDescription"
+  >;
+  recovery?: Readonly<{
+    confirmation: Readonly<{
+      reanchorTitle(slotName: string): string;
+      reanchorDescription(slotName: string): string;
+      restoreTitle(slotName: string): string;
+      restoreDescription(slotName: string): string;
+      discardTitle(slotName: string): string;
+      discardDescription(slotName: string): string;
+    }>;
+  }>;
+}>;
+
+/** @internal Maps a normalized invocation to the captured Story-localized confirmation copy. */
+export function resolveSystemDialogConfirmationCopyInternalV1(
+  labels: SystemDialogConfirmationCopyLabelsInternalV1,
   invocation: SystemDialogConfirmationInvocationInternalV1,
 ): Readonly<{ readonly title: string; readonly description: string }> {
   if (invocation.kind === "import") {
@@ -158,15 +182,44 @@ function confirmationCopyInternalV1(
     });
   }
   const slotName = saveSlotNameInternalV1(labels, invocation.slotId as SaveUiReadableSlotIdV1);
-  return invocation.kind === "load"
-    ? Object.freeze({
-      title: labels.confirmation.loadTitle(slotName),
-      description: labels.confirmation.loadDescription(slotName),
-    })
-    : Object.freeze({
-      title: labels.confirmation.clearTitle(slotName),
-      description: labels.confirmation.clearDescription(slotName),
-    });
+  const recoveryConfirmation = labels.recovery?.confirmation;
+  switch (invocation.kind) {
+    case "load":
+      return Object.freeze({
+        title: labels.confirmation.loadTitle(slotName),
+        description: labels.confirmation.loadDescription(slotName),
+      });
+    case "clear":
+      return Object.freeze({
+        title: labels.confirmation.clearTitle(slotName),
+        description: labels.confirmation.clearDescription(slotName),
+      });
+    case "reanchor":
+      if (recoveryConfirmation === undefined) {
+        throw new TypeError("ui.system_dialog_recovery_confirmation_missing");
+      }
+      return Object.freeze({
+        title: recoveryConfirmation.reanchorTitle(slotName),
+        description: recoveryConfirmation.reanchorDescription(slotName),
+      });
+    case "restore":
+      if (recoveryConfirmation === undefined) {
+        throw new TypeError("ui.system_dialog_recovery_confirmation_missing");
+      }
+      return Object.freeze({
+        title: recoveryConfirmation.restoreTitle(slotName),
+        description: recoveryConfirmation.restoreDescription(slotName),
+      });
+    case "discard":
+      if (recoveryConfirmation === undefined) {
+        throw new TypeError("ui.system_dialog_recovery_confirmation_missing");
+      }
+      return Object.freeze({
+        title: recoveryConfirmation.discardTitle(slotName),
+        description: recoveryConfirmation.discardDescription(slotName),
+      });
+  }
+  throw new TypeError("ui.system_dialog_confirmation_invocation_invalid");
 }
 
 function SystemDialogConfirmationRendererInternalV1(
@@ -176,7 +229,10 @@ function SystemDialogConfirmationRendererInternalV1(
   if (parentConfig.variant !== "standard") {
     throw new TypeError("ui.system_dialog_confirmation_parent_invalid");
   }
-  const copy = confirmationCopyInternalV1(parentConfig.labels, props.invocation);
+  const copy = resolveSystemDialogConfirmationCopyInternalV1(
+    parentConfig.labels,
+    props.invocation,
+  );
   return (
     <ActionConfirmationContentV1
       title={copy.title}

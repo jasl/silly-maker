@@ -32,7 +32,11 @@ import type {
   RuntimeSchemaV1,
 } from "../../contracts/values.ts";
 import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../contracts/values.ts";
-import { classifySaveCompatibilityV1, validateSaveImportCandidateV1 } from "./compatibility.ts";
+import {
+  admitAdoptionDeclarationsInternalV1,
+  classifySaveCompatibilityV1,
+  validateSaveImportCandidateV1,
+} from "./compatibility.ts";
 
 const digestV1 = (label: string): Digest =>
   digestBytes(new TextEncoder().encode(`compatibility:${label}`));
@@ -124,7 +128,9 @@ function classifyV1(input: {
     stored,
     current,
     simulationLineage: input.lineage ?? Object.freeze([]),
-    adoptionDeclaration: input.declaration ?? null,
+    adoptionDeclarations: input.declaration === undefined || input.declaration === null
+      ? Object.freeze([])
+      : Object.freeze([input.declaration]),
     candidateCommandSequence: parseNonNegativeSafeInteger(7),
   });
 }
@@ -139,6 +145,17 @@ describe("Save compatibility classification", () => {
         lineage: makeLineageV1(16, provenance.resolved.simulationDigest),
       }),
     ).toEqual({ kind: "exact", mismatches: [], warnings: [] });
+  });
+
+  it("rejects lineage already beyond the hard cap even when identity is otherwise exact", () => {
+    const provenance = makeProvenanceV1();
+    expect(
+      classifyV1({
+        stored: provenance,
+        current: provenance,
+        lineage: makeLineageV1(17, provenance.resolved.simulationDigest),
+      }),
+    ).toEqual({ kind: "rejected", code: "compatibility.lineage_limit" });
   });
 
   it("reports every blocking mismatch once in the fixed order", () => {
@@ -212,6 +229,137 @@ describe("Save compatibility classification", () => {
         adoptedAtCommandSequence: 7,
       },
     });
+  });
+
+  it("selects the sole exact declaration from an order-independent adoption set", () => {
+    const stored = makeProvenanceV1({ simulationDigest: digestV1("simulation.old") });
+    const current = makeProvenanceV1({ simulationDigest: digestV1("simulation.new") });
+    const declaration = declarationV1(stored, current);
+    const input = {
+      stored,
+      current,
+      simulationLineage: Object.freeze([]),
+      adoptionDeclarations: Object.freeze([declaration]),
+      candidateCommandSequence: parseNonNegativeSafeInteger(7),
+    };
+
+    expect(classifySaveCompatibilityV1(input as never)).toMatchObject({
+      kind: "adoption_candidate",
+      adoption: {
+        fromSimulationDigest: stored.resolved.simulationDigest,
+        toSimulationDigest: current.resolved.simulationDigest,
+      },
+    });
+
+    expect(
+      classifySaveCompatibilityV1({
+        ...input,
+        adoptionDeclarations: Object.freeze([declaration, Object.freeze({ ...declaration })]),
+      } as never),
+    ).toEqual({ kind: "rejected", code: "compatibility.adoption_ambiguous" });
+
+    const nonmatchingBefore = Object.freeze({
+      ...declaration,
+      storyRevision: parsePositiveSafeInteger(declaration.storyRevision + 1),
+    });
+    const nonmatchingAfter = Object.freeze({
+      ...declaration,
+      fromSimulationDigest: digestV1("simulation.unrelated"),
+    });
+    const firstPermutation = classifySaveCompatibilityV1({
+      ...input,
+      adoptionDeclarations: Object.freeze([nonmatchingBefore, declaration, nonmatchingAfter]),
+    } as never);
+    const secondPermutation = classifySaveCompatibilityV1({
+      ...input,
+      adoptionDeclarations: Object.freeze([nonmatchingAfter, nonmatchingBefore, declaration]),
+    } as never);
+    expect(firstPermutation).toEqual(secondPermutation);
+    expect(firstPermutation).toMatchObject({ kind: "adoption_candidate" });
+  });
+
+  it("admits 0/1/256 declarations once, freezes defensive copies, and rejects 257 boundedly", () => {
+    const stored = makeProvenanceV1({ simulationDigest: digestV1("simulation.old") });
+    const current = makeProvenanceV1({ simulationDigest: digestV1("simulation.new") });
+    const declaration = declarationV1(stored, current);
+    expect(admitAdoptionDeclarationsInternalV1([])).toEqual([]);
+    const mutable = [{ ...declaration }];
+    const one = admitAdoptionDeclarationsInternalV1(mutable);
+    mutable[0]!.storyId = "mutated";
+    expect(one[0]?.storyId).toBe(declaration.storyId);
+    expect(Object.isFrozen(one)).toBe(true);
+    expect(Object.isFrozen(one[0])).toBe(true);
+    expect(admitAdoptionDeclarationsInternalV1(one)).toBe(one);
+    expect(
+      admitAdoptionDeclarationsInternalV1(
+        Array.from({ length: 256 }, (_, index) => ({
+          ...declaration,
+          storyRevision: parsePositiveSafeInteger(index + 1),
+        })),
+      ),
+    ).toHaveLength(256);
+
+    const tooMany = Array.from({ length: 257 }, () => declaration);
+    let elementDescriptorReads = 0;
+    const hostile = new Proxy(tooMany, {
+      getOwnPropertyDescriptor(target, property) {
+        if (property !== "length") elementDescriptorReads += 1;
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      },
+    });
+    expect(() => admitAdoptionDeclarationsInternalV1(hostile)).toThrow(TypeError);
+    expect(elementDescriptorReads).toBe(0);
+  });
+
+  it("rejects duplicate tuples, sparse/accessor arrays, declarations with accessors, and proxies", () => {
+    const stored = makeProvenanceV1({ simulationDigest: digestV1("simulation.old") });
+    const current = makeProvenanceV1({ simulationDigest: digestV1("simulation.new") });
+    const declaration = declarationV1(stored, current);
+    expect(() => admitAdoptionDeclarationsInternalV1([declaration, { ...declaration }])).toThrow(
+      TypeError,
+    );
+    expect(() => admitAdoptionDeclarationsInternalV1(Array.from({ length: 1 }))).toThrow(
+      TypeError,
+    );
+    const arrayAccessor: unknown[] = [declaration];
+    Object.defineProperty(arrayAccessor, "0", { enumerable: true, get: () => declaration });
+    expect(() => admitAdoptionDeclarationsInternalV1(arrayAccessor)).toThrow(TypeError);
+    const declarationAccessor = { ...declaration };
+    Object.defineProperty(declarationAccessor, "storyId", {
+      enumerable: true,
+      get: () => declaration.storyId,
+    });
+    expect(() => admitAdoptionDeclarationsInternalV1([declarationAccessor as never])).toThrow(
+      TypeError,
+    );
+    const { storyId: _missing, ...missingField } = declaration;
+    expect(() => admitAdoptionDeclarationsInternalV1([missingField as never])).toThrow(TypeError);
+    expect(() => admitAdoptionDeclarationsInternalV1([{ ...declaration, extra: true } as never]))
+      .toThrow(TypeError);
+    const proxy = new Proxy([declaration], {
+      getOwnPropertyDescriptor() {
+        throw new Error("hostile descriptor");
+      },
+    });
+    expect(() => admitAdoptionDeclarationsInternalV1(proxy)).toThrow(TypeError);
+  });
+
+  it("bounds 10,000 repeated over-limit and duplicate admissions without retaining invalid sets", {
+    timeout: 30_000,
+  }, () => {
+    const stored = makeProvenanceV1({ simulationDigest: digestV1("simulation.old") });
+    const current = makeProvenanceV1({ simulationDigest: digestV1("simulation.new") });
+    const declaration = declarationV1(stored, current);
+    const duplicate = [declaration, Object.freeze({ ...declaration })];
+    const overLimit = Array.from({ length: 257 }, () => declaration);
+    for (let attempt = 0; attempt < 10_000; attempt += 1) {
+      expect(() => admitAdoptionDeclarationsInternalV1(overLimit)).toThrow(TypeError);
+      expect(() => admitAdoptionDeclarationsInternalV1(duplicate)).toThrow(TypeError);
+    }
+    overLimit.splice(1);
+    duplicate.pop();
+    expect(admitAdoptionDeclarationsInternalV1(overLimit)).toHaveLength(1);
+    expect(admitAdoptionDeclarationsInternalV1(duplicate)).toHaveLength(1);
   });
 
   it.each(
