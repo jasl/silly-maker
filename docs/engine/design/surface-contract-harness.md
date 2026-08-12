@@ -393,9 +393,10 @@ stable occurrence 由该 owner/publisher lease allocator（或在 S1-R
 bounded allocator/source cursors，不保存随 open/close 历史增长的 tombstone set。
 
 S1-R.1 将 publisher issuance 固定为 application-epoch-scoped、composition-owned 的
-单一 registry。Registry 必须覆盖 frozen resolved-owner domain，并以一次性 claim 的
-injected monotonic lease-domain allocator 为 authority；同一个 allocator 不能创建第二个
-registry，同一 owner 在 exact registry 中同时最多有一个 current lease。Lease token 是
+单一 registry。Registry 必须覆盖 frozen resolved-owner domain，并以 live-lifetime exclusive
+claim 的 injected monotonic lease-domain allocator 为 authority；同一个 allocator 不能同时由
+第二个 live registry 使用，registry dispose 后释放 claim，successor 继续其 monotonic sequence。
+同一 owner 在 exact registry 中同时最多有一个 current lease。Lease token 是
 frozen zero-key capability，current/stale 判断只认 exact object identity 与 package-private
 WeakMap，不认 diagnostic string。每个 lease 的 source revision 与 occurrence 都从 `1`
 exact-next 签发；legal source gap 通过签发但不交付中间 revision 形成，签发/放弃/invalid

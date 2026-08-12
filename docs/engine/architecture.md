@@ -501,7 +501,10 @@ The shared bundle preserves one application epoch, immutable publication,
 input/focus ownership, and successor lifetime. A successor composition creates
 a fresh bundle; family attachment checks its epoch, while publisher lease,
 source revision, generation/currentness, CAS, readiness, terminal teardown, and
-late async-result fences continue to protect the observable lifecycle. A Story
+late async-result fences continue to protect the observable lifecycle. An
+injected stable-lease sequence domain is exclusive only while its registry is
+live; registry disposal releases that claim without reviving old leases, and a
+successor continues the allocator's monotonic sequence. A Story
 declares validated Overlay definitions and a
 renderer resolver, then sends `openPrimary`, `pushDetail`, `closeTop`, or `closeAll`
 intents through the composition facade. System Settings and Saves share one
@@ -540,6 +543,12 @@ authenticity brand, private `WeakMap` binding, repeated descriptor/exact-key
 admission, or cached language intrinsic. Target/frame/source-revision,
 generation, ready-active, one-shot/semantic-in-flight, listener, async-currentness,
 and terminal fences remain the lifecycle and authority proofs.
+
+The package-internal Narrative composition definition follows the same trust
+policy: it reads its two required callables once, captures their receiver, and
+creates the frozen opaque definition itself. It does not require the internal
+caller to pre-freeze an exact-key record or inspect callable prototype/thenable
+look-alikes.
 
 The composition-owned Coordinator remains the sole lifecycle facade through which
 topology, input, focus, instance, and readiness are writable. Its only state

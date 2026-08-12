@@ -521,8 +521,8 @@ describe("Narrative Surface composition definition", () => {
     }
   });
 
-  it("rejects malformed, accessor, extra-key, and thenable-callable definitions", () => {
-    const valid = Object.freeze({
+  it("normalizes an ordinary package-internal definition and rejects missing callables", () => {
+    const valid = {
       selectNarrativeInternalV1: (publication: SemanticFixturePublicationV1) =>
         publication.selection,
       preflightCandidateInternalV1: (
@@ -530,7 +530,8 @@ describe("Narrative Surface composition definition", () => {
         rendererKey: string,
         selection: NarrativeSurfaceSelectionInternalV1,
       ) => candidatePreflightV1(pending, rendererKey, selection),
-    });
+      extraPackageField: "ignored by the typed internal factory",
+    };
     expect(Object.keys(createNarrativeSurfaceCompositionDefinitionInternalV1(valid))).toEqual([]);
     expect(Object.isFrozen(createNarrativeSurfaceCompositionDefinitionInternalV1(valid))).toBe(
       true,
@@ -538,110 +539,15 @@ describe("Narrative Surface composition definition", () => {
 
     expect(() =>
       createNarrativeSurfaceCompositionDefinitionInternalV1(
-        Object.freeze({ ...valid, extra: true }) as never,
+        { selectNarrativeInternalV1: valid.selectNarrativeInternalV1 } as never,
       )
     ).toThrow("ui.narrative_surface_composition_definition_invalid");
-    const accessor = Object.freeze(Object.defineProperties({}, {
-      selectNarrativeInternalV1: { enumerable: true, get: () => valid.selectNarrativeInternalV1 },
-      preflightCandidateInternalV1: {
-        enumerable: true,
-        value: valid.preflightCandidateInternalV1,
-      },
-    }));
-    expect(() => createNarrativeSurfaceCompositionDefinitionInternalV1(accessor as never))
-      .toThrow("ui.narrative_surface_composition_definition_invalid");
-    const thenable = (publication: SemanticFixturePublicationV1) => publication.selection;
-    // oxlint-disable-next-line unicorn/no-thenable -- deliberate hostile callable fixture
-    Object.defineProperty(thenable, "then", {
-      value: () => undefined,
-      enumerable: true,
-    });
     expect(() =>
-      createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
+      createNarrativeSurfaceCompositionDefinitionInternalV1({
         ...valid,
-        selectNarrativeInternalV1: thenable,
-      }))
+        preflightCandidateInternalV1: null,
+      } as never)
     ).toThrow("ui.narrative_surface_composition_definition_invalid");
-    const synthesizedThen = new Proxy(valid.selectNarrativeInternalV1, {
-      get(target, key, receiver) {
-        return key === "then" ? () => undefined : Reflect.get(target, key, receiver);
-      },
-    });
-    expect(() =>
-      createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
-        ...valid,
-        selectNarrativeInternalV1: synthesizedThen,
-      }))
-    ).toThrow("ui.narrative_surface_composition_definition_invalid");
-    const trappingThen = new Proxy(valid.selectNarrativeInternalV1, {
-      get(target, key, receiver) {
-        if (key === "then") throw new Error("then trap");
-        return Reflect.get(target, key, receiver);
-      },
-    });
-    expect(() =>
-      createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
-        ...valid,
-        selectNarrativeInternalV1: trappingThen,
-      }))
-    ).toThrow("ui.narrative_surface_composition_definition_invalid");
-
-    const inheritedThen = (publication: SemanticFixturePublicationV1) => publication.selection;
-    const inheritedThenPrototype = {};
-    // oxlint-disable-next-line unicorn/no-thenable -- deliberate inherited hostile fixture
-    Object.defineProperty(inheritedThenPrototype, "then", { value: () => undefined });
-    Object.setPrototypeOf(inheritedThen, Object.freeze(inheritedThenPrototype));
-    let longPrototype: object | null = null;
-    for (let depth = 0; depth < 33; depth += 1) {
-      longPrototype = Object.create(longPrototype) as object;
-    }
-    const longPrototypeCallable = (
-      publication: SemanticFixturePublicationV1,
-    ) => publication.selection;
-    Object.setPrototypeOf(longPrototypeCallable, longPrototype);
-
-    const inheritedRecord = Object.freeze(Object.create(valid)) as unknown;
-    const nullPrototypeRecord = Object.create(null) as Record<string, unknown>;
-    Object.defineProperties(nullPrototypeRecord, {
-      selectNarrativeInternalV1: {
-        value: valid.selectNarrativeInternalV1,
-        enumerable: true,
-      },
-      preflightCandidateInternalV1: {
-        value: valid.preflightCandidateInternalV1,
-        enumerable: true,
-      },
-    });
-    Object.freeze(nullPrototypeRecord);
-    const revoked = Proxy.revocable(valid, {});
-    revoked.revoke();
-    const trappingRecord = new Proxy(valid, {
-      getPrototypeOf() {
-        throw new Error("fixture.definition-prototype-trap");
-      },
-    });
-    const malformed = [
-      Object.freeze({ selectNarrativeInternalV1: valid.selectNarrativeInternalV1 }),
-      { ...valid },
-      inheritedRecord,
-      nullPrototypeRecord,
-      revoked.proxy,
-      trappingRecord,
-      Object.freeze({ ...valid, selectNarrativeInternalV1: inheritedThen }),
-      Object.freeze({ ...valid, selectNarrativeInternalV1: longPrototypeCallable }),
-    ];
-    for (const candidate of malformed) {
-      let thrown: unknown = null;
-      try {
-        createNarrativeSurfaceCompositionDefinitionInternalV1(candidate as never);
-      } catch (error) {
-        thrown = error;
-      }
-      expect(thrown).toBeInstanceOf(TypeError);
-      expect((thrown as Error).message).toBe(
-        "ui.narrative_surface_composition_definition_invalid",
-      );
-    }
   });
 });
 

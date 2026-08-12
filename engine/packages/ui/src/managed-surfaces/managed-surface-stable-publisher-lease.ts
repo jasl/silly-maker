@@ -161,7 +161,7 @@ export interface ManagedSurfaceStablePublisherLeaseRegistryInternalV1 {
 export interface CreateManagedSurfaceStablePublisherLeaseRegistryInternalInputV1 {
   readonly applicationEpoch: NonNegativeSafeInteger;
   readonly resolvedOwnerIds: readonly ManagedSurfaceOwnerIdV1[];
-  /** Composition-owned epoch-local domain; one allocator may be claimed by exactly one registry. */
+  /** Composition-owned domain; one allocator may be used by only one live registry. */
   readonly leaseSequenceAllocator: ManagedSurfaceStableLeaseSequenceAllocatorInternalV1;
 }
 
@@ -393,8 +393,15 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
   let leaseSequenceHighWater: NonNegativeSafeInteger = parseNonNegativeSafeInteger(0);
   let disposed = false;
   let allocationInProgress = false;
+  let leaseDomainClaimReleased = false;
   let disposalAuthorityClaimed = false;
   let registrySnapshot: ManagedSurfaceStablePublisherLeaseRegistrySnapshotInternalV1 | null = null;
+
+  const releaseLeaseDomainClaim = (): void => {
+    if (leaseDomainClaimReleased) return;
+    claimedLeaseDomainAllocatorsInternalV1.delete(leaseDomainAllocator);
+    leaseDomainClaimReleased = true;
+  };
 
   const getRegistrySnapshot = (): ManagedSurfaceStablePublisherLeaseRegistrySnapshotInternalV1 => {
     registrySnapshot ??= Object.freeze({
@@ -540,6 +547,7 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
         return publisher;
       } finally {
         allocationInProgress = false;
+        if (disposed) releaseLeaseDomainClaim();
       }
     },
     inspectCurrentLease(
@@ -769,6 +777,7 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
       }
       currentPublisherByOwner.clear();
       registrySnapshot = null;
+      if (!allocationInProgress) releaseLeaseDomainClaim();
       return "disposed";
     },
   });

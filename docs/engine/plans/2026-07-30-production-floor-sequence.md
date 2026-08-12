@@ -74,10 +74,10 @@ runtime assets 报 raw/gzip bytes。报告默认只写 OS temp/artifact，记录
 CR4 已在 Cat Cafe DevDock 交付 Story-local detached Narrative/Stage preview。工具从真实 10
 个脚本节点纯重放出 12 个 settled preview cases，明确区分“命名为小雨 / 稍后命名”两条
 choice 路线；组件只接 Player profile、资产 registry 与只读 `StageRenderTarget`，使用
-`SemanticStageTargetHostV1`，不取得 application instance、Session 或 semantic setter。Focused
-测试证明全部节点/路线覆盖及 preview 前后 application digest 不变；Chromium/WebKit 证明代表
-节点可见且关闭面板后 live 日历、数值与 Stage 完全不变。Cat Cafe 40/40、typecheck、Story
-check 与 release build 均通过。
+`SemanticStageTargetHostV1`，只拥有局部 Stage projection state，不创建或接收
+`GameSession`、application instance 或 semantic setter。Focused 测试证明全部节点/路线覆盖及
+preview 前后 application digest 不变；Chromium/WebKit 证明代表节点可见且关闭面板后 live
+日历、数值与 Stage 完全不变。Cat Cafe 40/40、typecheck、Story check 与 release build 均通过。
 
 ## 3. Trust boundary
 
@@ -199,6 +199,10 @@ commit、async stale-result rejection 与 deterministic authoritative replay。
 simulate 或 Story-local preview 无法处理的作者问题；当前也只有一个真实 preview 消费者。
 因此缺少“具体未解决问题 + 两个消费者”两项必要条件。该结论不删除 deferred ideas；未来只有
 新的仓库内产品证据同时满足上述条件时，才单独激活最小切片。
+
+“两个真实消费者”只约束 broad abstraction 和 public promotion。单一消费者一旦出现可复现的
+stale、readiness ABA、exact-parent、atomic partial-commit 或 successor callback bug，仍可直接增加
+最窄 regression/property test 或局部 pure model；这不构成 PF6 harness 激活。
 
 ## 6. PF7 — Release stabilization
 

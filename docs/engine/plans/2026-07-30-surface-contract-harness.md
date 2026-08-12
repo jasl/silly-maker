@@ -57,8 +57,10 @@ exact claimant 或 captured intrinsic。
 2. 删除 Narrative cached intrinsics，合并 captured port sidecars（已完成）；
 3. 删除 test-only stable private-provenance comparator（已完成）；
 4. 整体传递 composition-owned typed bundle，去除重复 look-alike admission（已完成）；
-5. 行为稳定后拆分 Narrative 与 stable composite 巨型文件；
-6. 建立真实 lifecycle/browser/build 性能趋势；
+5. Narrative definition 与 History observation 叶模块拆分已完成；进一步拆分 Narrative
+   lifecycle/family 或 stable composite 只在 measured maintenance/product evidence 下激活，当前
+   deferred，不是 Goal；
+6. 建立真实 lifecycle/browser/build 性能趋势（已完成）；
 7. 交付 Cat Cafe detached Narrative/Stage preview（已完成）。
 
 每步必须保留：
@@ -91,6 +93,15 @@ harness，也不得为了 completeness 给所有 action 增加 universal envelop
 detached preview；它没有 Session/semantic write port，关闭后 live application 不变。实现未暴露
 新的公共 authoring gap，且没有第二个需要相同新 API 的 preview 消费者，所以本轮不激活上述
 任何 PF6 candidate。
+
+WholeCanvas public factory 目前仍要求作者预先冻结 dense arrays 与 plain records。严格 ID、
+duplicate、placement、reserved-action 与 schema validation 必须保留，但“普通 readonly/plain
+input → validate/defensive copy/normalize → engine-owned freeze”登记为 evidence-gated author API
+ergonomics debt；在第二个真实作者消费者或 editor generator 证明当前写法形成实际成本前，不因此
+重开 PF6。
+
+上述第二消费者门槛不阻止单一消费者的真实 lifecycle bug 获得最窄 regression/property test 或
+局部 pure model；只有把它提升为 broad harness/public abstraction 时才需要满足 promotion gate。
 
 ## 5. Product-facing acceptance
 

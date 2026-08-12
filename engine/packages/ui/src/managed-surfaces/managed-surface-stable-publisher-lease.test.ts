@@ -164,13 +164,15 @@ describe("dormant managed stable publisher lease", () => {
     expect(foreignCalls).toBe(0);
   });
 
-  it("claims one injected lease domain for one registry and restarts local sequences by epoch", () => {
+  it("claims one injected lease domain only for the registry live lifetime", () => {
     const leaseDomain = createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1();
     const workspaceRegistry = registryV1({
       applicationEpoch: 7,
       owners: [workspaceOwnerIdV1],
       leaseSequenceAllocator: leaseDomain,
     });
+    const workspace = workspaceRegistry.issuePublisher(workspaceOwnerIdV1);
+    const workspaceOccurrence = workspace.issueOccurrence();
     expect(() =>
       registryV1({
         applicationEpoch: 7,
@@ -178,17 +180,29 @@ describe("dormant managed stable publisher lease", () => {
         leaseSequenceAllocator: leaseDomain,
       })
     ).toThrow("ui.managed_surface_stable_lease_domain_claimed");
+    expect(workspaceRegistry.dispose()).toBe("disposed");
     const successorEpoch = registryV1({
       applicationEpoch: 8,
       owners: [workspaceOwnerIdV1],
+      leaseSequenceAllocator: leaseDomain,
     });
 
-    const workspace = workspaceRegistry.issuePublisher(workspaceOwnerIdV1);
     const successor = successorEpoch.issuePublisher(workspaceOwnerIdV1);
     expect(workspace.getSnapshot().leaseSequence).toBe(1);
-    expect(successor.getSnapshot().leaseSequence).toBe(1);
-    expect(workspace.issueOccurrence()).toBe("surface-stable-occurrence.e7.l1.n1");
-    expect(successor.issueOccurrence()).toBe("surface-stable-occurrence.e8.l1.n1");
+    expect(successor.getSnapshot().leaseSequence).toBe(2);
+    expect(workspaceOccurrence).toBe("surface-stable-occurrence.e7.l1.n1");
+    expect(() => workspace.issueOccurrence()).toThrow(
+      "ui.managed_surface_stable_publisher_lease_disposed",
+    );
+    expect(successor.issueOccurrence()).toBe("surface-stable-occurrence.e8.l2.n1");
+    expect(workspaceRegistry.dispose()).toBe("already_disposed");
+    expect(() =>
+      registryV1({
+        applicationEpoch: 9,
+        owners: [narrativeOwnerIdV1],
+        leaseSequenceAllocator: leaseDomain,
+      })
+    ).toThrow("ui.managed_surface_stable_lease_domain_claimed");
   });
 
   it("issues exact-next revisions while accepted delivery may legally skip an issued revision", () => {
@@ -759,10 +773,14 @@ describe("dormant managed stable publisher lease", () => {
     expect(reentrant.issuePublisher(workspaceOwnerIdV1).getSnapshot().leaseSequence).toBe(11);
 
     let disposing!: ManagedSurfaceStablePublisherLeaseRegistryInternalV1;
+    let disposingSequence = 12;
     const disposingAllocator = Object.freeze({
       allocate(): PositiveSafeInteger {
-        expect(disposing.dispose()).toBe("disposed");
-        return parsePositiveSafeInteger(13);
+        expect(disposing.dispose()).toBe(
+          disposingSequence === 12 ? "disposed" : "already_disposed",
+        );
+        disposingSequence += 1;
+        return parsePositiveSafeInteger(disposingSequence);
       },
     });
     disposing = registryV1({ leaseSequenceAllocator: disposingAllocator });
@@ -775,6 +793,14 @@ describe("dormant managed stable publisher lease", () => {
       currentPublisherCount: 0,
       disposed: true,
     });
+    const successorAfterReentrantDispose = registryV1({
+      applicationEpoch: 24,
+      leaseSequenceAllocator: disposingAllocator,
+    });
+    expect(
+      successorAfterReentrantDispose.issuePublisher(workspaceOwnerIdV1).getSnapshot()
+        .leaseSequence,
+    ).toBe(14);
   });
 
   it("rejects forged leases and accepted cursors without inspecting caller properties", () => {
@@ -1157,12 +1183,11 @@ describe("dormant managed stable publisher lease", () => {
     expect(() => registry.issuePublisher(workspaceOwnerIdV1)).toThrow(
       "ui.managed_surface_stable_publisher_registry_disposed",
     );
-    expect(() =>
-      registryV1({
-        owners: [workspaceOwnerIdV1],
-        leaseSequenceAllocator: leaseDomain,
-      })
-    ).toThrow("ui.managed_surface_stable_lease_domain_claimed");
+    const successor = registryV1({
+      owners: [workspaceOwnerIdV1],
+      leaseSequenceAllocator: leaseDomain,
+    });
+    expect(successor.issuePublisher(workspaceOwnerIdV1).getSnapshot().leaseSequence).toBe(3);
   });
 
   it("checks all sequence exhaustion before wrapping or mutating a cursor", () => {

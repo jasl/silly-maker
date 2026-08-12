@@ -251,13 +251,6 @@ const narrativeSurfaceCompositionDefinitionBindingsInternalV1 = new WeakMap<
   NarrativeSurfaceCompositionDefinitionBindingInternalV1<unknown>
 >();
 
-const definitionKeysInternalV1 = Object.freeze(
-  [
-    "selectNarrativeInternalV1",
-    "preflightCandidateInternalV1",
-  ] as const,
-);
-
 function captureFrozenPlainExactRecordInternalV1(
   value: unknown,
   keys: readonly string[],
@@ -311,17 +304,15 @@ export function createNarrativeSurfaceCompositionDefinitionInternalV1<
 >(
   input: CreateNarrativeSurfaceCompositionDefinitionInputInternalV1<TSemanticPublication>,
 ): NarrativeSurfaceCompositionDefinitionInternalV1<TSemanticPublication> {
-  let captured: Readonly<Record<string, unknown>> | null = null;
+  let selectNarrative: unknown;
+  let preflightCandidate: unknown;
   try {
-    captured = captureFrozenPlainExactRecordInternalV1(input, definitionKeysInternalV1);
+    selectNarrative = input.selectNarrativeInternalV1;
+    preflightCandidate = input.preflightCandidateInternalV1;
   } catch {
-    captured = null;
+    throw new TypeError("ui.narrative_surface_composition_definition_invalid");
   }
-  if (
-    captured === null ||
-    !isCallableWithoutThenInternalV1(captured.selectNarrativeInternalV1) ||
-    !isCallableWithoutThenInternalV1(captured.preflightCandidateInternalV1)
-  ) {
+  if (typeof selectNarrative !== "function" || typeof preflightCandidate !== "function") {
     throw new TypeError("ui.narrative_surface_composition_definition_invalid");
   }
   const definition = Object.freeze(
@@ -331,8 +322,8 @@ export function createNarrativeSurfaceCompositionDefinitionInternalV1<
     definition,
     Object.freeze({
       receiver: input,
-      selectNarrative: captured.selectNarrativeInternalV1,
-      preflightCandidate: captured.preflightCandidateInternalV1,
+      selectNarrative,
+      preflightCandidate,
     }) as NarrativeSurfaceCompositionDefinitionBindingInternalV1<unknown>,
   );
   return definition;

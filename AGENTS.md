@@ -21,11 +21,10 @@ Read only the documents relevant to the change:
 - `docs/engine/design/**` — accepted target contracts that are not necessarily
   implemented yet.
 - `docs/engine/plans/2026-07-30-production-floor-sequence.md` — the only
-  cross-plan execution order. PF0–PF5 are complete; the current Complexity
-  Reset removes disproportionate package-internal defenses, adds real
-  performance evidence, and returns to an author-facing product vertical before
-  deciding whether PF6 should resume. Desktop persistence remains an independent
-  promotion gate while the adapter is preview.
+  cross-plan execution order. PF0–PF7 and the Complexity Reset are complete;
+  PF6 remains evidence-gated and inactive, and no default core task is
+  automatically active. Desktop persistence remains an independent promotion
+  gate while the adapter is preview.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,
   `docs/engine/plans/2026-07-30-snapshot-commit-performance.md`,
   `docs/engine/plans/2026-07-30-save-migration.md`,
