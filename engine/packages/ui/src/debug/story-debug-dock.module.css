@@ -56,7 +56,7 @@
 .story-debug-dock__panel {
   display: grid;
   gap: var(--silly-space-2);
-  min-inline-size: 16.25rem;
+  min-inline-size: 17.5rem;
   padding: var(--silly-space-3);
   border: 1px solid var(--silly-color-border);
   border-radius: var(--silly-radius-card);
@@ -66,22 +66,78 @@
 .story-debug-dock__info {
   display: grid;
   gap: 2px;
-  justify-items: end;
-  text-align: end;
+  justify-items: start;
+  padding-block-end: var(--silly-space-2);
+  border-block-end: 1px solid var(--silly-color-border);
+  text-align: start;
   opacity: 0.9;
   overflow-wrap: anywhere;
 }
 
+.story-debug-dock__body {
+  display: grid;
+  gap: var(--silly-space-2);
+}
+
+.story-debug-dock__section {
+  display: grid;
+  gap: var(--silly-space-1);
+}
+
+.story-debug-dock__section + .story-debug-dock__section {
+  padding-block-start: var(--silly-space-2);
+  border-block-start: 1px solid var(--silly-color-border);
+}
+
+.story-debug-dock__section-title {
+  margin: 0;
+  color: var(--silly-color-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
 .story-debug-dock__actions {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--silly-space-1);
+}
+
+.story-debug-dock__pair {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--silly-space-1);
+}
+
+.story-debug-dock__studio {
+  display: inline-flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--silly-control-min-size);
+  padding-block: var(--silly-space-1);
+  padding-inline: var(--silly-space-3);
+  border: 1px solid var(--silly-color-border);
+  border-radius: var(--silly-radius-control);
+  background: var(--silly-color-accent);
+  color: var(--silly-color-accent-text);
+  font: inherit;
+  text-decoration: none;
+}
+
+.story-debug-dock__studio:hover {
+  filter: brightness(1.06);
+}
+
+.story-debug-dock__danger {
+  grid-column: 1 / -1;
 }
 
 .story-debug-dock__note,
 .story-debug-dock__versions {
   overflow-wrap: anywhere;
-  text-align: end;
+  text-align: start;
 }
 
 .story-debug-dock__note {
@@ -94,10 +150,11 @@
 }
 
 .story-debug-dock__authority-reason {
+  grid-column: 1 / -1;
   margin: 0;
   color: var(--silly-color-text-muted);
-  font-size: 0.875rem;
-  text-align: end;
+  font-size: 11px;
+  text-align: start;
 }
 
 .story-debug-dock__wipe {

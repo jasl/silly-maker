@@ -14,9 +14,11 @@ Run any app with capabilities enabled:
 http://localhost:5173/?capability=debug_tools&capability=cheats
 ```
 
-- **Read-only inspectors** open as floating windows from the 调试 launcher and show the live game view, interactions, and the narrative graph with lint results.
-- The **tuning panel** (cheat authority) submits Story-defined debug commands — set a stat, fast-forward days, force an encounter. They validate first, commit atomically, land in the command log tagged `source: "debug"`, and replay faithfully.
-- **Session maintenance** is inlined in the launcher (not a floating cheat panel): export or import state, reinitialize the session, and clear Save slots behind an explicit confirmation. Partial cleanup failures are reported instead of claiming that all local data was wiped.
+- **状态**: engine state and session maintenance. **导出状态** / **导入状态** on one row; engine **状态查看** (authoritative `snapshot.state` JSON) and **状态编辑** (existing number/bool/string leaves through `sillymaker.debug.patch_state`: validate, atomic commit, `source: "debug"` in the command log, replay faithfully — out-of-range or schema-invalid edits fail closed). **刷新状态** serializes the live snapshot (including debug-patched leaves) and loads it as the current session without downloading a file; **初始化** returns to the title. Both ask for confirmation. **清空存储** is the last row (confirmed Core wipe; partial cleanup failures are reported instead of claiming that all local data was wiped).
+- **场景**: freeze/resume the presentation clock; Story scene tools such as narrative preview; **Studio** opens `/__sillymaker/studio/` in a new tab when the Vite plugin advertises it (same origin; the live session keeps running for HMR). Absent from production builds.
+- **作弊**: Story-specific cheat-authority windows (not an engine capability area). They submit Story-defined debug commands — set a stat, fast-forward days, force an encounter — on the same commit path. These stay disabled until `cheats` is on.
+
+Enabling developer tools from Settings after boot may require a reload before 状态编辑 can write (debug control is attached at instance construction). The query string above attaches it from the first load.
 
 ## Trajectories
 

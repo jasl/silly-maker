@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
+import {
+  engineDebugPatchErrorCodeV1,
+  engineDebugPatchStateKindV1,
+} from "../runtime/diagnostics/state-patch.ts";
 import type { GameHarnessSemanticAdapterV1 } from "./game-harness.ts";
 import { createGameHarnessV1 } from "./game-harness.ts";
 import type { SyntheticCounterCommandV1, SyntheticSimulationTypesV1 } from "./synthetic-counter.ts";
@@ -194,6 +198,44 @@ describe("createGameHarnessV1", () => {
     await harness.dispatch(incrementV1);
     await expect(harness.saves.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
     expect(harness.stateDigest()).toBe(saved);
+    await harness.dispose();
+  });
+
+  it("applies the engine state patch through debugControl and replays it", async () => {
+    const harness = await createSyntheticHarnessV1({ debugTools: true });
+    const patch = Object.freeze({
+      kind: engineDebugPatchStateKindV1,
+      path: Object.freeze(["simulation", "counter", "count"]),
+      value: 7,
+    });
+    const result = await harness.admin.debugControl!.execute(patch as never, () => true);
+    expect(result.kind).toBe("executed");
+    expect(harness.observe().game).toEqual({ count: 7, parity: "odd" });
+    expect(harness.admin.commandLog().at(-1)).toMatchObject({
+      source: "debug",
+      command: patch,
+    });
+    const replay = await harness.admin.replayAuthoritatively();
+    expect(replay).toMatchObject({ authoritative: true, matches: true });
+    await harness.dispose();
+  });
+
+  it("rejects an invalid engine state patch without pausing the session", async () => {
+    const harness = await createSyntheticHarnessV1({ debugTools: true });
+    const result = await harness.admin.debugControl!.execute(
+      Object.freeze({
+        kind: engineDebugPatchStateKindV1,
+        path: Object.freeze(["simulation", "counter", "count"]),
+        value: -1,
+      }) as never,
+      () => true,
+    );
+    expect(result).toMatchObject({
+      kind: "validation_failed",
+      errors: [{ code: engineDebugPatchErrorCodeV1 }],
+    });
+    expect(harness.observe().game.count).toBe(0);
+    expect(harness.admin.inspectForTest().snapshot.commandSequence).toBe(0);
     await harness.dispose();
   });
 });

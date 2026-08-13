@@ -3,7 +3,7 @@ import { useCallback, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 
 import type { DebugCommandOperationResultV1, DevDockContributionSetV1 } from "@sillymaker/ui/debug";
-import { DebugCommandPanelV1, DebugValueInspectorV1 } from "@sillymaker/ui/debug";
+import { DebugCommandPanelV1 } from "@sillymaker/ui/debug";
 import type { DebugToolsOperationResultV1 } from "@sillymaker/base";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 
@@ -15,10 +15,9 @@ import { catcafeDebugStatsV1 } from "../simulation.ts";
 import { catcafeEncountersV1 } from "../content.ts";
 
 /**
- * The cat cafe's DevDock: a read-only state inspector + three tuning forms (set
- * values / fast-forward / force a regular encounter). Tuning goes through the
- * session debugControl — the same atomic commit path as gameplay, log entries
- * marked source:"debug", capability gating owned by the DevDock. This is the reference implementation of the "human tuning" channel.
+ * The cat cafe's DevDock: story-specific 作弊 (fast-forward / force encounter /
+ * named set_stat) plus 剧情预览. The engine owns 状态查看 and 状态编辑 over
+ * authoritative snapshot state; this Story does not duplicate them.
  */
 
 async function executeV1(
@@ -170,24 +169,8 @@ export function createCatcafeDevDockContributionsV1(input: {
   readonly playerProfile: PlayerProfileStoreV1;
   readonly registry: CatcafeAssetRegistryV1 | null;
 }): DevDockContributionSetV1 {
-  const semantic = input.instance.semantic;
   return Object.freeze({
     panels: Object.freeze([
-      Object.freeze({
-        id: "catcafe.state",
-        side: "right" as const,
-        title: "状态检视",
-        authority: "read_only" as const,
-        render: () => (
-          <DebugValueInspectorV1
-            inspectorId="catcafe.game-view"
-            source={Object.freeze({
-              read: () => semantic.observe().game,
-              subscribe: (listener: () => void) => semantic.subscribe(listener),
-            })}
-          />
-        ),
-      }),
       Object.freeze({
         id: "catcafe.narrative-preview",
         side: "right" as const,
@@ -203,7 +186,7 @@ export function createCatcafeDevDockContributionsV1(input: {
       Object.freeze({
         id: "catcafe.tuning",
         side: "right" as const,
-        title: "调参",
+        title: "作弊",
         authority: "cheat" as const,
         render: () => (
           <div data-cc-debug-tuning="true">

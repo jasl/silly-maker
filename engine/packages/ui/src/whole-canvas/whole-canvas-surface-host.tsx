@@ -17,6 +17,7 @@ import type {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { isDevDockEscapeOwnerTargetV1 } from "../debug/dev-dock-portal-coordinator.tsx";
 import type { InputRouterV1 } from "../input/contracts.ts";
 import { useStageInputIsolationV1, useStagePointerGestureFenceV1 } from "../shell/game-stage.tsx";
 import {
@@ -745,6 +746,7 @@ function WholeCanvasSurfaceRuntimeInternalV1(
       const target = event.target;
       if (
         shell === null || !(target instanceof HTMLElement) ||
+        isDevDockEscapeOwnerTargetV1(target) ||
         shell.closest("[inert]") !== null || !runtime.isCurrentInternalV1() ||
         !runtime.isHostMountCurrentInternalV1(hostIdentity)
       ) return;

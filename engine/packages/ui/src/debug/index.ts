@@ -67,6 +67,9 @@ export type {
   StoryDebugDockToolV1,
 } from "./story-debug-dock.tsx";
 export { engineSessionMaintenancePanelIdV1 } from "./session-maintenance-panel.tsx";
+export { engineStateInspectorPanelIdV1, engineStateTunerPanelIdV1 } from "./state-tuner.ts";
+export type { StateTunerPortV1, StateTunerPatchResultV1 } from "./state-tuner.ts";
+export { EngineStateInspectorPanelV1, EngineStateTunerPanelV1 } from "./state-tuner-panel.tsx";
 export { createStageInspectControllerV1 } from "./stage-inspect.ts";
 export type {
   StageEntryProvenanceV1,

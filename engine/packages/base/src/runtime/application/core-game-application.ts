@@ -54,6 +54,12 @@ import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "../../con
 import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import type { ReplayComparisonV1 } from "../diagnostics/replay.ts";
 import { replayAuthoritativelyFromAttemptsInternalV1 } from "../diagnostics/replay.ts";
+import {
+  executeEngineStatePatchV1,
+  isEngineDebugPatchStateKindV1,
+  isEngineDebugPatchValidationErrorV1,
+  validateEngineStatePatchV1,
+} from "../diagnostics/state-patch.ts";
 import type { RuntimeOperationFaultV1 } from "../../contracts/diagnostics.ts";
 import {
   createRuntimeFailureBufferV1,
@@ -1076,8 +1082,12 @@ export async function createCoreGameApplicationInstanceV1<
     parseRngState: (value: unknown) => rngStateV1Schema.parse(value) as TTypes["rngState"],
     parseRngDrawTrace: (value: unknown) =>
       parseRngDrawTraceInternalV1(value) as TTypes["rngDrawTrace"],
-    parseDebugValidationError: (value: unknown) =>
-      gameSimulation.debugValidationErrorSchema.parse(value),
+    parseDebugValidationError: (value: unknown) => {
+      if (isEngineDebugPatchValidationErrorV1(value)) {
+        return value as TTypes["debugValidationError"];
+      }
+      return gameSimulation.debugValidationErrorSchema.parse(value);
+    },
   });
   const createInitialSnapshotV1 = (): TTypes["snapshot"] => {
     const bootstrap = admitCanonicalBootstrapInternalV1(
@@ -1148,21 +1158,33 @@ export async function createCoreGameApplicationInstanceV1<
           withDeferredSimulationEvidenceAdmissionInternalV1(
             "simulation_debug_validate",
             () =>
-              gameSimulation.debugCommandExecutor.validate(
-                snapshot,
-                command,
-                undefined as TTypes["executionContext"],
-              ),
+              isEngineDebugPatchStateKindV1(command)
+                ? validateEngineStatePatchV1(
+                  snapshot as never,
+                  command,
+                  gameSimulation.stateSchema,
+                ) as never
+                : gameSimulation.debugCommandExecutor.validate(
+                  snapshot,
+                  command,
+                  undefined as TTypes["executionContext"],
+                ),
           ),
         executeAttempt: (snapshot, command) => {
           return withDeferredSimulationEvidenceAdmissionInternalV1(
             "simulation_debug_execute",
             () =>
-              gameSimulation.debugCommandExecutor.executeAttempt(
-                snapshot,
-                command,
-                undefined as TTypes["executionContext"],
-              ),
+              isEngineDebugPatchStateKindV1(command)
+                ? executeEngineStatePatchV1(
+                  snapshot as never,
+                  command,
+                  gameSimulation.stateSchema,
+                )
+                : gameSimulation.debugCommandExecutor.executeAttempt(
+                  snapshot,
+                  command,
+                  undefined as TTypes["executionContext"],
+                ),
           );
         },
         normalizeUnexpectedFault(error, snapshot) {
@@ -2128,11 +2150,17 @@ export async function createCoreGameApplicationInstanceV1<
                   withDeferredSimulationEvidenceAdmissionInternalV1(
                     "simulation_debug_execute",
                     () =>
-                      gameSimulation.debugCommandExecutor.executeAttempt(
-                        preSnapshot as never,
-                        logged.command as never,
-                        undefined as TTypes["executionContext"],
-                      ),
+                      isEngineDebugPatchStateKindV1(logged.command)
+                        ? executeEngineStatePatchV1(
+                          preSnapshot as never,
+                          logged.command,
+                          gameSimulation.stateSchema,
+                        )
+                        : gameSimulation.debugCommandExecutor.executeAttempt(
+                          preSnapshot as never,
+                          logged.command as never,
+                          undefined as TTypes["executionContext"],
+                        ),
                   ),
                 (error, snapshot) => {
                   if (definition.normalizeUnexpectedDebugFault === undefined) throw error;

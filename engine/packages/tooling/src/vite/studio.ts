@@ -14,6 +14,9 @@ import type { ProjectModuleRefV1 } from "../project/config-types.ts";
 
 export const studioPageUrlV1 = "/__sillymaker/studio/";
 
+/** HTML contract with the game-page DevDock Studio shortcut. */
+export const studioPageMetaNameV1 = "sillymaker-studio";
+
 const studioEntryIdV1 = "/__sillymaker/studio-entry.tsx";
 
 function studioHtmlV1(): string {
@@ -60,6 +63,26 @@ export function studioPluginV1(studio: ProjectModuleRefV1): Plugin {
     },
     load(id) {
       return id === studioEntryIdV1 ? studioEntrySourceV1(studio) : null;
+    },
+    transformIndexHtml: {
+      order: "pre",
+      handler(html) {
+        // The Studio page is the destination, not the advertisement.
+        if (html.includes('id="sillymaker-studio-root"')) return html;
+        return {
+          html,
+          tags: [
+            {
+              tag: "meta",
+              attrs: {
+                name: studioPageMetaNameV1,
+                content: studioPageUrlV1,
+              },
+              injectTo: "head",
+            },
+          ],
+        };
+      },
     },
     configureServer(server: ViteDevServer) {
       server.middlewares.use((request, response, next) => {

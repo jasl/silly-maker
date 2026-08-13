@@ -200,9 +200,11 @@ interface StageContentGeometryV1 {
 
 ## 5. SillyMaker Studio V1 外形
 
-- 入口：`deno task author`（分发到 `story author <application-id>`）。启动该应用的
-  Vite dev server 并挂 Studio 入口；Studio 只存在于 dev（同 `sillymaker:dev-sources`
-  的 `apply: "serve"` 纪律），构建/预览/Player 不包含。
+- 入口：`deno task author`（分发到 `story author <application-id>`）或
+  `deno task dev` 启动该应用的 Vite dev server 并挂 Studio 页。人类从游戏调试坞
+  「场景 → Studio」打开（同源新标签，不替换进行中的会话）。Studio 只存在于
+  dev（同 `sillymaker:dev-sources` 的 `apply: "serve"` 纪律），构建/预览/Player
+  不包含，未声明 `studio` 绑定的应用不显示该入口。
 - 左侧 navigator：scene scanner 列出项目内全部 `*.scene.json`（点击即开，无需把游
   戏玩到该场景）+ content/asset 浏览。
 - 中央画布：真实 Story renderer（`SemanticStageHostV1` detached target，同 CR4/
@@ -233,8 +235,9 @@ engine/packages/
 ```
 
 先例对齐：motion 已经是"schema 在 base、lint 与端口在 tooling、编辑 UI 在 ui"，
-scene 照搬同一分层；Studio shell 因为是独立产品面（不进 player bundle、不挂
-DevDock）单独成包，依赖 base/ui/tooling，任何 runtime 包不得反向依赖它。
+scene 照搬同一分层；Studio shell 因为是独立产品面（不进 player bundle、不以浮窗
+嵌进 DevDock）单独成包，依赖 base/ui/tooling，任何 runtime 包不得反向依赖它。
+DevDock 只提供同源入口链接。
 
 Story 侧目录约定（scene-managed Story）：
 
@@ -248,7 +251,8 @@ Story 侧目录约定（scene-managed Story）：
 ```
 
 Starter 重定位（A4 拥有最终命名）：`template/` 重建为 scene-first 起点（主入口是
-`deno task author`，用户先看到示例场景而不是 TypeScript 工程树），现有低层 starter
+启动游戏——`deno task author` 或 `dev`——用户先看到示例场景，再从调试坞进 Studio，
+而不是 TypeScript 工程树），现有低层 starter
 降级为 advanced/low-level 参考示例；`application/**` 标注 "Advanced — ordinary
 scene authoring does not edit these files."。cat-cafe opening 是第一条完整
 dogfood 纵切。
@@ -266,7 +270,7 @@ dogfood 纵切。
 
 以 cat-cafe opening 为准的十步闭环（由所有者本人实测）：
 
-1. `deno task author` 打开 Studio；
+1. `deno task author`（或 `dev`）启动游戏后，调试坞 → 场景 → Studio；
 2. navigator 选"雨后的咖啡店门口"；
 3. 画布点击小雨；
 4. 拖动小雨向左；

@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: MIT
 import type { ReactElement } from "react";
 
-import type { BuildProvenanceV1, DeepReadonly, GameHostV1 } from "@sillymaker/base";
-import { digestCanonical } from "@sillymaker/base";
+import type {
+  BuildProvenanceV1,
+  DeepReadonly,
+  GameHostV1,
+  RuntimeCapabilityPortV1,
+} from "@sillymaker/base";
+import { digestCanonical, engineDebugPatchStateKindV1 } from "@sillymaker/base";
 import type {
   CoreAutosavePolicyV1,
   CoreGameApplicationDefinitionV1,
@@ -46,6 +51,7 @@ import type {
   DevDockControlV1,
   DevDockOpenStateV1,
   DevDockPositionV1,
+  StateTunerPortV1,
 } from "@sillymaker/ui/debug";
 import {
   createDevDockControlV1,
@@ -394,6 +400,92 @@ function appBuildIdV1(
   );
 }
 
+function formatDebugValidationErrorsV1(errors: readonly unknown[]): string {
+  return errors.map((error) => {
+    if (error !== null && typeof error === "object" && "code" in error) {
+      const code = String((error as { readonly code: unknown }).code);
+      const detail =
+        "detail" in error && typeof (error as { readonly detail?: unknown }).detail === "string"
+          ? (error as { readonly detail: string }).detail
+          : undefined;
+      return detail === undefined || detail.length === 0 ? code : `${code}: ${detail}`;
+    }
+    return String(error);
+  }).join("; ");
+}
+
+function createEngineStateTunerPortV1(input: {
+  readonly instance: {
+    readonly admin: {
+      inspectForTest(): { readonly snapshot: { readonly state: unknown } };
+      readonly debugControl?: {
+        execute(
+          command: never,
+          isCapabilityEnabled: () => boolean,
+        ): Promise<
+          | {
+            readonly kind: "executed";
+            readonly attempt: { readonly result: { readonly kind: string } };
+          }
+          | { readonly kind: "validation_failed"; readonly errors: readonly unknown[] }
+          | { readonly kind: "capability_disabled" }
+          | { readonly kind: "not_executed"; readonly code: string }
+        >;
+      };
+    };
+    readonly semantic: { subscribe(listener: () => void): () => void };
+  };
+  readonly capabilities: RuntimeCapabilityPortV1;
+}): StateTunerPortV1 {
+  const { instance, capabilities } = input;
+  return Object.freeze({
+    read: () => instance.admin.inspectForTest().snapshot.state,
+    subscribe: (listener: () => void) => instance.semantic.subscribe(listener),
+    async patch(path: readonly string[], value: string | number | boolean | null) {
+      const debugControl = instance.admin.debugControl;
+      if (debugControl === undefined) {
+        return Object.freeze({
+          kind: "rejected" as const,
+          message: "需要重新加载后才能写入（启动时未开启开发者工具）",
+        });
+      }
+      const result = await debugControl.execute(
+        Object.freeze({
+          kind: engineDebugPatchStateKindV1,
+          path: Object.freeze([...path]),
+          value,
+        }) as never,
+        () => {
+          const state = capabilities.state.getCurrent();
+          return state.debugTools && state.cheats;
+        },
+      );
+      switch (result.kind) {
+        case "executed":
+          return result.attempt.result.kind === "committed"
+            ? Object.freeze({ kind: "committed" as const })
+            : Object.freeze({
+              kind: "rejected" as const,
+              message: result.attempt.result.kind,
+            });
+        case "validation_failed":
+          return Object.freeze({
+            kind: "validation_failed" as const,
+            message: formatDebugValidationErrorsV1(result.errors),
+          });
+        case "capability_disabled":
+          return Object.freeze({ kind: "capability_disabled" as const });
+        case "not_executed":
+          return Object.freeze({ kind: "rejected" as const, message: result.code });
+        default: {
+          const exhaustive: never = result;
+          throw new TypeError(`unknown debug result ${String(exhaustive)}`);
+        }
+      }
+    },
+  });
+}
+
 /**
  * Boots a complete browser application from one Story application
  * declaration: web Host, core application instance, UI composition, default
@@ -687,6 +779,25 @@ export async function startWebGameApplicationV1<
     const presentationFreeze = createPresentationFreezePortV1();
     const clearAllSaves = (): Promise<void> =>
       clearAllCoreApplicationSavesForMaintenanceInternalV1(instance);
+    const reloadCurrentState = async (): Promise<void> => {
+      const exported = await instance.persistence.exportCurrentSave();
+      const result = await instance.persistence.importSave(exported.bytes);
+      switch (result.kind) {
+        case "imported":
+        case "loaded":
+          return;
+        case "rejected":
+        case "faulted":
+          throw new Error(result.code);
+        case "saved":
+        case "cleared":
+          throw new Error(`unexpected persistence result ${result.kind}`);
+        default: {
+          const exhaustive: never = result;
+          throw exhaustive;
+        }
+      }
+    };
     const uiDefinition = application.ui({
       instance,
       instanceLease: instanceLeaseCoordinator,
@@ -867,7 +978,9 @@ export async function startWebGameApplicationV1<
         sessionMaintenance={Object.freeze({
           savePort: saveSurfaces.maintenance.savePort,
           clearAllSaves: saveSurfaces.maintenance.clearAllSaves,
+          reloadCurrentState,
         })}
+        stateTuner={createEngineStateTunerPortV1({ instance, capabilities })}
         {...(uiDefinition.labels === undefined ? {} : { labels: uiDefinition.labels })}
         {...(uiDefinition.slots === undefined ? {} : { slots: uiDefinition.slots })}
         {...(uiDefinition.devDockContributions === undefined

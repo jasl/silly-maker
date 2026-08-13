@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
+import { engineDebugPatchStateKindV1 } from "@sillymaker/base";
 import { createGameHarnessV1 } from "@sillymaker/base/testkit";
 
 import { catcafeSemanticAdapterV1 } from "../application/semantic.ts";
@@ -122,6 +123,27 @@ describe("catcafe debug commands (the human tuning channel)", () => {
         () => true,
       );
       await harness.dispatch({ kind: "activity", activityId: "activity.clean" } as never);
+      const replay = await harness.admin.replayAuthoritatively();
+      expect(replay).toMatchObject({ authoritative: true, matches: true });
+    } finally {
+      await harness.dispose();
+    }
+  });
+
+  it("applies the engine state patch without a story debug kind", async () => {
+    const harness = await harnessAtDailyV1();
+    try {
+      const control = debugControlV1(harness);
+      const result = await control.execute(
+        {
+          kind: engineDebugPatchStateKindV1,
+          path: ["simulation", "cat", "trust"],
+          value: 77,
+        } as never,
+        () => true,
+      );
+      expect(result.kind).toBe("executed");
+      expect(harness.semantic.observe().game.cat.trust).toBe(77);
       const replay = await harness.admin.replayAuthoritatively();
       expect(replay).toMatchObject({ authoritative: true, matches: true });
     } finally {

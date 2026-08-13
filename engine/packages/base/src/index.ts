@@ -212,6 +212,21 @@ export type {
   DiagnosticSeverityV1,
   DiagnosticSubjectV1,
 } from "./contracts/diagnostic-envelope.ts";
+export {
+  engineDebugPatchErrorCodeV1,
+  engineDebugPatchStateKindV1,
+  executeEngineStatePatchV1,
+  isEngineDebugPatchStateKindV1,
+  parseEngineDebugPatchStateCommandV1,
+  validateEngineStatePatchV1,
+} from "./runtime/diagnostics/state-patch.ts";
+export type {
+  EngineDebugPatchStateCommandV1,
+  EngineDebugPatchValidationErrorV1,
+  EngineDebugPatchValidationResultV1,
+  EnginePatchableSnapshotV1,
+  EngineStatePatchLeafV1,
+} from "./runtime/diagnostics/state-patch.ts";
 export type { RuntimeInvalidationControllerV1 } from "./runtime/index.ts";
 export type {
   AppearanceLayerId,

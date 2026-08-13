@@ -193,22 +193,63 @@ test("the stage scales uniformly on small viewports and hit regions still work",
   expect((box?.width ?? 0) / 80).toBeCloseTo(scale, 1);
 });
 
+test("the DevDock advertises Studio as a same-origin shortcut", async ({ page }) => {
+  await page.goto(catcafeTargetUrlV1("?capability=debug_tools"));
+  await dismissSplashV1(page);
+  await page.getByRole("button", { name: "调试" }).click();
+  const studio = page.getByRole("group", { name: "调试" }).getByRole("link", { name: "Studio" });
+  await expect(studio).toHaveAttribute("href", "/__sillymaker/studio/");
+  await expect(studio).toHaveAttribute("target", "_blank");
+});
+
+test("debug dock inputs accept keyboard while the title screen owns focus", async ({ page }) => {
+  await page.goto(catcafeTargetUrlV1("?capability=debug_tools&capability=cheats"));
+  await dismissSplashV1(page);
+  await expect(page.locator("[data-title-screen]")).toBeVisible();
+
+  await page.getByRole("button", { name: "调试" }).click();
+  await page.getByRole("group", { name: "调试" })
+    .getByRole("button", { name: "作弊" })
+    .click();
+  const cheats = page.getByRole("dialog", { name: "作弊" });
+  const value = cheats.locator("[data-cc-debug-value]");
+  await value.click();
+  await value.press("ControlOrMeta+A");
+  await value.pressSequentially("77");
+  await expect(value).toHaveValue("77");
+
+  await cheats.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(cheats).toHaveCount(0);
+
+  await page.getByRole("group", { name: "调试" })
+    .getByRole("button", { name: "状态编辑" })
+    .click();
+  const tuner = page.getByRole("dialog", { name: "状态编辑" });
+  const filter = tuner.getByRole("searchbox", { name: "过滤状态路径" });
+  await filter.click();
+  await filter.pressSequentially("calendar.day");
+  await expect(filter).toHaveValue("calendar.day");
+});
+
 test("the DevDock tuning panel commits debug commands through the session", async ({ page }) => {
   await page.goto(catcafeTargetUrlV1("?capability=debug_tools&capability=cheats"));
   await playOpeningV1(page);
 
   await page.getByRole("button", { name: "调试" }).click();
   await page.getByRole("group", { name: "调试" })
-    .getByRole("button", { name: "调参" })
+    .getByRole("button", { name: "作弊" })
     .click();
-  const dock = page.getByRole("dialog", { name: "调参" });
+  const dock = page.getByRole("dialog", { name: "作弊" });
   const tuning = dock.locator("[data-cc-debug-tuning]");
 
   // Set trust to 77 through the debug channel: the same atomic commit
   // path as gameplay, so the HUD (still mounted under the dock) updates
   // from the authoritative state.
   await tuning.locator("[data-cc-debug-stat]").selectOption("cat.trust");
-  await tuning.locator("[data-cc-debug-value]").fill("77");
+  const value = tuning.locator("[data-cc-debug-value]");
+  await value.click();
+  await value.clear();
+  await value.pressSequentially("77");
   await tuning.locator("form").first().getByRole("button", { name: "执行调试命令" }).click();
   await expect(tuning.locator("form").first().getByText("committed")).toBeVisible();
   await expect(page.locator("[data-cc-stats]")).toContainText("信任77");
@@ -219,6 +260,25 @@ test("the DevDock tuning panel commits debug commands through the session", asyn
   await tuning.locator("form").nth(2).getByRole("button", { name: "执行调试命令" }).click();
   await expect(page.locator("[data-cc-encounter='text.cc.encounter.baker']")).toBeVisible();
   await expect(page.locator("[data-cc-stats]")).toContainText("金钱55");
+});
+
+test("the engine state table patches authoritative leaves through the debug channel", async ({ page }) => {
+  await page.goto(catcafeTargetUrlV1("?capability=debug_tools&capability=cheats"));
+  await playOpeningV1(page);
+
+  await page.getByRole("button", { name: "调试" }).click();
+  await page.getByRole("group", { name: "调试" })
+    .getByRole("button", { name: "状态编辑" })
+    .click();
+  const dock = page.getByRole("dialog", { name: "状态编辑" });
+  const row = dock.locator("[data-engine-state-tuner-path='simulation.cat.trust']");
+  const trust = row.getByRole("spinbutton", { name: "simulation.cat.trust" });
+  await trust.click();
+  await trust.clear();
+  await trust.pressSequentially("77");
+  await row.getByRole("button", { name: "写入" }).click();
+  await expect(dock.getByRole("status")).toHaveText("已写入");
+  await expect(page.locator("[data-cc-stats]")).toContainText("信任77");
 });
 
 test("the detached Narrative preview covers representative routes without changing live play", async ({ page }) => {
@@ -550,9 +610,9 @@ async function reachCatCafeEndingV1(page: Page): Promise<void> {
   // walk the three slots to the settlement night.
   await page.getByRole("button", { name: "调试" }).click();
   await page.getByRole("group", { name: "调试" })
-    .getByRole("button", { name: "调参" })
+    .getByRole("button", { name: "作弊" })
     .click();
-  const dock = page.getByRole("dialog", { name: "调参" });
+  const dock = page.getByRole("dialog", { name: "作弊" });
   const tuning = dock.locator("[data-cc-debug-tuning]");
   await tuning.locator("[data-cc-debug-days]").fill("48");
   await tuning.locator("form").nth(1).getByRole("button", { name: "执行调试命令" }).click();

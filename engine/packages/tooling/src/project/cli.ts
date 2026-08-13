@@ -350,9 +350,9 @@ export async function runProjectCliV1(input: ProjectCliInputV1): Promise<number>
         return report.ok ? 0 : 1;
       }
       case "author": {
-        // Boots the application's own Vite dev server and points the
-        // author at the Studio page. The Studio itself is a dev-only
-        // plugin surface; this verb only provides the front door.
+        // Boots the application's own Vite dev server. Humans open Studio
+        // from the in-game 调试 dock (场景 → Studio). The Studio itself
+        // is a dev-only plugin surface.
         const deps = processDeps();
         if (deps === null) return 2;
         const application = resolveStoryApplicationV1(input.project, selector);
@@ -367,9 +367,6 @@ export async function runProjectCliV1(input: ProjectCliInputV1): Promise<number>
           );
           return 1;
         }
-        input.writeOut(
-          "SillyMaker Studio: open <dev server origin>/__sillymaker/studio/ once Vite is ready.",
-        );
         const storyRoot = application.web.storyRoot;
         return await deps.runner.run("deno", ["run", "-A", "npm:vite"], {
           cwd: storyRoot === "." ? deps.repositoryRoot : `${deps.repositoryRoot}/${storyRoot}`,

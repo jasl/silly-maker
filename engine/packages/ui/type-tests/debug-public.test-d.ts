@@ -39,6 +39,10 @@ type DebugRuntimeKeysV1 = ExpectV1<
     | "createStageInspectControllerV1"
     | "defaultStoryDebugDockLabelsV1"
     | "engineSessionMaintenancePanelIdV1"
+    | "engineStateInspectorPanelIdV1"
+    | "engineStateTunerPanelIdV1"
+    | "EngineStateInspectorPanelV1"
+    | "EngineStateTunerPanelV1"
     | "openStorySourceInDevServerV1"
   >
 >;

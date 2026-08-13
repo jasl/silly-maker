@@ -461,6 +461,32 @@ describe("managed System Host-commit readiness", () => {
     expect(screen.getByTestId("root-tab-devdock")).not.toHaveFocus();
   });
 
+  it("does not steal keyboard focus from DevDock chrome outside the active dialog", async () => {
+    const fixture = fixtureV1();
+    function SettingsRendererV1(): ReactElement {
+      return <button type="button">Settings action</button>;
+    }
+    await renderHostV1({ fixture, catalog: catalogV1(SettingsRendererV1) });
+    act(() => {
+      fixture.internal.openRootInternalV1("settings");
+    });
+    await drainMicrotaskV1();
+    expect(screen.getByRole("dialog", { name: "Managed settings" })).toBeInTheDocument();
+
+    const dockWindow = document.createElement("div");
+    dockWindow.dataset.devdockEscapeOwner = "true";
+    dockWindow.dataset.devdockWindow = "cheat-panel";
+    const input = document.createElement("input");
+    input.type = "text";
+    dockWindow.append(input);
+    document.body.append(dockWindow);
+    input.focus();
+    expect(document.activeElement).toBe(input);
+    await drainMicrotaskV1();
+    expect(document.activeElement).toBe(input);
+    dockWindow.remove();
+  });
+
   it("lets content close the exact root and restores its original external focus owner", async () => {
     const fixture = fixtureV1();
     function SettingsRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {

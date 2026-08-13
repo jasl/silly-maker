@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 /**
- * Game-scene debug launcher: collapsed chip, tool list, freeze, and
- * inlined session maintenance. Floating tool windows stay on `DevDockV1`.
- * Stories may mount this themselves (`devDockChip: false`) to own
- * visibility and the `info` slot; `DefaultGameRoot` mounts it when
- * `debug_tools` is on.
+ * Game-scene debug launcher: collapsed chip, grouped actions (state /
+ * scene / story cheats), freeze, and inlined session maintenance.
+ * Floating tool windows stay on `DevDockV1`. Stories may mount this
+ * themselves (`devDockChip: false`) to own visibility and the `info`
+ * slot; `DefaultGameRoot` mounts it when `debug_tools` is on.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
@@ -28,6 +28,8 @@ import {
   sessionMaintenanceImportNoteV1,
   type SessionMaintenanceLabelsV1,
 } from "./session-maintenance-panel.tsx";
+import { engineStateInspectorPanelIdV1, engineStateTunerPanelIdV1 } from "./state-tuner.ts";
+import { resolveStudioPageHrefV1 } from "./studio-page-href.ts";
 import styles from "./story-debug-dock.module.css";
 
 export interface StoryDebugDockToolV1 {
@@ -37,6 +39,9 @@ export interface StoryDebugDockToolV1 {
   /** When omitted, the tool is treated as `read_only`. */
   readonly authority?: "read_only" | "cheat";
 }
+
+export type StoryDebugDockConfirmKindV1 = "wipe" | "reload" | "reinitialize";
+type StoryDebugDockGroupV1 = "state" | "scene" | "cheat";
 
 export interface StoryDebugDockLabelsV1 extends SessionMaintenanceLabelsV1 {
   readonly chipLabel: string;
@@ -48,6 +53,22 @@ export interface StoryDebugDockLabelsV1 extends SessionMaintenanceLabelsV1 {
   readonly wipeDialogTitle: string;
   readonly wipeDialogDescription: string;
   readonly wipeBackdropLabel: string;
+  readonly reloadCurrentStateLabel: string;
+  readonly reloadConfirmLabel: string;
+  readonly reloadDialogTitle: string;
+  readonly reloadDialogDescription: string;
+  readonly reloadBackdropLabel: string;
+  readonly reloadDoneText: string;
+  readonly reinitializeConfirmLabel: string;
+  readonly reinitializeDialogTitle: string;
+  readonly reinitializeDialogDescription: string;
+  readonly reinitializeBackdropLabel: string;
+  readonly sectionStateLabel: string;
+  readonly sectionSceneLabel: string;
+  readonly sectionCheatLabel: string;
+  readonly studioLabel: string;
+  readonly studioOpenedNote: string;
+  readonly cheatLockReason: string;
 }
 
 export const defaultStoryDebugDockLabelsV1: StoryDebugDockLabelsV1 = Object.freeze({
@@ -60,18 +81,35 @@ export const defaultStoryDebugDockLabelsV1: StoryDebugDockLabelsV1 = Object.free
   toolOpenedNote: "已打开工具窗口（拖动标题栏可移动，Esc 关闭）。",
   exportStateLabel: "导出状态",
   importStateLabel: "导入状态",
-  wipeLabel: "清理本地库",
-  wipeConfirmLabel: "确认清库",
+  wipeLabel: "清空存储",
+  wipeConfirmLabel: "确认清空",
   wipeCancelLabel: "取消",
-  reinitializeLabel: "重新初始化",
+  reinitializeLabel: "初始化",
   exportDoneText: "已导出状态 JSON（在下载文件夹）。",
   importDoneText: "状态已导入。",
   importIncompatibleText: "该状态与当前游戏/版本不兼容，已拒绝导入——当前会话未受影响。",
   importInvalidText: "文件不是有效的引擎存档（损坏或被改动过），已拒绝导入。",
-  wipeDoneText: "已清库。",
-  wipeDialogTitle: "清理全部本地存档？",
+  wipeDoneText: "已清空存储。",
+  wipeDialogTitle: "清空全部本地存储？",
   wipeDialogDescription: "会清空本机上这个游戏的全部存档栏位。进行中的会话也会受影响。",
-  wipeBackdropLabel: "取消清理本地库",
+  wipeBackdropLabel: "取消清空存储",
+  reloadCurrentStateLabel: "刷新状态",
+  reloadConfirmLabel: "确认刷新",
+  reloadDialogTitle: "用当前状态重新加载？",
+  reloadDialogDescription:
+    "会把现在的权威状态（含状态编辑写入的值）当作存档重新加载。进行中的演出会重建，存档栏位不变。",
+  reloadBackdropLabel: "取消刷新状态",
+  reloadDoneText: "已用当前状态重新加载。",
+  reinitializeConfirmLabel: "确认初始化",
+  reinitializeDialogTitle: "初始化会话？",
+  reinitializeDialogDescription: "会结束当前会话并回到标题。本地存档栏位不会清空。",
+  reinitializeBackdropLabel: "取消初始化",
+  sectionStateLabel: "状态",
+  sectionSceneLabel: "场景",
+  sectionCheatLabel: "作弊",
+  studioLabel: "Studio",
+  studioOpenedNote: "已在新标签页打开 Studio（游戏会话继续运行）。",
+  cheatLockReason: "需要启用作弊功能",
 });
 
 export interface StoryDebugDockPropsV1 {
@@ -88,6 +126,11 @@ export interface StoryDebugDockPropsV1 {
   readonly savePort?: SaveOverlayPortV1;
   /** Engine Core wipe (autosave drain + partial failure). */
   readonly clearAllSaves?: () => Promise<void>;
+  /**
+   * Reload the live authoritative snapshot (including debug-patched
+   * leaves) as a new session. Must not download a file.
+   */
+  readonly onReloadCurrentState?: () => void | Promise<unknown>;
   readonly onReinitialize?: () => void | Promise<unknown>;
   /** After a successful wipe (reload, return to title, …). */
   readonly onWiped?: () => void;
@@ -105,6 +148,13 @@ export interface StoryDebugDockPropsV1 {
    * after `debug_tools` is already on.
    */
   readonly grantCapabilitiesOnOpen?: boolean;
+  /**
+   * Same-origin Studio page. When omitted, the dock reads
+   * `meta[name="sillymaker-studio"]` (injected by the Vite plugin during
+   * `vite dev`). Pass `""` to hide the link even when the meta is present.
+   * Absolute and protocol-relative URLs are ignored.
+   */
+  readonly studioHref?: string;
   /** Chip/menu corner; defaults to `top_right`. */
   readonly position?: DevDockPositionV1;
   readonly expanded?: boolean;
@@ -116,13 +166,63 @@ function failureNoteV1(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function StoryDebugDockWipeDialogV1(props: {
+function confirmSpecV1(
+  kind: StoryDebugDockConfirmKindV1,
+  labels: StoryDebugDockLabelsV1,
+): {
+  readonly title: string;
+  readonly description: string;
+  readonly confirmLabel: string;
+  readonly backdropLabel: string;
+  readonly confirmAction: string;
+  readonly cancelAction: string;
+} {
+  switch (kind) {
+    case "wipe":
+      return Object.freeze({
+        title: labels.wipeDialogTitle,
+        description: labels.wipeDialogDescription,
+        confirmLabel: labels.wipeConfirmLabel,
+        backdropLabel: labels.wipeBackdropLabel,
+        confirmAction: "wipe_confirm",
+        cancelAction: "wipe_cancel",
+      });
+    case "reload":
+      return Object.freeze({
+        title: labels.reloadDialogTitle,
+        description: labels.reloadDialogDescription,
+        confirmLabel: labels.reloadConfirmLabel,
+        backdropLabel: labels.reloadBackdropLabel,
+        confirmAction: "reload_confirm",
+        cancelAction: "reload_cancel",
+      });
+    case "reinitialize":
+      return Object.freeze({
+        title: labels.reinitializeDialogTitle,
+        description: labels.reinitializeDialogDescription,
+        confirmLabel: labels.reinitializeConfirmLabel,
+        backdropLabel: labels.reinitializeBackdropLabel,
+        confirmAction: "reinitialize_confirm",
+        cancelAction: "reinitialize_cancel",
+      });
+    default: {
+      const exhaustive: never = kind;
+      return exhaustive;
+    }
+  }
+}
+
+function StoryDebugDockConfirmDialogV1(props: {
+  readonly kind: StoryDebugDockConfirmKindV1;
   readonly busy: boolean;
   readonly labels: StoryDebugDockLabelsV1;
   onConfirm(): void;
   onCancel(): void;
 }): ReactElement {
-  const { busy, onCancel } = props;
+  const { busy, kind, onCancel } = props;
+  const spec = confirmSpecV1(kind, props.labels);
+  const titleId = `story-debug-dock-confirm-title-${kind}`;
+  const descriptionId = `story-debug-dock-confirm-description-${kind}`;
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (event.key !== "Escape") return;
@@ -135,42 +235,42 @@ function StoryDebugDockWipeDialogV1(props: {
   }, [busy, onCancel]);
 
   return (
-    <div className={styles["story-debug-dock__wipe"]} data-debug-dock-wipe-dialog="true">
+    <div
+      className={styles["story-debug-dock__wipe"]}
+      data-debug-dock-confirm-dialog={kind}
+      {...(kind === "wipe" ? { "data-debug-dock-wipe-dialog": "true" } : {})}
+    >
       <button
         type="button"
         className={styles["story-debug-dock__wipe-backdrop"]}
-        aria-label={props.labels.wipeBackdropLabel}
-        data-debug-dock-wipe-backdrop="true"
+        aria-label={spec.backdropLabel}
+        data-debug-dock-confirm-backdrop={kind}
+        {...(kind === "wipe" ? { "data-debug-dock-wipe-backdrop": "true" } : {})}
         disabled={busy}
         onClick={onCancel}
       />
       <div
         role="alertdialog"
         aria-modal="true"
-        aria-labelledby="story-debug-dock-wipe-title"
-        aria-describedby="story-debug-dock-wipe-description"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
         tabIndex={-1}
         className={styles["story-debug-dock__wipe-dialog"]}
       >
-        <strong id="story-debug-dock-wipe-title">{props.labels.wipeDialogTitle}</strong>
-        <p
-          id="story-debug-dock-wipe-description"
-          className={styles["story-debug-dock__wipe-description"]}
-        >
-          {props.labels.wipeDialogDescription}
+        <strong id={titleId}>{spec.title}</strong>
+        <p id={descriptionId} className={styles["story-debug-dock__wipe-description"]}>
+          {spec.description}
         </p>
         <div className={styles["story-debug-dock__wipe-actions"]}>
           <Button
-            data-debug-dock-action="wipe_confirm"
+            data-debug-dock-action={spec.confirmAction}
             disabled={busy}
             onClick={props.onConfirm}
           >
-            {busy
-              ? `${props.labels.wipeConfirmLabel}${props.labels.busySuffix}`
-              : props.labels.wipeConfirmLabel}
+            {busy ? `${spec.confirmLabel}${props.labels.busySuffix}` : spec.confirmLabel}
           </Button>
           <Button
-            data-debug-dock-action="wipe_cancel"
+            data-debug-dock-action={spec.cancelAction}
             disabled={busy}
             onClick={onCancel}
           >
@@ -182,12 +282,96 @@ function StoryDebugDockWipeDialogV1(props: {
   );
 }
 
+function dockToolSectionV1(tool: StoryDebugDockToolV1): StoryDebugDockGroupV1 {
+  if (
+    tool.panelId === engineStateInspectorPanelIdV1 ||
+    tool.panelId === engineStateTunerPanelIdV1
+  ) {
+    return "state";
+  }
+  const authority = tool.authority ?? "read_only";
+  switch (authority) {
+    case "read_only":
+      return "scene";
+    case "cheat":
+      return "cheat";
+    default: {
+      const exhaustive: never = authority;
+      return exhaustive;
+    }
+  }
+}
+
+function compareStateToolsV1(left: StoryDebugDockToolV1, right: StoryDebugDockToolV1): number {
+  const rank = (tool: StoryDebugDockToolV1): number => {
+    if (tool.panelId === engineStateInspectorPanelIdV1) return 0;
+    if (tool.panelId === engineStateTunerPanelIdV1) return 1;
+    return 2;
+  };
+  return rank(left) - rank(right);
+}
+
+function StoryDebugDockSectionV1(props: {
+  readonly section: StoryDebugDockGroupV1;
+  readonly title: string;
+  readonly children: ReactNode;
+}): ReactElement {
+  const headingId = `story-debug-dock-section-${props.section}`;
+  return (
+    <section
+      className={styles["story-debug-dock__section"]}
+      data-debug-dock-section={props.section}
+      role="group"
+      aria-labelledby={headingId}
+    >
+      <h3 id={headingId} className={styles["story-debug-dock__section-title"]}>
+        {props.title}
+      </h3>
+      <div className={styles["story-debug-dock__actions"]}>
+        {props.children}
+      </div>
+    </section>
+  );
+}
+
+function StoryDebugDockToolButtonV1(props: {
+  readonly tool: StoryDebugDockToolV1;
+  readonly busy: boolean;
+  readonly locked: boolean;
+  readonly open: boolean;
+  readonly control: DevDockControlV1;
+  readonly openedNote: string;
+  onBusyGuard(): void;
+  onOpened(note: string): void;
+  grantCapabilities(): void;
+}): ReactElement {
+  return (
+    <Button
+      data-debug-dock-action={props.tool.panelId}
+      aria-pressed={props.open}
+      disabled={props.busy || props.locked}
+      onClick={() => {
+        props.onBusyGuard();
+        if (props.locked) return;
+        props.onOpened(props.openedNote);
+        props.grantCapabilities();
+        if (props.open) props.control.close(props.tool.panelId);
+        else props.control.open(props.tool.panelId);
+      }}
+    >
+      {props.tool.label}
+    </Button>
+  );
+}
+
 export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | null {
   const labels = { ...defaultStoryDebugDockLabelsV1, ...props.labels };
   const grantOnOpen = props.grantCapabilitiesOnOpen !== false;
   const position = props.position ?? "top_right";
-  const [busy, setBusy] = useState<"export" | "import" | "wipe" | "reinitialize" | null>(null);
-  const [wipeConfirm, setWipeConfirm] = useState(false);
+  const [busy, setBusy] = useState<
+    "export" | "import" | "wipe" | "reload" | "reinitialize" | null
+  >(null);
+  const [confirm, setConfirm] = useState<StoryDebugDockConfirmKindV1 | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [internalExpanded, setInternalExpanded] = useState(props.defaultExpanded === true);
   const expanded = props.expanded ?? internalExpanded;
@@ -225,9 +409,25 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
       })
     );
   const cheatsEnabled = capabilityState.debugTools && capabilityState.cheats;
-  const cheatToolsLocked = tools.some((tool) =>
-    (tool.authority ?? "read_only") === "cheat" && !cheatsEnabled && !grantOnOpen
-  );
+  const stateTools = tools.filter((tool) => dockToolSectionV1(tool) === "state")
+    .slice()
+    .sort(compareStateToolsV1);
+  const sceneTools = tools.filter((tool) => dockToolSectionV1(tool) === "scene");
+  const cheatTools = tools.filter((tool) => dockToolSectionV1(tool) === "cheat");
+  const cheatCapabilityLocked = !cheatsEnabled && !grantOnOpen;
+  const tunerLocked = cheatCapabilityLocked;
+  const storyCheatsLocked = cheatTools.length > 0 && cheatCapabilityLocked;
+  const stateTunerLockReason = cheatCapabilityLocked &&
+    stateTools.some((tool) => tool.panelId === engineStateTunerPanelIdV1);
+  const studioHref = resolveStudioPageHrefV1(props.studioHref);
+  const hasStateSection = props.savePort !== undefined ||
+    props.onReloadCurrentState !== undefined ||
+    props.onReinitialize !== undefined ||
+    props.clearAllSaves !== undefined ||
+    stateTools.length > 0;
+  const hasSceneSection = props.presentationFreeze !== undefined ||
+    sceneTools.length > 0 ||
+    studioHref !== undefined;
 
   const { clearAllSaves, onWiped, onExpandedChange } = props;
   const setExpanded = useCallback((next: boolean): void => {
@@ -251,27 +451,61 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
     previousSurfaceRef.current = coordinatorSelection.surface;
     setExpanded(false);
   }, [coordinatorSelection.surface, props.portalTarget, setExpanded]);
-  const closeWipeConfirm = useCallback((): void => {
-    if (busy === "wipe") return;
-    setWipeConfirm(false);
+  const closeConfirm = useCallback((): void => {
+    if (busy === "wipe" || busy === "reload" || busy === "reinitialize") return;
+    setConfirm(null);
   }, [busy]);
 
-  const confirmWipe = useCallback((): void => {
-    if (busy !== null || clearAllSaves === undefined) return;
-    setBusy("wipe");
+  const runConfirmedV1 = useCallback((
+    kind: StoryDebugDockConfirmKindV1,
+    work: () => void | Promise<unknown>,
+    doneNote: string,
+  ): void => {
+    if (busy !== null) return;
+    setBusy(kind);
     setNote(null);
-    void clearAllSaves()
+    void Promise.resolve()
+      .then(() => work())
       .then(() => {
-        setWipeConfirm(false);
-        setNote(labels.wipeDoneText);
-        onWiped?.();
+        setConfirm(null);
+        if (doneNote.length > 0) setNote(doneNote);
+        if (kind === "wipe") onWiped?.();
       })
       .catch((error: unknown) => {
-        setWipeConfirm(false);
+        setConfirm(null);
         setNote(failureNoteV1(error));
       })
       .finally(() => setBusy(null));
-  }, [busy, clearAllSaves, labels.wipeDoneText, onWiped]);
+  }, [busy, onWiped]);
+
+  const confirmAction = useCallback((): void => {
+    if (confirm === null) return;
+    switch (confirm) {
+      case "wipe":
+        if (clearAllSaves === undefined) return;
+        runConfirmedV1("wipe", () => clearAllSaves(), labels.wipeDoneText);
+        return;
+      case "reload":
+        if (props.onReloadCurrentState === undefined) return;
+        runConfirmedV1("reload", () => props.onReloadCurrentState?.(), labels.reloadDoneText);
+        return;
+      case "reinitialize":
+        if (props.onReinitialize === undefined) return;
+        runConfirmedV1("reinitialize", () => props.onReinitialize?.(), "");
+        return;
+      default: {
+        const exhaustive: never = confirm;
+        void exhaustive;
+      }
+    }
+  }, [
+    clearAllSaves,
+    confirm,
+    labels.reloadDoneText,
+    labels.wipeDoneText,
+    props,
+    runConfirmedV1,
+  ]);
 
   useEffect(() => {
     if (!expanded) return undefined;
@@ -280,7 +514,9 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
       if ((event.target as Element | null)?.closest?.("[data-devdock-window]") !== null) {
         return;
       }
-      if ((event.target as Element | null)?.closest?.("[data-debug-dock-wipe-dialog]") !== null) {
+      if (
+        (event.target as Element | null)?.closest?.("[data-debug-dock-confirm-dialog]") !== null
+      ) {
         return;
       }
       event.preventDefault();
@@ -296,6 +532,21 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
   }, [expanded, setExpanded]);
 
   if (!props.visible || portalTarget === null) return null;
+
+  const renderToolButtonV1 = (tool: StoryDebugDockToolV1, locked: boolean): ReactElement => (
+    <StoryDebugDockToolButtonV1
+      key={tool.panelId}
+      tool={tool}
+      busy={busy !== null}
+      locked={locked}
+      open={openPanelIds.includes(tool.panelId)}
+      control={props.control}
+      openedNote={tool.openedNote ?? labels.toolOpenedNote}
+      onBusyGuard={closeConfirm}
+      onOpened={setNote}
+      grantCapabilities={grantCapabilities}
+    />
+  );
 
   return createPortal(
     <>
@@ -328,137 +579,201 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
               className={styles["story-debug-dock__panel"]}
               role="group"
               aria-label={labels.chipLabel}
+              data-native-text="true"
             >
               {props.info === undefined
                 ? null
                 : <div className={styles["story-debug-dock__info"]}>{props.info}</div>}
-              <div className={styles["story-debug-dock__actions"]} data-debug-dock-actions="true">
-                {props.onReinitialize === undefined ? null : (
-                  <Button
-                    data-debug-dock-action="reinitialize"
-                    disabled={busy !== null}
-                    onClick={() => {
-                      closeWipeConfirm();
-                      setBusy("reinitialize");
-                      setNote(null);
-                      void Promise.resolve()
-                        .then(() => props.onReinitialize?.())
-                        .catch((error: unknown) => setNote(failureNoteV1(error)))
-                        .finally(() => setBusy(null));
-                    }}
-                  >
-                    {busy === "reinitialize"
-                      ? `${labels.reinitializeLabel}${labels.busySuffix}`
-                      : labels.reinitializeLabel}
-                  </Button>
-                )}
-                {props.savePort === undefined ? null : (
-                  <Button
-                    data-debug-dock-action="export_state"
-                    disabled={busy !== null}
-                    onClick={() => {
-                      closeWipeConfirm();
-                      setBusy("export");
-                      setNote(null);
-                      void props.savePort
-                        ?.exportCurrentSave()
-                        .then(() => setNote(labels.exportDoneText))
-                        .catch((error: unknown) => setNote(failureNoteV1(error)))
-                        .finally(() => setBusy(null));
-                    }}
-                  >
-                    {busy === "export"
-                      ? `${labels.exportStateLabel}${labels.busySuffix}`
-                      : labels.exportStateLabel}
-                  </Button>
-                )}
-                {props.savePort === undefined ? null : (
-                  <Button
-                    data-debug-dock-action="import_state"
-                    disabled={busy !== null}
-                    onClick={() => {
-                      closeWipeConfirm();
-                      setBusy("import");
-                      setNote(null);
-                      void props.savePort
-                        ?.importSave()
-                        .then((result) => {
-                          const next = sessionMaintenanceImportNoteV1(result, labels);
-                          if (next !== null) setNote(next);
-                        })
-                        .catch((error: unknown) => setNote(failureNoteV1(error)))
-                        .finally(() => setBusy(null));
-                    }}
-                  >
-                    {busy === "import"
-                      ? `${labels.importStateLabel}${labels.busySuffix}`
-                      : labels.importStateLabel}
-                  </Button>
-                )}
-                {tools.map((tool) => {
-                  const authority = tool.authority ?? "read_only";
-                  const locked = authority === "cheat" && !cheatsEnabled && !grantOnOpen;
-                  const open = openPanelIds.includes(tool.panelId);
-                  return (
-                    <Button
-                      key={tool.panelId}
-                      data-debug-dock-action={tool.panelId}
-                      aria-pressed={open}
-                      disabled={busy !== null || locked}
-                      onClick={() => {
-                        closeWipeConfirm();
-                        if (locked) return;
-                        setNote(tool.openedNote ?? labels.toolOpenedNote);
-                        grantCapabilities();
-                        if (open) props.control.close(tool.panelId);
-                        else props.control.open(tool.panelId);
-                      }}
+              <div className={styles["story-debug-dock__body"]} data-debug-dock-actions="true">
+                {hasStateSection
+                  ? (
+                    <StoryDebugDockSectionV1
+                      section="state"
+                      title={labels.sectionStateLabel}
                     >
-                      {tool.label}
-                    </Button>
-                  );
-                })}
-                {props.presentationFreeze === undefined ? null : (
-                  <Button
-                    data-debug-dock-action="freeze"
-                    data-devdock-freeze-toggle="true"
-                    aria-pressed={frozen}
-                    onClick={() => {
-                      closeWipeConfirm();
-                      if (frozen) {
-                        setNote(labels.resumeNote);
-                        props.presentationFreeze?.resume();
-                      } else {
-                        setNote(labels.freezeNote);
-                        props.presentationFreeze?.pause();
-                      }
-                    }}
+                      {props.savePort === undefined
+                        ? null
+                        : (
+                          <div className={styles["story-debug-dock__pair"]}>
+                            <Button
+                              data-debug-dock-action="export_state"
+                              disabled={busy !== null}
+                              onClick={() => {
+                                closeConfirm();
+                                setBusy("export");
+                                setNote(null);
+                                void props.savePort
+                                  ?.exportCurrentSave()
+                                  .then(() => setNote(labels.exportDoneText))
+                                  .catch((error: unknown) => setNote(failureNoteV1(error)))
+                                  .finally(() => setBusy(null));
+                              }}
+                            >
+                              {busy === "export"
+                                ? `${labels.exportStateLabel}${labels.busySuffix}`
+                                : labels.exportStateLabel}
+                            </Button>
+                            <Button
+                              data-debug-dock-action="import_state"
+                              disabled={busy !== null}
+                              onClick={() => {
+                                closeConfirm();
+                                setBusy("import");
+                                setNote(null);
+                                void props.savePort
+                                  ?.importSave()
+                                  .then((result) => {
+                                    const next = sessionMaintenanceImportNoteV1(result, labels);
+                                    if (next !== null) setNote(next);
+                                  })
+                                  .catch((error: unknown) => setNote(failureNoteV1(error)))
+                                  .finally(() => setBusy(null));
+                              }}
+                            >
+                              {busy === "import"
+                                ? `${labels.importStateLabel}${labels.busySuffix}`
+                                : labels.importStateLabel}
+                            </Button>
+                          </div>
+                        )}
+                      {stateTools.length === 0
+                        ? null
+                        : (
+                          <div className={styles["story-debug-dock__pair"]}>
+                            {stateTools.map((tool) =>
+                              renderToolButtonV1(
+                                tool,
+                                tool.panelId === engineStateTunerPanelIdV1 && tunerLocked,
+                              )
+                            )}
+                          </div>
+                        )}
+                      {props.onReloadCurrentState === undefined &&
+                          props.onReinitialize === undefined
+                        ? null
+                        : (
+                          <div className={styles["story-debug-dock__pair"]}>
+                            {props.onReloadCurrentState === undefined ? null : (
+                              <Button
+                                data-debug-dock-action="reload_current"
+                                disabled={busy !== null}
+                                aria-expanded={confirm === "reload"}
+                                onClick={() => {
+                                  setNote(null);
+                                  setConfirm("reload");
+                                }}
+                              >
+                                {labels.reloadCurrentStateLabel}
+                              </Button>
+                            )}
+                            {props.onReinitialize === undefined ? null : (
+                              <Button
+                                data-debug-dock-action="reinitialize"
+                                disabled={busy !== null}
+                                aria-expanded={confirm === "reinitialize"}
+                                onClick={() => {
+                                  setNote(null);
+                                  setConfirm("reinitialize");
+                                }}
+                              >
+                                {labels.reinitializeLabel}
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      {clearAllSaves === undefined ? null : (
+                        <Button
+                          className={styles["story-debug-dock__danger"]}
+                          data-debug-dock-action="wipe_local"
+                          disabled={busy !== null}
+                          aria-expanded={confirm === "wipe"}
+                          onClick={() => {
+                            setNote(null);
+                            setConfirm("wipe");
+                          }}
+                        >
+                          {labels.wipeLabel}
+                        </Button>
+                      )}
+                      {stateTunerLockReason
+                        ? (
+                          <p className={styles["story-debug-dock__authority-reason"]}>
+                            {labels.cheatLockReason}
+                          </p>
+                        )
+                        : null}
+                    </StoryDebugDockSectionV1>
+                  )
+                  : null}
+                {hasSceneSection
+                  ? (
+                    <StoryDebugDockSectionV1
+                      section="scene"
+                      title={labels.sectionSceneLabel}
+                    >
+                      {props.presentationFreeze === undefined && sceneTools.length === 0
+                        ? null
+                        : (
+                          <div className={styles["story-debug-dock__pair"]}>
+                            {props.presentationFreeze === undefined ? null : (
+                              <Button
+                                data-debug-dock-action="freeze"
+                                data-devdock-freeze-toggle="true"
+                                aria-pressed={frozen}
+                                onClick={() => {
+                                  closeConfirm();
+                                  if (frozen) {
+                                    setNote(labels.resumeNote);
+                                    props.presentationFreeze?.resume();
+                                  } else {
+                                    setNote(labels.freezeNote);
+                                    props.presentationFreeze?.pause();
+                                  }
+                                }}
+                              >
+                                {frozen ? labels.resumeLabel : labels.freezeLabel}
+                              </Button>
+                            )}
+                            {sceneTools[0] === undefined
+                              ? null
+                              : renderToolButtonV1(sceneTools[0], false)}
+                          </div>
+                        )}
+                      {sceneTools.slice(1).map((tool) => renderToolButtonV1(tool, false))}
+                      {studioHref === undefined ? null : (
+                        <a
+                          className={styles["story-debug-dock__studio"]}
+                          href={studioHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          data-debug-dock-action="studio"
+                          onClick={() => setNote(labels.studioOpenedNote)}
+                        >
+                          {labels.studioLabel}
+                        </a>
+                      )}
+                    </StoryDebugDockSectionV1>
+                  )
+                  : null}
+                {cheatTools.length === 0 ? null : (
+                  <StoryDebugDockSectionV1
+                    section="cheat"
+                    title={labels.sectionCheatLabel}
                   >
-                    {frozen ? labels.resumeLabel : labels.freezeLabel}
-                  </Button>
-                )}
-                {clearAllSaves === undefined ? null : (
-                  <Button
-                    data-debug-dock-action="wipe_local"
-                    disabled={busy !== null}
-                    aria-expanded={wipeConfirm}
-                    onClick={() => {
-                      setNote(null);
-                      setWipeConfirm(true);
-                    }}
-                  >
-                    {labels.wipeLabel}
-                  </Button>
+                    {cheatTools.map((tool) =>
+                      renderToolButtonV1(tool, !cheatsEnabled && !grantOnOpen)
+                    )}
+                    {storyCheatsLocked
+                      ? (
+                        <p className={styles["story-debug-dock__authority-reason"]}>
+                          {labels.cheatLockReason}
+                        </p>
+                      )
+                      : null}
+                  </StoryDebugDockSectionV1>
                 )}
               </div>
-              {cheatToolsLocked
-                ? (
-                  <p className={styles["story-debug-dock__authority-reason"]}>
-                    需要启用作弊功能
-                  </p>
-                )
-                : null}
-              {note === null ? null : (
+              {note === null || note.length === 0 ? null : (
                 <div
                   className={styles["story-debug-dock__note"]}
                   data-debug-dock-note="true"
@@ -479,16 +794,15 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
           )
           : null}
       </details>
-      {wipeConfirm
-        ? (
-          <StoryDebugDockWipeDialogV1
-            busy={busy === "wipe"}
-            labels={labels}
-            onConfirm={confirmWipe}
-            onCancel={closeWipeConfirm}
-          />
-        )
-        : null}
+      {confirm === null ? null : (
+        <StoryDebugDockConfirmDialogV1
+          kind={confirm}
+          busy={busy === confirm}
+          labels={labels}
+          onConfirm={confirmAction}
+          onCancel={closeConfirm}
+        />
+      )}
     </>,
     portalTarget,
   );

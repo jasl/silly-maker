@@ -576,6 +576,7 @@ function SystemDialogCandidateEntryInternalV1(props: {
     const containFocus = (event: FocusEvent): void => {
       const target = event.target;
       if (target instanceof Node && shellElement.contains(target)) return;
+      if (isDevDockEscapeOwnerTargetV1(target)) return;
       if (readyRoot && deferRootFocusRecoveryRef.current) return;
       focusFirstSystemDialogTargetInternalV1(shellElement);
     };
@@ -766,6 +767,7 @@ function SystemDialogBlockingFallbackInternalV1(props: {
     const containFocus = (event: FocusEvent): void => {
       const target = event.target;
       if (target instanceof Node && focusElement.contains(target)) return;
+      if (isDevDockEscapeOwnerTargetV1(target)) return;
       focusElement.focus({ preventScroll: true });
     };
     ownerDocument.addEventListener("focusin", containFocus, true);

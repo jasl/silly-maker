@@ -25,6 +25,8 @@ import type {
 import type { DevDockControlV1 } from "../debug/dev-dock-control.ts";
 import { createDevDockControlV1 } from "../debug/dev-dock-control.ts";
 import { StoryDebugDockV1 } from "../debug/story-debug-dock.tsx";
+import type { StateTunerPortV1 } from "../debug/state-tuner.ts";
+import { mergeEngineStateTunerPanelsV1 } from "../debug/state-tuner-contributions.tsx";
 import type { PresentationFreezePortV1 } from "../presentation-run/presentation-freeze.ts";
 import type { InputRouterV1 } from "../input/contracts.ts";
 import type { GamepadActionMapV1 } from "../input/gamepad-adapter.ts";
@@ -273,12 +275,20 @@ export interface DefaultGameRootPropsV1<
   };
   /**
    * Persistence ports inlined into the engine debug launcher (export /
-   * import / Core wipe). Not registered as a floating tool window.
+   * import / Core wipe / reload-current). Not registered as a floating
+   * tool window.
    */
   readonly sessionMaintenance?: {
     readonly savePort?: SaveOverlayPortV1;
     readonly clearAllSaves?: () => Promise<void>;
+    /** Serialize the live snapshot and load it as the current session. */
+    readonly reloadCurrentState?: () => Promise<void>;
   };
+  /**
+   * Authoritative story-state inspector + leaf table. Engine-owned debug
+   * panels; omitted when the host cannot read/patch the live snapshot.
+   */
+  readonly stateTuner?: StateTunerPortV1;
   /** Optional keyboard/gamepad adapters routed through the composition. */
   readonly inputMaps?: {
     readonly keyboard?: KeyboardActionMapV1;
@@ -319,7 +329,9 @@ function DefaultDevDockV1(props: {
   readonly info?: ReactNode;
   readonly savePort?: SaveOverlayPortV1;
   readonly clearAllSaves?: () => Promise<void>;
+  readonly onReloadCurrentState?: () => void | Promise<unknown>;
   readonly onReinitialize?: () => void | Promise<unknown>;
+  readonly stateTuner?: StateTunerPortV1;
   readonly composition: {
     readonly input: GameUiCompositionV1<
       never,
@@ -388,8 +400,13 @@ function DefaultDevDockV1(props: {
       active = false;
     };
   }, [debugTools, load]);
+  const storyContributions = loaded ?? props.contributions;
+  const mergedPanels = useMemo(
+    () => mergeEngineStateTunerPanelsV1(storyContributions.panels, props.stateTuner),
+    [props.stateTuner, storyContributions],
+  );
   if (!debugTools) return null;
-  const contributions = loaded ?? props.contributions;
+  const contributions = createDevDockContributionSetV1({ panels: mergedPanels });
   return (
     <>
       {chip
@@ -406,6 +423,9 @@ function DefaultDevDockV1(props: {
             {...(props.freeze === undefined ? {} : { presentationFreeze: props.freeze })}
             {...(props.savePort === undefined ? {} : { savePort: props.savePort })}
             {...(props.clearAllSaves === undefined ? {} : { clearAllSaves: props.clearAllSaves })}
+            {...(props.onReloadCurrentState === undefined
+              ? {}
+              : { onReloadCurrentState: props.onReloadCurrentState })}
             {...(props.onReinitialize === undefined
               ? {}
               : { onReinitialize: props.onReinitialize })}
@@ -856,9 +876,10 @@ export function DefaultGameRootV1<
   const hasStoryTools = props.devDockContributions !== undefined ||
     props.devDock?.load !== undefined;
   const hasMaintenance = props.sessionMaintenance !== undefined;
+  const hasStateTuner = props.stateTuner !== undefined;
   const mountDevDock = props.capabilities !== undefined && (
-    (chip && (hasMaintenance || hasStoryTools)) ||
-    (!chip && hasStoryTools)
+    (chip && (hasMaintenance || hasStoryTools || hasStateTuner)) ||
+    (!chip && (hasStoryTools || hasStateTuner))
   );
   return (
     <div
@@ -899,6 +920,10 @@ export function DefaultGameRootV1<
             {...(props.sessionMaintenance?.clearAllSaves === undefined
               ? {}
               : { clearAllSaves: props.sessionMaintenance.clearAllSaves })}
+            {...(props.sessionMaintenance?.reloadCurrentState === undefined
+              ? {}
+              : { onReloadCurrentState: props.sessionMaintenance.reloadCurrentState })}
+            {...(props.stateTuner === undefined ? {} : { stateTuner: props.stateTuner })}
             {...(props.lifecycle === undefined
               ? {}
               : { onReinitialize: slotContext.systemDialogs.returnToTitle })}

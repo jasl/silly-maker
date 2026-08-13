@@ -130,6 +130,7 @@ describe("installNativeBehaviorResetV1", () => {
     expect(document.body.getAttribute("data-silly-native-reset")).toBe("true");
     const style = document.head.querySelector("style[data-silly-native-reset-style]");
     expect(style?.textContent).toContain("user-select: none");
+    expect(style?.textContent).toContain("user-select: text !important");
     expect(style?.textContent).toContain(`[${nativeBehaviorAllowTextAttributeV1}]`);
     expect(style?.textContent).toContain(`[${nativeBehaviorAllowMenuAttributeV1}]`);
     expect(style?.textContent).toContain(`:is(${pointerInteractiveSelectorV1})`);

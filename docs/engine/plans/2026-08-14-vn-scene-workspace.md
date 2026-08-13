@@ -25,7 +25,7 @@ envelope 或第二 runtime authority。
   → typed accessors 编译进现有 runtime contracts
     （StageMutation / transition fragment / mayShow / preview case / provenance）
   → StageContentGeometryV1（宽高 + 锚点）由 stage wrapper 拥有锚变换
-  → Studio（deno task author）：navigator + 真实 renderer 画布 + 直接操纵
+  → Studio（调试坞「场景 → Studio」，或 /__sillymaker/studio/）：navigator + 真实 renderer 画布 + 直接操纵
   → dev-only CAS 写回（同 motion 端口纪律）→ HMR
 ```
 
@@ -180,14 +180,18 @@ envelope 或第二 runtime authority。
 
 ### A4 — Starter 与文档迁移
 
-- scene-first starter：主入口 `deno task author`，用户先看到示例场景；现有低层
+- 发现入口：`deno task author` / `deno task dev` 启动同源 Vite；人类从游戏里打开
+  调试 → 场景 → Studio（新标签页，不替换进行中的会话）。生产构建与未声明
+  `studio` 绑定的应用不显示该入口。不要求 `author` 自动弹出浏览器。
+- scene-first starter：用户先看到可玩示例场景，再从调试坞进 Studio；现有低层
   starter 降级为 advanced/low-level 参考（目录命名与迁移方式由本切片与所有者确
   认）；`application/**` 标注 Advanced。
-- authoring-quickstart 重写为 Studio 基本流程优先，低层 Tier 保留为高级路径；
-  template/examples/e2e AGENTS 增加 scene 协作合同（单一作者权威、不复写
-  placement、cue 命名纪律），与 M5 motion 合同同族。
-- 验收：新 starter `deno task author` 开箱可用；文档与 AGENTS 同步；旧 starter 的
-  引用路径全部更新。
+- authoring-quickstart 重写为「玩游戏 → 调试坞 Studio」优先，`deno task author`
+  仍是 CLI 启动方式；低层 Tier 保留为高级路径；template/examples/e2e AGENTS 增加
+  scene 协作合同（单一作者权威、不复写 placement、cue 命名纪律），与 M5 motion
+  合同同族。
+- 验收：新 starter 开箱可玩且调试坞能打开 Studio；文档与 AGENTS 同步；旧 starter
+  的引用路径全部更新。
 
 ### A5 — 第二消费者验证
 

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import type { InputActionIdV1, InputRouterV1 } from "./contracts.ts";
+import { pointerInteractiveSelectorV1 } from "./pointer-button-adapter.ts";
 
 /**
  * The keyboard adapter: a configurable map from `KeyboardEvent.code` to
@@ -8,8 +9,8 @@ import type { InputActionIdV1, InputRouterV1 } from "./contracts.ts";
  * gameplay semantic command a handler ultimately dispatches does.
  *
  * Keys are ignored while focus sits on an editable or interactive element,
- * so typing in a form or activating a focused button never doubles as a
- * stage shortcut; accessible DOM controls keep their native behavior.
+ * while IME composition is active, and while focus is inside debug/system
+ * chrome, so typing in a form never doubles as a stage shortcut.
  */
 
 export type KeyboardActionMapV1 = Readonly<Record<string, InputActionIdV1>>;
@@ -21,14 +22,24 @@ export interface InstallKeyboardAdapterOptionsV1 {
   readonly target?: Pick<EventTarget, "addEventListener" | "removeEventListener">;
 }
 
-const editableTagsV1 = new Set(["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A", "OPTION"]);
+const nativeTypingScopeSelectorV1 =
+  `${pointerInteractiveSelectorV1}, [data-native-text], [data-devdock-window], ` +
+  "[data-debug-dock], [data-blocking-focus-scope]";
 
-function isInteractiveTargetV1(target: unknown): boolean {
-  if (typeof Element === "undefined" || !(target instanceof Element)) return false;
-  if (editableTagsV1.has(target.tagName)) return true;
-  if (target instanceof HTMLElement && target.isContentEditable) return true;
-  const role = target.getAttribute("role");
-  return role === "button" || role === "textbox" || role === "combobox";
+function closestFromEventTargetV1(target: unknown, selector: string): Element | null {
+  const candidate = target as {
+    closest?: (selectors: string) => Element | null;
+    parentElement?: { closest?: (selectors: string) => Element | null } | null;
+  } | null;
+  if (typeof candidate?.closest === "function") return candidate.closest(selector);
+  const parent = candidate?.parentElement;
+  if (typeof parent?.closest === "function") return parent.closest(selector);
+  return null;
+}
+
+function shouldIgnoreKeyboardShortcutV1(event: KeyboardEvent): boolean {
+  if (event.isComposing || event.key === "Process") return true;
+  return closestFromEventTargetV1(event.target, nativeTypingScopeSelectorV1) !== null;
 }
 
 export function installKeyboardAdapterV1(options: InstallKeyboardAdapterOptionsV1): () => void {
@@ -41,7 +52,7 @@ export function installKeyboardAdapterV1(options: InstallKeyboardAdapterOptionsV
     if (keyboardEvent.metaKey || keyboardEvent.ctrlKey || keyboardEvent.altKey) return;
     const actionId = options.map[keyboardEvent.code];
     if (actionId === undefined) return;
-    if (isInteractiveTargetV1(keyboardEvent.target)) return;
+    if (shouldIgnoreKeyboardShortcutV1(keyboardEvent)) return;
     const result = options.router.route({ kind: "action", actionId });
     if (result.kind === "handled") keyboardEvent.preventDefault();
   };

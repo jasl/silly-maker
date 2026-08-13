@@ -35,7 +35,7 @@
 ## 给人与给 AI 的工具
 
 - `story check` / `story simulate` 输出结构化 JSON：agent（或 CI）可以校验叙事图、headless 玩通每条路线。`--trace` 打印逐步数值轨迹；`story diff` 结构化对比两份存档或报告。
-- **DevDock** 是唯一的能力门控调试 UI（绝不混进玩家 UI）：「调试」启动器把实时检查器、叙事图、Story 调参面板开成浮窗；会话维护（导入导出、带确认且准确报告部分失败的存档槽清理、重新初始化）内联在启动器里。cheat 级工具在 `cheats` 开启前保持禁用。
+- **DevDock** 是唯一的能力门控调试 UI（绝不混进玩家 UI）。「调试」启动器分组为 **状态**（导出/导入、引擎 **状态查看** / **状态编辑**、刷新状态、初始化、带确认的清空存储）、**场景**（冻结画面、dev server 宣告时出现 Studio、其他只读场景工具）、以及 Story 专用 **作弊**。cheat 级工具在 `cheats` 开启前保持禁用。
 - 交付：`deno task build:web` 产出可直接静态托管的 `dist-web/`，`site:build`
   负责组合文档站。声明了 `build:desktop` 的应用可产出本机或交叉目标 Desktop
   preview（`.app`、Windows `.msi` 安装包、`.AppImage`）；shell 领取启动窗口，

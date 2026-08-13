@@ -78,6 +78,30 @@ describe("installKeyboardAdapterV1", () => {
     }
     expect(router.route).not.toHaveBeenCalled();
 
+    const button = document.createElement("button");
+    const glyph = document.createElement("span");
+    button.append(glyph);
+    document.body.append(button);
+    const nested = pressV1("Enter", glyph);
+    expect(nested.defaultPrevented).toBe(false);
+    button.remove();
+
+    const composingHost = document.createElement("div");
+    document.body.append(composingHost);
+    const composing = pressV1("Enter", composingHost, { isComposing: true });
+    expect(composing.defaultPrevented).toBe(false);
+    composingHost.remove();
+
+    const dock = document.createElement("div");
+    dock.setAttribute("data-debug-dock", "true");
+    const dockChild = document.createElement("div");
+    dock.append(dockChild);
+    document.body.append(dock);
+    const dockEvent = pressV1("Enter", dockChild);
+    expect(dockEvent.defaultPrevented).toBe(false);
+    dock.remove();
+    expect(router.route).not.toHaveBeenCalled();
+
     // Ignored routes leave default behavior alone.
     const ignoredRouter = routerSpyV1(false);
     uninstall();

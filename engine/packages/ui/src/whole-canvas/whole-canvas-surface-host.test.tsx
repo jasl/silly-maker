@@ -505,6 +505,37 @@ describe("S4b.1b WholeCanvas React Host", () => {
     lowerStage.remove();
   });
 
+  it("does not steal keyboard focus from DevDock chrome outside the current shell", async () => {
+    const harness = hostHarnessInternalV1({
+      renderer: () => <button type="button">Owner</button>,
+    });
+    render(hostElementInternalV1(harness));
+    await waitFor(() => {
+      expect(harness.portalContainer.querySelector(
+        '[data-whole-canvas-phase="current"]',
+      )).not.toBeNull();
+    });
+    const shell = harness.portalContainer.querySelector<HTMLElement>(
+      '[data-whole-canvas-phase="current"]',
+    )!;
+    await act(async () => await Promise.resolve());
+    expect(document.activeElement).toBe(shell);
+
+    const dockWindow = document.createElement("div");
+    dockWindow.dataset.devdockEscapeOwner = "true";
+    dockWindow.dataset.devdockWindow = "cheat-panel";
+    const input = document.createElement("input");
+    input.type = "text";
+    dockWindow.append(input);
+    document.body.append(dockWindow);
+    input.focus();
+    expect(document.activeElement).toBe(input);
+    await act(async () => await Promise.resolve());
+    expect(document.activeElement).toBe(input);
+    dockWindow.remove();
+    harness.dispose();
+  });
+
   it("keeps the exact current primary and focus when replacement readiness fails", async () => {
     const replacement = deferredInternalV1();
     const harness = hostHarnessInternalV1({

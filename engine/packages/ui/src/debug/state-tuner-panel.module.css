@@ -1,0 +1,62 @@
+/* SPDX-License-Identifier: MIT */
+
+.inspector {
+  display: grid;
+  gap: var(--silly-space-2);
+  min-inline-size: 0;
+}
+
+.note,
+.truncated,
+.status {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.filter {
+  display: grid;
+  gap: var(--silly-space-1);
+  font-size: 0.75rem;
+}
+
+.filter input {
+  inline-size: 100%;
+}
+
+.table-wrap {
+  max-block-size: 40vh;
+  overflow: auto;
+}
+
+.table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.table th,
+.table td {
+  padding: 0.15rem 0.35rem;
+  text-align: start;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--silly-color-border);
+}
+
+.path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  word-break: break-all;
+}
+
+.editor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--silly-space-1);
+  align-items: center;
+}
+
+.editor input[type="text"],
+.editor input[type="number"] {
+  min-inline-size: 5rem;
+  max-inline-size: 8rem;
+}

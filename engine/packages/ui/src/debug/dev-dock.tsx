@@ -207,6 +207,7 @@ function DevDockWindowV1(props: {
       aria-live="polite"
       data-devdock-window={panel.id}
       data-devdock-escape-owner="true"
+      data-native-text="true"
       tabIndex={-1}
       style={drag.position === null
         ? { "--devdock-cascade": props.cascadeIndex } as Record<string, number>
@@ -247,7 +248,9 @@ function DevDockWindowV1(props: {
           ...drag.headerProps,
         }}
       >
-        {authorized ? panel.render() : <p>需要启用作弊功能</p>}
+        <div role="document">
+          {authorized ? panel.render() : <p>需要启用作弊功能</p>}
+        </div>
       </PanelV1>
     </section>
   );

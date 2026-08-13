@@ -58,6 +58,21 @@ export type {
 export { createDebugToolsPortV1 } from "./diagnostics/debug-tools.ts";
 export type { CreateDebugToolsPortInputV1 } from "./diagnostics/debug-tools.ts";
 export {
+  engineDebugPatchErrorCodeV1,
+  engineDebugPatchStateKindV1,
+  executeEngineStatePatchV1,
+  isEngineDebugPatchStateKindV1,
+  parseEngineDebugPatchStateCommandV1,
+  validateEngineStatePatchV1,
+} from "./diagnostics/state-patch.ts";
+export type {
+  EngineDebugPatchStateCommandV1,
+  EngineDebugPatchValidationErrorV1,
+  EngineDebugPatchValidationResultV1,
+  EnginePatchableSnapshotV1,
+  EngineStatePatchLeafV1,
+} from "./diagnostics/state-patch.ts";
+export {
   createGameDiagnosticsServiceV1,
   decodeDebugBundleV1,
   encodeDebugBundleV1,

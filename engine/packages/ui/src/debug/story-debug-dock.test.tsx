@@ -3,7 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
@@ -19,6 +19,7 @@ import {
   DevDockPortalCoordinatorV1,
   useDevDockPortalTargetRegistrationV1,
 } from "./dev-dock-portal-coordinator.tsx";
+import { engineStateInspectorPanelIdV1, engineStateTunerPanelIdV1 } from "./state-tuner.ts";
 import { StoryDebugDockV1 } from "./story-debug-dock.tsx";
 
 afterEach(cleanup);
@@ -80,6 +81,7 @@ function renderDockV1(
       })}
       savePort={fakeSavePortV1()}
       clearAllSaves={vi.fn(async () => undefined)}
+      onReloadCurrentState={vi.fn()}
       onReinitialize={vi.fn()}
       {...(listFromRegistry === true ? {} : { tools: tools ?? defaultToolsV1 })}
       {...rest}
@@ -135,12 +137,12 @@ describe("StoryDebugDockV1", () => {
     });
     const user = userEvent.setup();
     await user.click(screen.getByText("调试"));
-    await user.click(screen.getByRole("button", { name: "清理本地库" }));
+    await user.click(screen.getByRole("button", { name: "清空存储" }));
     expect(clearAllSaves).not.toHaveBeenCalled();
-    expect(screen.getByRole("alertdialog", { name: "清理全部本地存档？" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "取消清理本地库" })).toBeVisible();
+    expect(screen.getByRole("alertdialog", { name: "清空全部本地存储？" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "取消清空存储" })).toBeVisible();
     expect(screen.getAllByRole("button", { name: "取消" })).toHaveLength(1);
-    await user.click(screen.getByRole("button", { name: "确认清库" }));
+    await user.click(screen.getByRole("button", { name: "确认清空" }));
     await waitFor(() => expect(clearAllSaves).toHaveBeenCalledOnce());
     expect(clear).not.toHaveBeenCalled();
     expect(onWiped).toHaveBeenCalledOnce();
@@ -151,10 +153,40 @@ describe("StoryDebugDockV1", () => {
     renderDockV1({ clearAllSaves });
     const user = userEvent.setup();
     await user.click(screen.getByText("调试"));
-    await user.click(screen.getByRole("button", { name: "清理本地库" }));
+    await user.click(screen.getByRole("button", { name: "清空存储" }));
     await user.click(screen.getByRole("button", { name: "取消" }));
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(clearAllSaves).not.toHaveBeenCalled();
+  });
+
+  it("reloads the live snapshot only after confirmation and does not download a save", async () => {
+    const onReloadCurrentState = vi.fn(async () => undefined);
+    const savePort = fakeSavePortV1();
+    renderDockV1({ onReloadCurrentState, savePort });
+    const user = userEvent.setup();
+    await user.click(screen.getByText("调试"));
+    await user.click(screen.getByRole("button", { name: "刷新状态" }));
+    expect(onReloadCurrentState).not.toHaveBeenCalled();
+    expect(savePort.exportCurrentSave).not.toHaveBeenCalled();
+    expect(screen.getByRole("alertdialog", { name: "用当前状态重新加载？" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "取消刷新状态" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "确认刷新" }));
+    await waitFor(() => expect(onReloadCurrentState).toHaveBeenCalledOnce());
+    expect(savePort.exportCurrentSave).not.toHaveBeenCalled();
+    expect(screen.getByText("已用当前状态重新加载。")).toBeVisible();
+  });
+
+  it("reinitializes only after confirmation", async () => {
+    const onReinitialize = vi.fn(async () => undefined);
+    renderDockV1({ onReinitialize });
+    const user = userEvent.setup();
+    await user.click(screen.getByText("调试"));
+    await user.click(screen.getByRole("button", { name: "初始化" }));
+    expect(onReinitialize).not.toHaveBeenCalled();
+    expect(screen.getByRole("alertdialog", { name: "初始化会话？" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "取消初始化" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "确认初始化" }));
+    await waitFor(() => expect(onReinitialize).toHaveBeenCalledOnce());
   });
 
   it("does not offer a global engine-tools shutdown", async () => {
@@ -214,8 +246,94 @@ describe("StoryDebugDockV1", () => {
     const user = userEvent.setup();
     await user.click(screen.getByText("调试"));
     expect(screen.getByRole("button", { name: "调参" })).toBeDisabled();
-    expect(screen.getByText("需要启用作弊功能")).toBeVisible();
+    expect(
+      within(screen.getByRole("group", { name: "作弊" })).getByText("需要启用作弊功能"),
+    ).toBeVisible();
     expect(control.openPanelIds.getCurrent()).toEqual([]);
+  });
+
+  it("groups state, scene, and story-cheat actions", async () => {
+    const control = createDevDockControlV1();
+    control.publishPanelsInternalV1(Object.freeze([
+      Object.freeze({
+        id: engineStateInspectorPanelIdV1,
+        title: "状态查看",
+        authority: "read_only" as const,
+      }),
+      Object.freeze({
+        id: engineStateTunerPanelIdV1,
+        title: "状态编辑",
+        authority: "cheat" as const,
+      }),
+      Object.freeze({
+        id: "panel.lab.graph",
+        title: "叙事图",
+        authority: "read_only" as const,
+      }),
+      Object.freeze({
+        id: "panel.tune",
+        title: "作弊",
+        authority: "cheat" as const,
+      }),
+    ]));
+    renderDockV1({
+      control,
+      listFromRegistry: true,
+      capabilities: fakeCapabilitiesV1({ debugTools: true, cheats: false }),
+      grantCapabilitiesOnOpen: false,
+      studioHref: "/__sillymaker/studio/",
+    });
+    await userEvent.setup().click(screen.getByText("调试"));
+    const state = screen.getByRole("group", { name: "状态" });
+    expect(within(state).getByRole("button", { name: "导出状态" })).toBeVisible();
+    expect(within(state).getByRole("button", { name: "导入状态" })).toBeVisible();
+    expect(within(state).getByRole("button", { name: "状态查看" })).toBeVisible();
+    expect(within(state).getByRole("button", { name: "状态编辑" })).toBeDisabled();
+    expect(within(state).getByRole("button", { name: "刷新状态" })).toBeVisible();
+    expect(within(state).getByRole("button", { name: "初始化" })).toBeVisible();
+    expect(within(state).getByRole("button", { name: "清空存储" })).toBeVisible();
+    expect(
+      [...state.querySelectorAll("[data-debug-dock-action]")].map((node) =>
+        node.getAttribute("data-debug-dock-action")
+      ),
+    ).toEqual([
+      "export_state",
+      "import_state",
+      engineStateInspectorPanelIdV1,
+      engineStateTunerPanelIdV1,
+      "reload_current",
+      "reinitialize",
+      "wipe_local",
+    ]);
+    const scene = screen.getByRole("group", { name: "场景" });
+    expect(within(scene).getByRole("button", { name: "冻结画面" })).toBeVisible();
+    expect(within(scene).getByRole("button", { name: "叙事图" })).toBeVisible();
+    expect(within(scene).getByRole("link", { name: "Studio" })).toBeVisible();
+    expect(
+      within(screen.getByRole("group", { name: "作弊" })).getByRole("button", { name: "作弊" }),
+    ).toBeDisabled();
+    expect(screen.queryByRole("group", { name: "创作" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "检视" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "调参" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "会话" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "危险" })).not.toBeInTheDocument();
+  });
+
+  it("opens Studio in a new tab when the page is advertised", async () => {
+    renderDockV1({ studioHref: "/__sillymaker/studio/" });
+    await userEvent.setup().click(screen.getByText("调试"));
+    const studio = within(screen.getByRole("group", { name: "场景" })).getByRole("link", {
+      name: "Studio",
+    });
+    expect(studio).toHaveAttribute("href", "/__sillymaker/studio/");
+    expect(studio).toHaveAttribute("target", "_blank");
+    expect(studio).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("ignores unsafe Studio hrefs", async () => {
+    renderDockV1({ studioHref: "javascript:alert(1)" });
+    await userEvent.setup().click(screen.getByText("调试"));
+    expect(screen.queryByRole("link", { name: "Studio" })).not.toBeInTheDocument();
   });
 
   it("grants debug_tools and cheats when the chip expands before tools exist", async () => {

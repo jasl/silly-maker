@@ -35,7 +35,7 @@ Saves are plain, versioned, validated data — a quick slot plus numbered manual
 ## Tooling for humans and agents
 
 - `story check` / `story simulate` emit structured JSON: an agent (or CI) can validate a story graph and play every route headlessly. `--trace` prints per-step numeric trajectories; `story diff` compares two saves or reports structurally.
-- The **DevDock** is the sole capability-gated debug UI (never part of the player UI). A 调试 launcher lists live inspectors, the narrative graph, and Story tuning tools as floating windows; session maintenance (export/import, confirmed Save-slot cleanup with partial-failure reporting, and reinitialization) is inlined in that launcher. Cheat-authority tools stay disabled until `cheats` is on.
+- The **DevDock** is the sole capability-gated debug UI (never part of the player UI). The 调试 launcher groups **状态** (export / import, engine **状态查看** / **状态编辑**, reload-current, reinitialize, confirmed wipe), **场景** (freeze, Studio when the dev server advertises it, other read-only scene tools), and Story-specific **作弊**. Cheat-authority tools stay disabled until `cheats` is on.
 - Delivery: `deno task build:web` produces deployable static `dist-web/` output,
   while `site:build` composes the docs site. Applications that declare
   `build:desktop` can produce host or cross-target Desktop previews

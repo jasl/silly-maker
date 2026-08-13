@@ -43,8 +43,8 @@ const selectionResetCssV1 = `
 [${resetMarkerAttributeV1}] :is(${nativeBehaviorEditableSelectorV1}) *,
 [${resetMarkerAttributeV1}] [${nativeBehaviorAllowTextAttributeV1}],
 [${resetMarkerAttributeV1}] [${nativeBehaviorAllowTextAttributeV1}] * {
-  -webkit-user-select: text;
-  user-select: text;
+  -webkit-user-select: text !important;
+  user-select: text !important;
 }
 [${resetMarkerAttributeV1}] :is(${pointerInteractiveSelectorV1}),
 [${resetMarkerAttributeV1}] :is(${pointerInteractiveSelectorV1}) *,
