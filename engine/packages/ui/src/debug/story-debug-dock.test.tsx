@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
 // SPDX-License-Identifier: MIT
 import "@testing-library/jest-dom/vitest";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { useState } from "react";
+import type { ReactElement } from "react";
 
 import type { RuntimeCapabilityPortV1 } from "@sillymaker/base";
 
@@ -11,6 +15,10 @@ import { createManualPresentationClockV1 } from "../presentation-run/presentatio
 import { createPresentationFreezePortV1 } from "../presentation-run/presentation-freeze.ts";
 import type { SaveOverlayPortV1 } from "../persistence/save-overlay.tsx";
 import { createDevDockControlV1 } from "./dev-dock-control.ts";
+import {
+  DevDockPortalCoordinatorV1,
+  useDevDockPortalTargetRegistrationV1,
+} from "./dev-dock-portal-coordinator.tsx";
 import { StoryDebugDockV1 } from "./story-debug-dock.tsx";
 
 afterEach(cleanup);
@@ -241,6 +249,77 @@ describe("StoryDebugDockV1", () => {
     expect(document.querySelector("[data-story-debug-dock]")).toHaveAttribute(
       "data-devdock-position",
       "bottom_right",
+    );
+  });
+
+  it("collapses when the launcher crosses portal surfaces", async () => {
+    function ScopeFixtureV1(props: { readonly active: boolean }): ReactElement {
+      const [element, setElement] = useState<HTMLDivElement | null>(null);
+      useDevDockPortalTargetRegistrationV1("system", props.active ? element : null);
+      return (
+        <div
+          ref={setElement}
+          data-blocking-focus-scope={props.active ? "system" : undefined}
+          data-test-scope="true"
+        />
+      );
+    }
+    function HarnessV1(props: { readonly scopeActive: boolean }): ReactElement {
+      return (
+        <DevDockPortalCoordinatorV1>
+          <ScopeFixtureV1 active={props.scopeActive} />
+          <StoryDebugDockV1
+            visible
+            capabilities={fakeCapabilitiesV1()}
+            control={createDevDockControlV1()}
+            tools={defaultToolsV1}
+          />
+        </DevDockPortalCoordinatorV1>
+      );
+    }
+    const user = userEvent.setup();
+    const rendered = render(<HarnessV1 scopeActive={false} />);
+    await user.click(screen.getByText("调试"));
+    expect(screen.getByRole("group", { name: "调试" })).toBeVisible();
+
+    // A blocking scope takes over the portal target: the chip re-portals
+    // into the scope and always arrives collapsed.
+    rendered.rerender(<HarnessV1 scopeActive={true} />);
+    await waitFor(() => {
+      expect(
+        document.querySelector("[data-test-scope] [data-story-debug-dock]"),
+      ).not.toBeNull();
+    });
+    expect(screen.queryByRole("group", { name: "调试" })).not.toBeInTheDocument();
+
+    // Returning to the base surface also lands collapsed.
+    await user.click(screen.getByText("调试"));
+    expect(screen.getByRole("group", { name: "调试" })).toBeVisible();
+    rendered.rerender(<HarnessV1 scopeActive={false} />);
+    await waitFor(() => {
+      expect(document.querySelector("[data-test-scope] [data-story-debug-dock]")).toBeNull();
+    });
+    expect(screen.queryByRole("group", { name: "调试" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the corner-yield and blocking-scope bounds in the dock CSS contract", async () => {
+    const css = await readFile(
+      resolve(import.meta.dirname, "story-debug-dock.module.css"),
+      "utf8",
+    );
+
+    // A top-right chip on the game canvas slides below the engine's own
+    // default system menu instead of overlapping it.
+    expect(css).toMatch(
+      /\[data-game-viewport-canvas\]:has\(\[data-default-system-menu\]\)[^{]*>\s*\.story-debug-dock\[data-devdock-position="top_right"\]\s*\{[^}]*inset-block-start:/su,
+    );
+    // Inside a blocking scope the expanded panel stays bounded, scrollable,
+    // and opaque over the dialog's content.
+    expect(css).toMatch(
+      /\[data-blocking-focus-scope\]\)?\s*>\s*\.story-debug-dock\s*\{[^}]*max-block-size:/su,
+    );
+    expect(css).toMatch(
+      /\[data-blocking-focus-scope\]\)?\s*>\s*\.story-debug-dock\s+\.story-debug-dock__panel\s*\{[^}]*overflow:\s*auto;[^}]*background:\s*var\(--silly-color-surface\);/su,
     );
   });
 });

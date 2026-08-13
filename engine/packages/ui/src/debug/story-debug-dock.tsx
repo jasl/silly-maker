@@ -192,8 +192,8 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
   const [internalExpanded, setInternalExpanded] = useState(props.defaultExpanded === true);
   const expanded = props.expanded ?? internalExpanded;
   const chipRef = useRef<HTMLElement>(null);
-  const coordinatorTarget = useDevDockPortalTargetV1().target;
-  const portalTarget = props.portalTarget ?? coordinatorTarget;
+  const coordinatorSelection = useDevDockPortalTargetV1();
+  const portalTarget = props.portalTarget ?? coordinatorSelection.target;
   const capabilityState = useSyncExternalStore(
     props.capabilities.state.subscribe,
     props.capabilities.state.getCurrent,
@@ -239,6 +239,18 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
     void props.capabilities.setEnabled("debug_tools", true);
     void props.capabilities.setEnabled("cheats", true);
   }, [capabilityState.debugTools, grantOnOpen, props.capabilities]);
+
+  // Crossing portal surfaces (game canvas ⇄ dialog/overlay focus scopes)
+  // always lands collapsed: an expanded launcher menu must never arrive
+  // already covering a dialog's content. Expanding inside a scope stays an
+  // explicit user action there.
+  const previousSurfaceRef = useRef(coordinatorSelection.surface);
+  useEffect(() => {
+    if (props.portalTarget !== undefined) return;
+    if (previousSurfaceRef.current === coordinatorSelection.surface) return;
+    previousSurfaceRef.current = coordinatorSelection.surface;
+    setExpanded(false);
+  }, [coordinatorSelection.surface, props.portalTarget, setExpanded]);
   const closeWipeConfirm = useCallback((): void => {
     if (busy === "wipe") return;
     setWipeConfirm(false);

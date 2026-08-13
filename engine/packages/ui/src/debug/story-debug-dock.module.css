@@ -171,4 +171,29 @@
     var(--silly-safe-area-block-end) + var(--silly-control-min-size) + 3 * var(--silly-space-2)
   );
 }
+
+/* The engine's default system menu owns the stage's top-right corner; a
+   top-right chip on the game canvas yields by sliding below the menu row
+   (control height + menu padding + border, plus one gap). Direct-child
+   selectors keep docks portaled into blocking scopes on their own
+   reserved-strip position. */
+:global([data-game-viewport-canvas]:has([data-default-system-menu])) > .story-debug-dock[data-devdock-position="top_right"] {
+  inset-block-start: calc(
+    var(--silly-safe-area-block-start) + var(--silly-space-2) + var(--silly-control-min-size) +
+    2 * var(--silly-space-1) + 2px + var(--silly-space-1)
+  );
+}
+
+/* Inside a blocking focus scope the expanded launcher floats over the
+   dialog's own content, so it must stay bounded and readable: never taller
+   than the scope, scrolling internally, on an opaque surface. */
+:global([data-blocking-focus-scope]) > .story-debug-dock {
+  max-block-size: calc(100% - 2 * var(--silly-space-2));
+}
+
+:global([data-blocking-focus-scope]) > .story-debug-dock .story-debug-dock__panel {
+  min-block-size: 0;
+  overflow: auto;
+  background: var(--silly-color-surface);
+}
 /* stylelint-enable selector-pseudo-class-no-unknown */
