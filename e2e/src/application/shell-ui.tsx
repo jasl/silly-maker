@@ -51,6 +51,8 @@ export const labStageRenderersV1: Readonly<Record<string, SemanticStageEntryRend
         }}
       />
     ),
+    // The catalog geometry owns each content box and anchor; renderers
+    // fill the engine-provided box without their own translate.
     "renderer.e2e.lab.stage-character": ({ entry }) => (
       <figure
         data-lab-character={entry.contentId}
@@ -58,11 +60,10 @@ export const labStageRenderersV1: Readonly<Record<string, SemanticStageEntryRend
         data-lab-expression={String(entry.props.expression)}
         style={{
           margin: 0,
-          width: "220px",
-          height: "360px",
+          width: "100%",
+          height: "100%",
           borderRadius: "110px 110px 12px 12px",
           background: "rgba(214, 205, 189, 0.85)",
-          transform: "translate(-50%, -100%)",
         }}
       >
         <figcaption style={{ paddingBlockStart: "1rem", textAlign: "center", color: "#20242c" }}>
@@ -75,18 +76,18 @@ export const labStageRenderersV1: Readonly<Record<string, SemanticStageEntryRend
         data-lab-prop={entry.contentId}
         style={entry.props.variant === "banner"
           ? {
-            width: "420px",
-            height: "72px",
+            width: "100%",
+            height: "100%",
+            boxSizing: "border-box",
             border: "3px solid #8a5a2b",
             background: "#b3452e",
-            transform: "translate(-50%, -100%)",
           }
           : {
-            width: "160px",
-            height: "120px",
+            width: "100%",
+            height: "100%",
+            boxSizing: "border-box",
             border: "3px solid #9c8a63",
             background: "#6f6146",
-            transform: "translate(-50%, -100%)",
           }}
       />
     ),

@@ -5,15 +5,15 @@ import type { SemanticStageEntryRendererV1 } from "@sillymaker/ui";
 import { resolveAssetUrlV1 } from "@sillymaker/ui";
 
 import type { CatcafeAssetRegistryV1 } from "../../application/ui-kit.ts";
+import { catcafeCatFrameSizeV1 } from "./frame.ts";
 
 /**
  * Renderers: real images first (the registry resolves URLs), code-native shapes kept as fallback.
- * Cat art scales by growth stage; the three expression tiers map to three images via the content catalog.
+ * Cat art scales by growth stage; the three expression tiers map to three images via the content
+ * catalog, which also declares the geometry (frame box + bottom-center anchor) that the engine
+ * stage host applies — renderers fill the box without their own translate.
  */
-export const catcafeCatFrameSizeV1 = (stage: string): { width: number; height: number } => {
-  const height = stage === "adolescent" ? 440 : stage === "junior" ? 380 : 320;
-  return { width: Math.round(height * 0.75), height };
-};
+export { catcafeCatFrameSizeV1 } from "./frame.ts";
 
 export function createCatcafeStageRenderersV1(
   registry: CatcafeAssetRegistryV1 | null,
@@ -47,7 +47,6 @@ export function createCatcafeStageRenderersV1(
     "renderer.catcafe.cat": ({ entry }) => {
       const stage = String(entry.props.stage);
       const expression = String(entry.props.expression);
-      const frame = catcafeCatFrameSizeV1(stage);
       const url = resolveAssetUrlV1(registry, entry.props.assetId, "character_pose");
       if (url !== null) {
         // Transparent character art sits straight in the scene: breathing idle runs constantly,
@@ -63,9 +62,8 @@ export function createCatcafeStageRenderersV1(
             data-cc-expression={expression}
             style={{
               margin: 0,
-              width: `${String(frame.width)}px`,
-              height: `${String(frame.height)}px`,
-              transform: "translate(-50%, -100%)",
+              width: "100%",
+              height: "100%",
               filter: "drop-shadow(0 10px 18px rgba(0, 0, 0, 0.45))",
             }}
           >
@@ -86,7 +84,7 @@ export function createCatcafeStageRenderersV1(
           </figure>
         );
       }
-      const size = frame.width;
+      const size = catcafeCatFrameSizeV1(stage).width;
       const tone = expression === "hissing"
         ? "#c96a5a"
         : expression === "grumpy"
@@ -96,26 +94,37 @@ export function createCatcafeStageRenderersV1(
         : expression === "happy"
         ? "#dcb890"
         : "#c8b09a";
+      // The code-native blob keeps its own proportions inside the frame
+      // box, resting on the same bottom-center anchor as the real art.
       return (
-        <figure
-          data-cc-cat={stage}
-          data-cc-expression={expression}
+        <div
           style={{
-            margin: 0,
-            width: `${String(size)}px`,
-            height: `${String(Math.round(size * 0.85))}px`,
-            borderRadius: "50% 50% 45% 45%",
-            background: tone,
-            transform: "translate(-50%, -100%)",
+            width: "100%",
+            height: "100%",
             display: "flex",
             alignItems: "flex-end",
             justifyContent: "center",
           }}
         >
-          <figcaption style={{ paddingBlockEnd: "0.5rem", color: "#33302a", fontSize: "14px" }}>
-            {entry.accessibleName} · {expression}
-          </figcaption>
-        </figure>
+          <figure
+            data-cc-cat={stage}
+            data-cc-expression={expression}
+            style={{
+              margin: 0,
+              width: "100%",
+              height: `${String(Math.round(size * 0.85))}px`,
+              borderRadius: "50% 50% 45% 45%",
+              background: tone,
+              display: "flex",
+              alignItems: "flex-end",
+              justifyContent: "center",
+            }}
+          >
+            <figcaption style={{ paddingBlockEnd: "0.5rem", color: "#33302a", fontSize: "14px" }}>
+              {entry.accessibleName} · {expression}
+            </figcaption>
+          </figure>
+        </div>
       );
     },
   });

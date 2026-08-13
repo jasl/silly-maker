@@ -22,6 +22,7 @@ import { parseStageTransitionDefinition } from "@sillymaker/base/story";
 
 import { catcafeOpeningTransitionBindingsV1 } from "./scenes/opening/index.ts";
 import { catcafeContentIdsV1 } from "./features/dialogue/script.ts";
+import { catcafeCatFrameSizeV1 } from "./features/stage/frame.ts";
 import { catcafeContentV1 } from "./content.ts";
 
 /**
@@ -1019,6 +1020,7 @@ export const catcafeStageContentCatalogV1: StageContentCatalog = {
           : "calm";
         const catAssetId =
           catcafeAssetIdsV1[`cat_${stage}_${spriteExpression}` as keyof typeof catcafeAssetIdsV1];
+        const frame = catcafeCatFrameSizeV1(stage);
         return Object.freeze({
           rendererId: "renderer.catcafe.cat",
           assetIds: Object.freeze([catAssetId as AssetId]),
@@ -1034,6 +1036,14 @@ export const catcafeStageContentCatalogV1: StageContentCatalog = {
             zone("zone.back", "顺背", -half, -height + third, size),
             zone("zone.tail", "碰尾巴", -half, -third, size),
           ]),
+          // The drawn frame per growth stage, anchored at bottom center;
+          // the engine stage host owns the anchor transform.
+          geometry: Object.freeze({
+            width: frame.width,
+            height: frame.height,
+            anchorXPermille: 500,
+            anchorYPermille: 1000,
+          }),
         });
       }
       default:

@@ -11,7 +11,8 @@ import {
 } from "@sillymaker/base";
 
 import type { SemanticStageEntryRendererV1 } from "./semantic-stage-host.tsx";
-import { SemanticStageTargetHostV1 } from "./semantic-stage-host.tsx";
+import { SemanticStageHostV1, SemanticStageTargetHostV1 } from "./semantic-stage-host.tsx";
+import { settledStageFrameV1 } from "./stage-reconciler.ts";
 
 const catalogV1: StageContentCatalogV1 = {
   resolveContent: (contentId, appearance) =>
@@ -106,6 +107,103 @@ describe("SemanticStageHostV1", () => {
     ) as HTMLElement;
     expect(backLayer.style.transform).toBe("translate3d(10px, 0px, 0) scale(1)");
     expect(backLayer.hidden).toBe(false);
+  });
+
+  it("owns the anchor transform for geometry-declaring content", () => {
+    const geometryCatalog: StageContentCatalogV1 = {
+      resolveContent: (contentId) =>
+        Object.freeze({
+          rendererId: "renderer.test.box",
+          assetIds: Object.freeze([]),
+          accessibleName: `内容 ${contentId}`,
+          props: Object.freeze({ expression: "neutral" }),
+          ...(contentId === "content.test.bg" ? {} : {
+            geometry: Object.freeze({
+              width: 240,
+              height: 320,
+              anchorXPermille: contentId === "content.test.corner" ? 0 : 500,
+              anchorYPermille: contentId === "content.test.corner" ? 250 : 1000,
+            }),
+            hitRegions: Object.freeze([
+              Object.freeze({
+                regionId: "zone.test",
+                accessibleNameText: "碰一下",
+                x: -120,
+                y: -320,
+                width: 240,
+                height: 320,
+              }),
+            ]),
+          }),
+        }),
+    };
+    const empty = createSemanticStageStateV1({
+      stageId: "stage.test.host",
+      layerIds: ["layer.test.back", "layer.test.front"],
+    });
+    const outcome = reduceStageMutationsV1(empty, [
+      {
+        kind: "show",
+        layerId: "layer.test.back",
+        tag: "tag.test.bg",
+        contentId: "content.test.bg",
+      },
+      {
+        kind: "show",
+        layerId: "layer.test.front",
+        tag: "tag.test.alpha",
+        contentId: "content.test.alpha",
+        placement: { x: 920, y: 600, scalePermille: 1000, opacityPermille: 1000, mirrored: true },
+      },
+      {
+        kind: "show",
+        layerId: "layer.test.front",
+        tag: "tag.test.corner",
+        contentId: "content.test.corner",
+      },
+    ]);
+    if (outcome.kind !== "applied") throw new Error("host fixture stage must apply");
+    const target = projectStageRenderTargetV1(outcome.state, geometryCatalog).target;
+
+    const { container } = render(
+      <SemanticStageHostV1
+        frame={settledStageFrameV1(target)}
+        renderers={{ "renderer.test.box": boxRendererV1 }}
+        accessibleName="测试舞台"
+        onHitRegionActivate={() => undefined}
+      />,
+    );
+
+    // Bottom-center anchor: the engine content box carries the offset that
+    // renderer CSS used to hand-roll; the wrapper transform is unchanged.
+    const alpha = container.querySelector(
+      '[data-stage-key="layer.test.front:tag.test.alpha"]',
+    ) as HTMLElement;
+    expect(alpha.style.transform).toBe("translate3d(920px, 600px, 0) scale(1) scaleX(-1)");
+    const alphaBox = alpha.querySelector("[data-stage-content-box]") as HTMLElement;
+    expect(alphaBox.style.width).toBe("240px");
+    expect(alphaBox.style.height).toBe("320px");
+    expect(alphaBox.style.transform).toBe("translate(-120px, -320px)");
+    expect(alphaBox.querySelector("[data-test-box]")).not.toBeNull();
+
+    // Hit regions stay siblings of the content box in anchor space.
+    const region = alpha.querySelector('[data-stage-hit-region="zone.test"]') as HTMLElement;
+    expect(region.parentElement).toBe(alpha);
+    expect(region.style.left).toBe("-120px");
+    expect(region.style.top).toBe("-320px");
+
+    // Arbitrary anchors resolve proportionally (0‰ left edge, 250‰ height).
+    const corner = container.querySelector(
+      '[data-stage-key="layer.test.front:tag.test.corner"]',
+    ) as HTMLElement;
+    const cornerBox = corner.querySelector("[data-stage-content-box]") as HTMLElement;
+    expect(cornerBox.style.transform).toBe("translate(0px, -80px)");
+
+    // Geometry-free content keeps its renderer output unwrapped.
+    const bg = container.querySelector(
+      '[data-stage-key="layer.test.back:tag.test.bg"]',
+    ) as HTMLElement;
+    expect(bg.querySelector("[data-stage-content-box]")).toBeNull();
   });
 
   it("hides invisible layers while keeping their entries in the DOM", () => {

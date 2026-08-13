@@ -132,6 +132,22 @@ export const labAssetSlotsV1 = Object.freeze([
   }),
 ]);
 
+/** Lab researchers share one content box, anchored at bottom center. */
+const labCharacterGeometryV1 = Object.freeze({
+  width: 220,
+  height: 360,
+  anchorXPermille: 500,
+  anchorYPermille: 1000,
+});
+
+/** 160×120 content plus the renderer's 3px border on each side. */
+const labSmallPropGeometryV1 = Object.freeze({
+  width: 166,
+  height: 126,
+  anchorXPermille: 500,
+  anchorYPermille: 1000,
+});
+
 /**
  * Deterministic Story catalog resolving semantic stage content into renderer
  * bindings. Only this projection layer knows renderer IDs, asset IDs, and
@@ -165,6 +181,7 @@ export const labStageContentCatalogV1: StageContentCatalogV1 = {
               ? appearance.expression
               : "neutral",
           }),
+          geometry: labCharacterGeometryV1,
         });
       case labStageContentIdsV1.characterBeta:
         return Object.freeze({
@@ -177,6 +194,7 @@ export const labStageContentCatalogV1: StageContentCatalogV1 = {
               ? appearance.expression
               : "neutral",
           }),
+          geometry: labCharacterGeometryV1,
         });
       case labStageContentIdsV1.propCrate:
         return Object.freeze({
@@ -184,6 +202,7 @@ export const labStageContentCatalogV1: StageContentCatalogV1 = {
           assetIds: Object.freeze([]),
           accessibleName: "样本箱",
           props: Object.freeze({}),
+          geometry: labSmallPropGeometryV1,
         });
       case labStageContentIdsV1.propBanner:
         return Object.freeze({
@@ -191,6 +210,13 @@ export const labStageContentCatalogV1: StageContentCatalogV1 = {
           assetIds: Object.freeze([]),
           accessibleName: "纪念横幅",
           props: Object.freeze({ variant: "banner" }),
+          // 420×72 content plus the renderer's 3px border on each side.
+          geometry: Object.freeze({
+            width: 426,
+            height: 78,
+            anchorXPermille: 500,
+            anchorYPermille: 1000,
+          }),
         });
       case labStageContentIdsV1.propBeacon:
         return Object.freeze({
@@ -200,6 +226,7 @@ export const labStageContentCatalogV1: StageContentCatalogV1 = {
           props: Object.freeze({
             mode: typeof appearance.mode === "string" ? appearance.mode : "idle",
           }),
+          geometry: labSmallPropGeometryV1,
         });
       default:
         return null;

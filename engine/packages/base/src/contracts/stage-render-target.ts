@@ -38,6 +38,26 @@ export interface StageHitRegionV1 {
   readonly height: number;
 }
 
+/**
+ * Authoring geometry of one resolved content: the content box in logical
+ * canvas pixels and the anchor the placement point pins (permille of the
+ * box; 500/1000 is bottom center). When declared, the engine stage host
+ * owns the anchor transform — renderers stop hand-rolling
+ * `translate(-50%, -100%)` — and editors can draw selection bounds,
+ * pivots, and ground lines. Geometry is presentation data resolved per
+ * contentId + appearance (a character's box grows with it); it never
+ * enters authoritative State or Saves. Hit-region coordinates stay in the
+ * anchor space and are unaffected.
+ */
+export interface StageContentGeometryV1 {
+  readonly width: number;
+  readonly height: number;
+  /** 0..1000; 500 = horizontal center. */
+  readonly anchorXPermille: number;
+  /** 0..1000; 1000 = bottom edge. */
+  readonly anchorYPermille: number;
+}
+
 export interface StageContentResolutionV1 {
   readonly rendererId: string;
   readonly assetIds: readonly AssetId[];
@@ -45,6 +65,8 @@ export interface StageContentResolutionV1 {
   readonly props: StrictJsonObjectV1;
   /** Optional activatable regions; omitted content is inert. */
   readonly hitRegions?: readonly StageHitRegionV1[];
+  /** Optional content box + anchor; omitted content keeps renderer CSS. */
+  readonly geometry?: StageContentGeometryV1;
 }
 
 export interface StageContentCatalogV1 {
@@ -71,6 +93,7 @@ export interface StageRenderEntryV1 {
   readonly props: StrictJsonObjectV1;
   readonly fallback: boolean;
   readonly hitRegions: readonly StageHitRegionV1[];
+  readonly geometry?: StageContentGeometryV1;
 }
 
 export interface StageRenderLayerV1 {
@@ -114,6 +137,37 @@ function contentDiagnosticV1(code: string, message: string, pointer: string): Di
  */
 /** Per-entry hit-region budget. Picture-dense SLGs need headroom beyond early VN pets. */
 const maxHitRegionsV1 = 64;
+
+const maxGeometrySideV1 = 1_000_000;
+
+function validateGeometryV1(
+  geometry: StageContentGeometryV1 | undefined,
+  pointer: string,
+  diagnostics: DiagnosticEnvelopeV1[],
+): StageContentGeometryV1 | undefined {
+  if (geometry === undefined) return undefined;
+  const sideOk = (value: number): boolean =>
+    Number.isSafeInteger(value) && value > 0 && value <= maxGeometrySideV1;
+  const anchorOk = (value: number): boolean =>
+    Number.isSafeInteger(value) && value >= 0 && value <= 1000;
+  if (
+    !sideOk(geometry.width) ||
+    !sideOk(geometry.height) ||
+    !anchorOk(geometry.anchorXPermille) ||
+    !anchorOk(geometry.anchorYPermille)
+  ) {
+    diagnostics.push(
+      contentDiagnosticV1("stage.geometry_invalid", "invalid stage content geometry", pointer),
+    );
+    return undefined;
+  }
+  return Object.freeze({
+    width: geometry.width,
+    height: geometry.height,
+    anchorXPermille: geometry.anchorXPermille,
+    anchorYPermille: geometry.anchorYPermille,
+  });
+}
 
 function validateHitRegionsV1(
   regions: readonly StageHitRegionV1[] | undefined,
@@ -211,6 +265,7 @@ export function projectStageRenderTargetV1(
         );
       }
       for (const assetId of resolution.assetIds) requiredAssetIds.add(assetId);
+      const geometry = validateGeometryV1(resolution.geometry, pointer, diagnostics);
       return {
         key: `${layer.layerId}:${entry.tag}`,
         tag: entry.tag,
@@ -228,6 +283,7 @@ export function projectStageRenderTargetV1(
         props: resolution.props,
         fallback: resolution.rendererId.length === 0,
         hitRegions: validateHitRegionsV1(resolution.hitRegions, pointer, diagnostics),
+        ...(geometry === undefined ? {} : { geometry }),
       };
     });
     return { layerId: layer.layerId, transform: layer.transform, entries };

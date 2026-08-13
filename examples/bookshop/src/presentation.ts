@@ -114,6 +114,14 @@ export function bookshopTextForLocaleV1(locale: string | null, textId: string): 
   return entry.text;
 }
 
+/** Both shopkeepers share one content box, anchored at bottom center. */
+const bookshopCharacterGeometryV1 = Object.freeze({
+  width: 220,
+  height: 420,
+  anchorXPermille: 500,
+  anchorYPermille: 1000,
+});
+
 /**
  * The stage content catalog: the only place that knows renderer IDs and
  * accessible names for stage content. Authoritative stage state stores
@@ -144,6 +152,7 @@ export const bookshopStageContentCatalogV1: StageContentCatalog = {
           props: Object.freeze({
             expression: typeof appearance.expression === "string" ? appearance.expression : "calm",
           }),
+          geometry: bookshopCharacterGeometryV1,
         });
       case bookshopContentIdsV1.characterCheng:
         return Object.freeze({
@@ -153,6 +162,7 @@ export const bookshopStageContentCatalogV1: StageContentCatalog = {
           props: Object.freeze({
             expression: typeof appearance.expression === "string" ? appearance.expression : "eager",
           }),
+          geometry: bookshopCharacterGeometryV1,
         });
       default:
         return null;

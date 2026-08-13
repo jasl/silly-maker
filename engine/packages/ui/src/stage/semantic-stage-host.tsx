@@ -3,6 +3,7 @@ import { useEffect, useMemo, useSyncExternalStore } from "react";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 
 import type {
+  StageContentGeometryV1,
   StageLayerIdV1,
   StageRenderEntryV1,
   StageRenderTargetV1,
@@ -207,6 +208,23 @@ function entryStyleV1(
   };
 }
 
+/**
+ * The engine-owned content box for geometry-declaring content: the anchor
+ * offset composes after the wrapper's scale/mirror (exactly where renderer
+ * CSS used to put `translate(-50%, -100%)`), so the placement point pins
+ * the declared anchor and mirroring flips content around it. Hit regions
+ * stay siblings in the wrapper's anchor space, untouched by this box.
+ */
+function contentBoxStyleV1(geometry: StageContentGeometryV1): CSSProperties {
+  const anchorX = (geometry.width * geometry.anchorXPermille) / 1000;
+  const anchorY = (geometry.height * geometry.anchorYPermille) / 1000;
+  return {
+    width: `${String(geometry.width)}px`,
+    height: `${String(geometry.height)}px`,
+    transform: `translate(${String(-anchorX)}px, ${String(-anchorY)}px)`,
+  };
+}
+
 function StageEntryV1(props: {
   readonly layerId: StageLayerIdV1;
   readonly frameEntry: StageFrameEntryV1;
@@ -235,9 +253,18 @@ function StageEntryV1(props: {
       data-stage-renderer={entry.rendererId}
       data-stage-fallback={renderer === undefined || entry.fallback ? "true" : undefined}
     >
-      {renderer === undefined ? <div className={styles.fallback}>{entry.accessibleName}</div> : (
-        renderer({ layerId, entry })
-      )}
+      {(() => {
+        const content = renderer === undefined
+          ? <div className={styles.fallback}>{entry.accessibleName}</div>
+          : renderer({ layerId, entry });
+        return entry.geometry === undefined
+          ? content
+          : (
+            <div data-stage-content-box="true" style={contentBoxStyleV1(entry.geometry)}>
+              {content}
+            </div>
+          );
+      })()}
       {onHitRegionActivate === undefined || exiting || entry.hitRegions.length === 0
         ? null
         : entry.hitRegions.map((region) => (

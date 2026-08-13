@@ -151,16 +151,17 @@ export const templateStageRenderersV1: Readonly<Record<string, SemanticStageEntr
       />
     ),
     "renderer.template.character": ({ entry }) => (
+      // The catalog geometry owns the content box and anchor; the figure
+      // just fills it.
       <figure
         data-template-character={entry.contentId}
         data-template-expression={String(entry.props.expression)}
         style={{
           margin: 0,
-          width: "220px",
-          height: "420px",
+          width: "100%",
+          height: "100%",
           borderRadius: "110px 110px 16px 16px",
           background: "rgba(238, 228, 210, 0.9)",
-          transform: "translate(-50%, -100%)",
           display: "flex",
           alignItems: "flex-end",
           justifyContent: "center",

@@ -96,6 +96,47 @@ describe("projectStageRenderTargetV1", () => {
     ]);
   });
 
+  it("passes valid geometry through and drops invalid geometry with a diagnostic", () => {
+    const geometryCatalog = (geometry: unknown): StageContentCatalogV1 =>
+      Object.freeze({
+        resolveContent: () =>
+          Object.freeze({
+            rendererId: "renderer.test.character",
+            assetIds: Object.freeze([]),
+            accessibleName: "角色",
+            props: Object.freeze({}),
+            geometry: geometry as never,
+          }),
+      });
+
+    const valid = projectStageRenderTargetV1(
+      stageWithContentV1(),
+      geometryCatalog({ width: 220, height: 420, anchorXPermille: 500, anchorYPermille: 1000 }),
+    );
+    expect(valid.diagnostics).toEqual([]);
+    expect(valid.target.layers[0]?.entries[0]?.geometry).toEqual({
+      width: 220,
+      height: 420,
+      anchorXPermille: 500,
+      anchorYPermille: 1000,
+    });
+
+    for (
+      const broken of [
+        { width: 0, height: 420, anchorXPermille: 500, anchorYPermille: 1000 },
+        { width: 220, height: 420.5, anchorXPermille: 500, anchorYPermille: 1000 },
+        { width: 220, height: 420, anchorXPermille: -1, anchorYPermille: 1000 },
+        { width: 220, height: 420, anchorXPermille: 500, anchorYPermille: 1001 },
+      ]
+    ) {
+      const projection = projectStageRenderTargetV1(stageWithContentV1(), geometryCatalog(broken));
+      expect(projection.diagnostics.map((diagnostic) => diagnostic.code)).toContain(
+        "stage.geometry_invalid",
+      );
+      expect(projection.target.layers[0]?.entries[0]?.geometry).toBeUndefined();
+    }
+  });
+
   it("reports resolutions that omit renderers or accessible names", () => {
     const sparseCatalog: StageContentCatalogV1 = Object.freeze({
       resolveContent: () =>

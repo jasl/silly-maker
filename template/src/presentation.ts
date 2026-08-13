@@ -105,6 +105,14 @@ export const templateStageContentCatalogV1: StageContentCatalog = {
           props: Object.freeze({
             expression: typeof appearance.expression === "string" ? appearance.expression : "calm",
           }),
+          // The engine stage host anchors the content box at bottom center;
+          // the renderer draws into it without its own translate.
+          geometry: Object.freeze({
+            width: 220,
+            height: 420,
+            anchorXPermille: 500,
+            anchorYPermille: 1000,
+          }),
         });
       default:
         return null;

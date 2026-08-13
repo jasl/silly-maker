@@ -267,6 +267,7 @@ export type {
   StageAppearanceV1,
   StageCameraV1,
   StageContentCatalogV1,
+  StageContentGeometryV1,
   StageContentIdV1,
   StageContentResolutionV1,
   StageEntryV1,

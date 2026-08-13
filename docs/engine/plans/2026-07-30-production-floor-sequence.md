@@ -17,8 +17,8 @@ motion 资产地板、点击反查溯源、Motion Workbench 编辑闭环、预�
 ## 1. Current and next
 
 当前：[VN Scene Workspace V1](2026-08-14-vn-scene-workspace.md)（Scene authoring
-layer + Studio）。A0（Scene 文档与编译，headless）已于 2026-08-14 完成；current
-切片是 A1 authoring geometry，next 依次为 A2 Studio shell 与写回 → A3 直接操纵 →
+layer + Studio）。A0（Scene 文档与编译）与 A1（authoring geometry）已于
+2026-08-14 完成；current 切片是 A2 Studio shell 与写回，next 依次为 A3 直接操纵 →
 A4 starter 与文档迁移 → A5 第二消费者验证。切片验收与 stop conditions 由该计划
 拥有。
 

@@ -591,6 +591,7 @@ export type {
 } from "./stage-transition.ts";
 export type {
   StageContentCatalogV1,
+  StageContentGeometryV1,
   StageContentResolutionV1,
   StageHitRegionV1,
   StageRenderEntryV1,

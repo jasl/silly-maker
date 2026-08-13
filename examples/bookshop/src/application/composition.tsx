@@ -156,13 +156,12 @@ export const bookshopStageRenderersV1: Readonly<Record<string, SemanticStageEntr
         data-bookshop-expression={String(entry.props.expression)}
         style={{
           margin: 0,
-          width: "220px",
-          height: "420px",
+          width: "100%",
+          height: "100%",
           borderRadius: "110px 110px 16px 16px",
           background: entry.contentId === "content.bookshop.character.zhou"
             ? "rgba(210, 198, 176, 0.92)"
             : "rgba(228, 218, 200, 0.92)",
-          transform: "translate(-50%, -100%)",
           display: "flex",
           alignItems: "flex-end",
           justifyContent: "center",

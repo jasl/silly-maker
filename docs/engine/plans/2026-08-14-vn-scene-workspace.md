@@ -92,7 +92,7 @@ envelope 或第二 runtime authority。
   features.md/story-authoring.md/authoring-quickstart 诊断表/examples AGENTS
   scene 协作合同同步。
 
-### A1 — Authoring geometry
+### A1 — Authoring geometry（已完成 2026-08-14）
 
 - `StageContentGeometryV1`（width/height/anchorXPermille/anchorYPermille）作为
   `StageContentResolutionV1` 可选字段；投影校验整数界。
@@ -102,6 +102,22 @@ envelope 或第二 runtime authority。
 - hit region 坐标系不变（本就以锚点空间声明）。
 - 验收：锚变换单元测试（四角锚点 + 缩放 + 镜像组合）；四个 Story 的现有 e2e/浏览
   器断言保持绿（视觉等位）；`rg "translate\(-50%, -100%\)"` 在四个迁移 Story 为空。
+- 交付记录：`stage-render-target.ts` 增加 `StageContentGeometryV1` + 投影校验
+  （`stage.geometry_invalid` 降级为无 geometry，不断投影）+
+  `StageRenderEntryV1.geometry?`；stage host 在 renderer 外包 engine content box
+  （`data-stage-content-box`，宽高 + `translate(-ax, -ay)`，合成在 wrapper 的
+  scale/mirror 之后——与旧 renderer CSS 完全同位，镜像绕锚点翻转），hit region
+  仍是 wrapper 直属子元素、锚点空间不变。四个 Story 迁移：template/bookshop/
+  Engine Lab 角色（220×420/220×420/220×360，底中锚）、Lab 道具按 border-box 实际
+  可视盒声明（166×126/426×78，renderer 补 `box-sizing: border-box` 保持逐像素等
+  位）、cat-cafe 猫按成长阶段帧表声明（帧表挪入 React-free
+  `features/stage/frame.ts` 供 headless catalog 与 renderer 共用；code-native
+  fallback 改为帧盒内底对齐，可见 blob 像素不变）。验收证据：投影/host 新测试
+  （四角锚 + 缩放 + 镜像 + hit region 同位 + 无 geometry 不包盒）、
+  `rg "translate\(-50%, -100%\)"` 四 Story 为空、`deno task check` 全绿
+  （4,836 tests）、engine e2e 118 项（117 过 + 1 项 chromium workspace-overlay
+  负载偶发、单独重跑 5/5 过）、examples e2e 56 过 2 跳（Cat Cafe/模板/Bookshop/
+  SillyOS 浏览器断言全绿）。
 
 ### A2 — Studio shell 与写回
 
