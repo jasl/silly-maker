@@ -31,7 +31,7 @@ Rules in brief:
 - Cat Cafe is the first Story WholeCanvas consumer: semantic ending state selects its sole `catcafe.ending` primary, Continue enters the endless epilogue, and Restart installs fresh gameplay without returning to Title. Keep the renderer frame-only and dispatch those exact owner actions through the definition; never restore the retired HUD ending writer.
 - Existing Splash/Title authoring remains the `titleScreen` declaration even though the package now renders both through its WholeCanvas authority. SillyOS intentionally omits both `titleScreen` and `application.ui().wholeCanvas`, so its default and shutdown paths allocate no WholeCanvas Host or Story definition.
 - A `stage` node's `mayShow` honestly lists every contentId it might show; a `branch`'s `choose` must land inside `successors` (tests enforce both).
-- New stage content is wired in three places: the contentId constant in narrative, the content catalog in presentation, the renderer in composition.
+- New stage content is wired in three places: the contentId constant in narrative, the content catalog in presentation, the renderer in composition. For a scene-managed scene the narrative side is its Scene document (see the scene collaboration contract below).
 - Saveable state holds integers only (logical units like `scalePermille`); floats are rejected by canonical JSON.
 - Use `show` for content entering an empty stage; `replace` only for content already on stage.
 
@@ -43,7 +43,11 @@ Four wiring points: `state.ts` (interface + schema + initial value) → `feature
 
 ## Motion collaboration contract
 
-Narrative entrance/exit animations are `src/motions/*.motion.json` assets bound through `motionStageTransition` — the human tuning surface (the Motion Workbench edits them). Do not overwrite a motion whose `authoring.status` is `"human_tuned"` or that is `locked` unless the task explicitly names it (locked changes go through a new variant file with a new id); preserve stable motion/transition ids across scene refactors; new tunable animation goes into a new motion file (status `"generated"`), never inline duration/easing constants in scene code.
+Narrative entrance/exit animations are `src/**/*.motion.json` assets bound through `motionStageTransition` or a Scene document cue — the human tuning surface (the Motion Workbench edits them). Do not overwrite a motion whose `authoring.status` is `"human_tuned"` or that is `locked` unless the task explicitly names it (locked changes go through a new variant file with a new id); preserve stable motion/transition ids across scene refactors; new tunable animation goes into a new motion file (status `"generated"`), never inline duration/easing constants in scene code.
+
+## Scene collaboration contract
+
+Cat Cafe's opening is scene-managed: `src/scenes/opening/opening.scene.json` is the single authoring authority for that scene's visual composition — entry placements/appearance/zOrder and cue→motion binding. Stage nodes reference cues (`cueMutations`/`cueMayShow`); do not re-add placement literals, `hasTag` guards, or global enter-edge motion inference for a scene-managed scene, and do not edit the same scene through both the document and low-level mutations. Keep sceneId/cueId stable across refactors (transition ids derive from cue ids); the filename stem must stay the sceneId's final segment (`story check` lints scene documents: admission, unique ids, filename↔id, cue motion references).
 
 ## Forbidden
 

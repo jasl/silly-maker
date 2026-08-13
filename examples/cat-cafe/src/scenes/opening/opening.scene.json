@@ -1,0 +1,42 @@
+{
+  "format": "sillymaker.scene",
+  "version": 1,
+  "sceneId": "scene.catcafe.opening",
+  "label": "雨后的咖啡店门口",
+  "canvas": { "width": 1280, "height": 720 },
+  "entries": [
+    {
+      "layerId": "layer.catcafe.background",
+      "tag": "tag.background",
+      "contentId": "content.catcafe.background.shopfront",
+      "zOrder": 0
+    },
+    {
+      "layerId": "layer.catcafe.characters",
+      "tag": "tag.xiaoyu",
+      "contentId": "content.catcafe.character.xiaoyu",
+      "zOrder": 10,
+      "placement": {
+        "x": 920,
+        "y": 600,
+        "scalePermille": 1000,
+        "opacityPermille": 1000,
+        "mirrored": false
+      },
+      "appearance": { "stage": "kitten", "expression": "calm" }
+    }
+  ],
+  "cues": [
+    {
+      "cueId": "cue.catcafe.opening.shopfront",
+      "kind": "show",
+      "tag": "tag.background"
+    },
+    {
+      "cueId": "cue.catcafe.opening.kitten-enters",
+      "kind": "show",
+      "tag": "tag.xiaoyu",
+      "motionId": "motion.catcafe.cat-entrance"
+    }
+  ]
+}

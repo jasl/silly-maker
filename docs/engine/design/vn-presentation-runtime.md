@@ -284,6 +284,13 @@ onLifecycle("show" | "hide" | "replace" | "replaced", ...)
 
 状态更新（2026-08-13，[Motion Workbench 计划](../plans/2026-08-13-authorable-motion-workbench.md) M2）：表现溯源与点击反查已实现——`StageFrameEntryV1` 上帧 in-flight `transitionId`；`createStageInspectControllerV1` 接收 mounted stage 的渲染帧、跨 settle 保留每条目最近 transition/motion 身份、驱动仅在检视开启时存在的点击命中面；`createMotionSourceIndexV1` 把 motionId 反解析回 Story 源文件；`StageProvenancePanelV1` 溯源卡片带 "Open Source"（dev-server-only `sillymaker:dev-sources` 中间件 + launch-editor）与 "Edit Motion" 入口。溯源只存在于 DevTools 内存，不进生产 DOM 属性与权威状态。
 
+状态更新（2026-08-14）：下方列表第 5 项（可视化 editor）已由
+[场景创作模型与 SillyMaker Studio 设计](scene-authoring-and-studio.md) 接受为 VN
+场景纵切方向——一等 `*.scene.json` 作者文档编译进现有 Stage/transition/preview 合
+同、`StageContentGeometryV1` 显式锚点、项目级 Studio（收编 Motion Workbench 为
+panel）。执行由 [VN Scene Workspace 计划](../plans/2026-08-14-vn-scene-workspace.md)
+拥有；Semantic Stage 与 Motion 合同本体不变。
+
 开发工具按可复用数据面逐步增强：
 
 1. DevDock Stage tree、PendingInteraction、Transition、Audio intent、Asset demand、History/Seen inspector；

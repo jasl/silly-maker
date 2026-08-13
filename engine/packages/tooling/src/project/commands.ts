@@ -24,6 +24,7 @@ import {
 import type { SillymakerProjectConfigV1 } from "./config.ts";
 import { joinAppPathV1, resolveStoryApplicationV1 } from "./config.ts";
 import { collectMotionSourceDiagnosticsV1 } from "./motion-diagnostics.ts";
+import { collectSceneSourceDiagnosticsV1 } from "./scene-diagnostics.ts";
 
 /** Loads a repository module for command execution; injectable for tests. */
 export interface ProjectModuleLoaderV1 {
@@ -207,15 +208,17 @@ export async function checkStoryApplicationV1(
   const result = collectGamePackageDiagnosticsV1(entry);
   const packageDiagnostics = result.kind === "valid" ? [] : [...result.diagnostics];
 
-  // Motion sources are authored data files next to the story entry; lint
-  // them whenever the caller can tell us where the source tree lives.
-  const motionDiagnostics = options.repositoryRoot === undefined ? [] : [
-    ...collectMotionSourceDiagnosticsV1(
-      resolve(options.repositoryRoot, dirname(application.storyEntry.module)),
-    ),
+  // Motion and scene sources are authored data files next to the story
+  // entry; lint them whenever the caller can tell us where the tree lives.
+  const sourceRoot = options.repositoryRoot === undefined
+    ? null
+    : resolve(options.repositoryRoot, dirname(application.storyEntry.module));
+  const sourceDiagnostics = sourceRoot === null ? [] : [
+    ...collectMotionSourceDiagnosticsV1(sourceRoot),
+    ...collectSceneSourceDiagnosticsV1(sourceRoot),
   ];
 
-  const diagnostics = Object.freeze([...packageDiagnostics, ...motionDiagnostics]);
+  const diagnostics = Object.freeze([...packageDiagnostics, ...sourceDiagnostics]);
   return Object.freeze({
     applicationId: application.applicationId,
     ok: diagnostics.length === 0,

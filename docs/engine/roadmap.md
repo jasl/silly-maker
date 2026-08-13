@@ -80,8 +80,12 @@ PF6/S5 broad harness 复审后仍不激活。PF7 现已完成。2026-08-13 所�
 完成了 [Authorable Motion Workbench](plans/2026-08-13-authorable-motion-workbench.md)
 （Track D 创作工具后续顺序第 2/3 项 + Track F 表现适配的落地：motion 资产地板、
 点击反查溯源、单 motion Workbench 编辑闭环含 CAS 写回与 seek scrubber、预览捕获/
-preview case、协作护栏）；其后没有自动激活的默认 core 节点，新工作必须由真实产品
-证据和新的 active plan 接受。
+preview case、协作护栏）。2026-08-14 所有者以新的真实产品证据（孤立数字 Workbench
+仍无法支撑基本场景修改：placement 埋在剧情源码、锚点藏在 Story CSS、cue→motion 靠
+全局推断）接受 [VN Scene Workspace V1](plans/2026-08-14-vn-scene-workspace.md) 为
+当前 active plan：一等 Scene 文档 + authoring geometry + 项目级 Studio（Track D
+第 6 项 editor shell 的 VN 窄纵切），目标合同见
+[场景创作模型与 SillyMaker Studio](design/scene-authoring-and-studio.md)。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实
@@ -96,7 +100,7 @@ auto-update 分轴记录；packager/updater 缺口不阻塞 backend durability�
 SQLite operational contract；除非出现 concrete blocker，不再把 journal/KV 对照
 作为选择前置。
 
-五个独立 focused plan（CI0/AUTO0 两个小切片由 production-floor sequence 的 PF0.1
+独立 focused plan（CI0/AUTO0 两个小切片由 production-floor sequence 的 PF0.1
 直接拥有）：
 
 - [Desktop persistence durability](plans/2026-07-30-desktop-persistence-durability.md)
@@ -106,6 +110,8 @@ SQLite operational contract；除非出现 concrete blocker，不再把 journal/
 - [Authoritative determinism guardrails](plans/2026-07-31-authoritative-determinism-guardrails.md)
 - [Authorable Motion Workbench](plans/2026-08-13-authorable-motion-workbench.md)（2026-08-13
   接受并完成）
+- [VN Scene Workspace](plans/2026-08-14-vn-scene-workspace.md)（2026-08-14 接受，
+  当前 active plan）
 
 原则是**一次只迁移一个可独立验收的 authority**。不接受把 Surface、Save、
 Snapshot 数据结构、determinism guard 或 Mod resolver 作为一个大改动交给 Agent。
@@ -283,10 +289,18 @@ capability-gated debug command 合同和 DevDock 面板。它们不再作为未�
 [Authorable Motion Workbench](plans/2026-08-13-authorable-motion-workbench.md)
 以窄纵切完整交付：可写回的 motion 资产、点击反向定位溯源、单 motion Workbench
 （真实 Renderer detached 画布 + seek 时钟 + saved/draft A/B + CAS 写回 + HMR）、
-live 预览捕获与命名 preview case、AI 协作护栏。它不提前组合 editor shell；
-audio/transition inspection 与后续项仍待真实证据激活。
+live 预览捕获与命名 preview case、AI 协作护栏。
 
-Editor 写普通 TS 或被 TS 引用的稳定数据，不形成另一种运行时语言。
+第 6 项（editor shell）已由 2026-08-14 接受的
+[场景创作模型与 SillyMaker Studio](design/scene-authoring-and-studio.md) 与
+[VN Scene Workspace 计划](plans/2026-08-14-vn-scene-workspace.md) 以 VN 场景纵切
+激活：一等 `*.scene.json` 作者文档编译进现有 runtime contracts、authoring
+geometry（宽高 + 锚点）、项目级 Studio（navigator/画布/Inspector/cue 列表，收编
+Motion Workbench 为 panel）与 dev-only CAS 写回。它不是通用 editor：第 1/4/5 项与
+audio/transition inspection 仍待各自真实证据激活。
+
+Editor 写普通 TS 或被 TS 引用的稳定数据（JSON 文档经严格 admission），不形成另一
+种运行时语言。
 
 ## 9. Strategic track E — genre capabilities
 

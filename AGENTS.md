@@ -22,14 +22,17 @@ Read only the documents relevant to the change:
   implemented yet.
 - `docs/engine/plans/2026-07-30-production-floor-sequence.md` — the only
   cross-plan execution order. PF0–PF7 and the Complexity Reset are complete;
-  PF6 remains evidence-gated and inactive, and no default core task is
-  automatically active. Desktop persistence remains an independent promotion
-  gate while the adapter is preview.
+  PF6 remains evidence-gated and inactive. The current active lane is
+  `docs/engine/plans/2026-08-14-vn-scene-workspace.md` (first-class Scene
+  documents, authoring geometry, and the project-level Studio; contract in
+  `docs/engine/design/scene-authoring-and-studio.md`). Desktop persistence
+  remains an independent promotion gate while the adapter is preview.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,
   `docs/engine/plans/2026-07-30-snapshot-commit-performance.md`,
   `docs/engine/plans/2026-07-30-save-migration.md`,
-  `docs/engine/plans/2026-07-30-surface-contract-harness.md`, and
-  `docs/engine/plans/2026-07-31-authoritative-determinism-guardrails.md` —
+  `docs/engine/plans/2026-07-30-surface-contract-harness.md`,
+  `docs/engine/plans/2026-07-31-authoritative-determinism-guardrails.md`, and
+  `docs/engine/plans/2026-08-13-authorable-motion-workbench.md` —
   focused contracts and completed evidence. Only the production-floor sequence
   owns current/next order; do not infer that list order or a historical pointer
   makes the conditional Desktop lane a core blocker.

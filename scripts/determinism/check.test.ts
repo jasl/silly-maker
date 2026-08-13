@@ -185,22 +185,35 @@ describe("authoritative determinism runner", () => {
 
   it("reads each path once and gives read failure precedence over unsupported-source checks", async () => {
     const readSource = vi.fn(async (file: string) => {
-      if (file !== "unsupported.json") throw new Error("host-specific secret path");
+      if (file === "unreadable.ts" || file === "missing.json") {
+        throw new Error("host-specific secret path");
+      }
+      if (file === "unsupported.wasm") return "\0asm";
       return "export const clean = 1;\n";
     });
 
     const diagnostics = await checkDeterminismPathsV1({
       repositoryRoot: repositoryRootV1,
-      paths: ["unreadable.ts", "unsupported.json", "missing.json"],
+      paths: ["unreadable.ts", "invalid.json", "unsupported.wasm", "missing.json"],
       readSource,
     });
 
     expect(readSource.mock.calls.map(([file]) => file)).toEqual([
+      "invalid.json",
       "missing.json",
       "unreadable.ts",
-      "unsupported.json",
+      "unsupported.wasm",
     ]);
     expect(diagnostics).toEqual([
+      {
+        code: "determinism.source_unsupported",
+        file: "invalid.json",
+        range: [0, 0],
+        start: { line: 1, column: 1 },
+        end: { line: 1, column: 1 },
+        message: "Authoritative JSON data source is not valid JSON.",
+        hint: "Fix the JSON document, then rerun the determinism check.",
+      },
       {
         code: "determinism.source_read_failed",
         file: "missing.json",
@@ -221,7 +234,7 @@ describe("authoritative determinism runner", () => {
       },
       {
         code: "determinism.source_unsupported",
-        file: "unsupported.json",
+        file: "unsupported.wasm",
         range: [0, 0],
         start: { line: 1, column: 1 },
         end: { line: 1, column: 1 },
@@ -232,6 +245,18 @@ describe("authoritative determinism runner", () => {
     expect(Object.isFrozen(diagnostics)).toBe(true);
     expect(Object.isFrozen(diagnostics[0])).toBe(true);
     expect(Object.isFrozen(diagnostics[0]?.range)).toBe(true);
+  });
+
+  it("accepts valid JSON data sources in the authoritative closure without syntax proofs", async () => {
+    const diagnostics = await checkDeterminismPathsV1({
+      repositoryRoot: repositoryRootV1,
+      paths: ["scene.scene.json", "code.ts"],
+      readSource: (file) =>
+        file === "scene.scene.json"
+          ? '{ "format": "sillymaker.scene", "version": 1 }\n'
+          : "export const clean = 1;\n",
+    });
+    expect(diagnostics).toEqual([]);
   });
 
   it("deduplicates paths, reads supported sources in UTF-16 order, and sorts all diagnostics", async () => {
@@ -246,6 +271,7 @@ describe("authoritative determinism runner", () => {
     });
 
     expect(reads).toEqual(["a.ts", "middle.json", "z.ts"]);
+    // "Math.random();" is not JSON, so the data source still fails fast.
     expect(diagnostics.map(({ file, code }) => `${file}:${code}`)).toEqual([
       "a.ts:determinism.network",
       "a.ts:determinism.ambient_random",

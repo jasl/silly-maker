@@ -55,6 +55,11 @@ export {
   motionTotalDurationMsV1 as motionTotalDurationMs,
   parseMotionDocumentV1 as parseMotionDocument,
   sampleMotionAtV1 as sampleMotionAt,
+  parseSceneDocumentV1 as parseSceneDocument,
+  sceneCueTransitionIdV1 as sceneCueTransitionId,
+  sceneFromDocumentV1 as sceneFromDocument,
+  sceneSettledMutationsV1 as sceneSettledMutations,
+  sceneStageTransitionBindingsV1 as sceneStageTransitionBindings,
 } from "../index.ts";
 export type {
   SemanticStageStateV1 as SemanticStageState,
@@ -80,6 +85,13 @@ export type {
   MotionKeyframeV1 as MotionKeyframe,
   MotionSampleV1 as MotionSample,
   MotionTrackV1 as MotionTrack,
+  SceneCanvasV1 as SceneCanvas,
+  SceneCueKindV1 as SceneCueKind,
+  SceneCueV1 as SceneCue,
+  SceneDocumentV1 as SceneDocument,
+  SceneEntryV1 as SceneEntry,
+  SceneStageTransitionBindingsV1 as SceneStageTransitionBindings,
+  SceneV1 as Scene,
 } from "../index.ts";
 
 // ---------------------------------------------------------------------------

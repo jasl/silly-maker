@@ -117,6 +117,9 @@ that review.
 | `narrative.successor_missing` / `narrative.pure_loop` (graph lint)                                 | a node's `next` targets a missing node / pure nodes form a loop with no interaction boundary; the diagnostic points back to the definition |
 | `motion.document_invalid` / `motion.document_json_invalid` (`story check`)                         | a `src/**/*.motion.json` fails strict Motion admission or is not JSON; fix the file the diagnostic points at                               |
 | `motion.id_duplicate` / `motion.id_filename_mismatch` (`story check`)                              | two motion files claim one id / the filename stem is not the id's final segment; rename so click-to-locate and the write port stay stable  |
+| `scene.document_invalid` / `scene.document_json_invalid` (`story check`)                           | a `src/**/*.scene.json` fails strict Scene admission or is not JSON; fix the file the diagnostic points at                                 |
+| `scene.id_duplicate` / `scene.id_filename_mismatch` / `scene.cue_motion_missing` (`story check`)   | two scene files claim one id / the filename stem drifts from the id / a cue references a motion no `*.motion.json` declares                |
+| `scene_cue_binding_ambiguous` (Scene admission)                                                    | two cues bind different motions to the same stage edge; give the edges distinct cues or agree on one motion                                |
 | Test assertions mismatch occurrence numbers                                                        | a new boundary shifted the numbering; renumber per the failure message                                                                     |
 
 ## Motion assets and the Workbench loop

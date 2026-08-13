@@ -518,6 +518,26 @@ export type {
 export { motionStageTransitionV1, parseStageTransitionDefinitionV1 } from "./stage-transition.ts";
 export type { MotionStageTransitionInputV1 } from "./stage-transition.ts";
 export {
+  parseSceneDocumentV1,
+  sceneCueTransitionIdV1,
+  sceneDocumentFormatV1,
+  sceneDocumentVersionV1,
+  sceneFromDocumentV1,
+  sceneSettledMutationsV1,
+  sceneStageTransitionBindingsV1,
+} from "./scene.ts";
+export type {
+  SceneCanvasV1,
+  SceneCueKindV1,
+  SceneCueV1,
+  SceneDocumentV1,
+  SceneEntryV1,
+  SceneSettledMutationsOptionsV1,
+  SceneStageTransitionBindingsInputV1,
+  SceneStageTransitionBindingsV1,
+  SceneV1,
+} from "./scene.ts";
+export {
   motionChannelBaselineV1,
   motionDefinitionFromDocumentV1,
   motionDocumentFormatV1,

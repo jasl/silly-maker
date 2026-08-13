@@ -12,9 +12,10 @@ import {
   interactionOccurrenceId,
   emptyNarrativeHistory,
   parsePendingInteraction,
-  parseStageMutation,
   reduceStageMutations,
 } from "@sillymaker/base/story";
+
+import { catcafeOpeningCueIdsV1, catcafeOpeningSceneV1 } from "../../scenes/opening/index.ts";
 
 /**
  * The starter narrative: a typed TypeScript script, not a DSL. Authors edit
@@ -122,40 +123,19 @@ export const catcafeContentIdsV1 = Object.freeze({
 export const catcafeEntryNodeIdV1 = "node.catcafe.opening";
 export const catcafeNamedFlagV1 = "flag.catcafe.named";
 
-function batchV1(batch: readonly unknown[]): readonly StageMutation[] {
-  return Object.freeze(
-    batch.map((mutation, index) => parseStageMutation(mutation, `/mutations/${String(index)}`)),
-  );
-}
-
-function hasTagV1(stage: SemanticStageState, layerId: string, tag: string): boolean {
-  const layer = stage.layers.find((candidate) => candidate.layerId === layerId);
-  return layer !== undefined && layer.entries.some((entry) => entry.tag === tag);
-}
-
 /**
  * The placeholder scene: a short "rain has just stopped" vignette proving
  * every node kind once. Replace it wholesale when starting a real game.
+ * Visual composition (entries, placements, entrance motion) lives in
+ * `src/scenes/opening/opening.scene.json`; stage nodes reference its cues.
  */
 export const catcafeScriptV1: readonly CatcafeNarrativeNodeV1[] = [
   {
     kind: "stage",
     nodeId: "node.catcafe.opening",
     mutations: (stage) =>
-      hasTagV1(stage, catcafeLayersV1.characters, catcafeTagsV1.xiaoyu) ? [] : batchV1([
-        {
-          kind: hasTagV1(stage, catcafeLayersV1.background, catcafeTagsV1.background)
-            ? "replace"
-            : "show",
-          layerId: catcafeLayersV1.background,
-          tag: catcafeTagsV1.background,
-          contentId: catcafeContentIdsV1.backgroundShopfront,
-          ...(hasTagV1(stage, catcafeLayersV1.background, catcafeTagsV1.background)
-            ? {}
-            : { zOrder: 0 }),
-        },
-      ]),
-    mayShow: [catcafeContentIdsV1.backgroundShopfront],
+      catcafeOpeningSceneV1.cueMutations(catcafeOpeningCueIdsV1.shopfront, stage),
+    mayShow: catcafeOpeningSceneV1.cueMayShow(catcafeOpeningCueIdsV1.shopfront),
     next: "node.catcafe.rain",
   },
   {
@@ -180,24 +160,8 @@ export const catcafeScriptV1: readonly CatcafeNarrativeNodeV1[] = [
     kind: "stage",
     nodeId: "node.catcafe.kitten-enters",
     mutations: (stage) =>
-      hasTagV1(stage, catcafeLayersV1.characters, catcafeTagsV1.xiaoyu) ? [] : batchV1([
-        {
-          kind: "show",
-          layerId: catcafeLayersV1.characters,
-          tag: catcafeTagsV1.xiaoyu,
-          contentId: catcafeContentIdsV1.characterXiaoyu,
-          zOrder: 10,
-          placement: {
-            x: 920,
-            y: 600,
-            scalePermille: 1000,
-            opacityPermille: 1000,
-            mirrored: false,
-          },
-          appearance: { stage: "kitten", expression: "calm" },
-        },
-      ]),
-    mayShow: [catcafeContentIdsV1.characterXiaoyu],
+      catcafeOpeningSceneV1.cueMutations(catcafeOpeningCueIdsV1.kittenEnters, stage),
+    mayShow: catcafeOpeningSceneV1.cueMayShow(catcafeOpeningCueIdsV1.kittenEnters),
     next: "node.catcafe.meet",
   },
   {

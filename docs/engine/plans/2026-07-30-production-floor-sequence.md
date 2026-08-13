@@ -5,7 +5,10 @@
 不激活。同日以真实产品证据接受并完成了
 [Authorable Motion Workbench](2026-08-13-authorable-motion-workbench.md)（M1–M5：
 motion 资产地板、点击反查溯源、Motion Workbench 编辑闭环、预览捕获/preview case、
-协作护栏；外部实验的 12 步痛点闭环实测走通）。
+协作护栏；外部实验的 12 步痛点闭环实测走通）。2026-08-14 以新的真实产品证据
+（孤立数字 Workbench 仍无法支撑基本场景修改）接受
+[VN Scene Workspace V1](2026-08-14-vn-scene-workspace.md) 为当前 active plan；目标
+合同见[场景创作模型与 SillyMaker Studio 设计](../design/scene-authoring-and-studio.md)。
 
 本文是唯一跨计划排序入口。它只保留 current、next、依赖、验收与 stop conditions。
 旧版逐提交 delivery ledger 已退出 active authority；完成里程碑摘要在
@@ -13,10 +16,14 @@ motion 资产地板、点击反查溯源、Motion Workbench 编辑闭环、预�
 
 ## 1. Current and next
 
-当前：没有自动激活的默认核心节点；新工作必须由真实产品证据和新的 active plan
-明确接受。
+当前：[VN Scene Workspace V1](2026-08-14-vn-scene-workspace.md)（Scene authoring
+layer + Studio）。A0（Scene 文档与编译，headless）已于 2026-08-14 完成；current
+切片是 A1 authoring geometry，next 依次为 A2 Studio shell 与写回 → A3 直接操纵 →
+A4 starter 与文档迁移 → A5 第二消费者验证。切片验收与 stop conditions 由该计划
+拥有。
 
-一次只领取一个可命名任务。不得把 CR2.2–CR2.5、CR3、CR4 或 PF6 合成一次重写。
+一次只领取一个可命名任务。不得把 A0–A5 合成一次重写，也不得把 CR2.2–CR2.5、CR3、
+CR4 或 PF6 合成一次重写。
 
 ## 2. Completed production floor
 

@@ -22,6 +22,14 @@ const supportedSourceExtensionsV1 = new Set([
   ".tsx",
 ]);
 
+/**
+ * Inert data sources an authoritative module may import (scene/motion
+ * documents enter the closure through JSON import attributes). JSON cannot
+ * express calls, so there is no syntax to prove — the file only has to be
+ * JSON at all; strict admission at the consuming contract does the rest.
+ */
+const dataSourceExtensionsV1 = new Set([".json"]);
+
 const defaultAdditionalAuthoritiesV1 = Object.freeze(
   [
     Object.freeze({
@@ -120,6 +128,20 @@ export async function checkDeterminismPathsV1(options: {
         message: "Unable to read authoritative source.",
         hint: "Ensure the file exists and is readable, then rerun the determinism check.",
       }));
+      continue;
+    }
+
+    if (dataSourceExtensionsV1.has(extname(file))) {
+      try {
+        JSON.parse(source);
+      } catch {
+        diagnostics.push(createSourceDiagnosticV1({
+          code: "determinism.source_unsupported",
+          file,
+          message: "Authoritative JSON data source is not valid JSON.",
+          hint: "Fix the JSON document, then rerun the determinism check.",
+        }));
+      }
       continue;
     }
 

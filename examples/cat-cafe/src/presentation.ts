@@ -18,9 +18,9 @@ import type {
   StageTransitionCatalog,
   StageTransitionDefinition,
 } from "@sillymaker/base/story";
-import { motionStageTransition, parseStageTransitionDefinition } from "@sillymaker/base/story";
+import { parseStageTransitionDefinition } from "@sillymaker/base/story";
 
-import catEntranceMotionDocumentV1 from "./motions/cat-entrance.motion.json" with { type: "json" };
+import { catcafeOpeningTransitionBindingsV1 } from "./scenes/opening/index.ts";
 import { catcafeContentIdsV1 } from "./features/dialogue/script.ts";
 import { catcafeContentV1 } from "./content.ts";
 
@@ -1062,29 +1062,25 @@ const transitionDefinitionsV1: readonly StageTransitionDefinition[] = Object.fre
 );
 
 /**
- * The cat's entrance is an authorable motion asset
- * (`motions/cat-entrance.motion.json`): keyframes and timing live in the
- * asset file where humans and tools can retune them; this binding only owns
- * edge behavior. Runs on every stage enter edge (the cat is the only entry
- * that enters mid-scene).
+ * Cue-bound transitions come from the opening scene document: the kitten
+ * entrance motion is bound to exactly its cue's enter edge (keyframes and
+ * timing live in `scenes/opening/motions/cat-entrance.motion.json`). The
+ * story-wide rule below only keeps content replaces on a crossfade; other
+ * unbound edges cut instantly instead of inheriting a character motion.
  */
-const catEntranceTransitionV1 = motionStageTransition({
-  transitionId: "transition.catcafe.enter",
-  motion: catEntranceMotionDocumentV1,
-});
-
 const transitionByIdV1: ReadonlyMap<string, StageTransitionDefinition> = new Map(
-  [...transitionDefinitionsV1, catEntranceTransitionV1].map(
+  [...transitionDefinitionsV1, ...catcafeOpeningTransitionBindingsV1.definitions].map(
     (definition) => [definition.transitionId, definition],
   ),
 );
 
 export const catcafeStageTransitionCatalogV1: StageTransitionCatalog = {
   resolveTransition(change: StageTargetChange): StageTransitionDefinition | null {
+    const cueBound = catcafeOpeningTransitionBindingsV1.resolveTransition(change);
+    if (cueBound !== null) return cueBound;
     if (change.kind === "replace") {
       return transitionByIdV1.get("transition.catcafe.crossfade") ?? null;
     }
-    if (change.kind === "enter") return transitionByIdV1.get("transition.catcafe.enter") ?? null;
     return null;
   },
   resolveTransitionById(transitionId: string): StageTransitionDefinition | null {
