@@ -2,7 +2,10 @@
 
 状态：2026-08-13，PF0–PF7 与 Complexity Reset 的 CR0、CR1、CR2.1–CR2.5、CR3、CR4
 已完成。CR4 的真实作者纵切没有暴露需要通用 PF6 harness 解决的问题，PF6 已重新裁决为
-不激活。当前没有自动激活的默认核心节点。
+不激活。同日以真实产品证据接受并完成了
+[Authorable Motion Workbench](2026-08-13-authorable-motion-workbench.md)（M1–M5：
+motion 资产地板、点击反查溯源、Motion Workbench 编辑闭环、预览捕获/preview case、
+协作护栏；外部实验的 12 步痛点闭环实测走通）。
 
 本文是唯一跨计划排序入口。它只保留 current、next、依赖、验收与 stop conditions。
 旧版逐提交 delivery ledger 已退出 active authority；完成里程碑摘要在
@@ -10,14 +13,8 @@
 
 ## 1. Current and next
 
-当前：
-
-1. 无。新的默认核心工作必须由真实产品证据和新的 active plan 明确接受。
-
-后续默认顺序：
-
-1. PF7 完成后没有自动激活的默认核心节点；新工作必须由真实产品证据和新的 active plan
-   明确接受。
+当前：没有自动激活的默认核心节点；新工作必须由真实产品证据和新的 active plan
+明确接受。
 
 一次只领取一个可命名任务。不得把 CR2.2–CR2.5、CR3、CR4 或 PF6 合成一次重写。
 

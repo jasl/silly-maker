@@ -49,3 +49,26 @@
   outline: 2px solid currentcolor;
   outline-offset: 2px;
 }
+
+/* Dev-only click-to-inspect surface: covers the entry's rendered bounds
+   while inspection is enabled; never present in production compositions. */
+.inspect-hit {
+  position: absolute;
+  inset: 0;
+  min-inline-size: 2rem;
+  min-block-size: 2rem;
+  padding: 0;
+  border: 1px dashed color-mix(in srgb, currentcolor 60%, transparent);
+  background: transparent;
+  cursor: crosshair;
+  pointer-events: auto;
+  z-index: 2147483000;
+}
+
+.inspect-hit:hover {
+  background: color-mix(in srgb, currentcolor 12%, transparent);
+}
+
+.inspect-hit[data-stage-inspect-selected="true"] {
+  border: 2px solid currentcolor;
+}

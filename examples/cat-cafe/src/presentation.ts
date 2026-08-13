@@ -18,8 +18,9 @@ import type {
   StageTransitionCatalog,
   StageTransitionDefinition,
 } from "@sillymaker/base/story";
-import { parseStageTransitionDefinition } from "@sillymaker/base/story";
+import { motionStageTransition, parseStageTransitionDefinition } from "@sillymaker/base/story";
 
+import catEntranceMotionDocumentV1 from "./motions/cat-entrance.motion.json" with { type: "json" };
 import { catcafeContentIdsV1 } from "./features/dialogue/script.ts";
 import { catcafeContentV1 } from "./content.ts";
 
@@ -1055,25 +1056,27 @@ const transitionDefinitionsV1: readonly StageTransitionDefinition[] = Object.fre
       acknowledge: false,
       slide: null,
     },
-    {
-      transitionId: "transition.catcafe.enter",
-      kind: "slide",
-      durationMs: 300,
-      easing: "ease_in_out",
-      inputPolicy: "target_active",
-      interruption: "settle_and_retarget",
-      reducedMotion: { kind: "settle" },
-      readiness: { kind: "immediate" },
-      acknowledge: false,
-      slide: { x: 0, y: 120 },
-    },
   ].map((definition, index) =>
     parseStageTransitionDefinition(definition, `/transitions/${String(index)}`)
   ),
 );
 
+/**
+ * The cat's entrance is an authorable motion asset
+ * (`motions/cat-entrance.motion.json`): keyframes and timing live in the
+ * asset file where humans and tools can retune them; this binding only owns
+ * edge behavior. Runs on every stage enter edge (the cat is the only entry
+ * that enters mid-scene).
+ */
+const catEntranceTransitionV1 = motionStageTransition({
+  transitionId: "transition.catcafe.enter",
+  motion: catEntranceMotionDocumentV1,
+});
+
 const transitionByIdV1: ReadonlyMap<string, StageTransitionDefinition> = new Map(
-  transitionDefinitionsV1.map((definition) => [definition.transitionId, definition]),
+  [...transitionDefinitionsV1, catEntranceTransitionV1].map(
+    (definition) => [definition.transitionId, definition],
+  ),
 );
 
 export const catcafeStageTransitionCatalogV1: StageTransitionCatalog = {

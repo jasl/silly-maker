@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type {
@@ -22,6 +23,7 @@ import {
 } from "../vite/version-stamp.ts";
 import type { SillymakerProjectConfigV1 } from "./config.ts";
 import { joinAppPathV1, resolveStoryApplicationV1 } from "./config.ts";
+import { collectMotionSourceDiagnosticsV1 } from "./motion-diagnostics.ts";
 
 /** Loads a repository module for command execution; injectable for tests. */
 export interface ProjectModuleLoaderV1 {
@@ -196,13 +198,28 @@ export async function checkStoryApplicationV1(
   project: SillymakerProjectConfigV1,
   applicationId: string,
   loader: ProjectModuleLoaderV1,
+  options: {
+    /** Repo root for the motion-source lint; omitted skips the file scan. */
+    readonly repositoryRoot?: string;
+  } = {},
 ): Promise<StoryCheckReportV1> {
   const { application, entry } = await loadStoryEntryV1(project, applicationId, loader);
   const result = collectGamePackageDiagnosticsV1(entry);
+  const packageDiagnostics = result.kind === "valid" ? [] : [...result.diagnostics];
+
+  // Motion sources are authored data files next to the story entry; lint
+  // them whenever the caller can tell us where the source tree lives.
+  const motionDiagnostics = options.repositoryRoot === undefined ? [] : [
+    ...collectMotionSourceDiagnosticsV1(
+      resolve(options.repositoryRoot, dirname(application.storyEntry.module)),
+    ),
+  ];
+
+  const diagnostics = Object.freeze([...packageDiagnostics, ...motionDiagnostics]);
   return Object.freeze({
     applicationId: application.applicationId,
-    ok: result.kind === "valid",
-    diagnostics: result.kind === "valid" ? Object.freeze([]) : result.diagnostics,
+    ok: diagnostics.length === 0,
+    diagnostics,
   });
 }
 

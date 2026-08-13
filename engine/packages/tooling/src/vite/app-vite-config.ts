@@ -23,6 +23,7 @@ import {
   resolveRuntimeAssetPathV1,
   runtimeAssetContentTypeV1,
 } from "./runtime-assets.ts";
+import { devSourcesPluginV1 } from "./dev-sources.ts";
 
 interface BuildIdentityModuleV1 {
   collect(): Promise<unknown>;
@@ -178,6 +179,8 @@ export async function createSillymakerAppViteConfigV1(
     // soft-failing) — shown in the debug dock and readable by Stories
     // through readVersionStampV1.
     versionStampPluginV1(versionStamp),
+    // Dev-server-only source port for DevTools "open source" actions.
+    devSourcesPluginV1(appRoot),
   );
 
   return {

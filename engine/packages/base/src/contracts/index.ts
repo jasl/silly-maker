@@ -515,7 +515,30 @@ export type {
   ContentTableViewV1,
   ContentWhereV1,
 } from "./content-database.ts";
-export { parseStageTransitionDefinitionV1 } from "./stage-transition.ts";
+export { motionStageTransitionV1, parseStageTransitionDefinitionV1 } from "./stage-transition.ts";
+export type { MotionStageTransitionInputV1 } from "./stage-transition.ts";
+export {
+  motionChannelBaselineV1,
+  motionDefinitionFromDocumentV1,
+  motionDocumentFormatV1,
+  motionDocumentVersionV1,
+  motionTotalDurationMsV1,
+  parseMotionDefinitionV1,
+  parseMotionDocumentV1,
+  sampleMotionAtV1,
+} from "./motion.ts";
+export type {
+  MotionAuthoringStatusV1,
+  MotionAuthoringV1,
+  MotionChannelV1,
+  MotionDefinitionV1,
+  MotionDocumentV1,
+  MotionEasingV1,
+  MotionKeyframeV1,
+  MotionNamedEasingV1,
+  MotionSampleV1,
+  MotionTrackV1,
+} from "./motion.ts";
 export {
   TimelineDefinitionErrorV1,
   evaluateTimelineAtV1,

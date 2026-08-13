@@ -8,6 +8,8 @@ import type { DeepReadonly } from "@sillymaker/base";
 import type { DefaultGameRootSlotsV1, SemanticStageEntryRendererV1 } from "@sillymaker/ui";
 import { Button, SemanticStageV1 } from "@sillymaker/ui";
 
+import { labStageInspectControllerV1 } from "./stage-inspect.ts";
+
 import type { LabActionIdV1 } from "./semantic.ts";
 import type { LabApplicationInstanceV1 } from "./core-definition.ts";
 import type { LabUiOverlayIdV1, LabUiPublicationV1 } from "./composition.tsx";
@@ -197,6 +199,7 @@ export function LabStageV1(props: {
         timelines={labTimelineCatalogV1}
         cues={context.cues}
         onTimelineEvent={(eventId) => setLastCueEvent(eventId)}
+        inspect={labStageInspectControllerV1}
       />
     </section>
   );

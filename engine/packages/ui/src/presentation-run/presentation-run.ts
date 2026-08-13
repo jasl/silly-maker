@@ -28,6 +28,15 @@ export interface PresentationRunV1 {
   settleNow(): void;
   /** Abandon the run with outcome "cancelled"; progress freezes. */
   cancel(): void;
+  /**
+   * Scrubs the run to an elapsed time in [0, durationMs] without finishing
+   * it: a pending run becomes paused at that offset, a paused run stays
+   * paused, and a running run continues from there. Parking at the end
+   * never fires completion — only running playback that reaches the end
+   * (or an explicit skip/settle) finishes the run. Settled and cancelled
+   * runs ignore seeks.
+   */
+  seek(elapsedMs: number): void;
   subscribe(listener: () => void): () => void;
   /** Silently drop the run: no outcome callback, no further ticks. */
   dispose(): void;
@@ -148,6 +157,23 @@ export function createPresentationRunV1(
     cancel(): void {
       if (status === "settled" || status === "cancelled") return;
       finish("cancelled");
+    },
+    seek(elapsedMs: number): void {
+      if (status === "settled" || status === "cancelled") return;
+      if (!Number.isFinite(elapsedMs)) return;
+      const clamped = options.durationMs <= 0
+        ? 0
+        : Math.min(options.durationMs, Math.max(0, elapsedMs));
+      if (status === "running") {
+        startedAt = options.clock.now();
+        pausedElapsed = clamped;
+      } else {
+        // pending and paused both park at the offset; resume() continues.
+        status = "paused";
+        pausedElapsed = clamped;
+        stopTicking();
+      }
+      notify();
     },
     subscribe(listener: () => void): () => void {
       listeners.add(listener);

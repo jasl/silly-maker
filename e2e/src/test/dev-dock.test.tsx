@@ -18,6 +18,8 @@ describe("Lab DevDock contributions", () => {
         "panel.e2e.interaction",
         "panel.e2e.audio",
         "panel.e2e.graph",
+        "panel.e2e.provenance",
+        "panel.e2e.workbench",
       ]);
       expect(contributions.panels.every((panel) => panel.authority === "read_only")).toBe(true);
 

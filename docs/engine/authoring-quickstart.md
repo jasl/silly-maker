@@ -112,7 +112,17 @@ that review.
 | `CanonicalJsonError: number.not_integer`                                                           | a float reached saveable state; use integer logical units (e.g. `scalePermille`)                                                           |
 | `e2e.ui_text_missing:<textId>`                                                                     | the script references an unregistered textId; add the catalog entry                                                                        |
 | `narrative.successor_missing` / `narrative.pure_loop` (graph lint)                                 | a node's `next` targets a missing node / pure nodes form a loop with no interaction boundary; the diagnostic points back to the definition |
+| `motion.document_invalid` / `motion.document_json_invalid` (`story check`)                         | a `src/**/*.motion.json` fails strict Motion admission or is not JSON; fix the file the diagnostic points at                               |
+| `motion.id_duplicate` / `motion.id_filename_mismatch` (`story check`)                              | two motion files claim one id / the filename stem is not the id's final segment; rename so click-to-locate and the write port stay stable  |
 | Test assertions mismatch occurrence numbers                                                        | a new boundary shifted the numbering; renumber per the failure message                                                                     |
+
+## Motion assets and the Workbench loop
+
+Narrative entrance/exit animation is data, not code: a `sillymaker.motion` JSON document in `src/motions/` (integer keyframes over offsetX/offsetY/scalePermille/opacityPermille, per-segment easing), bound to a stage edge with `motionStageTransition({ transitionId, motion })` in the transition catalog. Layout stays authoritative — the motion composes over the settled placement and clears to identity when its run finishes.
+
+The human tuning loop (dev server + `debug_tools`): enable click-to-inspect in the DevDock provenance panel → click the picture on the live stage → the card shows its transition/motion/source file → "编辑 Motion" opens the Motion Workbench on the captured scene (or a Story-declared preview case) → scrub/play, edit duration/delay/keyframes, A/B against saved → save. Saving is compare-and-swap against the file digest, rewrites only that motion file deterministically, and marks it `authoring.status: "human_tuned"`.
+
+Collaboration contract (agents): never overwrite a `human_tuned` or `locked` motion unless the task explicitly names it — locked changes go through a new variant file with a new id; preserve motion/transition ids across scene refactors; put new tunable animation in a new motion file instead of inline duration/easing constants in scene code (component-local hover effects stay CSS).
 
 ## Execution advice for LLM agents
 

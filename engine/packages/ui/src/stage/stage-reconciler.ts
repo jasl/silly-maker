@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import type {
   AssetId,
+  MotionDefinitionV1,
   StageCameraV1,
   StageLayerIdV1,
   StageLayerTransformV1,
@@ -36,11 +37,15 @@ export interface StageFrameEntryV1 {
   readonly entry: StageRenderEntryV1;
   readonly phase: StageFramePhaseV1;
   readonly transitionKind: StageTransitionDefinitionV1["kind"] | null;
+  /** The active transition's definition id; null once the entry settles. */
+  readonly transitionId: string | null;
   /** Eased progress toward the target state, 1 when settled. */
   readonly progress: number;
   readonly slide: { readonly x: number; readonly y: number } | null;
   /** Move transitions interpolate from this placement toward entry.placement. */
   readonly fromPlacement: StagePlacementV1 | null;
+  /** Motion transitions sample this keyframe payload at the run progress. */
+  readonly motion: MotionDefinitionV1 | null;
 }
 
 export interface StageFrameLayerV1 {
@@ -788,9 +793,11 @@ export function createStageReconcilerV1(
           entry,
           phase: "settled" as const,
           transitionKind: null,
+          transitionId: null,
           progress: 1,
           slide: null,
           fromPlacement: null,
+          motion: null,
         };
       }
       return {
@@ -798,11 +805,13 @@ export function createStageReconcilerV1(
         entry,
         phase: "entering" as const,
         transitionKind: transition.definition.kind,
+        transitionId: transition.definition.transitionId,
         progress: transition.run.progress(),
         slide: transition.definition.slide,
         fromPlacement: transition.changeKind === "move"
           ? (transition.previousEntry?.placement ?? null)
           : null,
+        motion: transition.definition.motion ?? null,
       };
     });
     for (const transition of active) {
@@ -813,9 +822,11 @@ export function createStageReconcilerV1(
         entry: transition.previousEntry,
         phase: "exiting",
         transitionKind: transition.definition.kind,
+        transitionId: transition.definition.transitionId,
         progress: transition.run.progress(),
         slide: transition.definition.slide,
         fromPlacement: null,
+        motion: transition.definition.motion ?? null,
       });
     }
     return frameEntries;
@@ -1637,9 +1648,11 @@ export function settledStageFrameV1(target: StageRenderTargetV1): StageRenderFra
             entry,
             phase: "settled" as const,
             transitionKind: null,
+            transitionId: null,
             progress: 1,
             slide: null,
             fromPlacement: null,
+            motion: null,
           })),
         ),
       })

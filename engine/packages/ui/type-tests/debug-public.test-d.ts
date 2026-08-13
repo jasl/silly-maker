@@ -29,7 +29,15 @@ type DebugRuntimeKeysV1 = ExpectV1<
     | "DevDockV1"
     | "DiagnosticInspectorV1"
     | "FixtureBrowserV1"
+    | "MotionWorkbenchLauncherV1"
+    | "MotionWorkbenchV1"
+    | "StageProvenancePanelV1"
     | "createDevDockContributionSetV1"
+    | "createDevServerMotionIoV1"
+    | "createMotionSourceIndexV1"
+    | "createMotionWorkbenchStoreV1"
+    | "createStageInspectControllerV1"
+    | "openStorySourceInDevServerV1"
   >
 >;
 type PanelKeysV1 = ExpectV1<

@@ -41,6 +41,10 @@ cat-cafe is organized by **feature slices**: one gameplay feature per `src/featu
 
 Four wiring points: `state.ts` (interface + schema + initial value) → `features/<name>/module.ts` and `handlers.ts` (or `simulation.ts` in the simple packages) → `application/semantic.ts` (action catalog + blockedBy) → `simulation-definition.ts` (manifest entry; module ids in lexicographic order). Keep the package identity revision in `story.ts` synchronized. The revision-sync table and the diagnostics quick-reference are in `docs/engine/authoring-quickstart.md`; do not bump revisions from memory.
 
+## Motion collaboration contract
+
+Narrative entrance/exit animations are `src/motions/*.motion.json` assets bound through `motionStageTransition` — the human tuning surface (the Motion Workbench edits them). Do not overwrite a motion whose `authoring.status` is `"human_tuned"` or that is `locked` unless the task explicitly names it (locked changes go through a new variant file with a new id); preserve stable motion/transition ids across scene refactors; new tunable animation goes into a new motion file (status `"generated"`), never inline duration/easing constants in scene code.
+
 ## Forbidden
 
 - Import only `@sillymaker/*` package exports; never import engine `src/**` paths, never import another Story.

@@ -76,8 +76,12 @@ backup/recovery、maintained release corpus 与 promotion 也已完成。当前�
 建立 Managed Surface/Narrative/WholeCanvas 与 Player 的真实性能趋势，并交付 Cat Cafe
 detached Narrative/Stage preview。该真实作者纵切由现有 Story-local projection 与
 `SemanticStageTargetHostV1` 完整解决，没有产生新的公共 authoring gap 或第二消费者；因此
-PF6/S5 broad harness 复审后仍不激活。PF7 现已完成；当前没有自动激活的默认 core 节点。
-新工作必须由真实产品证据和新的 active plan 接受。
+PF6/S5 broad harness 复审后仍不激活。PF7 现已完成。2026-08-13 所有者以真实产品证据接受并
+完成了 [Authorable Motion Workbench](plans/2026-08-13-authorable-motion-workbench.md)
+（Track D 创作工具后续顺序第 2/3 项 + Track F 表现适配的落地：motion 资产地板、
+点击反查溯源、单 motion Workbench 编辑闭环含 CAS 写回与 seek scrubber、预览捕获/
+preview case、协作护栏）；其后没有自动激活的默认 core 节点，新工作必须由真实产品
+证据和新的 active plan 接受。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实
@@ -100,6 +104,8 @@ SQLite operational contract；除非出现 concrete blocker，不再把 journal/
 - [Save migration](plans/2026-07-30-save-migration.md)
 - [Managed Surface lifecycle](plans/2026-07-30-surface-contract-harness.md)
 - [Authoritative determinism guardrails](plans/2026-07-31-authoritative-determinism-guardrails.md)
+- [Authorable Motion Workbench](plans/2026-08-13-authorable-motion-workbench.md)（2026-08-13
+  接受并完成）
 
 原则是**一次只迁移一个可独立验收的 authority**。不接受把 Surface、Save、
 Snapshot 数据结构、determinism guard 或 Mod resolver 作为一个大改动交给 Agent。
@@ -272,6 +278,13 @@ capability-gated debug command 合同和 DevDock 面板。它们不再作为未�
 4. content table/asset/dependency tooling；
 5. Save migration inspector；
 6. 最后组合 editor shell。
+
+第 2/3 项已经
+[Authorable Motion Workbench](plans/2026-08-13-authorable-motion-workbench.md)
+以窄纵切完整交付：可写回的 motion 资产、点击反向定位溯源、单 motion Workbench
+（真实 Renderer detached 画布 + seek 时钟 + saved/draft A/B + CAS 写回 + HMR）、
+live 预览捕获与命名 preview case、AI 协作护栏。它不提前组合 editor shell；
+audio/transition inspection 与后续项仍待真实证据激活。
 
 Editor 写普通 TS 或被 TS 引用的稳定数据，不形成另一种运行时语言。
 

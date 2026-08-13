@@ -30,6 +30,7 @@ Declaring `titleScreen` (title / background art / optional `splash` intro lines)
 - **Player rollback**: add `rollback: { capacity, classify }` to the core definition (mark settlement/irreversible commands `"barrier"`); the UI uses `instance.rollback` (available/toPrevious/subscribe).
 - **Save safepoints**: add `saveGuard(publication)` to the web definition to disable manual saves mid-dialogue or mid-battle with a reason text.
 - **Stage hit regions**: declare `hitRegions` in the content catalog and pass `onHitRegionActivate` to `SemanticStageV1`.
+- **Motion assets**: narrative entrance/exit animations live in `src/motions/*.motion.json` (`sillymaker.motion` documents), bound through `motionStageTransition` in the transition catalog — never as inline duration/easing literals or CSS transitions in scene code (component-local hover effects stay CSS). `story check` lints every motion file (admission, unique ids, filename = id's final segment).
 - **Content tables**: `defineContentTable` + `createContentDatabase` — static definitions go into tables (validated at resolve time), mutable state goes into modules.
 - **UI styling**: only the published `--silly-*` tokens (no raw z-index; the stacking scales are in the style quick-reference of `docs/engine/authoring-quickstart.md`); gameplay windows declared with `defineWorkspaceOverlayV1` and resolved through `slots.overlayResolver` get the `PanelV1` chrome automatically; native form controls pick up the theme as-is.
 - **Window model**: ordinary primary opens use the presentation-intent path; `context.overlays.openPrimary` is available for structural replacement, `pushDetail` stacks details, and `closeTop`/`closeAll` remove them. The Overlay facade is Coordinator-backed and its snapshot is read-only, so do not mirror it into another writable store or coordinate "open A, close B" yourself. Definitions requiring a port/service name it in `requiredPortIds` and the application supplies the concrete `overlayPorts` binding. An optional resolver `prepare()` may prepare presentation/resources only, never send semantic commands. System dialogs retain their existing single-slot lifecycle; separately, a Workspace Overlay definition may set `dismissible: false`. For dragging / minimize / maximize needs, follow the game-side recipes in `docs/engine/design/window-model.md` first (coordinates through viewport conversion, positions in Story UI state); promote to the engine only once the pattern recurs.
@@ -61,6 +62,14 @@ Rules in brief:
 **A new gameplay feature = a new slice directory**: put the feature's whole contribution under `src/features/<name>/` (`module.ts` module owner, `content.ts` content tables, `rules.ts` pure rules, `handlers.ts` command handlers, UI components); aggregation points gain one line each (the handler map in `simulation.ts` and the table list in `content.ts`; a missed command kind fails to compile). Shared shapes (command/fact/verdict types, schema helpers, the kit) live in `src/kernel.ts`; this package's `features/inventory/` is the minimal sample, and `examples/cat-cafe/src/features/` shows the scaled-up form.
 
 Four wiring points: `state.ts` (interface + schema + initial value) → `features/<name>/module.ts` (module owner) and `features/<name>/handlers.ts` (commands) → `application/semantic.ts` (action catalog + blockedBy) → `simulation-definition.ts` (manifest entry; module ids in lexicographic order). Keep the package identity revision in `story.ts` synchronized. The revision-sync table and the diagnostics quick-reference are in `docs/engine/authoring-quickstart.md`; do not bump revisions from memory.
+
+## Motion collaboration contract
+
+Motion assets are the human tuning surface (the Motion Workbench edits and saves them):
+
+- Do not overwrite a motion file whose `authoring.status` is `"human_tuned"` or whose `authoring.locked` is `true` unless the task explicitly names that asset; to change a locked asset's feel, create a new variant file with a new motion id and rebind the transition.
+- Preserve stable motion ids and transition ids when regenerating or restructuring scenes; a scene refactor may rebind which motion an edge uses, but must not regenerate existing motion files.
+- New animation that a human may want to tune goes into a new `*.motion.json` (status `"generated"`), not inline constants.
 
 ## Forbidden
 

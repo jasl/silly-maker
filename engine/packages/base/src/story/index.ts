@@ -50,6 +50,11 @@ export {
   reduceStageMutationsV1 as reduceStageMutations,
   projectStageRenderTargetV1 as projectStageRenderTarget,
   parseStageTransitionDefinitionV1 as parseStageTransitionDefinition,
+  motionStageTransitionV1 as motionStageTransition,
+  motionDefinitionFromDocumentV1 as motionDefinitionFromDocument,
+  motionTotalDurationMsV1 as motionTotalDurationMs,
+  parseMotionDocumentV1 as parseMotionDocument,
+  sampleMotionAtV1 as sampleMotionAt,
 } from "../index.ts";
 export type {
   SemanticStageStateV1 as SemanticStageState,
@@ -67,6 +72,14 @@ export type {
   StageTransitionDefinitionV1 as StageTransitionDefinition,
   StageTransitionCatalogV1 as StageTransitionCatalog,
   StageTargetChangeV1 as StageTargetChange,
+  MotionAuthoringV1 as MotionAuthoring,
+  MotionChannelV1 as MotionChannel,
+  MotionDefinitionV1 as MotionDefinition,
+  MotionDocumentV1 as MotionDocument,
+  MotionEasingV1 as MotionEasing,
+  MotionKeyframeV1 as MotionKeyframe,
+  MotionSampleV1 as MotionSample,
+  MotionTrackV1 as MotionTrack,
 } from "../index.ts";
 
 // ---------------------------------------------------------------------------

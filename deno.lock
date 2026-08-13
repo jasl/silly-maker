@@ -22,6 +22,7 @@
     "npm:idb@8.0.3": "8.0.3",
     "npm:import-meta-resolve@4.2.0": "4.2.0",
     "npm:jsdom@29.1.1": "29.1.1",
+    "npm:launch-editor@2.14.1": "2.14.1",
     "npm:lucide-react@1.24.0": "1.24.0_react@19.2.7",
     "npm:markdown-it@*": "14.3.0",
     "npm:oxlint-tsgolint@0.24.0": "0.24.0",
@@ -2948,6 +2949,13 @@
     "kleur@4.1.5": {
       "integrity": "sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ=="
     },
+    "launch-editor@2.14.1": {
+      "integrity": "sha512-QWBrQsMpH7gPr965dsKD/3cKWiNoTjpATQf++Xq63N6sKRGMwlVXz41O1IZTMfZQgBctD/K5Zt06+/I6pP6+HA==",
+      "dependencies": [
+        "picocolors",
+        "shell-quote"
+      ]
+    },
     "lightningcss-android-arm64@1.32.0": {
       "integrity": "sha512-YK7/ClTt4kAK0vo6w3X+Pnm0D2cf2vPHbhOXdoNti1Ga0al1P4TBZhwjATvjNwLEBCnKvjJc2jQgHXH0NEwlAg==",
       "os": ["android"],
@@ -3616,6 +3624,9 @@
         "@img/sharp-win32-ia32@0.35.2",
         "@img/sharp-win32-x64@0.35.2"
       ]
+    },
+    "shell-quote@1.10.0": {
+      "integrity": "sha512-w1aiOKwKuRgtwAReIIj89puqg+I7GvX4IbLrvmhXbzQsj1+Zwi4VO3+fa6ZF91TWSjIxoEkKnMeHcLEODK5ZXA=="
     },
     "shiki@2.5.0": {
       "integrity": "sha512-mI//trrsaiCIPsja5CNfsyNOqgAZUb6VpJA+340toL42UpzQlXpwRV9nch69X6gaUxrr9kaOOa6e3y3uAkGFxQ==",
@@ -4296,6 +4307,7 @@
             "npm:@types/node@24.13.3",
             "npm:@vitejs/plugin-react@6.0.3",
             "npm:import-meta-resolve@4.2.0",
+            "npm:launch-editor@2.14.1",
             "npm:vite@8.1.4"
           ]
         }

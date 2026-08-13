@@ -32,17 +32,18 @@ vNext 的目标是让 Story 定义的叙事、舞台和音频意图形成可保�
 
 ## 2. Ownership model
 
-| 能力                 | 权威所有者                                                                 | 保存内容                                                             | 不保存内容                                                   |
-| -------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------ |
-| Stage target         | Story authoritative State，使用 Base 提供的 Stage contracts/reducer/helper | semantic content、layer/tag、placement、appearance 和 camera target  | renderer ID/props、React node、DOM、loaded image、动画进度   |
-| Stage render target  | Story projector + UI registry                                              | 由 authoritative State 确定性重建，不单独保存                        | 不成为第二 gameplay State                                    |
-| Transition execution | UI Stage Reconciler、Presentation Clock、PresentationRun                   | Story 只保存必要的 pending barrier definition/recovery policy        | transition occurrence、old/target render tree、elapsed time  |
-| PendingInteraction   | Base contract；实例属于 Story authoritative State                          | definition ID/revision、每次访问唯一 occurrence ID 和允许 resolution | Promise、callback、focus、typewriter progress                |
-| Audio intent         | Story continuous intent；Web Audio Host 调和实际播放                       | BGM/ambient target；当前 voice 与 line interaction 的关联            | transient SFX occurrence、AudioNode、buffer、playback cursor |
-| VN player state      | Story State、Host profile、UI transient 三层                               | NarrativeHistory 进 Save；seen/preferences 进 profile                | hover、focus、typewriter cursor、临时 playback execution     |
-| Timeline definition  | Base 的 JSON-safe descriptor/validator；Story 用 TS builder 创作；UI 执行  | 必要时保存稳定 cue/wait point                                        | function closure、executor internals、frame progress         |
-| Editor               | Node tooling / DevDock                                                     | Story source/data、preview config、diagnostics                       | editor-local React state                                     |
-| Rollback             | Session 的 bounded Snapshot checkpoints                                    | Snapshot、RNG、checkpoint metadata                                   | Python-style mutation log、renderer state                    |
+| 能力                 | 权威所有者                                                                               | 保存内容                                                                       | 不保存内容                                                        |
+| -------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| Stage target         | Story authoritative State，使用 Base 提供的 Stage contracts/reducer/helper               | semantic content、layer/tag、placement、appearance 和 camera target            | renderer ID/props、React node、DOM、loaded image、动画进度        |
+| Stage render target  | Story projector + UI registry                                                            | 由 authoritative State 确定性重建，不单独保存                                  | 不成为第二 gameplay State                                         |
+| Transition execution | UI Stage Reconciler、Presentation Clock、PresentationRun                                 | Story 只保存必要的 pending barrier definition/recovery policy                  | transition occurrence、old/target render tree、elapsed time       |
+| PendingInteraction   | Base contract；实例属于 Story authoritative State                                        | definition ID/revision、每次访问唯一 occurrence ID 和允许 resolution           | Promise、callback、focus、typewriter progress                     |
+| Audio intent         | Story continuous intent；Web Audio Host 调和实际播放                                     | BGM/ambient target；当前 voice 与 line interaction 的关联                      | transient SFX occurrence、AudioNode、buffer、playback cursor      |
+| VN player state      | Story State、Host profile、UI transient 三层                                             | NarrativeHistory 进 Save；seen/preferences 进 profile                          | hover、focus、typewriter cursor、临时 playback execution          |
+| Timeline definition  | Base 的 JSON-safe descriptor/validator；Story 用 TS builder 创作；UI 执行                | 必要时保存稳定 cue/wait point                                                  | function closure、executor internals、frame progress              |
+| Motion asset         | Base 的 JSON-safe document/validator；Story 以 `*.motion.json` 源码资产创作；UI 采样执行 | 不进 Save——文档是源码资产，运行时只在 transition 定义里携带 normalized payload | authoring metadata（human-tuned/locked）、采样进度、renderer 状态 |
+| Editor               | Node tooling / DevDock                                                                   | Story source/data、preview config、diagnostics                                 | editor-local React state                                          |
+| Rollback             | Session 的 bounded Snapshot checkpoints                                                  | Snapshot、RNG、checkpoint metadata                                             | Python-style mutation log、renderer state                         |
 
 Stage 是引擎能力，表示 Base/UI/Web 提供通用合同、纯 reducer、投影和执行器。具体 layer、角色、素材、transition catalog 和内容仍由 Story 定义。Story 可使用引擎提供的可复用 Stage module helper，也可在自己的 State module 中实现同一 contract；一个 Session 内只能有一个 authoritative Stage target。
 
@@ -100,7 +101,7 @@ StageRenderFrame = previous settled target
 Transition definition/request 至少表达：
 
 - stable transition/cue ID；
-- kind：cut、crossfade、slide、mask 或 Story-contributed custom renderer；
+- kind：cut、crossfade、slide、motion（引用独立 keyframe 资产）、mask 或 Story-contributed custom renderer；
 - duration 和 easing；
 - scope：whole stage、layer 或 entry；
 - input policy：block、target-active、skip-to-end；
@@ -243,6 +244,22 @@ Renderer、只读 PresentationObservation 和 Host tests 能观察 asset demand/
 
 状态更新（2026-07-28）：类型化 Timeline 已实现——JSON-safe descriptor + `timelineV1` builder（与 literal 同契约）、验证器（unknown target/非法 duration/easing/并行写冲突/有界 repeat）、纯采样函数、复用 PresentationRun/Clock 的播放器（pause/cancel/skip/快进/reduced-motion 即时 settle/事件一次性水位线）、语义舞台 overlay 集成与 `play_cue` 接线，Engine Lab 的信标脉冲 cue 作垂直证明。`keyframes` 语法糖与 `onLifecycle` 绑定按 [R5–R7 计划](../plans/2026-07-28-sillymaker-r5-r7.md) defer；受约束 scene graph 仍待真实 Story 证据。
 
+状态更新（2026-08-13）：当年 defer 的 keyframe 能力以「可写回的作者资产」形态落地（见
+[Authorable Motion Workbench 计划](../plans/2026-08-13-authorable-motion-workbench.md)）。
+`MotionDocumentV1` 是独立版本化 JSON 文档（`format: "sillymaker.motion"`，通常存为
+`*.motion.json` 源码资产）：整数 keyframe 轨道作用于 `offsetX`/`offsetY`/`scalePermille`/
+`opacityPermille` 四个 overlay 通道，段级 easing（linear/ease_in/ease_out/ease_in_out/
+ease_in_cubic/ease_out_cubic/ease_out_back/cubic_bezier permille 控制点），首尾 keyframe
+钉在 0/1000，admission 走 exact-record 严格校验并给出结构化 path。文档经
+`motionStageTransitionV1` 规范化后以 `kind: "motion"` 过渡绑定到某条 stage edge：文档拥有
+曲线与时长（duration 由资产推导），过渡拥有边行为（inputPolicy/interruption/
+reducedMotion/readiness/acknowledge），运行仍复用同一 PresentationRun/Clock 与 reconciler
+生命周期，采样是纯函数（同一文档+时刻恒得同值）。`authoring` 元数据
+（generated/human_tuned、locked、notes）只服务人与工具，规范化即剥离，不进运行时或
+Save。布局权威不变：motion 只是叠加在 settled placement 上的临时覆盖，结束回 identity。
+Engine Lab 角色入场与 Cat Cafe 小雨登场是两个消费者。反向定位、seek/scrub 与写回端口
+按计划后续切片推进。
+
 ATL 类表达能力进入后续路线图，但使用类型化 TypeScript builder 产生 validated、JSON-safe descriptor：
 
 ```text
@@ -264,6 +281,8 @@ onLifecycle("show" | "hide" | "replace" | "replaced", ...)
 ## 10. DevTools and editor path
 
 状态更新（2026-07-28）：第 1–2 步的数据面已实现——通用只读检查器（live JSON inspector、叙事图视图含 lint 标注与当前交互高亮）进入 `@sillymaker/ui/debug`，Engine Lab 以 debug_tools 门控的 lazy DevDock 面板消费（语义舞台/交互与历史/音频意图/叙事图）。第 3–5 步（scene preview、Timeline scrubber、可视化 editor）按 [R5–R7 计划](../plans/2026-07-28-sillymaker-r5-r7.md) defer。
+
+状态更新（2026-08-13，[Motion Workbench 计划](../plans/2026-08-13-authorable-motion-workbench.md) M2）：表现溯源与点击反查已实现——`StageFrameEntryV1` 上帧 in-flight `transitionId`；`createStageInspectControllerV1` 接收 mounted stage 的渲染帧、跨 settle 保留每条目最近 transition/motion 身份、驱动仅在检视开启时存在的点击命中面；`createMotionSourceIndexV1` 把 motionId 反解析回 Story 源文件；`StageProvenancePanelV1` 溯源卡片带 "Open Source"（dev-server-only `sillymaker:dev-sources` 中间件 + launch-editor）与 "Edit Motion" 入口。溯源只存在于 DevTools 内存，不进生产 DOM 属性与权威状态。
 
 开发工具按可复用数据面逐步增强：
 

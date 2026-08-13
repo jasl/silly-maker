@@ -318,7 +318,13 @@ export async function runProjectCliV1(input: ProjectCliInputV1): Promise<number>
           : [selector];
         const reports = [];
         for (const applicationId of applicationIds) {
-          reports.push(await checkStoryApplicationV1(input.project, applicationId, input.loader));
+          reports.push(
+            await checkStoryApplicationV1(input.project, applicationId, input.loader, {
+              ...(input.repositoryRoot === undefined
+                ? {}
+                : { repositoryRoot: input.repositoryRoot }),
+            }),
+          );
         }
         input.writeOut(printableV1(selector === "--all" ? reports : reports[0]));
         return reports.every((report) => report.ok) ? 0 : 1;

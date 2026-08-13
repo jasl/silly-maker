@@ -32,6 +32,10 @@ Rules in brief:
 
 Four wiring points: `state.ts` (interface + schema + initial value) → `simulation.ts` (module owner + commands) → `application/semantic.ts` (action catalog + blockedBy) → `simulation-definition.ts` (manifest entry; module ids in lexicographic order). Keep the package identity revision in `story.ts` synchronized. The revision-sync table and the diagnostics quick-reference are in `docs/engine/authoring-quickstart.md`; do not bump revisions from memory.
 
+## Motion collaboration contract
+
+Stage entrance/exit animations are `src/motions/*.motion.json` assets bound through `motionStageTransitionV1`. Do not overwrite a motion whose `authoring.status` is `"human_tuned"` or that is `locked` unless the task explicitly names it (locked changes go through a new variant file); preserve stable motion/transition ids across scene refactors; new tunable animation goes into a new motion file, never inline duration/easing constants in scene code.
+
 ## Forbidden
 
 - Import only `@sillymaker/*` package exports; never import engine `src/**` paths, never import another Story.

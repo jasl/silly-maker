@@ -11,6 +11,7 @@ import type {
 } from "@sillymaker/base";
 import {
   definePresentationPatchSurface,
+  motionStageTransitionV1,
   parsePositiveSafeInteger,
   parseStageTransitionDefinitionV1,
   parseTextCatalogSetV1,
@@ -20,6 +21,7 @@ import {
 import type { TimelineCatalogV1, TimelineDefinitionV1 } from "@sillymaker/base";
 import { timelineV1 } from "@sillymaker/base";
 
+import labCharEnterMotionDocumentV1 from "./motions/char-enter.motion.json" with { type: "json" };
 import { labStageContentIdsV1 } from "./stage-ids.ts";
 
 export const labTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
@@ -220,18 +222,6 @@ const labTransitionDefinitionsV1: readonly StageTransitionDefinitionV1[] = Objec
       slide: null,
     },
     {
-      transitionId: "transition.e2e.char-enter",
-      kind: "slide",
-      durationMs: 300,
-      easing: "ease_in_out",
-      inputPolicy: "target_active",
-      interruption: "settle_and_retarget",
-      reducedMotion: { kind: "settle" },
-      readiness: { kind: "immediate" },
-      acknowledge: false,
-      slide: { x: 0, y: 120 },
-    },
-    {
       transitionId: "transition.e2e.entry-fade",
       kind: "crossfade",
       durationMs: 200,
@@ -260,8 +250,20 @@ const labTransitionDefinitionsV1: readonly StageTransitionDefinitionV1[] = Objec
   ),
 );
 
+/**
+ * The R5+ Motion vertical: the character entrance is an authorable motion
+ * asset (`motions/char-enter.motion.json`) bound to the enter edge. The
+ * asset owns keyframes and timing; this binding owns edge behavior.
+ */
+const labCharEnterTransitionV1 = motionStageTransitionV1({
+  transitionId: "transition.e2e.char-enter",
+  motion: labCharEnterMotionDocumentV1,
+});
+
 const labTransitionByIdV1: ReadonlyMap<string, StageTransitionDefinitionV1> = new Map(
-  labTransitionDefinitionsV1.map((definition) => [definition.transitionId, definition]),
+  [...labTransitionDefinitionsV1, labCharEnterTransitionV1].map(
+    (definition) => [definition.transitionId, definition],
+  ),
 );
 
 function requireLabTransitionV1(transitionId: string): StageTransitionDefinitionV1 {

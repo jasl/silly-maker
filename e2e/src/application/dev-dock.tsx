@@ -1,20 +1,107 @@
 // SPDX-License-Identifier: MIT
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 
 import { lintNarrativeGraphV1 } from "@sillymaker/base";
 import type {
   DevDockContributionSetV1,
+  MotionWorkbenchPreviewV1,
   NarrativeGraphDiagnosticViewV1,
 } from "@sillymaker/ui/debug";
 import {
   DebugNarrativeGraphViewV1,
   DebugValueInspectorV1,
+  MotionWorkbenchLauncherV1,
+  StageProvenancePanelV1,
   createDevDockContributionSetV1,
+  createDevServerMotionIoV1,
+  openStorySourceInDevServerV1,
 } from "@sillymaker/ui/debug";
+import {
+  createSemanticStageStateV1,
+  projectStageRenderTargetV1,
+  reduceStageMutationsV1,
+} from "@sillymaker/base";
 
 import type { LabApplicationInstanceV1 } from "./core-definition.ts";
 import { projectLabNarrativeGraphV1 } from "../gameplay/narrative-graph.ts";
+import { labStageContentCatalogV1 } from "../presentation.ts";
+import {
+  labStageContentIdsV1,
+  labStageIdV1,
+  labStageLayerIdsV1,
+  labStageTagsV1,
+} from "../stage-ids.ts";
+import { labViewportCanvasV1 } from "./composition.tsx";
+import { labStageRenderersV1 } from "./shell-ui.tsx";
+import {
+  labMotionSourcesV1,
+  labStageInspectControllerV1,
+  labWorkbenchStoreV1,
+} from "./stage-inspect.ts";
+
+/**
+ * The Workbench preview fixture: the storeroom background plus the lead
+ * character at their canonical placement — the same detached-target pattern
+ * as the Cat Cafe narrative preview (no Session, no reconciler).
+ */
+function labWorkbenchPreviewV1(): MotionWorkbenchPreviewV1 {
+  const empty = createSemanticStageStateV1({
+    stageId: labStageIdV1,
+    layerIds: [...labStageLayerIdsV1],
+  });
+  const outcome = reduceStageMutationsV1(empty, [
+    Object.freeze({
+      kind: "show" as const,
+      layerId: "layer.e2e.background",
+      tag: labStageTagsV1.background,
+      contentId: labStageContentIdsV1.backgroundStoreroom,
+    }),
+    Object.freeze({
+      kind: "show" as const,
+      layerId: "layer.e2e.characters",
+      tag: labStageTagsV1.alpha,
+      contentId: labStageContentIdsV1.characterAlpha,
+      zOrder: 10,
+      placement: Object.freeze({
+        x: 480,
+        y: 620,
+        scalePermille: 1000,
+        opacityPermille: 1000,
+        mirrored: false,
+      }),
+      appearance: Object.freeze({ pose: "standing", expression: "neutral" }),
+    }),
+  ]);
+  if (outcome.kind !== "applied") throw new TypeError("lab workbench preview must apply");
+  return Object.freeze({
+    target: projectStageRenderTargetV1(outcome.state, labStageContentCatalogV1).target,
+    renderers: labStageRenderersV1,
+    entryKey: `layer.e2e.characters:${labStageTagsV1.alpha}`,
+    canvas: labViewportCanvasV1,
+  });
+}
+
+function LabWorkbenchPanelV1(): ReactElement {
+  const preview = useMemo(labWorkbenchPreviewV1, []);
+  const io = useMemo(createDevServerMotionIoV1, []);
+  return (
+    <MotionWorkbenchLauncherV1
+      store={labWorkbenchStoreV1}
+      sources={labMotionSourcesV1}
+      fallbackPreview={preview}
+      cases={[
+        {
+          caseId: "case.e2e.char-enter",
+          label: "角色入场（储藏室）",
+          motionId: "motion.e2e.char-enter",
+          preview,
+        },
+      ]}
+      io={io}
+    />
+  );
+}
 
 /**
  * The Engine Lab DevDock contributions (R6.1/6.2): read-only inspectors
@@ -135,6 +222,27 @@ export function createLabDevDockContributionsV1(input: {
             )}
           />
         ),
+      },
+      {
+        id: "panel.e2e.provenance",
+        side: "left",
+        title: "舞台溯源",
+        authority: "read_only",
+        render: () => (
+          <StageProvenancePanelV1
+            controller={labStageInspectControllerV1}
+            motionSources={labMotionSourcesV1}
+            openSource={openStorySourceInDevServerV1}
+            onEditMotion={(entry, capture) => labWorkbenchStoreV1.open(entry, capture)}
+          />
+        ),
+      },
+      {
+        id: "panel.e2e.workbench",
+        side: "left",
+        title: "Motion 工坊",
+        authority: "read_only",
+        render: () => <LabWorkbenchPanelV1 />,
       },
     ],
   });

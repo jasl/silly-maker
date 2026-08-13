@@ -107,6 +107,8 @@ The presentation facet contains validated Story-owned data:
 
 Story React contributions resolve stable renderer IDs inside the application closure. They receive immutable semantic/presentation projections and send semantic or presentation intents. Scene data that participates in resolution should stay plain and serializable.
 
+Narrative entrance/exit animation is authored as Motion assets: `sillymaker.motion` JSON documents under `src/motions/` (strictly admitted integer keyframes with per-segment easing), bound to stage edges through `motionStageTransition` in the transition catalog. Motions compose over the settled placement (layout stays authoritative) and never enter authoritative State, Saves, digests, or replay. They are the human tuning surface — the DevDock provenance panel locates them from the running picture and the Motion Workbench edits and saves them (a save marks `authoring.status: "human_tuned"`; agents must not overwrite human-tuned or locked assets — see the collaboration contract in `authoring-quickstart.md`). `story check` lints every motion file: admission, unique ids, and filename↔id agreement.
+
 ### Create the Story package
 
 Keep the simulation facet and its materialization/construction callbacks in

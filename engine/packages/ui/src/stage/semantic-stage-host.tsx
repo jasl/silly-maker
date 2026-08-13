@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 
 import type {
@@ -9,8 +9,13 @@ import type {
   TimelineChannelValueV1,
   TimelinePropertyV1,
 } from "@sillymaker/base";
-import { timelineChannelBaselineV1 } from "@sillymaker/base";
+import {
+  motionTotalDurationMsV1,
+  sampleMotionAtV1,
+  timelineChannelBaselineV1,
+} from "@sillymaker/base";
 
+import type { StageInspectControllerV1 } from "../debug/stage-inspect.ts";
 import type {
   StageFrameEntryV1,
   StageFrameLayerV1,
@@ -60,8 +65,22 @@ export interface SemanticStageHostPropsV1 {
     readonly contentId: string;
     readonly regionId: string;
   }): void;
+  /**
+   * Dev-only provenance: when present the host reports each rendered frame
+   * to the controller and, while inspection is enabled, overlays click
+   * surfaces that select entries. Absent in production compositions.
+   */
+  readonly inspect?: StageInspectControllerV1 | null;
   reportDiagnostic?(diagnostic: SemanticStageHostDiagnosticV1): void;
 }
+
+const noopInspectSubscribeV1 = (): () => void => () => {};
+const inspectDisabledSnapshotV1: ReturnType<StageInspectControllerV1["observe"]> = Object.freeze({
+  enabled: false,
+  selectedKey: null,
+  entries: Object.freeze([]),
+  activeCueId: null,
+});
 
 /** Overlay channel lookup: entry channels by layer/tag, camera channels flat. */
 interface OverlayIndexV1 {
@@ -135,7 +154,7 @@ function entryStyleV1(
   frameEntry: StageFrameEntryV1,
   channels: ReadonlyMap<TimelinePropertyV1, number> | undefined,
 ): CSSProperties {
-  const { entry, phase, transitionKind, progress, slide, fromPlacement } = frameEntry;
+  const { entry, phase, transitionKind, progress, slide, fromPlacement, motion } = frameEntry;
   let x = entry.placement.x;
   let y = entry.placement.y;
   let scale = permilleV1(entry.placement.scalePermille);
@@ -157,6 +176,16 @@ function entryStyleV1(
       y += slide.y * displacement;
       opacity *= phase === "exiting" ? 1 - progress : progress;
     }
+  } else if (transitionKind === "motion" && motion !== null) {
+    // Motion keyframes own the whole envelope (including exit fades): the
+    // run progress is linear, per-segment easing lives in the asset, and
+    // the sampled values compose over the settled placement exactly like a
+    // timeline overlay — offsets add, permille channels multiply.
+    const sample = sampleMotionAtV1(motion, progress * motionTotalDurationMsV1(motion));
+    x += sample.offsetX;
+    y += sample.offsetY;
+    scale *= permilleV1(sample.scalePermille);
+    opacity *= permilleV1(sample.opacityPermille);
   } else if (phase === "exiting") {
     opacity *= 1 - progress;
   }
@@ -184,8 +213,11 @@ function StageEntryV1(props: {
   readonly renderer: SemanticStageEntryRendererV1 | undefined;
   readonly overlayChannels: ReadonlyMap<TimelinePropertyV1, number> | undefined;
   readonly onHitRegionActivate: SemanticStageHostPropsV1["onHitRegionActivate"];
+  readonly inspect: StageInspectControllerV1 | null;
+  readonly inspectEnabled: boolean;
+  readonly inspectSelected: boolean;
 }): ReactElement {
-  const { layerId, frameEntry, renderer, onHitRegionActivate } = props;
+  const { layerId, frameEntry, renderer, onHitRegionActivate, inspect } = props;
   const { entry, phase } = frameEntry;
   const exiting = phase === "exiting";
   return (
@@ -230,6 +262,16 @@ function StageEntryV1(props: {
               })}
           />
         ))}
+      {inspect === null || !props.inspectEnabled ? null : (
+        <button
+          type="button"
+          className={styles["inspect-hit"]}
+          data-stage-inspect-hit={frameEntry.frameKey}
+          data-stage-inspect-selected={props.inspectSelected ? "true" : undefined}
+          aria-label={`inspect ${entry.tag as string}`}
+          onClick={() => inspect.select(props.inspectSelected ? null : frameEntry.frameKey)}
+        />
+      )}
     </div>
   );
 }
@@ -237,6 +279,18 @@ function StageEntryV1(props: {
 export function SemanticStageHostV1(props: SemanticStageHostPropsV1): ReactElement {
   const { frame, renderers, accessibleName, reportDiagnostic } = props;
   const overlayIndex = indexOverlayV1(props.overlay);
+
+  const inspect = props.inspect ?? null;
+  const activeCueId = props.activeCueId ?? null;
+  const inspectState = useSyncExternalStore(
+    inspect === null ? noopInspectSubscribeV1 : inspect.subscribe,
+    inspect === null ? () => inspectDisabledSnapshotV1 : inspect.observe,
+    inspect === null ? () => inspectDisabledSnapshotV1 : inspect.observe,
+  );
+  useEffect(() => {
+    if (inspect === null) return;
+    inspect.recordFrame({ frame, activeCueId });
+  }, [inspect, frame, activeCueId]);
 
   const missing = useMemo(
     () =>
@@ -309,6 +363,9 @@ export function SemanticStageHostV1(props: SemanticStageHostPropsV1): ReactEleme
                 layerId={layer.layerId}
                 frameEntry={frameEntry}
                 onHitRegionActivate={props.onHitRegionActivate}
+                inspect={inspect}
+                inspectEnabled={inspectState.enabled}
+                inspectSelected={inspectState.selectedKey === frameEntry.frameKey}
                 overlayChannels={overlayIndex.entry.get(
                   `${layer.layerId}\u0000${frameEntry.entry.tag}`,
                 )}

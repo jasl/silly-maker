@@ -1,4 +1,11 @@
 // SPDX-License-Identifier: MIT
+import type { MotionDefinitionV1 } from "./motion.ts";
+import {
+  motionDefinitionFromDocumentV1,
+  motionTotalDurationMsV1,
+  parseMotionDefinitionV1,
+  parseMotionDocumentV1,
+} from "./motion.ts";
 import { dataFailure, readExactRecord } from "./presentation-data.ts";
 import type { StageLayerIdV1 } from "./semantic-stage.ts";
 import type { StageRenderEntryV1 } from "./stage-render-target.ts";
@@ -11,7 +18,7 @@ import type { StageRenderEntryV1 } from "./stage-render-target.ts";
  * State: execution belongs to the UI Stage Reconciler and PresentationRun.
  */
 
-export type StageTransitionKindV1 = "cut" | "crossfade" | "slide";
+export type StageTransitionKindV1 = "cut" | "crossfade" | "slide" | "motion";
 
 /** How player input is treated while the transition is active. */
 export type StageTransitionInputPolicyV1 = "block" | "target_active" | "skip_to_end";
@@ -44,6 +51,13 @@ export interface StageTransitionDefinitionV1 {
   readonly acknowledge: boolean;
   /** Slide-only: the logical-canvas offset entries travel from/to. */
   readonly slide: { readonly x: number; readonly y: number } | null;
+  /**
+   * Motion-only keyframe payload, present exactly when `kind` is "motion".
+   * Its per-segment easings own the curve, so `easing` stays "linear" and
+   * `durationMs` equals the motion's delay plus animated span. Authoring
+   * flows through `motionStageTransitionV1`, which derives both.
+   */
+  readonly motion?: MotionDefinitionV1;
 }
 
 const transitionIdPatternV1 = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$/u;
@@ -135,29 +149,35 @@ function parseSlideOffsetV1(
   });
 }
 
+const baseTransitionKeysV1 = [
+  "transitionId",
+  "kind",
+  "durationMs",
+  "easing",
+  "inputPolicy",
+  "interruption",
+  "reducedMotion",
+  "readiness",
+  "acknowledge",
+  "slide",
+] as const;
+
 export function parseStageTransitionDefinitionV1(
   value: unknown,
   path = "/transition",
 ): StageTransitionDefinitionV1 {
+  // The "motion" kind carries an extra payload key; every other kind keeps
+  // the exact legacy shape, so existing authored literals stay valid.
+  const isMotionKind = value !== null && typeof value === "object" && !Array.isArray(value) &&
+    (value as { readonly kind?: unknown }).kind === "motion";
   const record = readExactRecord(
     value,
-    [
-      "transitionId",
-      "kind",
-      "durationMs",
-      "easing",
-      "inputPolicy",
-      "interruption",
-      "reducedMotion",
-      "readiness",
-      "acknowledge",
-      "slide",
-    ],
+    isMotionKind ? [...baseTransitionKeysV1, "motion"] : baseTransitionKeysV1,
     path,
   );
   const kind = parseEnumV1(
     record.kind,
-    ["cut", "crossfade", "slide"],
+    ["cut", "crossfade", "slide", "motion"],
     `${path}/kind`,
     "transition_kind_invalid",
   );
@@ -168,7 +188,7 @@ export function parseStageTransitionDefinitionV1(
   if (typeof record.acknowledge !== "boolean") {
     return dataFailure(`${path}/acknowledge`, "boolean_expected");
   }
-  return Object.freeze({
+  const common = {
     transitionId: parseTransitionIdV1(record.transitionId, `${path}/transitionId`),
     kind,
     durationMs: parseDurationMsV1(record.durationMs, `${path}/durationMs`),
@@ -194,6 +214,58 @@ export function parseStageTransitionDefinitionV1(
     readiness: parseReadinessV1(record.readiness, `${path}/readiness`),
     acknowledge: record.acknowledge,
     slide,
+  };
+  if (kind !== "motion") return Object.freeze(common);
+  const motion = parseMotionDefinitionV1(record.motion, `${path}/motion`);
+  if (slide !== null) {
+    return dataFailure(`${path}/slide`, "motion_slide_forbidden");
+  }
+  if (common.easing !== "linear") {
+    return dataFailure(`${path}/easing`, "motion_easing_must_be_linear");
+  }
+  if (common.durationMs !== motionTotalDurationMsV1(motion)) {
+    return dataFailure(`${path}/durationMs`, "motion_duration_mismatch");
+  }
+  return Object.freeze({ ...common, motion });
+}
+
+export interface MotionStageTransitionInputV1 {
+  readonly transitionId: string;
+  /**
+   * A `sillymaker.motion` Document: the raw `*.motion.json` import value or
+   * an already-parsed `MotionDocumentV1`; admission validates either way.
+   */
+  readonly motion: unknown;
+  readonly inputPolicy?: StageTransitionInputPolicyV1;
+  readonly interruption?: StageTransitionInterruptionV1;
+  readonly reducedMotion?: StageTransitionReducedMotionV1;
+  readonly readiness?: StageTransitionReadinessV1;
+  readonly acknowledge?: boolean;
+}
+
+/**
+ * Binds a motion Document to one stage edge as a `kind: "motion"` transition.
+ * The Document owns the curve and timing (duration derives from it, easing
+ * stays per-segment inside the keyframes); the transition owns edge behavior
+ * (input policy, interruption, reduced motion, readiness, acknowledgment).
+ */
+export function motionStageTransitionV1(
+  input: MotionStageTransitionInputV1,
+): StageTransitionDefinitionV1 {
+  const motionDocument = parseMotionDocumentV1(input.motion, "/motion");
+  const motion = motionDefinitionFromDocumentV1(motionDocument);
+  return parseStageTransitionDefinitionV1({
+    transitionId: input.transitionId,
+    kind: "motion",
+    durationMs: motionTotalDurationMsV1(motion),
+    easing: "linear",
+    inputPolicy: input.inputPolicy ?? "target_active",
+    interruption: input.interruption ?? "settle_and_retarget",
+    reducedMotion: input.reducedMotion ?? { kind: "settle" },
+    readiness: input.readiness ?? { kind: "immediate" },
+    acknowledge: input.acknowledge ?? false,
+    slide: null,
+    motion,
   });
 }
 

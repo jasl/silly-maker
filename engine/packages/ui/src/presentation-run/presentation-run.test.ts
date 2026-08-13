@@ -44,6 +44,44 @@ describe("createPresentationRunV1", () => {
     expect(clock.pendingTickCount()).toBe(0);
   });
 
+  it("seeks park pending/paused runs at the offset without finishing them", () => {
+    const { clock, run, onFinished } = runFixtureV1(100);
+
+    // A pending run becomes paused at the scrub position.
+    run.seek(40);
+    expect(run.status()).toBe("paused");
+    expect(run.progress()).toBeCloseTo(0.4);
+
+    // Parking at (or past) the end never fires completion.
+    run.seek(250);
+    expect(run.status()).toBe("paused");
+    expect(run.progress()).toBe(1);
+    expect(onFinished).not.toHaveBeenCalled();
+
+    // Scrubbing backwards reopens the run; resume plays the remainder.
+    run.seek(80);
+    run.resume();
+    clock.advance(20);
+    expect(run.status()).toBe("settled");
+    expect(onFinished).toHaveBeenCalledExactlyOnceWith("completed");
+
+    // Settled runs ignore seeks.
+    run.seek(0);
+    expect(run.progress()).toBe(1);
+  });
+
+  it("seeking a running run repositions it and playback continues", () => {
+    const { clock, run, onFinished } = runFixtureV1(100);
+    run.start();
+    clock.advance(10);
+    run.seek(70);
+    expect(run.status()).toBe("running");
+    expect(run.progress()).toBeCloseTo(0.7);
+    clock.advance(30);
+    expect(run.status()).toBe("settled");
+    expect(onFinished).toHaveBeenCalledExactlyOnceWith("completed");
+  });
+
   it("pauses and resumes without losing elapsed time", () => {
     const { clock, run } = runFixtureV1(100);
     run.start();

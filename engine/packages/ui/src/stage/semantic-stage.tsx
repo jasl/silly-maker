@@ -348,6 +348,8 @@ export interface SemanticStagePropsV1 {
   onTimelineEvent?(eventId: string): void;
   /** Content hit-region activations (pointer or keyboard). */
   onHitRegionActivate?: Parameters<typeof SemanticStageHostV1>[0]["onHitRegionActivate"];
+  /** Dev-only provenance controller; see SemanticStageHostPropsV1.inspect. */
+  readonly inspect?: Parameters<typeof SemanticStageHostV1>[0]["inspect"];
   reportDiagnostic?(diagnostic: SemanticStageHostDiagnosticV1): void;
   reportFailure?(code: string, detail: string): void;
 }
@@ -560,6 +562,7 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
       {...(props.onHitRegionActivate === undefined
         ? {}
         : { onHitRegionActivate: props.onHitRegionActivate })}
+      {...(props.inspect === undefined ? {} : { inspect: props.inspect })}
       {...(props.reportDiagnostic === undefined
         ? {}
         : { reportDiagnostic: props.reportDiagnostic })}
