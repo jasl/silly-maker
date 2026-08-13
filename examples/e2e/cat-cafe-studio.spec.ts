@@ -52,6 +52,41 @@ test.describe("cat-cafe studio (A2)", () => {
     }
   });
 
+  test("drags the cat on the canvas and saves the new placement (A3)", async ({ page }) => {
+    const originalBytes = readFileSync(sceneFileV1, "utf8");
+    try {
+      await page.goto(catcafeTargetUrlV1("__sillymaker/studio/"));
+
+      const selectBox = page.locator('[data-studio-select="tag.xiaoyu"]');
+      await expect(selectBox).toBeVisible();
+      const box = await selectBox.boundingBox();
+      if (box === null) throw new Error("selection box has no bounds");
+
+      // Drag 45 CSS px left: preview scale is 720/1280 = 0.5625, so the
+      // placement moves exactly 80 logical px (920 → 840) with no snap.
+      const startX = box.x + box.width / 2;
+      const startY = box.y + box.height / 2;
+      await page.mouse.move(startX, startY);
+      await page.mouse.down();
+      await page.mouse.move(startX - 45, startY, { steps: 5 });
+      await page.mouse.up();
+
+      await expect(page.getByLabel("x", { exact: true })).toHaveValue("840");
+      const save = page.getByRole("button", { name: "保存" });
+      await expect(save).toBeEnabled();
+      await save.click();
+      await expect(page.getByRole("status")).toContainText("已保存");
+
+      const savedJson = JSON.parse(readFileSync(sceneFileV1, "utf8")) as {
+        entries: readonly { tag: string; placement?: { x: number } }[];
+      };
+      const xiaoyu = savedJson.entries.find((entry) => entry.tag === "tag.xiaoyu");
+      expect(xiaoyu?.placement?.x).toBe(840);
+    } finally {
+      writeFileSync(sceneFileV1, originalBytes);
+    }
+  });
+
   test("lists cue bindings and replays the scene up to a chosen cue", async ({ page }) => {
     await page.goto(catcafeTargetUrlV1("__sillymaker/studio/"));
     const canvas = page.locator("[data-studio-canvas]");

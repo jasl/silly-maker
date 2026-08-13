@@ -97,6 +97,16 @@ const catalogV1: StageContentCatalogV1 = {
       assetIds: Object.freeze([]),
       accessibleName: `内容 ${contentId}`,
       props: Object.freeze({}),
+      ...(contentId === "content.test.hero"
+        ? {
+          geometry: Object.freeze({
+            width: 200,
+            height: 300,
+            anchorXPermille: 500,
+            anchorYPermille: 1000,
+          }),
+        }
+        : {}),
     }),
 };
 
@@ -176,6 +186,70 @@ describe("StudioAppV1", () => {
     expect(io.writes).toHaveLength(0);
     expect(screen.getByLabelText("x")).toHaveValue(500);
     expect(screen.getByRole("button", { name: "保存" })).toBeEnabled();
+  });
+
+  it("drags an actor on the canvas into snapped, clamped logical coordinates", async () => {
+    const io = fakeIoV1(sceneDocumentV1());
+    const { container } = render(<StudioAppV1 binding={bindingV1} io={io} />);
+    const { fireEvent } = await import("@testing-library/react");
+
+    await waitFor(() =>
+      expect(container.querySelector('[data-studio-select="tag.hero"]')).not.toBeNull()
+    );
+    const heroBox = container.querySelector('[data-studio-select="tag.hero"]') as HTMLElement;
+    // The selection box mirrors the engine anchor math (bottom center).
+    expect(heroBox.style.left).toBe("820px");
+    expect(heroBox.style.top).toBe("300px");
+    expect(heroBox.style.width).toBe("200px");
+
+    // previewScale = 720/1280 = 0.5625: +56.25 screen px = +100 logical px.
+    fireEvent.pointerDown(heroBox, { button: 0, pointerId: 5, clientX: 400, clientY: 300 });
+    fireEvent.pointerMove(heroBox, { pointerId: 5, clientX: 456.25, clientY: 300 });
+    fireEvent.pointerUp(heroBox, { pointerId: 5 });
+    expect(screen.getByLabelText("x")).toHaveValue(1020);
+    expect(screen.getByLabelText("y")).toHaveValue(600);
+
+    // Dragging near the canvas center snaps to it and shows the guide.
+    fireEvent.pointerDown(heroBox, { button: 0, pointerId: 6, clientX: 400, clientY: 300 });
+    // 1020 → candidate 645 (Δ -375 logical = -210.9375 screen); 645 is
+    // within the 8px/scale≈14.2 logical threshold of 640.
+    fireEvent.pointerMove(heroBox, { pointerId: 6, clientX: 400 - 210.9375, clientY: 300 });
+    expect(screen.getByLabelText("x")).toHaveValue(640);
+    expect(container.querySelector('[data-studio-guide-x="640"]')).not.toBeNull();
+    fireEvent.pointerUp(heroBox, { pointerId: 6 });
+    expect(container.querySelector("[data-studio-guide-x]")).toBeNull();
+
+    // Dragging far past the edge clamps to the canvas bounds.
+    fireEvent.pointerDown(heroBox, { button: 0, pointerId: 7, clientX: 400, clientY: 300 });
+    fireEvent.pointerMove(heroBox, { pointerId: 7, clientX: 4000, clientY: 4000 });
+    fireEvent.pointerUp(heroBox, { pointerId: 7 });
+    expect(screen.getByLabelText("x")).toHaveValue(1280);
+    expect(screen.getByLabelText("y")).toHaveValue(720);
+  });
+
+  it("scales the selected actor through the corner handle", async () => {
+    const io = fakeIoV1(sceneDocumentV1());
+    const { container } = render(<StudioAppV1 binding={bindingV1} io={io} />);
+    const { fireEvent } = await import("@testing-library/react");
+    const user = userEvent.setup();
+
+    await waitFor(() =>
+      expect(container.querySelector('[data-studio-select="tag.hero"]')).not.toBeNull()
+    );
+    // Selecting via the canvas box reveals the handle and anchor dot.
+    await user.selectOptions(screen.getByLabelText("条目"), "tag.hero");
+    const handle = container.querySelector(
+      '[data-studio-scale-handle="tag.hero"]',
+    ) as HTMLElement;
+    expect(handle).not.toBeNull();
+    expect(container.querySelector('[data-studio-anchor="tag.hero"]')).not.toBeNull();
+
+    // Dragging up by 28.125 screen px = 50 logical px: the 300px-tall box
+    // grows to 350 → scalePermille 1167.
+    fireEvent.pointerDown(handle, { button: 0, pointerId: 9, clientX: 500, clientY: 200 });
+    fireEvent.pointerMove(handle, { pointerId: 9, clientX: 500, clientY: 200 - 28.125 });
+    fireEvent.pointerUp(handle, { pointerId: 9 });
+    expect(screen.getByLabelText("缩放‰")).toHaveValue(1167);
   });
 
   it("replays through a selected cue and blocks saving on compile errors", async () => {

@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: MIT
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent, ReactElement } from "react";
 
-import type { SceneDocumentV1, StageContentCatalogV1, StageRenderTargetV1 } from "@sillymaker/base";
+import type {
+  SceneDocumentV1,
+  StageContentCatalogV1,
+  StageContentGeometryV1,
+  StagePlacementV1,
+  StageRenderTargetV1,
+} from "@sillymaker/base";
 import {
   createSemanticStageStateV1,
   parseMotionDocumentV1,
@@ -58,6 +64,60 @@ export interface StudioAppPropsV1 {
 
 const studioPreviewStageIdV1 = "stage.studio.preview";
 const studioPreviewMaxWidthV1 = 720;
+const studioSnapThresholdCssPxV1 = 8;
+const studioMinScalePermilleV1 = 10;
+const studioMaxScalePermilleV1 = 100_000;
+
+/** One selectable actor on the canvas: projected placement plus its box. */
+interface StudioCanvasActorV1 {
+  readonly key: string;
+  readonly tag: string;
+  readonly placement: StagePlacementV1;
+  readonly geometry: StageContentGeometryV1;
+}
+
+/** The rendered box in logical canvas pixels (anchor + scale + mirror applied). */
+function actorBoxV1(actor: StudioCanvasActorV1): {
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
+} {
+  const scale = actor.placement.scalePermille / 1000;
+  const width = actor.geometry.width * scale;
+  const height = actor.geometry.height * scale;
+  const anchorX = (actor.geometry.width * actor.geometry.anchorXPermille * scale) / 1000;
+  const anchorY = (actor.geometry.height * actor.geometry.anchorYPermille * scale) / 1000;
+  return {
+    left: actor.placement.mirrored
+      ? actor.placement.x + anchorX - width
+      : actor.placement.x - anchorX,
+    top: actor.placement.y - anchorY,
+    width,
+    height,
+  };
+}
+
+function snapAxisV1(
+  value: number,
+  targets: readonly number[],
+  threshold: number,
+): { readonly value: number; readonly snapped: number | null } {
+  for (const target of targets) {
+    if (Math.abs(value - target) <= threshold) return { value: target, snapped: target };
+  }
+  return { value, snapped: null };
+}
+
+interface StudioDragStateV1 {
+  readonly pointerId: number;
+  readonly tag: string;
+  readonly mode: "move" | "scale";
+  readonly startClientX: number;
+  readonly startClientY: number;
+  readonly startPlacement: StagePlacementV1;
+  readonly geometry: StageContentGeometryV1;
+}
 
 interface StudioLoadedSceneV1 {
   readonly path: string;
@@ -288,6 +348,117 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
     [draft, selectedTag],
   );
 
+  // Direct manipulation: dragging an actor writes its placement in logical
+  // canvas pixels (pointer deltas ÷ preview scale, snapped to the canvas
+  // edges/centers, clamped inside the canvas); the corner handle scales.
+  const dragRef = useRef<StudioDragStateV1 | null>(null);
+  const [guides, setGuides] = useState<{ readonly x: number | null; readonly y: number | null }>(
+    { x: null, y: null },
+  );
+
+  const canvasActors = useMemo(() => {
+    if (compiled === null || compiled.kind !== "ok") return Object.freeze([]);
+    const actors: StudioCanvasActorV1[] = [];
+    for (const layer of compiled.target.layers) {
+      for (const entry of layer.entries) {
+        if (entry.geometry === undefined) continue;
+        actors.push({
+          key: entry.key,
+          tag: entry.tag as string,
+          placement: entry.placement,
+          geometry: entry.geometry,
+        });
+      }
+    }
+    return Object.freeze(actors);
+  }, [compiled]);
+
+  const writeActorPlacement = useCallback(
+    (tag: string, mutatePlacement: (placement: ReturnType<typeof defaultPlacementV1>) => void) => {
+      setDraft((current) => {
+        if (current === null) return current;
+        return editDocumentV1(current, (plain) => {
+          const entry = plain.entries.find((candidate) => candidate.tag === tag);
+          if (entry === undefined) return;
+          const placement = entry.placement ?? defaultPlacementV1();
+          mutatePlacement(placement);
+          entry.placement = placement;
+        });
+      });
+    },
+    [],
+  );
+
+  const onActorPointerDown = (
+    event: ReactPointerEvent<HTMLElement>,
+    actor: StudioCanvasActorV1,
+    mode: "move" | "scale",
+  ): void => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setSelectedTag(actor.tag);
+    dragRef.current = {
+      pointerId: event.pointerId,
+      tag: actor.tag,
+      mode,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startPlacement: actor.placement,
+      geometry: actor.geometry,
+    };
+    if (typeof event.currentTarget.setPointerCapture === "function") {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+  };
+
+  const onActorPointerMove = (event: ReactPointerEvent<HTMLElement>): void => {
+    const drag = dragRef.current;
+    if (drag === null || drag.pointerId !== event.pointerId || draft === null) return;
+    if (drag.mode === "scale") {
+      const deltaUp = (drag.startClientY - event.clientY) / scale;
+      const startHeight = (drag.geometry.height * drag.startPlacement.scalePermille) / 1000;
+      const next = Math.min(
+        studioMaxScalePermilleV1,
+        Math.max(
+          studioMinScalePermilleV1,
+          Math.round(((startHeight + deltaUp) / drag.geometry.height) * 1000),
+        ),
+      );
+      writeActorPlacement(drag.tag, (placement) => {
+        placement.scalePermille = next;
+      });
+      return;
+    }
+    const threshold = studioSnapThresholdCssPxV1 / scale;
+    const candidateX = drag.startPlacement.x + (event.clientX - drag.startClientX) / scale;
+    const candidateY = drag.startPlacement.y + (event.clientY - drag.startClientY) / scale;
+    const snappedX = snapAxisV1(
+      Math.round(candidateX),
+      [0, Math.round(draft.canvas.width / 2), draft.canvas.width],
+      threshold,
+    );
+    const snappedY = snapAxisV1(
+      Math.round(candidateY),
+      [0, Math.round(draft.canvas.height / 2), draft.canvas.height],
+      threshold,
+    );
+    const x = Math.min(draft.canvas.width, Math.max(0, snappedX.value));
+    const y = Math.min(draft.canvas.height, Math.max(0, snappedY.value));
+    setGuides({ x: snappedX.snapped, y: snappedY.snapped });
+    writeActorPlacement(drag.tag, (placement) => {
+      placement.x = x;
+      placement.y = y;
+    });
+  };
+
+  const onActorPointerEnd = (event: ReactPointerEvent<HTMLElement>): void => {
+    const drag = dragRef.current;
+    if (drag === null || drag.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    setGuides({ x: null, y: null });
+  };
+
   const numberField = (
     label: string,
     value: number,
@@ -394,6 +565,76 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
                     renderers={binding.renderers}
                     accessibleName={`场景预览 ${draft.label}`}
                   />
+                  <div className={styles["overlay"]}>
+                    {guides.x === null ? null : (
+                      <div
+                        className={styles["guide-x"]}
+                        data-studio-guide-x={String(guides.x)}
+                        style={{ left: `${String(guides.x)}px` }}
+                      />
+                    )}
+                    {guides.y === null ? null : (
+                      <div
+                        className={styles["guide-y"]}
+                        data-studio-guide-y={String(guides.y)}
+                        style={{ top: `${String(guides.y)}px` }}
+                      />
+                    )}
+                    {canvasActors.map((actor) => {
+                      const box = actorBoxV1(actor);
+                      const selected = actor.tag === selectedTag;
+                      return (
+                        <div key={actor.key}>
+                          <button
+                            type="button"
+                            className={styles["select-box"]}
+                            data-studio-select={actor.tag}
+                            data-studio-selected={selected ? "true" : undefined}
+                            aria-label={`选择并拖动 ${actor.tag}`}
+                            style={{
+                              left: `${String(box.left)}px`,
+                              top: `${String(box.top)}px`,
+                              width: `${String(box.width)}px`,
+                              height: `${String(box.height)}px`,
+                            }}
+                            onPointerDown={(event) => onActorPointerDown(event, actor, "move")}
+                            onPointerMove={onActorPointerMove}
+                            onPointerUp={onActorPointerEnd}
+                            onPointerCancel={onActorPointerEnd}
+                          />
+                          {selected
+                            ? (
+                              <>
+                                <div
+                                  className={styles["anchor-dot"]}
+                                  data-studio-anchor={actor.tag}
+                                  style={{
+                                    left: `${String(actor.placement.x)}px`,
+                                    top: `${String(actor.placement.y)}px`,
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  className={styles["scale-handle"]}
+                                  data-studio-scale-handle={actor.tag}
+                                  aria-label={`缩放 ${actor.tag}`}
+                                  style={{
+                                    left: `${String(box.left + box.width)}px`,
+                                    top: `${String(box.top)}px`,
+                                  }}
+                                  onPointerDown={(event) =>
+                                    onActorPointerDown(event, actor, "scale")}
+                                  onPointerMove={onActorPointerMove}
+                                  onPointerUp={onActorPointerEnd}
+                                  onPointerCancel={onActorPointerEnd}
+                                />
+                              </>
+                            )
+                            : null}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}

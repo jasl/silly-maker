@@ -84,6 +84,67 @@
   transform-origin: 0 0;
 }
 
+.overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.select-box {
+  position: absolute;
+  padding: 0;
+  border: 1px dashed rgb(143 179 217 / 55%);
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+
+.select-box:active {
+  cursor: grabbing;
+}
+
+.select-box[data-studio-selected="true"] {
+  border: 2px solid #8fb3d9;
+}
+
+.anchor-dot {
+  position: absolute;
+  inline-size: 10px;
+  block-size: 10px;
+  border: 2px solid #14161c;
+  border-radius: 50%;
+  background: #e8b34c;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.scale-handle {
+  position: absolute;
+  inline-size: 14px;
+  block-size: 14px;
+  padding: 0;
+  border: 2px solid #14161c;
+  background: #8fb3d9;
+  transform: translate(-50%, -50%);
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.guide-x {
+  position: absolute;
+  inset-block: 0;
+  inline-size: 0;
+  border-inline-start: 1px dashed #e8b34c;
+  pointer-events: none;
+}
+
+.guide-y {
+  position: absolute;
+  inset-inline: 0;
+  block-size: 0;
+  border-block-start: 1px dashed #e8b34c;
+  pointer-events: none;
+}
+
 .cues table {
   inline-size: 100%;
   border-collapse: collapse;

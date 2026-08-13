@@ -162,6 +162,66 @@ describe("MotionWorkbenchV1", () => {
     expect(mainEntryV1(container).style.opacity).toBe("");
   });
 
+  it("selects a keyframe, drags the ghost to write offsets, and drags a dot to move a stop", () => {
+    const { container } = fixtureV1();
+    const dot = (id: string): HTMLElement => {
+      const element = container.querySelector(`[data-workbench-dot="${id}"]`);
+      if (!(element instanceof HTMLElement)) throw new Error(`dot ${id} missing`);
+      return element;
+    };
+    const ghost = container.querySelector("[data-workbench-ghost]");
+    if (!(ghost instanceof HTMLElement)) throw new Error("ghost missing");
+
+    // Without a selection the ghost is display-only.
+    expect(ghost.dataset.workbenchGhostDraggable).toBeUndefined();
+
+    // Selecting the first offsetX keyframe arms the ghost at that stop.
+    fireEvent.click(dot("offsetX:0"));
+    expect(dot("offsetX:0").dataset.workbenchDotSelected).toBe("true");
+    expect(ghost.dataset.workbenchGhostDraggable).toBe("true");
+
+    // Canvas scale is 360/960 = 0.375: dragging +37.5 screen px moves the
+    // pose +100 logical px, so the stop's offsetX becomes 120 + 100 = 220.
+    fireEvent.pointerDown(ghost, { button: 0, pointerId: 3, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(ghost, { pointerId: 3, clientX: 137.5, clientY: 100 });
+    fireEvent.pointerUp(ghost, { pointerId: 3 });
+    const offsetXRow = container.querySelector('[data-workbench-keyframe="offsetX:0"]');
+    if (offsetXRow === null) throw new Error("offsetX keyframe row missing");
+    expect(
+      (offsetXRow.querySelector("[data-workbench-kf-value]") as HTMLInputElement).value,
+    ).toBe("220");
+    const ghostEntry = ghost.querySelector("[data-stage-key]");
+    expect((ghostEntry as HTMLElement).style.transform).toContain("translate3d(420px");
+    // The vertical axis rides along: a zero-delta offsetY track appears.
+    expect(container.querySelector('[data-workbench-track="offsetY"]')).not.toBeNull();
+
+    // Insert a middle keyframe, then drag its dot along the stubbed bar.
+    const addButton = offsetXRow.querySelector("[data-workbench-add-kf]");
+    fireEvent.click(addButton as HTMLElement);
+    const middleDot = dot("offsetX:1");
+    const bar = middleDot.parentElement;
+    if (bar === null) throw new Error("track bar missing");
+    bar.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        width: 1000,
+        top: 0,
+        height: 14,
+        right: 1000,
+        bottom: 14,
+        x: 0,
+        y: 0,
+      }) as DOMRect;
+    fireEvent.pointerDown(middleDot, { button: 0, pointerId: 4, clientX: 500, clientY: 5 });
+    fireEvent.pointerMove(middleDot, { pointerId: 4, clientX: 700, clientY: 5 });
+    fireEvent.pointerUp(middleDot, { pointerId: 4 });
+    const movedRow = container.querySelector('[data-workbench-keyframe="offsetX:1"]');
+    if (movedRow === null) throw new Error("moved keyframe row missing");
+    expect(
+      (movedRow.querySelector("[data-workbench-kf-at]") as HTMLInputElement).value,
+    ).toBe("700");
+  });
+
   it("edits the draft, compares against saved, and reverts", () => {
     const { container } = fixtureV1();
     const duration = container.querySelector("[data-workbench-duration]");

@@ -17,10 +17,10 @@ motion 资产地板、点击反查溯源、Motion Workbench 编辑闭环、预�
 ## 1. Current and next
 
 当前：[VN Scene Workspace V1](2026-08-14-vn-scene-workspace.md)（Scene authoring
-layer + Studio）。A0（Scene 文档与编译）、A1（authoring geometry）与 A2（Studio
-shell 与写回）已于 2026-08-14 完成；current 切片是 A3 直接操纵，next 依次为
-A4 starter 与文档迁移 → A5 第二消费者验证。切片验收与 stop conditions 由该计划
-拥有。
+layer + Studio）。A0（Scene 文档与编译）、A1（authoring geometry）、A2（Studio
+shell 与写回）与 A3（直接操纵，实现与自动化证据）已于 2026-08-14 完成；A3 的
+十步闭环仍待所有者实测签收。current 切片是 A4 starter 与文档迁移，next 为 A5
+第二消费者验证。切片验收与 stop conditions 由该计划拥有。
 
 一次只领取一个可命名任务。不得把 A0–A5 合成一次重写，也不得把 CR2.2–CR2.5、CR3、
 CR4 或 PF6 合成一次重写。

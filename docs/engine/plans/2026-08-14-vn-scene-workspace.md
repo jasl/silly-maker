@@ -156,14 +156,25 @@ envelope 或第二 runtime authority。
     是剧情模块的 import，Vite 自动失效）；「权威 digest 不变」= Studio 浏览/草稿
     编辑不触碰 live session（detached target，无 Session/reconciler）。
 
-### A3 — 直接操纵
+### A3 — 直接操纵（实现完成 2026-08-14，十步闭环待所有者实测）
 
-- Placement 模式：画布点选 entry（geometry 选择框）、拖动写 x/y（pointer ÷
-  viewport scale → 整数逻辑坐标，钳制画布内）、画布边界/地平线/左中右吸附、缩放
-  手柄与镜像/层级控件。
-- Motion 模式：选中 keyframe 显示 ghost，拖 ghost 写 offsetX/offsetY（ghost 锚点 −
-  settled 锚点），时间轴拖 keyframe 改 atPermille；数字 Inspector 保留为次级能力。
-- 验收：设计 §8 十步闭环由所有者在 cat-cafe opening 实测走通，全程不打开
+- Placement 模式：画布 overlay 按投影 target 的 placement + geometry 画出可点
+  选的选择框（锚点/镜像/缩放同参），拖动写 x/y（pointer ÷ preview scale → 整数
+  逻辑坐标，钳制画布内），吸附画布边界与水平/垂直中线（8 CSS px 阈值、吸附导
+  线高亮），选中态显示锚点圆点与角部缩放手柄（拖动改 scalePermille，10‰–
+  100000‰ 钳制）；镜像/层级沿用 A2 Inspector 控件，数字输入保留为精确次级入口。
+- Motion 模式（Workbench）：点击时间轴圆点＝选中并 seek；选中后 ghost 显示该
+  keyframe 停点姿态并可拖拽，拖 ghost 在该停点写 offsetX/offsetY（精确停点更
+  新、缺失停点插入、缺失轨道以 baseline 端点创建，值 ±100000 取整钳制）；拖中
+  间圆点改 atPermille（严格钳在邻居之间，0‰/1000‰ 端点固定）。两个编辑都是纯
+  函数（`engine/packages/ui/src/debug/motion-edit.ts`），产物重新过 Motion 严格
+  admission，数字 Inspector 保留为同数据的次级能力。
+- 已有验收证据：motion-edit 7 tests；Workbench jsdom 交互（选中 → ghost 拖拽
+  写停点值 → 时间轴拖动 500‰→700‰）；Studio jsdom 拖拽/吸附导线/边界钳制/缩放
+  手柄；浏览器验收 `cat-cafe-studio.spec.ts` 画布拖拽 −45 CSS px → x 920→840 →
+  CAS 保存 → 磁盘断言并还原（3/3）；全量单测 290 files / 4855 tests 与 engine
+  `workbench.spec.ts` 全绿。
+- 剩余验收：设计 §8 十步闭环由所有者在 cat-cafe opening 实测走通，全程不打开
   script.ts/presentation.ts/composition.tsx/renderer CSS，`git diff` 只有
   `opening.scene.json` + `cat-entrance.motion.json`。
 
