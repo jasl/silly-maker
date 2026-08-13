@@ -6,17 +6,19 @@ export type {
   DebugCommandOperationResultV1,
   DebugCommandPanelPropsV1,
 } from "./debug-command-panel.tsx";
-export { DebugLaunchersV1 } from "./debug-launchers.tsx";
-export type { DebugLaunchersPropsV1 } from "./debug-launchers.tsx";
 export { DevDockV1, createDevDockContributionSetV1 } from "./dev-dock.tsx";
 export type {
   DevDockContributionSetV1,
   DevDockOpenStateV1,
   DevDockPanelAuthorityV1,
+  DevDockPanelStageModeV1,
   DevDockPanelV1,
+  DevDockPositionV1,
   DevDockPropsV1,
   DevDockSideV1,
 } from "./dev-dock.tsx";
+export { createDevDockControlV1 } from "./dev-dock-control.ts";
+export type { DevDockControlV1, DevDockPanelDescriptorV1 } from "./dev-dock-control.ts";
 export { DevDockPortalCoordinatorV1 } from "./dev-dock-portal-coordinator.tsx";
 export type {
   DevDockPortalCoordinatorPropsV1,
@@ -58,6 +60,13 @@ export type {
   MotionSourceEntryV1,
   MotionSourceIndexV1,
 } from "./motion-sources.ts";
+export { StoryDebugDockV1, defaultStoryDebugDockLabelsV1 } from "./story-debug-dock.tsx";
+export type {
+  StoryDebugDockLabelsV1,
+  StoryDebugDockPropsV1,
+  StoryDebugDockToolV1,
+} from "./story-debug-dock.tsx";
+export { engineSessionMaintenancePanelIdV1 } from "./session-maintenance-panel.tsx";
 export { createStageInspectControllerV1 } from "./stage-inspect.ts";
 export type {
   StageEntryProvenanceV1,

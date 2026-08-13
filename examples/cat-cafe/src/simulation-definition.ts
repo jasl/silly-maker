@@ -19,6 +19,13 @@ function moduleEntryV1(id: string, slot: string, schemaId: string, revision = 1)
   });
 }
 
+/**
+ * State-contract identity: these revisions version the SHAPES in
+ * `state.ts` and gate save compatibility. Bump only on breaking schema
+ * change (new module slot, removed/retyped required field, restructure),
+ * together with a `defineSaveStateMigrationRegistryV1` step so existing
+ * saves keep loading; additive optional/defaulted fields need no bump.
+ */
 export const catcafeStateContractManifestV1 = Object.freeze({
   contractRevision: 1 as const,
   aggregateStateSchema: Object.freeze({

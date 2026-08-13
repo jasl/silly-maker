@@ -63,6 +63,9 @@ export function StageProvenancePanelV1(props: StageProvenancePanelPropsV1): Reac
 
   return (
     <div className={styles.panel} data-stage-provenance-panel="true">
+      <p className={styles.intro}>
+        点舞台上的角色或背景，查看它用了哪段 Motion、哪份源文件。
+      </p>
       <button
         type="button"
         className={styles.toggle}
@@ -70,7 +73,7 @@ export function StageProvenancePanelV1(props: StageProvenancePanelPropsV1): Reac
         aria-pressed={snapshot.enabled}
         onClick={() => controller.setEnabled(!snapshot.enabled)}
       >
-        {snapshot.enabled ? "结束点击检视" : "点击检视舞台条目"}
+        {snapshot.enabled ? "结束点击检视" : "开始点击检视"}
       </button>
       {snapshot.activeCueId === null
         ? null
@@ -102,7 +105,13 @@ export function StageProvenancePanelV1(props: StageProvenancePanelPropsV1): Reac
         ))}
       </ul>
       {selected === null
-        ? <p className={styles.hint}>选择一个条目查看溯源。</p>
+        ? (
+          <p className={styles.hint}>
+            {snapshot.enabled
+              ? "点舞台上的图，或从下面列表里选一项。"
+              : "先打开点击检视，再点舞台。"}
+          </p>
+        )
         : (
           <dl className={styles.details} data-stage-provenance-details={selected.frameKey}>
             {provenanceRowsV1(selected).map(([label, value]) => (

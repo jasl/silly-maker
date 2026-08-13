@@ -27,7 +27,11 @@ describe("TitleScreenV1", () => {
         title="Synthetic Story"
         labels={labelsV1}
         onNewGame={vi.fn()}
-        middleAction={Object.freeze({ kind: "load", onActivate: firstLoad })}
+        middleAction={Object.freeze({
+          kind: "load",
+          available: true,
+          onActivate: firstLoad,
+        })}
         onLoadGame={vi.fn()}
         onSettings={firstSettings}
       />,
@@ -38,7 +42,11 @@ describe("TitleScreenV1", () => {
         title="Synthetic Story"
         labels={labelsV1}
         onNewGame={vi.fn()}
-        middleAction={Object.freeze({ kind: "load", onActivate: currentLoad })}
+        middleAction={Object.freeze({
+          kind: "load",
+          available: true,
+          onActivate: currentLoad,
+        })}
         onLoadGame={vi.fn()}
         onSettings={currentSettings}
       />,
@@ -108,5 +116,78 @@ describe("TitleScreenV1", () => {
     expect(continueButton).toBeDisabled();
     await userEvent.setup().click(continueButton);
     expect(onContinue).not.toHaveBeenCalled();
+  });
+
+  it("fills the canvas opaquely so Title is its own scene", () => {
+    render(
+      <TitleScreenV1
+        title="Synthetic Story"
+        labels={labelsV1}
+        onNewGame={vi.fn()}
+        middleAction={Object.freeze({
+          kind: "continue",
+          available: false,
+          onActivate: vi.fn(),
+        })}
+        onLoadGame={vi.fn()}
+        onSettings={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("dialog", { name: "Synthetic Story" })).toHaveStyle(
+      {
+        backgroundColor: "var(--silly-color-canvas)",
+      },
+    );
+  });
+
+  it("exposes a menu hook so Stories can restyle command placement", () => {
+    render(
+      <TitleScreenV1
+        title="Synthetic Story"
+        labels={labelsV1}
+        backgroundUrl="assets/title.png"
+        onNewGame={vi.fn()}
+        middleAction={Object.freeze({
+          kind: "continue",
+          available: false,
+          onActivate: vi.fn(),
+        })}
+        onLoadGame={vi.fn()}
+        onSettings={vi.fn()}
+      />,
+    );
+
+    const screenRoot = screen.getByRole("dialog", { name: "Synthetic Story" });
+    expect(screenRoot).toHaveAttribute("data-title-has-art", "true");
+    expect(screenRoot.querySelector("[data-title-menu]")).not.toBeNull();
+  });
+
+  it("keeps the Load middle action disabled until any runnable save exists", async () => {
+    const onLoad = vi.fn();
+    render(
+      <TitleScreenV1
+        title="Synthetic Story"
+        labels={labelsV1}
+        onNewGame={vi.fn()}
+        middleAction={Object.freeze({
+          kind: "load",
+          available: false,
+          onActivate: onLoad,
+        })}
+        onLoadGame={vi.fn()}
+        onSettings={vi.fn()}
+      />,
+    );
+
+    const loadButton = screen.getByRole("button", { name: "Load game" });
+    expect(loadButton).toBeDisabled();
+    expect(loadButton).toHaveAttribute(
+      "data-title-load-game-available",
+      "false",
+    );
+    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
+    await userEvent.setup().click(loadButton);
+    expect(onLoad).not.toHaveBeenCalled();
   });
 });

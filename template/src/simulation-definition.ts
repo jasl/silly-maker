@@ -10,6 +10,13 @@ import {
 import type { TemplateGameSimulationV1 } from "./simulation.ts";
 import { createTemplateGameSimulationV1 } from "./simulation.ts";
 
+/**
+ * State-contract identity: these revisions version the SHAPES in
+ * `state.ts` and gate save compatibility. Bump only on breaking schema
+ * change (new module slot, removed/retyped required field, restructure),
+ * together with a `defineSaveStateMigrationRegistryV1` step so existing
+ * saves keep loading; additive optional/defaulted fields need no bump.
+ */
 export const templateStateContractManifestV1 = Object.freeze({
   contractRevision: 1 as const,
   aggregateStateSchema: Object.freeze({

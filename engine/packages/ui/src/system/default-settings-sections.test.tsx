@@ -89,4 +89,34 @@ describe("DefaultSettingsSectionsV1", () => {
 
     expect(document.querySelector('[data-default-settings-skip-cutscenes="true"]')).toBeNull();
   });
+
+  it("drops the developer-tools switch when the Story ships its own tooling", async () => {
+    const playerProfile = await createPlayerProfileStoreV1({
+      records: createMemoryHostRecordStoreV1(),
+      storyId: "story.test.settings-without-devtools",
+    });
+
+    render(
+      <DefaultSettingsSectionsV1
+        playerProfile={playerProfile}
+        capabilities={disabledCapabilitiesV1}
+        showDeveloperTools={false}
+        labels={Object.freeze({
+          bgmVolumeLabel: "Music",
+          voiceVolumeLabel: "Voice",
+          sfxVolumeLabel: "Effects",
+          mutedLabel: "Mute",
+          textSpeedLabel: "Text speed",
+          autoWaitLabel: "Auto wait",
+          fullscreenLabel: "Fullscreen",
+          developerToolsLabel: "Developer tools",
+        })}
+      />,
+    );
+
+    expect(document.querySelector('[data-default-settings-devtools="true"]')).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: "Developer tools" })).toBeNull();
+    // The rest of the baseline sections stay.
+    expect(screen.getByRole("button", { name: "Fullscreen" })).toBeVisible();
+  });
 });

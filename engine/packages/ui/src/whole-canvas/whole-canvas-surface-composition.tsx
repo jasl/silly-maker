@@ -1726,6 +1726,8 @@ interface WholeCanvasSurfaceCompositionGenerationInternalV1 {
 export interface WholeCanvasSurfaceCompositionRuntimeInternalV1
   extends ManagedSurfaceFamilyRuntimeAdapterInternalV1 {
   isHostEnabledInternalV1(): boolean;
+  /** True while package-owned Splash or Title is still the desired front door. */
+  isFrontDoorExclusiveInternalV1(): boolean;
   getCurrentHostBindingInternalV1(): WholeCanvasSurfaceHostBindingInternalV1 | null;
   isGestureCurrentInternalV1(gestureId: ManagedSurfaceGestureIdV1): boolean;
   registerHostPhysicalIngressInternalV1(
@@ -1845,6 +1847,17 @@ export function createWholeCanvasSurfaceCompositionRuntimeInternalV1(
   const adapter: WholeCanvasSurfaceCompositionRuntimeInternalV1 = Object.freeze({
     isHostEnabledInternalV1(): boolean {
       return binding !== null;
+    },
+
+    isFrontDoorExclusiveInternalV1(): boolean {
+      if (disposed || binding === null) return false;
+      try {
+        const desired = readDesired();
+        return desired !== null &&
+          (desired.bootSplash !== null || desired.title !== null);
+      } catch {
+        return false;
+      }
     },
 
     detachRuntimeInternalV1(): void {

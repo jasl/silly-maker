@@ -237,6 +237,8 @@ describe("StageProvenancePanelV1", () => {
 
     const toggle = panel.container.querySelector("[data-stage-inspect-toggle]");
     if (!(toggle instanceof HTMLElement)) throw new Error("toggle missing");
+    expect(toggle.textContent).toBe("开始点击检视");
+    expect(panel.container.textContent).toContain("点舞台上的角色或背景");
     fireEvent.click(toggle);
     expect(inspect.observe().enabled).toBe(true);
 

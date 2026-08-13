@@ -23,6 +23,14 @@ import {
  * Adding a gameplay module means one interface + schema + initial value
  * here, one module in `simulation.ts`, and one manifest entry in
  * `simulation-definition.ts` (module IDs sorted ascending).
+ *
+ * Save-compatibility discipline: loads re-parse old Save bytes with THESE
+ * schemas, so additive `.optional()`/`.default()` fields are free. A
+ * breaking shape change must, in the same commit, bump the revisions in
+ * `simulation-definition.ts` (aggregate `stateContractRevision` + the
+ * touched module's manifest entry) and register an adjacent migration
+ * step (`defineSaveStateMigrationRegistryV1`; pattern:
+ * `e2e/src/save-state-migrations.ts`) so existing saves keep loading.
  */
 
 /** The empty-shell gameplay module: a coin purse. Rename or replace it. */

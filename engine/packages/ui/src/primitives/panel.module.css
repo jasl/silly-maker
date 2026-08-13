@@ -18,8 +18,9 @@
 
 .panel__title {
   margin: 0;
-  font-size: 1.1em;
-  color: var(--silly-color-accent);
+  font-size: 1.05em;
+  font-weight: 600;
+  color: var(--silly-color-text);
 }
 
 .panel__content {

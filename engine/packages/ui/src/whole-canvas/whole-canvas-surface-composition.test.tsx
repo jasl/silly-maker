@@ -922,6 +922,7 @@ describe("S4b.1b WholeCanvas composition substrate", () => {
       resolveKernelBundleInternalV1: resolveBundle,
     });
     expect(composition.isHostEnabledInternalV1()).toBe(false);
+    expect(composition.isFrontDoorExclusiveInternalV1()).toBe(false);
     const runtime = Object.freeze({
       applicationEpoch: parseNonNegativeSafeInteger(9),
       activationKind: "initial" as const,

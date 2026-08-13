@@ -166,6 +166,7 @@ describe("theme tokens", () => {
     expect(tokensCssV1).toMatch(/--silly-stage-max-width:\s*1600px;/u);
     expect(tokensCssV1).toMatch(/--silly-stage-aspect-ratio:\s*8\s*\/\s*5;/u);
     expect(tokensCssV1).toMatch(/--silly-target-min-size:\s*44px;/u);
+    expect(tokensCssV1).toMatch(/--silly-control-min-size:\s*2rem;/u);
     expect(tokensCssV1).toMatch(/--silly-text-size-base:\s*clamp\(/u);
     expect(tokensCssV1).toMatch(/--silly-line-height-readable:\s*1\.6;/u);
 
@@ -194,10 +195,10 @@ describe("theme tokens", () => {
     ]);
   });
 
-  it("applies the target token, a two-color focus ring, and reduced-motion fallback", async () => {
+  it("applies the control-size token, a two-color focus ring, and reduced-motion fallback", async () => {
     const globalCssV1 = await readFile(resolve(import.meta.dirname, "../theme/global.css"), "utf8");
-    expect(globalCssV1).toMatch(/min-block-size:\s*var\(--silly-target-min-size\);/u);
-    expect(globalCssV1).toMatch(/min-inline-size:\s*var\(--silly-target-min-size\);/u);
+    expect(globalCssV1).toMatch(/min-block-size:\s*var\(--silly-control-min-size\);/u);
+    expect(globalCssV1).toMatch(/min-inline-size:\s*var\(--silly-control-min-size\);/u);
     expect(globalCssV1).toContain("var(--silly-focus-ring-inner)");
     expect(globalCssV1).toContain("var(--silly-focus-ring-outer)");
     expect(globalCssV1).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)/u);

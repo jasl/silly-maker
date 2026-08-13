@@ -1,0 +1,23 @@
+.root {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 16px;
+  text-align: center;
+  color: var(--silly-color-text);
+  pointer-events: auto;
+  z-index: var(--silly-surface-z-front-door);
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(28px, 6vw, 56px);
+  text-shadow: 0 2px 12px rgb(0 0 0 / 80%);
+}
+
+.menu {
+  display: grid;
+  gap: 10px;
+  min-inline-size: min(70vw, 280px);
+}

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import type { RuntimeSessionStatusV1 } from "./session-status.ts";
-import type { Brand, DeepReadonly, NonNegativeSafeInteger } from "./values.ts";
+import type { Brand, DeepReadonly, NonNegativeSafeInteger, PositiveSafeInteger } from "./values.ts";
 
 export interface ReadonlyViewSourceV1<TViewModel> {
   getCurrent(): DeepReadonly<TViewModel>;
@@ -185,6 +185,12 @@ export interface SessionLeasePortV1<TLeaseStatus, TLeaseOperationResult> {
   requestHandoff(): Promise<TLeaseOperationResult>;
   approveHandoff(requestId: LeaseHandoffRequestId): Promise<TLeaseOperationResult>;
   takeOver(): Promise<TLeaseOperationResult>;
+  /**
+   * Claims a released lease with compare-and-set semantics: succeeds only
+   * while the record is still unowned at the expected fencing token, so a
+   * waiting instance never seizes a contender that claimed first.
+   */
+  takeOverUnowned(expectedFencingToken: PositiveSafeInteger): Promise<TLeaseOperationResult>;
   release(): Promise<TLeaseOperationResult>;
 }
 

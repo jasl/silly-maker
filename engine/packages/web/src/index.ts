@@ -37,6 +37,14 @@ export type {
   WebGameApplicationV1,
   WebGameUiDefinitionV1,
 } from "./application/start-web-game-application.tsx";
+export { createWebInstanceLeaseCoordinatorV1 } from "./application/instance-lease.ts";
+export type {
+  CreateWebInstanceLeaseCoordinatorInputV1,
+  WebInstanceLeasePortV1,
+  WebInstanceLeaseRoleV1,
+  WebInstanceLeaseStateV1,
+  WebInstancePolicyV1,
+} from "./application/instance-lease.ts";
 export type {
   PlayerUiDiagnosticsSourceV1,
   PlayerUiPersistenceSourceV1,

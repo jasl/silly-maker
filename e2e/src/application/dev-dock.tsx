@@ -228,6 +228,8 @@ export function createLabDevDockContributionsV1(input: {
         side: "left",
         title: "舞台溯源",
         authority: "read_only",
+        // Click-to-inspect needs the live stage beside the card.
+        stage: "live",
         render: () => (
           <StageProvenancePanelV1
             controller={labStageInspectControllerV1}
@@ -242,6 +244,8 @@ export function createLabDevDockContributionsV1(input: {
         side: "left",
         title: "Motion 工坊",
         authority: "read_only",
+        // Editing runs on a detached capture; do not freeze the live stage.
+        stage: "live",
         render: () => <LabWorkbenchPanelV1 />,
       },
     ],

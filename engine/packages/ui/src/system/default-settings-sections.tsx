@@ -13,8 +13,10 @@ import { Button } from "../primitives/button.tsx";
  * same API in browsers and desktop webviews), and a developer-tools switch
  * that persists the debug_tools capability so the DevDock is reachable
  * without URL parameters — off by default, never part of the game UI.
- * Story-declared sections render after these. All values are persisted
- * Host preferences that outlive saves.
+ * Stories that ship their own tooling can drop the developer-tools switch
+ * (`showDeveloperTools: false`); the `?capability=debug_tools` URL opt-in
+ * keeps working. Story-declared sections render after these. All values
+ * are persisted Host preferences that outlive saves.
  */
 
 export interface DefaultSettingsLabelsV1 {
@@ -57,6 +59,8 @@ export function DefaultSettingsSectionsV1(props: {
   readonly playerProfile: PlayerProfileStoreV1;
   readonly capabilities: RuntimeCapabilityPortV1;
   readonly labels: DefaultSettingsLabelsV1;
+  /** Defaults to true; false removes the developer-tools switch. */
+  readonly showDeveloperTools?: boolean;
 }): ReactElement {
   const profile = useSyncExternalStore(
     (listener) => props.playerProfile.subscribe(listener),
@@ -150,6 +154,7 @@ export function DefaultSettingsSectionsV1(props: {
       </label>
       <Button
         data-default-settings-fullscreen="true"
+        style={{ justifySelf: "start" }}
         onClick={() => {
           if (typeof document === "undefined") return;
           if (document.fullscreenElement === null) {
@@ -161,21 +166,25 @@ export function DefaultSettingsSectionsV1(props: {
       >
         {props.labels.fullscreenLabel}
       </Button>
-      <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-        <input
-          type="checkbox"
-          data-default-settings-devtools="true"
-          checked={capabilities.debugTools}
-          onChange={(event) => {
-            // The switch grants the whole developer surface: the DevDock and
-            // its Story tuning (cheat) panels. A single-player game keeps
-            // that freedom local; the default remains off.
-            void props.capabilities.setEnabled("debug_tools", event.target.checked);
-            void props.capabilities.setEnabled("cheats", event.target.checked);
-          }}
-        />
-        {props.labels.developerToolsLabel}
-      </label>
+      {props.showDeveloperTools === false
+        ? null
+        : (
+          <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <input
+              type="checkbox"
+              data-default-settings-devtools="true"
+              checked={capabilities.debugTools}
+              onChange={(event) => {
+                // The switch grants the whole developer surface: the DevDock and
+                // its Story tuning (cheat) panels. A single-player game keeps
+                // that freedom local; the default remains off.
+                void props.capabilities.setEnabled("debug_tools", event.target.checked);
+                void props.capabilities.setEnabled("cheats", event.target.checked);
+              }}
+            />
+            {props.labels.developerToolsLabel}
+          </label>
+        )}
     </div>
   );
 }

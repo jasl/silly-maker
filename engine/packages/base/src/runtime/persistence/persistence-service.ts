@@ -1700,6 +1700,8 @@ async function createPersistenceServiceWithDependenciesV1<
       approveHandoff: (requestId: LeaseHandoffRequestId) =>
         publicLeaseMutationV1(() => options.lease.approveHandoff(requestId)),
       takeOver: () => publicLeaseMutationV1(() => options.lease.takeOver()),
+      takeOverUnowned: (expectedFencingToken: PositiveSafeInteger) =>
+        publicLeaseMutationV1(() => options.lease.takeOverUnowned(expectedFencingToken)),
       release: () => publicLeaseMutationV1(() => options.lease.release(), true),
     }),
 

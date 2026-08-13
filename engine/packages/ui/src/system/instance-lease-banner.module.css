@@ -1,0 +1,25 @@
+.instance-lease-banner {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  z-index: calc(var(--silly-stage-z-system) + var(--silly-surface-z-confirm));
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.instance-lease-banner__card {
+  display: flex;
+  align-items: center;
+  margin: var(--silly-space-2);
+  padding-block: var(--silly-space-1);
+  padding-inline: var(--silly-space-3);
+  border: 1px solid var(--silly-color-border);
+  border-radius: var(--silly-radius-control);
+  background: var(--silly-color-surface);
+  color: var(--silly-color-text);
+  font-family: var(--silly-font-family);
+  font-size: 13px;
+  gap: 10px;
+  pointer-events: auto;
+}

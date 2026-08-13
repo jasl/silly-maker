@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import {
   CapabilityPanelV1,
   DebugCommandPanelV1,
-  DebugLaunchersV1,
   DevDockPortalCoordinatorV1,
   DevDockV1,
   DiagnosticInspectorV1,
@@ -22,7 +21,6 @@ type DebugRuntimeKeysV1 = ExpectV1<
     keyof typeof import("@sillymaker/ui/debug"),
     | "CapabilityPanelV1"
     | "DebugCommandPanelV1"
-    | "DebugLaunchersV1"
     | "DebugNarrativeGraphViewV1"
     | "DebugValueInspectorV1"
     | "DevDockPortalCoordinatorV1"
@@ -32,16 +30,20 @@ type DebugRuntimeKeysV1 = ExpectV1<
     | "MotionWorkbenchLauncherV1"
     | "MotionWorkbenchV1"
     | "StageProvenancePanelV1"
+    | "StoryDebugDockV1"
     | "createDevDockContributionSetV1"
+    | "createDevDockControlV1"
     | "createDevServerMotionIoV1"
     | "createMotionSourceIndexV1"
     | "createMotionWorkbenchStoreV1"
     | "createStageInspectControllerV1"
+    | "defaultStoryDebugDockLabelsV1"
+    | "engineSessionMaintenancePanelIdV1"
     | "openStorySourceInDevServerV1"
   >
 >;
 type PanelKeysV1 = ExpectV1<
-  EqualV1<keyof DevDockPanelV1, "authority" | "id" | "render" | "side" | "title">
+  EqualV1<keyof DevDockPanelV1, "authority" | "id" | "render" | "side" | "stage" | "title">
 >;
 type ContributionKeysV1 = ExpectV1<EqualV1<keyof DevDockContributionSetV1, "panels">>;
 
@@ -64,7 +66,6 @@ const commandV1: StoryLocalCommandV1 = { kind: "story.synthetic", amount: 1 };
 
 CapabilityPanelV1;
 DebugCommandPanelV1<StoryLocalCommandV1>;
-DebugLaunchersV1;
 DevDockPortalCoordinatorV1;
 DevDockV1;
 DiagnosticInspectorV1;
@@ -74,6 +75,8 @@ commandV1;
 
 // @ts-expect-error DevDock is available only from the dedicated debug subpath
 export { DevDockV1 as ForbiddenRootDevDockV1 } from "@sillymaker/ui";
+// @ts-expect-error Story debug dock lives on the dedicated debug subpath
+export { StoryDebugDockV1 as ForbiddenRootStoryDebugDockV1 } from "@sillymaker/ui";
 // @ts-expect-error Snapshot authority is not part of the neutral debug UI subpath
 export type { GameSnapshotEnvelopeV1 as ForbiddenSnapshotV1 } from "@sillymaker/ui/debug";
 // @ts-expect-error GameSession authority is not part of the neutral debug UI subpath

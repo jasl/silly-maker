@@ -22,6 +22,14 @@ import {
  * Dynamic state: everything mutable produced while the game runs, all inside modules
  * (atomic commits, saves, rollback). Static definitions (activities/reactions/moves/
  * opponents/album) live in the content database of `content.ts`, read-only at runtime — this boundary is the example's first design principle.
+ *
+ * Save-compatibility discipline: loads re-parse old Save bytes with THESE
+ * schemas, so additive `.optional()`/`.default()` fields are free. A
+ * breaking shape change must, in the same commit, bump the revisions in
+ * `simulation-definition.ts` (aggregate `stateContractRevision` + the
+ * touched module's manifest entry) and register an adjacent migration
+ * step (`defineSaveStateMigrationRegistryV1`; pattern:
+ * `e2e/src/save-state-migrations.ts`) so existing saves keep loading.
  */
 
 /** Calendar: week (1–7), weekday (0–6, 0=Monday), slot index, today's stamina. */

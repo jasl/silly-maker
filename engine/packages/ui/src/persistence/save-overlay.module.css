@@ -1,6 +1,6 @@
 .save-overlay {
   display: grid;
-  gap: calc(2 * var(--silly-space-3));
+  gap: var(--silly-space-4);
   color: var(--silly-color-text);
 }
 
@@ -13,7 +13,14 @@
 
 .save-overlay__header {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--silly-space-2);
+  align-items: center;
+}
+
+/* Title row: heading + close control side by side; status lines span. */
+.save-overlay__header > p {
+  grid-column: 1 / -1;
 }
 
 .save-overlay__slots {

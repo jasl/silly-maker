@@ -273,6 +273,7 @@ export type {
 export {
   createAnimationFramePresentationClockV1,
   createManualPresentationClockV1,
+  createPresentationFreezePortV1,
   createPresentationRunV1,
   easeInOutV1,
 } from "./presentation-run/index.ts";
@@ -280,17 +281,26 @@ export type {
   CreatePresentationRunOptionsV1,
   ManualPresentationClockV1,
   PresentationClockV1,
+  PresentationFreezePortV1,
+  PresentationFreezeStateV1,
   PresentationRunOutcomeV1,
   PresentationRunStatusV1,
   PresentationRunV1,
 } from "./presentation-run/index.ts";
 export {
+  InstanceLeaseBannerV1,
+  defaultInstanceLeaseBannerLabelsV1,
   SavesLauncherV1,
   SettingsLauncherV1,
   SystemDialogHostV1,
   useSystemDialogControllerV1,
 } from "./system/index.ts";
 export type {
+  InstanceLeaseBannerLabelsV1,
+  InstanceLeaseBannerPortV1,
+  InstanceLeaseBannerPropsV1,
+  InstanceLeaseBannerRoleV1,
+  InstanceLeaseBannerStateV1,
   SavesLauncherPropsV1,
   SettingsLauncherPropsV1,
   SystemDialogControllerV1,
@@ -329,6 +339,11 @@ export {
   createGameUiCompositionV1,
   defaultGameRootLabelsV1,
 } from "./composer/index.ts";
+// The DevDock window control is composer-level plumbing (a Story dock
+// opens engine tool windows through it); the tooling UI itself stays on
+// the dedicated debug subpath.
+export { createDevDockControlV1 } from "./debug/dev-dock-control.ts";
+export type { DevDockControlV1, DevDockPanelDescriptorV1 } from "./debug/dev-dock-control.ts";
 export type {
   CreateGameUiCompositionInputV1,
   DefaultGameRootLabelsV1,

@@ -77,9 +77,12 @@ navigation (Engine Lab's opt-in rig). Put the passive React renderer in
 `ui.tsx`; it consumes immutable props and frame-bound `onAction`/`onBack` only.
 Do not add a Root slot, page boolean, raw input/focus writer, or a second Host.
 Existing `titleScreen` automatically uses the same package-owned Splash/Title
-authority and does not require `ui.wholeCanvas`. An application allocates no
-WholeCanvas Host, source, lease, or subscription only when it omits both
-`titleScreen` and `ui.wholeCanvas`, as SillyOS does.
+authority and does not require `ui.wholeCanvas`. Splash and Title are sequential
+scenes: gameplay HUD/stage/narrative stay concealed until New game/Continue/Load
+dismisses the front door. Openings that need an explicit boot command belong on
+`titleScreen.beginNewGame(semantic)`, not a second in-game control. An application
+allocates no WholeCanvas Host, source, lease, or subscription only when it omits
+both `titleScreen` and `ui.wholeCanvas`, as SillyOS does.
 
 ```sh
 deno task dev                    # inside the application directory
@@ -120,7 +123,9 @@ that review.
 
 Narrative entrance/exit animation is data, not code: a `sillymaker.motion` JSON document in `src/motions/` (integer keyframes over offsetX/offsetY/scalePermille/opacityPermille, per-segment easing), bound to a stage edge with `motionStageTransition({ transitionId, motion })` in the transition catalog. Layout stays authoritative — the motion composes over the settled placement and clears to identity when its run finishes.
 
-The human tuning loop (dev server + `debug_tools`): enable click-to-inspect in the DevDock provenance panel → click the picture on the live stage → the card shows its transition/motion/source file → "编辑 Motion" opens the Motion Workbench on the captured scene (or a Story-declared preview case) → scrub/play, edit duration/delay/keyframes, A/B against saved → save. Saving is compare-and-swap against the file digest, rewrites only that motion file deterministically, and marks it `authoring.status: "human_tuned"`.
+The human tuning loop (dev server + `debug_tools`): enable click-to-inspect in the DevDock provenance panel → click the picture on the live stage → the card shows its transition/motion/source file → "编辑 Motion" opens the Motion Workbench on the captured scene (or a Story-declared preview case) → scrub/play, edit duration/delay/keyframes, A/B against saved → save. Saving is compare-and-swap against the file digest, rewrites only that motion file deterministically, and marks it `authoring.status: "human_tuned"`. Different diagnostic operations declare different stage behavior (`DevDockPanelV1.stage`): click-to-inspect stays `live` so the game remains interactive beside the card; the Workbench stays `live` because it edits a detached capture; a panel that must inspect a transient frame sets `stage: "frozen"` (the presentation clock holds for that window's lifetime). The chip menu's 冻结画面 / 恢复画面 toggle is the manual lever — opening tools does not freeze the world.
+
+A Story that wants one local debug chip instead of the built-in DevDock chip sets `devDockChip: false` and mounts `StoryDebugDockV1` from `@sillymaker/ui/debug`. Pass `visible` (Story-owned; do not make always-on the engine default), `tools` (panel ids to launch — the registry is empty until `debug_tools` is granted), `clearAllSaves` from `application.ui()` (Core wipe, not a `savePort.clear` loop), freeze via `presentationFreeze`, and an optional `info` slot for live stats. The dock never reads Snapshot/Story state. Wipe confirmation is a modal `alertdialog`; the backdrop accessible name must stay distinct from the dialog Cancel button. Skip `engineSessionMaintenancePanelIdV1` in the tool list when the dock already inlines export/import/wipe/reinitialize. Multi-instance takeover chrome is `InstanceLeaseBannerV1` (`@sillymaker/ui`), driven by the `instanceLease` port; portal it into the scaled viewport canvas so it tracks the picture rather than the letterbox. External `file:` engine consumers already get Vite `resolve.dedupe` for `react`/`react-dom` from `createSillymakerAppViteConfigV1`; Vitest configs that render those engine components need the same dedupe, or hooks break on two physical React copies.
 
 Collaboration contract (agents): never overwrite a `human_tuned` or `locked` motion unless the task explicitly names it — locked changes go through a new variant file with a new id; preserve motion/transition ids across scene refactors; put new tunable animation in a new motion file instead of inline duration/easing constants in scene code (component-local hover effects stay CSS).
 
@@ -134,7 +139,7 @@ Collaboration contract (agents): never overwrite a `human_tuned` or `locked` mot
 
 ## UI style quick-reference
 
-- Skin and layout use only the published tokens: colors/spacing/radii/touch sizes are `--silly-color-*`, `--silly-space-*`, `--silly-radius-*`, `--silly-target-min-size` (defined in `theme/tokens.css` of `@sillymaker/ui`).
+- Skin and layout use only the published tokens: colors/spacing/radii/sizes are `--silly-color-*`, `--silly-space-*`, `--silly-radius-*`, `--silly-control-min-size` (control chrome), `--silly-target-min-size` (touch-target floor) — defined in `theme/tokens.css` of `@sillymaker/ui`. The default palette is professional-neutral dark with no brand hue; Stories theme by overriding the tokens under their application scope.
 - **No raw z-index**: the eight stage layers use `--silly-stage-z-*` (matching `stageLayerIdsV1`), within-layer surfaces use the `--silly-surface-z-*` scale (base < raised < front-door < splash < dialog-backdrop < dialog < confirm-backdrop < confirm); the contract is test-guarded.
 - Narrative appearance belongs in the Story renderer supplied to `defineNarrativeSurfaceV1`; player timing, History lifecycle, focus/inert authority, physical input, and Stage reconciliation belong to the composition-owned Host.
 - WholeCanvas appearance belongs in the Story renderer supplied to `defineWholeCanvasSurfaceV1`; primary/detail lifecycle, readiness, focus/inert authority, routed input, and Splash/Title front-door ownership belong to the composition-owned Host.

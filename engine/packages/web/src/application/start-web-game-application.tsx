@@ -41,13 +41,20 @@ import type {
   WorkspaceOverlayDefinitionV1,
   WorkspaceOverlayPortBindingV1,
 } from "@sillymaker/ui";
-import type { DevDockContributionSetV1, DevDockOpenStateV1 } from "@sillymaker/ui/debug";
+import type {
+  DevDockContributionSetV1,
+  DevDockControlV1,
+  DevDockOpenStateV1,
+  DevDockPositionV1,
+} from "@sillymaker/ui/debug";
 import {
-  createAnimationFramePresentationClockV1,
+  createDevDockControlV1,
+  createPresentationFreezePortV1,
   DefaultGameRootV1,
   defaultGameRootLabelsV1,
   installNativeBehaviorResetV1,
 } from "@sillymaker/ui";
+import type { PresentationFreezePortV1 } from "@sillymaker/ui";
 import {
   createHostedGameUiCompositionInternalV1,
   sealHostedGameUiCompositionTerminalInternalV1,
@@ -71,6 +78,8 @@ import { createWebHostV1 } from "../host/create-web-host.ts";
 import { createHttpHostRecordStoreV1 } from "../host/http-record-store.ts";
 import { mountGameApplicationV1 } from "./mount-game-application.tsx";
 import type { MountedGameApplicationV1 } from "./mount-game-application.tsx";
+import { createWebInstanceLeaseCoordinatorV1 } from "./instance-lease.ts";
+import type { WebInstanceLeasePortV1, WebInstancePolicyV1 } from "./instance-lease.ts";
 import { createPlayerSaveSurfacesV1 } from "./create-player-save-surfaces.ts";
 import { createWebApplicationTerminalSupervisorInternalV1 } from "./application-terminal-supervisor.ts";
 import { createCompositionBoundRestartLifecycleInternalV1 } from "./composition-bound-restart-lifecycle.ts";
@@ -128,8 +137,13 @@ export interface WebGameUiDefinitionV1<
   readonly saveLabels?: SaveOverlayLabelsV1;
   /** Hides the default floating system menu (custom shells own the entries). */
   readonly hideSystemMenu?: boolean;
+  /** Removes the developer-tools switch from Settings (URL opt-in remains). */
+  readonly hideDeveloperToolsToggle?: boolean;
   /** Story safepoint over the live publication (see SaveOverlayGuardV1). */
-  readonly saveGuard?: (publication: unknown) => { allowed: boolean; reasonText?: string };
+  readonly saveGuard?: (publication: unknown) => {
+    allowed: boolean;
+    reasonText?: string;
+  };
   /**
    * Story Save component hosted by the managed System lifecycle authority.
    * Mutually exclusive with `saveLabels` / `saveGuard`.
@@ -153,6 +167,18 @@ export interface WebGameUiDefinitionV1<
    * demand and never enters the player bundle.
    */
   readonly loadDevDockContributions?: () => Promise<DevDockContributionSetV1>;
+  /**
+   * DevDock chip/menu corner and window cascade origin (default
+   * `top_right`). Reposition when the default corner occludes application
+   * chrome; bottom corners expand upward.
+   */
+  readonly devDockPosition?: DevDockPositionV1;
+  /**
+   * Render the built-in DevDock chip entry (default true). A Story that
+   * mounts `StoryDebugDockV1` (`@sillymaker/ui/debug`) and opens tool
+   * windows through `devDockControl` sets false.
+   */
+  readonly devDockChip?: boolean;
   /** Optional keyboard/pointer/gamepad action maps installed by the root. */
   readonly inputMaps?: {
     readonly keyboard?: KeyboardActionMapV1;
@@ -226,8 +252,9 @@ export interface WebGameApplicationV1<
     TPreview,
     TResult
   >;
-  readonly buildIdentityInput?: Parameters<typeof resolveCoreGameApplicationV1>[1] extends
-    { readonly buildIdentityInput?: infer TIdentity } | undefined ? TIdentity
+  readonly buildIdentityInput?: Parameters<
+    typeof resolveCoreGameApplicationV1
+  >[1] extends { readonly buildIdentityInput?: infer TIdentity } | undefined ? TIdentity
     : never;
   /**
    * The application's autosave/checkpoint policy. Defaults to a debounced
@@ -235,6 +262,13 @@ export interface WebGameApplicationV1<
    * slot saves are always allowed regardless.
    */
   readonly autosave?: CoreAutosavePolicyV1;
+  /**
+   * Behavior when another live instance (tab/window/process) of this
+   * application already holds the single-writer save lease. Defaults to
+   * `"take_over"` (the newest instance wins; the seized one reports
+   * `lost` through the `instanceLease` port and stops writing).
+   */
+  readonly instancePolicy?: WebInstancePolicyV1;
   ui(input: {
     readonly instance: CoreGameApplicationInstanceV1<
       TTypes,
@@ -253,6 +287,26 @@ export interface WebGameApplicationV1<
     readonly files: GameHostV1["files"];
     /** The live capability session (persisted overlay + page request). */
     readonly capabilities: RuntimeCapabilitySessionOverlayV1;
+    /** Multi-instance lease role for banners and manual takeover. */
+    readonly instanceLease: WebInstanceLeasePortV1;
+    /**
+     * Shared DevDock window control: a Story debug dock opens/closes the
+     * engine tool windows (Motion Workbench, provenance, maintenance)
+     * through this port instead of relying on the built-in chip.
+     */
+    readonly devDockControl: DevDockControlV1;
+    /**
+     * Presentation freeze (developer pause): `pause()`/`resume()` hold the
+     * shared presentation clock and swallow gameplay input while dev
+     * surfaces stay interactive. Pass `presentationFreeze.clock` to the
+     * Story's mounted `SemanticStageV1` so stage motion freezes too.
+     */
+    readonly presentationFreeze: PresentationFreezePortV1;
+    /**
+     * Core wipe: drain pending Auto Save, then clear every slot. A Story
+     * debug dock must use this instead of looping `savePort.clear`.
+     */
+    readonly clearAllSaves: () => Promise<void>;
     reportFailure(code: string, error: unknown): void;
   }): WebGameUiDefinitionV1<
     WebSemanticPublicationV1<TGameView, TNarrativeView, TActionDescriptor>,
@@ -306,6 +360,8 @@ export interface StartedWebGameApplicationV1 {
   /** Full build provenance for HMR identity comparison. */
   readonly provenance: DeepReadonly<BuildProvenanceV1>;
   readonly capabilitySearch: string;
+  /** Multi-instance lease role (owner/waiting/read_only/lost) + takeover. */
+  readonly instanceLease: WebInstanceLeasePortV1;
   isDisposed(): boolean;
   dispose(): Promise<void>;
   /**
@@ -317,10 +373,14 @@ export interface StartedWebGameApplicationV1 {
    * Tears the application down for a dev rebootstrap and returns the
    * persistence handoff disposition for the successor.
    */
-  disposeForRebootstrap(): Promise<DeepReadonly<PersistenceRebootstrapDisposalV1>>;
+  disposeForRebootstrap(): Promise<
+    DeepReadonly<PersistenceRebootstrapDisposalV1>
+  >;
 }
 
-function appBuildIdV1(buildIdentityInput: unknown): ReturnType<typeof digestCanonical> | null {
+function appBuildIdV1(
+  buildIdentityInput: unknown,
+): ReturnType<typeof digestCanonical> | null {
   if (
     buildIdentityInput === null ||
     typeof buildIdentityInput !== "object" ||
@@ -449,27 +509,36 @@ export async function startWebGameApplicationV1<
       : { buildIdentityInput: application.buildIdentityInput },
   );
   if (resolved.kind === "failed") {
-    throw new TypeError(`web.application_resolution_failed:${resolved.failure.code}`);
+    throw new TypeError(
+      `web.application_resolution_failed:${resolved.failure.code}`,
+    );
   }
 
   const applicationBuildId = appBuildIdV1(application.buildIdentityInput);
-  const instance = await createCoreGameApplicationInstanceV1(resolved.application, {
-    host: Object.freeze({
-      entropy: host.bootstrapEntropy,
-      records: host.records,
-      now: () => host.metadataClock.now(),
-      ownerId: `owner.sillymaker.web.${application.applicationId}` as never,
-      nextHandoffRequestId: () =>
-        `handoff.${application.applicationId}.${host.bootstrapEntropy.nextUuidV4()}`,
-    }),
-    capabilities: { debugTools: capabilities.state.getCurrent().debugTools },
-    capabilityState: capabilities.state,
-    autosave: options.autosave ?? application.autosave ?? defaultWebAutosavePolicyV1,
-    ...(applicationBuildId === null ? {} : { appBuildId: applicationBuildId }),
-    ...(options.rebootstrapDisposition === undefined
-      ? {}
-      : { rebootstrapDisposition: options.rebootstrapDisposition }),
-  });
+  // One lease identity per started instance: multi-tab/-window mutual
+  // exclusion (and the instancePolicy roles) requires distinct owners.
+  const leaseOwnerId =
+    `owner.sillymaker.web.${application.applicationId}.${host.bootstrapEntropy.nextUuidV4()}`;
+  const instance = await createCoreGameApplicationInstanceV1(
+    resolved.application,
+    {
+      host: Object.freeze({
+        entropy: host.bootstrapEntropy,
+        records: host.records,
+        now: () => host.metadataClock.now(),
+        ownerId: leaseOwnerId as never,
+        nextHandoffRequestId: () =>
+          `handoff.${application.applicationId}.${host.bootstrapEntropy.nextUuidV4()}`,
+      }),
+      capabilities: { debugTools: capabilities.state.getCurrent().debugTools },
+      capabilityState: capabilities.state,
+      autosave: options.autosave ?? application.autosave ?? defaultWebAutosavePolicyV1,
+      ...(applicationBuildId === null ? {} : { appBuildId: applicationBuildId }),
+      ...(options.rebootstrapDisposition === undefined
+        ? {}
+        : { rebootstrapDisposition: options.rebootstrapDisposition }),
+    },
+  );
 
   let automation: InstalledBrowserAutomationBridgeV1 | undefined;
   let mounted: MountedGameApplicationV1 | undefined;
@@ -477,13 +546,15 @@ export async function startWebGameApplicationV1<
   let nativeBehaviorReset: { dispose(): void } | undefined;
   let unbindUiContext: (() => void) | undefined;
   let uiDisposer: (() => void) | undefined;
-  let successorAcknowledgments:
-    | PresentationSuccessorAcknowledgmentBrokerInternalV1
-    | undefined;
+  let successorAcknowledgments: PresentationSuccessorAcknowledgmentBrokerInternalV1 | undefined;
   let composition:
     | ReturnType<
       typeof createHostedGameUiCompositionInternalV1<
-        WebSemanticPublicationV1<TGameView, TNarrativeView, TActionDescriptor>,
+        WebSemanticPublicationV1<
+          TGameView,
+          TNarrativeView,
+          TActionDescriptor
+        >,
         TResolvedCatalog,
         TStoryUiState,
         TView,
@@ -494,6 +565,8 @@ export async function startWebGameApplicationV1<
     | undefined;
   let removePageLifecycle: (() => void) | undefined;
   let removeDesktopCloseFlush: (() => void) | undefined;
+  let instanceLease: WebInstanceLeasePortV1 | undefined;
+  let unbindPresentationFreeze: (() => void) | undefined;
 
   const terminalSupervisor = createWebApplicationTerminalSupervisorInternalV1({
     fenceSteps: Object.freeze([
@@ -512,18 +585,41 @@ export async function startWebGameApplicationV1<
       Object.freeze({ name: "core", run: () => instance.invalidateForHmr() }),
     ]),
     cleanupSteps: Object.freeze([
-      Object.freeze({ name: "page_lifecycle", run: () => removePageLifecycle?.() }),
-      Object.freeze({ name: "desktop_close_flush", run: () => removeDesktopCloseFlush?.() }),
+      Object.freeze({
+        name: "page_lifecycle",
+        run: () => removePageLifecycle?.(),
+      }),
+      Object.freeze({
+        name: "desktop_close_flush",
+        run: () => removeDesktopCloseFlush?.(),
+      }),
       Object.freeze({ name: "root", run: () => mounted?.unmount() }),
-      Object.freeze({ name: "debug_ui_context", run: () => unbindUiContext?.() }),
-      Object.freeze({ name: "native_behavior", run: () => nativeBehaviorReset?.dispose() }),
+      Object.freeze({
+        name: "debug_ui_context",
+        run: () => unbindUiContext?.(),
+      }),
+      Object.freeze({
+        name: "native_behavior",
+        run: () => nativeBehaviorReset?.dispose(),
+      }),
+      Object.freeze({
+        name: "presentation_freeze",
+        run: () => unbindPresentationFreeze?.(),
+      }),
       Object.freeze({ name: "composition", run: () => composition?.dispose() }),
       Object.freeze({
         name: "successor_acknowledgments",
         run: () => successorAcknowledgments?.dispose(),
       }),
       Object.freeze({ name: "story_ui", run: () => uiDisposer?.() }),
-      Object.freeze({ name: "capabilities", run: () => capabilities.dispose() }),
+      Object.freeze({
+        name: "instance_lease",
+        run: () => instanceLease?.dispose(),
+      }),
+      Object.freeze({
+        name: "capabilities",
+        run: () => capabilities.dispose(),
+      }),
     ]),
     releaseCorePersistence: () => instance.disposeForRebootstrap(),
     reportFailure: (step, error) =>
@@ -551,7 +647,9 @@ export async function startWebGameApplicationV1<
       },
     }),
   });
-  const disposeForRebootstrap = (): Promise<DeepReadonly<PersistenceRebootstrapDisposalV1>> => {
+  const disposeForRebootstrap = (): Promise<
+    DeepReadonly<PersistenceRebootstrapDisposalV1>
+  > => {
     return terminalSupervisor.disposeForRebootstrap();
   };
   const dispose = async (): Promise<void> => {
@@ -570,8 +668,28 @@ export async function startWebGameApplicationV1<
       storyId: instance.storyId as string,
       reportFailure,
     });
+    // Multi-instance role: applies the declared policy against a live
+    // holder and keeps the published role fresh (poll + cross-tab nudge).
+    // HMR successors skip the boot seizure — the rebootstrap handoff owns
+    // the lease transfer.
+    const instanceLeaseCoordinator = await createWebInstanceLeaseCoordinatorV1({
+      lease: instance.persistence.lease,
+      policy: application.instancePolicy ?? "take_over",
+      selfOwnerId: leaseOwnerId,
+      channelScope: instance.storyId as string,
+      claimOnStart: options.rebootstrapDisposition === undefined,
+    });
+    instanceLease = instanceLeaseCoordinator;
+    const devDockControl = createDevDockControlV1();
+    // One shared pausable presentation clock: narrative reveal and hosted
+    // surfaces consume it directly; Stories pass `presentationFreeze.clock`
+    // to their mounted stages so 冻结画面 holds every plane together.
+    const presentationFreeze = createPresentationFreezePortV1();
+    const clearAllSaves = (): Promise<void> =>
+      clearAllCoreApplicationSavesForMaintenanceInternalV1(instance);
     const uiDefinition = application.ui({
       instance,
+      instanceLease: instanceLeaseCoordinator,
       assetLoader: options.assetLoader ??
         createBrowserImageLoaderV1({
           resolveRuntimeUrl: (runtimePath) => new URL(runtimePath, document.baseURI).href,
@@ -580,13 +698,16 @@ export async function startWebGameApplicationV1<
       playerProfile,
       files: host.files,
       capabilities,
+      devDockControl,
+      presentationFreeze,
+      clearAllSaves,
       reportFailure,
     });
     uiDisposer = uiDefinition.dispose?.bind(uiDefinition);
     const saveSurfaces = createPlayerSaveSurfacesV1({
       files: host.files,
       persistence: instance.persistence,
-      clearAllSaves: () => clearAllCoreApplicationSavesForMaintenanceInternalV1(instance),
+      clearAllSaves,
       ...(uiDefinition.saveLabels === undefined ? {} : { saveLabels: uiDefinition.saveLabels }),
       ...(uiDefinition.saveGuard === undefined ? {} : { saveGuard: uiDefinition.saveGuard }),
       ...(uiDefinition.customSaves === undefined ? {} : { customSaves: uiDefinition.customSaves }),
@@ -606,25 +727,32 @@ export async function startWebGameApplicationV1<
         }),
         beginNewGame: beginNewGame === undefined
           ? null
-          : () => Reflect.apply(beginNewGame, titleScreenInput, [instance.semantic]),
+          : () =>
+            Reflect.apply(beginNewGame, titleScreenInput, [
+              instance.semantic,
+            ]),
       });
     })();
     const wholeCanvas = wholeCanvasDefinition === null && normalizedTitleScreen === null
       ? null
       : (() => {
-        const labels = Object.freeze({ ...defaultGameRootLabelsV1, ...uiDefinition.labels });
+        const labels = Object.freeze({
+          ...defaultGameRootLabelsV1,
+          ...uiDefinition.labels,
+        });
         return Object.freeze({
           definition: wholeCanvasDefinition,
           titleScreen: normalizedTitleScreen,
           lifecycle: composedLifecycle,
-          savePort: saveSurfaces.saveUi?.port ?? null,
+          savePort: saveSurfaces.saveUi?.port ??
+            (saveSurfaces.customSaves === undefined ? null : saveSurfaces.maintenance.savePort),
           customSavesConfigured: saveSurfaces.customSaves !== undefined,
           labels: Object.freeze({
             newGame: labels.titleNewGameLabel,
             newGameFailed: labels.titleNewGameFailedText,
             continue: labels.titleContinueLabel,
             load: labels.titleLoadGameLabel,
-            settings: labels.settingsLabel,
+            settings: labels.titleSettingsLabel ?? labels.settingsLabel,
           }),
         });
       })();
@@ -635,10 +763,11 @@ export async function startWebGameApplicationV1<
         wholeCanvas,
         environment: Object.freeze({
           playerProfile,
-          presentationClock: createAnimationFramePresentationClockV1(),
+          presentationClock: presentationFreeze.clock,
           prefersReducedMotion: () =>
             typeof globalThis.window.matchMedia === "function" &&
-            globalThis.window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+            globalThis.window.matchMedia("(prefers-reduced-motion: reduce)")
+              .matches,
         }),
       });
 
@@ -674,7 +803,9 @@ export async function startWebGameApplicationV1<
         }),
         anchorEvents: Object.freeze({
           current: () => instance.presentationAnchor(),
-          subscribe: (listener: (event: GameUiPresentationAnchorEventInternalV1) => void) =>
+          subscribe: (
+            listener: (event: GameUiPresentationAnchorEventInternalV1) => void,
+          ) =>
             subscribeCoreApplicationPresentationAnchorEventsInternalV1(
               instance,
               (event) => {
@@ -684,10 +815,12 @@ export async function startWebGameApplicationV1<
                     event.anchor,
                   );
                 }
-                listener(Object.freeze({
-                  anchor: event.anchor,
-                  token: event.publicationContext,
-                }));
+                listener(
+                  Object.freeze({
+                    anchor: event.anchor,
+                    token: event.publicationContext,
+                  }),
+                );
               },
             ),
         }),
@@ -696,6 +829,7 @@ export async function startWebGameApplicationV1<
       },
       hostedSurfaceDefinitions,
     );
+    unbindPresentationFreeze = presentationFreeze.bindInputRouterInternalV1(composition.input);
 
     automation = installBrowserAutomationBridgeV1({
       semantic: instance.semantic,
@@ -704,10 +838,7 @@ export async function startWebGameApplicationV1<
 
     // DevDock open state feeds the diagnostics UI context without giving
     // the resident player DOM any debug vocabulary.
-    let devDockOpenState: DevDockOpenStateV1 = Object.freeze({
-      leftOpen: false,
-      rightOpen: false,
-    });
+    let devDockOpenState: DevDockOpenStateV1 = Object.freeze({ open: false });
     const rootNode: ReactElement = (
       <DefaultGameRootV1
         composition={composition}
@@ -730,6 +861,9 @@ export async function startWebGameApplicationV1<
         {...(uiDefinition.hideSystemMenu === undefined
           ? {}
           : { hideSystemMenu: uiDefinition.hideSystemMenu })}
+        {...(uiDefinition.hideDeveloperToolsToggle === undefined
+          ? {}
+          : { hideDeveloperToolsToggle: uiDefinition.hideDeveloperToolsToggle })}
         sessionMaintenance={Object.freeze({
           savePort: saveSurfaces.maintenance.savePort,
           clearAllSaves: saveSurfaces.maintenance.clearAllSaves,
@@ -743,6 +877,12 @@ export async function startWebGameApplicationV1<
           ...(uiDefinition.loadDevDockContributions === undefined
             ? {}
             : { load: uiDefinition.loadDevDockContributions }),
+          ...(uiDefinition.devDockPosition === undefined
+            ? {}
+            : { position: uiDefinition.devDockPosition }),
+          ...(uiDefinition.devDockChip === undefined ? {} : { chip: uiDefinition.devDockChip }),
+          control: devDockControl,
+          freeze: presentationFreeze,
           observeOpenState: (state: DevDockOpenStateV1) => {
             devDockOpenState = state;
           },
@@ -761,7 +901,9 @@ export async function startWebGameApplicationV1<
       });
     }
     if (uiDefinition.nativeBehaviorReset !== undefined) {
-      nativeBehaviorReset = installNativeBehaviorResetV1(uiDefinition.nativeBehaviorReset);
+      nativeBehaviorReset = installNativeBehaviorResetV1(
+        uiDefinition.nativeBehaviorReset,
+      );
     }
     if (uiDefinition.debugUiContext !== undefined) {
       const systemDialogSession = composition.systemDialogSession;
@@ -802,11 +944,16 @@ export async function startWebGameApplicationV1<
     throw error;
   }
 
+  if (instanceLease === undefined) {
+    throw new TypeError("web.instance_lease_missing");
+  }
   return Object.freeze({
     applicationId: application.applicationId,
     host,
-    provenance: resolved.application.provenance as DeepReadonly<BuildProvenanceV1>,
+    provenance: resolved.application
+      .provenance as DeepReadonly<BuildProvenanceV1>,
     capabilitySearch,
+    instanceLease,
     isDisposed: terminalSupervisor.isDisposalStarted,
     dispose,
     invalidateForHmr: () => instance.invalidateForHmr(),

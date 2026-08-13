@@ -2,30 +2,65 @@
 import { createPortal } from "react-dom";
 import {
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
   useSyncExternalStore,
 } from "react";
-import type { KeyboardEvent, ReactElement, ReactNode } from "react";
+import type { PointerEvent as ReactPointerEvent, ReactElement, ReactNode } from "react";
 import type { RuntimeCapabilityPortV1 } from "@sillymaker/base";
 import { inputHandledV1, inputIgnoredV1 } from "../input/contracts.ts";
 import type { InputRouterV1 } from "../input/contracts.ts";
 import { Button } from "../primitives/button.tsx";
-import { DebugLaunchersV1 } from "./debug-launchers.tsx";
-import type { DevDockOpenStateV1, DevDockSideV1 } from "./debug-launchers.tsx";
+import { IconButton } from "../primitives/icon-button.tsx";
+import { createDevDockControlV1 } from "./dev-dock-control.ts";
+import type { DevDockControlV1 } from "./dev-dock-control.ts";
+import type { PresentationFreezePortV1 } from "../presentation-run/presentation-freeze.ts";
 import { useDevDockPortalTargetV1 } from "./dev-dock-portal-coordinator.tsx";
 import styles from "./dev-dock.module.css";
 
-export type { DevDockOpenStateV1, DevDockSideV1 } from "./debug-launchers.tsx";
+/**
+ * Panel grouping metadata kept for contribution compatibility; panels list
+ * in declaration order regardless of side.
+ */
+export type DevDockSideV1 = "left" | "right";
+
+/** True when the chip menu or any panel window is open. */
+export interface DevDockOpenStateV1 {
+  readonly open: boolean;
+}
+
+/**
+ * Chip/menu corner and the cascade origin for freshly opened windows. The
+ * menu always opens toward the free vertical space — bottom corners expand
+ * upward — so it never leaves the canvas. Applications reposition the dock
+ * when the default corner occludes their own chrome.
+ */
+export type DevDockPositionV1 =
+  | "top_right"
+  | "top_left"
+  | "bottom_right"
+  | "bottom_left";
+
 export type DevDockPanelAuthorityV1 = "read_only" | "cheat";
+
+/**
+ * Different diagnostic operations declare different stage behavior:
+ * `live` (default) keeps the game fully interactive beside the window —
+ * right for click-to-inspect tools; `frozen` engages the presentation
+ * freeze while the window is open — right for examining transient frames.
+ * Editing tools that work on detached captures simply stay `live`.
+ */
+export type DevDockPanelStageModeV1 = "live" | "frozen";
 
 export interface DevDockPanelV1 {
   readonly id: string;
   readonly side: DevDockSideV1;
   readonly title: string;
   readonly authority: DevDockPanelAuthorityV1;
+  readonly stage?: DevDockPanelStageModeV1;
   readonly render: () => ReactNode;
 }
 
@@ -37,20 +72,36 @@ export interface DevDockPropsV1 {
   readonly capabilities: RuntimeCapabilityPortV1;
   readonly contributions: DevDockContributionSetV1;
   readonly inputRouter: InputRouterV1;
+  /** Chip menu visibility (windows are tracked by the control port). */
   readonly openState: DevDockOpenStateV1;
+  /** Chip/menu corner and window cascade origin; defaults to `top_right`. */
+  readonly position?: DevDockPositionV1;
+  /**
+   * Render the built-in collapsed chip entry (default true). A Story whose
+   * own debug dock drives the control port hides it entirely.
+   */
+  readonly chip?: boolean;
+  /** Shared window control; the dock creates a private one when absent. */
+  readonly control?: DevDockControlV1;
+  /**
+   * Presentation freeze: adds the manual 冻结画面 toggle to the chip menu
+   * and auto-engages while a `stage: "frozen"` panel window is open.
+   */
+  readonly freeze?: PresentationFreezePortV1;
   onOpenStateChange(next: DevDockOpenStateV1): void;
 }
 
-const closedDevDockStateV1 = Object.freeze({
-  leftOpen: false,
-  rightOpen: false,
-}) satisfies DevDockOpenStateV1;
+const closedDevDockStateV1 = Object.freeze({ open: false }) satisfies DevDockOpenStateV1;
+const openedDevDockStateV1 = Object.freeze({ open: true }) satisfies DevDockOpenStateV1;
 
-const portraitDevDockMediaQueryV1 = "(aspect-ratio < 4 / 3)";
+const devDockPositionsV1: readonly DevDockPositionV1[] = Object.freeze([
+  "top_right",
+  "top_left",
+  "bottom_right",
+  "bottom_left",
+]);
 
-function openDevDockStateV1(side: DevDockSideV1): DevDockOpenStateV1 {
-  return Object.freeze({ leftOpen: side === "left", rightOpen: side === "right" });
-}
+const noSubscriptionV1 = (): () => void => () => {};
 
 function validatePanelV1(panel: DevDockPanelV1): DevDockPanelV1 {
   if (panel === null || typeof panel !== "object" || Array.isArray(panel)) {
@@ -65,6 +116,9 @@ function validatePanelV1(panel: DevDockPanelV1): DevDockPanelV1 {
   if (panel.authority !== "read_only" && panel.authority !== "cheat") {
     throw new TypeError("ui.devdock_invalid_authority");
   }
+  if (panel.stage !== undefined && panel.stage !== "live" && panel.stage !== "frozen") {
+    throw new TypeError("ui.devdock_invalid_stage_mode");
+  }
   if (
     typeof panel.title !== "string" ||
     panel.title.length === 0 ||
@@ -77,6 +131,7 @@ function validatePanelV1(panel: DevDockPanelV1): DevDockPanelV1 {
     side: panel.side,
     title: panel.title,
     authority: panel.authority,
+    stage: panel.stage ?? "live",
     render: panel.render,
   });
 }
@@ -128,120 +183,176 @@ function focusWithoutScrollingV1(element: HTMLElement): void {
   element.focus({ preventScroll: true });
 }
 
-function trapTabV1(event: KeyboardEvent<HTMLElement>): void {
-  if (event.key !== "Tab") return;
-  const controls = focusableElementsV1(event.currentTarget);
-  if (controls.length === 0) {
-    event.preventDefault();
-    focusWithoutScrollingV1(event.currentTarget);
-    return;
-  }
-  const activeIndex = controls.findIndex(
-    (control) => control === event.currentTarget.ownerDocument.activeElement,
-  );
-  const nextIndex = event.shiftKey
-    ? activeIndex <= 0 ? controls.length - 1 : activeIndex - 1
-    : activeIndex < 0 || activeIndex === controls.length - 1
-    ? 0
-    : activeIndex + 1;
-  const next = controls[nextIndex];
-  if (next === undefined) return;
-  event.preventDefault();
-  focusWithoutScrollingV1(next);
+interface DevDockDragStateV1 {
+  readonly pointerId: number;
+  readonly grabX: number;
+  readonly grabY: number;
 }
 
-function usePortraitDevDockLayoutV1(): boolean {
-  const [matches, setMatches] = useState(false);
+/**
+ * One floating, movable, non-modal tool window. The game behind it stays
+ * fully interactive; the window isolates input only while focus is inside
+ * it, and Escape closes just this window.
+ */
+function DevDockWindowV1(props: {
+  readonly panel: DevDockPanelV1;
+  readonly cascadeIndex: number;
+  readonly cheatsEnabled: boolean;
+  readonly portalTarget: Element;
+  onClose(): void;
+  onFocusWithin(panelId: string, focused: boolean): void;
+}): ReactElement {
+  const containerRef = useRef<HTMLElement | null>(null);
+  const dragRef = useRef<DevDockDragStateV1 | null>(null);
+  const [dragPosition, setDragPosition] = useState<
+    { readonly x: number; readonly y: number } | null
+  >(
+    null,
+  );
+  const { panel, onClose, onFocusWithin, portalTarget } = props;
+  const authorized = panel.authority === "read_only" || props.cheatsEnabled;
 
   useLayoutEffect(() => {
-    if (typeof window.matchMedia !== "function") return undefined;
-    const query = window.matchMedia(portraitDevDockMediaQueryV1);
-    const publish = (): void => setMatches(query.matches);
-    publish();
-    query.addEventListener("change", publish);
-    return () => query.removeEventListener("change", publish);
+    const container = containerRef.current;
+    if (container === null) return;
+    focusWithoutScrollingV1(focusableElementsV1(container)[0] ?? container);
+  }, [portalTarget]);
+
+  const moveTo = useCallback((clientX: number, clientY: number): void => {
+    const drag = dragRef.current;
+    const container = containerRef.current;
+    const host = container?.parentElement;
+    if (drag === null || container === null || host === null || host === undefined) return;
+    const hostBounds = host.getBoundingClientRect();
+    const bounds = container.getBoundingClientRect();
+    const maxX = Math.max(0, hostBounds.width - bounds.width);
+    const maxY = Math.max(0, hostBounds.height - bounds.height);
+    setDragPosition({
+      x: Math.min(Math.max(clientX - hostBounds.left - drag.grabX, 0), maxX),
+      y: Math.min(Math.max(clientY - hostBounds.top - drag.grabY, 0), maxY),
+    });
   }, []);
 
-  return matches;
-}
+  const onHeaderPointerDown = useCallback((event: ReactPointerEvent<HTMLElement>): void => {
+    event.stopPropagation();
+    if (event.button !== 0) return;
+    if ((event.target as Element).closest("button, input, select, textarea, a") !== null) return;
+    const container = containerRef.current;
+    if (container === null) return;
+    const bounds = container.getBoundingClientRect();
+    dragRef.current = {
+      pointerId: event.pointerId,
+      grabX: event.clientX - bounds.left,
+      grabY: event.clientY - bounds.top,
+    };
+    const header = event.currentTarget;
+    if (typeof header.setPointerCapture === "function") {
+      header.setPointerCapture(event.pointerId);
+    }
+  }, []);
 
-function DevDockRailV1(props: {
-  readonly side: DevDockSideV1;
-  readonly panels: readonly DevDockPanelV1[];
-  readonly cheatsEnabled: boolean;
-  readonly selectedPanelId: string | null;
-  onSelect(panelId: string): void;
-  onClose(): void;
-}): ReactElement {
-  const selected = props.panels.find((panel) => panel.id === props.selectedPanelId) ??
-    props.panels[0] ?? null;
-  const selectedAuthorized = selected !== null &&
-    (selected.authority === "read_only" || props.cheatsEnabled);
-  const hasDisabledCheatPanel = !props.cheatsEnabled &&
-    props.panels.some((panel) => panel.authority === "cheat");
-  const disabledReasonId = `sillymaker-dev-dock-${props.side}-cheat-reason`;
-  const label = props.side === "left" ? "左侧开发工具" : "右侧开发工具";
+  const onHeaderPointerMove = useCallback((event: ReactPointerEvent<HTMLElement>): void => {
+    if (dragRef.current === null || dragRef.current.pointerId !== event.pointerId) return;
+    event.stopPropagation();
+    moveTo(event.clientX, event.clientY);
+  }, [moveTo]);
+
+  const onHeaderPointerEnd = useCallback((event: ReactPointerEvent<HTMLElement>): void => {
+    if (dragRef.current === null || dragRef.current.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    const header = event.currentTarget;
+    if (
+      typeof header.hasPointerCapture === "function" &&
+      typeof header.releasePointerCapture === "function" &&
+      header.hasPointerCapture(event.pointerId)
+    ) {
+      header.releasePointerCapture(event.pointerId);
+    }
+  }, []);
 
   return (
-    <aside
-      id={`sillymaker-dev-dock-${props.side}`}
-      className={styles["dev-dock__rail"]}
-      data-side={props.side}
-      role="complementary"
-      aria-label={label}
+    <section
+      ref={containerRef}
+      className={styles["dev-dock__window"]}
+      role="dialog"
+      aria-label={panel.title}
+      data-devdock-window={panel.id}
+      data-devdock-escape-owner="true"
       tabIndex={-1}
+      style={dragPosition === null
+        ? { "--devdock-cascade": props.cascadeIndex } as Record<string, number>
+        : {
+          insetInlineStart: `${String(dragPosition.x)}px`,
+          insetBlockStart: `${String(dragPosition.y)}px`,
+          insetInlineEnd: "auto",
+          insetBlockEnd: "auto",
+        }}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
+      onFocus={() => onFocusWithin(panel.id, true)}
+      onBlur={(event) => {
+        if (
+          event.relatedTarget === null ||
+          !event.currentTarget.contains(event.relatedTarget as Node)
+        ) {
+          onFocusWithin(panel.id, false);
+        }
+      }}
+      onKeyDownCapture={(event) => {
+        if (event.key !== "Escape") return;
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      }}
     >
-      <header className={styles["dev-dock__header"]}>
-        <h2>{label}</h2>
-        <Button onClick={props.onClose}>关闭{label}</Button>
+      <header
+        className={styles["dev-dock__window-header"]}
+        data-devdock-window-drag="true"
+        onPointerDown={onHeaderPointerDown}
+        onPointerMove={onHeaderPointerMove}
+        onPointerUp={onHeaderPointerEnd}
+        onPointerCancel={onHeaderPointerEnd}
+      >
+        <h2>{panel.title}</h2>
+        <IconButton
+          accessibleName="关闭"
+          title="关闭"
+          className={styles["dev-dock__window-close"]}
+          data-devdock-window-close="true"
+          onClick={onClose}
+        >
+          <svg viewBox="0 0 12 12" width="12" height="12" focusable="false">
+            <path
+              d="M2.2 2.2l7.6 7.6M9.8 2.2l-7.6 7.6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+        </IconButton>
       </header>
-      {props.panels.length === 0
-        ? <p className={styles["dev-dock__empty"]}>暂无可用开发工具</p>
-        : (
-          <>
-            <nav className={styles["dev-dock__tabs"]} aria-label={`${label}面板`}>
-              {props.panels.map((panel) => {
-                const disabled = panel.authority === "cheat" && !props.cheatsEnabled;
-                return (
-                  <Button
-                    key={panel.id}
-                    aria-pressed={selected?.id === panel.id}
-                    aria-describedby={disabled ? disabledReasonId : undefined}
-                    disabled={disabled}
-                    onClick={() => props.onSelect(panel.id)}
-                  >
-                    {panel.title}
-                  </Button>
-                );
-              })}
-            </nav>
-            {hasDisabledCheatPanel
-              ? (
-                <p id={disabledReasonId} className={styles["dev-dock__authority-reason"]}>
-                  需要启用作弊功能
-                </p>
-              )
-              : null}
-            {/* Scrollable panel content stays keyboard-reachable (WCAG). */}
-            <section
-              className={styles["dev-dock__panel"]}
-              aria-live="polite"
-              aria-label={selected?.title ?? "面板"}
-              tabIndex={0}
-            >
-              {selectedAuthorized ? selected.render() : <p>需要启用作弊功能</p>}
-            </section>
-          </>
-        )}
-    </aside>
+      {/* Scrollable panel content stays keyboard-reachable (WCAG). */}
+      <section
+        className={styles["dev-dock__panel"]}
+        aria-live="polite"
+        aria-label={panel.title}
+        tabIndex={0}
+      >
+        {authorized ? panel.render() : <p>需要启用作弊功能</p>}
+      </section>
+    </section>
   );
 }
 
 /** Runtime-gated GameShell chrome; it never receives Snapshot or Story state. */
 export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
   const { onOpenStateChange } = props;
+  const position = props.position ?? "top_right";
+  if (!devDockPositionsV1.includes(position)) {
+    throw new TypeError(`ui.devdock_invalid_position:${position as string}`);
+  }
+  const showChip = props.chip !== false;
   const capabilities = useSyncExternalStore(
     props.capabilities.state.subscribe,
     props.capabilities.state.getCurrent,
@@ -251,54 +362,82 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
     () => createDevDockContributionSetV1(props.contributions),
     [props.contributions],
   );
-  const leftPanels = contributions.panels.filter((panel) => panel.side === "left");
-  const rightPanels = contributions.panels.filter((panel) => panel.side === "right");
-  const [selectedLeft, setSelectedLeft] = useState<string | null>(leftPanels[0]?.id ?? null);
-  const [selectedRight, setSelectedRight] = useState<string | null>(rightPanels[0]?.id ?? null);
-  const leftLauncherRef = useRef<HTMLButtonElement>(null);
-  const rightLauncherRef = useRef<HTMLButtonElement>(null);
-  const focusScopeRef = useRef<HTMLDivElement | null>(null);
-  const portraitLayout = usePortraitDevDockLayoutV1();
+  const panels = contributions.panels;
+  const localControlRef = useRef<DevDockControlV1 | null>(null);
+  if (props.control === undefined && localControlRef.current === null) {
+    localControlRef.current = createDevDockControlV1();
+  }
+  const control = props.control ?? localControlRef.current;
+  if (control === null) throw new TypeError("ui.devdock_missing_control");
+  const openPanelIds = useSyncExternalStore(
+    control.openPanelIds.subscribe,
+    control.openPanelIds.getCurrent,
+    control.openPanelIds.getCurrent,
+  );
+  const chipRef = useRef<HTMLButtonElement>(null);
+  const [focusedWindows, setFocusedWindows] = useState<readonly string[]>(Object.freeze([]));
   const { target, surface } = useDevDockPortalTargetV1();
-  const openSide: DevDockSideV1 | null = props.openState.leftOpen
-    ? "left"
-    : props.openState.rightOpen
-    ? "right"
-    : null;
+  const menuOpen = props.openState.open;
+  const debugTools = capabilities.debugTools;
+  const cheatsEnabled = debugTools && capabilities.cheats;
 
   const publishOpenState = useCallback(
     (next: DevDockOpenStateV1): void => onOpenStateChange(next),
     [onOpenStateChange],
   );
-  const restoreLauncherFocus = useCallback((side: DevDockSideV1): void => {
-    const launcher = side === "left" ? leftLauncherRef.current : rightLauncherRef.current;
+  const restoreChipFocus = useCallback((): void => {
+    const chip = chipRef.current;
     queueMicrotask(() => {
-      if (launcher?.isConnected === true) focusWithoutScrollingV1(launcher);
+      if (chip?.isConnected === true) focusWithoutScrollingV1(chip);
     });
   }, []);
-  const closeRail = useCallback((): void => {
-    if (openSide === null) return;
-    const side = openSide;
+  const closeMenu = useCallback((): void => {
+    if (!menuOpen) return;
     publishOpenState(closedDevDockStateV1);
-    restoreLauncherFocus(side);
-  }, [openSide, publishOpenState, restoreLauncherFocus]);
+    restoreChipFocus();
+  }, [menuOpen, publishOpenState, restoreChipFocus]);
+  const onWindowFocusWithin = useCallback((panelId: string, focused: boolean): void => {
+    setFocusedWindows((current) => {
+      if (focused) {
+        return current.includes(panelId) ? current : Object.freeze([...current, panelId]);
+      }
+      return current.includes(panelId)
+        ? Object.freeze(current.filter((id) => id !== panelId))
+        : current;
+    });
+  }, []);
+
+  // Publish the validated registry so a Story dock can list the same tools.
+  useEffect(() => {
+    control.publishPanelsInternalV1(
+      panels.map(({ id, title, authority }) => Object.freeze({ id, title, authority })),
+    );
+    return () => control.publishPanelsInternalV1(Object.freeze([]));
+  }, [control, panels]);
 
   useLayoutEffect(() => {
-    if (props.openState.leftOpen && props.openState.rightOpen) {
-      publishOpenState(openDevDockStateV1("left"));
-    }
-  }, [props.openState.leftOpen, props.openState.rightOpen, publishOpenState]);
-
-  useLayoutEffect(() => {
-    if (!capabilities.debugTools && openSide !== null) {
-      const side = openSide;
+    if (debugTools) return;
+    control.closeAll();
+    if (menuOpen) {
       publishOpenState(closedDevDockStateV1);
-      restoreLauncherFocus(side);
+      restoreChipFocus();
     }
-  }, [capabilities.debugTools, openSide, publishOpenState, restoreLauncherFocus]);
+  }, [control, debugTools, menuOpen, publishOpenState, restoreChipFocus]);
 
   useLayoutEffect(() => {
-    if (openSide === null) return undefined;
+    setFocusedWindows((current) => {
+      const next = current.filter((id) => openPanelIds.includes(id));
+      return next.length === current.length ? current : Object.freeze(next);
+    });
+  }, [openPanelIds]);
+
+  // The game stays interactive while windows float; debug input isolation
+  // applies only while focus is inside a window (typing in tool forms never
+  // doubles as a stage shortcut). Closing a window must drop isolation even
+  // if React never delivers blur for the unmounted node.
+  const inputIsolated = focusedWindows.some((id) => openPanelIds.includes(id));
+  useLayoutEffect(() => {
+    if (!inputIsolated) return undefined;
     return props.inputRouter.register({
       context: "debug",
       handle(event) {
@@ -307,83 +446,158 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
           : inputHandledV1;
       },
     });
-  }, [openSide, props.inputRouter]);
+  }, [inputIsolated, props.inputRouter]);
 
+  const openWindows = openPanelIds
+    .map((panelId) => panels.find((panel) => panel.id === panelId) ?? null)
+    .filter((panel): panel is DevDockPanelV1 => panel !== null);
+
+  // Different diagnostic operations, different behavior: a `frozen` panel
+  // window engages the presentation freeze for its lifetime (edge-triggered
+  // so the manual toggle keeps working independently).
+  const freeze = props.freeze ?? null;
+  const frozen = useSyncExternalStore(
+    freeze?.state.subscribe ?? noSubscriptionV1,
+    () => freeze?.state.getCurrent().frozen ?? false,
+    () => freeze?.state.getCurrent().frozen ?? false,
+  );
+  const wantsFrozenWindow = openWindows.some((panel) => panel.stage === "frozen");
+  const previousWantsFrozenRef = useRef(wantsFrozenWindow);
   useLayoutEffect(() => {
-    if (openSide === null) return;
-    const scope = focusScopeRef.current;
-    if (scope !== null) focusWithoutScrollingV1(focusableElementsV1(scope)[0] ?? scope);
-  }, [openSide, target]);
-
+    const was = previousWantsFrozenRef.current;
+    previousWantsFrozenRef.current = wantsFrozenWindow;
+    if (freeze === null) return;
+    if (!was && wantsFrozenWindow) freeze.pause();
+    else if (was && !wantsFrozenWindow) freeze.resume();
+  }, [freeze, wantsFrozenWindow]);
   useLayoutEffect(() => {
-    const removeFromTabOrder = portraitLayout && openSide !== null;
-    for (const launcher of [leftLauncherRef.current, rightLauncherRef.current]) {
-      if (launcher === null) continue;
-      if (removeFromTabOrder) launcher.setAttribute("tabindex", "-1");
-      else launcher.removeAttribute("tabindex");
-    }
-  }, [openSide, portraitLayout, target]);
+    if (debugTools || freeze === null) return;
+    freeze.resume();
+  }, [debugTools, freeze]);
+  // The dock owns the freeze lever; tearing the dock down (capability
+  // revocation, unmount) never leaves the world frozen behind it.
+  useLayoutEffect(() => () => freeze?.resume(), [freeze]);
 
-  useLayoutEffect(() => {
-    if (selectedLeft !== null && leftPanels.some((panel) => panel.id === selectedLeft)) return;
-    setSelectedLeft(leftPanels[0]?.id ?? null);
-  }, [leftPanels, selectedLeft]);
+  if (!debugTools || target === null) return null;
+  // A Story dock hides the chip and opens windows through the control.
+  // With nothing to show, do not leave an empty full-canvas overlay.
+  if (!showChip && openWindows.length === 0) return null;
 
-  useLayoutEffect(() => {
-    if (selectedRight !== null && rightPanels.some((panel) => panel.id === selectedRight)) return;
-    setSelectedRight(rightPanels[0]?.id ?? null);
-  }, [rightPanels, selectedRight]);
-
-  if ((!capabilities.debugTools && openSide === null) || target === null) return null;
-  const activePanels = openSide === "left" ? leftPanels : rightPanels;
-  const selectedPanelId = openSide === "left" ? selectedLeft : selectedRight;
+  const anySurfaceOpen = menuOpen || openWindows.length > 0;
 
   return createPortal(
     <div
       className={styles["dev-dock"]}
       data-devdock-surface={surface}
-      data-devdock-escape-owner={openSide === null ? undefined : "true"}
-      data-devdock-open={openSide === null ? undefined : "true"}
-      data-devdock-portrait={portraitLayout ? "true" : undefined}
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => event.stopPropagation()}
+      data-devdock-position={position}
+      data-devdock-open={anySurfaceOpen ? "true" : undefined}
+      data-devdock-escape-owner={anySurfaceOpen ? "true" : undefined}
       onKeyDownCapture={(event) => {
-        if (event.key !== "Escape" || openSide === null) return;
+        if (event.key !== "Escape" || !menuOpen) return;
+        // Window Escapes close their own window; the menu owns the rest.
+        if ((event.target as Element).closest?.("[data-devdock-window]") !== null) return;
         event.preventDefault();
         event.stopPropagation();
-        closeRail();
+        closeMenu();
       }}
     >
-      <DebugLaunchersV1
-        openState={props.openState}
-        leftRef={leftLauncherRef}
-        rightRef={rightLauncherRef}
-        onOpen={(side) => publishOpenState(openDevDockStateV1(side))}
-      />
-      {openSide === null ? null : (
-        <div
-          ref={focusScopeRef}
-          className={styles["dev-dock__focus-scope"]}
-          role={portraitLayout ? "dialog" : undefined}
-          aria-label={portraitLayout
-            ? openSide === "left" ? "左侧开发工具面板" : "右侧开发工具面板"
-            : undefined}
-          aria-modal={portraitLayout ? true : undefined}
-          tabIndex={-1}
-          onKeyDownCapture={(event) => {
-            trapTabV1(event);
+      {showChip
+        ? (
+          <Button
+            ref={chipRef}
+            className={styles["dev-dock__chip"]}
+            data-devdock-chip="true"
+            aria-expanded={menuOpen}
+            aria-controls="sillymaker-dev-dock-menu"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (menuOpen) closeMenu();
+              else publishOpenState(openedDevDockStateV1);
+            }}
+          >
+            开发工具
+          </Button>
+        )
+        : null}
+      {showChip && menuOpen
+        ? (
+          <nav
+            id="sillymaker-dev-dock-menu"
+            className={styles["dev-dock__menu"]}
+            aria-label="开发工具"
+            data-devdock-menu="true"
+            data-devdock-escape-owner="true"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+            onKeyDownCapture={(event) => {
+              if (event.key !== "Escape") return;
+              event.preventDefault();
+              event.stopPropagation();
+              closeMenu();
+            }}
+          >
+            {panels.length === 0
+              ? <p className={styles["dev-dock__empty"]}>暂无可用开发工具</p>
+              : panels.map((panel) => {
+                const disabled = panel.authority === "cheat" && !cheatsEnabled;
+                const open = openPanelIds.includes(panel.id);
+                return (
+                  <Button
+                    key={panel.id}
+                    aria-pressed={open}
+                    aria-describedby={disabled ? "sillymaker-dev-dock-cheat-reason" : undefined}
+                    disabled={disabled}
+                    onClick={() => {
+                      if (open) control.close(panel.id);
+                      else control.open(panel.id);
+                    }}
+                  >
+                    {panel.title}
+                  </Button>
+                );
+              })}
+            {freeze !== null
+              ? (
+                <Button
+                  data-devdock-freeze-toggle="true"
+                  aria-pressed={frozen}
+                  onClick={() => {
+                    if (frozen) freeze.resume();
+                    else freeze.pause();
+                  }}
+                >
+                  {frozen ? "恢复画面" : "冻结画面"}
+                </Button>
+              )
+              : null}
+            {!cheatsEnabled && panels.some((panel) => panel.authority === "cheat")
+              ? (
+                <p
+                  id="sillymaker-dev-dock-cheat-reason"
+                  className={styles["dev-dock__authority-reason"]}
+                >
+                  需要启用作弊功能
+                </p>
+              )
+              : null}
+          </nav>
+        )
+        : null}
+      {openWindows.map((panel, index) => (
+        <DevDockWindowV1
+          key={panel.id}
+          panel={panel}
+          cascadeIndex={index}
+          cheatsEnabled={cheatsEnabled}
+          portalTarget={target}
+          onClose={() => {
+            control.close(panel.id);
+            restoreChipFocus();
           }}
-        >
-          <DevDockRailV1
-            side={openSide}
-            panels={activePanels}
-            cheatsEnabled={capabilities.debugTools && capabilities.cheats}
-            selectedPanelId={selectedPanelId}
-            onSelect={openSide === "left" ? setSelectedLeft : setSelectedRight}
-            onClose={closeRail}
-          />
-        </div>
-      )}
+          onFocusWithin={onWindowFocusWithin}
+        />
+      ))}
     </div>,
     target,
   );

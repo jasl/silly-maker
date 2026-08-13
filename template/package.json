@@ -17,6 +17,8 @@
     "preview": "deno run -A npm:vite preview",
     "clean": "rm -rf dist-web dist-desktop",
     "story": "deno run -A ./tools/story.mts",
+    "format": "deno fmt",
+    "format:check": "deno fmt --check",
     "test": "deno run -A npm:vitest run src"
   },
   "dependencies": {

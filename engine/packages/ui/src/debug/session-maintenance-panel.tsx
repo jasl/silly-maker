@@ -8,6 +8,9 @@ import type { VersionStampV1 } from "@sillymaker/base";
 import type { SaveOverlayPortV1 } from "../persistence/save-overlay.tsx";
 import { Button } from "../primitives/button.tsx";
 
+/** Built-in DevDock panel id; a Story dock that inlines these actions should skip it. */
+export const engineSessionMaintenancePanelIdV1 = "engine.session_maintenance";
+
 /**
  * Built-in DevDock panel body for session and persistence maintenance.
  *
@@ -31,6 +34,18 @@ export interface SessionMaintenanceLabelsV1 {
   readonly importInvalidText: string;
   readonly wipeArmedText: string;
   readonly wipeDoneText: string;
+}
+
+export function sessionMaintenanceImportNoteV1(
+  result: Awaited<ReturnType<SaveOverlayPortV1["importSave"]>>,
+  labels: SessionMaintenanceLabelsV1,
+): string | null {
+  if (result.kind === "imported") return labels.importDoneText;
+  if (result.kind === "cancelled") return null;
+  const code = "code" in result ? result.code : null;
+  if (code === "incompatible") return labels.importIncompatibleText;
+  if (code === "invalid_record") return labels.importInvalidText;
+  return `${result.kind}${code === null ? "" : ` (${code})`}`;
 }
 
 export const defaultSessionMaintenanceLabelsV1: SessionMaintenanceLabelsV1 = Object.freeze({
@@ -147,18 +162,8 @@ export function SessionMaintenancePanelV1(props: SessionMaintenancePanelPropsV1)
               void savePort
                 .importSave()
                 .then((result) => {
-                  if (result.kind === "imported") {
-                    setNote(labels.importDoneText);
-                  } else if (result.kind !== "cancelled") {
-                    const code = "code" in result ? result.code : null;
-                    setNote(
-                      code === "incompatible"
-                        ? labels.importIncompatibleText
-                        : code === "invalid_record"
-                        ? labels.importInvalidText
-                        : `${result.kind}${code === null ? "" : ` (${code})`}`,
-                    );
-                  }
+                  const next = sessionMaintenanceImportNoteV1(result, labels);
+                  if (next !== null) setNote(next);
                 })
                 .catch((error: unknown) => setNote(failureNote(error)))
                 .finally(() => setBusy(null));

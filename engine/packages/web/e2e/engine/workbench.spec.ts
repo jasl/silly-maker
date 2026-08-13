@@ -13,10 +13,12 @@ test.describe("engine motion workbench (M3)", () => {
     try {
       await gotoLabV1(page, "?capability=debug_tools");
 
-      // Open the Workbench panel from the named preview case.
-      await page.getByRole("button", { name: "打开左侧开发工具" }).click();
-      const dock = page.getByRole("complementary", { name: "左侧开发工具" });
-      await dock.getByRole("button", { name: "Motion 工坊" }).click();
+      // Open the Workbench window from the named preview case.
+      await page.getByRole("button", { name: "开发工具" }).click();
+      await page.getByRole("navigation", { name: "开发工具" })
+        .getByRole("button", { name: "Motion 工坊" })
+        .click();
+      const dock = page.getByRole("dialog", { name: "Motion 工坊" });
       await dock.locator('[data-motion-workbench-case="case.e2e.char-enter"]').click();
       await expect(dock.locator("[data-motion-workbench]")).toBeVisible();
 

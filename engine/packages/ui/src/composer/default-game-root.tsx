@@ -4,6 +4,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -16,8 +17,17 @@ import type {
 } from "@sillymaker/base";
 
 import { createDevDockContributionSetV1, DevDockV1 } from "../debug/dev-dock.tsx";
-import type { DevDockContributionSetV1, DevDockOpenStateV1 } from "../debug/dev-dock.tsx";
-import { SessionMaintenancePanelV1 } from "../debug/session-maintenance-panel.tsx";
+import type {
+  DevDockContributionSetV1,
+  DevDockOpenStateV1,
+  DevDockPositionV1,
+} from "../debug/dev-dock.tsx";
+import type { DevDockControlV1 } from "../debug/dev-dock-control.ts";
+import type { PresentationFreezePortV1 } from "../presentation-run/presentation-freeze.ts";
+import {
+  engineSessionMaintenancePanelIdV1,
+  SessionMaintenancePanelV1,
+} from "../debug/session-maintenance-panel.tsx";
 import type { InputRouterV1 } from "../input/contracts.ts";
 import type { GamepadActionMapV1 } from "../input/gamepad-adapter.ts";
 import { installGamepadAdapterV1 } from "../input/gamepad-adapter.ts";
@@ -85,6 +95,8 @@ export interface DefaultGameRootLabelsV1 {
   readonly titleNewGameFailedText: string;
   readonly titleContinueLabel: string;
   readonly titleLoadGameLabel: string;
+  /** Title Settings control; omitted means `settingsLabel`. */
+  readonly titleSettingsLabel?: string;
   readonly closeLabel: string;
 }
 
@@ -150,7 +162,11 @@ export interface DefaultGameRootSlotContextV1<
  * publication plus the semantic port; adding a Story overlay or layer
  * contribution never modifies the composer.
  */
-export interface DefaultGameRootSlotsV1<TPublication, TSemantic, TOverlayId extends string> {
+export interface DefaultGameRootSlotsV1<
+  TPublication,
+  TSemantic,
+  TOverlayId extends string,
+> {
   background?(
     context: DefaultGameRootSlotContextV1<TPublication, TSemantic, TOverlayId>,
   ): ReactNode;
@@ -160,7 +176,9 @@ export interface DefaultGameRootSlotsV1<TPublication, TSemantic, TOverlayId exte
   sceneInteraction?(
     context: DefaultGameRootSlotContextV1<TPublication, TSemantic, TOverlayId>,
   ): ReactNode;
-  hud?(context: DefaultGameRootSlotContextV1<TPublication, TSemantic, TOverlayId>): ReactNode;
+  hud?(
+    context: DefaultGameRootSlotContextV1<TPublication, TSemantic, TOverlayId>,
+  ): ReactNode;
   systemMenuExtras?(
     context: DefaultGameRootSlotContextV1<TPublication, TSemantic, TOverlayId>,
   ): ReactNode;
@@ -196,6 +214,12 @@ export interface DefaultGameRootPropsV1<
    * their own UI through the slot context's `systemDialogs` intents instead.
    */
   readonly hideSystemMenu?: boolean;
+  /**
+   * Removes the developer-tools switch from the default Settings sections.
+   * For Stories that ship their own tooling surface; the
+   * `?capability=debug_tools` URL opt-in for the DevDock keeps working.
+   */
+  readonly hideDeveloperToolsToggle?: boolean;
   /** Optional live stage label (current scene name) for the shell main region. */
   resolveStageAccessibleName?(
     publication: DeepReadonly<
@@ -232,12 +256,20 @@ export interface DefaultGameRootPropsV1<
   readonly devDockContributions?: DevDockContributionSetV1;
   /**
    * Optional DevDock extensions: a capability-gated lazy contribution
-   * loader (tooling UI stays out of the player bundle) and an open-state
-   * observer feeding diagnostics UI context.
+   * loader (tooling UI stays out of the player bundle), an open-state
+   * observer feeding diagnostics UI context, the chip/menu corner (default
+   * `top_right`; applications reposition when it occludes their chrome —
+   * bottom corners expand upward), a chip visibility switch (a Story whose
+   * own dock drives the control port hides the built-in entry), and the
+   * shared window control port.
    */
   readonly devDock?: {
     load?(): Promise<DevDockContributionSetV1>;
     observeOpenState?(state: DevDockOpenStateV1): void;
+    readonly position?: DevDockPositionV1;
+    readonly chip?: boolean;
+    readonly control?: DevDockControlV1;
+    readonly freeze?: PresentationFreezePortV1;
   };
   /** Engine-owned maintenance panel contributed to the sole DevDock host. */
   readonly sessionMaintenance?: {
@@ -252,10 +284,8 @@ export interface DefaultGameRootPropsV1<
   };
 }
 
-const closedDevDockStateV1 = Object.freeze({
-  leftOpen: false,
-  rightOpen: false,
-}) satisfies DevDockOpenStateV1;
+const closedDevDockStateV1 = Object.freeze({ open: false }) satisfies DevDockOpenStateV1;
+const openedDevDockStateV1 = Object.freeze({ open: true }) satisfies DevDockOpenStateV1;
 const emptyDevDockContributionsV1 = createDevDockContributionSetV1({
   panels: [],
 });
@@ -265,7 +295,10 @@ function createDefaultOverlayResolverV1<TOverlayId extends string>(input: {
 }): OverlayRendererResolverV1<GameUiOverlayIdV1<TOverlayId>> {
   return Object.freeze({
     resolve(overlayId: DeepReadonly<GameUiOverlayIdV1<TOverlayId>>) {
-      return input.storyResolver?.resolve(overlayId as DeepReadonly<TOverlayId>) ?? null;
+      return (
+        input.storyResolver?.resolve(overlayId as DeepReadonly<TOverlayId>) ??
+          null
+      );
     },
   });
 }
@@ -277,8 +310,18 @@ function DefaultDevDockV1(props: {
   readonly contributions: DevDockContributionSetV1;
   readonly load?: () => Promise<DevDockContributionSetV1>;
   readonly observeOpenState?: (state: DevDockOpenStateV1) => void;
+  readonly position?: DevDockPositionV1;
+  readonly chip?: boolean;
+  readonly control?: DevDockControlV1;
+  readonly freeze?: PresentationFreezePortV1;
   readonly composition: {
-    readonly input: GameUiCompositionV1<never, never, never, never, never>["input"];
+    readonly input: GameUiCompositionV1<
+      never,
+      never,
+      never,
+      never,
+      never
+    >["input"];
   };
 }): ReactElement | null {
   const capabilities = useSyncExternalStore(
@@ -286,16 +329,37 @@ function DefaultDevDockV1(props: {
     props.capabilities.state.getCurrent,
     props.capabilities.state.getCurrent,
   );
-  const [openState, setOpenStateRaw] = useState<DevDockOpenStateV1>(closedDevDockStateV1);
-  const { observeOpenState, load } = props;
-  const setOpenState = (next: DevDockOpenStateV1): void => {
-    setOpenStateRaw(next);
-    observeOpenState?.(next);
-  };
+  const [menuState, setMenuStateRaw] = useState<DevDockOpenStateV1>(closedDevDockStateV1);
+  const { observeOpenState, load, control } = props;
+  const openWindowCount = useSyncExternalStore(
+    control?.openPanelIds.subscribe ?? (() => () => {}),
+    () => control?.openPanelIds.getCurrent().length ?? 0,
+    () => control?.openPanelIds.getCurrent().length ?? 0,
+  );
+  // The observed open state covers both surfaces: the chip menu and any
+  // floating panel window.
+  const observedOpenRef = useRef(false);
+  useEffect(() => {
+    const open = menuState.open || openWindowCount > 0;
+    if (observedOpenRef.current === open) return;
+    observedOpenRef.current = open;
+    observeOpenState?.(open ? openedDevDockStateV1 : closedDevDockStateV1);
+  }, [menuState.open, observeOpenState, openWindowCount]);
   // Lazy tooling contributions: loaded only once the capability is live, so
   // debug tooling never enters the player bundle or the resident DOM.
   const [loaded, setLoaded] = useState<DevDockContributionSetV1 | null>(null);
   const debugTools = capabilities.debugTools;
+  // A runtime capability grant (a Story dock/tools button) opens the chip
+  // menu immediately; a boot-time grant (URL/persisted preference) keeps
+  // the collapsed chip so tooling never greets the player unasked. Stories
+  // that hide the chip open specific windows through the control instead.
+  const chip = props.chip !== false;
+  const previousDebugToolsRef = useRef(debugTools);
+  useEffect(() => {
+    const was = previousDebugToolsRef.current;
+    previousDebugToolsRef.current = debugTools;
+    if (!was && debugTools && chip) setMenuStateRaw(openedDevDockStateV1);
+  }, [chip, debugTools]);
   useEffect(() => {
     if (!debugTools || load === undefined) return () => {};
     let active = true;
@@ -313,15 +377,22 @@ function DefaultDevDockV1(props: {
   if (!debugTools) return null;
   const storyContributions = loaded ?? props.contributions;
   const contributions = createDevDockContributionSetV1({
-    panels: [...props.builtInContributions.panels, ...storyContributions.panels],
+    panels: [
+      ...props.builtInContributions.panels,
+      ...storyContributions.panels,
+    ],
   });
   return (
     <DevDockV1
       capabilities={props.capabilities}
       contributions={contributions}
       inputRouter={props.composition.input}
-      openState={openState}
-      onOpenStateChange={setOpenState}
+      openState={menuState}
+      {...(props.position === undefined ? {} : { position: props.position })}
+      {...(props.chip === undefined ? {} : { chip: props.chip })}
+      {...(control === undefined ? {} : { control })}
+      {...(props.freeze === undefined ? {} : { freeze: props.freeze })}
+      onOpenStateChange={setMenuStateRaw}
     />
   );
 }
@@ -336,7 +407,9 @@ function DefaultNarrativeSurfaceHostInternalV1(props: {
     narrative.getCurrentSessionInternalV1,
     narrative.getCurrentSessionInternalV1,
   );
-  const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(null);
+  const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(
+    null,
+  );
   const [registered, setRegistered] = useState<
     Readonly<{
       readonly session: NonNullable<typeof session>;
@@ -354,16 +427,18 @@ function DefaultNarrativeSurfaceHostInternalV1(props: {
   // after the successor tuple is ready.
   useLayoutEffect(() => {
     if (session === null || portalContainer === null) return undefined;
-    const release = narrative.registerHostPhysicalIngressInternalV1(Object.freeze({
-      session,
-      portalContainer,
-      inputRouter,
-    }));
+    const release = narrative.registerHostPhysicalIngressInternalV1(
+      Object.freeze({
+        session,
+        portalContainer,
+        inputRouter,
+      }),
+    );
     const binding = Object.freeze({ session, portalContainer, inputRouter });
     setRegistered(binding);
     return () => {
       release();
-      setRegistered((current) => current === binding ? null : current);
+      setRegistered((current) => (current === binding ? null : current));
     };
   }, [inputRouter, narrative, portalContainer, session]);
 
@@ -392,7 +467,9 @@ function DefaultWholeCanvasSurfaceHostInternalV1(props: {
     wholeCanvas.getCurrentHostBindingInternalV1,
     wholeCanvas.getCurrentHostBindingInternalV1,
   );
-  const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(null);
+  const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(
+    null,
+  );
   const [registered, setRegistered] = useState<
     Readonly<{
       readonly binding: WholeCanvasSurfaceHostBindingInternalV1;
@@ -406,15 +483,17 @@ function DefaultWholeCanvasSurfaceHostInternalV1(props: {
 
   useLayoutEffect(() => {
     if (binding === null || portalContainer === null) return undefined;
-    const release = wholeCanvas.registerHostPhysicalIngressInternalV1(Object.freeze({
-      portalContainer,
-      inputRouter,
-    }));
+    const release = wholeCanvas.registerHostPhysicalIngressInternalV1(
+      Object.freeze({
+        portalContainer,
+        inputRouter,
+      }),
+    );
     const next = Object.freeze({ binding, portalContainer, inputRouter });
     setRegistered(next);
     return () => {
       release();
-      setRegistered((current) => current === next ? null : current);
+      setRegistered((current) => (current === next ? null : current));
     };
   }, [binding, inputRouter, portalContainer, wholeCanvas]);
 
@@ -434,6 +513,47 @@ function DefaultWholeCanvasSurfaceHostInternalV1(props: {
         />
       )}
     </>
+  );
+}
+
+const subscribeNothingInternalV1 = (_listener: () => void): () => void => () => {};
+
+function readFrontDoorNotExclusiveInternalV1(): boolean {
+  return false;
+}
+
+/** Splash/Title occupy the canvas as their own scene; gameplay chrome stays off-stage. */
+function useWholeCanvasFrontDoorExclusiveInternalV1(
+  wholeCanvas: WholeCanvasSurfaceCompositionRuntimeInternalV1 | null,
+): boolean {
+  const subscribe = wholeCanvas?.subscribeInternalV1 ?? subscribeNothingInternalV1;
+  const getExclusive = wholeCanvas?.isFrontDoorExclusiveInternalV1 ??
+    readFrontDoorNotExclusiveInternalV1;
+  return useSyncExternalStore(subscribe, getExclusive, getExclusive);
+}
+
+const gameplayVisibleLayerStyleInternalV1 = Object.freeze({
+  display: "contents" as const,
+});
+
+function isEmptyGameplayLayerContentInternalV1(content: ReactNode): boolean {
+  return content === null || content === undefined || content === false;
+}
+
+function concealGameplayWhileFrontDoorInternalV1(
+  exclusive: boolean,
+  content: ReactNode,
+): ReactNode {
+  // GameStage omits empty pointer layers; a wrapper around null would eat hits.
+  if (isEmptyGameplayLayerContentInternalV1(content)) return content;
+  return (
+    <div
+      hidden={exclusive}
+      data-gameplay-concealed={exclusive ? "true" : "false"}
+      style={exclusive ? undefined : gameplayVisibleLayerStyleInternalV1}
+    >
+      {content}
+    </div>
   );
 }
 
@@ -464,7 +584,11 @@ export function DefaultGameRootV1<
   if (props.saveUi !== undefined && props.customSaves !== undefined) {
     throw new TypeError("ui.system_saves_ambiguous");
   }
-  type PublicationV1 = RuntimePresentationPublicationV1<TSemanticPublication, TView, TAssetId>;
+  type PublicationV1 = RuntimePresentationPublicationV1<
+    TSemanticPublication,
+    TView,
+    TAssetId
+  >;
   const labels = Object.freeze({ ...defaultGameRootLabelsV1, ...props.labels });
   const publication = useSyncExternalStore(
     props.composition.presentation.subscribe,
@@ -494,30 +618,33 @@ export function DefaultGameRootV1<
   const updateStoryUiState = props.composition.updateUiState as (
     updater: (current: unknown) => unknown,
   ) => void;
-  const slotContext: DefaultGameRootSlotContextV1<PublicationV1, TSemantic, TOverlayId> = Object
-    .freeze({
-      publication,
-      semantic: props.semantic,
-      intents: props.composition.intents,
-      input: props.composition.input,
-      updateStoryUiState,
-      systemDialogs: Object.freeze({
-        openSettings: () => props.composition.systemDialogSession.openSettings(),
-        openSaves: () => props.composition.systemDialogSession.openSaves(),
-        returnToTitle: () => {
-          const managed = resolveOptionalGameUiManagedSurfaceCompositionInternalV1(
-            props.composition,
-          );
-          return managed === null
-            ? Promise.reject(new Error("ui.whole_canvas_front_door_unavailable"))
-            : managed.returnToTitleInternalV1();
-        },
-      }),
-      overlays: props.composition.overlaySession,
-      presentation: props.composition.presentation as never,
-      interactionSession: props.composition.interactionSession,
-      cues: props.composition.cues,
-    });
+  const slotContext: DefaultGameRootSlotContextV1<
+    PublicationV1,
+    TSemantic,
+    TOverlayId
+  > = Object.freeze({
+    publication,
+    semantic: props.semantic,
+    intents: props.composition.intents,
+    input: props.composition.input,
+    updateStoryUiState,
+    systemDialogs: Object.freeze({
+      openSettings: () => props.composition.systemDialogSession.openSettings(),
+      openSaves: () => props.composition.systemDialogSession.openSaves(),
+      returnToTitle: () => {
+        const managed = resolveOptionalGameUiManagedSurfaceCompositionInternalV1(
+          props.composition,
+        );
+        return managed === null
+          ? Promise.reject(new Error("ui.whole_canvas_front_door_unavailable"))
+          : managed.returnToTitleInternalV1();
+      },
+    }),
+    overlays: props.composition.overlaySession,
+    presentation: props.composition.presentation as never,
+    interactionSession: props.composition.interactionSession,
+    cues: props.composition.cues,
+  });
 
   // Optional keyboard/gamepad adapters: installed for the root's lifetime,
   // removed on unmount so disposal and page teardown leave no listener or
@@ -554,50 +681,71 @@ export function DefaultGameRootV1<
   );
   const narrativeComposition = managedComposition?.narrative ?? null;
   const wholeCanvasComposition = managedComposition?.wholeCanvas ?? null;
+  const frontDoorExclusive = useWholeCanvasFrontDoorExclusiveInternalV1(
+    wholeCanvasComposition,
+  );
 
   const layers = Object.freeze({
-    background: narrativeComposition === null
-      ? (
-        <div
-          className={styles["default-root__stage-slot"]}
-          key={`background:${String(anchor.epoch)}`}
-        >
-          {slots.background?.(slotContext) ?? null}
-        </div>
-      )
-      : (
-        <SemanticStageCompositionClaimantProviderInternalV1
-          claimant={narrativeComposition.getStageClaimantInternalV1()}
-          onBindInternalV1={narrativeComposition.bindStageReconcilerInternalV1}
-        >
-          <div className={styles["default-root__stage-slot"]}>
+    background: concealGameplayWhileFrontDoorInternalV1(
+      frontDoorExclusive,
+      narrativeComposition === null
+        ? (
+          <div
+            className={styles["default-root__stage-slot"]}
+            key={`background:${String(anchor.epoch)}`}
+          >
             {slots.background?.(slotContext) ?? null}
           </div>
-        </SemanticStageCompositionClaimantProviderInternalV1>
-      ),
-    character: (
-      <div className={styles["default-root__stage-slot"]} key={`character:${String(anchor.epoch)}`}>
-        {slots.character?.(slotContext) ?? null}
-      </div>
+        )
+        : (
+          <SemanticStageCompositionClaimantProviderInternalV1
+            claimant={narrativeComposition.getStageClaimantInternalV1()}
+            onBindInternalV1={narrativeComposition.bindStageReconcilerInternalV1}
+          >
+            <div className={styles["default-root__stage-slot"]}>
+              {slots.background?.(slotContext) ?? null}
+            </div>
+          </SemanticStageCompositionClaimantProviderInternalV1>
+        ),
     ),
-    sceneInteraction: slots.sceneInteraction?.(slotContext) ?? null,
-    hud: slots.hud?.(slotContext) ?? null,
+    character: concealGameplayWhileFrontDoorInternalV1(
+      frontDoorExclusive,
+      <div
+        className={styles["default-root__stage-slot"]}
+        key={`character:${String(anchor.epoch)}`}
+      >
+        {slots.character?.(slotContext) ?? null}
+      </div>,
+    ),
+    sceneInteraction: concealGameplayWhileFrontDoorInternalV1(
+      frontDoorExclusive,
+      slots.sceneInteraction?.(slotContext) ?? null,
+    ),
+    hud: concealGameplayWhileFrontDoorInternalV1(
+      frontDoorExclusive,
+      slots.hud?.(slotContext) ?? null,
+    ),
     workspaceOverlay: (
       <OverlayHostV1
-        session={resolveWorkspaceOverlaySessionInternalV1(props.composition.overlaySession)}
+        session={resolveWorkspaceOverlaySessionInternalV1(
+          props.composition.overlaySession,
+        )}
         rendererResolver={overlayResolver}
         inputRouter={props.composition.input}
         closeLabel={labels.closeLabel}
       />
     ),
-    narrative: narrativeComposition?.isHostEnabledInternalV1() === true
-      ? (
-        <DefaultNarrativeSurfaceHostInternalV1
-          narrative={narrativeComposition}
-          inputRouter={props.composition.input}
-        />
-      )
-      : null,
+    narrative: concealGameplayWhileFrontDoorInternalV1(
+      frontDoorExclusive,
+      narrativeComposition?.isHostEnabledInternalV1() === true
+        ? (
+          <DefaultNarrativeSurfaceHostInternalV1
+            narrative={narrativeComposition}
+            inputRouter={props.composition.input}
+          />
+        )
+        : null,
+    ),
     wholeCanvas: wholeCanvasComposition?.isHostEnabledInternalV1() !== true
       ? null
       : (
@@ -615,32 +763,36 @@ export function DefaultGameRootV1<
           title: labels.settingsTitle,
           closeLabel: labels.closeLabel,
           sections: Object.freeze([
-            ...(props.playerProfile === undefined || props.capabilities === undefined ? [] : [
-              <DefaultSettingsSectionsV1
-                key="sillymaker-default-settings"
-                playerProfile={props.playerProfile}
-                capabilities={props.capabilities}
-                labels={Object.freeze({
-                  bgmVolumeLabel: labels.settingsBgmVolumeLabel,
-                  voiceVolumeLabel: labels.settingsVoiceVolumeLabel,
-                  sfxVolumeLabel: labels.settingsSfxVolumeLabel,
-                  mutedLabel: labels.settingsMutedLabel,
-                  ...(labels.settingsSkipCutscenesLabel === undefined
-                    ? {}
-                    : { skipCutscenesLabel: labels.settingsSkipCutscenesLabel }),
-                  textSpeedLabel: labels.settingsTextSpeedLabel,
-                  autoWaitLabel: labels.settingsAutoWaitLabel,
-                  fullscreenLabel: labels.settingsFullscreenLabel,
-                  developerToolsLabel: labels.settingsDeveloperToolsLabel,
-                })}
-              />,
-            ]),
+            ...(props.playerProfile === undefined ||
+                props.capabilities === undefined
+              ? []
+              : [
+                <DefaultSettingsSectionsV1
+                  key="sillymaker-default-settings"
+                  playerProfile={props.playerProfile}
+                  capabilities={props.capabilities}
+                  showDeveloperTools={props.hideDeveloperToolsToggle !== true}
+                  labels={Object.freeze({
+                    bgmVolumeLabel: labels.settingsBgmVolumeLabel,
+                    voiceVolumeLabel: labels.settingsVoiceVolumeLabel,
+                    sfxVolumeLabel: labels.settingsSfxVolumeLabel,
+                    mutedLabel: labels.settingsMutedLabel,
+                    ...(labels.settingsSkipCutscenesLabel === undefined ? {} : {
+                      skipCutscenesLabel: labels.settingsSkipCutscenesLabel,
+                    }),
+                    textSpeedLabel: labels.settingsTextSpeedLabel,
+                    autoWaitLabel: labels.settingsAutoWaitLabel,
+                    fullscreenLabel: labels.settingsFullscreenLabel,
+                    developerToolsLabel: labels.settingsDeveloperToolsLabel,
+                  })}
+                />,
+              ]),
             ...(slots.settingsSections?.(slotContext) ?? []),
           ]),
           emptyText: labels.settingsEmptyText,
         })}
       >
-        {props.hideSystemMenu === true ? null : (
+        {props.hideSystemMenu === true || frontDoorExclusive ? null : (
           <div
             role="group"
             aria-label={labels.systemMenuLabel}
@@ -677,7 +829,7 @@ export function DefaultGameRootV1<
     : createDevDockContributionSetV1({
       panels: [
         {
-          id: "engine.session_maintenance",
+          id: engineSessionMaintenancePanelIdV1,
           side: "right",
           title: "Session maintenance",
           authority: "cheat",
@@ -686,12 +838,12 @@ export function DefaultGameRootV1<
               {...(props.sessionMaintenance?.savePort === undefined
                 ? {}
                 : { savePort: props.sessionMaintenance.savePort })}
-              {...(props.sessionMaintenance?.clearAllSaves === undefined
-                ? {}
-                : { clearAllSaves: props.sessionMaintenance.clearAllSaves })}
-              {...(props.lifecycle === undefined
-                ? {}
-                : { onReinitialize: slotContext.systemDialogs.returnToTitle })}
+              {...(props.sessionMaintenance?.clearAllSaves === undefined ? {} : {
+                clearAllSaves: props.sessionMaintenance.clearAllSaves,
+              })}
+              {...(props.lifecycle === undefined ? {} : {
+                onReinitialize: slotContext.systemDialogs.returnToTitle,
+              })}
             />
           ),
         },
@@ -705,12 +857,14 @@ export function DefaultGameRootV1<
       data-presentation-epoch={anchor.epoch}
       data-presentation-origin={anchor.origin}
       data-presentation-revision={publication.revision}
+      data-front-door-exclusive={frontDoorExclusive ? "true" : "false"}
       {...(semanticRevision === undefined ? {} : { "data-semantic-revision": semanticRevision })}
       {...(semanticStatus === undefined ? {} : { "data-semantic-status": semanticStatus })}
       className={styles["default-root"]}
     >
       <GameShell
-        accessibleName={props.resolveStageAccessibleName?.(publication) ?? props.accessibleName}
+        accessibleName={props.resolveStageAccessibleName?.(publication) ??
+          props.accessibleName}
         layers={layers}
         inputRouter={props.composition.input}
         viewport={props.viewport}
@@ -730,6 +884,14 @@ export function DefaultGameRootV1<
                 {...(props.devDock?.observeOpenState === undefined
                   ? {}
                   : { observeOpenState: props.devDock.observeOpenState })}
+                {...(props.devDock?.position === undefined
+                  ? {}
+                  : { position: props.devDock.position })}
+                {...(props.devDock?.chip === undefined ? {} : { chip: props.devDock.chip })}
+                {...(props.devDock?.control === undefined
+                  ? {}
+                  : { control: props.devDock.control })}
+                {...(props.devDock?.freeze === undefined ? {} : { freeze: props.devDock.freeze })}
                 composition={props.composition}
               />
             )

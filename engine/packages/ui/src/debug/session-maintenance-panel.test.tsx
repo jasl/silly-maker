@@ -9,6 +9,7 @@ import { createInputRouterV1 } from "../input/input-router.ts";
 import type { SaveOverlayPortV1 } from "../persistence/save-overlay.tsx";
 import { DevDockPortalCoordinatorV1 } from "./dev-dock-portal-coordinator.tsx";
 import { createDevDockContributionSetV1, DevDockV1 } from "./dev-dock.tsx";
+import { createDevDockControlV1 } from "./dev-dock-control.ts";
 import { SessionMaintenancePanelV1 } from "./session-maintenance-panel.tsx";
 
 afterEach(cleanup);
@@ -244,13 +245,16 @@ describe("SessionMaintenancePanelV1", () => {
         },
       ],
     });
+    const control = createDevDockControlV1();
+    control.open("engine.session_maintenance");
     render(
       <DevDockPortalCoordinatorV1>
         <DevDockV1
           capabilities={capabilities}
           contributions={contributions}
           inputRouter={createInputRouterV1()}
-          openState={{ leftOpen: false, rightOpen: true }}
+          openState={{ open: false }}
+          control={control}
           onOpenStateChange={vi.fn()}
         />
       </DevDockPortalCoordinatorV1>,
@@ -273,6 +277,8 @@ describe("SessionMaintenancePanelV1", () => {
         automationBridge: false,
       })
     );
+    // Revocation closed the window; reopening mounts a fresh panel.
+    act(() => control.open("engine.session_maintenance"));
     expect(screen.getByText("Clear all saves")).toBeTruthy();
     expect(screen.queryByText("Confirm clear?")).toBeNull();
     expect(document.querySelector("[data-session-maintenance-note]")).toBeNull();
@@ -293,6 +299,7 @@ describe("SessionMaintenancePanelV1", () => {
         automationBridge: false,
       })
     );
+    act(() => control.open("engine.session_maintenance"));
     expect(document.querySelector("[data-session-maintenance-note]")).toBeNull();
   });
 });

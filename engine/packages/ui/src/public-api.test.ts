@@ -1351,7 +1351,8 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "wholeCanvasRuntimeInternalV1"
       | "wholeCanvasHostBinding"
       | "wholeCanvasHostBindingInternalV1"
-      | "getCurrentHostBindingInternalV1";
+      | "getCurrentHostBindingInternalV1"
+      | "isFrontDoorExclusiveInternalV1";
 
     expectTypeOf<
       Extract<
@@ -1378,6 +1379,7 @@ describe("@sillymaker/ui public managed System surface", () => {
         | "getCurrentSelectionInternalV1"
         | "getStageClaimantInternalV1"
         | "isHostEnabledInternalV1"
+        | "isFrontDoorExclusiveInternalV1"
         | "isGestureCurrentInternalV1"
         | "registerHostPhysicalIngressInternalV1"
         | "captureBoundHostActionInternalV1"
@@ -1402,6 +1404,7 @@ describe("@sillymaker/ui public managed System surface", () => {
         | "getCurrentSelectionInternalV1"
         | "getStageClaimantInternalV1"
         | "isHostEnabledInternalV1"
+        | "isFrontDoorExclusiveInternalV1"
         | "isGestureCurrentInternalV1"
         | "registerHostPhysicalIngressInternalV1"
         | "captureBoundHostActionInternalV1"
@@ -1804,6 +1807,7 @@ describe("@sillymaker/ui public managed System surface", () => {
     expect(publicUiV1.SystemDialogHostV1).toBeTypeOf("function");
     expect(publicUiV1.SettingsLauncherV1).toBeTypeOf("function");
     expect(publicUiV1.SavesLauncherV1).toBeTypeOf("function");
+    expect(publicUiV1.InstanceLeaseBannerV1).toBeTypeOf("function");
     expect(publicUiV1.useSystemDialogControllerV1).toBeTypeOf("function");
 
     for (

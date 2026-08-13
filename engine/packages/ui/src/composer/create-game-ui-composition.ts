@@ -129,7 +129,9 @@ export interface GameUiPresentationAnchorEventInternalV1 {
 /** @internal Hosted-only exact event source. It never expands the public anchor source. */
 export interface GameUiPresentationAnchorEventSourceInternalV1 {
   current(): GameUiPresentationAnchorV1;
-  subscribe(listener: (event: GameUiPresentationAnchorEventInternalV1) => void): () => void;
+  subscribe(
+    listener: (event: GameUiPresentationAnchorEventInternalV1) => void,
+  ): () => void;
 }
 
 /** @internal Web-owned acknowledgment producer for exact application-operation tokens. */
@@ -238,7 +240,9 @@ export interface GameUiCompositionV1<
   /** The composition-owned spatial interaction session (UI transient). */
   readonly interactionSession: InteractionSessionStoreV1;
   updateUiState(
-    updater: (current: DeepReadonly<TStoryUiState>) => DeepReadonly<TStoryUiState>,
+    updater: (
+      current: DeepReadonly<TStoryUiState>,
+    ) => DeepReadonly<TStoryUiState>,
   ): void;
   isDisposed(): boolean;
   dispose(): void;
@@ -279,8 +283,12 @@ export function resolveOptionalGameUiManagedSurfaceCompositionInternalV1(
 }
 
 /** @internal Narrow Host fence; it does not expose managed-family authority. */
-export function sealHostedGameUiCompositionTerminalInternalV1(composition: object): void {
-  resolveGameUiManagedSurfaceCompositionInternalV1(composition).sealTerminalInternalV1();
+export function sealHostedGameUiCompositionTerminalInternalV1(
+  composition: object,
+): void {
+  resolveGameUiManagedSurfaceCompositionInternalV1(
+    composition,
+  ).sealTerminalInternalV1();
 }
 
 function combineManagedSurfaceRecipeInternalV1(
@@ -303,7 +311,9 @@ function combineManagedSurfaceRecipeInternalV1(
 
 function appendWholeCanvasManagedSurfaceRecipeInternalV1(
   recipe: ManagedSurfaceCoordinatorRecipeV1,
-  family: ReturnType<typeof resolveWholeCanvasSurfaceCompositionFamilyContractInternalV1>,
+  family: ReturnType<
+    typeof resolveWholeCanvasSurfaceCompositionFamilyContractInternalV1
+  >,
 ): ManagedSurfaceCoordinatorRecipeV1 {
   return Object.freeze({
     resolvedOwnerIds: Object.freeze([
@@ -391,9 +401,14 @@ type HostedWholeCanvasBuiltinStateInternalV1 = Readonly<{
       WholeCanvasManagedSurfaceRootDesiredInternalV1["bootSplash"]
     >
     | null;
-  readonly title: NonNullable<WholeCanvasManagedSurfaceRootDesiredInternalV1["title"]> | null;
+  readonly title:
+    | NonNullable<
+      WholeCanvasManagedSurfaceRootDesiredInternalV1["title"]
+    >
+    | null;
   readonly story: WholeCanvasManagedSurfaceRootDesiredInternalV1["story"];
   readonly continueAvailable: boolean;
+  readonly loadAvailable: boolean;
   readonly newGameFailure: boolean;
 }>;
 
@@ -401,7 +416,9 @@ interface HostedWholeCanvasBridgeInternalV1<TSemanticPublication> {
   readonly definition: WholeCanvasSurfaceCompositionDefinitionInternalV1<unknown>;
   bindPublicationInternalV1(
     publication: Readonly<{
-      getSnapshot(): Readonly<{ readonly semantic: DeepReadonly<TSemanticPublication> }>;
+      getSnapshot(): Readonly<{
+        readonly semantic: DeepReadonly<TSemanticPublication>;
+      }>;
       subscribe(listener: () => void): () => void;
     }>,
   ): void;
@@ -417,11 +434,17 @@ interface HostedWholeCanvasBridgeInternalV1<TSemanticPublication> {
 function wholeCanvasTargetInternalV1(
   targetId: string,
 ): NonNullable<WholeCanvasManagedSurfaceRootDesiredInternalV1["bootSplash"]> {
-  return Object.freeze({ targetId, parameters: wholeCanvasEmptyParametersInternalV1 });
+  return Object.freeze({
+    targetId,
+    parameters: wholeCanvasEmptyParametersInternalV1,
+  });
 }
 
 function wholeCanvasOwnerIntentInternalV1(): WholeCanvasManagedSurfaceActionIntentInternalV1 {
-  return Object.freeze({ kind: "owner" as const, payload: wholeCanvasOwnerPayloadInternalV1 });
+  return Object.freeze({
+    kind: "owner" as const,
+    payload: wholeCanvasOwnerPayloadInternalV1,
+  });
 }
 
 function wholeCanvasBuiltinActionInternalV1(
@@ -447,8 +470,18 @@ function continueAvailableFromSlotsInternalV1(
   slots: readonly { readonly slotId: string; readonly health: string }[],
 ): boolean {
   const autosave = slots.find((slot) => slot.slotId === "auto.current");
-  return autosave !== undefined &&
-    (autosave.health === "valid" || autosave.health === "recovery_candidate");
+  return (
+    autosave !== undefined &&
+    (autosave.health === "valid" || autosave.health === "recovery_candidate")
+  );
+}
+
+function loadAvailableFromSlotsInternalV1(
+  slots: readonly { readonly health: string }[],
+): boolean {
+  return slots.some(
+    (slot) => slot.health === "valid" || slot.health === "recovery_candidate",
+  );
 }
 
 function isHostedNarrativeCallableInternalV1(
@@ -485,36 +518,57 @@ function hasHostedCallablesInternalV1(
 ): boolean {
   try {
     if (
-      typeof value !== "object" || value === null || Array.isArray(value) ||
+      typeof value !== "object" ||
+      value === null ||
+      Array.isArray(value) ||
       !Object.isFrozen(value)
-    ) return false;
+    ) {
+      return false;
+    }
     return keys.every((key) => {
       const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
-      return descriptor !== undefined && "value" in descriptor && descriptor.enumerable &&
-        !descriptor.configurable && !descriptor.writable &&
-        isHostedNarrativeCallableInternalV1(descriptor.value);
+      return (
+        descriptor !== undefined &&
+        "value" in descriptor &&
+        descriptor.enumerable &&
+        !descriptor.configurable &&
+        !descriptor.writable &&
+        isHostedNarrativeCallableInternalV1(descriptor.value)
+      );
     });
   } catch {
     return false;
   }
 }
 
-function captureHostedDenseStringArrayInternalV1(value: unknown): readonly string[] | null {
+function captureHostedDenseStringArrayInternalV1(
+  value: unknown,
+): readonly string[] | null {
   try {
     if (!Array.isArray(value) || !Object.isFrozen(value)) return null;
     const lengthDescriptor = Reflect.getOwnPropertyDescriptor(value, "length");
     if (
-      lengthDescriptor === undefined || !("value" in lengthDescriptor) ||
-      !Number.isSafeInteger(lengthDescriptor.value) || lengthDescriptor.value < 0 ||
+      lengthDescriptor === undefined ||
+      !("value" in lengthDescriptor) ||
+      !Number.isSafeInteger(lengthDescriptor.value) ||
+      lengthDescriptor.value < 0 ||
       Reflect.ownKeys(value).length !== lengthDescriptor.value + 1
-    ) return null;
+    ) {
+      return null;
+    }
     const captured: string[] = [];
     for (let index = 0; index < lengthDescriptor.value; index += 1) {
       const descriptor = Reflect.getOwnPropertyDescriptor(value, String(index));
       if (
-        descriptor === undefined || !("value" in descriptor) || !descriptor.enumerable ||
-        descriptor.configurable || descriptor.writable || typeof descriptor.value !== "string"
-      ) return null;
+        descriptor === undefined ||
+        !("value" in descriptor) ||
+        !descriptor.enumerable ||
+        descriptor.configurable ||
+        descriptor.writable ||
+        typeof descriptor.value !== "string"
+      ) {
+        return null;
+      }
       captured.push(descriptor.value);
     }
     return Object.freeze(captured);
@@ -534,8 +588,11 @@ function captureHostedRecordInternalV1(
 ): CapturedHostedRecordInternalV1 | null {
   try {
     if (
-      typeof input === "object" && input !== null && !Array.isArray(input) &&
-      Reflect.getPrototypeOf(input) === Object.prototype && Object.isFrozen(input)
+      typeof input === "object" &&
+      input !== null &&
+      !Array.isArray(input) &&
+      Reflect.getPrototypeOf(input) === Object.prototype &&
+      Object.isFrozen(input)
     ) {
       const ownKeys = Reflect.ownKeys(input);
       if (ownKeys.length === expectedKeys.length) {
@@ -544,8 +601,11 @@ function captureHostedRecordInternalV1(
         for (const key of expectedKeys) {
           const descriptor = Reflect.getOwnPropertyDescriptor(input, key);
           if (
-            descriptor === undefined || !("value" in descriptor) || !descriptor.enumerable ||
-            descriptor.configurable || descriptor.writable
+            descriptor === undefined ||
+            !("value" in descriptor) ||
+            !descriptor.enumerable ||
+            descriptor.configurable ||
+            descriptor.writable
           ) {
             exact = false;
             break;
@@ -553,9 +613,15 @@ function captureHostedRecordInternalV1(
           captured[key] = descriptor.value;
         }
         if (
-          exact && ownKeys.every((key) => typeof key === "string" && Object.hasOwn(captured, key))
+          exact &&
+          ownKeys.every(
+            (key) => typeof key === "string" && Object.hasOwn(captured, key),
+          )
         ) {
-          return Object.freeze({ receiver: input, values: Object.freeze(captured) });
+          return Object.freeze({
+            receiver: input,
+            values: Object.freeze(captured),
+          });
         }
       }
     }
@@ -573,16 +639,16 @@ function captureHostedSurfaceCompositionInputInternalV1<TSemanticPublication>(
     "wholeCanvas",
     "environment",
   ]);
-  const environment = captureHostedRecordInternalV1(aggregate?.values.environment, [
-    "playerProfile",
-    "presentationClock",
-    "prefersReducedMotion",
-  ]);
+  const environment = captureHostedRecordInternalV1(
+    aggregate?.values.environment,
+    ["playerProfile", "presentationClock", "prefersReducedMotion"],
+  );
   const playerProfile = environment?.values.playerProfile;
   const presentationClock = environment?.values.presentationClock;
   const prefersReducedMotion = environment?.values.prefersReducedMotion;
   if (
-    aggregate === null || environment === null ||
+    aggregate === null ||
+    environment === null ||
     !hasHostedCallablesInternalV1(playerProfile, [
       "current",
       "subscribe",
@@ -619,13 +685,10 @@ function captureHostedSurfaceCompositionInputInternalV1<TSemanticPublication>(
       capturedWholeCanvas?.values.lifecycle,
       ["restart"],
     );
-    const labels = captureHostedRecordInternalV1(capturedWholeCanvas?.values.labels, [
-      "newGame",
-      "newGameFailed",
-      "continue",
-      "load",
-      "settings",
-    ]);
+    const labels = captureHostedRecordInternalV1(
+      capturedWholeCanvas?.values.labels,
+      ["newGame", "newGameFailed", "continue", "load", "settings"],
+    );
     const titleScreen = capturedWholeCanvas?.values.titleScreen;
     const capturedTitle = titleScreen === null ? null : captureHostedRecordInternalV1(titleScreen, [
       "title",
@@ -642,43 +705,47 @@ function captureHostedSurfaceCompositionInputInternalV1<TSemanticPublication>(
       : captureHostedDenseStringArrayInternalV1(capturedSplash.values.lines);
     const savePort = capturedWholeCanvas?.values.savePort;
     if (
-      capturedWholeCanvas === null || lifecycle === null || labels === null ||
-      (capturedWholeCanvas.values.definition === null && titleScreen === null) ||
+      capturedWholeCanvas === null ||
+      lifecycle === null ||
+      labels === null ||
+      (capturedWholeCanvas.values.definition === null &&
+        titleScreen === null) ||
       !isHostedNarrativeCallableInternalV1(lifecycle.values.restart) ||
       typeof capturedWholeCanvas.values.customSavesConfigured !== "boolean" ||
-      (savePort !== null && !hasHostedCallablesInternalV1(savePort, [
-        "getStatus",
-        "listSlots",
-        "save",
-        "load",
-        "clear",
-        "annotateSave",
-        "importSave",
-        "exportSave",
-        "exportCurrentSave",
-      ])) ||
+      (savePort !== null &&
+        !hasHostedCallablesInternalV1(savePort, [
+          "getStatus",
+          "listSlots",
+          "save",
+          "load",
+          "clear",
+          "annotateSave",
+          "importSave",
+          "exportSave",
+          "exportCurrentSave",
+        ])) ||
       Object.values(labels.values).some((value) => typeof value !== "string") ||
-      (titleScreen !== null && (
-        capturedTitle === null || typeof capturedTitle.values.title !== "string" ||
-        (capturedTitle.values.backgroundUrl !== null &&
-          typeof capturedTitle.values.backgroundUrl !== "string") ||
-        (capturedTitle.values.beginNewGame !== null &&
-          !isHostedNarrativeCallableInternalV1(capturedTitle.values.beginNewGame)) ||
-        (splash !== null && (
-          capturedSplash === null || capturedSplashLines === null ||
-          (capturedSplash.values.durationMs !== null &&
-            typeof capturedSplash.values.durationMs !== "number")
-        ))
-      ))
+      (titleScreen !== null &&
+        (capturedTitle === null ||
+          typeof capturedTitle.values.title !== "string" ||
+          (capturedTitle.values.backgroundUrl !== null &&
+            typeof capturedTitle.values.backgroundUrl !== "string") ||
+          (capturedTitle.values.beginNewGame !== null &&
+            !isHostedNarrativeCallableInternalV1(
+              capturedTitle.values.beginNewGame,
+            )) ||
+          (splash !== null &&
+            (capturedSplash === null ||
+              capturedSplashLines === null ||
+              (capturedSplash.values.durationMs !== null &&
+                typeof capturedSplash.values.durationMs !== "number")))))
     ) {
       throw new TypeError("ui.whole_canvas_hosted_input_invalid");
     }
   }
   return Object.freeze({
     narrative: narrative as
-      | NarrativeSurfaceCompositionDefinitionInternalV1<
-        TSemanticPublication
-      >
+      | NarrativeSurfaceCompositionDefinitionInternalV1<TSemanticPublication>
       | null,
     wholeCanvas: wholeCanvas as HostedWholeCanvasInputInternalV1<TSemanticPublication> | null,
     environment: Object.freeze({
@@ -701,20 +768,25 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
     const listeners = new Set<() => void>();
     const bootSplash = input.titleScreen?.splash === null || input.titleScreen === null
       ? null
-      : wholeCanvasTargetInternalV1(wholeCanvasBuiltinTargetIdsInternalV1.bootSplash);
-    const title = input.titleScreen === null
-      ? null
-      : wholeCanvasTargetInternalV1(wholeCanvasBuiltinTargetIdsInternalV1.title);
+      : wholeCanvasTargetInternalV1(
+        wholeCanvasBuiltinTargetIdsInternalV1.bootSplash,
+      );
+    const title = input.titleScreen === null ? null : wholeCanvasTargetInternalV1(
+      wholeCanvasBuiltinTargetIdsInternalV1.title,
+    );
     let state: HostedWholeCanvasBuiltinStateInternalV1 = Object.freeze({
       bootSplash,
       title,
       story: null,
       continueAvailable: false,
+      loadAvailable: false,
       newGameFailure: false,
     });
     let publication:
       | Readonly<{
-        getSnapshot(): Readonly<{ readonly semantic: DeepReadonly<TSemanticPublication> }>;
+        getSnapshot(): Readonly<{
+          readonly semantic: DeepReadonly<TSemanticPublication>;
+        }>;
         subscribe(listener: () => void): () => void;
       }>
       | null = null;
@@ -765,14 +837,22 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
       }
     };
     const closeTitle = (): void => {
-      if (state.title === null && state.bootSplash === null && !state.newGameFailure) return;
+      if (
+        state.title === null &&
+        state.bootSplash === null &&
+        !state.newGameFailure
+      ) {
+        return;
+      }
       mutationGeneration += 1;
-      publishState(Object.freeze({
-        ...state,
-        bootSplash: null,
-        title: null,
-        newGameFailure: false,
-      }));
+      publishState(
+        Object.freeze({
+          ...state,
+          bootSplash: null,
+          title: null,
+          newGameFailure: false,
+        }),
+      );
     };
     const resolveBuiltin = (
       rootKind: WholeCanvasManagedSurfaceRenderEntryInternalV1["rootKind"],
@@ -790,11 +870,15 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
         throw new TypeError("ui.whole_canvas_surface_resolution_invalid");
       }
       const continueStatus = state.continueAvailable ? "enabled" : "disabled";
+      const loadStatus = !input.customSavesConfigured || state.loadAvailable
+        ? "enabled"
+        : "disabled";
       return Object.freeze({
         accessibleNameTextId: wholeCanvasBuiltinTextIdsInternalV1.title,
         view: Object.freeze({
           kind: "title",
           continueAvailable: state.continueAvailable,
+          loadAvailable: state.loadAvailable,
           newGameFailure: state.newGameFailure,
         }),
         actions: Object.freeze([
@@ -803,8 +887,13 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
             "whole-canvas.title.continue",
             continueStatus,
           ),
-          wholeCanvasBuiltinActionInternalV1("whole-canvas.title.open-load"),
-          wholeCanvasBuiltinActionInternalV1("whole-canvas.title.open-settings"),
+          wholeCanvasBuiltinActionInternalV1(
+            "whole-canvas.title.open-load",
+            loadStatus,
+          ),
+          wholeCanvasBuiltinActionInternalV1(
+            "whole-canvas.title.open-settings",
+          ),
         ]),
       });
     };
@@ -838,6 +927,7 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
       if (entry.rootKind !== "title" || input.titleScreen === null) return null;
       const view = entry.resolved.view as Readonly<{
         readonly continueAvailable: boolean;
+        readonly loadAvailable: boolean;
         readonly newGameFailure: boolean;
       }>;
       return createElement(
@@ -858,6 +948,7 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
           middleAction: input.customSavesConfigured
             ? Object.freeze({
               kind: "load" as const,
+              available: view.loadAvailable,
               onActivate: () => props.onAction("whole-canvas.title.open-load"),
             })
             : Object.freeze({
@@ -872,7 +963,10 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
         view.newGameFailure
           ? createElement(
             "p",
-            Object.freeze({ role: "alert", "data-title-lifecycle-failure": "true" }),
+            Object.freeze({
+              role: "alert",
+              "data-title-lifecycle-failure": "true",
+            }),
             input.labels.newGameFailed,
           )
           : null,
@@ -885,8 +979,13 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
           await input.lifecycle.restart(),
         );
         if (disposed || generation !== mutationGeneration) return;
-        if (result.kind !== "anchored") throw new TypeError("ui.lifecycle_restart_rejected");
-        if (input.titleScreen?.beginNewGame !== null && input.titleScreen !== null) {
+        if (result.kind !== "anchored") {
+          throw new TypeError("ui.lifecycle_restart_rejected");
+        }
+        if (
+          input.titleScreen?.beginNewGame !== null &&
+          input.titleScreen !== null
+        ) {
           await input.titleScreen.beginNewGame();
         }
         if (disposed || generation !== mutationGeneration) return;
@@ -899,9 +998,9 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
     const dispatchOwner = async (
       request: Parameters<
         NonNullable<
-          WholeCanvasSurfaceHostedAdapterInternalV1<TSemanticPublication>[
-            "dispatchStoryOwnerActionInternalV1"
-          ]
+          WholeCanvasSurfaceHostedAdapterInternalV1<
+            TSemanticPublication
+          >["dispatchStoryOwnerActionInternalV1"]
         >
       >[0],
     ): Promise<void> => {
@@ -924,6 +1023,7 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
           closeTitle();
           return;
         case "whole-canvas.title.open-load":
+          if (input.customSavesConfigured && !state.loadAvailable) return;
           systemDialogs?.openSaves();
           return;
         case "whole-canvas.title.open-settings":
@@ -933,52 +1033,62 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
           throw new TypeError("ui.whole_canvas_surface_action_fault");
       }
     };
-    const definition = createWholeCanvasSurfaceCompositionDefinitionInternalV1(Object.freeze({
-      catalog: storyAdapter?.catalogInternalV1 ?? Object.freeze([]),
-      getSnapshotInternalV1: (): WholeCanvasManagedSurfaceRootDesiredInternalV1 =>
-        Object.freeze({
-          bootSplash: state.bootSplash,
-          title: state.title,
-          story: state.story,
-        }),
-      subscribeInternalV1(listener: () => void): () => void {
-        listeners.add(listener);
-        return Object.freeze(() => listeners.delete(listener));
-      },
-      resolveTargetInternalV1: (
-        request: Parameters<
-          NonNullable<WholeCanvasSurfaceHostedAdapterInternalV1<TSemanticPublication>>[
-            "resolveStoryTargetInternalV1"
-          ]
-        >[0],
-      ): unknown =>
-        request.sourceKind === "builtin"
-          ? resolveBuiltin(request.rootKind)
-          : storyAdapter?.resolveStoryTargetInternalV1(request) ?? null,
-      dispatchOwnerActionInternalV1: Object.freeze(dispatchOwner) as never,
-      prepareTargetInternalV1: (
-        entry: WholeCanvasManagedSurfaceRenderEntryInternalV1,
-      ): Promise<unknown> =>
-        entry.sourceKind === "builtin"
-          ? entry.rootKind === "title" && input.savePort !== null
-            ? input.savePort.listSlots().then((slots) => {
-              if (!disposed) {
-                publishState(Object.freeze({
-                  ...state,
-                  continueAvailable: continueAvailableFromSlotsInternalV1(slots),
-                }));
-              }
-            })
-            : Promise.resolve()
-          : storyAdapter?.prepareStoryTargetInternalV1(
-            entry,
-            state.story?.target ?? null,
-          ) ?? Promise.resolve(),
-      renderInternalV1: (props: WholeCanvasSurfaceRendererPropsInternalV1): ReactNode =>
-        props.entry.sourceKind === "builtin"
-          ? renderBuiltin(props)
-          : storyAdapter?.renderStoryInternalV1(props, state.story?.target ?? null) ?? null,
-    }));
+    const definition = createWholeCanvasSurfaceCompositionDefinitionInternalV1(
+      Object.freeze({
+        catalog: storyAdapter?.catalogInternalV1 ?? Object.freeze([]),
+        getSnapshotInternalV1: (): WholeCanvasManagedSurfaceRootDesiredInternalV1 =>
+          Object.freeze({
+            bootSplash: state.bootSplash,
+            title: state.title,
+            story: state.story,
+          }),
+        subscribeInternalV1(listener: () => void): () => void {
+          listeners.add(listener);
+          return Object.freeze(() => listeners.delete(listener));
+        },
+        resolveTargetInternalV1: (
+          request: Parameters<
+            NonNullable<
+              WholeCanvasSurfaceHostedAdapterInternalV1<TSemanticPublication>
+            >["resolveStoryTargetInternalV1"]
+          >[0],
+        ): unknown =>
+          request.sourceKind === "builtin"
+            ? resolveBuiltin(request.rootKind)
+            : (storyAdapter?.resolveStoryTargetInternalV1(request) ?? null),
+        dispatchOwnerActionInternalV1: Object.freeze(dispatchOwner) as never,
+        prepareTargetInternalV1: (
+          entry: WholeCanvasManagedSurfaceRenderEntryInternalV1,
+        ): Promise<unknown> =>
+          entry.sourceKind === "builtin"
+            ? entry.rootKind === "title" && input.savePort !== null
+              ? input.savePort.listSlots().then((slots) => {
+                if (!disposed) {
+                  publishState(
+                    Object.freeze({
+                      ...state,
+                      continueAvailable: continueAvailableFromSlotsInternalV1(slots),
+                      loadAvailable: loadAvailableFromSlotsInternalV1(slots),
+                    }),
+                  );
+                }
+              })
+              : Promise.resolve()
+            : (storyAdapter?.prepareStoryTargetInternalV1(
+              entry,
+              state.story?.target ?? null,
+            ) ?? Promise.resolve()),
+        renderInternalV1: (
+          props: WholeCanvasSurfaceRendererPropsInternalV1,
+        ): ReactNode =>
+          props.entry.sourceKind === "builtin"
+            ? renderBuiltin(props)
+            : (storyAdapter?.renderStoryInternalV1(
+              props,
+              state.story?.target ?? null,
+            ) ?? null),
+      }),
+    );
     if (storyAdapter === null) {
       bindWholeCanvasSurfaceCompositionPrivateMetadataInternalV1(
         definition,
@@ -998,44 +1108,52 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
         >[0],
       ): void {
         if (disposed || publication !== null) {
-          throw new TypeError("ui.whole_canvas_surface_publication_binding_invalid");
+          throw new TypeError(
+            "ui.whole_canvas_surface_publication_binding_invalid",
+          );
         }
         publication = nextPublication;
-        storyAdapter?.bindPublicationInternalV1(Object.freeze({
-          getSnapshotInternalV1: () =>
-            Object.freeze({
-              semantic: nextPublication.getSnapshot().semantic,
-              locale: environment.playerProfile.current().preferences.locale,
-            }),
-          subscribeInternalV1(listener: () => void): () => void {
-            const releasePresentation = nextPublication.subscribe(listener);
-            if (!isHostedNarrativeCallableInternalV1(releasePresentation)) {
-              throw new TypeError("ui.whole_canvas_surface_subscription_invalid");
-            }
-            let releaseProfile: unknown;
-            try {
-              releaseProfile = environment.playerProfile.subscribe(listener);
-            } catch (error) {
-              releaseHostedSubscriptionInternalV1(releasePresentation);
-              throw error;
-            }
-            if (!isHostedNarrativeCallableInternalV1(releaseProfile)) {
-              releaseHostedSubscriptionInternalV1(releasePresentation);
-              throw new TypeError("ui.whole_canvas_surface_subscription_invalid");
-            }
-            let subscribed = true;
-            return Object.freeze(() => {
-              if (!subscribed) return;
-              subscribed = false;
-              const profileFailure = releaseHostedSubscriptionInternalV1(releaseProfile);
-              const presentationFailure = releaseHostedSubscriptionInternalV1(
-                releasePresentation,
-              );
-              if (profileFailure !== null) throw profileFailure;
-              if (presentationFailure !== null) throw presentationFailure;
-            });
-          },
-        }));
+        storyAdapter?.bindPublicationInternalV1(
+          Object.freeze({
+            getSnapshotInternalV1: () =>
+              Object.freeze({
+                semantic: nextPublication.getSnapshot().semantic,
+                locale: environment.playerProfile.current().preferences.locale,
+              }),
+            subscribeInternalV1(listener: () => void): () => void {
+              const releasePresentation = nextPublication.subscribe(listener);
+              if (!isHostedNarrativeCallableInternalV1(releasePresentation)) {
+                throw new TypeError(
+                  "ui.whole_canvas_surface_subscription_invalid",
+                );
+              }
+              let releaseProfile: unknown;
+              try {
+                releaseProfile = environment.playerProfile.subscribe(listener);
+              } catch (error) {
+                releaseHostedSubscriptionInternalV1(releasePresentation);
+                throw error;
+              }
+              if (!isHostedNarrativeCallableInternalV1(releaseProfile)) {
+                releaseHostedSubscriptionInternalV1(releasePresentation);
+                throw new TypeError(
+                  "ui.whole_canvas_surface_subscription_invalid",
+                );
+              }
+              let subscribed = true;
+              return Object.freeze(() => {
+                if (!subscribed) return;
+                subscribed = false;
+                const profileFailure = releaseHostedSubscriptionInternalV1(releaseProfile);
+                const presentationFailure = releaseHostedSubscriptionInternalV1(
+                  releasePresentation,
+                );
+                if (profileFailure !== null) throw profileFailure;
+                if (presentationFailure !== null) throw presentationFailure;
+              });
+            },
+          }),
+        );
         if (storyAdapter !== null) {
           sourceUnsubscribe = storyAdapter.subscribeStoryInternalV1(refreshStory);
           refreshStory();
@@ -1057,21 +1175,29 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
         });
       },
       onAnchorInstalledInternalV1(origin: string): void {
-        if ((origin === "load" || origin === "import") && state.title !== null) closeTitle();
+        if ((origin === "load" || origin === "import") && state.title !== null) {
+          closeTitle();
+        }
       },
       async returnToTitleInternalV1(): Promise<void> {
         const generation = ++mutationGeneration;
         returningToTitle = true;
         try {
-          const result = admitSettledSessionAnchorResultInternalV1(await input.lifecycle.restart());
+          const result = admitSettledSessionAnchorResultInternalV1(
+            await input.lifecycle.restart(),
+          );
           if (disposed || generation !== mutationGeneration) return;
-          if (result.kind !== "anchored") throw new TypeError("ui.lifecycle_restart_rejected");
-          publishState(Object.freeze({
-            ...state,
-            bootSplash: null,
-            title,
-            newGameFailure: false,
-          }));
+          if (result.kind !== "anchored") {
+            throw new TypeError("ui.lifecycle_restart_rejected");
+          }
+          publishState(
+            Object.freeze({
+              ...state,
+              bootSplash: null,
+              title,
+              newGameFailure: false,
+            }),
+          );
         } finally {
           if (generation === mutationGeneration) returningToTitle = false;
         }
@@ -1144,17 +1270,14 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
   >,
   managedSurfaceEpochAllocator: ManagedSurfaceApplicationEpochAllocatorV1,
   managedSurfaceReportFailure?: (code: string, error: unknown) => void,
-  managedSurfaceRegisterManagedInputHandler?: CreateManagedSurfaceCompositionRuntimeInternalInputV1[
-    "registerManagedInputHandler"
-  ],
+  managedSurfaceRegisterManagedInputHandler?:
+    CreateManagedSurfaceCompositionRuntimeInternalInputV1["registerManagedInputHandler"],
   hostedSuccessor?: {
     readonly anchorEvents: GameUiPresentationAnchorEventSourceInternalV1;
     readonly producer: GameUiPresentationSuccessorProducerInternalV1;
   },
   narrativeDefinitionInternalV1:
-    | NarrativeSurfaceCompositionDefinitionInternalV1<
-      TSemanticPublication
-    >
+    | NarrativeSurfaceCompositionDefinitionInternalV1<TSemanticPublication>
     | null = null,
   narrativeEnvironmentInternalV1: NarrativeSurfaceCompositionEnvironmentInputInternalV1 | null =
     null,
@@ -1164,7 +1287,13 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
   wholeCanvasHostedBridgeInternalV1:
     | HostedWholeCanvasBridgeInternalV1<TSemanticPublication>
     | null = null,
-): GameUiCompositionV1<TSemanticPublication, TStoryUiState, TView, TAssetId, TOverlayId> {
+): GameUiCompositionV1<
+  TSemanticPublication,
+  TStoryUiState,
+  TView,
+  TAssetId,
+  TOverlayId
+> {
   if (narrativeDefinitionInternalV1 !== null) {
     assertNarrativeSurfaceCompositionDefinitionInternalV1(
       narrativeDefinitionInternalV1 as NarrativeSurfaceCompositionDefinitionInternalV1<unknown>,
@@ -1182,7 +1311,9 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
     input.overlayDefinitions ?? [],
   );
   const knownOverlayIds: OverlayIdV1[] = [];
-  for (const definition of overlayDefinitions) knownOverlayIds.push(definition.id);
+  for (const definition of overlayDefinitions) {
+    knownOverlayIds.push(definition.id);
+  }
   const inputRouter = createInputRouterV1();
 
   // Admit the complete Overlay configuration before establishing any
@@ -1213,17 +1344,19 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
     inputRouter,
     recipe: managedSurfaceRecipe,
     createCoordinator: (coordinatorInput) => {
-      const bundle = createManagedSurfaceCompositeKernelBundleInternalV1(Object.freeze({
-        applicationEpoch: coordinatorInput.applicationEpoch,
-        recipe: managedSurfaceRecipe,
-        definitionSidecars: managedSurfaceDefinitionSidecars,
-      }));
+      const bundle = createManagedSurfaceCompositeKernelBundleInternalV1(
+        Object.freeze({
+          applicationEpoch: coordinatorInput.applicationEpoch,
+          recipe: managedSurfaceRecipe,
+          definitionSidecars: managedSurfaceDefinitionSidecars,
+        }),
+      );
       latestManagedSurfaceKernelBundle = bundle;
       return bundle.coordinator;
     },
-    ...(managedSurfaceRegisterManagedInputHandler === undefined
-      ? {}
-      : { registerManagedInputHandler: managedSurfaceRegisterManagedInputHandler }),
+    ...(managedSurfaceRegisterManagedInputHandler === undefined ? {} : {
+      registerManagedInputHandler: managedSurfaceRegisterManagedInputHandler,
+    }),
   });
   const initialManagedSurfaceRuntime = managedSurfaceRuntime.getCurrent();
   const overlayInternal = createWorkspaceOverlaySessionInternalV1<OverlayIdV1>({
@@ -1261,7 +1394,9 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
   const semanticBridge = createSemanticPublicationBridgeV1<TSemanticPublication>({
     observe: () => input.semantic.observe(),
     subscribe: (
-      listener: Parameters<GameUiSemanticSourceV1<TSemanticPublication>["subscribe"]>[0],
+      listener: Parameters<
+        GameUiSemanticSourceV1<TSemanticPublication>["subscribe"]
+      >[0],
     ) =>
       input.semantic.subscribe(() => {
         if (ingressOpen()) listener();
@@ -1270,7 +1405,9 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
   const rawContentPreference = input.contentPreference ?? createStaticContentPreferencePortV1();
   const presentationContentPreference: ContentPreferencePortV1 = Object.freeze({
     observe: rawContentPreference.observe,
-    subscribe: (listener: Parameters<ContentPreferencePortV1["subscribe"]>[0]) =>
+    subscribe: (
+      listener: Parameters<ContentPreferencePortV1["subscribe"]>[0],
+    ) =>
       rawContentPreference.subscribe(() => {
         if (ingressOpen()) listener();
       }),
@@ -1315,12 +1452,16 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
     environment: narrativeEnvironmentInternalV1,
     presentation: Object.freeze({
       getSnapshotInternalV1: () =>
-        presentation.getSnapshot().semantic as DeepReadonly<TSemanticPublication>,
+        presentation.getSnapshot()
+          .semantic as DeepReadonly<TSemanticPublication>,
       subscribeInternalV1: (listener: () => void) => presentation.subscribe(listener),
     }),
     resolveKernelBundleInternalV1: (runtime) => {
       const bundle = latestManagedSurfaceKernelBundle;
-      if (bundle === null || bundle.applicationEpoch !== runtime.applicationEpoch) {
+      if (
+        bundle === null ||
+        bundle.applicationEpoch !== runtime.applicationEpoch
+      ) {
         throw new TypeError("ui.narrative_surface_composition_kernel_invalid");
       }
       return bundle;
@@ -1341,17 +1482,28 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
     definition: wholeCanvasDefinitionInternalV1,
     resolveKernelBundleInternalV1: (runtime) => {
       const bundle = latestManagedSurfaceKernelBundle;
-      if (bundle === null || bundle.applicationEpoch !== runtime.applicationEpoch) {
-        throw new TypeError("ui.whole_canvas_surface_composition_kernel_invalid");
+      if (
+        bundle === null ||
+        bundle.applicationEpoch !== runtime.applicationEpoch
+      ) {
+        throw new TypeError(
+          "ui.whole_canvas_surface_composition_kernel_invalid",
+        );
       }
       return bundle;
     },
     sealCompositionOnFailure: (error: unknown) => sealCompositionFromManagedSurfaceFailure(error),
     ...(managedSurfaceReportFailure === undefined ? {} : {
       reportActionFailure: (error: unknown) =>
-        managedSurfaceReportFailure("ui.whole_canvas_surface_action_fault", error),
+        managedSurfaceReportFailure(
+          "ui.whole_canvas_surface_action_fault",
+          error,
+        ),
       reportFailure: (error: unknown) =>
-        managedSurfaceReportFailure("ui.whole_canvas_surface_composition_failed", error),
+        managedSurfaceReportFailure(
+          "ui.whole_canvas_surface_composition_failed",
+          error,
+        ),
     }),
   });
   const initialFamilyActivation = { open: false };
@@ -1368,8 +1520,7 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
       initialFamilyActivationGate,
     );
     const notifyNarrativeActivation = narrativeInternal.activateRuntimeAttachmentInternalV1();
-    const notifyWholeCanvasActivation = wholeCanvasInternal
-      .activateRuntimeAttachmentInternalV1();
+    const notifyWholeCanvasActivation = wholeCanvasInternal.activateRuntimeAttachmentInternalV1();
     initialFamilyActivation.open = true;
     notifyNarrativeActivation();
     notifyWholeCanvasActivation();
@@ -1416,7 +1567,9 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
       targetId: Parameters<InteractionSessionStoreV1["openChoice"]>[1],
       returnFocusId: Parameters<InteractionSessionStoreV1["openChoice"]>[2],
     ): void {
-      if (ingressOpen()) rawInteractionSession.openChoice(surfaceId, targetId, returnFocusId);
+      if (ingressOpen()) {
+        rawInteractionSession.openChoice(surfaceId, targetId, returnFocusId);
+      }
     },
     leave(): string | null {
       return ingressOpen() ? rawInteractionSession.leave() : null;
@@ -1512,17 +1665,21 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
     if (hostedSuccessor !== undefined) {
       sealTerminalInternalV1();
       noThrowV1(() =>
-        hostedSuccessor.producer.failed(Object.freeze({
-          anchor: event.anchor,
-          token: event.token,
-          error,
-        }))
+        hostedSuccessor.producer.failed(
+          Object.freeze({
+            anchor: event.anchor,
+            token: event.token,
+            error,
+          }),
+        )
       );
     }
     throw error;
   };
 
-  const processAnchorEventV1 = (event: GameUiPresentationAnchorEventInternalV1): void => {
+  const processAnchorEventV1 = (
+    event: GameUiPresentationAnchorEventInternalV1,
+  ): void => {
     const { anchor } = event;
     const successorKind: ManagedSurfaceCoordinatorSuccessorKindV1 = anchor.origin === "load"
       ? "load_rebootstrap"
@@ -1530,7 +1687,9 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
       ? "import_rebootstrap"
       : "coordinator_successor";
     try {
-      wholeCanvasHostedBridgeInternalV1?.prepareSuccessorInternalV1(anchor.origin);
+      wholeCanvasHostedBridgeInternalV1?.prepareSuccessorInternalV1(
+        anchor.origin,
+      );
       // The shared authority closes every predecessor adapter, binds all four
       // families to one successor, then opens one activation gate.
       const successorRuntime = managedSurfaceRuntime.replace(successorKind, [
@@ -1552,32 +1711,50 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
       if (hostedSuccessor === undefined) return;
       const currentRuntime = managedSurfaceRuntime.getCurrent();
       if (
-        disposed || terminal || currentRuntime !== successorRuntime ||
+        disposed ||
+        terminal ||
+        currentRuntime !== successorRuntime ||
         !currentRuntime.isIngressOpen() ||
-        !overlayInternal.isRuntimeAttachmentCurrentInternalV1(successorRuntime) ||
-        !managedSystemDialogInternal.isRuntimeAttachmentCurrentInternalV1(successorRuntime) ||
-        !narrativeInternal.isCurrentRuntimeAttachmentInternalV1(successorRuntime) ||
-        !wholeCanvasInternal.isCurrentRuntimeAttachmentInternalV1(successorRuntime) ||
+        !overlayInternal.isRuntimeAttachmentCurrentInternalV1(
+          successorRuntime,
+        ) ||
+        !managedSystemDialogInternal.isRuntimeAttachmentCurrentInternalV1(
+          successorRuntime,
+        ) ||
+        !narrativeInternal.isCurrentRuntimeAttachmentInternalV1(
+          successorRuntime,
+        ) ||
+        !wholeCanvasInternal.isCurrentRuntimeAttachmentInternalV1(
+          successorRuntime,
+        ) ||
         uiState.getCurrent().anchor !== anchor
       ) {
         throw new TypeError("ui.presentation_successor_activation_failed");
       }
-      wholeCanvasHostedBridgeInternalV1?.onAnchorInstalledInternalV1(anchor.origin);
+      wholeCanvasHostedBridgeInternalV1?.onAnchorInstalledInternalV1(
+        anchor.origin,
+      );
       if (event.token !== null) {
-        hostedSuccessor?.producer.installed(Object.freeze({
-          anchor,
-          token: event.token,
-          managedSurfaceApplicationEpoch: currentRuntime.applicationEpoch,
-        }));
+        hostedSuccessor?.producer.installed(
+          Object.freeze({
+            anchor,
+            token: event.token,
+            managedSurfaceApplicationEpoch: currentRuntime.applicationEpoch,
+          }),
+        );
       }
     } catch (error) {
       failSuccessorV1(event, error);
     }
   };
 
-  const enqueueAnchorEventV1 = (event: GameUiPresentationAnchorEventInternalV1): void => {
+  const enqueueAnchorEventV1 = (
+    event: GameUiPresentationAnchorEventInternalV1,
+  ): void => {
     if (!ingressOpen()) return;
-    anchorQueue.push(Object.freeze({ anchor: event.anchor, token: event.token }));
+    anchorQueue.push(
+      Object.freeze({ anchor: event.anchor, token: event.token }),
+    );
     if (anchorTransitionActive) return;
     anchorTransitionActive = true;
     try {
@@ -1611,7 +1788,9 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
     systemDialogSession,
     interactionSession,
     updateUiState: (
-      updater: (current: DeepReadonly<TStoryUiState>) => DeepReadonly<TStoryUiState>,
+      updater: (
+        current: DeepReadonly<TStoryUiState>,
+      ) => DeepReadonly<TStoryUiState>,
     ) => {
       if (!ingressOpen()) return;
       const current = uiState.getCurrent();
@@ -1664,7 +1843,9 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
   try {
     unsubscribeAnchor = hostedSuccessor === undefined
       ? anchorSource.subscribe(() =>
-        enqueueAnchorEventV1(Object.freeze({ anchor: anchorSource.current(), token: null }))
+        enqueueAnchorEventV1(
+          Object.freeze({ anchor: anchorSource.current(), token: null }),
+        )
       )
       : hostedSuccessor.anchorEvents.subscribe(enqueueAnchorEventV1);
     if (terminal) noThrowV1(unsubscribeAnchor);
@@ -1691,7 +1872,13 @@ export function createGameUiCompositionV1<
     TAssetId,
     TOverlayId
   >,
-): GameUiCompositionV1<TSemanticPublication, TStoryUiState, TView, TAssetId, TOverlayId> {
+): GameUiCompositionV1<
+  TSemanticPublication,
+  TStoryUiState,
+  TView,
+  TAssetId,
+  TOverlayId
+> {
   return createGameUiCompositionWithEpochAllocatorInternalV1(
     input,
     createLocalManagedSurfaceEpochAllocatorInternalV1(),
@@ -1724,19 +1911,34 @@ export function createHostedGameUiCompositionInternalV1<
   hostedSurfaceInputInternalV1:
     | HostedSurfaceCompositionInputInternalV1<TSemanticPublication>
     | null = null,
-): GameUiCompositionV1<TSemanticPublication, TStoryUiState, TView, TAssetId, TOverlayId> {
+): GameUiCompositionV1<
+  TSemanticPublication,
+  TStoryUiState,
+  TView,
+  TAssetId,
+  TOverlayId
+> {
   const hostedSurfaces = hostedSurfaceInputInternalV1 === null
     ? null
-    : captureHostedSurfaceCompositionInputInternalV1(hostedSurfaceInputInternalV1);
+    : captureHostedSurfaceCompositionInputInternalV1(
+      hostedSurfaceInputInternalV1,
+    );
   const wholeCanvasBridge = hostedSurfaces?.wholeCanvas === null ||
-      hostedSurfaces?.wholeCanvas === undefined || hostedSurfaces.environment === undefined
+      hostedSurfaces?.wholeCanvas === undefined ||
+      hostedSurfaces.environment === undefined
     ? null
     : createHostedWholeCanvasBridgeInternalV1(
       hostedSurfaces.wholeCanvas,
       hostedSurfaces.environment,
     );
   let composition:
-    | GameUiCompositionV1<TSemanticPublication, TStoryUiState, TView, TAssetId, TOverlayId>
+    | GameUiCompositionV1<
+      TSemanticPublication,
+      TStoryUiState,
+      TView,
+      TAssetId,
+      TOverlayId
+    >
     | null = null;
   try {
     composition = createGameUiCompositionWithEpochAllocatorInternalV1(
@@ -1754,16 +1956,19 @@ export function createHostedGameUiCompositionInternalV1<
       wholeCanvasBridge,
     );
     if (wholeCanvasBridge !== null) {
-      wholeCanvasBridge.bindSystemDialogsInternalV1(composition.systemDialogSession);
-      wholeCanvasBridge.bindPublicationInternalV1(Object.freeze({
-        getSnapshot: () =>
-          Object.freeze({
-            semantic: composition!.presentation.getSnapshot().semantic as DeepReadonly<
-              TSemanticPublication
-            >,
-          }),
-        subscribe: (listener: () => void) => composition!.presentation.subscribe(listener),
-      }));
+      wholeCanvasBridge.bindSystemDialogsInternalV1(
+        composition.systemDialogSession,
+      );
+      wholeCanvasBridge.bindPublicationInternalV1(
+        Object.freeze({
+          getSnapshot: () =>
+            Object.freeze({
+              semantic: composition!.presentation.getSnapshot()
+                .semantic as DeepReadonly<TSemanticPublication>,
+            }),
+          subscribe: (listener: () => void) => composition!.presentation.subscribe(listener),
+        }),
+      );
       wholeCanvasBridge.commitClaimInternalV1();
     }
     return composition;

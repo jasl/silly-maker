@@ -1,4 +1,15 @@
 // SPDX-License-Identifier: MIT
+export {
+  InstanceLeaseBannerV1,
+  defaultInstanceLeaseBannerLabelsV1,
+} from "./instance-lease-banner.tsx";
+export type {
+  InstanceLeaseBannerLabelsV1,
+  InstanceLeaseBannerPortV1,
+  InstanceLeaseBannerPropsV1,
+  InstanceLeaseBannerRoleV1,
+  InstanceLeaseBannerStateV1,
+} from "./instance-lease-banner.tsx";
 export { SavesLauncherV1 } from "./saves-launcher.tsx";
 export type { SavesLauncherPropsV1 } from "./saves-launcher.tsx";
 export { SettingsLauncherV1 } from "./settings-launcher.tsx";

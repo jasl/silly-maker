@@ -197,9 +197,11 @@ test("the DevDock tuning panel commits debug commands through the session", asyn
   await page.goto(catcafeTargetUrlV1("?capability=debug_tools&capability=cheats"));
   await playOpeningV1(page);
 
-  await page.getByRole("button", { name: "打开右侧开发工具" }).click();
-  const dock = page.getByRole("complementary", { name: "右侧开发工具" });
-  await dock.getByRole("button", { name: "调参" }).click();
+  await page.getByRole("button", { name: "开发工具" }).click();
+  await page.getByRole("navigation", { name: "开发工具" })
+    .getByRole("button", { name: "调参" })
+    .click();
+  const dock = page.getByRole("dialog", { name: "调参" });
   const tuning = dock.locator("[data-cc-debug-tuning]");
 
   // Set trust to 77 through the debug channel: the same atomic commit
@@ -228,9 +230,11 @@ test("the detached Narrative preview covers representative routes without changi
   const statsBefore = await page.locator("[data-cc-stats-text]").textContent();
   const liveCatBefore = await liveStage.locator("[data-cc-cat]").getAttribute("data-cc-cat");
 
-  await page.getByRole("button", { name: "打开右侧开发工具" }).click();
-  const dock = page.getByRole("complementary", { name: "右侧开发工具" });
-  await dock.getByRole("button", { name: "剧情预览" }).click();
+  await page.getByRole("button", { name: "开发工具" }).click();
+  await page.getByRole("navigation", { name: "开发工具" })
+    .getByRole("button", { name: "剧情预览" })
+    .click();
+  const dock = page.getByRole("dialog", { name: "剧情预览" });
   const preview = dock.locator("[data-cc-narrative-preview]");
   const selector = preview.locator("[data-cc-narrative-preview-select]");
 
@@ -247,7 +251,7 @@ test("the detached Narrative preview covers representative routes without changi
   await expect(preview.getByText("名字先欠着。她不在意，已经把你的围裙当成了床。")).toBeVisible();
   await expect(preview.locator("[data-cc-cat='kitten']")).toBeVisible();
 
-  await page.getByRole("button", { name: "关闭右侧开发工具" }).click();
+  await dock.getByRole("button", { name: "关闭", exact: true }).click();
   await expect(dock).toHaveCount(0);
   await expect(page.locator("[data-cc-calendar]")).toHaveAttribute(
     "data-cc-calendar",
@@ -544,14 +548,18 @@ async function reachCatCafeEndingV1(page: Page): Promise<void> {
 
   // Fast-forward to week 7 Sunday morning through the tuning panel, then
   // walk the three slots to the settlement night.
-  await page.getByRole("button", { name: "打开右侧开发工具" }).click();
-  const dock = page.getByRole("complementary", { name: "右侧开发工具" });
-  await dock.getByRole("button", { name: "调参" }).click();
+  await page.getByRole("button", { name: "开发工具" }).click();
+  await page.getByRole("navigation", { name: "开发工具" })
+    .getByRole("button", { name: "调参" })
+    .click();
+  const dock = page.getByRole("dialog", { name: "调参" });
   const tuning = dock.locator("[data-cc-debug-tuning]");
   await tuning.locator("[data-cc-debug-days]").fill("48");
   await tuning.locator("form").nth(1).getByRole("button", { name: "执行调试命令" }).click();
   await expect(tuning.locator("form").nth(1).getByText("committed")).toBeVisible();
-  await page.getByRole("button", { name: "关闭右侧开发工具" }).click();
+  await dock.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(dock).toHaveCount(0);
+  await page.keyboard.press("Escape");
   for (let step = 0; step < 3; step += 1) {
     await page.locator("[data-cc-action-id='cc.advance_slot']").click();
   }

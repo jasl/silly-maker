@@ -13,7 +13,10 @@ import { describe, expect, it } from "vitest";
 import { stageLayerIdsV1 } from "../shell/game-stage.tsx";
 
 async function readTokensV1(): Promise<Map<string, number>> {
-  const css = await readFile(resolve(import.meta.dirname, "tokens.css"), "utf8");
+  const css = await readFile(
+    resolve(import.meta.dirname, "tokens.css"),
+    "utf8",
+  );
   const tokens = new Map<string, number>();
   for (const match of css.matchAll(/--(silly-[a-z-]+):\s*(-?\d+)\s*;/gu)) {
     tokens.set(match[1] as string, Number(match[2]));
@@ -54,7 +57,9 @@ describe("stacking token contract", () => {
       return value as number;
     });
     for (let index = 1; index < values.length; index += 1) {
-      expect(values[index], scale[index]).toBeGreaterThan(values[index - 1] as number);
+      expect(values[index], scale[index]).toBeGreaterThan(
+        values[index - 1] as number,
+      );
     }
   });
 
@@ -64,14 +69,19 @@ describe("stacking token contract", () => {
     // single-source by construction.
     const files = [
       "../system/title-screen.tsx",
+      "../system/title-screen.module.css",
       "../system/boot-splash.tsx",
       "../overlays/overlay-host.module.css",
       "../debug/dev-dock.module.css",
+      "../debug/story-debug-dock.module.css",
+      "../system/instance-lease-banner.module.css",
       "../shell/game-stage.module.css",
     ];
     for (const file of files) {
       const source = await readFile(resolve(import.meta.dirname, file), "utf8");
-      const raw = [...source.matchAll(/z-index:\s*(\d+)|zIndex:\s*(\d+)/gu)].filter((match) => {
+      const raw = [
+        ...source.matchAll(/z-index:\s*(\d+)|zIndex:\s*(\d+)/gu),
+      ].filter((match) => {
         const value = Number(match[1] ?? match[2]);
         // The overlay stack depth ladder (0..4) keyed by data attributes
         // stays numeric on purpose.

@@ -104,7 +104,10 @@ const disabledCapabilitiesV1 = Object.freeze({
     subscribe: () => () => undefined,
   }),
   setEnabled: async () =>
-    Object.freeze({ kind: "unchanged" as const, state: disabledCapabilityStateV1 }),
+    Object.freeze({
+      kind: "unchanged" as const,
+      state: disabledCapabilityStateV1,
+    }),
 }) satisfies RuntimeCapabilityPortV1;
 
 type LifecycleOverlayIdV1 = "lifecycle.primary" | "lifecycle.detail";
@@ -270,7 +273,9 @@ function StrictBarrierStageProbeInternalV1(props: {
 }
 
 const stageLifetimeContentCatalogV1: StageContentCatalogV1 = Object.freeze({
-  resolveContent: (contentId: Parameters<StageContentCatalogV1["resolveContent"]>[0]) =>
+  resolveContent: (
+    contentId: Parameters<StageContentCatalogV1["resolveContent"]>[0],
+  ) =>
     Object.freeze({
       rendererId: "renderer.test.default-root-lifetime",
       assetIds: Object.freeze([] as readonly AssetId[]),
@@ -283,14 +288,21 @@ function stageLifetimeTargetV1(contentId: string) {
     stageId: "stage.test.default-root-lifetime",
     layerIds: ["layer.test.default-root-lifetime"],
   });
-  const outcome = reduceStageMutationsV1(state, [{
-    kind: "show",
-    layerId: "layer.test.default-root-lifetime",
-    tag: "tag.test.default-root-lifetime",
-    contentId,
-  }]);
-  if (outcome.kind !== "applied") throw new Error("Stage lifetime target must apply");
-  return projectStageRenderTargetV1(outcome.state, stageLifetimeContentCatalogV1).target;
+  const outcome = reduceStageMutationsV1(state, [
+    {
+      kind: "show",
+      layerId: "layer.test.default-root-lifetime",
+      tag: "tag.test.default-root-lifetime",
+      contentId,
+    },
+  ]);
+  if (outcome.kind !== "applied") {
+    throw new Error("Stage lifetime target must apply");
+  }
+  return projectStageRenderTargetV1(
+    outcome.state,
+    stageLifetimeContentCatalogV1,
+  ).target;
 }
 const stageLifetimeTransitionV1 = parseStageTransitionDefinitionV1({
   transitionId: "transition.test.default-root-lifetime",
@@ -307,7 +319,7 @@ const stageLifetimeTransitionV1 = parseStageTransitionDefinitionV1({
 const stageLifetimeTransitionCatalogV1: StageTransitionCatalogV1 = Object.freeze({
   resolveTransition: (
     change: Parameters<StageTransitionCatalogV1["resolveTransition"]>[0],
-  ) => change.kind === "replace" ? stageLifetimeTransitionV1 : null,
+  ) => (change.kind === "replace" ? stageLifetimeTransitionV1 : null),
 });
 const strictBarrierTransitionInternalV1 = parseStageTransitionDefinitionV1({
   transitionId: "transition.test.fade",
@@ -345,8 +357,9 @@ const stageLifetimeCueV1 = timelineV1.define(
   }),
 );
 const stageLifetimeTimelinesV1: TimelineCatalogV1 = Object.freeze({
-  resolveTimeline: (cueId: Parameters<TimelineCatalogV1["resolveTimeline"]>[0]) =>
-    cueId === "cue.test.default-root-lifetime" ? stageLifetimeCueV1 : null,
+  resolveTimeline: (
+    cueId: Parameters<TimelineCatalogV1["resolveTimeline"]>[0],
+  ) => (cueId === "cue.test.default-root-lifetime" ? stageLifetimeCueV1 : null),
 });
 
 function renderLifecycleRootV1(input: {
@@ -359,12 +372,16 @@ function renderLifecycleRootV1(input: {
     readonly clock: ReturnType<typeof createManualPresentationClockV1>;
   };
 }) {
-  let systemDialogs:
-    | DefaultGameRootSlotContextV1<unknown, unknown>["systemDialogs"]
-    | undefined;
+  let systemDialogs: DefaultGameRootSlotContextV1<unknown, unknown>["systemDialogs"] | undefined;
   const inputRouter = createInputRouterV1();
-  const overlayFailures: Array<{ readonly code: string; readonly error: unknown }> = [];
-  const preparations = new Map<LifecycleOverlayIdV1, ReturnType<typeof deferredV1>>([
+  const overlayFailures: Array<{
+    readonly code: string;
+    readonly error: unknown;
+  }> = [];
+  const preparations = new Map<
+    LifecycleOverlayIdV1,
+    ReturnType<typeof deferredV1>
+  >([
     ["lifecycle.primary", deferredV1()],
     ["lifecycle.detail", deferredV1()],
   ]);
@@ -404,7 +421,10 @@ function renderLifecycleRootV1(input: {
   });
   const systemDialogSession = createSystemDialogSessionFacadeInternalV1(systemDialogInternal);
   const publication = Object.freeze({ revision: 0 });
-  let anchor: GameUiPresentationAnchorV1 = Object.freeze({ epoch: 0, origin: "bootstrap" });
+  let anchor: GameUiPresentationAnchorV1 = Object.freeze({
+    epoch: 0,
+    origin: "bootstrap",
+  });
   const anchorListeners = new Set<() => void>();
 
   render(
@@ -471,11 +491,15 @@ function renderLifecycleRootV1(input: {
     systemDialogSession,
     systemDialogInternal,
     openSettings: () => {
-      if (systemDialogs === undefined) throw new TypeError("missing System dialog fixture");
+      if (systemDialogs === undefined) {
+        throw new TypeError("missing System dialog fixture");
+      }
       return systemDialogs.openSettings();
     },
     openSaves: () => {
-      if (systemDialogs === undefined) throw new TypeError("missing System dialog fixture");
+      if (systemDialogs === undefined) {
+        throw new TypeError("missing System dialog fixture");
+      }
       return systemDialogs.openSaves();
     },
     returnToTitle: () => {
@@ -491,9 +515,11 @@ async function settleOverlayPreparationV1(
   fixture: ReturnType<typeof renderLifecycleRootV1>,
   id: LifecycleOverlayIdV1,
 ): Promise<void> {
-  const candidate = fixture.overlayInternal.getRenderSnapshotInternalV1().entries.find(
-    (entry) => entry.overlayId === id && entry.readiness === "preparing",
-  );
+  const candidate = fixture.overlayInternal
+    .getRenderSnapshotInternalV1()
+    .entries.find(
+      (entry) => entry.overlayId === id && entry.readiness === "preparing",
+    );
   expect(candidate).toBeDefined();
   const readiness = fixture.overlayInternal.beginCandidatePreparationInternalV1(
     candidate!.surfaceInstanceId,
@@ -504,7 +530,9 @@ async function settleOverlayPreparationV1(
   });
 }
 
-async function openActiveTopologyV1(fixture: ReturnType<typeof renderLifecycleRootV1>): Promise<
+async function openActiveTopologyV1(
+  fixture: ReturnType<typeof renderLifecycleRootV1>,
+): Promise<
   Readonly<{
     system: { readonly active: "settings" };
     overlay: {
@@ -536,7 +564,9 @@ async function openActiveTopologyV1(fixture: ReturnType<typeof renderLifecycleRo
   await act(async () => {
     await new Promise<void>((complete) => queueMicrotask(complete));
   });
-  expect(fixture.systemDialogSession.getSnapshot()).toEqual({ active: "settings" });
+  expect(fixture.systemDialogSession.getSnapshot()).toEqual({
+    active: "settings",
+  });
   return Object.freeze({
     system: Object.freeze({ active: "settings" as const }),
     overlay: Object.freeze({
@@ -557,7 +587,9 @@ function createExactLifecycleAnchorSourceV1() {
   const source: GameUiPresentationAnchorEventSourceInternalV1 = Object.freeze({
     current: () => current,
     subscribe(
-      listener: Parameters<GameUiPresentationAnchorEventSourceInternalV1["subscribe"]>[0],
+      listener: Parameters<
+        GameUiPresentationAnchorEventSourceInternalV1["subscribe"]
+      >[0],
     ) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -582,13 +614,21 @@ function choicePendingInternalV1(sequence: number): PendingInteractionV1 {
     occurrenceId: `interaction-occurrence.${String(sequence + 1_000)}`,
     promptTextId: "text.test.default-root-prompt",
     options: [
-      { choiceId: "choice.test.default-root-first", textId: "text.test.default-root-first" },
-      { choiceId: "choice.test.default-root-second", textId: "text.test.default-root-second" },
+      {
+        choiceId: "choice.test.default-root-first",
+        textId: "text.test.default-root-first",
+      },
+      {
+        choiceId: "choice.test.default-root-second",
+        textId: "text.test.default-root-second",
+      },
     ],
   });
 }
 
-function choiceSelectionInternalV1(sequence: number): NarrativeSurfaceSelectionInternalV1 {
+function choiceSelectionInternalV1(
+  sequence: number,
+): NarrativeSurfaceSelectionInternalV1 {
   const availability = Object.freeze([
     Object.freeze({
       choiceId: "choice.test.default-root-first",
@@ -608,7 +648,9 @@ function choiceSelectionInternalV1(sequence: number): NarrativeSurfaceSelectionI
   });
 }
 
-function saySelectionInternalV1(sequence: number): NarrativeSurfaceSelectionInternalV1 {
+function saySelectionInternalV1(
+  sequence: number,
+): NarrativeSurfaceSelectionInternalV1 {
   return Object.freeze({
     pending: parsePendingInteractionV1({
       kind: "say",
@@ -693,26 +735,34 @@ function renderCompositionOwnedNarrativeRootInternalV1(
     }>
   > = [];
   let rejectPendingCompletion: ((error: unknown) => void) | null = null;
-  const publishSelection = (selection: NarrativeSurfaceSelectionInternalV1): void => {
+  const publishSelection = (
+    selection: NarrativeSurfaceSelectionInternalV1,
+  ): void => {
     semanticPublication = Object.freeze({ selection });
     for (const listener of [...semanticListeners]) listener();
   };
   const ChoiceRendererInternalV1 = Object.freeze(
-    function ChoiceRendererInternalV1(props: NarrativeSurfaceRendererPropsV1): ReactElement {
+    function ChoiceRendererInternalV1(
+      props: NarrativeSurfaceRendererPropsV1,
+    ): ReactElement {
       const pending = props.kind === "dialogue" ? props.pending : null;
       const occurrenceId = pending?.occurrenceId ?? "history";
       const choiceId = pending?.kind === "choice" ? pending.options[0]?.choiceId : undefined;
       useEffect(() => {
         if (props.kind !== "dialogue") return;
         if (pending?.kind === "say") {
-          callbacks.push(Object.freeze({ occurrenceId, callback: props.onActivate }));
+          callbacks.push(
+            Object.freeze({ occurrenceId, callback: props.onActivate }),
+          );
           return;
         }
         if (choiceId !== undefined) {
-          callbacks.push(Object.freeze({
-            occurrenceId,
-            callback: () => props.onChoose(choiceId),
-          }));
+          callbacks.push(
+            Object.freeze({
+              occurrenceId,
+              callback: () => props.onChoose(choiceId),
+            }),
+          );
         }
       }, [choiceId, occurrenceId, pending?.kind, props]);
       if (pending?.kind === "say" && props.kind === "dialogue") {
@@ -744,46 +794,50 @@ function renderCompositionOwnedNarrativeRootInternalV1(
         );
     },
   );
-  const definition = defineNarrativeSurfaceV1(Object.freeze({
-    selectNarrative: (
-      publication: DeepReadonly<SemanticPublicationInternalV1>,
-    ) => publication.selection,
-    dispatchResolution: (
-      request: Readonly<{
-        readonly expectedOccurrenceId: string;
-        readonly resolution: unknown;
-      }>,
-    ) => {
-      dispatches.push(request);
-      if (options.initialStrictBarrier !== undefined) {
-        options.initialStrictBarrier.onDispatch?.();
-        publishSelection(strictBarrierSelectionInternalV1(null));
-        return Promise.resolve();
-      }
-      switch (options.completionMode ?? "publish_resolved") {
-        case "reject_current":
-          return Promise.reject(new Error("current Choice completion rejected"));
-        case "resolve_without_publication":
+  const definition = defineNarrativeSurfaceV1(
+    Object.freeze({
+      selectNarrative: (
+        publication: DeepReadonly<SemanticPublicationInternalV1>,
+      ) => publication.selection,
+      dispatchResolution: (
+        request: Readonly<{
+          readonly expectedOccurrenceId: string;
+          readonly resolution: unknown;
+        }>,
+      ) => {
+        dispatches.push(request);
+        if (options.initialStrictBarrier !== undefined) {
+          options.initialStrictBarrier.onDispatch?.();
+          publishSelection(strictBarrierSelectionInternalV1(null));
           return Promise.resolve();
-        case "publish_pending": {
-          const completion = new Promise<void>((_resolve, reject) => {
-            rejectPendingCompletion = reject;
-          });
-          occurrenceSequence += 1;
-          publishSelection(choiceSelectionInternalV1(occurrenceSequence));
-          return completion;
         }
-        case "publish_resolved":
-          occurrenceSequence += 1;
-          publishSelection(choiceSelectionInternalV1(occurrenceSequence));
-          return Promise.resolve();
-      }
-      throw new TypeError("unexpected Narrative completion fixture mode");
-    },
-    renderer: ChoiceRendererInternalV1,
-    resolveText: (_locale: string | null, textId: string) => textId,
-    replayCurrentVoice: null,
-  }));
+        switch (options.completionMode ?? "publish_resolved") {
+          case "reject_current":
+            return Promise.reject(
+              new Error("current Choice completion rejected"),
+            );
+          case "resolve_without_publication":
+            return Promise.resolve();
+          case "publish_pending": {
+            const completion = new Promise<void>((_resolve, reject) => {
+              rejectPendingCompletion = reject;
+            });
+            occurrenceSequence += 1;
+            publishSelection(choiceSelectionInternalV1(occurrenceSequence));
+            return completion;
+          }
+          case "publish_resolved":
+            occurrenceSequence += 1;
+            publishSelection(choiceSelectionInternalV1(occurrenceSequence));
+            return Promise.resolve();
+        }
+        throw new TypeError("unexpected Narrative completion fixture mode");
+      },
+      renderer: ChoiceRendererInternalV1,
+      resolveText: (_locale: string | null, textId: string) => textId,
+      replayCurrentVoice: null,
+    }),
+  );
   const anchorEvents = createExactLifecycleAnchorSourceV1();
   let managedEpoch = 0;
   const narrativePlayerProfile = Object.freeze({
@@ -793,53 +847,62 @@ function renderCompositionOwnedNarrativeRootInternalV1(
     markMeta: async () => undefined,
     updatePreferences: async () => undefined,
   }) satisfies PlayerProfileStoreV1;
-  const narrativeClock = options.narrativeClock ?? options.initialStrictBarrier?.clock ??
+  const narrativeClock = options.narrativeClock ??
+    options.initialStrictBarrier?.clock ??
     createManualPresentationClockV1();
   const wholeCanvasTarget = Object.freeze({
     targetId: "test.whole-canvas.primary",
     parameters: Object.freeze({}),
   });
   const wholeCanvasDefinition = options.wholeCanvas === true
-    ? createWholeCanvasSurfaceCompositionDefinitionInternalV1(Object.freeze({
-      catalog: Object.freeze([Object.freeze({
-        targetId: wholeCanvasTarget.targetId,
-        contractRevision: 1 as const,
-        placements: Object.freeze(["primary" as const]),
-        actionIds: Object.freeze(["test.action.primary"]),
-        defaultActionId: null,
-      })]),
-      getSnapshotInternalV1: () =>
-        Object.freeze({
-          bootSplash: null,
-          title: null,
-          story: Object.freeze({
-            sourceKind: "application" as const,
-            target: wholeCanvasTarget,
+    ? createWholeCanvasSurfaceCompositionDefinitionInternalV1(
+      Object.freeze({
+        catalog: Object.freeze([
+          Object.freeze({
+            targetId: wholeCanvasTarget.targetId,
+            contractRevision: 1 as const,
+            placements: Object.freeze(["primary" as const]),
+            actionIds: Object.freeze(["test.action.primary"]),
+            defaultActionId: null,
           }),
-        }),
-      subscribeInternalV1: () => Object.freeze(() => undefined),
-      resolveTargetInternalV1: () =>
-        Object.freeze({
-          accessibleNameTextId: "test.whole-canvas.primary-name",
-          view: Object.freeze({ kind: "primary" }),
-          actions: Object.freeze([Object.freeze({
-            actionId: "test.action.primary",
-            status: "enabled" as const,
-            reasonTextIds: Object.freeze([]),
-            intent: Object.freeze({ kind: "back" as const }),
-          })]),
-        }),
-      dispatchOwnerActionInternalV1: null,
-      prepareTargetInternalV1: null,
-      renderInternalV1: Object.freeze(({ entry }: WholeCanvasSurfaceRendererPropsInternalV1) => {
-        return (
-          <div
-            data-testid="default-root-whole-canvas-primary"
-            data-instance-id={entry.frame.primaryInstanceId}
-          />
-        );
+        ]),
+        getSnapshotInternalV1: () =>
+          Object.freeze({
+            bootSplash: null,
+            title: null,
+            story: Object.freeze({
+              sourceKind: "application" as const,
+              target: wholeCanvasTarget,
+            }),
+          }),
+        subscribeInternalV1: () => Object.freeze(() => undefined),
+        resolveTargetInternalV1: () =>
+          Object.freeze({
+            accessibleNameTextId: "test.whole-canvas.primary-name",
+            view: Object.freeze({ kind: "primary" }),
+            actions: Object.freeze([
+              Object.freeze({
+                actionId: "test.action.primary",
+                status: "enabled" as const,
+                reasonTextIds: Object.freeze([]),
+                intent: Object.freeze({ kind: "back" as const }),
+              }),
+            ]),
+          }),
+        dispatchOwnerActionInternalV1: null,
+        prepareTargetInternalV1: null,
+        renderInternalV1: Object.freeze(
+          ({ entry }: WholeCanvasSurfaceRendererPropsInternalV1) => {
+            return (
+              <div
+                data-testid="default-root-whole-canvas-primary"
+                data-instance-id={entry.frame.primaryInstanceId}
+              />
+            );
+          },
+        ),
       }),
-    }))
+    )
     : null;
   const composition = createGameUiCompositionWithEpochAllocatorInternalV1(
     {
@@ -853,7 +916,9 @@ function renderCompositionOwnedNarrativeRootInternalV1(
       projector: Object.freeze({
         resolvedCatalog: Object.freeze({}),
         initialUiState: Object.freeze({}),
-        project: (input: { readonly uiState: { readonly anchor: GameUiPresentationAnchorV1 } }) =>
+        project: (input: {
+          readonly uiState: { readonly anchor: GameUiPresentationAnchorV1 };
+        }) =>
           Object.freeze({
             view: Object.freeze({ anchorEpoch: input.uiState.anchor.epoch }),
             requiredAssetIds: Object.freeze([]),
@@ -900,7 +965,9 @@ function renderCompositionOwnedNarrativeRootInternalV1(
       })}
       slots={Object.freeze({
         ...(initialStrictBarrier === undefined ? {} : {
-          background: (context: DefaultGameRootSlotContextV1<unknown, unknown>) => (
+          background: (
+            context: DefaultGameRootSlotContextV1<unknown, unknown>,
+          ) => (
             <StrictBarrierStageProbeInternalV1
               onMount={initialStrictBarrier.onMount}
               onUnmount={initialStrictBarrier.onUnmount}
@@ -912,7 +979,9 @@ function renderCompositionOwnedNarrativeRootInternalV1(
       })}
     />
   );
-  const view = render(options.strictMode === true ? <StrictMode>{root}</StrictMode> : root);
+  const view = render(
+    options.strictMode === true ? <StrictMode>{root}</StrictMode> : root,
+  );
   return Object.freeze({
     ...view,
     anchorEvents,
@@ -922,7 +991,9 @@ function renderCompositionOwnedNarrativeRootInternalV1(
     failures,
     rejectPendingCompletion(error: unknown): void {
       const reject = rejectPendingCompletion;
-      if (reject === null) throw new Error("expected a pending Narrative completion");
+      if (reject === null) {
+        throw new Error("expected a pending Narrative completion");
+      }
       rejectPendingCompletion = null;
       reject(error);
     },
@@ -932,8 +1003,11 @@ function renderCompositionOwnedNarrativeRootInternalV1(
 function renderHostedLifecycleRootV1(
   options: {
     readonly withSaveUi?: boolean;
+    readonly withCustomSaves?: boolean;
+    readonly saveSlotHealth?: "empty" | "valid";
     readonly withFrontDoor?: boolean;
     readonly withSplash?: boolean;
+    readonly hudProbe?: boolean;
     readonly stageLifetime?: {
       readonly onMount: () => void;
       readonly onUnmount: () => void;
@@ -943,19 +1017,27 @@ function renderHostedLifecycleRootV1(
   } = {},
 ) {
   const anchorEvents = createExactLifecycleAnchorSourceV1();
-  const installed: Parameters<GameUiPresentationSuccessorProducerInternalV1["installed"]>[0][] = [];
-  const failed: Parameters<GameUiPresentationSuccessorProducerInternalV1["failed"]>[0][] = [];
+  const installed: Parameters<
+    GameUiPresentationSuccessorProducerInternalV1["installed"]
+  >[0][] = [];
+  const failed: Parameters<
+    GameUiPresentationSuccessorProducerInternalV1["failed"]
+  >[0][] = [];
   const allocatedEpochs: number[] = [];
   const epochSequence = [11, 17, 23] as const;
   let epochCursor = 0;
   const loadToken = Object.freeze({ kind: "hosted-load-test-token" });
   const load = vi.fn(async () => {
-    anchorEvents.publish(Object.freeze({
-      anchor: Object.freeze({ epoch: 1, origin: "load" }),
-      token: loadToken,
-    }));
+    anchorEvents.publish(
+      Object.freeze({
+        anchor: Object.freeze({ epoch: 1, origin: "load" }),
+        token: loadToken,
+      }),
+    );
     if (installed.at(-1)?.token !== loadToken) {
-      throw new TypeError("missing exact load presentation successor acknowledgment");
+      throw new TypeError(
+        "missing exact load presentation successor acknowledgment",
+      );
     }
     return Object.freeze({
       kind: "loaded" as const,
@@ -971,18 +1053,25 @@ function renderHostedLifecycleRootV1(
         safelySavedCommandSequence: null,
         lastFailureCode: null,
       }),
-    listSlots: async () =>
-      Object.freeze([
+    listSlots: async () => {
+      const health = options.saveSlotHealth ?? "valid";
+      const slotId = options.withCustomSaves === true
+        ? ("quick" as const)
+        : options.withSplash === true
+        ? ("auto.current" as const)
+        : ("quick" as const);
+      return Object.freeze([
         Object.freeze({
-          slotId: options.withSplash === true ? "auto.current" as const : "quick" as const,
-          health: "valid" as const,
+          slotId,
+          health,
           recordRevision: null,
           capturedCommandSequence: null,
           savedAt: null,
           annotation: null,
           warningCodes: Object.freeze([]),
         }),
-      ]),
+      ]);
+    },
     save: async (slotId: SaveUiWritableSlotIdV1) =>
       Object.freeze({ kind: "saved" as const, slotId }),
     load,
@@ -991,21 +1080,27 @@ function renderHostedLifecycleRootV1(
     annotateSave: async (slotId: SaveUiWritableSlotIdV1, _note: string) =>
       Object.freeze({ kind: "saved" as const, slotId }),
     importSave: async () => Object.freeze({ kind: "cancelled" as const }),
-    exportSave: async (
-      _slotId: SaveUiReadableSlotIdV1,
-    ) => Object.freeze({ kind: "rejected" as const, code: "unavailable" as const }),
+    exportSave: async (_slotId: SaveUiReadableSlotIdV1) =>
+      Object.freeze({
+        kind: "rejected" as const,
+        code: "unavailable" as const,
+      }),
     exportCurrentSave: async () => {
       throw new TypeError("hosted save export is outside this fixture");
     },
   }) satisfies SaveOverlayPortV1;
   const restartToken = Object.freeze({ kind: "return-to-title-test-token" });
   const restart = vi.fn(async () => {
-    anchorEvents.publish(Object.freeze({
-      anchor: Object.freeze({ epoch: 2, origin: "restart" }),
-      token: restartToken,
-    }));
+    anchorEvents.publish(
+      Object.freeze({
+        anchor: Object.freeze({ epoch: 2, origin: "restart" }),
+        token: restartToken,
+      }),
+    );
     if (installed.at(-1)?.token !== restartToken) {
-      throw new TypeError("missing exact presentation successor acknowledgment");
+      throw new TypeError(
+        "missing exact presentation successor acknowledgment",
+      );
     }
     return anchoredV1;
   });
@@ -1027,7 +1122,9 @@ function renderHostedLifecycleRootV1(
       projector: Object.freeze({
         resolvedCatalog: Object.freeze({}),
         initialUiState: Object.freeze({}),
-        project: (input: { readonly uiState: { readonly anchor: GameUiPresentationAnchorV1 } }) =>
+        project: (input: {
+          readonly uiState: { readonly anchor: GameUiPresentationAnchorV1 };
+        }) =>
           Object.freeze({
             view: Object.freeze({ anchorEpoch: input.uiState.anchor.epoch }),
             requiredAssetIds: Object.freeze([]),
@@ -1051,12 +1148,16 @@ function renderHostedLifecycleRootV1(
       anchorEvents: anchorEvents.source,
       successorProducer: Object.freeze({
         installed(
-          outcome: Parameters<GameUiPresentationSuccessorProducerInternalV1["installed"]>[0],
+          outcome: Parameters<
+            GameUiPresentationSuccessorProducerInternalV1["installed"]
+          >[0],
         ) {
           installed.push(outcome);
         },
         failed(
-          outcome: Parameters<GameUiPresentationSuccessorProducerInternalV1["failed"]>[0],
+          outcome: Parameters<
+            GameUiPresentationSuccessorProducerInternalV1["failed"]
+          >[0],
         ) {
           failed.push(outcome);
         },
@@ -1079,8 +1180,10 @@ function renderHostedLifecycleRootV1(
             beginNewGame: null,
           }),
           lifecycle: Object.freeze({ restart }),
-          savePort: options.withSaveUi === true ? savePort : null,
-          customSavesConfigured: false,
+          savePort: options.withSaveUi === true || options.withCustomSaves === true
+            ? savePort
+            : null,
+          customSavesConfigured: options.withCustomSaves === true,
           labels: Object.freeze({
             newGame: "New game",
             newGameFailed: "Unable to start a new game.",
@@ -1098,7 +1201,10 @@ function renderHostedLifecycleRootV1(
       : null,
   );
   let returnToTitle:
-    | DefaultGameRootSlotContextV1<unknown, unknown>["systemDialogs"]["returnToTitle"]
+    | DefaultGameRootSlotContextV1<
+      unknown,
+      unknown
+    >["systemDialogs"]["returnToTitle"]
     | undefined;
   const overlayResolver = Object.freeze({
     resolve: (id: LifecycleOverlayIdV1) =>
@@ -1117,16 +1223,41 @@ function renderHostedLifecycleRootV1(
       viewport={undefined as never}
       lifecycle={Object.freeze({ restart: rootLifecycleRestart })}
       {...(options.withSaveUi === true
-        ? { saveUi: Object.freeze({ port: savePort, labels: hostedSaveLabelsV1 }) }
+        ? {
+          saveUi: Object.freeze({
+            port: savePort,
+            labels: hostedSaveLabelsV1,
+          }),
+        }
+        : {})}
+      {...(options.withCustomSaves === true
+        ? {
+          customSaves: Object.freeze({
+            kind: "custom" as const,
+            accessibleName: "Load game",
+            component: (intents: { readonly close: () => void }) => (
+              <div data-testid="custom-saves-body">
+                <button type="button" onClick={() => intents.close()}>
+                  Close custom saves
+                </button>
+              </div>
+            ),
+          }),
+        }
         : {})}
       slots={Object.freeze({
         ...(options.stageLifetime === undefined ? {} : {
-          background: (context: DefaultGameRootSlotContextV1<unknown, unknown>) => (
+          background: (
+            context: DefaultGameRootSlotContextV1<unknown, unknown>,
+          ) => (
             <StageLifetimeProbeV1
               onMount={options.stageLifetime!.onMount}
               onUnmount={options.stageLifetime!.onUnmount}
-              epoch={(context.publication as { readonly view: { readonly anchorEpoch: number } })
-                .view.anchorEpoch}
+              epoch={(
+                context.publication as {
+                  readonly view: { readonly anchorEpoch: number };
+                }
+              ).view.anchorEpoch}
               clock={options.stageLifetime!.clock}
               cues={context.cues}
             />
@@ -1134,7 +1265,7 @@ function renderHostedLifecycleRootV1(
         }),
         hud: (context: DefaultGameRootSlotContextV1<unknown, unknown>) => {
           returnToTitle = context.systemDialogs.returnToTitle;
-          return null;
+          return options.hudProbe === true ? <div data-testid="hud-probe">HUD</div> : null;
         },
         overlayResolver: () => overlayResolver,
       })}
@@ -1171,14 +1302,18 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     });
 
     const splash = await waitFor(() => {
-      const candidate = document.querySelector<HTMLElement>("[data-boot-splash='true']");
+      const candidate = document.querySelector<HTMLElement>(
+        "[data-boot-splash='true']",
+      );
       expect(candidate).toBeVisible();
       return candidate!;
     });
     await userEvent.setup().click(splash);
 
     const title = await waitFor(() => {
-      const candidate = document.querySelector<HTMLElement>("[data-title-screen='true']");
+      const candidate = document.querySelector<HTMLElement>(
+        "[data-title-screen='true']",
+      );
       expect(candidate).toBeVisible();
       return candidate!;
     });
@@ -1188,8 +1323,99 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     fixture.composition.dispose();
   });
 
+  it("replaces Continue with a Load launcher that stays disabled when no save can be loaded", async () => {
+    const fixture = renderHostedLifecycleRootV1({
+      withFrontDoor: true,
+      withCustomSaves: true,
+      saveSlotHealth: "empty",
+    });
+
+    await waitFor(() => {
+      expect(
+        document.querySelector<HTMLElement>("[data-title-screen='true']"),
+      ).toBeVisible();
+    });
+    const loadButton = screen.getByRole("button", { name: "Load game" });
+    expect(loadButton).toBeDisabled();
+    expect(loadButton).toHaveAttribute(
+      "data-title-load-game-available",
+      "false",
+    );
+    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
+    expect(screen.getByRole("button", { name: "New game" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Settings" })).toBeEnabled();
+
+    fixture.composition.dispose();
+  });
+
+  it("opens custom Saves from Title Load without dismissing the front door", async () => {
+    const fixture = renderHostedLifecycleRootV1({
+      withFrontDoor: true,
+      withCustomSaves: true,
+      saveSlotHealth: "valid",
+    });
+
+    const loadButton = await waitFor(() => {
+      const candidate = screen.getByRole("button", { name: "Load game" });
+      expect(candidate).toBeEnabled();
+      return candidate;
+    });
+    expect(loadButton).toHaveAttribute(
+      "data-title-load-game-available",
+      "true",
+    );
+    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
+
+    await userEvent.setup().click(loadButton);
+    expect(await screen.findByTestId("custom-saves-body")).toBeVisible();
+    expect(document.querySelector("[data-title-screen='true']")).not.toBeNull();
+
+    fixture.composition.dispose();
+  });
+
+  it("keeps Title and play as sequential scenes instead of masking live HUD chrome", async () => {
+    const fixture = renderHostedLifecycleRootV1({
+      withFrontDoor: true,
+      withSaveUi: true,
+      hudProbe: true,
+    });
+
+    await waitFor(() => {
+      expect(
+        document.querySelector<HTMLElement>("[data-title-screen='true']"),
+      ).toBeVisible();
+    });
+    expect(screen.getByRole("application")).toHaveAttribute(
+      "data-front-door-exclusive",
+      "true",
+    );
+    expect(screen.getByTestId("hud-probe")).not.toBeVisible();
+    expect(document.querySelector("[data-default-system-menu]")).toBeNull();
+
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "New game" }));
+    await waitFor(() => {
+      expect(document.querySelector("[data-title-screen='true']")).toBeNull();
+    });
+    expect(screen.getByRole("application")).toHaveAttribute(
+      "data-front-door-exclusive",
+      "false",
+    );
+    expect(screen.getByTestId("hud-probe")).toBeVisible();
+    expect(document.querySelector("[data-default-system-menu]")).not.toBeNull();
+    expect(
+      document.querySelector('[data-testid="stage-scene-interaction"]'),
+    ).toBeNull();
+
+    fixture.composition.dispose();
+  });
+
   it("pre-registers the production Narrative Host and dual-fences device and renderer actions", async () => {
-    const getGamepadsDescriptor = Object.getOwnPropertyDescriptor(navigator, "getGamepads");
+    const getGamepadsDescriptor = Object.getOwnPropertyDescriptor(
+      navigator,
+      "getGamepads",
+    );
     const requestAnimationFrameDescriptor = Object.getOwnPropertyDescriptor(
       globalThis,
       "requestAnimationFrame",
@@ -1206,11 +1432,13 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       configurable: true,
       value: () =>
         connected
-          ? [Object.freeze({
-            index: 0,
-            connected: true,
-            buttons: Object.freeze([{ pressed }]),
-          })]
+          ? [
+            Object.freeze({
+              index: 0,
+              connected: true,
+              buttons: Object.freeze([{ pressed }]),
+            }),
+          ]
           : [],
     });
     Object.defineProperty(globalThis, "requestAnimationFrame", {
@@ -1228,12 +1456,16 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
         frames.delete(frameId);
       },
     });
-    let fixture: ReturnType<typeof renderCompositionOwnedNarrativeRootInternalV1> | null = null;
+    let fixture:
+      | ReturnType<
+        typeof renderCompositionOwnedNarrativeRootInternalV1
+      >
+      | null = null;
     const runGamepadFrame = async (): Promise<void> => {
-      const entry = frames.entries().next().value as
-        | [number, FrameRequestCallback]
-        | undefined;
-      if (entry === undefined) throw new Error("expected a pending gamepad frame");
+      const entry = frames.entries().next().value as [number, FrameRequestCallback] | undefined;
+      if (entry === undefined) {
+        throw new Error("expected a pending gamepad frame");
+      }
       frames.delete(entry[0]);
       await act(async () => {
         entry[1](0);
@@ -1246,7 +1478,9 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       const currentChoice = async (sequence: number): Promise<HTMLElement> => {
         await screen.findByTestId("default-root-narrative-choice");
         await waitFor(() =>
-          expect(screen.getByTestId("default-root-narrative-choice")).toHaveAttribute(
+          expect(
+            screen.getByTestId("default-root-narrative-choice"),
+          ).toHaveAttribute(
             "data-occurrence-id",
             `interaction-occurrence.${String(sequence + 1_000)}`,
           )
@@ -1287,31 +1521,39 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       await currentChoice(4);
       expect(fixture.dispatches).toHaveLength(3);
 
-      const oldPointerCallback = fixture.callbacks.findLast((capture) =>
-        capture.occurrenceId === "interaction-occurrence.1004"
+      const oldPointerCallback = fixture.callbacks.findLast(
+        (capture) => capture.occurrenceId === "interaction-occurrence.1004",
       )?.callback;
       if (oldPointerCallback === undefined) {
         throw new Error("expected the predecessor renderer callback");
       }
 
       await act(async () => {
-        fixture!.anchorEvents.publish(Object.freeze({
-          anchor: Object.freeze({ epoch: 1, origin: "load" }),
-          token: null,
-        }));
+        fixture!.anchorEvents.publish(
+          Object.freeze({
+            anchor: Object.freeze({ epoch: 1, origin: "load" }),
+            token: null,
+          }),
+        );
         await Promise.resolve();
       });
       await waitFor(() =>
-        expect(screen.getByRole("application")).toHaveAttribute("data-presentation-epoch", "1")
+        expect(screen.getByRole("application")).toHaveAttribute(
+          "data-presentation-epoch",
+          "1",
+        )
       );
       expect(
-        fixture.container.querySelector('[data-default-narrative-surface-portal="true"]'),
+        fixture.container.querySelector(
+          '[data-default-narrative-surface-portal="true"]',
+        ),
       ).toBe(portal);
       await waitFor(() =>
         expect(
-          fixture!.callbacks.some((capture) =>
-            capture.occurrenceId === "interaction-occurrence.1004" &&
-            capture.callback !== oldPointerCallback
+          fixture!.callbacks.some(
+            (capture) =>
+              capture.occurrenceId === "interaction-occurrence.1004" &&
+              capture.callback !== oldPointerCallback,
           ),
         ).toBe(true)
       );
@@ -1325,9 +1567,10 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       pressed = false;
       await runGamepadFrame();
 
-      const freshPointerCallback = fixture.callbacks.findLast((capture) =>
-        capture.occurrenceId === "interaction-occurrence.1004" &&
-        capture.callback !== oldPointerCallback
+      const freshPointerCallback = fixture.callbacks.findLast(
+        (capture) =>
+          capture.occurrenceId === "interaction-occurrence.1004" &&
+          capture.callback !== oldPointerCallback,
       )?.callback;
       if (freshPointerCallback === undefined) {
         throw new Error("expected the successor renderer callback");
@@ -1352,7 +1595,9 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       await runGamepadFrame();
       await currentChoice(7);
       expect(fixture.dispatches).toHaveLength(6);
-      expect(fixture.dispatches.map((request) => request.expectedOccurrenceId)).toEqual([
+      expect(
+        fixture.dispatches.map((request) => request.expectedOccurrenceId),
+      ).toEqual([
         "interaction-occurrence.1001",
         "interaction-occurrence.1002",
         "interaction-occurrence.1003",
@@ -1370,11 +1615,13 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       fixture?.unmount();
       fixture?.composition.dispose();
       if (getGamepadsDescriptor === undefined) {
-        delete (navigator as { getGamepads?: unknown })
-          .getGamepads;
-      } else Object.defineProperty(navigator, "getGamepads", getGamepadsDescriptor);
+        delete (navigator as { getGamepads?: unknown }).getGamepads;
+      } else {
+        Object.defineProperty(navigator, "getGamepads", getGamepadsDescriptor);
+      }
       if (requestAnimationFrameDescriptor === undefined) {
-        delete (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame;
+        delete (globalThis as { requestAnimationFrame?: unknown })
+          .requestAnimationFrame;
       } else {
         Object.defineProperty(
           globalThis,
@@ -1383,9 +1630,14 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
         );
       }
       if (cancelAnimationFrameDescriptor === undefined) {
-        delete (globalThis as { cancelAnimationFrame?: unknown }).cancelAnimationFrame;
+        delete (globalThis as { cancelAnimationFrame?: unknown })
+          .cancelAnimationFrame;
       } else {
-        Object.defineProperty(globalThis, "cancelAnimationFrame", cancelAnimationFrameDescriptor);
+        Object.defineProperty(
+          globalThis,
+          "cancelAnimationFrame",
+          cancelAnimationFrameDescriptor,
+        );
       }
     }
   });
@@ -1412,13 +1664,14 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     });
     try {
       await waitFor(() => {
-        expect(screen.getByTestId("default-root-narrative-say")).toHaveAttribute(
-          "data-player-phase",
-          "active",
-        );
+        expect(
+          screen.getByTestId("default-root-narrative-say"),
+        ).toHaveAttribute("data-player-phase", "active");
       });
       const tick = ticks.findLast((candidate) => candidate.active);
-      if (tick === undefined) throw new Error("expected one active Narrative tick");
+      if (tick === undefined) {
+        throw new Error("expected one active Narrative tick");
+      }
 
       currentNow = 808.5;
       await act(() => tick.callback(783.4));
@@ -1444,42 +1697,42 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     try {
       const user = userEvent.setup();
       await waitFor(() => {
-        expect(screen.getByTestId("default-root-narrative-say")).toHaveAttribute(
-          "data-player-phase",
-          "active",
-        );
+        expect(
+          screen.getByTestId("default-root-narrative-say"),
+        ).toHaveAttribute("data-player-phase", "active");
       });
       expect(fixture.composition.systemDialogSession.openSettings()).toEqual({
         kind: "preparing",
         code: "system_dialog.preparation_started",
       });
-      expect(await screen.findByRole("dialog", { name: "Settings" })).toBeInTheDocument();
+      expect(
+        await screen.findByRole("dialog", { name: "Settings" }),
+      ).toBeInTheDocument();
       await waitFor(() => {
-        expect(screen.getByTestId("default-root-narrative-say")).toHaveAttribute(
-          "data-player-phase",
-          "suspended",
-        );
+        expect(
+          screen.getByTestId("default-root-narrative-say"),
+        ).toHaveAttribute("data-player-phase", "suspended");
       });
       await user.keyboard("{Escape}");
       await waitFor(() => {
         expect(screen.queryByRole("dialog", { name: "Settings" })).toBeNull();
-        expect(screen.getByTestId("default-root-narrative-say")).toHaveAttribute(
-          "data-player-phase",
-          "active",
-        );
+        expect(
+          screen.getByTestId("default-root-narrative-say"),
+        ).toHaveAttribute("data-player-phase", "active");
       });
 
       act(() => clock.advance(10_000));
       await waitFor(() => {
-        expect(screen.getByTestId("default-root-narrative-say")).toHaveAttribute(
-          "data-reveal-complete",
-          "true",
-        );
+        expect(
+          screen.getByTestId("default-root-narrative-say"),
+        ).toHaveAttribute("data-reveal-complete", "true");
       });
-      const activate = fixture.callbacks.findLast((capture) =>
-        capture.occurrenceId === "interaction-occurrence.1001"
+      const activate = fixture.callbacks.findLast(
+        (capture) => capture.occurrenceId === "interaction-occurrence.1001",
       )?.callback;
-      if (activate === undefined) throw new Error("expected current Say activation callback");
+      if (activate === undefined) {
+        throw new Error("expected current Say activation callback");
+      }
 
       act(() => {
         activate();
@@ -1489,15 +1742,16 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
         activate();
         activate();
       });
-      expect(fixture.dispatches).toEqual([{
-        expectedOccurrenceId: "interaction-occurrence.1001",
-        resolution: { kind: "advance" },
-      }]);
+      expect(fixture.dispatches).toEqual([
+        {
+          expectedOccurrenceId: "interaction-occurrence.1001",
+          resolution: { kind: "advance" },
+        },
+      ]);
       await waitFor(() => {
-        expect(screen.getByTestId("default-root-narrative-choice")).toHaveAttribute(
-          "data-occurrence-id",
-          "interaction-occurrence.1002",
-        );
+        expect(
+          screen.getByTestId("default-root-narrative-choice"),
+        ).toHaveAttribute("data-occurrence-id", "interaction-occurrence.1002");
       });
     } finally {
       fixture.unmount();
@@ -1536,11 +1790,17 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       expect(setupCountAtDispatch).toBe(2);
       expect(cleanupCountAtDispatch).toBe(1);
       expect(fixture.failures).toEqual([]);
-      const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
+      const managed = resolveGameUiManagedSurfaceCompositionInternalV1(
+        fixture.composition,
+      );
       expect(managed.isTerminalInternalV1()).toBe(false);
-      expect(managed.narrative.getCurrentSelectionInternalV1()?.pending).toBeNull();
+      expect(
+        managed.narrative.getCurrentSelectionInternalV1()?.pending,
+      ).toBeNull();
 
-      expect(fixture.composition.cues.play("cue.test.default-root-lifetime")).toBe(true);
+      expect(
+        fixture.composition.cues.play("cue.test.default-root-lifetime"),
+      ).toBe(true);
       expect(clock.pendingTickCount()).toBe(1);
       fixture.unmount();
       unmounted = true;
@@ -1551,7 +1811,9 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
 
       expect(onUnmount).toHaveBeenCalledTimes(2);
       expect(clock.pendingTickCount()).toBe(0);
-      expect(fixture.composition.cues.play("cue.test.default-root-lifetime")).toBe(false);
+      expect(
+        fixture.composition.cues.play("cue.test.default-root-lifetime"),
+      ).toBe(false);
       expect(fixture.dispatches).toHaveLength(1);
     } finally {
       if (!unmounted) fixture.unmount();
@@ -1564,17 +1826,27 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       completionMode: "reject_current",
     });
     try {
-      await userEvent.setup().click(await screen.findByTestId("default-root-narrative-choice"));
+      await userEvent
+        .setup()
+        .click(await screen.findByTestId("default-root-narrative-choice"));
       await waitFor(() => expect(fixture.failures).toHaveLength(1));
 
-      const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
-      expect(fixture.failures[0]?.code).toBe("ui.narrative_surface_composition_failed");
+      const managed = resolveGameUiManagedSurfaceCompositionInternalV1(
+        fixture.composition,
+      );
+      expect(fixture.failures[0]?.code).toBe(
+        "ui.narrative_surface_composition_failed",
+      );
       expect(managed.isTerminalInternalV1()).toBe(true);
       expect(managed.narrative.getCurrentSessionInternalV1()).toBeNull();
-      expect(fixture.composition.input.route(Object.freeze({
-        kind: "action",
-        actionId: systemInputActionIdsV1.confirm,
-      }))).toEqual({ kind: "ignored" });
+      expect(
+        fixture.composition.input.route(
+          Object.freeze({
+            kind: "action",
+            actionId: systemInputActionIdsV1.confirm,
+          }),
+        ),
+      ).toEqual({ kind: "ignored" });
     } finally {
       fixture.unmount();
       fixture.composition.dispose();
@@ -1586,11 +1858,17 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       completionMode: "resolve_without_publication",
     });
     try {
-      await userEvent.setup().click(await screen.findByTestId("default-root-narrative-choice"));
+      await userEvent
+        .setup()
+        .click(await screen.findByTestId("default-root-narrative-choice"));
       await waitFor(() => expect(fixture.failures).toHaveLength(1));
 
-      const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
-      expect(fixture.failures[0]?.code).toBe("ui.narrative_surface_composition_failed");
+      const managed = resolveGameUiManagedSurfaceCompositionInternalV1(
+        fixture.composition,
+      );
+      expect(fixture.failures[0]?.code).toBe(
+        "ui.narrative_surface_composition_failed",
+      );
       expect(managed.isTerminalInternalV1()).toBe(true);
       expect(managed.narrative.getCurrentSessionInternalV1()).toBeNull();
     } finally {
@@ -1604,31 +1882,36 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       completionMode: "publish_pending",
     });
     try {
-      await userEvent.setup().click(await screen.findByTestId("default-root-narrative-choice"));
+      await userEvent
+        .setup()
+        .click(await screen.findByTestId("default-root-narrative-choice"));
       await waitFor(() =>
-        expect(screen.getByTestId("default-root-narrative-choice")).toHaveAttribute(
-          "data-occurrence-id",
-          "interaction-occurrence.1002",
-        )
+        expect(
+          screen.getByTestId("default-root-narrative-choice"),
+        ).toHaveAttribute("data-occurrence-id", "interaction-occurrence.1002")
       );
       expect(fixture.dispatches).toHaveLength(1);
 
       await act(async () => {
-        fixture.rejectPendingCompletion(new Error("late predecessor completion rejected"));
+        fixture.rejectPendingCompletion(
+          new Error("late predecessor completion rejected"),
+        );
         await Promise.resolve();
         await Promise.resolve();
       });
 
-      const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
+      const managed = resolveGameUiManagedSurfaceCompositionInternalV1(
+        fixture.composition,
+      );
       expect(fixture.failures).toEqual([]);
       expect(managed.isTerminalInternalV1()).toBe(false);
-      expect(managed.narrative.getCurrentSelectionInternalV1()?.pending?.occurrenceId).toBe(
-        "interaction-occurrence.1002",
-      );
-      expect(screen.getByTestId("default-root-narrative-choice")).toHaveAttribute(
-        "data-occurrence-id",
-        "interaction-occurrence.1002",
-      );
+      expect(
+        managed.narrative.getCurrentSelectionInternalV1()?.pending
+          ?.occurrenceId,
+      ).toBe("interaction-occurrence.1002");
+      expect(
+        screen.getByTestId("default-root-narrative-choice"),
+      ).toHaveAttribute("data-occurrence-id", "interaction-occurrence.1002");
     } finally {
       fixture.unmount();
       fixture.composition.dispose();
@@ -1653,9 +1936,13 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       document.querySelector('[data-default-narrative-surface-portal="true"]'),
     ).toBeNull();
     expect(
-      document.querySelector('[data-default-whole-canvas-surface-portal="true"]'),
+      document.querySelector(
+        '[data-default-whole-canvas-surface-portal="true"]',
+      ),
     ).toBeNull();
-    expect(document.querySelector('[data-stage-layer="whole_canvas"]')).toBeEmptyDOMElement();
+    expect(
+      document.querySelector('[data-stage-layer="whole_canvas"]'),
+    ).toBeEmptyDOMElement();
 
     fixture.composition.dispose();
   });
@@ -1665,9 +1952,13 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       wholeCanvas: true,
       strictMode: true,
     });
-    const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
+    const managed = resolveGameUiManagedSurfaceCompositionInternalV1(
+      fixture.composition,
+    );
     const initialBinding = managed.wholeCanvas.getCurrentHostBindingInternalV1();
-    const wholeCanvasLayer = document.querySelector('[data-stage-layer="whole_canvas"]');
+    const wholeCanvasLayer = document.querySelector(
+      '[data-stage-layer="whole_canvas"]',
+    );
     const portal = wholeCanvasLayer?.querySelector(
       '[data-default-whole-canvas-surface-portal="true"]',
     );
@@ -1676,26 +1967,35 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     expect(wholeCanvasLayer).not.toBeNull();
     expect(portal).not.toBeNull();
     expect(portal).toHaveStyle({ pointerEvents: "none" });
-    expect(document.querySelectorAll(
-      '[data-default-whole-canvas-surface-portal="true"]',
-    )).toHaveLength(1);
     expect(
-      document.querySelector('[data-stage-layer="system"]')?.querySelector(
+      document.querySelectorAll(
         '[data-default-whole-canvas-surface-portal="true"]',
       ),
+    ).toHaveLength(1);
+    expect(
+      document
+        .querySelector('[data-stage-layer="system"]')
+        ?.querySelector('[data-default-whole-canvas-surface-portal="true"]'),
     ).toBeNull();
-    const initialPrimary = await screen.findByTestId("default-root-whole-canvas-primary");
-    expect(initialPrimary.closest("[data-whole-canvas-surface='primary']"))
-      .toHaveStyle({ pointerEvents: "auto" });
+    const initialPrimary = await screen.findByTestId(
+      "default-root-whole-canvas-primary",
+    );
+    expect(
+      initialPrimary.closest("[data-whole-canvas-surface='primary']"),
+    ).toHaveStyle({ pointerEvents: "auto" });
     const initialInstanceId = initialPrimary.getAttribute("data-instance-id");
     expect(initialInstanceId).not.toBeNull();
-    expect(initialPrimary.closest('[data-whole-canvas-surface-host="true"]')).not.toBeNull();
+    expect(
+      initialPrimary.closest('[data-whole-canvas-surface-host="true"]'),
+    ).not.toBeNull();
 
     await act(async () => {
-      fixture.anchorEvents.publish(Object.freeze({
-        anchor: Object.freeze({ epoch: 1, origin: "load" }),
-        token: null,
-      }));
+      fixture.anchorEvents.publish(
+        Object.freeze({
+          anchor: Object.freeze({ epoch: 1, origin: "load" }),
+          token: null,
+        }),
+      );
       await Promise.resolve();
     });
 
@@ -1703,13 +2003,23 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     const successorBinding = managed.wholeCanvas.getCurrentHostBindingInternalV1();
     expect(successorBinding).not.toBeNull();
     expect(successorBinding).not.toBe(initialBinding);
-    expect(managed.wholeCanvas.isCurrentRuntimeAttachmentInternalV1(successorRuntime)).toBe(true);
-    expect(document.querySelector(
-      '[data-default-whole-canvas-surface-portal="true"]',
-    )).toBe(portal);
+    expect(
+      managed.wholeCanvas.isCurrentRuntimeAttachmentInternalV1(
+        successorRuntime,
+      ),
+    ).toBe(true);
+    expect(
+      document.querySelector(
+        '[data-default-whole-canvas-surface-portal="true"]',
+      ),
+    ).toBe(portal);
     await waitFor(() => {
-      const successorPrimary = screen.getByTestId("default-root-whole-canvas-primary");
-      expect(successorPrimary.getAttribute("data-instance-id")).not.toBe(initialInstanceId);
+      const successorPrimary = screen.getByTestId(
+        "default-root-whole-canvas-primary",
+      );
+      expect(successorPrimary.getAttribute("data-instance-id")).not.toBe(
+        initialInstanceId,
+      );
     });
 
     fixture.unmount();
@@ -1734,20 +2044,27 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     expect(clock.pendingTickCount()).toBe(0);
 
     await act(async () => {
-      fixture.anchorEvents.publish(Object.freeze({
-        anchor: Object.freeze({ epoch: 1, origin: "load" }),
-        token: null,
-      }));
+      fixture.anchorEvents.publish(
+        Object.freeze({
+          anchor: Object.freeze({ epoch: 1, origin: "load" }),
+          token: null,
+        }),
+      );
       await Promise.resolve();
     });
     await waitFor(() =>
-      expect(screen.getByRole("application")).toHaveAttribute("data-presentation-epoch", "1")
+      expect(screen.getByRole("application")).toHaveAttribute(
+        "data-presentation-epoch",
+        "1",
+      )
     );
 
     expect(onMount).toHaveBeenCalledTimes(2);
     expect(onUnmount).toHaveBeenCalledTimes(1);
     expect(clock.pendingTickCount()).toBe(1);
-    expect(fixture.composition.cues.play("cue.test.default-root-lifetime")).toBe(true);
+    expect(
+      fixture.composition.cues.play("cue.test.default-root-lifetime"),
+    ).toBe(true);
     expect(clock.pendingTickCount()).toBe(2);
 
     // Composition terminal disposal reaches the bound private Stage driver
@@ -1807,7 +2124,9 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     await act(async () => {
       await new Promise<void>((complete) => queueMicrotask(complete));
     });
-    expect(fixture.systemDialogSession.getSnapshot()).toEqual({ active: "settings" });
+    expect(fixture.systemDialogSession.getSnapshot()).toEqual({
+      active: "settings",
+    });
   });
 
   it("forwards the Story opt-in cutscene label to the default Settings control", async () => {
@@ -1818,7 +2137,9 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     const fixture = renderLifecycleRootV1({
       playerProfile,
       capabilities: disabledCapabilitiesV1,
-      labels: Object.freeze({ settingsSkipCutscenesLabel: "Skip cinematic waits" }),
+      labels: Object.freeze({
+        settingsSkipCutscenesLabel: "Skip cinematic waits",
+      }),
     });
 
     act(() => {
@@ -1839,7 +2160,9 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
   it("fails closed without composition-owned front-door authority", async () => {
     const fixture = renderLifecycleRootV1({});
     const topology = await openActiveTopologyV1(fixture);
-    const before = fixture.managedSurfaceRuntimeOwner.getCurrent().coordinator.getSnapshot();
+    const before = fixture.managedSurfaceRuntimeOwner
+      .getCurrent()
+      .coordinator.getSnapshot();
     const systemNotifications = vi.fn();
     const overlayNotifications = vi.fn();
     fixture.systemDialogInternal.subscribeInternalV1(systemNotifications);
@@ -1851,9 +2174,13 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       void outcome.catch(() => undefined);
     }).not.toThrow();
     expect(outcome).toBeDefined();
-    await expect(outcome).rejects.toThrow("ui.whole_canvas_front_door_unavailable");
+    await expect(outcome).rejects.toThrow(
+      "ui.whole_canvas_front_door_unavailable",
+    );
 
-    expect(fixture.managedSurfaceRuntimeOwner.getCurrent().coordinator.getSnapshot()).toBe(before);
+    expect(
+      fixture.managedSurfaceRuntimeOwner.getCurrent().coordinator.getSnapshot(),
+    ).toBe(before);
     expect(fixture.systemDialogSession.getSnapshot()).toEqual(topology.system);
     expect(fixture.overlaySession.getSnapshot()).toEqual(topology.overlay);
     expect(systemNotifications).not.toHaveBeenCalled();
@@ -1876,14 +2203,18 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
 
     try {
       await act(async () => {
-        fixture.anchorEvents.publish(Object.freeze({
-          anchor: Object.freeze({ epoch: 1, origin: "load" }),
-          token: null,
-        }));
+        fixture.anchorEvents.publish(
+          Object.freeze({
+            anchor: Object.freeze({ epoch: 1, origin: "load" }),
+            token: null,
+          }),
+        );
         await Promise.resolve();
       });
       await waitFor(() =>
-        expect(screen.queryByRole("dialog", { name: "Hosted lifecycle fixture" })).toBeNull()
+        expect(
+          screen.queryByRole("dialog", { name: "Hosted lifecycle fixture" }),
+        ).toBeNull()
       );
       expect(managedComposition.runtime.getCurrent().applicationEpoch).toBe(17);
 
@@ -1892,10 +2223,12 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
         const publication = overlayInternal.getManagedSnapshotInternalV1();
         if (publication.applicationEpoch !== 23 || openAttempted) return;
         openAttempted = true;
-        openResult = fixture.composition.intents.execute(Object.freeze({
-          kind: "overlay.open" as const,
-          overlayId: "lifecycle.primary",
-        }));
+        openResult = fixture.composition.intents.execute(
+          Object.freeze({
+            kind: "overlay.open" as const,
+            overlayId: "lifecycle.primary",
+          }),
+        );
         freshInstanceId = overlayInternal.getManagedSnapshotInternalV1().orderedInstances[0]
           ?.surfaceInstanceId;
       });
@@ -1920,21 +2253,26 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
 
       const afterReturn = overlayInternal.getManagedSnapshotInternalV1();
       expect(afterReturn.applicationEpoch).toBe(23);
-      expect(afterReturn.orderedInstances.map((instance) => instance.surfaceInstanceId)).toEqual([
-        freshInstanceId,
-      ]);
-      expect(document.querySelector(
-        '[data-managed-surface-definition="surface.whole-canvas.title"]' +
-          '[data-managed-surface-instance="surface-instance.e23.n1"]',
-      )).toBeInTheDocument();
+      expect(
+        afterReturn.orderedInstances.map(
+          (instance) => instance.surfaceInstanceId,
+        ),
+      ).toEqual([freshInstanceId]);
+      expect(
+        document.querySelector(
+          '[data-managed-surface-definition="surface.whole-canvas.title"]' +
+            '[data-managed-surface-instance="surface-instance.e23.n1"]',
+        ),
+      ).toBeInTheDocument();
       await waitFor(() =>
         expect(fixture.composition.overlaySession.getSnapshot()).toEqual({
           primaryId: "lifecycle.primary",
           detailIds: [],
         })
       );
-      expect(await screen.findByRole("dialog", { name: "lifecycle.primary" }))
-        .toBeInTheDocument();
+      expect(
+        await screen.findByRole("dialog", { name: "lifecycle.primary" }),
+      ).toBeInTheDocument();
 
       const stablePublication = overlayInternal.getManagedSnapshotInternalV1();
       const stableNotifications = notifications;
@@ -1942,9 +2280,13 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
         await Promise.resolve();
         await Promise.resolve();
       });
-      expect(overlayInternal.getManagedSnapshotInternalV1()).toBe(stablePublication);
+      expect(overlayInternal.getManagedSnapshotInternalV1()).toBe(
+        stablePublication,
+      );
       expect(notifications).toBe(stableNotifications);
-      expect(stablePublication.orderedInstances[0]?.surfaceInstanceId).toBe(freshInstanceId);
+      expect(stablePublication.orderedInstances[0]?.surfaceInstanceId).toBe(
+        freshInstanceId,
+      );
     } finally {
       unsubscribe();
       fixture.composition.dispose();
@@ -1972,14 +2314,18 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
 
     try {
       await act(async () => {
-        fixture.anchorEvents.publish(Object.freeze({
-          anchor: Object.freeze({ epoch: 1, origin: "load" }),
-          token: null,
-        }));
+        fixture.anchorEvents.publish(
+          Object.freeze({
+            anchor: Object.freeze({ epoch: 1, origin: "load" }),
+            token: null,
+          }),
+        );
         await Promise.resolve();
       });
       await waitFor(() =>
-        expect(screen.queryByRole("dialog", { name: "Hosted lifecycle fixture" })).toBeNull()
+        expect(
+          screen.queryByRole("dialog", { name: "Hosted lifecycle fixture" }),
+        ).toBeNull()
       );
 
       await act(async () => {
@@ -2006,7 +2352,9 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
           active: "settings",
         })
       );
-      expect(await screen.findByRole("dialog", { name: "Settings" })).toBeInTheDocument();
+      expect(
+        await screen.findByRole("dialog", { name: "Settings" }),
+      ).toBeInTheDocument();
 
       const stablePublication = systemInternal.getManagedSnapshotInternalV1();
       const stableRenderSnapshot = systemInternal.getHostRenderSnapshotInternalV1();
@@ -2015,10 +2363,16 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
         await Promise.resolve();
         await Promise.resolve();
       });
-      expect(systemInternal.getManagedSnapshotInternalV1()).toBe(stablePublication);
-      expect(systemInternal.getHostRenderSnapshotInternalV1()).toBe(stableRenderSnapshot);
+      expect(systemInternal.getManagedSnapshotInternalV1()).toBe(
+        stablePublication,
+      );
+      expect(systemInternal.getHostRenderSnapshotInternalV1()).toBe(
+        stableRenderSnapshot,
+      );
       expect(notifications).toBe(stableNotifications);
-      expect(stablePublication.orderedInstances[0]?.surfaceInstanceId).toBe(freshInstanceId);
+      expect(stablePublication.orderedInstances[0]?.surfaceInstanceId).toBe(
+        freshInstanceId,
+      );
     } finally {
       unsubscribe();
       fixture.composition.dispose();
@@ -2048,12 +2402,20 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     try {
       const user = userEvent.setup();
       await user.click(screen.getByRole("button", { name: "Save" }));
-      expect(await screen.findByRole("dialog", { name: "Hosted saves" })).toBeInTheDocument();
-      await user.click(await screen.findByRole("button", { name: "Load Quick save" }));
       expect(
-        await screen.findByRole("dialog", { name: "Load Quick save confirmation" }),
+        await screen.findByRole("dialog", { name: "Hosted saves" }),
       ).toBeInTheDocument();
-      await user.click(screen.getByRole("button", { name: "Confirm operation" }));
+      await user.click(
+        await screen.findByRole("button", { name: "Load Quick save" }),
+      );
+      expect(
+        await screen.findByRole("dialog", {
+          name: "Load Quick save confirmation",
+        }),
+      ).toBeInTheDocument();
+      await user.click(
+        screen.getByRole("button", { name: "Confirm operation" }),
+      );
 
       expect(fixture.load).toHaveBeenCalledExactlyOnceWith("quick");
       expect(openResult).toEqual({
@@ -2074,32 +2436,42 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
           active: "settings",
         })
       );
-      expect(await screen.findByRole("dialog", { name: "Settings" })).toBeInTheDocument();
+      expect(
+        await screen.findByRole("dialog", { name: "Settings" }),
+      ).toBeInTheDocument();
       expect(screen.queryByRole("dialog", { name: "Hosted saves" })).toBeNull();
-      expect(screen.queryByRole("dialog", {
-        name: "Load Quick save confirmation",
-      })).toBeNull();
+      expect(
+        screen.queryByRole("dialog", {
+          name: "Load Quick save confirmation",
+        }),
+      ).toBeNull();
 
       const stablePublication = systemInternal.getManagedSnapshotInternalV1();
       const stableRenderSnapshot = systemInternal.getHostRenderSnapshotInternalV1();
-      const stableCoordinator = managedComposition.runtime.getCurrent().coordinator.getSnapshot();
+      const stableCoordinator = managedComposition.runtime
+        .getCurrent()
+        .coordinator.getSnapshot();
       let sessionNotifications = 0;
       let coordinatorNotifications = 0;
       const unsubscribeStableSession = systemInternal.subscribeInternalV1(
-        () => sessionNotifications += 1,
+        () => (sessionNotifications += 1),
       );
-      const unsubscribeCoordinator = managedComposition.runtime.getCurrent().coordinator.subscribe(
-        () => coordinatorNotifications += 1,
-      );
+      const unsubscribeCoordinator = managedComposition.runtime
+        .getCurrent()
+        .coordinator.subscribe(() => (coordinatorNotifications += 1));
       await act(async () => {
         await Promise.resolve();
         await Promise.resolve();
       });
-      expect(systemInternal.getManagedSnapshotInternalV1()).toBe(stablePublication);
-      expect(systemInternal.getHostRenderSnapshotInternalV1()).toBe(stableRenderSnapshot);
-      expect(managedComposition.runtime.getCurrent().coordinator.getSnapshot()).toBe(
-        stableCoordinator,
+      expect(systemInternal.getManagedSnapshotInternalV1()).toBe(
+        stablePublication,
       );
+      expect(systemInternal.getHostRenderSnapshotInternalV1()).toBe(
+        stableRenderSnapshot,
+      );
+      expect(
+        managedComposition.runtime.getCurrent().coordinator.getSnapshot(),
+      ).toBe(stableCoordinator);
       expect(sessionNotifications).toBe(0);
       expect(coordinatorNotifications).toBe(0);
       unsubscribeCoordinator();

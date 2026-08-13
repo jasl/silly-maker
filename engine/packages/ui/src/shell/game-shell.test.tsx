@@ -77,8 +77,10 @@ describe("GameShell", () => {
     const backdropRule = css.match(/\.game-shell__backdrop\s*\{(?<body>[^}]*)\}/u);
 
     expect(backdropRule?.groups?.body).toContain("pointer-events: none");
+    // Gameplay tap targets keep the 44px touch floor (the compact control
+    // size is developer/system chrome only).
     expect(css).toMatch(
-      /\.game-shell__action\s*\{[^}]*min-block-size:\s*var\(--silly-target-min-size\);[^}]*min-inline-size:\s*var\(--silly-target-min-size\);/su,
+      /\.game-shell__action\s*\{[^}]*min-block-size:\s*var\(--silly-target-min-size, 44px\);[^}]*min-inline-size:\s*var\(--silly-target-min-size, 44px\);/su,
     );
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
     expect(css).toContain("transition: none !important");

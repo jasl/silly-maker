@@ -300,7 +300,8 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
       await waitFor(() => {
         expect(screen.getByRole("application", { name: "引擎实验室" })).toBeInTheDocument();
       });
-      expect(screen.getByRole("button", { name: "打开左侧开发工具" })).toBeInTheDocument();
+      // Boot-time grant: the collapsed corner chip is the sole entry.
+      expect(screen.getByRole("button", { name: "开发工具" })).toBeInTheDocument();
     } finally {
       await started.dispose();
     }

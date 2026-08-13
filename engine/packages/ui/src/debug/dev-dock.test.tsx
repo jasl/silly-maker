@@ -6,7 +6,7 @@ import { createInputRouterV1 } from "../input/input-router.ts";
 import { GameShell } from "../shell/game-shell.tsx";
 import { readFile } from "node:fs/promises";
 import { resolve, sep } from "node:path";
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { useLayoutEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
@@ -15,6 +15,11 @@ import { CapabilityPanelV1 } from "./capability-panel.tsx";
 import { DebugCommandPanelV1 } from "./debug-command-panel.tsx";
 import { DevDockV1, createDevDockContributionSetV1 } from "./dev-dock.tsx";
 import type { DevDockOpenStateV1, DevDockPanelV1 } from "./dev-dock.tsx";
+import { createDevDockControlV1 } from "./dev-dock-control.ts";
+import type { DevDockControlV1 } from "./dev-dock-control.ts";
+import { createManualPresentationClockV1 } from "../presentation-run/presentation-clock.ts";
+import { createPresentationFreezePortV1 } from "../presentation-run/presentation-freeze.ts";
+import type { PresentationFreezePortV1 } from "../presentation-run/presentation-freeze.ts";
 import { DiagnosticInspectorV1 } from "./diagnostic-inspector.tsx";
 import { FixtureBrowserV1 } from "./fixture-browser.tsx";
 import {
@@ -41,7 +46,7 @@ import {
 
 afterEach(cleanup);
 
-const closedDockStateV1 = Object.freeze({ leftOpen: false, rightOpen: false });
+const closedDockStateV1 = Object.freeze({ open: false });
 
 function createDeferredV1<T>() {
   let resolveDeferred!: (value: T | PromiseLike<T>) => void;
@@ -114,6 +119,9 @@ function DevDockHarnessV1(props: {
   readonly capabilities: ReturnType<typeof createCapabilityFixtureV1>["port"];
   readonly contributions?: ReturnType<typeof createDevDockContributionSetV1>;
   readonly initialOpenState?: DevDockOpenStateV1;
+  readonly control?: DevDockControlV1;
+  readonly chip?: boolean;
+  readonly freeze?: PresentationFreezePortV1;
   readonly stageActivation?: () => void;
   readonly semanticDispatch?: () => void;
 }): ReactElement {
@@ -135,6 +143,9 @@ function DevDockHarnessV1(props: {
             contributions={contributions}
             inputRouter={inputRouterRef.current}
             openState={openState}
+            {...(props.control === undefined ? {} : { control: props.control })}
+            {...(props.chip === undefined ? {} : { chip: props.chip })}
+            {...(props.freeze === undefined ? {} : { freeze: props.freeze })}
             onOpenStateChange={setOpenState}
           />
         }
@@ -234,6 +245,8 @@ function PriorityHarnessV1(props: {
   readonly surfaces: readonly DevDockPortalSurfaceV1[];
   readonly capabilities: ReturnType<typeof createCapabilityFixtureV1>["port"];
   readonly initialOpenState?: DevDockOpenStateV1;
+  readonly control?: DevDockControlV1;
+  readonly contributions?: ReturnType<typeof createDevDockContributionSetV1>;
 }): ReactElement {
   const [dockState, setDockState] = useState<DevDockOpenStateV1>(
     props.initialOpenState ?? closedDockStateV1,
@@ -252,9 +265,11 @@ function PriorityHarnessV1(props: {
         devDock={
           <DevDockV1
             capabilities={props.capabilities}
-            contributions={createDevDockContributionSetV1({ panels: [] })}
+            contributions={props.contributions ??
+              createDevDockContributionSetV1({ panels: [] })}
             inputRouter={inputRouterRef.current}
             openState={dockState}
+            {...(props.control === undefined ? {} : { control: props.control })}
             onOpenStateChange={setDockState}
           />
         }
@@ -412,13 +427,12 @@ describe("DevDockV1", () => {
     const capabilities = createCapabilityFixtureV1({ debugTools: false, cheats: false });
     render(<DevDockHarnessV1 capabilities={capabilities.port} />);
 
-    expect(screen.queryByRole("button", { name: "打开左侧开发工具" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "打开右侧开发工具" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "开发工具" })).not.toBeInTheDocument();
     expect(screen.queryByRole("complementary", { name: /开发工具/u })).not.toBeInTheDocument();
   });
 
   it.each(["overlay", "narrative", "system", "fault_pause"] as const)(
-    "keeps two launchers inside the %s focus scope and restores both focus layers",
+    "keeps the chip inside the %s focus scope and restores both focus layers",
     async (surface) => {
       const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: false });
       const user = userEvent.setup();
@@ -426,17 +440,16 @@ describe("DevDockV1", () => {
 
       const opener = screen.getByRole("button", { name: "打开阻塞界面" });
       await user.click(opener);
-      const launcher = await screen.findByRole("button", { name: "打开左侧开发工具" });
-      expect(launcher.closest("[data-blocking-focus-scope]")).toHaveAttribute(
+      const chip = await screen.findByRole("button", { name: "开发工具" });
+      expect(chip.closest("[data-blocking-focus-scope]")).toHaveAttribute(
         "data-blocking-focus-scope",
         surface,
       );
-      expect(screen.getAllByRole("button", { name: /打开.+开发工具/u })).toHaveLength(2);
 
-      await user.click(launcher);
-      expect(screen.getByRole("complementary", { name: "左侧开发工具" })).toBeVisible();
+      await user.click(chip);
+      expect(screen.getByRole("navigation", { name: "开发工具" })).toBeVisible();
       await user.keyboard("{Escape}");
-      expect(launcher).toHaveFocus();
+      expect(chip).toHaveFocus();
       expect(screen.getByRole("dialog", { name: surface })).toBeVisible();
 
       await user.click(screen.getByRole("button", { name: "关闭阻塞界面" }));
@@ -451,14 +464,14 @@ describe("DevDockV1", () => {
 
     const opener = screen.getByRole("button", { name: "打开真实背包" });
     await user.click(opener);
-    const launcher = await screen.findByRole("button", { name: "打开左侧开发工具" });
-    await user.click(launcher);
-    expect(screen.getByRole("complementary", { name: "左侧开发工具" })).toBeVisible();
+    const chip = await screen.findByRole("button", { name: "开发工具" });
+    await user.click(chip);
+    expect(screen.getByRole("navigation", { name: "开发工具" })).toBeVisible();
 
     await user.keyboard("{Escape}");
     expect(screen.getByRole("dialog", { name: "真实背包" })).toBeVisible();
-    expect(screen.queryByRole("complementary", { name: "左侧开发工具" })).not.toBeInTheDocument();
-    expect(launcher).toHaveFocus();
+    expect(screen.queryByRole("navigation", { name: "开发工具" })).not.toBeInTheDocument();
+    expect(chip).toHaveFocus();
 
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "真实背包" })).not.toBeInTheDocument();
@@ -473,14 +486,14 @@ describe("DevDockV1", () => {
     const opener = screen.getByRole("button", { name: "打开真实设置" });
     await user.click(opener);
     expect(await screen.findByRole("dialog", { name: "真实设置" })).toBeVisible();
-    const launcher = await screen.findByRole("button", { name: "打开右侧开发工具" });
-    await user.click(launcher);
-    expect(screen.getByRole("complementary", { name: "右侧开发工具" })).toBeVisible();
+    const chip = await screen.findByRole("button", { name: "开发工具" });
+    await user.click(chip);
+    expect(screen.getByRole("navigation", { name: "开发工具" })).toBeVisible();
 
     await user.keyboard("{Escape}");
     expect(screen.getByRole("dialog", { name: "真实设置" })).toBeVisible();
-    expect(screen.queryByRole("complementary", { name: "右侧开发工具" })).not.toBeInTheDocument();
-    expect(launcher).toHaveFocus();
+    expect(screen.queryByRole("navigation", { name: "开发工具" })).not.toBeInTheDocument();
+    expect(chip).toHaveFocus();
 
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "真实设置" })).not.toBeInTheDocument();
@@ -500,7 +513,7 @@ describe("DevDockV1", () => {
 
     const launcherScope = () =>
       screen
-        .getByRole("button", { name: "打开左侧开发工具" })
+        .getByRole("button", { name: "开发工具" })
         .closest("[data-blocking-focus-scope]")
         ?.getAttribute("data-blocking-focus-scope") ?? "base";
     await waitFor(() => expect(launcherScope()).toBe("system"));
@@ -516,24 +529,41 @@ describe("DevDockV1", () => {
     rendered.rerender(<PriorityHarnessV1 capabilities={capabilities.port} surfaces={[]} />);
     await waitFor(() => expect(launcherScope()).toBe("base"));
 
-    expect(screen.getAllByRole("button", { name: /打开.+开发工具/u })).toHaveLength(2);
-    expect(screen.queryByRole("complementary", { name: /开发工具/u })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "开发工具" })).toBeVisible();
+    expect(screen.queryByRole("navigation", { name: /开发工具/u })).not.toBeInTheDocument();
     expect(unrelatedFocus).toHaveFocus();
   });
 
-  it("refocuses an open rail when a higher-priority portal target replaces its DOM", async () => {
+  it("refocuses an open window when a higher-priority portal target replaces its DOM", async () => {
     const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: false });
+    const control = createDevDockControlV1();
+    const contributions = createDevDockContributionSetV1({
+      panels: [
+        {
+          id: "panel.focus",
+          side: "left",
+          title: "焦点面板",
+          authority: "read_only",
+          render: () => <p>焦点内容</p>,
+        },
+      ],
+    });
+    control.open("panel.focus");
     const rendered = render(
       <PriorityHarnessV1
         capabilities={capabilities.port}
         surfaces={["narrative"]}
-        initialOpenState={Object.freeze({ leftOpen: true, rightOpen: false })}
+        control={control}
+        contributions={contributions}
       />,
     );
-    const rail = await screen.findByRole("complementary", { name: "左侧开发工具" });
-    const close = within(rail).getByRole("button", { name: "关闭左侧开发工具" });
+    const dockWindow = await screen.findByRole("dialog", { name: "焦点面板" });
+    const close = within(dockWindow).getByRole("button", { name: "关闭" });
+    expect(close).toHaveAttribute("data-devdock-window-close", "true");
+    expect(close).toHaveAttribute("aria-label", "关闭");
+    expect(close).not.toHaveTextContent("关闭焦点面板");
     await waitFor(() =>
-      expect(rail.closest("[data-blocking-focus-scope]")).toHaveAttribute(
+      expect(dockWindow.closest("[data-blocking-focus-scope]")).toHaveAttribute(
         "data-blocking-focus-scope",
         "narrative",
       )
@@ -544,13 +574,14 @@ describe("DevDockV1", () => {
       <PriorityHarnessV1
         capabilities={capabilities.port}
         surfaces={["narrative", "system"]}
-        initialOpenState={Object.freeze({ leftOpen: true, rightOpen: false })}
+        control={control}
+        contributions={contributions}
       />,
     );
-    const movedRail = await screen.findByRole("complementary", { name: "左侧开发工具" });
-    const movedClose = within(movedRail).getByRole("button", { name: "关闭左侧开发工具" });
+    const movedWindow = await screen.findByRole("dialog", { name: "焦点面板" });
+    const movedClose = within(movedWindow).getByRole("button", { name: "关闭" });
     await waitFor(() =>
-      expect(movedRail.closest("[data-blocking-focus-scope]")).toHaveAttribute(
+      expect(movedWindow.closest("[data-blocking-focus-scope]")).toHaveAttribute(
         "data-blocking-focus-scope",
         "system",
       )
@@ -558,8 +589,9 @@ describe("DevDockV1", () => {
     await waitFor(() => expect(movedClose).toHaveFocus());
 
     await userEvent.keyboard("{Escape}");
-    expect(screen.queryByRole("complementary", { name: "左侧开发工具" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "打开左侧开发工具" })).toHaveFocus();
+    expect(screen.queryByRole("dialog", { name: "焦点面板" })).not.toBeInTheDocument();
+    expect(control.openPanelIds.getCurrent()).toEqual([]);
+    expect(screen.getByRole("button", { name: "开发工具" })).toHaveFocus();
   });
 
   it("owns Escape before an injected Story field can stop propagation", async () => {
@@ -581,19 +613,22 @@ describe("DevDockV1", () => {
         },
       ],
     });
+    const control = createDevDockControlV1();
+    control.open("story.form");
     render(
       <DevDockHarnessV1
         capabilities={capabilities.port}
         contributions={panels}
-        initialOpenState={Object.freeze({ leftOpen: true, rightOpen: false })}
+        control={control}
       />,
     );
     const field = await screen.findByRole("textbox", { name: "Story 字段" });
     field.focus();
 
     await userEvent.keyboard("{Escape}");
-    expect(screen.queryByRole("complementary", { name: "左侧开发工具" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "打开左侧开发工具" })).toHaveFocus();
+    expect(screen.queryByRole("dialog", { name: "Story 表单" })).not.toBeInTheDocument();
+    expect(control.openPanelIds.getCurrent()).toEqual([]);
+    expect(screen.getByRole("button", { name: "开发工具" })).toHaveFocus();
   });
 
   it("shows read-only panels without cheats and never calls a mutating operation", async () => {
@@ -639,17 +674,21 @@ describe("DevDockV1", () => {
         },
       ],
     });
+    const control = createDevDockControlV1();
+    control.open("diagnostics");
     render(
       <DevDockHarnessV1
         capabilities={capabilities.port}
         contributions={panels}
-        initialOpenState={Object.freeze({ leftOpen: true, rightOpen: false })}
+        control={control}
+        initialOpenState={Object.freeze({ open: true })}
       />,
     );
 
     await userEvent.click(screen.getByRole("button", { name: "诊断摘要" }));
     expect(queryDiagnostics).toHaveBeenCalledOnce();
     expect(await screen.findByText("当前修订：7")).toBeVisible();
+    // The cheat panel's menu launcher stays disabled without cheats.
     expect(screen.getByRole("button", { name: "执行调试命令" })).toBeDisabled();
     expect(executeDebugCommand).not.toHaveBeenCalled();
   });
@@ -667,11 +706,14 @@ describe("DevDockV1", () => {
         },
       ],
     });
+    const control = createDevDockControlV1();
+    control.open("diagnostics");
     render(
       <DevDockHarnessV1
         capabilities={capabilities.port}
         contributions={panels}
-        initialOpenState={Object.freeze({ leftOpen: true, rightOpen: false })}
+        control={control}
+        initialOpenState={Object.freeze({ open: true })}
       />,
     );
 
@@ -703,18 +745,25 @@ describe("DevDockV1", () => {
       />,
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "打开右侧开发工具" }));
+    await userEvent.click(screen.getByRole("button", { name: "开发工具" }));
     stageActivation.mockClear();
     await userEvent.click(screen.getByRole("button", { name: "夹具" }));
     expect(stageActivation).not.toHaveBeenCalled();
     expect(semanticDispatch).not.toHaveBeenCalled();
 
-    const pointerShield = document.querySelector<HTMLElement>('[data-devdock-open="true"]');
-    expect(pointerShield).not.toBeNull();
-    if (pointerShield === null) throw new TypeError("missing open DevDock pointer shield");
-    await userEvent.click(pointerShield);
+    // Clicks inside the floating window never leak to the stage…
+    const dockWindow = await screen.findByRole("dialog", { name: "夹具" });
+    await userEvent.click(within(dockWindow).getByText("夹具面板"));
     expect(stageActivation).not.toHaveBeenCalled();
     expect(semanticDispatch).not.toHaveBeenCalled();
+
+    // …while the game around the windows stays interactive: the dock root
+    // is no longer a full-canvas shield.
+    const dockRoot = document.querySelector<HTMLElement>("[data-devdock-surface]");
+    expect(dockRoot).not.toBeNull();
+    if (dockRoot === null) throw new TypeError("missing DevDock root");
+    await userEvent.click(dockRoot);
+    expect(stageActivation).toHaveBeenCalled();
 
     const packageRelativePath = process.cwd().endsWith(`${sep}engine${sep}packages${sep}ui`);
     const css = await readFile(
@@ -726,27 +775,106 @@ describe("DevDockV1", () => {
       ),
       "utf8",
     );
-    expect(css).toMatch(/\.dev-dock\[data-devdock-open="true"\]\s*\{[^}]*pointer-events:\s*auto/gu);
+    expect(css).not.toMatch(/data-devdock-open="true"\]\s*\{[^}]*pointer-events:\s*auto/gu);
+    expect(css).toMatch(/\.dev-dock__window\s*\{[^}]*pointer-events:\s*auto/gu);
   });
 
-  it("registers debug input above gameplay only while a rail is open", async () => {
+  it("registers debug input above gameplay only while focus sits inside a tool window", async () => {
     const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: true });
     const gameplay = vi.fn(() => Object.freeze({ kind: "handled" as const }));
     const inputRouter = createInputRouterV1();
     inputRouter.register({ context: "gameplay", handle: gameplay });
+    const control = createDevDockControlV1();
+    const panels = createDevDockContributionSetV1({
+      panels: [
+        {
+          id: "panel.input",
+          side: "left",
+          title: "输入面板",
+          authority: "read_only",
+          render: () => <input aria-label="输入字段" type="text" />,
+        },
+      ],
+    });
+    function Harness(): ReactElement {
+      const [openState, setOpenState] = useState<DevDockOpenStateV1>(closedDockStateV1);
+      return (
+        <>
+          <GameShell
+            accessibleName="输入测试舞台"
+            layers={emptyLayersV1()}
+            inputRouter={inputRouter}
+            devDock={
+              <DevDockV1
+                capabilities={capabilities.port}
+                contributions={panels}
+                inputRouter={inputRouter}
+                openState={openState}
+                control={control}
+                onOpenStateChange={setOpenState}
+              />
+            }
+          />
+          <button type="button">外部焦点</button>
+        </>
+      );
+    }
+    render(<Harness />);
+    const event = Object.freeze({
+      kind: "action" as const,
+      actionId: parseInputActionIdV1("ui.debug.synthetic"),
+    });
+
+    expect(inputRouter.route(event)).toEqual({ kind: "handled", context: "gameplay" });
+    act(() => control.open("panel.input"));
+    // The window auto-focuses its first control, so debug input isolation
+    // engages immediately…
+    await screen.findByRole("textbox", { name: "输入字段" });
+    await waitFor(() =>
+      expect(inputRouter.route(event)).toEqual({ kind: "handled", context: "debug" })
+    );
+    // …and releases as soon as focus leaves the window: the game stays
+    // playable next to an open tool window.
+    gameplay.mockClear();
+    const outside = screen.getByRole("button", { name: "外部焦点" });
+    outside.focus();
+    await waitFor(() =>
+      expect(inputRouter.route(event)).toEqual({ kind: "handled", context: "gameplay" })
+    );
+    expect(screen.getByRole("dialog", { name: "输入面板" })).toBeVisible();
+  });
+
+  it("releases debug input isolation when the focused window closes", async () => {
+    const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: true });
+    const gameplay = vi.fn(() => Object.freeze({ kind: "handled" as const }));
+    const inputRouter = createInputRouterV1();
+    inputRouter.register({ context: "gameplay", handle: gameplay });
+    const control = createDevDockControlV1();
+    const panels = createDevDockContributionSetV1({
+      panels: [
+        {
+          id: "panel.input",
+          side: "left",
+          title: "输入面板",
+          authority: "read_only",
+          render: () => <input aria-label="输入字段" type="text" />,
+        },
+      ],
+    });
     function Harness(): ReactElement {
       const [openState, setOpenState] = useState<DevDockOpenStateV1>(closedDockStateV1);
       return (
         <GameShell
-          accessibleName="输入测试舞台"
+          accessibleName="关闭隔离测试舞台"
           layers={emptyLayersV1()}
           inputRouter={inputRouter}
           devDock={
             <DevDockV1
               capabilities={capabilities.port}
-              contributions={createDevDockContributionSetV1({ panels: [] })}
+              contributions={panels}
               inputRouter={inputRouter}
               openState={openState}
+              control={control}
               onOpenStateChange={setOpenState}
             />
           }
@@ -758,14 +886,15 @@ describe("DevDockV1", () => {
       kind: "action" as const,
       actionId: parseInputActionIdV1("ui.debug.synthetic"),
     });
-
-    expect(inputRouter.route(event)).toEqual({ kind: "handled", context: "gameplay" });
-    await userEvent.click(screen.getByRole("button", { name: "打开左侧开发工具" }));
-    gameplay.mockClear();
-    expect(inputRouter.route(event)).toEqual({ kind: "handled", context: "debug" });
-    expect(gameplay).not.toHaveBeenCalled();
-    await userEvent.keyboard("{Escape}");
-    expect(inputRouter.route(event)).toEqual({ kind: "handled", context: "gameplay" });
+    act(() => control.open("panel.input"));
+    await screen.findByRole("textbox", { name: "输入字段" });
+    await waitFor(() =>
+      expect(inputRouter.route(event)).toEqual({ kind: "handled", context: "debug" })
+    );
+    act(() => control.close("panel.input"));
+    await waitFor(() =>
+      expect(inputRouter.route(event)).toEqual({ kind: "handled", context: "gameplay" })
+    );
   });
 
   it("distinguishes an empty authorized fixture list from capability revocation", async () => {
@@ -797,7 +926,7 @@ describe("DevDockV1", () => {
       <DevDockHarnessV1
         capabilities={capabilities.port}
         contributions={panels}
-        initialOpenState={Object.freeze({ leftOpen: true, rightOpen: false })}
+        initialOpenState={Object.freeze({ open: true })}
       />,
     );
 
@@ -840,11 +969,13 @@ describe("DevDockV1", () => {
       ],
     });
     const user = userEvent.setup();
+    const control = createDevDockControlV1();
+    control.open("fixtures");
     render(
       <DevDockHarnessV1
         capabilities={capabilities.port}
         contributions={panels}
-        initialOpenState={Object.freeze({ leftOpen: true, rightOpen: false })}
+        control={control}
       />,
     );
 
@@ -858,20 +989,241 @@ describe("DevDockV1", () => {
     expect(screen.queryByText("夹具已载入")).not.toBeInTheDocument();
   });
 
-  it("closes an open rail before capability revocation removes launchers", async () => {
+  it("closes open windows before capability revocation removes the chip", async () => {
     const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: false });
-    render(<DevDockHarnessV1 capabilities={capabilities.port} />);
-    await userEvent.click(screen.getByRole("button", { name: "打开左侧开发工具" }));
-    expect(screen.getByRole("complementary", { name: "左侧开发工具" })).toBeVisible();
+    const control = createDevDockControlV1();
+    const panels = createDevDockContributionSetV1({
+      panels: [
+        {
+          id: "panel.revoke",
+          side: "left",
+          title: "撤销面板",
+          authority: "read_only",
+          render: () => <p>撤销内容</p>,
+        },
+      ],
+    });
+    render(
+      <DevDockHarnessV1
+        capabilities={capabilities.port}
+        contributions={panels}
+        control={control}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "开发工具" }));
+    await userEvent.click(screen.getByRole("button", { name: "撤销面板" }));
+    expect(screen.getByRole("dialog", { name: "撤销面板" })).toBeVisible();
 
     act(() => capabilities.publish({ debugTools: false, cheats: false, automationBridge: false }));
     await waitFor(() =>
-      expect(screen.queryByRole("button", { name: "打开左侧开发工具" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "开发工具" })).not.toBeInTheDocument()
     );
+    expect(control.openPanelIds.getCurrent()).toEqual([]);
 
     act(() => capabilities.publish({ debugTools: true, cheats: false, automationBridge: false }));
-    expect(await screen.findByRole("button", { name: "打开左侧开发工具" })).toBeVisible();
-    expect(screen.queryByRole("complementary", { name: /开发工具/u })).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "开发工具" })).toBeVisible();
+    expect(screen.queryByRole("dialog", { name: "撤销面板" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: /开发工具/u })).not.toBeInTheDocument();
+  });
+
+  it("anchors the chip to the configured corner and expands upward from the bottom", async () => {
+    const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: false });
+    function PositionHarness(): ReactElement {
+      const [openState, setOpenState] = useState<DevDockOpenStateV1>(closedDockStateV1);
+      const inputRouterRef = useRef(createInputRouterV1());
+      return (
+        <GameShell
+          accessibleName="位置测试舞台"
+          layers={emptyLayersV1()}
+          inputRouter={inputRouterRef.current}
+          devDock={
+            <DevDockV1
+              capabilities={capabilities.port}
+              contributions={createDevDockContributionSetV1({ panels: [] })}
+              inputRouter={inputRouterRef.current}
+              openState={openState}
+              position="bottom_right"
+              onOpenStateChange={setOpenState}
+            />
+          }
+        />
+      );
+    }
+    render(<PositionHarness />);
+    const dock = document.querySelector("[data-devdock-position]");
+    expect(dock).toHaveAttribute("data-devdock-position", "bottom_right");
+    await userEvent.click(screen.getByRole("button", { name: "开发工具" }));
+    expect(screen.getByRole("navigation", { name: "开发工具" })).toBeVisible();
+    // The stylesheet anchors bottom-position menus and windows by
+    // inset-block-end so they expand upward and never leave the canvas.
+    const packageRelativePath = process.cwd().endsWith(`${sep}engine${sep}packages${sep}ui`);
+    const css = await readFile(
+      resolve(
+        process.cwd(),
+        packageRelativePath
+          ? "src/debug/dev-dock.module.css"
+          : "engine/packages/ui/src/debug/dev-dock.module.css",
+      ),
+      "utf8",
+    );
+    expect(css).toMatch(
+      /data-devdock-position="bottom_right"\]\s+\.dev-dock__menu,[\s\S]*?\{\s*inset-block-end:/u,
+    );
+    expect(css).toMatch(
+      /data-devdock-position="bottom_right"\]\s+\.dev-dock__window,[\s\S]*?\{\s*inset-block-end:/u,
+    );
+  });
+
+  it("renders windows without the chip for a Story-driven dock and honors early opens", async () => {
+    const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: false });
+    const control = createDevDockControlV1();
+    // A Story dock may open a lazily loaded panel before it registers; the
+    // window appears once the contribution arrives.
+    control.open("panel.lazy");
+    const rendered = render(
+      <DevDockHarnessV1 capabilities={capabilities.port} control={control} chip={false} />,
+    );
+    expect(screen.queryByRole("button", { name: "开发工具" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "延迟面板" })).not.toBeInTheDocument();
+
+    const panels = createDevDockContributionSetV1({
+      panels: [
+        {
+          id: "panel.lazy",
+          side: "left",
+          title: "延迟面板",
+          authority: "read_only",
+          render: () => <p>延迟内容</p>,
+        },
+      ],
+    });
+    rendered.rerender(
+      <DevDockHarnessV1
+        capabilities={capabilities.port}
+        control={control}
+        chip={false}
+        contributions={panels}
+      />,
+    );
+    expect(await screen.findByRole("dialog", { name: "延迟面板" })).toBeVisible();
+    expect(control.panels.getCurrent().map(({ id }) => id)).toEqual(["panel.lazy"]);
+    expect(screen.queryByRole("button", { name: "开发工具" })).not.toBeInTheDocument();
+    expect(document.querySelector("[data-devdock-surface]")).not.toBeNull();
+
+    act(() => control.close("panel.lazy"));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "延迟面板" })).not.toBeInTheDocument()
+    );
+    expect(document.querySelector("[data-devdock-surface]")).toBeNull();
+  });
+
+  it("toggles the presentation freeze from the chip menu", async () => {
+    const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: false });
+    const freeze = createPresentationFreezePortV1({ inner: createManualPresentationClockV1() });
+    render(
+      <DevDockHarnessV1
+        capabilities={capabilities.port}
+        freeze={freeze}
+        initialOpenState={Object.freeze({ open: true })}
+      />,
+    );
+
+    const toggle = await screen.findByRole("button", { name: "冻结画面" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(toggle);
+    expect(freeze.state.getCurrent().frozen).toBe(true);
+    const resume = screen.getByRole("button", { name: "恢复画面" });
+    expect(resume).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(resume);
+    expect(freeze.state.getCurrent().frozen).toBe(false);
+  });
+
+  it("engages the freeze while a frozen-stage panel window is open", async () => {
+    const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: false });
+    const freeze = createPresentationFreezePortV1({ inner: createManualPresentationClockV1() });
+    const control = createDevDockControlV1();
+    const panels = createDevDockContributionSetV1({
+      panels: [
+        {
+          id: "panel.frame",
+          side: "left",
+          title: "帧检视",
+          authority: "read_only",
+          stage: "frozen",
+          render: () => <p>帧内容</p>,
+        },
+      ],
+    });
+    render(
+      <DevDockHarnessV1
+        capabilities={capabilities.port}
+        contributions={panels}
+        control={control}
+        freeze={freeze}
+      />,
+    );
+    expect(freeze.state.getCurrent().frozen).toBe(false);
+
+    act(() => control.open("panel.frame"));
+    expect(await screen.findByRole("dialog", { name: "帧检视" })).toBeVisible();
+    expect(freeze.state.getCurrent().frozen).toBe(true);
+
+    act(() => control.close("panel.frame"));
+    await waitFor(() => expect(freeze.state.getCurrent().frozen).toBe(false));
+  });
+
+  it("releases the freeze when capability revocation tears the dock down", async () => {
+    const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: false });
+    const freeze = createPresentationFreezePortV1({ inner: createManualPresentationClockV1() });
+    render(
+      <DevDockHarnessV1
+        capabilities={capabilities.port}
+        freeze={freeze}
+        initialOpenState={Object.freeze({ open: true })}
+      />,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "冻结画面" }));
+    expect(freeze.state.getCurrent().frozen).toBe(true);
+
+    act(() => capabilities.publish({ debugTools: false, cheats: false, automationBridge: false }));
+    await waitFor(() => expect(freeze.state.getCurrent().frozen).toBe(false));
+  });
+
+  it("drags a window by its header and pins it to explicit coordinates", async () => {
+    const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: false });
+    const control = createDevDockControlV1();
+    const panels = createDevDockContributionSetV1({
+      panels: [
+        {
+          id: "panel.drag",
+          side: "left",
+          title: "拖动面板",
+          authority: "read_only",
+          render: () => <p>拖动内容</p>,
+        },
+      ],
+    });
+    control.open("panel.drag");
+    render(
+      <DevDockHarnessV1
+        capabilities={capabilities.port}
+        contributions={panels}
+        control={control}
+      />,
+    );
+    const dockWindow = await screen.findByRole("dialog", { name: "拖动面板" });
+    const header = dockWindow.querySelector<HTMLElement>("[data-devdock-window-drag]");
+    expect(header).not.toBeNull();
+    if (header === null) throw new TypeError("missing window drag header");
+    expect(dockWindow.style.insetInlineStart).toBe("");
+
+    fireEvent.pointerDown(header, { button: 0, pointerId: 7, clientX: 40, clientY: 30 });
+    fireEvent.pointerMove(header, { pointerId: 7, clientX: 90, clientY: 75 });
+    fireEvent.pointerUp(header, { pointerId: 7 });
+    // jsdom reports zero-size rects, so the clamped drag pins to the host
+    // origin — the point is that dragging switches to explicit coordinates.
+    expect(dockWindow.style.insetInlineStart).not.toBe("");
+    expect(dockWindow.style.insetInlineEnd).toBe("auto");
   });
 });
 

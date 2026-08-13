@@ -68,25 +68,38 @@ body {
 
 .silly-button,
 .silly-icon-button {
-  min-block-size: var(--silly-target-min-size);
-  min-inline-size: var(--silly-target-min-size);
+  min-block-size: var(--silly-control-min-size);
+  min-inline-size: var(--silly-control-min-size);
   max-inline-size: 100%;
   border: 1px solid var(--silly-color-border);
   border-radius: var(--silly-radius-control);
-  color: var(--silly-color-accent-text);
-  background: var(--silly-color-accent);
+  color: var(--silly-color-text);
+  background: var(--silly-color-control);
   cursor: pointer;
 }
 
 .silly-button {
-  padding-block: var(--silly-space-2);
+  padding-block: var(--silly-space-1);
   padding-inline: var(--silly-space-3);
 }
 
 .silly-icon-button {
   display: inline-grid;
-  padding: var(--silly-space-2);
+  padding: var(--silly-space-1);
   place-items: center;
+}
+
+/* Gameplay-reachable stage layers keep the 44px touch floor; the compact
+   control size stays for system dialogs and developer chrome. */
+[data-stage-layer="hud"] :where(.silly-button, .silly-icon-button),
+[data-stage-layer="scene_interaction"] :where(.silly-button, .silly-icon-button),
+[data-stage-layer="narrative"] :where(.silly-button, .silly-icon-button) {
+  min-block-size: var(--silly-target-min-size, 44px);
+  min-inline-size: var(--silly-target-min-size, 44px);
+}
+
+:where(.silly-button, .silly-icon-button):hover:not(:disabled) {
+  background: var(--silly-color-control-hover);
 }
 
 :where(.silly-button, .silly-icon-button):disabled {

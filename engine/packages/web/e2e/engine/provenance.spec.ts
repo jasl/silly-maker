@@ -18,29 +18,27 @@ test.describe("engine stage provenance (M2)", () => {
     // No inspect surfaces exist until the author enables them in the panel.
     await expect(page.locator("[data-stage-inspect-hit]")).toHaveCount(0);
 
-    // Enable inspection from the provenance panel, then close the dock —
-    // an open dock intercepts stage pointer input by design.
-    await page.getByRole("button", { name: "打开左侧开发工具" }).click();
-    const leftDock = page.getByRole("complementary", { name: "左侧开发工具" });
-    await leftDock.getByRole("button", { name: "舞台溯源" }).click();
-    await leftDock.locator("[data-stage-inspect-toggle]").click();
-    await page.keyboard.press("Escape");
-    await expect(leftDock).toHaveCount(0);
+    // Enable inspection from the provenance window. Floating windows no
+    // longer shield the stage, so the character stays clickable while the
+    // window remains open and the card updates live.
+    await page.getByRole("button", { name: "开发工具" }).click();
+    await page.getByRole("navigation", { name: "开发工具" })
+      .getByRole("button", { name: "舞台溯源" })
+      .click();
+    const dock = page.getByRole("dialog", { name: "舞台溯源" });
+    await dock.locator("[data-stage-inspect-toggle]").click();
 
-    // Click the character on the live stage.
+    // Click the character on the live stage with the window still open.
     await page.locator(`[data-stage-inspect-hit="${alphaKeyV1}"]`).click();
 
-    // Reopen the dock: the provenance card resolves the settled character
-    // back to its transition, motion asset, and source file.
-    await page.getByRole("button", { name: "打开左侧开发工具" }).click();
-    const reopenedDock = page.getByRole("complementary", { name: "左侧开发工具" });
-    await reopenedDock.getByRole("button", { name: "舞台溯源" }).click();
-    const field = (name: string) => reopenedDock.locator(`[data-stage-provenance-field="${name}"]`);
+    // The provenance card resolves the settled character back to its
+    // transition, motion asset, and source file without a reopen cycle.
+    const field = (name: string) => dock.locator(`[data-stage-provenance-field="${name}"]`);
     await expect(field("transition")).toHaveText("transition.e2e.char-enter");
     await expect(field("motion")).toHaveText("motion.e2e.char-enter");
     await expect(field("source")).toHaveText("src/motions/char-enter.motion.json");
     await expect(
-      reopenedDock.locator("[data-stage-provenance-open]"),
+      dock.locator("[data-stage-provenance-open]"),
     ).toHaveAttribute("data-stage-provenance-open", "src/motions/char-enter.motion.json");
   });
 });

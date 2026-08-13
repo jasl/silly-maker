@@ -38,7 +38,7 @@
 .overlay-host__backdrop {
   position: absolute;
   inset: 0;
-  background: rgb(12 8 6 / 58%);
+  background: rgb(9 10 14 / 58%);
   pointer-events: auto;
 }
 
@@ -49,7 +49,7 @@
   grid-template-rows: minmax(0, 1fr);
   inline-size: min(42rem, calc(100% - 2 * var(--silly-space-3)));
   max-block-size: calc(100% - 2 * var(--silly-space-3));
-  padding: calc(2 * var(--silly-space-3));
+  padding: var(--silly-space-4);
 
   /* The Panel chrome owns scrolling: its header stays pinned and only the
      panel body scrolls. */
@@ -78,7 +78,7 @@
   /* Dialogs paint above every system-layer resident (front door, splash)
      by scale, not by accident: see --silly-surface-z-* in tokens.css. */
   z-index: var(--silly-surface-z-dialog-backdrop);
-  background: rgb(12 8 6 / 72%);
+  background: rgb(9 10 14 / 72%);
   pointer-events: auto;
 }
 
@@ -88,7 +88,7 @@
   inset-inline-start: 50%;
   inline-size: min(42rem, calc(100% - 2 * var(--silly-space-3)));
   max-block-size: calc(100% - 2 * var(--silly-space-3));
-  padding: calc(2 * var(--silly-space-3));
+  padding: var(--silly-space-4);
   overflow: auto;
   border: 1px solid var(--silly-color-border);
   border-radius: var(--silly-radius-card);

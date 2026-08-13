@@ -49,7 +49,7 @@
   inline-size: fit-content;
   max-inline-size: min(100%, 48rem);
   min-inline-size: 0;
-  margin-block-start: calc(var(--silly-target-min-size) + var(--silly-space-2));
+  margin-block-start: calc(var(--silly-control-min-size) + var(--silly-space-2));
 }
 
 .game-shell [data-semantic-action-catalog="true"] > * {
@@ -72,7 +72,7 @@
   display: grid;
   justify-self: end;
   inline-size: min(100%, 56rem);
-  min-block-size: var(--silly-target-min-size);
+  min-block-size: var(--silly-control-min-size);
   grid-template-columns: minmax(0, 1fr) minmax(min-content, auto) minmax(0, 1fr);
   gap: var(--silly-space-2);
   align-items: center;
@@ -97,24 +97,33 @@
 }
 
 .game-shell__action {
-  min-block-size: var(--silly-target-min-size);
-  min-inline-size: var(--silly-target-min-size);
+  /* Gameplay-facing tap targets keep the 44px touch floor; the compact
+     control size is reserved for developer/system chrome. */
+  min-block-size: var(--silly-target-min-size, 44px);
+  min-inline-size: var(--silly-target-min-size, 44px);
   max-inline-size: 100%;
-  padding-block: var(--silly-space-2);
+  padding-block: var(--silly-space-1);
   padding-inline: var(--silly-space-3);
   overflow-wrap: anywhere;
   white-space: normal;
   border: 1px solid var(--silly-color-border);
   border-radius: var(--silly-radius-control);
-  color: var(--silly-color-accent-text);
+  color: var(--silly-color-text);
   font: inherit;
-  background: var(--silly-color-accent);
+
+  /* Floats over stage art: translucent surface keeps the label legible on
+     any scene without shouting like a filled primary. */
+  background: var(--silly-color-surface-translucent);
   cursor: pointer;
 }
 
 .game-shell__action:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+.game-shell__action:hover:not(:disabled) {
+  background: var(--silly-color-surface);
 }
 
 @container game-stage (max-width: 44rem) {

@@ -22,6 +22,16 @@ describe("Lab DevDock contributions", () => {
         "panel.e2e.workbench",
       ]);
       expect(contributions.panels.every((panel) => panel.authority === "read_only")).toBe(true);
+      expect(
+        contributions.panels.map((panel) => [panel.id, panel.stage ?? "live"]),
+      ).toEqual([
+        ["panel.e2e.stage", "live"],
+        ["panel.e2e.interaction", "live"],
+        ["panel.e2e.audio", "live"],
+        ["panel.e2e.graph", "live"],
+        ["panel.e2e.provenance", "live"],
+        ["panel.e2e.workbench", "live"],
+      ]);
 
       // Drive the narrative to a boundary, then the inspectors must show the
       // same data the headless observe surface reports.
