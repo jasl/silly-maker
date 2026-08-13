@@ -14,9 +14,9 @@ Run any app with capabilities enabled:
 http://localhost:5173/?capability=debug_tools&capability=cheats
 ```
 
-- **Read-only inspectors** show the live game view, interactions, and the narrative graph with lint results.
+- **Read-only inspectors** open as floating windows from the 调试 launcher and show the live game view, interactions, and the narrative graph with lint results.
 - The **tuning panel** (cheat authority) submits Story-defined debug commands — set a stat, fast-forward days, force an encounter. They validate first, commit atomically, land in the command log tagged `source: "debug"`, and replay faithfully.
-- The built-in **Session maintenance** panel (cheat authority) exports or imports state, reinitializes the session, and clears Save slots behind an explicit confirmation. It reports partial cleanup failures instead of claiming that all local data was wiped.
+- **Session maintenance** is inlined in the launcher (not a floating cheat panel): export or import state, reinitialize the session, and clear Save slots behind an explicit confirmation. Partial cleanup failures are reported instead of claiming that all local data was wiped.
 
 ## Trajectories
 

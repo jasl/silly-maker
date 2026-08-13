@@ -2,11 +2,12 @@
 import type { DevDockPanelAuthorityV1 } from "./dev-dock.tsx";
 
 /**
- * Shared DevDock window control: the mounted dock publishes its validated
- * panel registry here, and any owner (the built-in chip menu or a Story's
- * own debug dock) opens/closes per-panel floating windows through the same
- * port. Open commands may name a panel that has not loaded yet (lazy
- * contributions); the window appears once the panel registers.
+ * Shared DevDock window control: the mounted window host publishes its
+ * validated panel registry here, and any owner (the engine launcher or a
+ * Story-mounted `StoryDebugDockV1`) opens/closes per-panel floating
+ * windows through the same port. Open commands may name a panel that has
+ * not loaded yet (lazy contributions); the window appears once the panel
+ * registers.
  */
 
 export interface DevDockPanelDescriptorV1 {

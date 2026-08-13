@@ -197,8 +197,8 @@ test("the DevDock tuning panel commits debug commands through the session", asyn
   await page.goto(catcafeTargetUrlV1("?capability=debug_tools&capability=cheats"));
   await playOpeningV1(page);
 
-  await page.getByRole("button", { name: "开发工具" }).click();
-  await page.getByRole("navigation", { name: "开发工具" })
+  await page.getByRole("button", { name: "调试" }).click();
+  await page.getByRole("group", { name: "调试" })
     .getByRole("button", { name: "调参" })
     .click();
   const dock = page.getByRole("dialog", { name: "调参" });
@@ -230,8 +230,8 @@ test("the detached Narrative preview covers representative routes without changi
   const statsBefore = await page.locator("[data-cc-stats-text]").textContent();
   const liveCatBefore = await liveStage.locator("[data-cc-cat]").getAttribute("data-cc-cat");
 
-  await page.getByRole("button", { name: "开发工具" }).click();
-  await page.getByRole("navigation", { name: "开发工具" })
+  await page.getByRole("button", { name: "调试" }).click();
+  await page.getByRole("group", { name: "调试" })
     .getByRole("button", { name: "剧情预览" })
     .click();
   const dock = page.getByRole("dialog", { name: "剧情预览" });
@@ -548,8 +548,8 @@ async function reachCatCafeEndingV1(page: Page): Promise<void> {
 
   // Fast-forward to week 7 Sunday morning through the tuning panel, then
   // walk the three slots to the settlement night.
-  await page.getByRole("button", { name: "开发工具" }).click();
-  await page.getByRole("navigation", { name: "开发工具" })
+  await page.getByRole("button", { name: "调试" }).click();
+  await page.getByRole("group", { name: "调试" })
     .getByRole("button", { name: "调参" })
     .click();
   const dock = page.getByRole("dialog", { name: "调参" });

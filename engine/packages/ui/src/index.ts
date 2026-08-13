@@ -18,9 +18,14 @@ export type {
   PresentationReadPortV1,
 } from "./assets/presentation-read-port.ts";
 export { Button, IconButton, PanelV1, ProgressMeter } from "./primitives/index.ts";
+export { clampElementDragPositionV1, useClampedElementDragV1 } from "./primitives/index.ts";
 export type {
   ButtonPropsV1,
+  ClampElementDragPositionInputV1,
+  ClampedElementDragPositionV1,
+  ClampedElementDragV1,
   IconButtonPropsV1,
+  PanelCloseControlV1,
   PanelPropsV1,
   ProgressMeterPropsV1,
 } from "./primitives/index.ts";

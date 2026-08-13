@@ -32,8 +32,8 @@ test.describe("engine default UI accessibility", () => {
       .getByRole("button", { name: "关闭", exact: true })
       .click();
 
-    await page.getByRole("button", { name: "开发工具" }).click();
-    const devMenu = page.getByRole("navigation", { name: "开发工具" });
+    await page.getByRole("button", { name: "调试" }).click();
+    const devMenu = page.getByRole("group", { name: "调试" });
     await expect(devMenu).toBeVisible();
     await devMenu.getByRole("button", { name: "叙事图" }).click();
     await expect(page.getByRole("dialog", { name: "叙事图" })).toBeVisible();

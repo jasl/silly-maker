@@ -8,22 +8,22 @@ test.describe("engine player/debug boundary", () => {
     await gotoLabV1(page);
     const text = await page.getByRole("application").textContent();
     expect(text ?? "").not.toMatch(debugVocabularyV1);
-    await expect(page.getByRole("button", { name: /开发工具/u })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /调试/u })).toHaveCount(0);
   });
 
   test("the DevDock appears only behind debug_tools and hosts the debug surface", async ({ page }) => {
     await gotoLabV1(page, "?capability=debug_tools");
     // Boot-time grants keep the collapsed chip; only runtime grants auto-open.
-    const chip = page.getByRole("button", { name: "开发工具" });
+    const chip = page.getByRole("button", { name: "调试" });
     await expect(chip).toBeVisible();
-    await expect(page.getByRole("navigation", { name: "开发工具" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "叙事图" })).toHaveCount(0);
     await chip.click();
-    await expect(page.getByRole("navigation", { name: "开发工具" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "叙事图" })).toBeVisible();
   });
 
   test("rejects malformed capability requests without partial grants", async ({ page }) => {
     await gotoLabV1(page, "?capability=debug_tools&capability=debug_tools");
-    await expect(page.getByRole("button", { name: /开发工具/u })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /调试/u })).toHaveCount(0);
   });
 
   test("the lazy Lab inspectors render live read-only data in the DevDock", async ({ page }) => {
@@ -31,8 +31,8 @@ test.describe("engine player/debug boundary", () => {
 
     // Every contributed panel lists in the chip menu; each opens its own
     // floating window.
-    await page.getByRole("button", { name: "开发工具" }).click();
-    const menu = page.getByRole("navigation", { name: "开发工具" });
+    await page.getByRole("button", { name: "调试" }).click();
+    const menu = page.getByRole("group", { name: "调试" });
     await expect(menu).toBeVisible();
     await menu.getByRole("button", { name: "叙事图" }).click();
     const graphWindow = page.getByRole("dialog", { name: "叙事图" });

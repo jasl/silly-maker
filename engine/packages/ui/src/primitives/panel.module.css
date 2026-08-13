@@ -9,6 +9,8 @@
 
 .panel__header {
   display: flex;
+  min-inline-size: 0;
+  flex-wrap: nowrap;
   gap: var(--silly-space-2);
   align-items: center;
   justify-content: space-between;
@@ -16,11 +18,37 @@
   border-block-end: 1px solid var(--silly-color-border);
 }
 
+.panel__header[data-panel-drag] {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.panel__header[data-panel-drag]:active {
+  cursor: grabbing;
+}
+
 .panel__title {
+  flex: 1 1 auto;
+  min-inline-size: 0;
   margin: 0;
+  overflow: hidden;
   font-size: 1.05em;
   font-weight: 600;
   color: var(--silly-color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel__close-icon {
+  flex: 0 0 auto;
+  border-color: transparent;
+  background: transparent;
+}
+
+.panel__close-icon:focus-visible,
+.panel__close-icon:hover:not(:disabled) {
+  background: var(--silly-color-control-hover);
 }
 
 .panel__content {

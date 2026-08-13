@@ -34,7 +34,7 @@ historical；后续顺序只由
    在主窗上叠详情（背包 → 物品详情 → 供应商），逐层关闭。
 3. **嵌套确认层**：在对话框之上的独立层级刻度。
 
-`PanelV1` 提供窗体外壳（钉顶标题栏/关闭/可聚焦滚动区），引擎提供层叠令牌、关闭惯例、
+`PanelV1` 提供窗体外壳（钉顶标题栏/关闭/可聚焦滚动区；`closeControl` 为可见文案或图标按钮），引擎提供层叠令牌、关闭惯例、
 下层 inert、焦点圈与恢复，表单控件由主题统一样式。Workspace Overlay、System 与
 Narrative/History 现在通过同一个 Coordinator publication 原子绑定 modality、focus、
 input、dismiss、readiness 与 pointer gesture；各 Story 不再镜像另一份 writable
@@ -43,19 +43,21 @@ recipe，而不是自由桌面 WindowManager。S4b.1c 已把 WholeCanvas primary
 exact-parent transient detail 作为独立 product layer 迁入同一 authority；这不扩张为
 自由 detail stack、locked modal 或 MDI WindowManager。
 
-## 立场：拖拽/最大最小化暂不进引擎
+## 立场：完整 WindowManager 暂不进引擎
 
 按路线图证据规则（能力需要真实 Story
-需求证明），自由窗口管理**不预先实现**：已交付的品类（VN/养成/SLG）在业界惯例里就是固定窗体；而可拖拽窗口牵出一整串子系统（舞台缩放坐标换算、边界钳制、位置持久化、点击置前、触屏拖拽与滚动冲突、键盘可移动性）。等真实游戏需要时按下面配方在游戏侧先做，反复出现再上提。
+需求证明），自由窗口管理（最小化/最大化/任务栏/位置持久化/点击置前）**不预先实现**：已交付的品类（VN/养成/SLG）在业界惯例里就是固定窗体。CSS 像素标题栏拖拽已经作为 L1 原语交付：`useClampedElementDragV1` 用 `setPointerCapture` 把浮窗钳在宿主盒内，供 letterbox 画布上的调试窗（`DevDockV1`）使用。等比缩放 / 逻辑坐标 MDI（SillyOS）继续用自己的 `viewport.scale` 换算，不要迁到这个 hook。`OverlayHostV1` 仍是玩法窗体的 lifecycle；调试窗不走 Overlay 槽。
 
 ## 游戏侧配方（需要时照此实现）
 
-- **可拖拽窗口**：把拖把手放在 `PanelV1` 的 `actions` 槽（或包一层自制
-  header）。用 pointer events（`setPointerCapture`）实现拖动；**坐标必须经
-  `useGameViewportV1()` 的换算**（舞台是等比缩放的，屏幕像素 ≠
+- **可拖拽窗口（CSS 像素 / letterbox）**：`PanelV1` 的 `headerProps` 接
+  `useClampedElementDragV1().headerProps`，`closeControl: "icon"`。位置是相对宿主
+  `getBoundingClientRect` 的 CSS 像素，不经舞台 scale。
+- **可拖拽窗口（逻辑坐标 / 缩放舞台）**：标题栏 `setPointerCapture`；**坐标必须经
+  `useGameViewportV1()` 的换算**（屏幕像素 ≠
   逻辑像素）；位置存 **Story UI state**，或由非游戏产品自己的 workspace
   repository 持久化，绝不混入 gameplay State/Game
-  Save；窗口位置随窗体尺寸变化要钳制在舞台内。
+  Save；窗口位置随窗体尺寸变化要钳制在舞台内。SillyOS 走这条配方。
 - **最小化/折叠**：一个 Story UI state
   布尔切换内容区显隐即可（标题栏保留）；"最小化到任务栏"先别做——那是 MDI
   品类的隐喻。
@@ -121,18 +123,19 @@ S4b.1c 没有顺带迁移 MDI、boot 或 shutdown。
 ## 何时上提引擎
 
 同一配方在两个以上真实 Story
-里重复出现、且形状稳定时（例如"可拖拽调参浮窗"成为通用工具需求），把它提炼为引擎组件并带契约测试——流程与
-`PanelV1`（图鉴/历史两处消费后上提）相同。
+里重复出现、且形状稳定时，把它提炼为引擎组件并带契约测试——流程与
+`PanelV1`（图鉴/历史两处消费后上提；随后 DevDock 浮窗复用同一外壳）相同。CSS
+像素钳制拖拽已随 DevDock 上提；完整 WindowManager 仍等两个以上 Story 的 MDI 需求。
 
 ## 组件体系分层（自下而上）
 
-| 层            | 内容                                                                                               | 状态                                  |
-| ------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| L0 令牌       | 主题（色/距/圆角/触控尺寸）、层叠双刻度（stage-z / surface-z，测试盯守）、表单元素主题化           | ✅ 已交付                             |
-| L1 原语       | `Button` / `IconButton` / `ProgressMeter` / `PanelV1`（窗体外壳）/ `BootSplashV1` / `MuteToggleV1` | ✅ 已交付                             |
-| L2 窗体与槽位 | 系统对话框单槽、工作区主窗+详情栈、嵌套确认层、标题屏前门、关闭惯例与锁定（`dismissible`）         | ✅ 共享 lifecycle；WholeCanvas 已交付 |
-| L3 组装件     | `NarrativeSurfaceDefinitionV1` Story renderer + composition-owned player/Host/Stage authority      | ✅ 已交付                             |
-| 横切 hooks    | `useAssetUrlV1` / `resolveAssetUrlV1` / `useReducedMotionV1` / `useLocaleTextV1`                   | ✅ 已交付                             |
+| 层            | 内容                                                                                                                                                                                 | 状态                                  |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
+| L0 令牌       | 主题（色/距/圆角/触控尺寸）、层叠双刻度（stage-z / surface-z，测试盯守）、表单元素主题化                                                                                             | ✅ 已交付                             |
+| L1 原语       | `Button` / `IconButton` / `ProgressMeter` / `PanelV1`（窗体外壳；`closeControl: "label" \| "icon"`）/ `useClampedElementDragV1`（CSS 像素钳制拖拽）/ `BootSplashV1` / `MuteToggleV1` | ✅ 已交付                             |
+| L2 窗体与槽位 | 系统对话框单槽、工作区主窗+详情栈、嵌套确认层、标题屏前门、关闭惯例与锁定（`dismissible`）                                                                                           | ✅ 共享 lifecycle；WholeCanvas 已交付 |
+| L3 组装件     | `NarrativeSurfaceDefinitionV1` Story renderer + composition-owned player/Host/Stage authority                                                                                        | ✅ 已交付                             |
+| 横切 hooks    | `useAssetUrlV1` / `resolveAssetUrlV1` / `useReducedMotionV1` / `useLocaleTextV1`                                                                                                     | ✅ 已交付                             |
 
 上提规则不变：**两个以上真实 Story 重复且形状稳定**才进引擎，带契约测试。
 

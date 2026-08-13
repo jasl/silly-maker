@@ -4,95 +4,15 @@
   inset: 0;
 
   /* No global shield: the game stays interactive around floating tool
-     windows. Only the chip, menu, and windows accept pointer input. */
+     windows. Only the windows accept pointer input. The launcher chip
+     lives in StoryDebugDockV1. */
   min-inline-size: 0;
   pointer-events: none;
 }
 
-/* The single collapsed entry chip. Corner comes from data-devdock-position. */
-.dev-dock__chip {
-  position: absolute;
-  z-index: var(--silly-surface-z-raised);
-  min-block-size: var(--silly-control-min-size);
-  padding-inline: var(--silly-space-2);
-  font-size: 12px;
-  white-space: nowrap;
-  pointer-events: auto;
-}
-
-.dev-dock[data-devdock-position="top_right"] .dev-dock__chip {
-  inset-block-start: var(--silly-space-2);
-  inset-inline-end: var(--silly-space-2);
-}
-
-.dev-dock[data-devdock-position="top_left"] .dev-dock__chip {
-  inset-block-start: var(--silly-space-2);
-  inset-inline-start: var(--silly-space-2);
-}
-
-.dev-dock[data-devdock-position="bottom_right"] .dev-dock__chip {
-  inset-block-end: var(--silly-space-2);
-  inset-inline-end: var(--silly-space-2);
-}
-
-.dev-dock[data-devdock-position="bottom_left"] .dev-dock__chip {
-  inset-block-end: var(--silly-space-2);
-  inset-inline-start: var(--silly-space-2);
-}
-
-/* The chip menu: a compact launcher list anchored beside the chip. Bottom
-   corners expand upward so the menu never leaves the canvas. */
-.dev-dock__menu {
-  position: absolute;
-  z-index: var(--silly-surface-z-raised);
-  display: grid;
-  gap: var(--silly-space-2);
-  inline-size: max-content;
-  min-inline-size: 0;
-  max-inline-size: min(20rem, calc(100% - 2 * var(--silly-space-2)));
-  max-block-size: calc(100% - var(--silly-control-min-size) - 3 * var(--silly-space-2));
-  box-sizing: border-box;
-  padding: var(--silly-space-2);
-  overflow: auto;
-  border: 1px solid var(--silly-color-border);
-  border-radius: var(--silly-radius-card);
-  color: var(--silly-color-text);
-  background: var(--silly-color-surface-translucent);
-  box-shadow: 0 1rem 3rem rgb(0 0 0 / 45%);
-  backdrop-filter: blur(0.75rem);
-  pointer-events: auto;
-}
-
-.dev-dock[data-devdock-position="top_right"] .dev-dock__menu,
-.dev-dock[data-devdock-position="top_left"] .dev-dock__menu {
-  inset-block-start: calc(var(--silly-control-min-size) + 2 * var(--silly-space-2));
-}
-
-.dev-dock[data-devdock-position="bottom_right"] .dev-dock__menu,
-.dev-dock[data-devdock-position="bottom_left"] .dev-dock__menu {
-  inset-block-end: calc(var(--silly-control-min-size) + 2 * var(--silly-space-2));
-}
-
-.dev-dock[data-devdock-position="top_right"] .dev-dock__menu,
-.dev-dock[data-devdock-position="bottom_right"] .dev-dock__menu {
-  inset-inline-end: var(--silly-space-2);
-}
-
-.dev-dock[data-devdock-position="top_left"] .dev-dock__menu,
-.dev-dock[data-devdock-position="bottom_left"] .dev-dock__menu {
-  inset-inline-start: var(--silly-space-2);
-}
-
-.dev-dock__menu button {
-  min-inline-size: var(--silly-control-min-size);
-  max-inline-size: 100%;
-  min-block-size: var(--silly-control-min-size);
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
 /* Floating, movable, non-modal tool windows. Fresh windows cascade from
-   the configured corner; dragging pins them to explicit coordinates. */
+   the configured corner (offset past the launcher chip); dragging pins
+   them to explicit coordinates. */
 .dev-dock__window {
   position: absolute;
   z-index: var(--silly-surface-z-raised);
@@ -102,10 +22,10 @@
   max-inline-size: calc(100% - 2 * var(--silly-space-2));
   max-block-size: calc(100% - 2 * var(--silly-space-2));
   box-sizing: border-box;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: var(--silly-space-2);
+  grid-template-rows: minmax(0, 1fr);
   padding: var(--silly-space-3);
   overflow: hidden;
+  overflow-wrap: anywhere;
   border: 1px solid var(--silly-color-border);
   border-radius: var(--silly-radius-card);
   color: var(--silly-color-text);
@@ -113,6 +33,12 @@
   box-shadow: 0 1rem 3rem rgb(0 0 0 / 45%);
   backdrop-filter: blur(0.75rem);
   pointer-events: auto;
+}
+
+.dev-dock__window > * {
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow: hidden;
 }
 
 .dev-dock[data-devdock-position="top_right"] .dev-dock__window,
@@ -138,80 +64,6 @@
 .dev-dock[data-devdock-position="bottom_left"] .dev-dock__window {
   inset-inline-start: calc(var(--silly-space-2) + var(--devdock-cascade, 0) * 1.75rem);
 }
-
-.dev-dock__window-header {
-  display: flex;
-  min-inline-size: 0;
-  flex-wrap: nowrap;
-  gap: var(--silly-space-2);
-  align-items: center;
-  justify-content: space-between;
-  cursor: grab;
-  user-select: none;
-  touch-action: none;
-}
-
-.dev-dock__window-header:active {
-  cursor: grabbing;
-}
-
-.dev-dock__window-header h2 {
-  flex: 1 1 auto;
-  min-inline-size: 0;
-  margin: 0;
-  overflow: hidden;
-  font-size: 1rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dev-dock__window-close {
-  flex: 0 0 auto;
-  border-color: transparent;
-  background: transparent;
-}
-
-.dev-dock__window-close:focus-visible,
-.dev-dock__window-close:hover:not(:disabled) {
-  background: var(--silly-color-control-hover);
-}
-
-.dev-dock__authority-reason {
-  margin: 0;
-  color: var(--silly-color-text-muted);
-  font-size: 0.875rem;
-}
-
-.dev-dock__panel {
-  min-inline-size: 0;
-  min-block-size: 0;
-  overflow: auto;
-  overflow-wrap: anywhere;
-}
-
-.dev-dock__empty {
-  margin: 0;
-  color: var(--silly-color-text-muted);
-}
-
-/* When the dock rides inside a blocking dialog scope, reserve the chip's
-   corner strip so dialog chrome never obscures the entry (axe target-size). */
-
-/* stylelint-disable selector-pseudo-class-no-unknown -- CSS Modules global scope */
-:global([data-blocking-focus-scope]):has(> .dev-dock[data-devdock-position="top_right"]),
-:global([data-blocking-focus-scope]):has(> .dev-dock[data-devdock-position="top_left"]) {
-  padding-block-start: calc(
-    var(--silly-safe-area-block-start) + var(--silly-control-min-size) + 3 * var(--silly-space-2)
-  );
-}
-
-:global([data-blocking-focus-scope]):has(> .dev-dock[data-devdock-position="bottom_right"]),
-:global([data-blocking-focus-scope]):has(> .dev-dock[data-devdock-position="bottom_left"]) {
-  padding-block-end: calc(
-    var(--silly-safe-area-block-end) + var(--silly-control-min-size) + 3 * var(--silly-space-2)
-  );
-}
-/* stylelint-enable selector-pseudo-class-no-unknown */
 
 @media (prefers-reduced-motion: reduce) {
   .dev-dock,

@@ -66,10 +66,26 @@ function selectDevDockPortalTargetV1(
 
 /** Selects one semantic DevDock portal target independently of surface mount order. */
 export function DevDockPortalCoordinatorV1(props: DevDockPortalCoordinatorPropsV1): ReactElement {
-  const [baseTarget, setBaseTarget] = useState<HTMLDivElement | null>(null);
+  const [overlayTarget, setOverlayTarget] = useState<HTMLDivElement | null>(null);
+  const [canvasTarget, setCanvasTarget] = useState<HTMLElement | null>(null);
   const [registrations, setRegistrations] = useState<readonly DevDockPortalTargetRegistrationV1[]>(
     () => Object.freeze([]),
   );
+
+  useLayoutEffect(() => {
+    if (overlayTarget === null) return undefined;
+    const root = overlayTarget.parentElement;
+    if (root === null) return undefined;
+    const sync = (): void => {
+      const canvas = root.querySelector("[data-game-viewport-canvas]");
+      setCanvasTarget(canvas instanceof HTMLElement ? canvas : null);
+    };
+    sync();
+    if (typeof MutationObserver !== "function") return undefined;
+    const observer = new MutationObserver(sync);
+    observer.observe(root, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [overlayTarget]);
 
   const register = useCallback(
     (surface: DevDockPortalSurfaceV1, target: HTMLElement): () => void => {
@@ -87,8 +103,8 @@ export function DevDockPortalCoordinatorV1(props: DevDockPortalCoordinatorPropsV
     [],
   );
   const selection = useMemo(
-    () => selectDevDockPortalTargetV1(registrations, baseTarget),
-    [baseTarget, registrations],
+    () => selectDevDockPortalTargetV1(registrations, canvasTarget ?? overlayTarget),
+    [canvasTarget, overlayTarget, registrations],
   );
   const contextValue = useMemo(
     () => Object.freeze({ register, selection }) satisfies DevDockPortalContextValueV1,
@@ -98,7 +114,7 @@ export function DevDockPortalCoordinatorV1(props: DevDockPortalCoordinatorPropsV
   return (
     <DevDockPortalContextV1.Provider value={contextValue}>
       <div
-        ref={setBaseTarget}
+        ref={setOverlayTarget}
         className={props.baseTargetClassName}
         data-devdock-portal-target="base"
       />

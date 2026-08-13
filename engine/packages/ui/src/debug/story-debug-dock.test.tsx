@@ -17,11 +17,13 @@ afterEach(cleanup);
 
 function fakeCapabilitiesV1(options: {
   readonly debugTools?: boolean;
+  readonly cheats?: boolean;
   readonly setEnabled?: RuntimeCapabilityPortV1["setEnabled"];
 } = {}): RuntimeCapabilityPortV1 {
+  const debugTools = options.debugTools ?? false;
   const state = Object.freeze({
-    debugTools: options.debugTools ?? false,
-    cheats: options.debugTools ?? false,
+    debugTools,
+    cheats: options.cheats ?? debugTools,
     automationBridge: false,
   });
   return Object.freeze({
@@ -49,9 +51,16 @@ function fakeSavePortV1(overrides: Partial<SaveOverlayPortV1> = {}): SaveOverlay
   };
 }
 
+const defaultToolsV1 = Object.freeze([
+  Object.freeze({ panelId: "panel.story.workbench", label: "Motion 工坊" }),
+]);
+
 function renderDockV1(
-  overrides: Partial<Parameters<typeof StoryDebugDockV1>[0]> = {},
+  overrides: Partial<Parameters<typeof StoryDebugDockV1>[0]> & {
+    readonly listFromRegistry?: boolean;
+  } = {},
 ): ReturnType<typeof render> {
+  const { listFromRegistry, tools, ...rest } = overrides;
   return render(
     <StoryDebugDockV1
       visible
@@ -64,10 +73,8 @@ function renderDockV1(
       savePort={fakeSavePortV1()}
       clearAllSaves={vi.fn(async () => undefined)}
       onReinitialize={vi.fn()}
-      tools={Object.freeze([
-        Object.freeze({ panelId: "panel.story.workbench", label: "Motion 工坊" }),
-      ])}
-      {...overrides}
+      {...(listFromRegistry === true ? {} : { tools: tools ?? defaultToolsV1 })}
+      {...rest}
     />,
   );
 }
@@ -152,5 +159,88 @@ describe("StoryDebugDockV1", () => {
     renderDockV1({ info: <div data-debug-dock-info="true">trust12</div> });
     await userEvent.setup().click(screen.getByText("调试"));
     expect(screen.getByText("trust12")).toBeVisible();
+  });
+
+  it("lists live control.panels when tools are omitted and skips session maintenance", async () => {
+    const control = createDevDockControlV1();
+    control.publishPanelsInternalV1(Object.freeze([
+      Object.freeze({
+        id: "engine.session_maintenance",
+        title: "Session maintenance",
+        authority: "cheat" as const,
+      }),
+      Object.freeze({
+        id: "panel.lab.graph",
+        title: "叙事图",
+        authority: "read_only" as const,
+      }),
+    ]));
+    renderDockV1({
+      control,
+      listFromRegistry: true,
+      capabilities: fakeCapabilitiesV1({ debugTools: true }),
+      grantCapabilitiesOnOpen: false,
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByText("调试"));
+    expect(screen.getByRole("button", { name: "叙事图" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Session maintenance" })).not
+      .toBeInTheDocument();
+  });
+
+  it("disables cheat-authority tools until cheats are granted", async () => {
+    const control = createDevDockControlV1();
+    control.publishPanelsInternalV1(Object.freeze([
+      Object.freeze({
+        id: "panel.tune",
+        title: "调参",
+        authority: "cheat" as const,
+      }),
+    ]));
+    renderDockV1({
+      control,
+      listFromRegistry: true,
+      capabilities: fakeCapabilitiesV1({ debugTools: true, cheats: false }),
+      grantCapabilitiesOnOpen: false,
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByText("调试"));
+    expect(screen.getByRole("button", { name: "调参" })).toBeDisabled();
+    expect(screen.getByText("需要启用作弊功能")).toBeVisible();
+    expect(control.openPanelIds.getCurrent()).toEqual([]);
+  });
+
+  it("grants debug_tools and cheats when the chip expands before tools exist", async () => {
+    const setEnabled = vi.fn(async () =>
+      Object.freeze({
+        kind: "unchanged" as const,
+        state: Object.freeze({ debugTools: false, cheats: false, automationBridge: false }),
+      })
+    ) as unknown as RuntimeCapabilityPortV1["setEnabled"];
+    renderDockV1({
+      capabilities: fakeCapabilitiesV1({ setEnabled }),
+      listFromRegistry: true,
+    });
+    await userEvent.setup().click(screen.getByText("调试"));
+    expect(setEnabled).toHaveBeenCalledWith("debug_tools", true);
+    expect(setEnabled).toHaveBeenCalledWith("cheats", true);
+  });
+
+  it("closes the launcher on Escape and restores chip focus", async () => {
+    renderDockV1();
+    const user = userEvent.setup();
+    await user.click(screen.getByText("调试"));
+    expect(screen.getByRole("group", { name: "调试" })).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("group", { name: "调试" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "调试" })).toHaveFocus();
+  });
+
+  it("anchors the chip to the configured corner", () => {
+    renderDockV1({ position: "bottom_right" });
+    expect(document.querySelector("[data-story-debug-dock]")).toHaveAttribute(
+      "data-devdock-position",
+      "bottom_right",
+    );
   });
 });

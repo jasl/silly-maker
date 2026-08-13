@@ -1,7 +1,5 @@
 .story-debug-dock {
   position: absolute;
-  inset-block-start: var(--silly-space-2);
-  inset-inline-end: var(--silly-space-2);
   z-index: var(--silly-stage-z-system);
   display: flex;
   max-inline-size: min(25rem, calc(100% - 2 * var(--silly-space-2)));
@@ -12,6 +10,30 @@
   color: var(--silly-color-text);
   font-family: var(--silly-font-family);
   font-size: 12px;
+}
+
+.story-debug-dock[data-devdock-position="top_right"] {
+  inset-block-start: var(--silly-space-2);
+  inset-inline-end: var(--silly-space-2);
+}
+
+.story-debug-dock[data-devdock-position="top_left"] {
+  inset-block-start: var(--silly-space-2);
+  inset-inline-start: var(--silly-space-2);
+  align-items: flex-start;
+}
+
+.story-debug-dock[data-devdock-position="bottom_right"] {
+  inset-block-end: var(--silly-space-2);
+  inset-inline-end: var(--silly-space-2);
+  flex-direction: column-reverse;
+}
+
+.story-debug-dock[data-devdock-position="bottom_left"] {
+  inset-block-end: var(--silly-space-2);
+  inset-inline-start: var(--silly-space-2);
+  flex-direction: column-reverse;
+  align-items: flex-start;
 }
 
 .story-debug-dock__chip {
@@ -71,6 +93,13 @@
   opacity: 0.65;
 }
 
+.story-debug-dock__authority-reason {
+  margin: 0;
+  color: var(--silly-color-text-muted);
+  font-size: 0.875rem;
+  text-align: end;
+}
+
 .story-debug-dock__wipe {
   position: absolute;
   inset: 0;
@@ -127,3 +156,19 @@
     animation: none !important;
   }
 }
+
+/* stylelint-disable selector-pseudo-class-no-unknown -- CSS Modules global scope */
+:global([data-blocking-focus-scope]):has(> .story-debug-dock[data-devdock-position="top_right"]),
+:global([data-blocking-focus-scope]):has(> .story-debug-dock[data-devdock-position="top_left"]) {
+  padding-block-start: calc(
+    var(--silly-safe-area-block-start) + var(--silly-control-min-size) + 3 * var(--silly-space-2)
+  );
+}
+
+:global([data-blocking-focus-scope]):has(> .story-debug-dock[data-devdock-position="bottom_right"]),
+:global([data-blocking-focus-scope]):has(> .story-debug-dock[data-devdock-position="bottom_left"]) {
+  padding-block-end: calc(
+    var(--silly-safe-area-block-end) + var(--silly-control-min-size) + 3 * var(--silly-space-2)
+  );
+}
+/* stylelint-enable selector-pseudo-class-no-unknown */

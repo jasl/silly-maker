@@ -124,6 +124,8 @@ export const osGameApplicationV1: WebGameApplicationV1<
       // internal with no save UI / slot rules exposed (computer semantics: the disk saves on shutdown and restores on boot).
       labels: zh ? osRootLabelsZhV1 : osRootLabelsEnV1,
       hideSystemMenu: true,
+      // Desktop MDI: the letterboxed game-scene debug dock is not useful here.
+      devDockChip: false,
     });
   },
 });

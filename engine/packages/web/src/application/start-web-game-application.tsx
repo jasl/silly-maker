@@ -174,9 +174,9 @@ export interface WebGameUiDefinitionV1<
    */
   readonly devDockPosition?: DevDockPositionV1;
   /**
-   * Render the built-in DevDock chip entry (default true). A Story that
-   * mounts `StoryDebugDockV1` (`@sillymaker/ui/debug`) and opens tool
-   * windows through `devDockControl` sets false.
+   * Render the built-in debug launcher (`StoryDebugDockV1`; default true).
+   * A Story that mounts its own dock (always-on, live `info`) and opens
+   * tool windows through `devDockControl` sets false.
    */
   readonly devDockChip?: boolean;
   /** Optional keyboard/pointer/gamepad action maps installed by the root. */

@@ -23,11 +23,9 @@ import type {
   DevDockPositionV1,
 } from "../debug/dev-dock.tsx";
 import type { DevDockControlV1 } from "../debug/dev-dock-control.ts";
+import { createDevDockControlV1 } from "../debug/dev-dock-control.ts";
+import { StoryDebugDockV1 } from "../debug/story-debug-dock.tsx";
 import type { PresentationFreezePortV1 } from "../presentation-run/presentation-freeze.ts";
-import {
-  engineSessionMaintenancePanelIdV1,
-  SessionMaintenancePanelV1,
-} from "../debug/session-maintenance-panel.tsx";
 import type { InputRouterV1 } from "../input/contracts.ts";
 import type { GamepadActionMapV1 } from "../input/gamepad-adapter.ts";
 import { installGamepadAdapterV1 } from "../input/gamepad-adapter.ts";
@@ -257,11 +255,11 @@ export interface DefaultGameRootPropsV1<
   /**
    * Optional DevDock extensions: a capability-gated lazy contribution
    * loader (tooling UI stays out of the player bundle), an open-state
-   * observer feeding diagnostics UI context, the chip/menu corner (default
-   * `top_right`; applications reposition when it occludes their chrome —
-   * bottom corners expand upward), a chip visibility switch (a Story whose
-   * own dock drives the control port hides the built-in entry), and the
-   * shared window control port.
+   * observer feeding diagnostics UI context, the launcher/window corner
+   * (default `top_right`; applications reposition when it occludes their
+   * chrome — bottom corners expand upward), a launcher visibility switch
+   * (a Story whose own dock drives the control port hides the built-in
+   * entry), and the shared window control port.
    */
   readonly devDock?: {
     load?(): Promise<DevDockContributionSetV1>;
@@ -270,8 +268,13 @@ export interface DefaultGameRootPropsV1<
     readonly chip?: boolean;
     readonly control?: DevDockControlV1;
     readonly freeze?: PresentationFreezePortV1;
+    /** Story-owned live stats rendered in the engine launcher `info` slot. */
+    readonly info?: ReactNode;
   };
-  /** Engine-owned maintenance panel contributed to the sole DevDock host. */
+  /**
+   * Persistence ports inlined into the engine debug launcher (export /
+   * import / Core wipe). Not registered as a floating tool window.
+   */
   readonly sessionMaintenance?: {
     readonly savePort?: SaveOverlayPortV1;
     readonly clearAllSaves?: () => Promise<void>;
@@ -303,10 +306,9 @@ function createDefaultOverlayResolverV1<TOverlayId extends string>(input: {
   });
 }
 
-/** Story tooling panel host; renders only for explicit contributions. */
+/** Story tooling panel host: launcher + floating windows, kept orthogonal. */
 function DefaultDevDockV1(props: {
   readonly capabilities: RuntimeCapabilityPortV1;
-  readonly builtInContributions: DevDockContributionSetV1;
   readonly contributions: DevDockContributionSetV1;
   readonly load?: () => Promise<DevDockContributionSetV1>;
   readonly observeOpenState?: (state: DevDockOpenStateV1) => void;
@@ -314,6 +316,10 @@ function DefaultDevDockV1(props: {
   readonly chip?: boolean;
   readonly control?: DevDockControlV1;
   readonly freeze?: PresentationFreezePortV1;
+  readonly info?: ReactNode;
+  readonly savePort?: SaveOverlayPortV1;
+  readonly clearAllSaves?: () => Promise<void>;
+  readonly onReinitialize?: () => void | Promise<unknown>;
   readonly composition: {
     readonly input: GameUiCompositionV1<
       never,
@@ -329,36 +335,44 @@ function DefaultDevDockV1(props: {
     props.capabilities.state.getCurrent,
     props.capabilities.state.getCurrent,
   );
-  const [menuState, setMenuStateRaw] = useState<DevDockOpenStateV1>(closedDevDockStateV1);
-  const { observeOpenState, load, control } = props;
-  const openWindowCount = useSyncExternalStore(
-    control?.openPanelIds.subscribe ?? (() => () => {}),
-    () => control?.openPanelIds.getCurrent().length ?? 0,
-    () => control?.openPanelIds.getCurrent().length ?? 0,
+  const [launcherState, setLauncherState] = useState<DevDockOpenStateV1>(
+    closedDevDockStateV1,
   );
-  // The observed open state covers both surfaces: the chip menu and any
+  const { observeOpenState, load } = props;
+  const localControlRef = useRef<DevDockControlV1 | null>(null);
+  if (props.control === undefined && localControlRef.current === null) {
+    localControlRef.current = createDevDockControlV1();
+  }
+  const control = props.control ?? localControlRef.current as DevDockControlV1;
+  const openWindowCount = useSyncExternalStore(
+    control.openPanelIds.subscribe,
+    () => control.openPanelIds.getCurrent().length,
+    () => control.openPanelIds.getCurrent().length,
+  );
+  // The observed open state covers both surfaces: the launcher and any
   // floating panel window.
   const observedOpenRef = useRef(false);
   useEffect(() => {
-    const open = menuState.open || openWindowCount > 0;
+    const open = launcherState.open || openWindowCount > 0;
     if (observedOpenRef.current === open) return;
     observedOpenRef.current = open;
     observeOpenState?.(open ? openedDevDockStateV1 : closedDevDockStateV1);
-  }, [menuState.open, observeOpenState, openWindowCount]);
+  }, [launcherState.open, observeOpenState, openWindowCount]);
   // Lazy tooling contributions: loaded only once the capability is live, so
   // debug tooling never enters the player bundle or the resident DOM.
   const [loaded, setLoaded] = useState<DevDockContributionSetV1 | null>(null);
   const debugTools = capabilities.debugTools;
-  // A runtime capability grant (a Story dock/tools button) opens the chip
-  // menu immediately; a boot-time grant (URL/persisted preference) keeps
-  // the collapsed chip so tooling never greets the player unasked. Stories
-  // that hide the chip open specific windows through the control instead.
+  // A runtime capability grant (a Story dock/tools button) opens the
+  // launcher immediately; a boot-time grant (URL/persisted preference)
+  // keeps the collapsed chip so tooling never greets the player unasked.
+  // Stories that hide the launcher open specific windows through the
+  // control instead.
   const chip = props.chip !== false;
   const previousDebugToolsRef = useRef(debugTools);
   useEffect(() => {
     const was = previousDebugToolsRef.current;
     previousDebugToolsRef.current = debugTools;
-    if (!was && debugTools && chip) setMenuStateRaw(openedDevDockStateV1);
+    if (!was && debugTools && chip) setLauncherState(openedDevDockStateV1);
   }, [chip, debugTools]);
   useEffect(() => {
     if (!debugTools || load === undefined) return () => {};
@@ -375,25 +389,39 @@ function DefaultDevDockV1(props: {
     };
   }, [debugTools, load]);
   if (!debugTools) return null;
-  const storyContributions = loaded ?? props.contributions;
-  const contributions = createDevDockContributionSetV1({
-    panels: [
-      ...props.builtInContributions.panels,
-      ...storyContributions.panels,
-    ],
-  });
+  const contributions = loaded ?? props.contributions;
   return (
-    <DevDockV1
-      capabilities={props.capabilities}
-      contributions={contributions}
-      inputRouter={props.composition.input}
-      openState={menuState}
-      {...(props.position === undefined ? {} : { position: props.position })}
-      {...(props.chip === undefined ? {} : { chip: props.chip })}
-      {...(control === undefined ? {} : { control })}
-      {...(props.freeze === undefined ? {} : { freeze: props.freeze })}
-      onOpenStateChange={setMenuStateRaw}
-    />
+    <>
+      {chip
+        ? (
+          <StoryDebugDockV1
+            visible
+            capabilities={props.capabilities}
+            control={control}
+            grantCapabilitiesOnOpen={false}
+            expanded={launcherState.open}
+            onExpandedChange={(next) =>
+              setLauncherState(next ? openedDevDockStateV1 : closedDevDockStateV1)}
+            {...(props.position === undefined ? {} : { position: props.position })}
+            {...(props.freeze === undefined ? {} : { presentationFreeze: props.freeze })}
+            {...(props.savePort === undefined ? {} : { savePort: props.savePort })}
+            {...(props.clearAllSaves === undefined ? {} : { clearAllSaves: props.clearAllSaves })}
+            {...(props.onReinitialize === undefined
+              ? {}
+              : { onReinitialize: props.onReinitialize })}
+            {...(props.info === undefined ? {} : { info: props.info })}
+          />
+        )
+        : null}
+      <DevDockV1
+        capabilities={props.capabilities}
+        contributions={contributions}
+        inputRouter={props.composition.input}
+        control={control}
+        {...(props.position === undefined ? {} : { position: props.position })}
+        {...(props.freeze === undefined ? {} : { freeze: props.freeze })}
+      />
+    </>
   );
 }
 
@@ -824,31 +852,14 @@ export function DefaultGameRootV1<
   ).semantic;
   const semanticRevision = semanticWitness?.revision;
   const semanticStatus = semanticWitness?.status;
-  const builtInDevDockContributions = props.sessionMaintenance === undefined
-    ? emptyDevDockContributionsV1
-    : createDevDockContributionSetV1({
-      panels: [
-        {
-          id: engineSessionMaintenancePanelIdV1,
-          side: "right",
-          title: "Session maintenance",
-          authority: "cheat",
-          render: () => (
-            <SessionMaintenancePanelV1
-              {...(props.sessionMaintenance?.savePort === undefined
-                ? {}
-                : { savePort: props.sessionMaintenance.savePort })}
-              {...(props.sessionMaintenance?.clearAllSaves === undefined ? {} : {
-                clearAllSaves: props.sessionMaintenance.clearAllSaves,
-              })}
-              {...(props.lifecycle === undefined ? {} : {
-                onReinitialize: slotContext.systemDialogs.returnToTitle,
-              })}
-            />
-          ),
-        },
-      ],
-    });
+  const chip = props.devDock?.chip !== false;
+  const hasStoryTools = props.devDockContributions !== undefined ||
+    props.devDock?.load !== undefined;
+  const hasMaintenance = props.sessionMaintenance !== undefined;
+  const mountDevDock = props.capabilities !== undefined && (
+    (chip && (hasMaintenance || hasStoryTools)) ||
+    (!chip && hasStoryTools)
+  );
   return (
     <div
       role="application"
@@ -868,34 +879,31 @@ export function DefaultGameRootV1<
         layers={layers}
         inputRouter={props.composition.input}
         viewport={props.viewport}
-        devDock={
-          // Story tooling keeps DevDock's input/focus and authority contract.
-          props.capabilities === undefined ||
-            (builtInDevDockContributions.panels.length === 0 &&
-              props.devDockContributions === undefined &&
-              props.devDock?.load === undefined)
-            ? null
-            : (
-              <DefaultDevDockV1
-                capabilities={props.capabilities}
-                builtInContributions={builtInDevDockContributions}
-                contributions={props.devDockContributions ?? emptyDevDockContributionsV1}
-                {...(props.devDock?.load === undefined ? {} : { load: props.devDock.load })}
-                {...(props.devDock?.observeOpenState === undefined
-                  ? {}
-                  : { observeOpenState: props.devDock.observeOpenState })}
-                {...(props.devDock?.position === undefined
-                  ? {}
-                  : { position: props.devDock.position })}
-                {...(props.devDock?.chip === undefined ? {} : { chip: props.devDock.chip })}
-                {...(props.devDock?.control === undefined
-                  ? {}
-                  : { control: props.devDock.control })}
-                {...(props.devDock?.freeze === undefined ? {} : { freeze: props.devDock.freeze })}
-                composition={props.composition}
-              />
-            )
-        }
+        devDock={!mountDevDock || props.capabilities === undefined ? null : (
+          <DefaultDevDockV1
+            capabilities={props.capabilities}
+            contributions={props.devDockContributions ?? emptyDevDockContributionsV1}
+            composition={props.composition}
+            {...(props.devDock?.load === undefined ? {} : { load: props.devDock.load })}
+            {...(props.devDock?.observeOpenState === undefined
+              ? {}
+              : { observeOpenState: props.devDock.observeOpenState })}
+            {...(props.devDock?.position === undefined ? {} : { position: props.devDock.position })}
+            {...(props.devDock?.chip === undefined ? {} : { chip: props.devDock.chip })}
+            {...(props.devDock?.control === undefined ? {} : { control: props.devDock.control })}
+            {...(props.devDock?.freeze === undefined ? {} : { freeze: props.devDock.freeze })}
+            {...(props.devDock?.info === undefined ? {} : { info: props.devDock.info })}
+            {...(props.sessionMaintenance?.savePort === undefined
+              ? {}
+              : { savePort: props.sessionMaintenance.savePort })}
+            {...(props.sessionMaintenance?.clearAllSaves === undefined
+              ? {}
+              : { clearAllSaves: props.sessionMaintenance.clearAllSaves })}
+            {...(props.lifecycle === undefined
+              ? {}
+              : { onReinitialize: slotContext.systemDialogs.returnToTitle })}
+          />
+        )}
       />
     </div>
   );

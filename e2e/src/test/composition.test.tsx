@@ -122,7 +122,7 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
 
       // Without capabilities there is no automation global and no DevDock.
       expect(Object.hasOwn(globalThis, automationGlobalKeyV1)).toBe(false);
-      expect(screen.queryByRole("button", { name: /开发工具/u })).toBeNull();
+      expect(screen.queryByRole("button", { name: /调试/u })).toBeNull();
     } finally {
       await started.dispose();
     }
@@ -301,7 +301,7 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
         expect(screen.getByRole("application", { name: "引擎实验室" })).toBeInTheDocument();
       });
       // Boot-time grant: the collapsed corner chip is the sole entry.
-      expect(screen.getByRole("button", { name: "开发工具" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "调试" })).toBeInTheDocument();
     } finally {
       await started.dispose();
     }

@@ -14,8 +14,8 @@ test.describe("engine motion workbench (M3)", () => {
       await gotoLabV1(page, "?capability=debug_tools");
 
       // Open the Workbench window from the named preview case.
-      await page.getByRole("button", { name: "开发工具" }).click();
-      await page.getByRole("navigation", { name: "开发工具" })
+      await page.getByRole("button", { name: "调试" }).click();
+      await page.getByRole("group", { name: "调试" })
         .getByRole("button", { name: "Motion 工坊" })
         .click();
       const dock = page.getByRole("dialog", { name: "Motion 工坊" });

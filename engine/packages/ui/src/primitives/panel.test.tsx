@@ -39,4 +39,47 @@ describe("PanelV1", () => {
     render(<PanelV1 title="T">body</PanelV1>);
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
+
+  it("renders an icon close control labelled only by the accessible name", async () => {
+    const onClose = vi.fn();
+    render(
+      <PanelV1
+        title="调参"
+        onClose={onClose}
+        closeLabel="关闭"
+        closeControl="icon"
+        closeAttributes={{ "data-devdock-window-close": "true" }}
+      >
+        内容
+      </PanelV1>,
+    );
+
+    const close = screen.getByRole("button", { name: "关闭" });
+    expect(close).toHaveAttribute("data-panel-close", "true");
+    expect(close).toHaveAttribute("data-devdock-window-close", "true");
+    expect(close).toHaveAttribute("aria-label", "关闭");
+    expect(close).not.toHaveTextContent("关闭");
+    await userEvent.setup().click(close);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("forwards header props onto the title bar", () => {
+    const onPointerDown = vi.fn();
+    render(
+      <PanelV1
+        title="可拖动"
+        headerProps={{
+          "data-panel-drag": "true",
+          onPointerDown,
+        }}
+      >
+        内容
+      </PanelV1>,
+    );
+
+    const header = screen.getByRole("heading", { name: "可拖动" }).parentElement;
+    expect(header).toHaveAttribute("data-panel-drag", "true");
+    header?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    expect(onPointerDown).toHaveBeenCalled();
+  });
 });

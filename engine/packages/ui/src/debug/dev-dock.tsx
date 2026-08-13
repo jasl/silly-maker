@@ -9,12 +9,12 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import type { PointerEvent as ReactPointerEvent, ReactElement, ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import type { RuntimeCapabilityPortV1 } from "@sillymaker/base";
 import { inputHandledV1, inputIgnoredV1 } from "../input/contracts.ts";
 import type { InputRouterV1 } from "../input/contracts.ts";
-import { Button } from "../primitives/button.tsx";
-import { IconButton } from "../primitives/icon-button.tsx";
+import { PanelV1 } from "../primitives/panel.tsx";
+import { useClampedElementDragV1 } from "../primitives/use-clamped-element-drag.ts";
 import { createDevDockControlV1 } from "./dev-dock-control.ts";
 import type { DevDockControlV1 } from "./dev-dock-control.ts";
 import type { PresentationFreezePortV1 } from "../presentation-run/presentation-freeze.ts";
@@ -27,16 +27,16 @@ import styles from "./dev-dock.module.css";
  */
 export type DevDockSideV1 = "left" | "right";
 
-/** True when the chip menu or any panel window is open. */
+/** True when the debug launcher is expanded or any tool window is open. */
 export interface DevDockOpenStateV1 {
   readonly open: boolean;
 }
 
 /**
- * Chip/menu corner and the cascade origin for freshly opened windows. The
- * menu always opens toward the free vertical space — bottom corners expand
- * upward — so it never leaves the canvas. Applications reposition the dock
- * when the default corner occludes their own chrome.
+ * Launcher chip corner and the cascade origin for freshly opened windows.
+ * The launcher always opens toward the free vertical space — bottom
+ * corners expand upward — so it never leaves the canvas. Applications
+ * reposition the dock when the default corner occludes their own chrome.
  */
 export type DevDockPositionV1 =
   | "top_right"
@@ -72,27 +72,19 @@ export interface DevDockPropsV1 {
   readonly capabilities: RuntimeCapabilityPortV1;
   readonly contributions: DevDockContributionSetV1;
   readonly inputRouter: InputRouterV1;
-  /** Chip menu visibility (windows are tracked by the control port). */
-  readonly openState: DevDockOpenStateV1;
-  /** Chip/menu corner and window cascade origin; defaults to `top_right`. */
-  readonly position?: DevDockPositionV1;
   /**
-   * Render the built-in collapsed chip entry (default true). A Story whose
-   * own debug dock drives the control port hides it entirely.
+   * Window cascade origin; matches the launcher chip corner
+   * (`StoryDebugDockV1` / `devDockPosition`). Defaults to `top_right`.
    */
-  readonly chip?: boolean;
+  readonly position?: DevDockPositionV1;
   /** Shared window control; the dock creates a private one when absent. */
   readonly control?: DevDockControlV1;
   /**
-   * Presentation freeze: adds the manual 冻结画面 toggle to the chip menu
-   * and auto-engages while a `stage: "frozen"` panel window is open.
+   * Presentation freeze: auto-engages while a `stage: "frozen"` panel
+   * window is open. The launcher owns the manual 冻结画面 toggle.
    */
   readonly freeze?: PresentationFreezePortV1;
-  onOpenStateChange(next: DevDockOpenStateV1): void;
 }
-
-const closedDevDockStateV1 = Object.freeze({ open: false }) satisfies DevDockOpenStateV1;
-const openedDevDockStateV1 = Object.freeze({ open: true }) satisfies DevDockOpenStateV1;
 
 const devDockPositionsV1: readonly DevDockPositionV1[] = Object.freeze([
   "top_right",
@@ -100,8 +92,6 @@ const devDockPositionsV1: readonly DevDockPositionV1[] = Object.freeze([
   "bottom_right",
   "bottom_left",
 ]);
-
-const noSubscriptionV1 = (): () => void => () => {};
 
 function validatePanelV1(panel: DevDockPanelV1): DevDockPanelV1 {
   if (panel === null || typeof panel !== "object" || Array.isArray(panel)) {
@@ -183,16 +173,11 @@ function focusWithoutScrollingV1(element: HTMLElement): void {
   element.focus({ preventScroll: true });
 }
 
-interface DevDockDragStateV1 {
-  readonly pointerId: number;
-  readonly grabX: number;
-  readonly grabY: number;
-}
-
 /**
  * One floating, movable, non-modal tool window. The game behind it stays
  * fully interactive; the window isolates input only while focus is inside
- * it, and Escape closes just this window.
+ * it, and Escape closes just this window. Chrome is `PanelV1`; drag is
+ * `useClampedElementDragV1`.
  */
 function DevDockWindowV1(props: {
   readonly panel: DevDockPanelV1;
@@ -202,88 +187,32 @@ function DevDockWindowV1(props: {
   onClose(): void;
   onFocusWithin(panelId: string, focused: boolean): void;
 }): ReactElement {
-  const containerRef = useRef<HTMLElement | null>(null);
-  const dragRef = useRef<DevDockDragStateV1 | null>(null);
-  const [dragPosition, setDragPosition] = useState<
-    { readonly x: number; readonly y: number } | null
-  >(
-    null,
-  );
+  const drag = useClampedElementDragV1();
   const { panel, onClose, onFocusWithin, portalTarget } = props;
   const authorized = panel.authority === "read_only" || props.cheatsEnabled;
+  const titleId = `sillymaker-dev-dock-title-${panel.id}`;
 
   useLayoutEffect(() => {
-    const container = containerRef.current;
+    const container = drag.containerRef.current;
     if (container === null) return;
     focusWithoutScrollingV1(focusableElementsV1(container)[0] ?? container);
-  }, [portalTarget]);
-
-  const moveTo = useCallback((clientX: number, clientY: number): void => {
-    const drag = dragRef.current;
-    const container = containerRef.current;
-    const host = container?.parentElement;
-    if (drag === null || container === null || host === null || host === undefined) return;
-    const hostBounds = host.getBoundingClientRect();
-    const bounds = container.getBoundingClientRect();
-    const maxX = Math.max(0, hostBounds.width - bounds.width);
-    const maxY = Math.max(0, hostBounds.height - bounds.height);
-    setDragPosition({
-      x: Math.min(Math.max(clientX - hostBounds.left - drag.grabX, 0), maxX),
-      y: Math.min(Math.max(clientY - hostBounds.top - drag.grabY, 0), maxY),
-    });
-  }, []);
-
-  const onHeaderPointerDown = useCallback((event: ReactPointerEvent<HTMLElement>): void => {
-    event.stopPropagation();
-    if (event.button !== 0) return;
-    if ((event.target as Element).closest("button, input, select, textarea, a") !== null) return;
-    const container = containerRef.current;
-    if (container === null) return;
-    const bounds = container.getBoundingClientRect();
-    dragRef.current = {
-      pointerId: event.pointerId,
-      grabX: event.clientX - bounds.left,
-      grabY: event.clientY - bounds.top,
-    };
-    const header = event.currentTarget;
-    if (typeof header.setPointerCapture === "function") {
-      header.setPointerCapture(event.pointerId);
-    }
-  }, []);
-
-  const onHeaderPointerMove = useCallback((event: ReactPointerEvent<HTMLElement>): void => {
-    if (dragRef.current === null || dragRef.current.pointerId !== event.pointerId) return;
-    event.stopPropagation();
-    moveTo(event.clientX, event.clientY);
-  }, [moveTo]);
-
-  const onHeaderPointerEnd = useCallback((event: ReactPointerEvent<HTMLElement>): void => {
-    if (dragRef.current === null || dragRef.current.pointerId !== event.pointerId) return;
-    dragRef.current = null;
-    const header = event.currentTarget;
-    if (
-      typeof header.hasPointerCapture === "function" &&
-      typeof header.releasePointerCapture === "function" &&
-      header.hasPointerCapture(event.pointerId)
-    ) {
-      header.releasePointerCapture(event.pointerId);
-    }
-  }, []);
+  }, [drag.containerRef, portalTarget]);
 
   return (
     <section
-      ref={containerRef}
+      ref={drag.containerRef}
       className={styles["dev-dock__window"]}
       role="dialog"
       aria-label={panel.title}
+      aria-live="polite"
       data-devdock-window={panel.id}
       data-devdock-escape-owner="true"
       tabIndex={-1}
-      style={dragPosition === null
+      style={drag.position === null
         ? { "--devdock-cascade": props.cascadeIndex } as Record<string, number>
         : {
-          insetInlineStart: `${String(dragPosition.x)}px`,
-          insetBlockStart: `${String(dragPosition.y)}px`,
+          insetInlineStart: `${String(drag.position.x)}px`,
+          insetBlockStart: `${String(drag.position.y)}px`,
           insetInlineEnd: "auto",
           insetBlockEnd: "auto",
         }}
@@ -305,54 +234,35 @@ function DevDockWindowV1(props: {
         onClose();
       }}
     >
-      <header
-        className={styles["dev-dock__window-header"]}
-        data-devdock-window-drag="true"
-        onPointerDown={onHeaderPointerDown}
-        onPointerMove={onHeaderPointerMove}
-        onPointerUp={onHeaderPointerEnd}
-        onPointerCancel={onHeaderPointerEnd}
-      >
-        <h2>{panel.title}</h2>
-        <IconButton
-          accessibleName="关闭"
-          title="关闭"
-          className={styles["dev-dock__window-close"]}
-          data-devdock-window-close="true"
-          onClick={onClose}
-        >
-          <svg viewBox="0 0 12 12" width="12" height="12" focusable="false">
-            <path
-              d="M2.2 2.2l7.6 7.6M9.8 2.2l-7.6 7.6"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-        </IconButton>
-      </header>
-      {/* Scrollable panel content stays keyboard-reachable (WCAG). */}
-      <section
-        className={styles["dev-dock__panel"]}
-        aria-live="polite"
-        aria-label={panel.title}
-        tabIndex={0}
+      <PanelV1
+        title={panel.title}
+        titleId={titleId}
+        onClose={onClose}
+        closeLabel="关闭"
+        closeControl="icon"
+        closeAttributes={{ "data-devdock-window-close": "true" }}
+        headerProps={{
+          "data-devdock-window-drag": "true",
+          "data-panel-drag": "true",
+          ...drag.headerProps,
+        }}
       >
         {authorized ? panel.render() : <p>需要启用作弊功能</p>}
-      </section>
+      </PanelV1>
     </section>
   );
 }
 
-/** Runtime-gated GameShell chrome; it never receives Snapshot or Story state. */
+/**
+ * Floating tool-window host. The collapsed launcher lives in
+ * `StoryDebugDockV1`; this component never renders a chip. It never
+ * receives Snapshot or Story state.
+ */
 export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
-  const { onOpenStateChange } = props;
   const position = props.position ?? "top_right";
   if (!devDockPositionsV1.includes(position)) {
     throw new TypeError(`ui.devdock_invalid_position:${position as string}`);
   }
-  const showChip = props.chip !== false;
   const capabilities = useSyncExternalStore(
     props.capabilities.state.subscribe,
     props.capabilities.state.getCurrent,
@@ -374,28 +284,17 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
     control.openPanelIds.getCurrent,
     control.openPanelIds.getCurrent,
   );
-  const chipRef = useRef<HTMLButtonElement>(null);
   const [focusedWindows, setFocusedWindows] = useState<readonly string[]>(Object.freeze([]));
   const { target, surface } = useDevDockPortalTargetV1();
-  const menuOpen = props.openState.open;
   const debugTools = capabilities.debugTools;
   const cheatsEnabled = debugTools && capabilities.cheats;
 
-  const publishOpenState = useCallback(
-    (next: DevDockOpenStateV1): void => onOpenStateChange(next),
-    [onOpenStateChange],
-  );
   const restoreChipFocus = useCallback((): void => {
-    const chip = chipRef.current;
+    const chip = document.querySelector<HTMLElement>("[data-debug-dock-toggle]");
     queueMicrotask(() => {
       if (chip?.isConnected === true) focusWithoutScrollingV1(chip);
     });
   }, []);
-  const closeMenu = useCallback((): void => {
-    if (!menuOpen) return;
-    publishOpenState(closedDevDockStateV1);
-    restoreChipFocus();
-  }, [menuOpen, publishOpenState, restoreChipFocus]);
   const onWindowFocusWithin = useCallback((panelId: string, focused: boolean): void => {
     setFocusedWindows((current) => {
       if (focused) {
@@ -407,7 +306,7 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
     });
   }, []);
 
-  // Publish the validated registry so a Story dock can list the same tools.
+  // Publish the validated registry so the launcher can list the same tools.
   useEffect(() => {
     control.publishPanelsInternalV1(
       panels.map(({ id, title, authority }) => Object.freeze({ id, title, authority })),
@@ -418,11 +317,7 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
   useLayoutEffect(() => {
     if (debugTools) return;
     control.closeAll();
-    if (menuOpen) {
-      publishOpenState(closedDevDockStateV1);
-      restoreChipFocus();
-    }
-  }, [control, debugTools, menuOpen, publishOpenState, restoreChipFocus]);
+  }, [control, debugTools]);
 
   useLayoutEffect(() => {
     setFocusedWindows((current) => {
@@ -456,11 +351,6 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
   // window engages the presentation freeze for its lifetime (edge-triggered
   // so the manual toggle keeps working independently).
   const freeze = props.freeze ?? null;
-  const frozen = useSyncExternalStore(
-    freeze?.state.subscribe ?? noSubscriptionV1,
-    () => freeze?.state.getCurrent().frozen ?? false,
-    () => freeze?.state.getCurrent().frozen ?? false,
-  );
   const wantsFrozenWindow = openWindows.some((panel) => panel.stage === "frozen");
   const previousWantsFrozenRef = useRef(wantsFrozenWindow);
   useLayoutEffect(() => {
@@ -474,116 +364,20 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
     if (debugTools || freeze === null) return;
     freeze.resume();
   }, [debugTools, freeze]);
-  // The dock owns the freeze lever; tearing the dock down (capability
-  // revocation, unmount) never leaves the world frozen behind it.
+  // Tearing the window host down (capability revocation, unmount) never
+  // leaves the world frozen behind it. The launcher owns the manual lever.
   useLayoutEffect(() => () => freeze?.resume(), [freeze]);
 
-  if (!debugTools || target === null) return null;
-  // A Story dock hides the chip and opens windows through the control.
-  // With nothing to show, do not leave an empty full-canvas overlay.
-  if (!showChip && openWindows.length === 0) return null;
-
-  const anySurfaceOpen = menuOpen || openWindows.length > 0;
+  if (!debugTools || target === null || openWindows.length === 0) return null;
 
   return createPortal(
     <div
       className={styles["dev-dock"]}
       data-devdock-surface={surface}
       data-devdock-position={position}
-      data-devdock-open={anySurfaceOpen ? "true" : undefined}
-      data-devdock-escape-owner={anySurfaceOpen ? "true" : undefined}
-      onKeyDownCapture={(event) => {
-        if (event.key !== "Escape" || !menuOpen) return;
-        // Window Escapes close their own window; the menu owns the rest.
-        if ((event.target as Element).closest?.("[data-devdock-window]") !== null) return;
-        event.preventDefault();
-        event.stopPropagation();
-        closeMenu();
-      }}
+      data-devdock-open="true"
+      data-devdock-escape-owner="true"
     >
-      {showChip
-        ? (
-          <Button
-            ref={chipRef}
-            className={styles["dev-dock__chip"]}
-            data-devdock-chip="true"
-            aria-expanded={menuOpen}
-            aria-controls="sillymaker-dev-dock-menu"
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              if (menuOpen) closeMenu();
-              else publishOpenState(openedDevDockStateV1);
-            }}
-          >
-            开发工具
-          </Button>
-        )
-        : null}
-      {showChip && menuOpen
-        ? (
-          <nav
-            id="sillymaker-dev-dock-menu"
-            className={styles["dev-dock__menu"]}
-            aria-label="开发工具"
-            data-devdock-menu="true"
-            data-devdock-escape-owner="true"
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => event.stopPropagation()}
-            onKeyDownCapture={(event) => {
-              if (event.key !== "Escape") return;
-              event.preventDefault();
-              event.stopPropagation();
-              closeMenu();
-            }}
-          >
-            {panels.length === 0
-              ? <p className={styles["dev-dock__empty"]}>暂无可用开发工具</p>
-              : panels.map((panel) => {
-                const disabled = panel.authority === "cheat" && !cheatsEnabled;
-                const open = openPanelIds.includes(panel.id);
-                return (
-                  <Button
-                    key={panel.id}
-                    aria-pressed={open}
-                    aria-describedby={disabled ? "sillymaker-dev-dock-cheat-reason" : undefined}
-                    disabled={disabled}
-                    onClick={() => {
-                      if (open) control.close(panel.id);
-                      else control.open(panel.id);
-                    }}
-                  >
-                    {panel.title}
-                  </Button>
-                );
-              })}
-            {freeze !== null
-              ? (
-                <Button
-                  data-devdock-freeze-toggle="true"
-                  aria-pressed={frozen}
-                  onClick={() => {
-                    if (frozen) freeze.resume();
-                    else freeze.pause();
-                  }}
-                >
-                  {frozen ? "恢复画面" : "冻结画面"}
-                </Button>
-              )
-              : null}
-            {!cheatsEnabled && panels.some((panel) => panel.authority === "cheat")
-              ? (
-                <p
-                  id="sillymaker-dev-dock-cheat-reason"
-                  className={styles["dev-dock__authority-reason"]}
-                >
-                  需要启用作弊功能
-                </p>
-              )
-              : null}
-          </nav>
-        )
-        : null}
       {openWindows.map((panel, index) => (
         <DevDockWindowV1
           key={panel.id}

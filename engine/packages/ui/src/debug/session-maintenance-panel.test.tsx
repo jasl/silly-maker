@@ -253,9 +253,7 @@ describe("SessionMaintenancePanelV1", () => {
           capabilities={capabilities}
           contributions={contributions}
           inputRouter={createInputRouterV1()}
-          openState={{ open: false }}
           control={control}
-          onOpenStateChange={vi.fn()}
         />
       </DevDockPortalCoordinatorV1>,
     );

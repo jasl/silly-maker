@@ -21,8 +21,8 @@ test.describe("engine stage provenance (M2)", () => {
     // Enable inspection from the provenance window. Floating windows no
     // longer shield the stage, so the character stays clickable while the
     // window remains open and the card updates live.
-    await page.getByRole("button", { name: "开发工具" }).click();
-    await page.getByRole("navigation", { name: "开发工具" })
+    await page.getByRole("button", { name: "调试" }).click();
+    await page.getByRole("group", { name: "调试" })
       .getByRole("button", { name: "舞台溯源" })
       .click();
     const dock = page.getByRole("dialog", { name: "舞台溯源" });
