@@ -4300,6 +4300,14 @@
           ]
         }
       },
+      "engine/packages/studio": {
+        "packageJson": {
+          "dependencies": [
+            "npm:react-dom@19.2.7",
+            "npm:react@19.2.7"
+          ]
+        }
+      },
       "engine/packages/tooling": {
         "packageJson": {
           "dependencies": [

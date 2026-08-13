@@ -63,6 +63,8 @@ export interface StoryApplicationConfigV1 {
   readonly simulate: ProjectModuleRefV1 | null;
   /** Dev/build target; null for headless-only applications. */
   readonly web: StoryWebTargetV1 | null;
+  /** Module exporting a Studio binding; null when the app opts out of Studio. */
+  readonly studio: ProjectModuleRefV1 | null;
 }
 
 export interface SillymakerProjectConfigV1 {
@@ -100,6 +102,12 @@ export interface SillymakerAppConfigV1 {
   readonly assetVerification: boolean;
   readonly simulate?: ProjectModuleRefV1 | null;
   readonly web?: SillymakerAppWebTargetV1 | null;
+  /**
+   * Module exporting a `StudioBindingV1` (catalog + renderers + motions)
+   * for the dev-only SillyMaker Studio page (`/__sillymaker/studio/`).
+   * Studio code never enters the player bundle; omit to opt out.
+   */
+  readonly studio?: ProjectModuleRefV1 | null;
 }
 
 /**

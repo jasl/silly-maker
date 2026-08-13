@@ -119,7 +119,7 @@ envelope 或第二 runtime authority。
   负载偶发、单独重跑 5/5 过）、examples e2e 56 过 2 跳（Cat Cafe/模板/Bookshop/
   SillyOS 浏览器断言全绿）。
 
-### A2 — Studio shell 与写回
+### A2 — Studio shell 与写回（已完成 2026-08-14）
 
 - 新包 `@sillymaker/studio`（依赖 base/ui/tooling；不进 player bundle）；
   `story author <application-id>` verb + 根 `deno task author` 分发：启动该应用
@@ -133,6 +133,28 @@ envelope 或第二 runtime authority。
   文件 + 原子 rename、确定性格式化，仅 dev）。
 - 验收：在 cat-cafe 上打开 Studio → 选 opening → Inspector 改 x/y → 保存 →
   `git diff` 只有 scene JSON → 运行中的游戏 HMR 生效 → 权威 digest 不变。
+- 交付记录：tooling `scene-port.ts`（read/write CAS + `scene_id_mismatch` +
+  `/__sillymaker/dev-sources/scenes` 列表端点，坏文档不进 navigator）注册进
+  `devSourcesPluginV1`；`sillymaker.config.ts` 新增 `studio: { module,
+  exportName }` 声明（config-types/config/derive 全链），`studioPluginV1`
+  （`apply: "serve"`）用 `server.transformIndexHtml` 出 Studio HTML（vite client
+  - React preamble 注入）+ 虚拟入口 `/__sillymaker/studio-entry.tsx` 挂载
+    binding；`story author <appId>` verb + 根 `deno task author`。新包
+    `@sillymaker/studio`（workspace 注册 + tsconfig references base/ui）：
+    `StudioBindingV1`（catalog + renderers + motions）、`createDevServerSceneIoV1`
+    （list/read/write 浏览器客户端）、`StudioAppV1`（navigator 自动开第一个场景；
+    detached 画布 `SemanticStageTargetHostV1` 缩放预览；Inspector 数字编辑写 draft
+    并实时重编译，编译失败横幅阻塞保存；cue 表「到此为止」重放 + show cue 的
+    motion 下拉改绑定；保存走 CAS，409 提示重新加载；draft 只在内存）。cat-cafe
+    第一消费者：`src/tooling/studio-binding.tsx`（registry-less renderers 画
+    code-native 猫，placement/锚点/预览与真实资产完全同参）。验收证据：scene-port
+    5 tests + Studio jsdom 4 tests（列表/画布/CAS 保存载荷/409 草稿保留/到此为止/
+    编译错误阻塞）；浏览器验收 `examples/e2e/cat-cafe-studio.spec.ts` 2/2（改 x
+    920→880 → 保存 → 磁盘只有 scene JSON 变化并还原；cue 绑定显示 + 重放 + 工坊
+    case 列表）；`story build example-cat-cafe` 后 `dist-web` 无任何 Studio 标识
+    （player bundle 干净）；typecheck/lint 全绿。HMR 生效链与 A0 相同（场景 JSON
+    是剧情模块的 import，Vite 自动失效）；「权威 digest 不变」= Studio 浏览/草稿
+    编辑不触碰 live session（detached target，无 Session/reconciler）。
 
 ### A3 — 直接操纵
 

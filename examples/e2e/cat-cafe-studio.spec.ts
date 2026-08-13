@@ -1,0 +1,81 @@
+// SPDX-License-Identifier: MIT
+// SillyMaker Studio (VN Scene Workspace A2): the dev-only scene workspace on
+// the Cat Cafe dev server. Opening a named scene needs no story progress; an
+// inspector edit saves through the CAS scene port and only the scene JSON
+// changes on disk.
+import { readFileSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+import { catcafeTargetUrlV1, expect, test } from "./fixtures.ts";
+
+const sceneFileV1 = fileURLToPath(
+  new URL("../cat-cafe/src/scenes/opening/opening.scene.json", import.meta.url),
+);
+
+test.describe("cat-cafe studio (A2)", () => {
+  test("opens the opening scene, edits x through the inspector, and saves via CAS", async ({ page }) => {
+    const originalBytes = readFileSync(sceneFileV1, "utf8");
+    try {
+      await page.goto(catcafeTargetUrlV1("__sillymaker/studio/"));
+
+      // The navigator lists the scene by label and auto-opens the first one.
+      const sceneButton = page.getByRole("button", { name: "雨后的咖啡店门口" });
+      await expect(sceneButton).toBeVisible();
+      await expect(sceneButton).toHaveAttribute("aria-pressed", "true");
+
+      // The canvas renders through the real Story renderers (the detached
+      // registry draws the code-native cat) without playing to the scene.
+      const canvas = page.locator("[data-studio-canvas]");
+      await expect(canvas.locator('[data-stage-key="layer.catcafe.characters:tag.xiaoyu"]'))
+        .toBeVisible();
+      await expect(canvas.locator("[data-cc-cat='kitten']")).toBeVisible();
+
+      // Select the cat and nudge it left through the inspector.
+      await page.getByLabel("条目").selectOption("tag.xiaoyu");
+      const xInput = page.getByLabel("x", { exact: true });
+      await expect(xInput).toHaveValue("920");
+      const save = page.getByRole("button", { name: "保存" });
+      await expect(save).toBeDisabled();
+      await xInput.fill("880");
+      await expect(save).toBeEnabled();
+      await save.click();
+      await expect(page.getByRole("status")).toContainText("已保存");
+
+      // The scene document is the only thing that changed on disk.
+      const savedJson = JSON.parse(readFileSync(sceneFileV1, "utf8")) as {
+        entries: readonly { tag: string; placement?: { x: number } }[];
+      };
+      const xiaoyu = savedJson.entries.find((entry) => entry.tag === "tag.xiaoyu");
+      expect(xiaoyu?.placement?.x).toBe(880);
+    } finally {
+      writeFileSync(sceneFileV1, originalBytes);
+    }
+  });
+
+  test("lists cue bindings and replays the scene up to a chosen cue", async ({ page }) => {
+    await page.goto(catcafeTargetUrlV1("__sillymaker/studio/"));
+    const canvas = page.locator("[data-studio-canvas]");
+    await expect(canvas.locator('[data-stage-key="layer.catcafe.characters:tag.xiaoyu"]'))
+      .toBeVisible();
+
+    // The kitten-enters cue carries its motion binding in the cue table.
+    const kittenRow = page.locator('[data-studio-cue="cue.catcafe.opening.kitten-enters"]');
+    await expect(kittenRow.getByRole("combobox")).toHaveValue("motion.catcafe.cat-entrance");
+
+    // Replaying only through the backdrop cue removes the cat from the canvas.
+    await page
+      .locator('[data-studio-cue="cue.catcafe.opening.shopfront"]')
+      .getByRole("button", { name: "到此为止" })
+      .click();
+    await expect(canvas.locator('[data-stage-key="layer.catcafe.characters:tag.xiaoyu"]'))
+      .toHaveCount(0);
+    await expect(canvas.locator('[data-stage-key="layer.catcafe.background:tag.background"]'))
+      .toBeVisible();
+
+    // The embedded Motion Workbench lists the cue-derived preview case.
+    await expect(page.locator("[data-motion-workbench-launcher]")).toBeAttached();
+    await expect(
+      page.locator('[data-motion-workbench-case="cue.catcafe.opening.kitten-enters"]'),
+    ).toBeVisible();
+  });
+});

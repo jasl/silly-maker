@@ -21,6 +21,7 @@ function webApplicationV1(applicationId: string): StoryApplicationConfigV1 {
     storyEntry: { module: `examples/${applicationId}/src/story.ts`, exportName: "entryV1" },
     assetVerification: true,
     simulate: null,
+    studio: null,
     web: {
       storyRoot: `examples/${applicationId}`,
       applicationHtml: `examples/${applicationId}/index.html`,
@@ -44,6 +45,7 @@ function headlessApplicationV1(applicationId: string): StoryApplicationConfigV1 
     storyEntry: { module: `examples/${applicationId}/src/story.ts`, exportName: "entryV1" },
     assetVerification: false,
     simulate: { module: `examples/${applicationId}/src/target.ts`, exportName: "createV1" },
+    studio: null,
     web: null,
   };
 }

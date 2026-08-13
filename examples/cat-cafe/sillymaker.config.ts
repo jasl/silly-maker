@@ -13,6 +13,10 @@ export const sillymakerAppConfigV1 = {
     module: "src/tooling/simulation-target.ts",
     exportName: "createCatcafeSimulationTargetV1",
   },
+  studio: {
+    module: "src/tooling/studio-binding.tsx",
+    exportName: "catcafeStudioBindingV1",
+  },
   web: {
     applicationHtml: "index.html",
     applicationEntry: "src/application/entry.tsx",

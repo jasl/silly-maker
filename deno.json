@@ -2,6 +2,7 @@
   "nodeModulesDir": "auto",
   "workspace": [
     "./engine/packages/base",
+    "./engine/packages/studio",
     "./engine/packages/tooling",
     "./engine/packages/ui",
     "./engine/packages/web",
@@ -49,6 +50,7 @@
     "bench:player": "deno task story build e2e --profile release && deno run -A npm:@playwright/test/playwright test --config engine/packages/web/playwright.performance.config.ts",
     "check:assets": "deno run -A scripts/assets/verify-runtime-assets.mts",
     "story": "deno run -A scripts/story/cli.mts",
+    "author": "deno run -A scripts/story/cli.mts author",
     "check:stories": "deno run -A scripts/story/cli.mts check --all",
     "simulate:e2e": "deno run -A scripts/story/cli.mts simulate e2e",
     "test:e2e:smoke": "deno run -A npm:@playwright/test/playwright test --config engine/packages/web/playwright.engine.config.ts --project=chromium --grep @smoke",

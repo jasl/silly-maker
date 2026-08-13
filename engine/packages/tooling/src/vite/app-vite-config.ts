@@ -24,6 +24,7 @@ import {
   runtimeAssetContentTypeV1,
 } from "./runtime-assets.ts";
 import { devSourcesPluginV1 } from "./dev-sources.ts";
+import { studioPluginV1 } from "./studio.ts";
 
 interface BuildIdentityModuleV1 {
   collect(): Promise<unknown>;
@@ -182,6 +183,10 @@ export async function createSillymakerAppViteConfigV1(
     // Dev-server-only source port for DevTools "open source" actions.
     devSourcesPluginV1(appRoot),
   );
+  if (config.studio !== null && config.studio !== undefined) {
+    // Dev-server-only Studio page for scene authoring; never in builds.
+    plugins.push(studioPluginV1(config.studio));
+  }
 
   return {
     root: appRoot,

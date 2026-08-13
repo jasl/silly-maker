@@ -24,7 +24,7 @@ import {
   simulateStoryApplicationV1,
 } from "./commands.ts";
 import type { SillymakerProjectConfigV1 } from "./config.ts";
-import { listStoryApplicationIdsV1 } from "./config.ts";
+import { listStoryApplicationIdsV1, resolveStoryApplicationV1 } from "./config.ts";
 
 export interface ProjectCliInputV1 {
   readonly project: SillymakerProjectConfigV1;
@@ -39,7 +39,7 @@ export interface ProjectCliInputV1 {
 }
 
 const usageV1 =
-  "usage: story <inspect|check|simulate|dev|build|prebuilt-smoke|desktop> <application-id> " +
+  "usage: story <inspect|check|simulate|dev|author|build|prebuilt-smoke|desktop> <application-id> " +
   "[--scenario <name>] [--seed <uint>] [--trace <dot.paths,comma-separated>] [--smoke] " +
   "[--profile <release|debug>] [--sourcemap] [--no-minify] " +
   "[--target <os-arch-triple>]... [--compress[=xz|lzma|zstd]] " +
@@ -348,6 +348,32 @@ export async function runProjectCliV1(input: ProjectCliInputV1): Promise<number>
         const report = await devSmokeStoryApplicationV1(input.project, selector, deps);
         input.writeOut(printableV1(report));
         return report.ok ? 0 : 1;
+      }
+      case "author": {
+        // Boots the application's own Vite dev server and points the
+        // author at the Studio page. The Studio itself is a dev-only
+        // plugin surface; this verb only provides the front door.
+        const deps = processDeps();
+        if (deps === null) return 2;
+        const application = resolveStoryApplicationV1(input.project, selector);
+        if (application.web === null) {
+          input.writeErr(`application "${selector}" has no web target`);
+          return 1;
+        }
+        if (application.studio === null) {
+          input.writeErr(
+            `application "${selector}" declares no studio binding; ` +
+              "add `studio: { module, exportName }` to its sillymaker.config.ts",
+          );
+          return 1;
+        }
+        input.writeOut(
+          "SillyMaker Studio: open <dev server origin>/__sillymaker/studio/ once Vite is ready.",
+        );
+        const storyRoot = application.web.storyRoot;
+        return await deps.runner.run("deno", ["run", "-A", "npm:vite"], {
+          cwd: storyRoot === "." ? deps.repositoryRoot : `${deps.repositoryRoot}/${storyRoot}`,
+        });
       }
       case "build": {
         const deps = processDeps();

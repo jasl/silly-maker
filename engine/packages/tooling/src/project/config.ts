@@ -263,6 +263,9 @@ export function defineSillymakerProjectV1(
         ? null
         : freezeModuleRefV1(application.simulate, `${pointer}/simulate`),
       web: application.web === null ? null : freezeWebTargetV1(application.web, `${pointer}/web`),
+      studio: application.studio === null
+        ? null
+        : freezeModuleRefV1(application.studio, `${pointer}/studio`),
     });
   });
   return Object.freeze({
@@ -341,6 +344,9 @@ export function defineSillymakerAppV1(config: SillymakerAppConfigV1): Sillymaker
     simulate: config.simulate === undefined || config.simulate === null
       ? null
       : freezeModuleRefV1(config.simulate, `${pointer}/simulate`),
+    studio: config.studio === undefined || config.studio === null
+      ? null
+      : freezeModuleRefV1(config.studio, `${pointer}/studio`),
     web: web === null ? null : Object.freeze({
       applicationHtml: requireRepositoryPathV1(
         web.applicationHtml,
@@ -446,6 +452,10 @@ export function deriveStoryApplicationV1(
     simulate: app.simulate === null || app.simulate === undefined ? null : Object.freeze({
       module: joinAppPathV1(directory, app.simulate.module),
       exportName: app.simulate.exportName,
+    }),
+    studio: app.studio === null || app.studio === undefined ? null : Object.freeze({
+      module: joinAppPathV1(directory, app.studio.module),
+      exportName: app.studio.exportName,
     }),
     web: web === null ? null : Object.freeze({
       storyRoot: directory,

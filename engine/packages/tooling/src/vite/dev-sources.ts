@@ -7,6 +7,7 @@ import launchEditor from "launch-editor";
 import type { Plugin } from "vite";
 
 import { createMotionPortMiddlewareV1 } from "./motion-port.ts";
+import { createScenePortMiddlewareV1 } from "./scene-port.ts";
 
 /**
  * The dev-sources port: a dev-server-only middleware that opens a Story
@@ -115,7 +116,7 @@ export function createDevSourcesMiddlewareV1(
   };
 }
 
-/** The `vite dev`-only plugin registering the dev-sources and motion ports. */
+/** The `vite dev`-only plugin registering the dev-sources, motion, and scene ports. */
 export function devSourcesPluginV1(appRoot: string): Plugin {
   return {
     name: "sillymaker:dev-sources",
@@ -123,6 +124,7 @@ export function devSourcesPluginV1(appRoot: string): Plugin {
     configureServer(server) {
       server.middlewares.use(createDevSourcesMiddlewareV1({ appRoot }));
       server.middlewares.use(createMotionPortMiddlewareV1({ appRoot }));
+      server.middlewares.use(createScenePortMiddlewareV1({ appRoot }));
     },
   };
 }
