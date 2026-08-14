@@ -249,9 +249,30 @@ envelope 或第二 runtime authority。
   物、加一个场景与切换、绑定/调整登场 motion、场景重开回归），每项标注其验证
   命令；人与 Agent 走同一清单，引擎能力落地后重跑同一切片对比曲线。
 - 预注册的观察焦点（来自 2026-08-14 与 Ren'Py 工程对比）：台词书写成本（textId
-  - 节点 + occurrence 纪律）与素材进场成本（slot/pack/digest + catalog +
-    renderer 登记）预计是最大两项缺口；若度量证实，按最窄切片各自立项，任何书写
-    糖必须仍是普通 TypeScript（无第二 DSL/VM 红线不动）。
+  与节点两处登记、occurrence 纪律）与素材进场成本（slot/pack/digest、catalog、
+  renderer 登记）预计是最大两项缺口；若度量证实，按最窄切片各自立项，任何书写
+  糖必须仍是普通 TypeScript（无第二 DSL/VM 红线不动）。
+
+第 1 轮基线（2026-08-14，Agent 执行、所有者侧独立复核闸门与纪律）：T1–T6 全部
+1 轮到绿、总耗时约 50 分钟；主仓零改动；两条 scenario digest 稳定复现。度量：
+每句台词直接成本 2 文件/2 编辑点（中途插句最坏 4 文件，含 occurrence 重排）；
+占位人物上台 8 登记点、占位背景 6 点；改站位/换 motion 绑定各 1 点（只动 scene
+文档）；新 motion 从零约 4 文件。缺口按证据强度排序：
+
+1. **跨场景同 edge 元组（kind+layer+tag+content）绑不同 motion 时后者被静默盖
+   住**，`story check` 报绿——这就是 Defer 节「TransitionRequest 携带 cue 身份」
+   等待的真实场景，证据已到。最窄先手：story check 增加跨场景 edge 碰撞诊断
+   （lint-only，不动 runtime 合同）；runtime 扩展仍按停止条件单独裁决。
+2. 台词双文件与 occurrence 全局重排（预注册焦点一证实，最高频）；候选：无 DSL
+   红线内的书写辅助（内联默认语言文本派生 textId、编号稳健的 scenario 助手），
+   另行切片设计。
+3. ensure 对同 content 为空操作且无「重开场景」原语（重开=手写 hide+show）；
+   候选：scene 文档级 open/reset accessor，属 A0 收窄决定预留的「真实需求再加」。
+4. 素材/内容进场（Studio 无法从零登记人物；新场景要手拼 barrel 与 transition
+   catalog；新 motion 要在 studio binding 重复登记路径）——预注册焦点二证实，
+   归 Track D 内容/资产工具族，需要单独设计。
+5. 中途表情不进 cue/Studio（剧本 `setAppearance` 节拍）——cue kind 扩展的真实
+   证据，暂列观察。
 
 ## 3. Defer
 
