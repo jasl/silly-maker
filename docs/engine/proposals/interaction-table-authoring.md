@@ -189,14 +189,35 @@ labeled edge ≈ link、docId 分组 ≈ group。查看器（Studio 面板）按
 
 ## 应用路径（external-experiment 先行）
 
-1. 落 kit（registry + defineInteractionDocV1 + compiler + admission 校验），
-   与手写菜单共存；
-2. 试点迁移「泡茶喝」（最表格化：8 行茶饮 ≈ 90 行手写节点 + 闸门 + 效果 id），
-   id 覆盖保持不变，金标/单测/e2e 全绿为验收；
+1. ✅ 落 kit（registry + defineInteractionDocV1 + compiler + admission 校验），
+   与手写菜单共存（2026-08-14，external-experiment `b085640`）；
+2. ✅ 试点迁移「泡茶喝」：派生 id 字节级一致、金标/单测/e2e 全绿，
+   新增茶饮 = 目录一行 + 台词一行（验收标准达成，见该仓 NOTES #28）；
 3. 迁「网购」「聊天」「就寝」；新内容（看电视/打游戏/白天循环）表格先行；
 4. 高密度表现场景仅在本 kit + 氛围动效原语（另案）就绪后开工；
 5. 稳定后上提 `template/`（替换现 narrative-kit 为超集）；Studio 只读图
    查看器消费上节的 `NarrativeFlowGraphV1` 投影，按真实需求再提案。
+
+## 为什么先 story 侧，何时进引擎（升格判据）
+
+引擎今天**不拥有叙事节点运行时**：节点 IR 与运行器是每个 Story 自己的
+（实验仓 的 `runner.ts`、template 的 narrative-kit 类型）。把 kit 收进引擎
+等于引擎同时认领「标准叙事 IR + 运行器」——那是比 kit 大一圈的合同决定，
+必须单独立案接受，不作为试点的副作用发生。分层已为上提切好界面：
+
+- **随升格平移（通用）**：块 schema、id 派生、内联文本收集、admission
+  校验、`NarrativeFlowGraphV1` 投影、registry 定义壳（defineEffect/Gate）。
+- **留在 Story（域专属）**：gate context 的形状（AP/库存/每晚旗是各游戏的
+  域词汇）、effect facade 的动词表、注册表内容本身。
+
+判据（沿 content-database 的 adoption-gate 先例，不先建空 API）：
+
+1. **template 升格门**：实验仓 至少再迁两段、块种类补齐 roll/branch/stage
+   且被真实内容使用后，template 的 narrative-kit 换成本 kit 的超集——
+   第二个真实消费者证明通用性；
+2. **引擎化门**：template + 一个 example 消费同一 kit，且 Studio 图查看器
+   （或其他引擎侧消费者）需要稳定的编译产物合同时，将「标准叙事 IR +
+   interaction kit」作为独立案文提交 owner 接受后进 `base`。
 
 ## Open questions（留给评审讨论）
 
