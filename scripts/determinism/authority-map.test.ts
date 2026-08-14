@@ -44,56 +44,64 @@ function withApplicationsV1(
 }
 
 describe("authoritative determinism authority map", () => {
-  it("keeps the isolated Worker closure narrow and free of Host or Presentation bootstrap", async () => {
-    const closure = await collectAuthorityClosureV1(repositoryRootV1, [
-      "e2e/src/testing/ambient-tripwire-worker.ts",
-    ]);
+  it(
+    "keeps the isolated Worker closure narrow and free of Host or Presentation bootstrap",
+    async () => {
+      const closure = await collectAuthorityClosureV1(repositoryRootV1, [
+        "e2e/src/testing/ambient-tripwire-worker.ts",
+      ]);
 
-    expect(closure.paths).toContain("e2e/src/testing/authoritative-determinism-driver.ts");
-    expect(closure.paths).toContain(
-      "engine/packages/base/src/testkit/authoritative-determinism-workload.ts",
-    );
-    expect(closure.paths).toContain(
-      "engine/packages/base/src/runtime/session/game-session.ts",
-    );
-    expect(
-      closure.paths.filter((path) =>
-        path.startsWith("engine/packages/web/") ||
-        path.startsWith("engine/packages/ui/") ||
-        path.startsWith("e2e/src/application/") ||
-        path.includes("/runtime/application/") ||
-        path.includes("/runtime/persistence/") ||
-        path.includes("/contracts/presentation") ||
-        path.includes("/src/presentation")
-      ),
-    ).toEqual([]);
-  });
+      expect(closure.paths).toContain("e2e/src/testing/authoritative-determinism-driver.ts");
+      expect(closure.paths).toContain(
+        "engine/packages/base/src/testkit/authoritative-determinism-workload.ts",
+      );
+      expect(closure.paths).toContain(
+        "engine/packages/base/src/runtime/session/game-session.ts",
+      );
+      expect(
+        closure.paths.filter((path) =>
+          path.startsWith("engine/packages/web/") ||
+          path.startsWith("engine/packages/ui/") ||
+          path.startsWith("e2e/src/application/") ||
+          path.includes("/runtime/application/") ||
+          path.includes("/runtime/persistence/") ||
+          path.includes("/contracts/presentation") ||
+          path.includes("/src/presentation")
+        ),
+      ).toEqual([]);
+    },
+    liveRepositoryIntegrationTimeoutV1,
+  );
 
-  it("keeps the migration Worker separate from Host, Presentation, and application lifecycle", async () => {
-    const closure = await collectAuthorityClosureV1(repositoryRootV1, [
-      "e2e/src/testing/save-state-migration-worker.ts",
-    ]);
+  it(
+    "keeps the migration Worker separate from Host, Presentation, and application lifecycle",
+    async () => {
+      const closure = await collectAuthorityClosureV1(repositoryRootV1, [
+        "e2e/src/testing/save-state-migration-worker.ts",
+      ]);
 
-    expect(closure.paths).toContain("e2e/src/testing/save-state-migration-driver.ts");
-    expect(closure.paths).toContain("e2e/src/save-state-migrations.ts");
-    expect(closure.paths).toContain(
-      "engine/packages/base/src/internal/save-state-migration-execution.ts",
-    );
-    expect(closure.paths).toContain(
-      "engine/packages/base/src/runtime/persistence/compatibility.ts",
-    );
-    expect(
-      closure.paths.filter((path) =>
-        path.startsWith("engine/packages/web/") ||
-        path.startsWith("engine/packages/ui/") ||
-        path.startsWith("e2e/src/application/") ||
-        path.includes("/runtime/application/") ||
-        path.endsWith("/runtime/persistence/persistence-service.ts") ||
-        path.endsWith("/runtime/persistence/player-profile-store.ts") ||
-        path.includes("/src/presentation")
-      ),
-    ).toEqual([]);
-  });
+      expect(closure.paths).toContain("e2e/src/testing/save-state-migration-driver.ts");
+      expect(closure.paths).toContain("e2e/src/save-state-migrations.ts");
+      expect(closure.paths).toContain(
+        "engine/packages/base/src/internal/save-state-migration-execution.ts",
+      );
+      expect(closure.paths).toContain(
+        "engine/packages/base/src/runtime/persistence/compatibility.ts",
+      );
+      expect(
+        closure.paths.filter((path) =>
+          path.startsWith("engine/packages/web/") ||
+          path.startsWith("engine/packages/ui/") ||
+          path.startsWith("e2e/src/application/") ||
+          path.includes("/runtime/application/") ||
+          path.endsWith("/runtime/persistence/persistence-service.ts") ||
+          path.endsWith("/runtime/persistence/player-profile-store.ts") ||
+          path.includes("/src/presentation")
+        ),
+      ).toEqual([]);
+    },
+    liveRepositoryIntegrationTimeoutV1,
+  );
 
   it("fails closed when live registry coverage is missing or stale", async () => {
     const policies = determinismAuthorityPolicyV1.applications;
@@ -150,7 +158,7 @@ describe("authoritative determinism authority map", () => {
         ]),
       }),
     ).rejects.toThrow(/includes test source/u);
-  });
+  }, liveRepositoryIntegrationTimeoutV1);
 
   it("fails closed when a bounded Base closure reaches a Base negative control", async () => {
     const baseAuthorities = determinismAuthorityPolicyV1.baseAuthorities.map((authority) =>
@@ -188,7 +196,7 @@ describe("authoritative determinism authority map", () => {
         }),
       }),
     ).rejects.toThrow(/authority entry overlaps negative control .*contracts\/rng\.ts/u);
-  });
+  }, liveRepositoryIntegrationTimeoutV1);
 
   it(
     "fails closed when an authoritative closure transitively reaches any negative control",
@@ -326,90 +334,94 @@ describe("authoritative determinism authority map", () => {
         }),
       }),
     ).rejects.toThrow(/does not match configured summarizeSave/u);
-  });
+  }, liveRepositoryIntegrationTimeoutV1);
 
-  it("binds a configured Save State migration registry to one complete live owner closure", async () => {
-    const definition = Object.freeze({
-      module: "scripts/determinism/fixtures/synthetic-save-state-migration.ts",
-      exportName: "syntheticSaveStateMigrationDefinitionV1",
-    });
-    const owner = Object.freeze({
-      module: "scripts/determinism/fixtures/synthetic-save-state-migration.ts",
-      exportName: "syntheticSaveStateMigrationRegistryV1",
-    });
-    const managedSimulationPaths = Object.freeze([
-      "scripts/determinism/fixtures/synthetic-save-state-migration.ts",
-      "scripts/determinism/fixtures/synthetic-save-state-migration-callback.ts",
-    ]);
+  it(
+    "binds a configured Save State migration registry to one complete live owner closure",
+    async () => {
+      const definition = Object.freeze({
+        module: "scripts/determinism/fixtures/synthetic-save-state-migration.ts",
+        exportName: "syntheticSaveStateMigrationDefinitionV1",
+      });
+      const owner = Object.freeze({
+        module: "scripts/determinism/fixtures/synthetic-save-state-migration.ts",
+        exportName: "syntheticSaveStateMigrationRegistryV1",
+      });
+      const managedSimulationPaths = Object.freeze([
+        "scripts/determinism/fixtures/synthetic-save-state-migration.ts",
+        "scripts/determinism/fixtures/synthetic-save-state-migration-callback.ts",
+      ]);
 
-    await expect(
-      inspectConfiguredSaveStateMigrationV1({
-        repositoryRoot: repositoryRootV1,
-        applicationId: "synthetic",
-        applicationDirectory: "scripts/determinism/fixtures",
-        definition,
-        managedSimulationPaths,
-      }),
-    ).rejects.toThrow(/requires an explicit Save State migration owner/u);
-
-    const migration = await inspectConfiguredSaveStateMigrationV1({
-      repositoryRoot: repositoryRootV1,
-      applicationId: "synthetic",
-      applicationDirectory: "scripts/determinism/fixtures",
-      definition,
-      owner,
-      managedSimulationPaths,
-    });
-    expect(migration).toEqual(expect.objectContaining({
-      entry: owner.module,
-      exportName: owner.exportName,
-      classification: "save_state_migration",
-      callbackCount: 1,
-      migrationIds: ["migration.synthetic.one"],
-      paths: expect.arrayContaining([...managedSimulationPaths]),
-    }));
-    expect(Object.isFrozen(migration)).toBe(true);
-    expect(Object.isFrozen(migration?.migrationIds)).toBe(true);
-
-    await expect(
-      inspectConfiguredSaveStateMigrationV1({
-        repositoryRoot: repositoryRootV1,
-        applicationId: "synthetic",
-        applicationDirectory: "scripts/determinism/fixtures",
-        definition,
-        owner: Object.freeze({
-          ...owner,
-          exportName: "mismatchedSyntheticSaveStateMigrationRegistryV1",
+      await expect(
+        inspectConfiguredSaveStateMigrationV1({
+          repositoryRoot: repositoryRootV1,
+          applicationId: "synthetic",
+          applicationDirectory: "scripts/determinism/fixtures",
+          definition,
+          managedSimulationPaths,
         }),
-        managedSimulationPaths,
-      }),
-    ).rejects.toThrow(/does not match configured saveStateMigrations/u);
+      ).rejects.toThrow(/requires an explicit Save State migration owner/u);
 
-    await expect(
-      inspectConfiguredSaveStateMigrationV1({
-        repositoryRoot: repositoryRootV1,
-        applicationId: "synthetic",
-        applicationDirectory: "scripts/determinism/fixtures",
-        definition: Object.freeze({
-          ...definition,
-          exportName: "syntheticNoSaveStateMigrationDefinitionV1",
-        }),
-        owner,
-        managedSimulationPaths,
-      }),
-    ).rejects.toThrow(/State migration owner policy is stale/u);
-
-    await expect(
-      inspectConfiguredSaveStateMigrationV1({
+      const migration = await inspectConfiguredSaveStateMigrationV1({
         repositoryRoot: repositoryRootV1,
         applicationId: "synthetic",
         applicationDirectory: "scripts/determinism/fixtures",
         definition,
         owner,
-        managedSimulationPaths: managedSimulationPaths.slice(0, 1),
-      }),
-    ).rejects.toThrow(/BuildIdentity misses Save State migration owner closure/u);
-  });
+        managedSimulationPaths,
+      });
+      expect(migration).toEqual(expect.objectContaining({
+        entry: owner.module,
+        exportName: owner.exportName,
+        classification: "save_state_migration",
+        callbackCount: 1,
+        migrationIds: ["migration.synthetic.one"],
+        paths: expect.arrayContaining([...managedSimulationPaths]),
+      }));
+      expect(Object.isFrozen(migration)).toBe(true);
+      expect(Object.isFrozen(migration?.migrationIds)).toBe(true);
+
+      await expect(
+        inspectConfiguredSaveStateMigrationV1({
+          repositoryRoot: repositoryRootV1,
+          applicationId: "synthetic",
+          applicationDirectory: "scripts/determinism/fixtures",
+          definition,
+          owner: Object.freeze({
+            ...owner,
+            exportName: "mismatchedSyntheticSaveStateMigrationRegistryV1",
+          }),
+          managedSimulationPaths,
+        }),
+      ).rejects.toThrow(/does not match configured saveStateMigrations/u);
+
+      await expect(
+        inspectConfiguredSaveStateMigrationV1({
+          repositoryRoot: repositoryRootV1,
+          applicationId: "synthetic",
+          applicationDirectory: "scripts/determinism/fixtures",
+          definition: Object.freeze({
+            ...definition,
+            exportName: "syntheticNoSaveStateMigrationDefinitionV1",
+          }),
+          owner,
+          managedSimulationPaths,
+        }),
+      ).rejects.toThrow(/State migration owner policy is stale/u);
+
+      await expect(
+        inspectConfiguredSaveStateMigrationV1({
+          repositoryRoot: repositoryRootV1,
+          applicationId: "synthetic",
+          applicationDirectory: "scripts/determinism/fixtures",
+          definition,
+          owner,
+          managedSimulationPaths: managedSimulationPaths.slice(0, 1),
+        }),
+      ).rejects.toThrow(/BuildIdentity misses Save State migration owner closure/u);
+    },
+    liveRepositoryIntegrationTimeoutV1,
+  );
 
   it("fails closed for missing, stale, or mismatched application migration owners", async () => {
     const policies = determinismAuthorityPolicyV1.applications;

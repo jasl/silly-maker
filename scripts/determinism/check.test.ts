@@ -15,7 +15,9 @@ import { checkDeterminismPathsV1, runDeterminismCheckV1 } from "./check.mts";
 
 const repositoryRootV1 = resolve(import.meta.dirname, "../..");
 const syntheticMigrationPathV1 = "scripts/determinism/fixtures/synthetic-migration-authority.ts";
-const liveRepositoryScanTimeoutV1 = 30_000;
+// Live-repository closure scans share worker CPU with the whole parallel
+// suite; CI and loaded local runs need the generous budget.
+const liveRepositoryScanTimeoutV1 = 120_000;
 const temporaryDirectoriesV1: string[] = [];
 
 afterEach(async () => {
