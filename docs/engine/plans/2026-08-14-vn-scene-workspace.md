@@ -263,6 +263,11 @@ envelope 或第二 runtime authority。
    住**，`story check` 报绿——这就是 Defer 节「TransitionRequest 携带 cue 身份」
    等待的真实场景，证据已到。最窄先手：story check 增加跨场景 edge 碰撞诊断
    （lint-only，不动 runtime 合同）；runtime 扩展仍按停止条件单独裁决。
+   **已交付（2026-08-14）**：`scene.cue_binding_collision` 进
+   `collectSceneSourceDiagnosticsV1`（同 motion 重绑不报、异 motion 点名两侧
+   cue/文件并给出建议）；lint 单测 6/6，仓内五 Story 全绿，实验仓真实碰撞被点名
+   （`ok: false`）。同 edge「一方绑、一方未绑」的泄漏变体记录在案不报——那需要
+   runtime 场景域界定，归 deferred 扩展裁决。
 2. 台词双文件与 occurrence 全局重排（预注册焦点一证实，最高频）；候选：无 DSL
    红线内的书写辅助（内联默认语言文本派生 textId、编号稳健的 scenario 助手），
    另行切片设计。

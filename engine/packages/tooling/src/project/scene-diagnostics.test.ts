@@ -6,7 +6,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { collectSceneSourceDiagnosticsV1 } from "./scene-diagnostics.ts";
 
-function sceneJsonV1(sceneId: string, motionId?: string): string {
+function sceneJsonV1(
+  sceneId: string,
+  motionId?: string,
+  options?: { readonly contentId?: string; readonly cueId?: string },
+): string {
   return `${
     JSON.stringify(
       {
@@ -19,13 +23,13 @@ function sceneJsonV1(sceneId: string, motionId?: string): string {
           {
             layerId: "layer.app.characters",
             tag: "tag.hero",
-            contentId: "content.app.character.hero",
+            contentId: options?.contentId ?? "content.app.character.hero",
             zOrder: 10,
           },
         ],
         cues: [
           {
-            cueId: "cue.app.opening.hero-enters",
+            cueId: options?.cueId ?? "cue.app.opening.hero-enters",
             kind: "show",
             tag: "tag.hero",
             ...(motionId === undefined ? {} : { motionId }),
@@ -125,6 +129,72 @@ describe("collectSceneSourceDiagnosticsV1", () => {
   it("skips node_modules and dot directories", () => {
     mkdirSync(join(sourceRoot, "node_modules", "pkg"), { recursive: true });
     writeFileSync(join(sourceRoot, "node_modules", "pkg", "x.scene.json"), "{ nope\n");
+    expect(collectSceneSourceDiagnosticsV1(sourceRoot)).toEqual([]);
+  });
+
+  it("flags two scenes binding different motions to one stage edge", () => {
+    mkdirSync(join(sourceRoot, "scenes", "living-room"), { recursive: true });
+    writeFileSync(
+      join(sourceRoot, "scenes", "opening", "opening.scene.json"),
+      sceneJsonV1("scene.app.opening", "motion.app.peek"),
+    );
+    writeFileSync(
+      join(sourceRoot, "scenes", "living-room", "living-room.scene.json"),
+      sceneJsonV1("scene.app.living-room", "motion.app.breakfast", {
+        cueId: "cue.app.living-room.hero-enters",
+      }),
+    );
+    writeFileSync(
+      join(sourceRoot, "scenes", "opening", "peek.motion.json"),
+      motionJsonV1("motion.app.peek"),
+    );
+    writeFileSync(
+      join(sourceRoot, "scenes", "living-room", "breakfast.motion.json"),
+      motionJsonV1("motion.app.breakfast"),
+    );
+
+    const diagnostics = collectSceneSourceDiagnosticsV1(sourceRoot);
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+      "scene.cue_binding_collision",
+    ]);
+    // Sorted scan order: living-room registers the edge first, so the
+    // opening file reports the collision and names the earlier binding.
+    expect(diagnostics[0]?.location?.file).toBe("scenes/opening/opening.scene.json");
+    expect(diagnostics[0]?.message).toContain("cue.app.living-room.hero-enters");
+    expect(diagnostics[0]?.message).toContain("motion.app.breakfast");
+    expect(diagnostics[0]?.message).toContain("motion.app.peek");
+  });
+
+  it("accepts one motion shared by the same edge across scenes and distinct edges", () => {
+    mkdirSync(join(sourceRoot, "scenes", "living-room"), { recursive: true });
+    mkdirSync(join(sourceRoot, "scenes", "backyard"), { recursive: true });
+    writeFileSync(
+      join(sourceRoot, "scenes", "opening", "opening.scene.json"),
+      sceneJsonV1("scene.app.opening", "motion.app.peek"),
+    );
+    // Same edge, same motion: order cannot change what plays.
+    writeFileSync(
+      join(sourceRoot, "scenes", "living-room", "living-room.scene.json"),
+      sceneJsonV1("scene.app.living-room", "motion.app.peek", {
+        cueId: "cue.app.living-room.hero-enters",
+      }),
+    );
+    // Different content: a different edge tuple entirely.
+    writeFileSync(
+      join(sourceRoot, "scenes", "backyard", "backyard.scene.json"),
+      sceneJsonV1("scene.app.backyard", "motion.app.breakfast", {
+        cueId: "cue.app.backyard.hero-enters",
+        contentId: "content.app.character.hero-raincoat",
+      }),
+    );
+    writeFileSync(
+      join(sourceRoot, "scenes", "opening", "peek.motion.json"),
+      motionJsonV1("motion.app.peek"),
+    );
+    writeFileSync(
+      join(sourceRoot, "scenes", "backyard", "breakfast.motion.json"),
+      motionJsonV1("motion.app.breakfast"),
+    );
     expect(collectSceneSourceDiagnosticsV1(sourceRoot)).toEqual([]);
   });
 });

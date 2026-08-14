@@ -9,11 +9,13 @@ import { createDiagnosticV1, parseMotionDocumentV1, parseSceneDocumentV1 } from 
  * Scene source lint for `story check`: every `*.scene.json` under the
  * Story's source tree must pass strict Scene admission, keep one unique
  * sceneId per file, keep the filename in step with the id (the file stem
- * must be the id's final segment), and reference only motion ids that a
- * `*.motion.json` in the same tree declares. This guards the authored data
- * itself; the single-authoring-authority rule (a scene-managed scene's
- * placements live only in its document) stays a documented collaboration
- * contract, not a heuristic source scanner.
+ * must be the id's final segment), reference only motion ids that a
+ * `*.motion.json` in the same tree declares, and never bind two different
+ * motions to one stage edge across documents (composed bindings resolve
+ * first-match, so the shadowed motion would silently never play). This
+ * guards the authored data itself; the single-authoring-authority rule (a
+ * scene-managed scene's placements live only in its document) stays a
+ * documented collaboration contract, not a heuristic source scanner.
  */
 
 const sceneFileSuffixV1 = ".scene.json";
@@ -72,6 +74,12 @@ export function collectSceneSourceDiagnosticsV1(
   const motionIds = knownMotionIdsV1(root);
   const diagnostics: DiagnosticEnvelopeV1[] = [];
   const bySceneId = new Map<string, string>();
+  // Cross-document stage-edge bindings (same tuple the runtime resolver
+  // matches on): kind + layer + entry key + content.
+  const boundEdges = new Map<
+    string,
+    { readonly file: string; readonly cueId: string; readonly motionId: string }
+  >();
 
   for (const filePath of files) {
     const file = relative(root, filePath).split(sep).join("/");
@@ -143,14 +151,49 @@ export function collectSceneSourceDiagnosticsV1(
       );
     }
 
+    const entriesByTag = new Map(
+      sceneDocument.entries.map((entry) => [entry.tag as string, entry]),
+    );
     for (const cue of sceneDocument.cues) {
-      if (cue.motionId === undefined || motionIds.has(cue.motionId)) continue;
+      if (cue.motionId === undefined) continue;
+      if (!motionIds.has(cue.motionId)) {
+        diagnostics.push(
+          createDiagnosticV1({
+            code: "scene.cue_motion_missing",
+            phase: "lint",
+            message: `cue "${cue.cueId}" references motion "${cue.motionId}", ` +
+              "but no *.motion.json in this source tree declares it",
+            location: { file },
+            subject: { kind: "scene", id: sceneDocument.sceneId },
+            details: {},
+          }),
+        );
+      }
+
+      // Admission guarantees the cue's tag names a declared entry.
+      const entry = entriesByTag.get(cue.tag as string);
+      if (entry === undefined) continue;
+      const edgeKey = [
+        cue.kind === "show" ? "enter" : "exit",
+        entry.layerId as string,
+        `${entry.layerId}:${entry.tag}`,
+        entry.contentId as string,
+      ].join("|");
+      const bound = boundEdges.get(edgeKey);
+      if (bound === undefined) {
+        boundEdges.set(edgeKey, { file, cueId: cue.cueId, motionId: cue.motionId });
+        continue;
+      }
+      if (bound.motionId === cue.motionId) continue;
       diagnostics.push(
         createDiagnosticV1({
-          code: "scene.cue_motion_missing",
+          code: "scene.cue_binding_collision",
           phase: "lint",
-          message: `cue "${cue.cueId}" references motion "${cue.motionId}", ` +
-            "but no *.motion.json in this source tree declares it",
+          message: `cue "${cue.cueId}" binds motion "${cue.motionId}" to a stage edge ` +
+            `already bound to "${bound.motionId}" by cue "${bound.cueId}" (${bound.file}); ` +
+            "composed bindings resolve first-match, so one of the motions silently never plays",
+          suggestion: "agree on one motion for this edge, or make the edges distinct " +
+            "(different tag or content) so each cue owns its own binding",
           location: { file },
           subject: { kind: "scene", id: sceneDocument.sceneId },
           details: {},
