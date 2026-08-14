@@ -893,7 +893,7 @@ describe("OverlayHostV1", () => {
     expect(screen.getByRole("button", { name: "external control" })).not.toHaveFocus();
   });
 
-  it("registers only the actual top overlay Dialog.Content as the DevDock focus target", async () => {
+  it("never claims the DevDock target: overlays leave debug chrome on the base layer", async () => {
     const store = createOverlaySessionStoreV1();
     await openReadyV1(store, "overlay.test.inventory");
     await pushReadyV1(store, "overlay.test.ingredient");
@@ -913,27 +913,19 @@ describe("OverlayHostV1", () => {
     const detail = screen.getByRole("dialog", { name: "食材详情" });
     expect(primary).not.toHaveAttribute("data-blocking-focus-scope");
     expect(detail).toHaveAttribute("data-blocking-focus-scope", "overlay");
-    await waitFor(() =>
-      expect(screen.getByTestId("devdock-portal-selection")).toHaveAttribute(
-        "data-target-overlay-depth",
-        "1",
-      )
+    // Privileged debug chrome: an open overlay stack never adopts the dock.
+    expect(screen.getByTestId("devdock-portal-selection")).toHaveAttribute(
+      "data-surface",
+      "base",
+    );
+    expect(screen.getByTestId("devdock-portal-selection")).toHaveAttribute(
+      "data-target-overlay-depth",
+      "none",
     );
 
     act(() => {
       store.closeTop();
     });
-    await waitFor(() =>
-      expect(screen.getByTestId("devdock-portal-selection")).toHaveAttribute(
-        "data-target-overlay-depth",
-        "0",
-      )
-    );
-    expect(screen.getByRole("dialog", { name: "背包" })).toHaveAttribute(
-      "data-blocking-focus-scope",
-      "overlay",
-    );
-
     act(() => {
       store.closeTop();
     });

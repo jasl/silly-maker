@@ -422,7 +422,7 @@ describe("managed System Host-commit readiness", () => {
         <div>
           <button type="button" data-testid="root-tab-first">First</button>
           <button type="button" data-testid="root-tab-second">Second</button>
-          <div data-devdock-surface="system">
+          <div data-devdock-escape-owner="true">
             <button type="button" data-testid="root-tab-devdock">DevDock</button>
           </div>
         </div>
@@ -1876,7 +1876,7 @@ describe("managed System confirmation Host", () => {
         <div>
           <button type="button" data-testid="tab-cycle-first">First</button>
           <button type="button" data-testid="tab-cycle-second">Second</button>
-          <div data-devdock-surface="system">
+          <div data-devdock-escape-owner="true">
             <button type="button" data-testid="tab-cycle-devdock">DevDock</button>
           </div>
         </div>

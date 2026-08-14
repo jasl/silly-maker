@@ -8,6 +8,12 @@
      lives in StoryDebugDockV1. */
   min-inline-size: 0;
   pointer-events: none;
+
+  /* Debug chrome keeps the devtools font: rebinding the token makes every
+     nested consumer (panel chrome, tool forms) ignore the game font. */
+  --silly-font-family: var(--silly-debug-font-family);
+
+  font-family: var(--silly-font-family);
 }
 
 /* Floating, movable, non-modal tool windows. Fresh windows cascade from

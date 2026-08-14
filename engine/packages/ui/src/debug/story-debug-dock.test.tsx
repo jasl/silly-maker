@@ -370,14 +370,14 @@ describe("StoryDebugDockV1", () => {
     );
   });
 
-  it("collapses when the launcher crosses portal surfaces", async () => {
+  it("collapses when fault_pause adopts and releases the launcher", async () => {
     function ScopeFixtureV1(props: { readonly active: boolean }): ReactElement {
       const [element, setElement] = useState<HTMLDivElement | null>(null);
-      useDevDockPortalTargetRegistrationV1("system", props.active ? element : null);
+      useDevDockPortalTargetRegistrationV1("fault_pause", props.active ? element : null);
       return (
         <div
           ref={setElement}
-          data-blocking-focus-scope={props.active ? "system" : undefined}
+          data-blocking-focus-scope={props.active ? "fault_pause" : undefined}
           data-test-scope="true"
         />
       );
@@ -400,8 +400,8 @@ describe("StoryDebugDockV1", () => {
     await user.click(screen.getByText("调试"));
     expect(screen.getByRole("group", { name: "调试" })).toBeVisible();
 
-    // A blocking scope takes over the portal target: the chip re-portals
-    // into the scope and always arrives collapsed.
+    // Only the terminal fault surface may adopt the dock: the chip
+    // re-portals into it and always arrives collapsed.
     rendered.rerender(<HarnessV1 scopeActive={true} />);
     await waitFor(() => {
       expect(
@@ -438,6 +438,23 @@ describe("StoryDebugDockV1", () => {
     );
     expect(css).toMatch(
       /\[data-blocking-focus-scope\]\)?\s*>\s*\.story-debug-dock\s+\.story-debug-dock__panel\s*\{[^}]*overflow:\s*auto;[^}]*background:\s*var\(--silly-color-surface\);/su,
+    );
+
+    // Debug chrome keeps the devtools font: the rail and the sibling
+    // confirm layer rebind --silly-font-family to the debug token so a
+    // Story's game font never restyles them.
+    expect(css).toMatch(
+      /\.story-debug-dock\s*\{[^}]*--silly-font-family:\s*var\(--silly-debug-font-family\);/su,
+    );
+    expect(css).toMatch(
+      /\.story-debug-dock__wipe\s*\{[^}]*--silly-font-family:\s*var\(--silly-debug-font-family\);/su,
+    );
+    const windowsCss = await readFile(
+      resolve(import.meta.dirname, "dev-dock.module.css"),
+      "utf8",
+    );
+    expect(windowsCss).toMatch(
+      /\.dev-dock\s*\{[^}]*--silly-font-family:\s*var\(--silly-debug-font-family\);/su,
     );
   });
 });

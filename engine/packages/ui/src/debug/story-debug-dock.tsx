@@ -555,7 +555,10 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
         data-debug-dock="true"
         data-story-debug-dock="true"
         data-devdock-position={position}
-        data-devdock-escape-owner={expanded ? "true" : undefined}
+        // Debug chrome owns its input even while collapsed: game focus traps
+        // never steal focus from the chip and game surfaces ignore keyboard
+        // events that originate on it.
+        data-devdock-escape-owner="true"
         open={expanded}
         onToggle={(event) => {
           const next = event.currentTarget.open;

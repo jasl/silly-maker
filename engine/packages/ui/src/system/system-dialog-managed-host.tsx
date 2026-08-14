@@ -17,10 +17,7 @@ import type {
 } from "react";
 import { createPortal } from "react-dom";
 
-import {
-  isDevDockEscapeOwnerTargetV1,
-  useDevDockPortalTargetRegistrationV1,
-} from "../debug/dev-dock-portal-coordinator.tsx";
+import { isDevDockEscapeOwnerTargetV1 } from "../debug/dev-dock-portal-coordinator.tsx";
 import {
   inputHandledV1,
   inputIgnoredV1,
@@ -133,7 +130,7 @@ function systemDialogTabbableTargetsInternalV1(root: HTMLElement): readonly HTML
       if (
         target.tabIndex < 0 ||
         target.matches(":disabled") ||
-        target.closest('[hidden], [inert], [aria-hidden="true"], [data-devdock-surface]') !==
+        target.closest('[hidden], [inert], [aria-hidden="true"], [data-devdock-escape-owner]') !==
           null ||
         (target instanceof HTMLInputElement && target.type === "hidden")
       ) {
@@ -313,10 +310,6 @@ function SystemDialogCandidateEntryInternalV1(props: {
   const activeFocusOwner = activeConfirmation || activeRoot;
   const armPointerFence = useStagePointerGestureFenceV1("system");
   useStageSystemFocusScopeRegistrationV1(activeFocusOwner ? shellElement : null);
-  useDevDockPortalTargetRegistrationV1(
-    "system",
-    activeFocusOwner ? shellElement : null,
-  );
   const rootEntry = props.entry.kind === "root" ? props.entry : null;
   const rootLifecycleIntents = rootEntry?.lifecycleIntents ?? null;
   const rootSurfaceInstanceId = rootEntry?.surfaceInstanceId ?? null;
@@ -760,7 +753,6 @@ function SystemDialogBlockingFallbackInternalV1(props: {
   const [focusElement, setFocusElement] = useState<HTMLDivElement | null>(null);
   const armPointerFence = useStagePointerGestureFenceV1("system");
   useStageSystemFocusScopeRegistrationV1(focusElement);
-  useDevDockPortalTargetRegistrationV1("system", focusElement);
   useLayoutEffect(() => {
     if (focusElement === null) return undefined;
     const ownerDocument = focusElement.ownerDocument;

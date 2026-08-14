@@ -231,6 +231,29 @@ test("debug dock inputs accept keyboard while the title screen owns focus", asyn
   await expect(filter).toHaveValue("calendar.day");
 });
 
+test("the debug chip stays a privileged layer outside an open Settings dialog", async ({ page }) => {
+  await page.goto(catcafeTargetUrlV1("?capability=debug_tools"));
+  await playOpeningV1(page);
+
+  await page.getByRole("button", { name: "设置" }).click();
+  await expect(page.locator("[data-cc-settings-locale]")).toBeVisible();
+
+  // Privileged debug chrome: the chip never re-parents into the dialog DOM
+  // and stays fully operable above it.
+  const chip = page.locator("[data-devdock-chip]");
+  await expect(chip).toBeVisible();
+  expect(
+    await chip.evaluate((element) => element.closest("[data-blocking-focus-scope]") !== null),
+  ).toBe(false);
+  await chip.click();
+  await expect(page.getByRole("group", { name: "调试" })).toBeVisible();
+  await expect(page.locator("[data-cc-settings-locale]")).toBeVisible();
+
+  await page.getByRole("button", { name: "调试" }).click();
+  await page.getByRole("button", { name: "关闭" }).click();
+  await expect(page.locator("[data-cc-settings-locale]")).toHaveCount(0);
+});
+
 test("the DevDock tuning panel commits debug commands through the session", async ({ page }) => {
   await page.goto(catcafeTargetUrlV1("?capability=debug_tools&capability=cheats"));
   await playOpeningV1(page);
@@ -670,6 +693,15 @@ test("right-click routes the VN back action: the album overlay closes", async ({
   // Secondary button on the stage area: cancel closes the overlay and the
   // native context menu stays suppressed on the claimed surface.
   await page.mouse.click(640, 600, { button: "right" });
+  await expect(page.locator("[data-cc-album]")).toHaveCount(0);
+  // Right-click on an ordinary control is also application-owned: the
+  // browser menu is suppressed and no secondary action fires.
+  const prevented = await page.locator("[data-cc-album-open]").evaluate((element) => {
+    const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2 });
+    element.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(prevented).toBe(true);
   await expect(page.locator("[data-cc-album]")).toHaveCount(0);
 });
 

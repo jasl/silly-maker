@@ -11,10 +11,7 @@ import {
 } from "react";
 import type { ErrorInfo, KeyboardEvent as ReactKeyboardEvent, ReactElement } from "react";
 import type { DeepReadonly } from "@sillymaker/base";
-import {
-  isDevDockEscapeOwnerTargetV1,
-  useDevDockPortalTargetRegistrationV1,
-} from "../debug/dev-dock-portal-coordinator.tsx";
+import { isDevDockEscapeOwnerTargetV1 } from "../debug/dev-dock-portal-coordinator.tsx";
 import { inputHandledV1, inputIgnoredV1, systemInputActionIdsV1 } from "../input/contracts.ts";
 import type { InputEventV1, InputRouterV1 } from "../input/contracts.ts";
 import type { ManagedSurfaceHandleV1 } from "../managed-surfaces/managed-surface-coordinator.ts";
@@ -187,9 +184,7 @@ function OverlayDialogEntryV1<TOverlayId extends string>(props: {
   readonly closeLabel: string;
 }): ReactElement {
   const isTop = props.entry.entry.surfaceInstanceId === props.focusOwnerInstanceId;
-  const [contentElement, setContentElement] = useState<HTMLDivElement | null>(null);
   const armPointerFence = useStagePointerGestureFenceV1("overlay");
-  useDevDockPortalTargetRegistrationV1("overlay", isTop ? contentElement : null);
   const requestExplicitCloseV1 = (): void => {
     props.session.closeExpectedInternalV1(props.entry.handle);
   };
@@ -226,7 +221,6 @@ function OverlayDialogEntryV1<TOverlayId extends string>(props: {
               : undefined}
           />
           <Dialog.Content
-            ref={setContentElement}
             className={styles["overlay-host__content"]}
             aria-describedby={undefined}
             data-blocking-focus-scope={isTop ? "overlay" : undefined}
@@ -309,7 +303,6 @@ function OverlayBlockingFallbackV1<TOverlayId extends string>(props: {
 }): ReactElement {
   const armPointerFence = useStagePointerGestureFenceV1("overlay");
   const [focusElement, setFocusElement] = useState<HTMLDivElement | null>(null);
-  useDevDockPortalTargetRegistrationV1("overlay", focusElement);
   useLayoutEffect(() => {
     focusElement?.focus({ preventScroll: true });
   }, [focusElement]);

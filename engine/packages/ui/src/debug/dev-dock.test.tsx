@@ -184,13 +184,19 @@ function DebugLauncherAndWindowsV1(props: {
   );
 }
 
+type SyntheticBlockingSurfaceKindV1 = "overlay" | "narrative" | "system" | "fault_pause";
+
 function SyntheticBlockingSurfaceV1(props: {
-  readonly kind: DevDockPortalSurfaceV1;
+  readonly kind: SyntheticBlockingSurfaceKindV1;
   readonly onClose: () => void;
   readonly opener: HTMLButtonElement | null;
 }): ReactElement {
   const [target, setTarget] = useState<HTMLDivElement | null>(null);
-  useDevDockPortalTargetRegistrationV1(props.kind, target);
+  // Production surfaces no longer adopt the dock; only fault pause does.
+  useDevDockPortalTargetRegistrationV1(
+    "fault_pause",
+    props.kind === "fault_pause" ? target : null,
+  );
   useLayoutEffect(() => {
     target?.querySelector<HTMLButtonElement>("button")?.focus();
     return () => props.opener?.focus();
@@ -210,7 +216,7 @@ function SyntheticBlockingSurfaceV1(props: {
 }
 
 function BlockingSurfaceHarnessV1(props: {
-  readonly kind: DevDockPortalSurfaceV1;
+  readonly kind: SyntheticBlockingSurfaceKindV1;
   readonly capabilities: ReturnType<typeof createCapabilityFixtureV1>["port"];
 }): ReactElement {
   const [open, setOpen] = useState(false);
@@ -439,8 +445,8 @@ describe("DevDockV1", () => {
     expect(screen.queryByRole("complementary", { name: /调试/u })).not.toBeInTheDocument();
   });
 
-  it.each(["overlay", "narrative", "system", "fault_pause"] as const)(
-    "keeps the chip inside the %s focus scope and restores both focus layers",
+  it.each(["overlay", "narrative", "system"] as const)(
+    "keeps the chip out of the %s focus scope while staying fully operable",
     async (surface) => {
       const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: false });
       const user = userEvent.setup();
@@ -449,10 +455,8 @@ describe("DevDockV1", () => {
       const opener = screen.getByRole("button", { name: "打开阻塞界面" });
       await user.click(opener);
       const chip = await screen.findByRole("button", { name: "调试" });
-      expect(chip.closest("[data-blocking-focus-scope]")).toHaveAttribute(
-        "data-blocking-focus-scope",
-        surface,
-      );
+      // Privileged chrome: the chip never re-parents into game surfaces.
+      expect(chip.closest("[data-blocking-focus-scope]")).toBeNull();
 
       await user.click(chip);
       expect(screen.getByRole("group", { name: "调试" })).toBeVisible();
@@ -465,7 +469,30 @@ describe("DevDockV1", () => {
     },
   );
 
-  it("lets DevDock own the first Escape inside a real Radix Overlay", async () => {
+  it("re-parents into the terminal fault_pause surface and restores both focus layers", async () => {
+    const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: false });
+    const user = userEvent.setup();
+    render(<BlockingSurfaceHarnessV1 kind="fault_pause" capabilities={capabilities.port} />);
+
+    const opener = screen.getByRole("button", { name: "打开阻塞界面" });
+    await user.click(opener);
+    const chip = await screen.findByRole("button", { name: "调试" });
+    expect(chip.closest("[data-blocking-focus-scope]")).toHaveAttribute(
+      "data-blocking-focus-scope",
+      "fault_pause",
+    );
+
+    await user.click(chip);
+    expect(screen.getByRole("group", { name: "调试" })).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(chip).toHaveFocus();
+    expect(screen.getByRole("dialog", { name: "fault_pause" })).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "关闭阻塞界面" }));
+    expect(opener).toHaveFocus();
+  });
+
+  it("keeps Escape inside debug chrome and leaves a real Radix Overlay its own Escape", async () => {
     const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: false });
     const user = userEvent.setup();
     render(<RealOverlayEscapeHarnessV1 capabilities={capabilities.port} />);
@@ -481,12 +508,19 @@ describe("DevDockV1", () => {
     expect(screen.queryByRole("group", { name: "调试" })).not.toBeInTheDocument();
     expect(chip).toHaveFocus();
 
+    // Escape while focus stays on debug chrome never drives the game.
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("dialog", { name: "真实背包" })).toBeVisible();
+    expect(chip).toHaveFocus();
+
+    // Back in the game surface, the overlay's own Escape dismissal works.
+    screen.getByRole("button", { name: "关闭真实背包" }).focus();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "真实背包" })).not.toBeInTheDocument();
     expect(opener).toHaveFocus();
   });
 
-  it("lets DevDock own the first Escape inside a real managed System dialog", async () => {
+  it("keeps Escape inside debug chrome and leaves a real managed System dialog its own Escape", async () => {
     const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: false });
     const user = userEvent.setup();
     render(<RealSystemEscapeHarnessV1 capabilities={capabilities.port} />);
@@ -503,18 +537,22 @@ describe("DevDockV1", () => {
     expect(screen.queryByRole("group", { name: "调试" })).not.toBeInTheDocument();
     expect(chip).toHaveFocus();
 
+    // Escape while focus stays on debug chrome never drives the game.
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("dialog", { name: "真实设置" })).toBeVisible();
+    expect(chip).toHaveFocus();
+
+    // Back in the game surface, the dialog's own Escape dismissal works.
+    screen.getByRole("button", { name: "关闭真实设置" }).focus();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "真实设置" })).not.toBeInTheDocument();
     expect(opener).toHaveFocus();
   });
 
-  it("uses semantic focus priority rather than registration order for concurrent blockers", async () => {
+  it("only fault_pause claims the launcher and release returns it to the base layer", async () => {
     const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: false });
     const rendered = render(
-      <PriorityHarnessV1
-        capabilities={capabilities.port}
-        surfaces={["narrative", "system", "overlay"]}
-      />,
+      <PriorityHarnessV1 capabilities={capabilities.port} surfaces={["fault_pause"]} />,
     );
     const unrelatedFocus = screen.getByRole("button", { name: "无关焦点" });
     unrelatedFocus.focus();
@@ -524,16 +562,8 @@ describe("DevDockV1", () => {
         .getByRole("button", { name: "调试" })
         .closest("[data-blocking-focus-scope]")
         ?.getAttribute("data-blocking-focus-scope") ?? "base";
-    await waitFor(() => expect(launcherScope()).toBe("system"));
+    await waitFor(() => expect(launcherScope()).toBe("fault_pause"));
 
-    rendered.rerender(
-      <PriorityHarnessV1 capabilities={capabilities.port} surfaces={["narrative", "overlay"]} />,
-    );
-    await waitFor(() => expect(launcherScope()).toBe("overlay"));
-    rendered.rerender(
-      <PriorityHarnessV1 capabilities={capabilities.port} surfaces={["narrative"]} />,
-    );
-    await waitFor(() => expect(launcherScope()).toBe("narrative"));
     rendered.rerender(<PriorityHarnessV1 capabilities={capabilities.port} surfaces={[]} />);
     await waitFor(() => expect(launcherScope()).toBe("base"));
 
@@ -542,7 +572,7 @@ describe("DevDockV1", () => {
     expect(unrelatedFocus).toHaveFocus();
   });
 
-  it("refocuses an open window when a higher-priority portal target replaces its DOM", async () => {
+  it("refocuses an open window when fault_pause adopts and re-parents its DOM", async () => {
     const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: false });
     const control = createDevDockControlV1();
     const contributions = createDevDockContributionSetV1({
@@ -560,7 +590,7 @@ describe("DevDockV1", () => {
     const rendered = render(
       <PriorityHarnessV1
         capabilities={capabilities.port}
-        surfaces={["narrative"]}
+        surfaces={[]}
         control={control}
         contributions={contributions}
       />,
@@ -570,18 +600,13 @@ describe("DevDockV1", () => {
     expect(close).toHaveAttribute("data-devdock-window-close", "true");
     expect(close).toHaveAttribute("aria-label", "关闭");
     expect(close).not.toHaveTextContent("关闭焦点面板");
-    await waitFor(() =>
-      expect(dockWindow.closest("[data-blocking-focus-scope]")).toHaveAttribute(
-        "data-blocking-focus-scope",
-        "narrative",
-      )
-    );
+    expect(dockWindow.closest("[data-blocking-focus-scope]")).toBeNull();
     await waitFor(() => expect(close).toHaveFocus());
 
     rendered.rerender(
       <PriorityHarnessV1
         capabilities={capabilities.port}
-        surfaces={["narrative", "system"]}
+        surfaces={["fault_pause"]}
         control={control}
         contributions={contributions}
       />,
@@ -591,7 +616,7 @@ describe("DevDockV1", () => {
     await waitFor(() =>
       expect(movedWindow.closest("[data-blocking-focus-scope]")).toHaveAttribute(
         "data-blocking-focus-scope",
-        "system",
+        "fault_pause",
       )
     );
     await waitFor(() => expect(movedClose).toHaveFocus());

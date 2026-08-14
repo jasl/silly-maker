@@ -2,7 +2,20 @@
 import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 
-export type DevDockPortalSurfaceV1 = "narrative" | "overlay" | "system" | "fault_pause";
+/**
+ * Debug chrome is a privileged shell layer, not a scene participant: it
+ * anchors to the game canvas and stays there — above every gameplay layer,
+ * overlay, and system dialog — like devtools injected over a page. Blocking
+ * surfaces keep their focus traps working around it through the
+ * `data-devdock-escape-owner` escape below; they must never adopt the dock
+ * into their own DOM.
+ *
+ * The single exception is the terminal runtime-failure surface: its modal
+ * dialog owns the whole page (outside subtrees are hidden and focus is
+ * trapped by the dialog library), so the dock re-parents into that surface
+ * to stay fully operable during fault pause.
+ */
+export type DevDockPortalSurfaceV1 = "fault_pause";
 
 type DevDockPortalSelectionSurfaceV1 = DevDockPortalSurfaceV1 | "base";
 
@@ -28,15 +41,6 @@ export interface DevDockPortalCoordinatorPropsV1 {
 
 const DevDockPortalContextV1 = createContext<DevDockPortalContextValueV1 | null>(null);
 
-const devDockPortalSurfacePriorityV1 = Object.freeze(
-  [
-    "fault_pause",
-    "system",
-    "overlay",
-    "narrative",
-  ] as const satisfies readonly DevDockPortalSurfaceV1[],
-);
-
 const missingDevDockPortalSelectionV1 = Object.freeze({
   target: null,
   surface: "base",
@@ -55,16 +59,14 @@ function selectDevDockPortalTargetV1(
   registrations: readonly DevDockPortalTargetRegistrationV1[],
   baseTarget: HTMLElement | null,
 ): DevDockPortalTargetSelectionV1 {
-  for (const surface of devDockPortalSurfacePriorityV1) {
-    const registration = registrations.findLast((candidate) => candidate.surface === surface);
-    if (registration !== undefined) {
-      return Object.freeze({ target: registration.target, surface });
-    }
+  const registration = registrations.findLast((candidate) => candidate.surface === "fault_pause");
+  if (registration !== undefined) {
+    return Object.freeze({ target: registration.target, surface: registration.surface });
   }
   return Object.freeze({ target: baseTarget, surface: "base" });
 }
 
-/** Selects one semantic DevDock portal target independently of surface mount order. */
+/** Anchors the DevDock to the canvas; only fault pause may claim it. */
 export function DevDockPortalCoordinatorV1(props: DevDockPortalCoordinatorPropsV1): ReactElement {
   const [overlayTarget, setOverlayTarget] = useState<HTMLDivElement | null>(null);
   const [canvasTarget, setCanvasTarget] = useState<HTMLElement | null>(null);
@@ -123,7 +125,7 @@ export function DevDockPortalCoordinatorV1(props: DevDockPortalCoordinatorPropsV
   );
 }
 
-/** Registers a live blocking focus scope when a coordinator is present. */
+/** Lets the terminal fault-pause surface claim the dock while it owns the page. */
 export function useDevDockPortalTargetRegistrationV1(
   surface: DevDockPortalSurfaceV1,
   target: HTMLElement | null,
