@@ -233,6 +233,26 @@ envelope 或第二 runtime authority。
   scene 合同写入 features.md 的 promotion）。
 - 验收：反馈以最窄切片回流本计划；未满足的限制记录在案。
 
+基准切片（2026-08-14 定义；可重跑的度量单位，不是一次性移植进度）：
+
+- 范围＝实验目标的开场纵切，覆盖上列全部验证点一次：两名人物（各 ≥2 表情）、
+  两个场景与一次背景切换、同一人物两种登场 motion、一次场景重开（ensure 幂等）、
+  一个选择分支、约 20–40 句台词。素材可用占位图，占位/真图切换不改度量口径。
+- 实验仓在本仓库外从 `template/` 复制创建（scene-first 流程照 quickstart 走）；
+  产物与实验素材不入本仓库，回流的只有匿名化度量与缺口描述。
+- 每轮记录的度量（人与 Agent 同表）：每句台词触碰文件数与编辑点数；每张立绘/
+  背景从文件到上台的登记点数；改一次站位/换一次 motion 触碰的文件数（预期 =1，
+  即 scene/motion 文档本身）；切片从零到 `story check`+simulate+浏览器可玩的
+  总耗时；Agent 执行时另记一次通过率与到绿迭代数。判据始终是既有闸门
+  （`story check`、simulate digest、`deno task check`），不新建执法 harness。
+- Agent 任务清单＝同一切片拆成的可独立验证任务（加一句台词、加一名带表情的人
+  物、加一个场景与切换、绑定/调整登场 motion、场景重开回归），每项标注其验证
+  命令；人与 Agent 走同一清单，引擎能力落地后重跑同一切片对比曲线。
+- 预注册的观察焦点（来自 2026-08-14 与 Ren'Py 工程对比）：台词书写成本（textId
+  - 节点 + occurrence 纪律）与素材进场成本（slot/pack/digest + catalog +
+    renderer 登记）预计是最大两项缺口；若度量证实，按最窄切片各自立项，任何书写
+    糖必须仍是普通 TypeScript（无第二 DSL/VM 红线不动）。
+
 ## 3. Defer
 
 - Scene Timing Sheet（人物/相机/BGM/SFX/对白同轴编排）：等单 cue + 单 motion 无法
