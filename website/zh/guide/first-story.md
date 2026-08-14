@@ -2,7 +2,7 @@
 
 > 想交给 AI 做？[用 AI 快速开始](/zh/guide/getting-started)介绍同一流程的代理驱动版。
 
-`template/` 包是一个由 CI 保活的最小可玩游戏。新游戏从复制它开始。
+`template/` 包是一个由 CI 保活的最小可玩、scene-first 游戏。新游戏从复制它开始。动 TypeScript 之前可以先走可视化闭环：`deno task dev` 启动，设置里打开开发者工具，进 **调试 → 场景 → Studio**，直接拖动角色——保存只改 `src/scenes/opening/opening.scene.json`，运行中的游戏热更新。场景文档拥有站位与 cue→motion 绑定；剧本只引用 cue。
 
 ## 复制并改名
 
@@ -16,16 +16,18 @@ cd examples/my-game
 
 ## 关键文件
 
-| 文件                               | 角色                                              |
-| ---------------------------------- | ------------------------------------------------- |
-| `src/narrative.ts`                 | 剧本：say/choice/stage/branch/end 节点与剧情 flag |
-| `src/presentation.ts`              | 文本目录（全部显示文本走 textId）、舞台内容、转场 |
-| `src/state.ts`                     | 模块状态形状、schema、初始值                      |
-| `src/simulation.ts`                | 模块、命令与规则                                  |
-| `src/application/semantic.ts`      | 动作目录与可用性规则                              |
-| `src/application/ui.tsx`           | React 组件：HUD 与被动 Narrative renderer         |
-| `src/application/composition.tsx`  | 投影、slots、应用声明与 Narrative 绑定            |
-| `src/tooling/simulation-target.ts` | `story simulate` 的命名 headless 场景             |
+| 文件                               | 角色                                                      |
+| ---------------------------------- | --------------------------------------------------------- |
+| `src/scenes/opening/*.scene.json`  | 场景构图：站位/外观/cue→motion 绑定（推荐在 Studio 编辑） |
+| `src/narrative.ts`                 | 剧本：say/choice/stage/branch/end 节点与剧情 flag         |
+| `src/presentation.ts`              | 文本目录（全部显示文本走 textId）、舞台内容、转场         |
+| `src/stage-renderers.tsx`          | 游戏与 Studio 画布共用的舞台渲染器                        |
+| `src/state.ts`                     | 模块状态形状、schema、初始值                              |
+| `src/simulation.ts`                | 模块、命令与规则                                          |
+| `src/application/semantic.ts`      | 动作目录与可用性规则                                      |
+| `src/application/ui.tsx`           | React 组件：HUD 与被动 Narrative renderer                 |
+| `src/application/composition.tsx`  | 投影、slots、应用声明与 Narrative 绑定（Advanced 层）     |
+| `src/tooling/simulation-target.ts` | `story simulate` 的命名 headless 场景                     |
 
 template 把唯一的 production Narrative writer 声明为 `application.ui().narrative`。`defineNarrativeSurfaceV1` 将五项 Story 贡献封装为不透明 `NarrativeSurfaceDefinitionV1`：选取 Narrative 投影、派发语义 resolution、渲染被动 UI、解析本地化文本，以及可选地重播当前语音。引擎拥有的组合层提供 playback、History、profile、时钟、input、focus 与 Stage lifecycle；不要在旁边再挂一个对话播放器。
 
