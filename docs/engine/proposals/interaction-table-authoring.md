@@ -128,6 +128,65 @@ admission 一次性全量校验，坏数据在 `story check`/vitest 阶段带 JS
 5. **RNG 纪律**：roll 块只走事务 RNG + 持久化槽；文档不可表达
    `Math.random()` 类行为。
 
+## 文档载体（已定，2026-08-14）
+
+**规范形状 = JSON-safe schema，admission parser 只有一个；载体有先后**：
+
+1. **第一载体：TS 数据模块**。类型推导即时（agent/人改错当场爆红，不用等
+   admission）、允许从目录表**程序化展开**行（上文 `teaDrinksTableV1.rows.map`
+   ——展开后的产物才是被接纳的文档；JSON 写不出展开）。
+2. **第二载体：`.json` 文件**（与 scene document 同款姿势）。给未来的
+   编辑器/外部工具写；两种载体过同一个 parser，形状零分叉。
+3. 可视化编辑器（若有那天）读写的是 JSON 载体；TS 永远保留给程序化内容。
+
+参照 ComfyUI：它的 workflow JSON 是可编辑源、UI 是 authoring 层。我们把
+对应关系倒过来一半——**交互文档是源，图是投影**（见下节）；将来编辑器写的
+仍是文档，不是图。
+
+## 叙事图投影：`NarrativeFlowGraphV1`（只读镜头的数据形状）
+
+图是**派生数据**：永远从编译后的节点投影，绝不手工编辑。因此形状里**没有
+坐标/布局**——布局由查看器计算（dagre/ELK 自动排版）；将来若要钉住手调
+位置，另存 sidecar 布局文件，不污染语义数据。
+
+现有 `NarrativeGraph`（lint 在用）已有 nodes/kind/successors/dependencies/
+source；可视化还缺两样：**带标签的边**（哪个选项/掷骰结果/分支条件走向哪里）
+与**分组**（节点来自哪份文档的哪个块）。投影形状（JSON-safe）：
+
+```ts
+interface NarrativeFlowGraphV1 {
+  readonly nodes: readonly {
+    readonly nodeId: string;
+    readonly kind: "say" | "menu" | "effect" | "roll" | "stage" | "branch" | "flag" | "end";
+    /** 来源交互文档 id；手写存量节点为 null。 */
+    readonly docId: string | null;
+    readonly blockName: string | null;
+    /** 人可读摘要：textId / effect id+params / gate 列表。 */
+    readonly summary: string;
+    readonly source: string;
+  }[];
+  readonly edges: readonly {
+    readonly from: string;
+    readonly to: string;
+    readonly label:
+      | { readonly kind: "next" }
+      | {
+        readonly kind: "choice";
+        readonly choiceId: string;
+        readonly textId: string;
+        readonly gates: readonly string[];
+      }
+      | { readonly kind: "roll"; readonly outcome: string }
+      | { readonly kind: "branch"; readonly condition: string }
+      | { readonly kind: "call"; readonly label: string }; // `@` 跨文档标签
+  }[];
+}
+```
+
+ComfyUI 工作流 JSON（nodes + links + 类型化端口）是同构参照：node ≈ node、
+labeled edge ≈ link、docId 分组 ≈ group。查看器（Studio 面板）按能力清单
+的 P2 节奏另行实现；本节只冻结形状，让编译器从第一天就能吐这份投影。
+
 ## 应用路径（external-experiment 先行）
 
 1. 落 kit（registry + defineInteractionDocV1 + compiler + admission 校验），
@@ -136,13 +195,11 @@ admission 一次性全量校验，坏数据在 `story check`/vitest 阶段带 JS
    id 覆盖保持不变，金标/单测/e2e 全绿为验收；
 3. 迁「网购」「聊天」「就寝」；新内容（看电视/打游戏/白天循环）表格先行；
 4. 高密度表现场景仅在本 kit + 氛围动效原语（另案）就绪后开工；
-5. 稳定后上提 `template/`（替换现 narrative-kit 为超集），引擎化与 Studio
-   只读图视图（把编译图喂给现有 NarrativeGraph 投影）按真实需求再提案。
+5. 稳定后上提 `template/`（替换现 narrative-kit 为超集）；Studio 只读图
+   查看器消费上节的 `NarrativeFlowGraphV1` 投影，按真实需求再提案。
 
 ## Open questions（留给评审讨论）
 
-- 文档载体：TS 数据模块（类型推导强）vs JSON 文件（工具/编辑器友好）——
-  建议 TS 起步、JSON 作为第二载体（admission parser 共用）；
 - 跨文档标签命名空间与循环引用的裁决；
 - gate 的组合语义（目前 AND；是否需要 OR/NOT，还是拆成多选项）；
 - 效果 handler 与未来 content-database 查询 API 的注入面（tables 参数）
