@@ -273,11 +273,30 @@ envelope 或第二 runtime authority。
    另行切片设计。
 3. ensure 对同 content 为空操作且无「重开场景」原语（重开=手写 hide+show）；
    候选：scene 文档级 open/reset accessor，属 A0 收窄决定预留的「真实需求再加」。
+   **已交付（2026-08-14，第 2 轮证据升为榜首后）**：`SceneV1.openMutations(stage)`
+   ——确定性、幂等的「打开/重开」批次：先隐藏声明层上的未声明条目，再让每个声明
+   条目 show/replace 或把 placement/appearance 纠正回文档声明值；未声明的层与文
+   档未声明的字段不触碰，zOrder 漂移不纠正（re-show 拥有）。纯 accessor 追加
+   （`setPlacement`/`setAppearance` 变更原语本已存在），零 runtime/schema/Save
+   影响；base 合同测试 18/18（含幂等、陌生条目隐藏、内容纠正、未声明层不触碰）。
+   第一消费者=高保真移植（下一步）；解决第 2 轮缺口 4/6/8 家族（忘 hide 叠人、
+   hide+show 丢表情的意外性、重开手写序列）。
 4. 素材/内容进场（Studio 无法从零登记人物；新场景要手拼 barrel 与 transition
    catalog；新 motion 要在 studio binding 重复登记路径）——预注册焦点二证实，
    归 Track D 内容/资产工具族，需要单独设计。
 5. 中途表情不进 cue/Studio（剧本 `setAppearance` 节拍）——cue kind 扩展的真实
    证据，暂列观察。
+
+第 2 轮复测（2026-08-14，同一任务书、新副本自带 A6 builder 与碰撞 lint；Agent 执
+行、所有者侧独立复核）：T1–T6 全绿（T4 两轮迭代，其余一轮），总耗时 48 分钟。
+**台词单价 2 文件/2 点 → 1 文件/1 点**（摊销 2.5 点/句 → 1.25 点/句），插句零重
+排（scenario 最坏 ±1 个 advance）；碰撞 lint 第一时间拦下第 1 轮的静默盖住，按
+建议裂 tag 绕开成本 4 点。素材登记成本持平（人物 8 点、背景 6 点、新 motion 4 文
+件）——预注册焦点二仍开放。缺口榜更新：榜首变为「场景切换/重开=手写 hide+show，
+同 tag 再 show 空操作、hide+show 丢剧本层表情、忘 hide 会叠人」（原缺口 3 家族，
+第 2 轮三处复现）；其次「同一人物两种登场必须裂 stage 身份」（lint 拦截后的合同
+性代价，归 deferred cue 身份扩展裁决）与「Studio 不能从零登记人物/场景/motion」
+（素材进场族，Track D）。
 
 ### A6 — 台词书写辅助（A5 缺口 2；template 起步，已完成 2026-08-14）
 

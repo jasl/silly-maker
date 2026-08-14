@@ -100,6 +100,17 @@ export interface SceneV1 {
   cueMotionId(cueId: string): string | null;
   /** The cue's idempotent mutation batch against the current stage. */
   cueMutations(cueId: string, stage: SemanticStageStateV1): readonly StageMutationV1[];
+  /**
+   * Opens (or reopens) the scene: the deterministic mutation batch that
+   * makes every layer this Document declares look exactly like its
+   * declared entries — undeclared entries on those layers hide first, then
+   * each declared entry shows, content-replaces, or corrects placement and
+   * appearance back to the declared values. Idempotent: opening a matching
+   * stage emits nothing. Layers the Document does not declare are never
+   * touched; declared entries without a declared placement/appearance keep
+   * whatever gameplay set; zOrder drift is not corrected (re-show owns it).
+   */
+  openMutations(stage: SemanticStageStateV1): readonly StageMutationV1[];
 }
 
 export const sceneDocumentFormatV1 = "sillymaker.scene";
@@ -398,6 +409,93 @@ function currentContentIdV1(
   return current === undefined ? undefined : (current.contentId as string);
 }
 
+function samePlacementV1(current: StagePlacementV1, declared: StagePlacementV1): boolean {
+  return current.x === declared.x &&
+    current.y === declared.y &&
+    current.scalePermille === declared.scalePermille &&
+    current.opacityPermille === declared.opacityPermille &&
+    current.mirrored === declared.mirrored;
+}
+
+function sameAppearanceV1(current: StageAppearanceV1, declared: StageAppearanceV1): boolean {
+  const currentKeys = Object.keys(current);
+  const declaredKeys = Object.keys(declared);
+  return currentKeys.length === declaredKeys.length &&
+    declaredKeys.every((key) => current[key] === declared[key]);
+}
+
+/** The open plan: strangers on declared layers hide, declared entries settle. */
+function openMutationPlanV1(
+  sceneDocument: SceneDocumentV1,
+  index: SceneIndexV1,
+  stage: SemanticStageStateV1,
+): readonly StageMutationV1[] {
+  const plans: unknown[] = [];
+  const declaredLayerIds: string[] = [];
+  for (const entry of sceneDocument.entries) {
+    if (!declaredLayerIds.includes(entry.layerId as string)) {
+      declaredLayerIds.push(entry.layerId as string);
+    }
+  }
+
+  for (const layerId of declaredLayerIds) {
+    const layer = stage.layers.find((candidate) => (candidate.layerId as string) === layerId);
+    for (const current of layer?.entries ?? []) {
+      const declared = index.entriesByTag.get(current.tag as string);
+      if (declared === undefined || (declared.layerId as string) !== layerId) {
+        plans.push({ kind: "hide", layerId, tag: current.tag });
+      }
+    }
+  }
+
+  for (const entry of sceneDocument.entries) {
+    const layer = stage.layers.find((candidate) => candidate.layerId === entry.layerId);
+    const current = layer?.entries.find((candidate) => candidate.tag === entry.tag);
+    if (current === undefined) {
+      plans.push({
+        kind: "show",
+        layerId: entry.layerId,
+        tag: entry.tag,
+        contentId: entry.contentId,
+        ...(entry.zOrder === undefined ? {} : { zOrder: entry.zOrder }),
+        ...(entry.placement === undefined ? {} : { placement: entry.placement }),
+        ...(entry.appearance === undefined ? {} : { appearance: entry.appearance }),
+      });
+      continue;
+    }
+    if ((current.contentId as string) !== (entry.contentId as string)) {
+      plans.push({
+        kind: "replace",
+        layerId: entry.layerId,
+        tag: entry.tag,
+        contentId: entry.contentId,
+      });
+    }
+    if (entry.placement !== undefined && !samePlacementV1(current.placement, entry.placement)) {
+      plans.push({
+        kind: "setPlacement",
+        layerId: entry.layerId,
+        tag: entry.tag,
+        placement: entry.placement,
+      });
+    }
+    if (entry.appearance !== undefined && !sameAppearanceV1(current.appearance, entry.appearance)) {
+      plans.push({
+        kind: "setAppearance",
+        layerId: entry.layerId,
+        tag: entry.tag,
+        appearance: entry.appearance,
+      });
+    }
+  }
+
+  return Object.freeze(
+    plans.map((plan, planIndex) =>
+      parseStageMutationV1(plan, `/open/mutations/${String(planIndex)}`)
+    ),
+  );
+}
+
 /**
  * Compiles one scene Document (the raw `*.scene.json` import value or an
  * already-parsed `SceneDocumentV1`) into typed accessors. Pure and
@@ -432,6 +530,9 @@ export function sceneFromDocumentV1(value: unknown): SceneV1 {
       const cue = requireCueV1(index, cueId);
       const entry = requireCueEntryV1(index, cue);
       return cueMutationPlanV1(cue, entry, currentContentIdV1(stage, entry));
+    },
+    openMutations(stage: SemanticStageStateV1): readonly StageMutationV1[] {
+      return openMutationPlanV1(sceneDocument, index, stage);
     },
   });
 }

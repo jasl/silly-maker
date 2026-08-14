@@ -353,3 +353,105 @@ describe("sceneSettledMutationsV1", () => {
       .toBe("scene_cue_unknown");
   });
 });
+
+describe("scene.openMutations", () => {
+  const scene = sceneFromDocumentV1(sceneDocumentV1());
+
+  function openedStageV1(): SemanticStageStateV1 {
+    return applyV1(emptyStageV1(), scene.openMutations(emptyStageV1()));
+  }
+
+  it("opens an empty stage in document order and is idempotent", () => {
+    const opened = scene.openMutations(emptyStageV1());
+    expect(opened.map((mutation) => mutation.kind)).toEqual(["show", "show"]);
+    const stage = applyV1(emptyStageV1(), opened);
+    expect(stage.layers[0]?.entries[0]?.contentId).toBe("content.app.background.shopfront");
+    expect(stage.layers[1]?.entries[0]?.placement).toMatchObject({ x: 920, y: 600 });
+    expect(scene.openMutations(stage)).toEqual([]);
+  });
+
+  it("hides strangers on declared layers, then corrects drifted placement and appearance", () => {
+    const drifted = applyV1(openedStageV1(), [
+      {
+        kind: "show",
+        layerId: "layer.app.characters",
+        tag: "tag.stranger",
+        contentId: "content.app.character.stranger",
+        zOrder: 20,
+      },
+      {
+        kind: "setPlacement",
+        layerId: "layer.app.characters",
+        tag: "tag.hero",
+        placement: { x: 100, y: 200, scalePermille: 900, opacityPermille: 1000, mirrored: true },
+      },
+      {
+        kind: "setAppearance",
+        layerId: "layer.app.characters",
+        tag: "tag.hero",
+        appearance: { expression: "smiling" },
+      },
+    ]);
+    const reopened = scene.openMutations(drifted);
+    expect(reopened.map((mutation) => mutation.kind)).toEqual([
+      "hide",
+      "setPlacement",
+      "setAppearance",
+    ]);
+    expect(reopened[0]).toMatchObject({ tag: "tag.stranger" });
+    const settled = applyV1(drifted, reopened);
+    const hero = settled.layers[1]?.entries.find((entry) => (entry.tag as string) === "tag.hero");
+    expect(hero?.placement).toMatchObject({ x: 920, y: 600, mirrored: false });
+    expect(hero?.appearance).toEqual({ expression: "calm" });
+    expect(settled.layers[1]?.entries).toHaveLength(1);
+    expect(scene.openMutations(settled)).toEqual([]);
+  });
+
+  it("replaces drifted content and leaves silent declarations alone", () => {
+    const drifted = applyV1(openedStageV1(), [
+      {
+        kind: "replace",
+        layerId: "layer.app.background",
+        tag: "tag.backdrop",
+        contentId: "content.app.background.backyard",
+      },
+      {
+        kind: "setPlacement",
+        layerId: "layer.app.background",
+        tag: "tag.backdrop",
+        placement: { x: 5, y: 5, scalePermille: 1000, opacityPermille: 1000, mirrored: false },
+      },
+    ]);
+    // The backdrop declares no placement, so only the content corrects.
+    const reopened = scene.openMutations(drifted);
+    expect(reopened.map((mutation) => mutation.kind)).toEqual(["replace"]);
+    const settled = applyV1(drifted, reopened);
+    expect(settled.layers[0]?.entries[0]?.contentId).toBe("content.app.background.shopfront");
+    expect(settled.layers[0]?.entries[0]?.placement).toMatchObject({ x: 5, y: 5 });
+    expect(scene.openMutations(settled)).toEqual([]);
+  });
+
+  it("never touches layers the document does not declare", () => {
+    const wideStage = createSemanticStageStateV1({
+      stageId: "stage.app.main",
+      layerIds: ["layer.app.background", "layer.app.characters", "layer.app.effects"],
+    });
+    const withEffect = applyV1(wideStage, [
+      {
+        kind: "show",
+        layerId: "layer.app.effects",
+        tag: "tag.rain",
+        contentId: "content.app.effect.rain",
+      },
+    ]);
+    const opened = scene.openMutations(withEffect);
+    expect(
+      opened.every((mutation) =>
+        (mutation as { readonly layerId?: string }).layerId !== "layer.app.effects"
+      ),
+    ).toBe(true);
+    const settled = applyV1(withEffect, opened);
+    expect(settled.layers[2]?.entries).toHaveLength(1);
+    expect(scene.openMutations(settled)).toEqual([]);
+  });
+});
