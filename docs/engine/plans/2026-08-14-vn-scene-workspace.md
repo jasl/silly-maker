@@ -327,6 +327,14 @@ readiness/acknowledge；键必须指向绑定了 motion 的 cue，否则
 20/20。另：第二登场立绘「同 tag 同 content 故意无 motion」再次复现 bound-vs-
 unbound 泄漏变体（迁移按第 2 轮先例裂 tag 绕开），deferred cue 身份扩展的证据 +1。
 
+高保真移植完成（2026-08-14，仓库外，匿名证据回流）：三份场景文档接管构图，
+`openMutations` 与 `edges` 选项均获得第一个真实消费者（第二场景枢纽的手写 hasTag
+守卫被 openMutations 取代；开场入场经 cue 命名保持 barrier transition id 逐字
+节不变）；开场 scenario 与金标种子的 finalStateDigest 与迁移前完全相同，42 单测
+（含金标回放）与浏览器 e2e 全绿；Studio 在真实 vendor 素材上可拖。该项目后续由
+Agent 自主推进（菜单→H 场景→结局），台账记录对齐面与唯一有意保留的差距
+（A6 台词 builder 待移植，需扩展 effect/barrier 节点）。
+
 ## 3. Defer
 
 - Scene Timing Sheet（人物/相机/BGM/SFX/对白同轴编排）：等单 cue + 单 motion 无法
