@@ -33,6 +33,8 @@ export interface StageEntryProvenanceV1 {
 export interface StageInspectSnapshotV1 {
   /** Whether click-to-inspect hit surfaces are active on the stage. */
   readonly enabled: boolean;
+  /** Whether declared hit regions render as labeled outlines on the stage. */
+  readonly highlightHitRegions: boolean;
   readonly selectedKey: string | null;
   readonly entries: readonly StageEntryProvenanceV1[];
   readonly activeCueId: string | null;
@@ -58,6 +60,8 @@ export interface StageInspectControllerV1 {
   observe(): StageInspectSnapshotV1;
   subscribe(listener: () => void): () => void;
   setEnabled(enabled: boolean): void;
+  /** Dev-only: outline the declared hit regions on the live stage. */
+  setHighlightHitRegions(enabled: boolean): void;
   select(frameKey: string | null): void;
   /** Fed by the mounted stage host after each committed render. */
   recordFrame(input: StageInspectFrameInputV1): void;
@@ -77,9 +81,9 @@ function provenanceSignatureV1(snapshot: StageInspectSnapshotV1): string {
         entry.motionId ?? ""
       }\u0000${entry.lastTransitionId ?? ""}\u0000${entry.contentId}`,
   );
-  return `${snapshot.enabled ? "1" : "0"}\u0001${snapshot.selectedKey ?? ""}\u0001${
-    snapshot.activeCueId ?? ""
-  }\u0001${parts.join("\u0001")}`;
+  return `${snapshot.enabled ? "1" : "0"}${snapshot.highlightHitRegions ? "1" : "0"}\u0001${
+    snapshot.selectedKey ?? ""
+  }\u0001${snapshot.activeCueId ?? ""}\u0001${parts.join("\u0001")}`;
 }
 
 /**
@@ -91,12 +95,14 @@ export function createStageInspectControllerV1(): StageInspectControllerV1 {
   const listeners = new Set<() => void>();
   const lastByKey = new Map<string, LastIdentityV1>();
   let enabled = false;
+  let highlightHitRegions = false;
   let selectedKey: string | null = null;
   let entries: readonly StageEntryProvenanceV1[] = Object.freeze([]);
   let activeCueId: string | null = null;
   let lastFrame: StageRenderFrameV1 | null = null;
   let snapshot: StageInspectSnapshotV1 = Object.freeze({
     enabled,
+    highlightHitRegions,
     selectedKey,
     entries,
     activeCueId,
@@ -106,6 +112,7 @@ export function createStageInspectControllerV1(): StageInspectControllerV1 {
   const commit = (): void => {
     const next: StageInspectSnapshotV1 = Object.freeze({
       enabled,
+      highlightHitRegions,
       selectedKey,
       entries,
       activeCueId,
@@ -125,6 +132,10 @@ export function createStageInspectControllerV1(): StageInspectControllerV1 {
     },
     setEnabled(next: boolean): void {
       enabled = next;
+      commit();
+    },
+    setHighlightHitRegions(next: boolean): void {
+      highlightHitRegions = next;
       commit();
     },
     select(frameKey: string | null): void {

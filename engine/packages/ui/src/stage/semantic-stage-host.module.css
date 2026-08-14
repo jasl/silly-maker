@@ -50,6 +50,34 @@
   outline-offset: 2px;
 }
 
+/* Dev-only hit-region visualization: labeled outlines over the declared
+   activatable rects. Never interactive — the real .hit-region buttons keep
+   receiving pointer input underneath. */
+.hit-region-outline {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed rgb(94 234 212 / 90%);
+  background: rgb(94 234 212 / 12%);
+  pointer-events: none;
+  z-index: 2147482999;
+}
+
+.hit-region-outline-label {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  max-inline-size: 100%;
+  overflow: hidden;
+  padding: 0 4px;
+  background: rgb(13 148 136 / 85%);
+  color: rgb(240 253 250);
+  font-family: var(--silly-debug-font-family, monospace);
+  font-size: 10px;
+  line-height: 1.6;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 /* Dev-only click-to-inspect surface: covers the entry's rendered bounds
    while inspection is enabled; never present in production compositions. */
 .inspect-hit {

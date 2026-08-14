@@ -105,6 +105,16 @@ const catalogV1: StageContentCatalogV1 = {
             anchorXPermille: 500,
             anchorYPermille: 1000,
           }),
+          hitRegions: Object.freeze([
+            Object.freeze({
+              regionId: "zone.test.head",
+              accessibleNameText: "摸头",
+              x: -50,
+              y: -300,
+              width: 100,
+              height: 80,
+            }),
+          ]),
         }
         : {}),
     }),
@@ -289,6 +299,73 @@ describe("StudioAppV1", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+
+  it("outlines declared hit regions on the canvas until the toggle hides them", async () => {
+    const io = fakeIoV1(sceneDocumentV1());
+    const { container } = render(<StudioAppV1 binding={bindingV1} io={io} />);
+    const user = userEvent.setup();
+
+    // Default on: authors see the interactive areas while placing art.
+    await waitFor(() =>
+      expect(
+        container.querySelector('[data-stage-hit-region-outline="zone.test.head"]'),
+      ).not.toBeNull()
+    );
+    expect(
+      container.querySelector('[data-stage-hit-region-outline="zone.test.head"]'),
+    ).toHaveTextContent("zone.test.head");
+
+    await user.click(screen.getByRole("checkbox", { name: "交互区域" }));
+    expect(container.querySelector("[data-stage-hit-region-outline]")).toBeNull();
+  });
+
+  it("keeps an actor whose cue arc ends with a hide editable in the declared composition", async () => {
+    const withExit = parseSceneDocumentV1({
+      ...JSON.parse(JSON.stringify(sceneDocumentV1())) as Record<string, unknown>,
+      cues: [
+        { cueId: "cue.test.opening.backdrop", kind: "show", tag: "tag.backdrop" },
+        { cueId: "cue.test.opening.hero-enters", kind: "show", tag: "tag.hero" },
+        { cueId: "cue.test.opening.hero-leaves", kind: "hide", tag: "tag.hero" },
+      ],
+    });
+    const io = fakeIoV1(withExit);
+    const { container } = render(<StudioAppV1 binding={bindingV1} io={io} />);
+    const user = userEvent.setup();
+
+    // Default canvas = declared composition: the hero stays visible and
+    // selectable although the scene's cue arc ends with an exit.
+    await waitFor(() =>
+      expect(
+        container.querySelector('[data-stage-key="layer.test.characters:tag.hero"]'),
+      ).not.toBeNull()
+    );
+    expect(container.querySelector('[data-studio-canvas-mode="declared"]')).not.toBeNull();
+
+    // Replay through the exit cue: the story preview hides the hero.
+    const exitRow = container.querySelector('[data-studio-cue="cue.test.opening.hero-leaves"]');
+    const stopButton = exitRow?.querySelector("button");
+    expect(stopButton).not.toBeNull();
+    await user.click(stopButton as HTMLElement);
+    await waitFor(() =>
+      expect(
+        container.querySelector('[data-stage-key="layer.test.characters:tag.hero"]'),
+      ).toBeNull()
+    );
+    expect(
+      container.querySelector(
+        '[data-studio-canvas-mode="cue.test.opening.hero-leaves"]',
+      ),
+    ).not.toBeNull();
+
+    // Toggling the same cue off returns to the declared composition.
+    await user.click(stopButton as HTMLElement);
+    await waitFor(() =>
+      expect(
+        container.querySelector('[data-stage-key="layer.test.characters:tag.hero"]'),
+      ).not.toBeNull()
+    );
+    expect(container.querySelector('[data-studio-canvas-mode="declared"]')).not.toBeNull();
   });
 
   it("preloads the compiled target's assets and re-renders as bytes arrive", async () => {

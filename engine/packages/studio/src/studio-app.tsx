@@ -33,13 +33,17 @@ import styles from "./studio-app.module.css";
 /**
  * SillyMaker Studio V1: the project-level scene workspace. The navigator
  * lists the app's `*.scene.json` sources, the canvas renders the selected
- * scene through the Story's real renderers (a detached settled target — no
- * Session, no reconciler, no gameplay state), the inspector edits the
- * selected entry's placement, and the cue list drives the replay point and
- * cue→motion bindings. Drafts live only in Studio memory; saving goes
- * through the dev-only CAS scene port and the running game picks the file
- * change up over HMR. The Scene document stays the single authoring
- * authority — Studio never becomes a second gameplay or Stage authority.
+ * scene through the Story's real renderers (a detached target — no Session,
+ * no reconciler, no gameplay state), the inspector edits the selected
+ * entry's placement, and the cue list drives the replay point and
+ * cue→motion bindings. The canvas defaults to the declared composition
+ * (`openMutations` over an empty stage) so every declared entry — including
+ * actors whose cue arc ends with a hide — stays visible and draggable;
+ * `到此为止` switches to the replay-through-cue story preview. Drafts live
+ * only in Studio memory; saving goes through the dev-only CAS scene port
+ * and the running game picks the file change up over HMR. The Scene
+ * document stays the single authoring authority — Studio never becomes a
+ * second gameplay or Stage authority.
  */
 
 export interface StudioMotionSourceV1 {
@@ -161,14 +165,18 @@ function compileSceneV1(
       if (!layerIds.includes(entry.layerId as string)) layerIds.push(entry.layerId as string);
     }
     if (layerIds.length === 0) return { kind: "empty" };
-    const mutations = sceneSettledMutationsV1(
-      scene,
-      throughCueId === null ? {} : { throughCueId },
-    );
-    const outcome = reduceStageMutationsV1(
-      createSemanticStageStateV1({ stageId: studioPreviewStageIdV1, layerIds }),
-      mutations,
-    );
+    const emptyStage = createSemanticStageStateV1({
+      stageId: studioPreviewStageIdV1,
+      layerIds,
+    });
+    // The workspace default is the declared composition: every declared
+    // entry visible at its declared placement, so an actor whose story arc
+    // ends with a hide cue (an exit) still has a selection box to edit.
+    // Replay-through-cue is the explicit story-progression preview.
+    const mutations = throughCueId === null
+      ? scene.openMutations(emptyStage)
+      : sceneSettledMutationsV1(scene, { throughCueId });
+    const outcome = reduceStageMutationsV1(emptyStage, mutations);
     if (outcome.kind !== "applied") {
       return { kind: "error", message: outcome.rejection.reason };
     }
@@ -220,6 +228,9 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
   const [throughCueId, setThroughCueId] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Declared hit regions render as labeled outlines by default: authors
+  // place art against the interactive areas, not blind.
+  const [showHitRegions, setShowHitRegions] = useState(true);
 
   const openScene = useCallback((path: string): void => {
     setNote(null);
@@ -562,6 +573,15 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
             重新加载
           </button>
         )}
+        <label className={styles["topbar-toggle"]}>
+          <input
+            type="checkbox"
+            data-studio-hit-regions-toggle="true"
+            checked={showHitRegions}
+            onChange={(event) => setShowHitRegions(event.target.checked)}
+          />
+          交互区域
+        </label>
       </header>
       {note === null ? null : (
         <p className={styles["note"]} role="status" data-studio-note="true">
@@ -624,6 +644,7 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
                     target={compiled.target}
                     renderers={binding.renderers}
                     accessibleName={`场景预览 ${draft.label}`}
+                    highlightHitRegions={showHitRegions}
                   />
                   <div className={styles["overlay"]}>
                     {guides.x === null ? null : (
@@ -701,6 +722,11 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
           {draft === null ? null : (
             <section className={styles["cues"]} aria-label="Cue 列表">
               <h2>Cue</h2>
+              <p data-studio-canvas-mode={throughCueId ?? "declared"}>
+                {throughCueId === null
+                  ? "画布：声明构图（全部条目按声明位置显示，可直接拖拽）"
+                  : `画布：回放到 ${throughCueId}（再点一次「到此为止」回到声明构图）`}
+              </p>
               <table data-studio-cues="true">
                 <thead>
                   <tr>

@@ -12,10 +12,11 @@ import styles from "./stage-provenance-panel.module.css";
 
 /**
  * The DevDock Stage-provenance card: lists what is on stage right now, lets
- * the author toggle click-to-inspect hit surfaces on the live stage, and
- * resolves the selected entry's motion back to its source file with "open
- * source" / "edit motion" actions. Read-only toward gameplay: it renders
- * the inspect registry and never issues semantic intents.
+ * the author toggle click-to-inspect hit surfaces and labeled hit-region
+ * outlines on the live stage, and resolves the selected entry's motion back
+ * to its source file with "open source" / "edit motion" actions. Read-only
+ * toward gameplay: it renders the inspect registry and never issues
+ * semantic intents.
  */
 
 export interface StageProvenancePanelPropsV1 {
@@ -74,6 +75,15 @@ export function StageProvenancePanelV1(props: StageProvenancePanelPropsV1): Reac
         onClick={() => controller.setEnabled(!snapshot.enabled)}
       >
         {snapshot.enabled ? "结束点击检视" : "开始点击检视"}
+      </button>
+      <button
+        type="button"
+        className={styles.toggle}
+        data-stage-hit-region-toggle={snapshot.highlightHitRegions ? "on" : "off"}
+        aria-pressed={snapshot.highlightHitRegions}
+        onClick={() => controller.setHighlightHitRegions(!snapshot.highlightHitRegions)}
+      >
+        {snapshot.highlightHitRegions ? "隐藏交互区域" : "显示交互区域"}
       </button>
       {snapshot.activeCueId === null
         ? null

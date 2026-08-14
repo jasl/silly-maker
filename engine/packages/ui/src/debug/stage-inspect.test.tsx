@@ -43,6 +43,20 @@ const contentCatalogV1: StageContentCatalogV1 = {
       assetIds: Object.freeze([] as readonly AssetId[]),
       accessibleName: `内容 ${contentId}`,
       props: Object.freeze({}),
+      ...(contentId === "content.test.actor"
+        ? {
+          hitRegions: Object.freeze([
+            Object.freeze({
+              regionId: "zone.test.pet",
+              accessibleNameText: "摸摸",
+              x: -60,
+              y: -200,
+              width: 120,
+              height: 160,
+            }),
+          ]),
+        }
+        : {}),
     }),
 };
 
@@ -177,6 +191,41 @@ describe("createStageInspectControllerV1", () => {
     act(() => inspect.setEnabled(false));
     expect(container.querySelector("[data-stage-inspect-hit]")).toBeNull();
   });
+
+  it("outlines declared hit regions on the live stage only while highlighted", () => {
+    const clock = createManualPresentationClockV1();
+    const inspect = createStageInspectControllerV1();
+    const shared = {
+      catalog: transitionCatalogV1,
+      renderers: { "renderer.test.box": rendererV1 },
+      accessibleName: "检视舞台",
+      clock,
+      inspect,
+    } as const;
+    const { container, rerender } = render(
+      <SemanticStageV1 target={emptyTargetV1()} revision={1} epoch={0} {...shared} />,
+    );
+    act(() => {
+      rerender(<SemanticStageV1 target={shownTargetV1()} revision={2} epoch={0} {...shared} />);
+    });
+    expect(container.querySelector("[data-stage-hit-region-outline]")).toBeNull();
+
+    act(() => inspect.setHighlightHitRegions(true));
+    const outline = container.querySelector(
+      '[data-stage-hit-region-outline="zone.test.pet"]',
+    );
+    if (!(outline instanceof HTMLElement)) throw new Error("hit region outline missing");
+    // The outline is a labeled, non-interactive marker in anchor space.
+    expect(outline.tagName).toBe("DIV");
+    expect(outline.textContent).toContain("zone.test.pet");
+    expect(outline.style.left).toBe("-60px");
+    expect(outline.style.top).toBe("-200px");
+    expect(outline.style.width).toBe("120px");
+    expect(outline.style.height).toBe("160px");
+
+    act(() => inspect.setHighlightHitRegions(false));
+    expect(container.querySelector("[data-stage-hit-region-outline]")).toBeNull();
+  });
 });
 
 describe("createMotionSourceIndexV1", () => {
@@ -261,5 +310,19 @@ describe("StageProvenancePanelV1", () => {
       await Promise.resolve();
     });
     expect(opened).toEqual(["src/motions/enter.motion.json"]);
+  });
+
+  it("toggles live hit-region highlighting through the controller", () => {
+    const inspect = createStageInspectControllerV1();
+    const panel = render(<StageProvenancePanelV1 controller={inspect} />);
+
+    const toggle = panel.container.querySelector("[data-stage-hit-region-toggle]");
+    if (!(toggle instanceof HTMLElement)) throw new Error("hit region toggle missing");
+    expect(toggle.textContent).toBe("显示交互区域");
+    fireEvent.click(toggle);
+    expect(inspect.observe().highlightHitRegions).toBe(true);
+    expect(toggle.textContent).toBe("隐藏交互区域");
+    fireEvent.click(toggle);
+    expect(inspect.observe().highlightHitRegions).toBe(false);
   });
 });

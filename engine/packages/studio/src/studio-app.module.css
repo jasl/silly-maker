@@ -26,6 +26,14 @@
   white-space: nowrap;
 }
 
+.topbar-toggle {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+  white-space: nowrap;
+  cursor: default;
+}
+
 .note {
   margin: 0;
   padding: 0.375rem 0.625rem;

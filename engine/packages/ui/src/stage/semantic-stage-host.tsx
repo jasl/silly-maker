@@ -72,12 +72,19 @@ export interface SemanticStageHostPropsV1 {
    * surfaces that select entries. Absent in production compositions.
    */
   readonly inspect?: StageInspectControllerV1 | null;
+  /**
+   * Dev-only: outline every declared hit region with its regionId label.
+   * Editors pass it directly; the game stage flips it through the inspect
+   * controller instead. Outlines never intercept pointer input.
+   */
+  readonly highlightHitRegions?: boolean;
   reportDiagnostic?(diagnostic: SemanticStageHostDiagnosticV1): void;
 }
 
 const noopInspectSubscribeV1 = (): () => void => () => {};
 const inspectDisabledSnapshotV1: ReturnType<StageInspectControllerV1["observe"]> = Object.freeze({
   enabled: false,
+  highlightHitRegions: false,
   selectedKey: null,
   entries: Object.freeze([]),
   activeCueId: null,
@@ -234,6 +241,7 @@ function StageEntryV1(props: {
   readonly inspect: StageInspectControllerV1 | null;
   readonly inspectEnabled: boolean;
   readonly inspectSelected: boolean;
+  readonly hitRegionsHighlighted: boolean;
 }): ReactElement {
   const { layerId, frameEntry, renderer, onHitRegionActivate, inspect } = props;
   const { entry, phase } = frameEntry;
@@ -288,6 +296,24 @@ function StageEntryV1(props: {
                 regionId: region.regionId,
               })}
           />
+        ))}
+      {!props.hitRegionsHighlighted || exiting || entry.hitRegions.length === 0
+        ? null
+        : entry.hitRegions.map((region) => (
+          <div
+            key={`outline:${region.regionId}`}
+            className={styles["hit-region-outline"]}
+            data-stage-hit-region-outline={region.regionId}
+            aria-hidden="true"
+            style={{
+              left: `${String(region.x)}px`,
+              top: `${String(region.y)}px`,
+              width: `${String(region.width)}px`,
+              height: `${String(region.height)}px`,
+            }}
+          >
+            <span className={styles["hit-region-outline-label"]}>{region.regionId}</span>
+          </div>
         ))}
       {inspect === null || !props.inspectEnabled ? null : (
         <button
@@ -393,6 +419,8 @@ export function SemanticStageHostV1(props: SemanticStageHostPropsV1): ReactEleme
                 inspect={inspect}
                 inspectEnabled={inspectState.enabled}
                 inspectSelected={inspectState.selectedKey === frameEntry.frameKey}
+                hitRegionsHighlighted={props.highlightHitRegions === true ||
+                  inspectState.highlightHitRegions}
                 overlayChannels={overlayIndex.entry.get(
                   `${layer.layerId}\u0000${frameEntry.entry.tag}`,
                 )}
@@ -413,6 +441,8 @@ export function SemanticStageTargetHostV1(props: {
   readonly target: StageRenderTargetV1;
   readonly renderers: Readonly<Record<string, SemanticStageEntryRendererV1>>;
   readonly accessibleName: string;
+  /** Dev-only: outline declared hit regions (editors, previews). */
+  readonly highlightHitRegions?: boolean;
   reportDiagnostic?(diagnostic: SemanticStageHostDiagnosticV1): void;
 }): ReactElement {
   const frame = useMemo(() => settledStageFrameV1(props.target), [props.target]);
@@ -421,6 +451,9 @@ export function SemanticStageTargetHostV1(props: {
       frame={frame}
       renderers={props.renderers}
       accessibleName={props.accessibleName}
+      {...(props.highlightHitRegions === undefined
+        ? {}
+        : { highlightHitRegions: props.highlightHitRegions })}
       {...(props.reportDiagnostic === undefined
         ? {}
         : { reportDiagnostic: props.reportDiagnostic })}
