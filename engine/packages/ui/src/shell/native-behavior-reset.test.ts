@@ -3,10 +3,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { parseInputActionIdV1 } from "../input/contracts.ts";
-import {
-  installPointerButtonAdapterV1,
-  pointerInteractiveSelectorV1,
-} from "../input/pointer-button-adapter.ts";
+import { installPointerButtonAdapterV1 } from "../input/pointer-button-adapter.ts";
 import {
   installNativeBehaviorResetV1,
   nativeBehaviorAllowMenuAttributeV1,
@@ -73,7 +70,7 @@ describe("installNativeBehaviorResetV1", () => {
     handle.dispose();
   });
 
-  it("composes with pointer routing while preserving interactive and native-menu ownership", () => {
+  it("composes with pointer routing while keeping right-click application-owned", () => {
     const routed: string[] = [];
     installForTestV1();
     installedPointerAdaptersV1.push(
@@ -100,7 +97,9 @@ describe("installNativeBehaviorResetV1", () => {
     expect(fireContextMenuV1(document.body).defaultPrevented).toBe(true);
     expect(routed).toEqual(["ui.cancel"]);
 
-    expect(fireContextMenuV1(buttonChild).defaultPrevented).toBe(false);
+    // A control without a declared secondary action is not the browser's:
+    // the floor suppresses the menu and no semantic action fires.
+    expect(fireContextMenuV1(buttonChild).defaultPrevented).toBe(true);
     expect(routed).toEqual(["ui.cancel"]);
 
     button.setAttribute("data-secondary-action", "player.inspect");
@@ -111,21 +110,23 @@ describe("installNativeBehaviorResetV1", () => {
     expect(routed).toEqual(["ui.cancel", "player.inspect"]);
   });
 
-  it("keeps native menus on editable controls and opted-out subtrees", () => {
+  it("keeps native menus only on editable controls and opted-out subtrees", () => {
     const handle = installForTestV1();
     const input = document.createElement("input");
+    const button = document.createElement("button");
     const optOut = document.createElement("div");
     optOut.setAttribute(nativeBehaviorAllowMenuAttributeV1, "true");
     const nested = document.createElement("span");
     optOut.append(nested);
-    document.body.append(input, optOut);
+    document.body.append(input, button, optOut);
 
     expect(fireContextMenuV1(input).defaultPrevented).toBe(false);
+    expect(fireContextMenuV1(button).defaultPrevented).toBe(true);
     expect(fireContextMenuV1(nested).defaultPrevented).toBe(false);
     handle.dispose();
   });
 
-  it("marks the body and restores selection and WebKit callouts on native subtrees", () => {
+  it("marks the body and restores selection, cursor, and WebKit callouts on native subtrees", () => {
     const handle = installForTestV1();
     expect(document.body.getAttribute("data-silly-native-reset")).toBe("true");
     const style = document.head.querySelector("style[data-silly-native-reset-style]");
@@ -133,8 +134,22 @@ describe("installNativeBehaviorResetV1", () => {
     expect(style?.textContent).toContain("user-select: text !important");
     expect(style?.textContent).toContain(`[${nativeBehaviorAllowTextAttributeV1}]`);
     expect(style?.textContent).toContain(`[${nativeBehaviorAllowMenuAttributeV1}]`);
-    expect(style?.textContent).toContain(`:is(${pointerInteractiveSelectorV1})`);
     expect(style?.textContent).toContain("-webkit-touch-callout: default");
+    // The hover cursor is normalized: default arrow document-wide, text
+    // cursor back on editable/native-text subtrees, pointer on links.
+    expect(style?.textContent).toContain("cursor: default");
+    expect(style?.textContent).toContain("cursor: auto");
+    expect(style?.textContent).toContain("cursor: pointer");
+    // Control labels are never selection surfaces, even inside a
+    // data-native-text subtree: the suppression rule comes last so it wins
+    // the !important tie against the subtree re-enable.
+    const controlRuleIndex = style?.textContent?.lastIndexOf(":is(button, summary, a, option") ??
+      -1;
+    const nativeTextRuleIndex =
+      style?.textContent?.indexOf(`[${nativeBehaviorAllowTextAttributeV1}] * {`) ?? -1;
+    expect(controlRuleIndex).toBeGreaterThan(nativeTextRuleIndex);
+    expect(nativeTextRuleIndex).toBeGreaterThan(-1);
+    expect(style?.textContent).toContain("user-select: none !important");
 
     handle.dispose();
     expect(document.body.hasAttribute("data-silly-native-reset")).toBe(false);
