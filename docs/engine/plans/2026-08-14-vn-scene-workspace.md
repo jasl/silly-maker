@@ -317,6 +317,16 @@ envelope 或第二 runtime authority。
   留）。template 单测 12/12、story check 绿。引擎化（进 `@sillymaker/base`
   authoring kit）等实验仓第 2 轮与第二消费者证据后再裁决。
 
+高保真移植预检（2026-08-14，`tmp/external-experiment` 迁移前）：现有实现的开场入场
+motion 带 `acknowledge: true` + `inputPolicy: "block"`（barrier 等确认），scene
+绑定无法表达 → 补最窄切片：`sceneStageTransitionBindingsV1` 输入增加可选
+`edges`（按 cueId 的边行为覆盖：inputPolicy/interruption/reducedMotion/
+readiness/acknowledge；键必须指向绑定了 motion 的 cue，否则
+`scene_edge_options_unknown_cue` 拒绝）。文档继续拥有「播哪条 motion」，绑定继续
+拥有「边怎么表现」——与 A0 的 motion 分层一致；scene 文档 schema 不变。合同测试
+20/20。另：第二登场立绘「同 tag 同 content 故意无 motion」再次复现 bound-vs-
+unbound 泄漏变体（迁移按第 2 轮先例裂 tag 绕开），deferred cue 身份扩展的证据 +1。
+
 ## 3. Defer
 
 - Scene Timing Sheet（人物/相机/BGM/SFX/对白同轴编排）：等单 cue + 单 motion 无法

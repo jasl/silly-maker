@@ -354,6 +354,47 @@ describe("sceneSettledMutationsV1", () => {
   });
 });
 
+describe("sceneStageTransitionBindingsV1 edge options", () => {
+  it("forwards per-cue edge behavior to the derived motion transition", () => {
+    const scene = sceneFromDocumentV1(sceneDocumentV1());
+    const bindings = sceneStageTransitionBindingsV1(scene, {
+      motions: [motionDocumentV1("motion.app.hero-enter")],
+      edges: {
+        "cue.app.opening.hero-enters": { inputPolicy: "block", acknowledge: true },
+      },
+    });
+    const definition = bindings.resolveTransitionById(
+      "transition.app.opening.hero-enters",
+    );
+    expect(definition).toMatchObject({
+      kind: "motion",
+      inputPolicy: "block",
+      acknowledge: true,
+    });
+  });
+
+  it("rejects edge options that name no motion-binding cue", () => {
+    const scene = sceneFromDocumentV1(sceneDocumentV1());
+    expect(
+      reasonOfV1(() =>
+        sceneStageTransitionBindingsV1(scene, {
+          motions: [motionDocumentV1("motion.app.hero-enter")],
+          edges: { "cue.app.opening.ghost": { acknowledge: true } },
+        })
+      ),
+    ).toBe("scene_edge_options_unknown_cue");
+    expect(
+      reasonOfV1(() =>
+        sceneStageTransitionBindingsV1(scene, {
+          motions: [motionDocumentV1("motion.app.hero-enter")],
+          // The backdrop cue exists but binds no motion.
+          edges: { "cue.app.opening.backdrop": { acknowledge: true } },
+        })
+      ),
+    ).toBe("scene_edge_options_unknown_cue");
+  });
+});
+
 describe("scene.openMutations", () => {
   const scene = sceneFromDocumentV1(sceneDocumentV1());
 

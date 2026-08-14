@@ -21,6 +21,10 @@ import type {
   StageTargetChangeV1,
   StageTransitionCatalogV1,
   StageTransitionDefinitionV1,
+  StageTransitionInputPolicyV1,
+  StageTransitionInterruptionV1,
+  StageTransitionReadinessV1,
+  StageTransitionReducedMotionV1,
 } from "./stage-transition.ts";
 import { motionStageTransitionV1 } from "./stage-transition.ts";
 import type { MotionDocumentV1 } from "./motion.ts";
@@ -547,6 +551,20 @@ export function sceneCueTransitionIdV1(cueId: string): string {
   return `transition.${parsed.slice("cue.".length)}`;
 }
 
+/**
+ * Edge-behavior overrides for one cue's derived motion transition. The
+ * Document owns which motion plays on the cue's edge; the binding owns how
+ * the edge behaves (input policy, interruption, reduced motion, readiness,
+ * acknowledgment — for example a barrier-acknowledged blocking entrance).
+ */
+export interface SceneCueEdgeOptionsV1 {
+  readonly inputPolicy?: StageTransitionInputPolicyV1;
+  readonly interruption?: StageTransitionInterruptionV1;
+  readonly reducedMotion?: StageTransitionReducedMotionV1;
+  readonly readiness?: StageTransitionReadinessV1;
+  readonly acknowledge?: boolean;
+}
+
 export interface SceneStageTransitionBindingsInputV1 {
   /**
    * The motion Documents the scene's cues reference: raw `*.motion.json`
@@ -554,6 +572,8 @@ export interface SceneStageTransitionBindingsInputV1 {
    * `motionId` must be covered.
    */
   readonly motions: readonly unknown[];
+  /** Overrides keyed by cueId; keys must name cues that bind a motion. */
+  readonly edges?: Readonly<Record<string, SceneCueEdgeOptionsV1>>;
 }
 
 /**
@@ -581,6 +601,13 @@ export function sceneStageTransitionBindingsV1(
   }
 
   const index = indexSceneV1(scene.sceneDocument);
+  const edges = input.edges ?? {};
+  for (const cueId of Object.keys(edges)) {
+    const cue = index.cuesById.get(cueId);
+    if (cue === undefined || cue.motionId === undefined) {
+      return dataFailure(`/edges/${cueId}`, "scene_edge_options_unknown_cue");
+    }
+  }
   const definitions: StageTransitionDefinitionV1[] = [];
   const definitionsById = new Map<string, StageTransitionDefinitionV1>();
   const bindingsByEdge = new Map<string, StageTransitionDefinitionV1>();
@@ -604,6 +631,7 @@ export function sceneStageTransitionBindingsV1(
     const definition = motionStageTransitionV1({
       transitionId: sceneCueTransitionIdV1(cue.cueId),
       motion: motionDocument,
+      ...edges[cue.cueId],
     });
     definitions.push(definition);
     definitionsById.set(definition.transitionId, definition);

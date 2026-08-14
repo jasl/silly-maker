@@ -530,6 +530,7 @@ export type {
   SceneCanvasV1,
   SceneCueKindV1,
   SceneCueV1,
+  SceneCueEdgeOptionsV1,
   SceneDocumentV1,
   SceneEntryV1,
   SceneSettledMutationsOptionsV1,

@@ -87,6 +87,7 @@ export type {
   MotionSampleV1 as MotionSample,
   MotionTrackV1 as MotionTrack,
   SceneCanvasV1 as SceneCanvas,
+  SceneCueEdgeOptionsV1 as SceneCueEdgeOptions,
   SceneCueKindV1 as SceneCueKind,
   SceneCueV1 as SceneCue,
   SceneDocumentV1 as SceneDocument,
