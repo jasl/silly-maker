@@ -39,9 +39,9 @@ Declaring `titleScreen` (title / background art / optional `splash` intro lines)
 
 ## Script/text tasks (most common)
 
-Which file to edit: scene composition (placements, appearance at entry, cue→motion binding) → `src/scenes/opening/opening.scene.json` (Studio or direct edit); dialogue and UI copy → the textId catalog in `src/presentation.ts`; story nodes/branches/stage directives → `src/narrative.ts`; stage renderers → `templateStageRenderersV1` in `src/stage-renderers.tsx`; HUD and the passive Narrative renderer → `src/application/ui.tsx`; the public Narrative definition → the `application.ui().narrative` field in `src/application/composition.tsx`.
+Which file to edit: dialogue (inline text and choices) → the builder script in `src/narrative.ts` (one short name per node derives node/interaction/text ids; `src/narrative-kit.ts` owns the builders); scene composition (placements, appearance at entry, cue→motion binding) → `src/scenes/opening/opening.scene.json` (Studio or direct edit); UI copy and locale overrides → the textId catalog in `src/presentation.ts` (script entries merge in from narrative); stage renderers → `templateStageRenderersV1` in `src/stage-renderers.tsx`; HUD and the passive Narrative renderer → `src/application/ui.tsx`; the public Narrative definition → the `application.ui().narrative` field in `src/application/composition.tsx`.
 
-Before editing, list the full node sequence (one occurrence number per say/choice boundary, starting at 1) so the scenario script (`src/tooling/simulation-target.ts`) and tests are written correctly on the first pass.
+Adding one dialogue line = one entry in the script array. Scenario steps (`src/tooling/simulation-target.ts`) and playthrough tests resolve the _current_ pending interaction, so inserting lines does not renumber them; only steps that explicitly pin an `expectedOccurrenceId` (the stale-fence exercises) care about numbering.
 
 Verification loop after every edit (seconds):
 
@@ -53,7 +53,7 @@ deno task story simulate <appId> --scenario <name>
 
 Rules in brief:
 
-- Every new say/choice needs a brand-new `definitionId` (`interaction.<story>.<name>`); never reuse one.
+- Every new say/choice needs a brand-new short `name` (the builder derives `interaction.<story>.<name>` from it); never reuse one. Renaming a node changes its ids — saved histories reference textIds, so treat renames as intentional breaks (or pin the old id with the builder's `textId` override).
 - A `stage` node's `mayShow` honestly lists every contentId it might show; a `branch`'s `choose` must land inside `successors` (tests enforce both).
 - New stage content is wired in three places: the contentId constant in narrative, the content catalog in presentation, the renderer in `src/stage-renderers.tsx`. For a scene-managed scene the entry/placement side is its Scene document (see the scene collaboration contract below).
 - Saveable state holds integers only (logical units like `scalePermille`); floats are rejected by canonical JSON.

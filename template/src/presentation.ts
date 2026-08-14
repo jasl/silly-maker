@@ -10,12 +10,13 @@ import type {
 } from "@sillymaker/base/story";
 import { parseStageTransitionDefinition } from "@sillymaker/base/story";
 
-import { templateContentIdsV1 } from "./narrative.ts";
+import { templateContentIdsV1, templateScriptTextEntriesV1 } from "./narrative.ts";
 import { templateOpeningTransitionBindingsV1 } from "./scenes/opening/index.ts";
 
 /**
- * Every player-visible string lives here, keyed by textId. The script
- * references textIds only; a missing entry fails loudly in tests.
+ * UI copy lives here, keyed by textId; the script's dialogue entries come
+ * inline from `narrative.ts` (builder-derived textIds) and merge below.
+ * Other locales override any entry by the same textId.
  */
 export const templateTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
   defaultLocale: "zh-CN",
@@ -37,19 +38,8 @@ export const templateTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.template.playback.history.empty", text: "还没有对话。" },
         { textId: "text.template.playback.history.close", text: "关闭历史" },
         { textId: "text.template.narrative.completed", text: "（本段落已结束）" },
-        { textId: "text.template.speaker.mei", text: "小梅" },
-        { textId: "text.template.line.greeting", text: "雨停了。院子里的青石板还亮着水光。" },
-        { textId: "text.template.choice.prompt", text: "接下来做什么？" },
-        { textId: "text.template.choice.look", text: "去看看檐下的动静" },
-        { textId: "text.template.choice.inside", text: "先回屋里" },
         { textId: "text.template.choice.insufficient-coins", text: "硬币不足" },
-        { textId: "text.template.line.cat", text: "看，檐角下躲着一只小猫，毛都淋湿了。" },
-        { textId: "text.template.line.inside", text: "你转身回屋，把伞立在门边。" },
-        {
-          textId: "text.template.line.ending-warm",
-          text: "小梅把小猫抱进屋里，朝你眨了眨眼。今天是个好日子。",
-        },
-        { textId: "text.template.line.ending-plain", text: "屋里茶还温着。院子里的雨声停了。" },
+        ...templateScriptTextEntriesV1,
       ],
     },
   ],

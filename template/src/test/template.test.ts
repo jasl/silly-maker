@@ -5,25 +5,27 @@ import { lintNarrativeGraph } from "@sillymaker/base/story";
 import { createGameHarnessV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
 
 import { createTemplateApplicationInstanceV1 } from "../application/core-application.ts";
+import { defineTemplateScriptV1 } from "../narrative-kit.ts";
 import { projectTemplateNarrativeGraphV1 } from "../narrative-graph.ts";
 import { templateScriptV1 } from "../narrative.ts";
 import { templateTextCatalogsV1 } from "../presentation.ts";
 import { templateSemanticAdapterV1 } from "../application/semantic.ts";
 import { templateStoryEntryV1 } from "../story.ts";
 
-function advanceV1(occurrence: number) {
+/** Resolves whatever is pending now — inserting script lines never renumbers tests. */
+function currentResolveV1(
+  application: { readonly semantic: { observe(): unknown } },
+  resolution: Readonly<Record<string, unknown>>,
+) {
+  const publication = application.semantic.observe() as {
+    readonly narrative: { readonly pending: { readonly occurrenceId: string } | null };
+  };
+  const pending = publication.narrative.pending;
+  if (pending === null) throw new TypeError("test.no_pending_interaction");
   return Object.freeze({
     kind: "resolve" as const,
-    expectedOccurrenceId: `interaction-occurrence.${String(occurrence)}`,
-    resolution: Object.freeze({ kind: "advance" as const }),
-  });
-}
-
-function chooseV1(occurrence: number, choiceId: string) {
-  return Object.freeze({
-    kind: "resolve" as const,
-    expectedOccurrenceId: `interaction-occurrence.${String(occurrence)}`,
-    resolution: Object.freeze({ kind: "choose" as const, choiceId }),
+    expectedOccurrenceId: pending.occurrenceId,
+    resolution: Object.freeze(resolution),
   });
 }
 
@@ -54,6 +56,56 @@ describe("template story baseline", () => {
         for (const option of node.options) expect(known, option.choiceId).toContain(option.textId);
       }
     }
+  });
+
+  it("derives node/interaction/text ids from one short name per node", () => {
+    const greeting = templateScriptV1.find((node) =>
+      node.kind === "say" && node.nodeId === "node.template.greeting"
+    );
+    expect(greeting).toMatchObject({
+      definitionId: "interaction.template.greeting",
+      textId: "text.template.line.greeting",
+      speakerTextId: "text.template.speaker.mei",
+      next: "node.template.first-choice",
+    });
+    const choice = templateScriptV1.find((node) => node.kind === "choice");
+    expect(choice).toMatchObject({
+      nodeId: "node.template.first-choice",
+      promptTextId: "text.template.choice.prompt",
+    });
+    if (choice?.kind === "choice") {
+      expect(choice.options.map((option) => option.choiceId)).toEqual([
+        "choice.template.look",
+        "choice.template.inside",
+      ]);
+    }
+  });
+
+  it("rejects duplicate node names and conflicting inline text at build time", () => {
+    expect(() =>
+      defineTemplateScriptV1({
+        prefix: "template",
+        nodes: [
+          { kind: "end", name: "close" },
+          { kind: "end", name: "close" },
+        ],
+      })
+    ).toThrow("template.script_duplicate_node:close");
+    expect(() =>
+      defineTemplateScriptV1({
+        prefix: "template",
+        nodes: [
+          { kind: "say", name: "a", speaker: null, text: "一句", next: "b", textId: "text.x" },
+          { kind: "say", name: "b", speaker: null, text: "另一句", next: "a", textId: "text.x" },
+        ],
+      })
+    ).toThrow("template.script_text_conflict:text.x");
+    expect(() =>
+      defineTemplateScriptV1({
+        prefix: "template",
+        nodes: [{ kind: "say", name: "a", speaker: "ghost", text: "……", next: "a" }],
+      })
+    ).toThrow("template.script_speaker_unknown:ghost");
   });
 
   it("keeps branch choosers inside their static successor annotations", () => {
@@ -93,12 +145,14 @@ describe("template narrative playthrough", () => {
         "content.template.character.mei",
       ]);
 
-      await dispatch(advanceV1(1));
+      await dispatch(currentResolveV1(application, { kind: "advance" }));
       publication = application.semantic.observe();
       expect(publication.narrative.pending).toMatchObject({ kind: "choice" });
       expect(publication.narrative.choiceOptions).toHaveLength(2);
 
-      await dispatch(chooseV1(2, "choice.template.look"));
+      await dispatch(
+        currentResolveV1(application, { kind: "choose", choiceId: "choice.template.look" }),
+      );
       publication = application.semantic.observe();
       expect(publication.narrative.flags).toEqual(["flag.template.cat_found"]);
       expect(publication.narrative.pending).toMatchObject({
@@ -106,7 +160,7 @@ describe("template narrative playthrough", () => {
         textId: "text.template.line.cat",
       });
 
-      await dispatch(advanceV1(3));
+      await dispatch(currentResolveV1(application, { kind: "advance" }));
       publication = application.semantic.observe();
       // The branch routed on the flag; Mei is smiling now.
       expect(publication.narrative.pending).toMatchObject({
@@ -118,7 +172,7 @@ describe("template narrative playthrough", () => {
         ?.entries.find((entry) => entry.tag === "tag.mei");
       expect(mei?.appearance).toMatchObject({ expression: "smiling" });
 
-      await dispatch(advanceV1(4));
+      await dispatch(currentResolveV1(application, { kind: "advance" }));
       publication = application.semantic.observe();
       expect(publication.narrative.phase).toBe("completed");
       expect(publication.narrative.pending).toBeNull();
@@ -136,20 +190,22 @@ describe("template narrative playthrough", () => {
         expect(result).toMatchObject({ kind: "committed" });
       };
       await dispatch({ kind: "invoke", actionId: "template.begin_story" });
-      await dispatch(advanceV1(1));
-      await dispatch(chooseV1(2, "choice.template.inside"));
+      await dispatch(currentResolveV1(application, { kind: "advance" }));
+      await dispatch(
+        currentResolveV1(application, { kind: "choose", choiceId: "choice.template.inside" }),
+      );
       const midway = application.semantic.observe();
       expect(midway.narrative.flags).toEqual([]);
       expect(midway.narrative.pending).toMatchObject({
         kind: "say",
         textId: "text.template.line.inside",
       });
-      await dispatch(advanceV1(3));
+      await dispatch(currentResolveV1(application, { kind: "advance" }));
       expect(application.semantic.observe().narrative.pending).toMatchObject({
         kind: "say",
         textId: "text.template.line.ending-plain",
       });
-      await dispatch(advanceV1(4));
+      await dispatch(currentResolveV1(application, { kind: "advance" }));
       expect(application.semantic.observe().narrative.phase).toBe("completed");
     } finally {
       await application.dispose();
@@ -165,7 +221,14 @@ describe("template narrative playthrough", () => {
       } as never);
       expect(begin).toMatchObject({ kind: "committed" });
       const before = application.admin.stateDigest();
-      const stale = await application.semantic.dispatch(advanceV1(99) as never);
+      // An explicitly pinned stale occurrence exercises the fence contract.
+      const stale = await application.semantic.dispatch(
+        {
+          kind: "resolve",
+          expectedOccurrenceId: "interaction-occurrence.99",
+          resolution: { kind: "advance" },
+        } as never,
+      );
       expect(stale).toMatchObject({ kind: "rejected" });
       expect(application.admin.stateDigest()).toBe(before);
     } finally {

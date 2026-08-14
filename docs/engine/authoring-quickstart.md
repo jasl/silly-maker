@@ -39,7 +39,7 @@ deno task story simulate e2e --scenario calibration   # play the full narrative 
 deno task test:conformance:headless                # all headless conformance tests
 ```
 
-Edits move occurrence numbers (each interaction boundary is numbered in order): the `calibration` scenario script for `simulate` and several tests step by number, so after inserting a boundary sync them — failure messages state the expected/actual numbers directly.
+Edits move occurrence numbers (each interaction boundary is numbered in order): the `calibration` scenario script for `simulate` and several tests step by number, so after inserting a boundary sync them — failure messages state the expected/actual numbers directly. Stories copied from the starter template avoid both taxes: its script builders (`template/src/narrative-kit.ts`) derive node/interaction/text ids from one short name with the default-locale line inline (other locales override by the same textId), and its scenarios/tests resolve the current pending interaction, so inserting a line touches only the script array. The Engine Lab deliberately stays the numbered low-level rig.
 
 ## Tier B: a new gameplay module (medium; the F2-canary-verified path)
 

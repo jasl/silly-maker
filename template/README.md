@@ -29,9 +29,9 @@ deno task clean                                       # 清理 dist-web/ 与 dis
 
 | 想改什么                           | 文件                                                                                                      |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| 台词、选项（含文字）               | `src/narrative.ts` 的剧本数组（文本内联；一个短名派生全部 id——加一句只改这一处）                          |
 | 场景构图（站位/缩放/入场动画绑定） | `src/scenes/opening/opening.scene.json`（推荐用 Studio 编辑）+ `src/scenes/opening/motions/*.motion.json` |
-| 台词、选项文字、界面文案           | `src/presentation.ts`（textId → 文本，全部字符串都在这里）                                                |
-| 剧情节点、分支、舞台指令           | `src/narrative.ts` 的 `templateScriptV1`（stage 节点引用场景 cue）                                        |
+| 界面文案、多语言覆盖               | `src/presentation.ts`（textId → 文本；剧本条目自动并入，其他语言按同 textId 覆盖）                        |
 | 舞台内容与渲染器绑定               | `src/presentation.ts` 的 `templateStageContentCatalogV1` + `src/stage-renderers.tsx`                      |
 | 玩法规则与命令                     | `src/simulation.ts`（`template.inventory` 是可替换的空壳模块）                                            |
 | 玩家可见的动作目录                 | `src/application/semantic.ts`（Advanced 层）                                                              |
@@ -41,7 +41,7 @@ deno task clean                                       # 清理 dist-web/ 与 dis
 
 ## 剧本模型（不是 DSL，就是 TypeScript 数据）
 
-节点五种：`say`（对白，等玩家确认）、`stage`（纯舞台变更）、`choice`（菜单，选项可设 flag、可原子消耗金币）、`branch`（按已保存 flags 纯路由，必须落在 `successors` 里）、`end`。Engine Lab（`e2e`）额外演示 `pause`/`barrier`/`custom` 三种边界与音频、玩家播放系统。
+节点五种：`say`（对白，等玩家确认）、`stage`（纯舞台变更）、`choice`（菜单，选项可设 flag、可原子消耗金币）、`branch`（按已保存 flags 纯路由，必须落在 `successors` 里）、`end`。剧本用 `src/narrative-kit.ts` 的 builder 书写：一个短名派生 `node.*`/`interaction.*`/`text.*` 全部 id，默认语言台词直接写在节点里；重名、同 id 异文本、未知 speaker 都在构造期报错。Engine Lab（`e2e`）额外演示 `pause`/`barrier`/`custom` 三种边界与音频、玩家播放系统。
 
 改完剧本的验证环（几秒钟）：
 
@@ -50,7 +50,7 @@ deno task typecheck && deno task test
 deno task story simulate . --scenario opening
 ```
 
-注意：新增/删除交互边界会移动 occurrence 编号；`src/tooling/simulation-target.ts` 的场景脚本和测试里按编号步进的断言要同步（失败信息会给出期望编号）。
+scenario 脚本与测试默认解析“当前待决交互”，中途插台词不需要重排编号；只有显式钉住 `expectedOccurrenceId` 的步骤（练 stale fence 用）才关心编号。改一个节点的 `name` 等于换 id——存档历史引用 textId，改名当成有意破坏来做（或用 builder 的 `textId` override 钉住旧 id）。
 
 ## 授权
 

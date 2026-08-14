@@ -16,7 +16,11 @@ import {
   reduceStageMutations,
 } from "@sillymaker/base/story";
 
+import type { TemplateChoiceOptionV1, TemplateNarrativeNodeV1 } from "./narrative-kit.ts";
+import { defineTemplateScriptV1 } from "./narrative-kit.ts";
 import { templateOpeningCueIdsV1, templateOpeningSceneV1 } from "./scenes/opening/index.ts";
+
+export type { TemplateChoiceOptionV1, TemplateNarrativeNodeV1 } from "./narrative-kit.ts";
 
 /**
  * The starter narrative: a typed TypeScript script, not a DSL. Authors edit
@@ -58,52 +62,6 @@ export function createInitialTemplateNarrativeStateV1(): TemplateNarrativeStateV
   });
 }
 
-export interface TemplateChoiceOptionV1 {
-  readonly choiceId: string;
-  readonly textId: string;
-  /** Coins atomically consumed by the resolve command; 0 for free options. */
-  readonly consumesCoins: number;
-  /** Flags recorded into narrative state when this option is chosen. */
-  readonly setFlags: readonly string[];
-  readonly next: string;
-}
-
-export type TemplateNarrativeNodeV1 =
-  | {
-    readonly kind: "say";
-    readonly nodeId: string;
-    readonly definitionId: string;
-    readonly seenRevision: number;
-    readonly speakerTextId: string | null;
-    readonly textId: string;
-    readonly next: string;
-  }
-  | {
-    readonly kind: "stage";
-    readonly nodeId: string;
-    readonly mutations: (stage: SemanticStageState) => readonly StageMutation[];
-    /** Static annotation of contents this node may show (for lint). */
-    readonly mayShow: readonly string[];
-    readonly next: string;
-  }
-  | {
-    readonly kind: "choice";
-    readonly nodeId: string;
-    readonly definitionId: string;
-    readonly seenRevision: number;
-    readonly promptTextId: string;
-    readonly options: readonly TemplateChoiceOptionV1[];
-  }
-  | {
-    readonly kind: "branch";
-    readonly nodeId: string;
-    /** Static successor annotation for the lint/prediction graph. */
-    readonly successors: readonly string[];
-    /** Pure flag-conditioned routing; must pick a successor. */
-    readonly choose: (context: { readonly flags: readonly string[] }) => string;
-  }
-  | { readonly kind: "end"; readonly nodeId: string };
-
 /** Stage vocabulary shared by the script and the content catalog. */
 export const templateLayersV1 = Object.freeze({
   background: "layer.template.background",
@@ -136,120 +94,119 @@ function batchV1(batch: readonly unknown[]): readonly StageMutation[] {
  * Visual composition (entries, placements, entrance motion) lives in
  * `src/scenes/opening/opening.scene.json`; stage nodes reference its cues
  * (idempotent ensure semantics — re-entry never double-shows content).
+ *
+ * Dialogue lives inline: one short name per node derives its node,
+ * interaction, and text ids, and the collected default-locale entries
+ * merge into the presentation catalog (other locales override by the
+ * same textIds). Adding a line touches only this array.
  */
-export const templateScriptV1: readonly TemplateNarrativeNodeV1[] = [
-  {
-    kind: "stage",
-    nodeId: "node.template.opening",
-    mutations: (stage) =>
-      templateOpeningSceneV1.cueMutations(templateOpeningCueIdsV1.courtyard, stage),
-    mayShow: templateOpeningSceneV1.cueMayShow(templateOpeningCueIdsV1.courtyard),
-    next: "node.template.mei-enters",
-  },
-  {
-    kind: "stage",
-    nodeId: "node.template.mei-enters",
-    mutations: (stage) =>
-      templateOpeningSceneV1.cueMutations(templateOpeningCueIdsV1.meiEnters, stage),
-    mayShow: templateOpeningSceneV1.cueMayShow(templateOpeningCueIdsV1.meiEnters),
-    next: "node.template.greeting",
-  },
-  {
-    kind: "say",
-    nodeId: "node.template.greeting",
-    definitionId: "interaction.template.greeting",
-    seenRevision: 1,
-    speakerTextId: "text.template.speaker.mei",
-    textId: "text.template.line.greeting",
-    next: "node.template.first-choice",
-  },
-  {
-    kind: "choice",
-    nodeId: "node.template.first-choice",
-    definitionId: "interaction.template.first-choice",
-    seenRevision: 1,
-    promptTextId: "text.template.choice.prompt",
-    options: [
-      {
-        choiceId: "choice.template.look",
-        textId: "text.template.choice.look",
-        consumesCoins: 0,
-        setFlags: [templateCatFlagV1],
-        next: "node.template.cat-line",
-      },
-      {
-        choiceId: "choice.template.inside",
-        textId: "text.template.choice.inside",
-        consumesCoins: 0,
-        setFlags: [],
-        next: "node.template.inside-line",
-      },
-    ],
-  },
-  {
-    kind: "say",
-    nodeId: "node.template.cat-line",
-    definitionId: "interaction.template.cat-line",
-    seenRevision: 1,
-    speakerTextId: "text.template.speaker.mei",
-    textId: "text.template.line.cat",
-    next: "node.template.mei-smiles",
-  },
-  {
-    kind: "stage",
-    nodeId: "node.template.mei-smiles",
-    // Mid-scene appearance beats stay script-owned: scene cues cover
-    // show/hide composition, not expression changes on standing content.
-    mutations: () =>
-      batchV1([
+const templateScriptDefinitionV1 = defineTemplateScriptV1({
+  prefix: "template",
+  speakers: { mei: "小梅" },
+  nodes: [
+    {
+      kind: "stage",
+      name: "opening",
+      mutations: (stage) =>
+        templateOpeningSceneV1.cueMutations(templateOpeningCueIdsV1.courtyard, stage),
+      mayShow: templateOpeningSceneV1.cueMayShow(templateOpeningCueIdsV1.courtyard),
+      next: "mei-enters",
+    },
+    {
+      kind: "stage",
+      name: "mei-enters",
+      mutations: (stage) =>
+        templateOpeningSceneV1.cueMutations(templateOpeningCueIdsV1.meiEnters, stage),
+      mayShow: templateOpeningSceneV1.cueMayShow(templateOpeningCueIdsV1.meiEnters),
+      next: "greeting",
+    },
+    {
+      kind: "say",
+      name: "greeting",
+      speaker: "mei",
+      text: "雨停了。院子里的青石板还亮着水光。",
+      next: "first-choice",
+    },
+    {
+      kind: "choice",
+      name: "first-choice",
+      prompt: "接下来做什么？",
+      // Keeps the pre-builder textId so existing saves and digests hold.
+      promptTextId: "text.template.choice.prompt",
+      options: [
         {
-          kind: "setAppearance",
-          layerId: templateLayersV1.characters,
-          tag: templateTagsV1.mei,
-          appearance: { expression: "smiling" },
+          name: "look",
+          text: "去看看檐下的动静",
+          setFlags: [templateCatFlagV1],
+          next: "cat-line",
         },
-      ]),
-    mayShow: [],
-    next: "node.template.ending-gate",
-  },
-  {
-    kind: "say",
-    nodeId: "node.template.inside-line",
-    definitionId: "interaction.template.inside-line",
-    seenRevision: 1,
-    speakerTextId: null,
-    textId: "text.template.line.inside",
-    next: "node.template.ending-gate",
-  },
-  {
-    kind: "branch",
-    nodeId: "node.template.ending-gate",
-    successors: ["node.template.ending-warm", "node.template.ending-plain"],
-    choose: ({ flags }) =>
-      flags.includes(templateCatFlagV1)
-        ? "node.template.ending-warm"
-        : "node.template.ending-plain",
-  },
-  {
-    kind: "say",
-    nodeId: "node.template.ending-warm",
-    definitionId: "interaction.template.ending-warm",
-    seenRevision: 1,
-    speakerTextId: "text.template.speaker.mei",
-    textId: "text.template.line.ending-warm",
-    next: "node.template.close",
-  },
-  {
-    kind: "say",
-    nodeId: "node.template.ending-plain",
-    definitionId: "interaction.template.ending-plain",
-    seenRevision: 1,
-    speakerTextId: null,
-    textId: "text.template.line.ending-plain",
-    next: "node.template.close",
-  },
-  { kind: "end", nodeId: "node.template.close" },
-];
+        { name: "inside", text: "先回屋里", next: "inside-line" },
+      ],
+    },
+    {
+      kind: "say",
+      name: "cat-line",
+      speaker: "mei",
+      text: "看，檐角下躲着一只小猫，毛都淋湿了。",
+      // Keeps the pre-builder textId so existing saves and digests hold.
+      textId: "text.template.line.cat",
+      next: "mei-smiles",
+    },
+    {
+      kind: "stage",
+      name: "mei-smiles",
+      // Mid-scene appearance beats stay script-owned: scene cues cover
+      // show/hide composition, not expression changes on standing content.
+      mutations: () =>
+        batchV1([
+          {
+            kind: "setAppearance",
+            layerId: templateLayersV1.characters,
+            tag: templateTagsV1.mei,
+            appearance: { expression: "smiling" },
+          },
+        ]),
+      mayShow: [],
+      next: "ending-gate",
+    },
+    {
+      kind: "say",
+      name: "inside-line",
+      speaker: null,
+      text: "你转身回屋，把伞立在门边。",
+      // Keeps the pre-builder textId so existing saves and digests hold.
+      textId: "text.template.line.inside",
+      next: "ending-gate",
+    },
+    {
+      kind: "branch",
+      name: "ending-gate",
+      successors: ["ending-warm", "ending-plain"],
+      choose: ({ flags }) => flags.includes(templateCatFlagV1) ? "ending-warm" : "ending-plain",
+    },
+    {
+      kind: "say",
+      name: "ending-warm",
+      speaker: "mei",
+      text: "小梅把小猫抱进屋里，朝你眨了眨眼。今天是个好日子。",
+      next: "close",
+    },
+    {
+      kind: "say",
+      name: "ending-plain",
+      speaker: null,
+      text: "屋里茶还温着。院子里的雨声停了。",
+      next: "close",
+    },
+    { kind: "end", name: "close" },
+  ],
+});
+
+export const templateScriptV1: readonly TemplateNarrativeNodeV1[] =
+  templateScriptDefinitionV1.nodes;
+
+/** Default-locale entries the inline script declares; merged by presentation. */
+export const templateScriptTextEntriesV1 = templateScriptDefinitionV1.textEntries;
 
 const nodesByIdV1: ReadonlyMap<string, TemplateNarrativeNodeV1> = new Map(
   templateScriptV1.map((node) => [node.nodeId, node]),

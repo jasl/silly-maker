@@ -279,6 +279,25 @@ envelope 或第二 runtime authority。
 5. 中途表情不进 cue/Studio（剧本 `setAppearance` 节拍）——cue kind 扩展的真实
    证据，暂列观察。
 
+### A6 — 台词书写辅助（A5 缺口 2；template 起步，已完成 2026-08-14）
+
+- 范围：Story 侧 builder（`template/src/narrative-kit.ts`），一个短名派生
+  node/interaction/text id，默认语言文本内联进剧本、目录合并派生条目（多语言按
+  同 textId 覆盖）；scenario 与测试步骤去 occurrence 编号（`resolve` 缺
+  `expectedOccurrenceId` 时由 Story 侧 agent 包装在派发时填充当前 pending，显式
+  pin 的步骤保留以练 stale fence）。纯普通 TypeScript 数据构造——无 DSL、无
+  runtime、无新引擎 API；每个派生 id 可显式覆盖，迁移可保 id 逐字节不变。
+- 立项证据：A5 第 1 轮度量（每句台词 2 文件/2 编辑点、插句最坏 4 文件含重排）。
+- 验收：template 迁移后两条 scenario digest 与手写版逐字节相同（opening
+  `sha256:92fb9ef0…`、inside `sha256:32bdfc97…`）；加一句台词=剧本数组 1 处编
+  辑；中途插句不再触碰 scenario/测试。
+- 交付记录：narrative-kit builder（重名节点/同 textId 异文本/未知 speaker 构造期
+  抛错）+ narrative.ts 剧本迁移（三处历史 id 用 override 保平价：choice prompt 与
+  `line.cat`/`line.inside`）+ presentation 目录合并 + simulation-target 去编号
+  scenario + 测试改 current-pending 助手（stale fence 与 harness 显式编号用例保
+  留）。template 单测 12/12、story check 绿。引擎化（进 `@sillymaker/base`
+  authoring kit）等实验仓第 2 轮与第二消费者证据后再裁决。
+
 ## 3. Defer
 
 - Scene Timing Sheet（人物/相机/BGM/SFX/对白同轴编排）：等单 cue + 单 motion 无法
