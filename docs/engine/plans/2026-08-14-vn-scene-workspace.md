@@ -177,8 +177,18 @@ envelope 或第二 runtime authority。
 - 剩余验收：设计 §8 十步闭环由所有者在 cat-cafe opening 实测走通，全程不打开
   script.ts/presentation.ts/composition.tsx/renderer CSS，`git diff` 只有
   `opening.scene.json` + `cat-entrance.motion.json`。
+- 2026-08-14 画布真实素材（所有者首次实测反馈：占位图无法定位）：
+  `StudioBindingV1` 增加可选 `assets` 端口（preload + observe/subscribe），
+  StudioApp 预载已编译 target 与 workbench case 的 `requiredAssetIds`（按资产集
+  合 key 去抖，拖拽不重跑）并在字节到达时重渲；`resolveAssetManifestV1` 公开进
+  `@sillymaker/base/authoring`（第二真实消费者），cat-cafe 绑定用与游戏相同的
+  manifest + `createBrowserImageLoaderV1` 自建 registry（runtimePath 按站点根解
+  析——Studio 页在 `/__sillymaker/studio/` 子路径下）并把 renderers 绑上。无资产
+  的 Story（starter）省略即回落 code-native。证据：studio 单测新增预载/重渲用例
+  （7/7），`cat-cafe-studio.spec.ts` 断言画布出现真实店面背景与小猫 `<img>`
+  （3/3）。
 
-### A4 — Starter 与文档迁移
+### A4 — Starter 与文档迁移（已完成 2026-08-14）
 
 - 发现入口：`deno task author` / `deno task dev` 启动同源 Vite；人类从游戏里打开
   调试 → 场景 → Studio（新标签页，不替换进行中的会话）。生产构建与未声明
@@ -192,6 +202,26 @@ envelope 或第二 runtime authority。
   合同同族。
 - 验收：新 starter 开箱可玩且调试坞能打开 Studio；文档与 AGENTS 同步；旧 starter
   的引用路径全部更新。
+- 交付记录：**命名决定** —— `template/` 原地重建为 scene-first，不新建第二个
+  starter 目录（低层 API 以同包 Advanced 层保留：`application/**` 标注、低层
+  Tier 在 quickstart 降为高级路径），仓库内外的复制流程不变。新增
+  `template/src/scenes/opening/{opening.scene.json, motions/mei-entrance.motion.json,
+  index.ts}`；`narrative.ts` 开场拆为两个 cue 节点（`hasTagV1` 守卫与 placement
+  字面量删除；`node.template.mei-smiles` 的 `setAppearance` 保留为剧本层节拍并注
+  明边界）；`presentation.ts` 删除全局 enter slide 推断、合成 scene 精确绑定
+  （背景 enter 恢复瞬切，与 A0 猫舍同一修正）；渲染器抽出为
+  `src/stage-renderers.tsx` 供 composition 与新增 `src/tooling/studio-binding.tsx`
+  （`sillymaker.config.ts` `studio` 声明 + `@sillymaker/studio` devDependency）共
+  用。验收证据：迁移前后 `story simulate template` 两条场景 `finalStateDigest`
+  逐字节相同（opening `sha256:92fb9ef0…`、inside `sha256:32bdfc97…`）；template
+  单测 10/10 与 `story check` 全绿；`examples/e2e/template.spec.ts` 新增两项
+  Chromium 证据（调试坞 Studio 链接、Studio 页打开 opening 场景并显示 cue 绑定的
+  motion）3/3 过；`story build template` 后 `dist-web` 无 Studio 应用代码（仅调
+  试坞的 meta 广告常量，生产无 meta 时链接不渲染）。文档同步：
+  authoring-quickstart 新增 scene-first 首节 + Tier A 场景行、template
+  README/AGENTS 重定位（scene 协作合同、文件地图、Advanced 标注）、e2e AGENTS
+  增加 scene 合同（Engine Lab 显式保持低层）、features.md 起点模板描述与
+  第二 scene-managed 消费者记录。
 
 ### A5 — 第二消费者验证
 

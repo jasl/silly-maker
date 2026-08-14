@@ -1,0 +1,42 @@
+{
+  "format": "sillymaker.scene",
+  "version": 1,
+  "sceneId": "scene.template.opening",
+  "label": "雨后的庭院",
+  "canvas": { "width": 1600, "height": 900 },
+  "entries": [
+    {
+      "layerId": "layer.template.background",
+      "tag": "tag.background",
+      "contentId": "content.template.background.courtyard",
+      "zOrder": 0
+    },
+    {
+      "layerId": "layer.template.characters",
+      "tag": "tag.mei",
+      "contentId": "content.template.character.mei",
+      "zOrder": 10,
+      "placement": {
+        "x": 1180,
+        "y": 880,
+        "scalePermille": 1000,
+        "opacityPermille": 1000,
+        "mirrored": false
+      },
+      "appearance": { "expression": "calm" }
+    }
+  ],
+  "cues": [
+    {
+      "cueId": "cue.template.opening.courtyard",
+      "kind": "show",
+      "tag": "tag.background"
+    },
+    {
+      "cueId": "cue.template.opening.mei-enters",
+      "kind": "show",
+      "tag": "tag.mei",
+      "motionId": "motion.template.mei-entrance"
+    }
+  ]
+}

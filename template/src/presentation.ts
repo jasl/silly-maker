@@ -11,6 +11,7 @@ import type {
 import { parseStageTransitionDefinition } from "@sillymaker/base/story";
 
 import { templateContentIdsV1 } from "./narrative.ts";
+import { templateOpeningTransitionBindingsV1 } from "./scenes/opening/index.ts";
 
 /**
  * Every player-visible string lives here, keyed by textId. The script
@@ -134,35 +135,30 @@ const transitionDefinitionsV1: readonly StageTransitionDefinition[] = Object.fre
       acknowledge: false,
       slide: null,
     },
-    {
-      transitionId: "transition.template.enter",
-      kind: "slide",
-      durationMs: 300,
-      easing: "ease_in_out",
-      inputPolicy: "target_active",
-      interruption: "settle_and_retarget",
-      reducedMotion: { kind: "settle" },
-      readiness: { kind: "immediate" },
-      acknowledge: false,
-      slide: { x: 0, y: 120 },
-    },
   ].map((definition, index) =>
     parseStageTransitionDefinition(definition, `/transitions/${String(index)}`)
   ),
 );
 
+/**
+ * Cue-bound transitions come from the opening scene document: Mei's
+ * entrance motion is bound to exactly her cue's enter edge (keyframes and
+ * timing live in `scenes/opening/motions/mei-entrance.motion.json`). The
+ * story-wide rule below only keeps content replaces on a crossfade; other
+ * unbound edges cut instantly instead of inheriting a character motion.
+ */
 const transitionByIdV1: ReadonlyMap<string, StageTransitionDefinition> = new Map(
-  transitionDefinitionsV1.map((definition) => [definition.transitionId, definition]),
+  [...transitionDefinitionsV1, ...templateOpeningTransitionBindingsV1.definitions].map(
+    (definition) => [definition.transitionId, definition],
+  ),
 );
 
-/** Backgrounds crossfade; characters slide in; everything else cuts. */
 export const templateStageTransitionCatalogV1: StageTransitionCatalog = {
   resolveTransition(change: StageTargetChange): StageTransitionDefinition | null {
+    const cueBound = templateOpeningTransitionBindingsV1.resolveTransition(change);
+    if (cueBound !== null) return cueBound;
     if (change.kind === "replace") {
       return transitionByIdV1.get("transition.template.crossfade") ?? null;
-    }
-    if (change.kind === "enter") {
-      return transitionByIdV1.get("transition.template.enter") ?? null;
     }
     return null;
   },

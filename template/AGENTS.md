@@ -1,8 +1,10 @@
 # template/ agent handbook
 
-This package is the **starter skeleton for a new game** (MIT). To start a new story: copy this directory to `examples/<new-name>` (or anywhere outside the repository) → global rename (`template`/`Template` → the new name) → update `sillymaker.config.ts` (applicationId/label) and `metadata.json` (page title / share card) → replace the script and modules as needed. Inside this repository, also add the directory to the root `project.config.ts` list; outside it, point the `package.json` dependencies at the engine packages by relative `file:` path and set `"nodeModulesDir": "manual"` in the project's `deno.json`. Format with `deno fmt` (the workspace `deno task format`); do not add Prettier. The copy is a complete project: `deno task dev`, `deno task build:web` / `build:desktop` / `deploy:cf` / `preview` / `clean`, and `deno task story check .` run from the directory itself (`deploy:cf` publishes `dist-web/` as a standalone Cloudflare Worker — rename `name` in `wrangler.jsonc` with the rest of the project).
+This package is the **scene-first starter for a new game** (MIT). The primary authoring loop is: play it (`deno task dev` or `deno task author template`), enable developer tools, open **调试 → 场景 → Studio**, and edit the opening scene visually — placements, scale, and the cue→motion binding live in `src/scenes/opening/opening.scene.json`, and saving writes only that document (plus edited `*.motion.json`) back over the dev-only CAS port. The TypeScript layers below stay the advanced path.
 
-Change discipline: keep it minimally playable. The placeholder script may be replaced wholesale; do not grow new gameplay structure on the skeleton (that belongs in examples or real games).
+To start a new story: copy this directory to `examples/<new-name>` (or anywhere outside the repository) → global rename (`template`/`Template` → the new name) → update `sillymaker.config.ts` (applicationId/label) and `metadata.json` (page title / share card) → replace the script and modules as needed. Inside this repository, also add the directory to the root `project.config.ts` list; outside it, point the `package.json` dependencies at the engine packages by relative `file:` path and set `"nodeModulesDir": "manual"` in the project's `deno.json`. Format with `deno fmt` (the workspace `deno task format`); do not add Prettier. The copy is a complete project: `deno task dev`, `deno task build:web` / `build:desktop` / `deploy:cf` / `preview` / `clean`, and `deno task story check .` run from the directory itself (`deploy:cf` publishes `dist-web/` as a standalone Cloudflare Worker — rename `name` in `wrangler.jsonc` with the rest of the project).
+
+Change discipline: keep it minimally playable. The placeholder script may be replaced wholesale; do not grow new gameplay structure on the skeleton (that belongs in examples or real games). `application/**` is the Advanced layer — ordinary scene authoring does not edit these files.
 
 ## Browser pitfalls: engine-covered vs. game-side
 
@@ -37,7 +39,7 @@ Declaring `titleScreen` (title / background art / optional `splash` intro lines)
 
 ## Script/text tasks (most common)
 
-Which file to edit: dialogue and UI copy → the textId catalog in `src/presentation.ts`; story nodes/branches/stage directives → `src/narrative.ts`; stage renderers → `*StageRenderersV1` in `src/application/composition.tsx`; HUD and the passive Narrative renderer → `src/application/ui.tsx`; the public Narrative definition → the `application.ui().narrative` field in `src/application/composition.tsx`.
+Which file to edit: scene composition (placements, appearance at entry, cue→motion binding) → `src/scenes/opening/opening.scene.json` (Studio or direct edit); dialogue and UI copy → the textId catalog in `src/presentation.ts`; story nodes/branches/stage directives → `src/narrative.ts`; stage renderers → `templateStageRenderersV1` in `src/stage-renderers.tsx`; HUD and the passive Narrative renderer → `src/application/ui.tsx`; the public Narrative definition → the `application.ui().narrative` field in `src/application/composition.tsx`.
 
 Before editing, list the full node sequence (one occurrence number per say/choice boundary, starting at 1) so the scenario script (`src/tooling/simulation-target.ts`) and tests are written correctly on the first pass.
 
@@ -53,9 +55,9 @@ Rules in brief:
 
 - Every new say/choice needs a brand-new `definitionId` (`interaction.<story>.<name>`); never reuse one.
 - A `stage` node's `mayShow` honestly lists every contentId it might show; a `branch`'s `choose` must land inside `successors` (tests enforce both).
-- New stage content is wired in three places: the contentId constant in narrative, the content catalog in presentation, the renderer in composition.
+- New stage content is wired in three places: the contentId constant in narrative, the content catalog in presentation, the renderer in `src/stage-renderers.tsx`. For a scene-managed scene the entry/placement side is its Scene document (see the scene collaboration contract below).
 - Saveable state holds integers only (logical units like `scalePermille`); floats are rejected by canonical JSON.
-- Use `show` for content entering an empty stage; `replace` only for content already on stage.
+- Scene cues use ensure semantics (`show` places or content-swaps idempotently; `hide` removes what is present); low-level `show`/`replace` mutations remain for non-scene-managed stages.
 
 ## Module/state tasks
 
@@ -70,6 +72,10 @@ Motion assets are the human tuning surface (the Motion Workbench edits and saves
 - Do not overwrite a motion file whose `authoring.status` is `"human_tuned"` or whose `authoring.locked` is `true` unless the task explicitly names that asset; to change a locked asset's feel, create a new variant file with a new motion id and rebind the transition.
 - Preserve stable motion ids and transition ids when regenerating or restructuring scenes; a scene refactor may rebind which motion an edge uses, but must not regenerate existing motion files.
 - New animation that a human may want to tune goes into a new `*.motion.json` (status `"generated"`), not inline constants.
+
+## Scene collaboration contract
+
+The opening is scene-managed: `src/scenes/opening/opening.scene.json` is the single authoring authority for that scene's visual composition — entry placements/appearance/zOrder and cue→motion binding. Stage nodes reference cues (`cueMutations`/`cueMayShow`); do not re-add placement literals, `hasTag` guards, or global enter-edge motion inference for a scene-managed scene, and do not edit the same scene through both the document and low-level mutations (mid-scene `setAppearance` beats stay script-owned — V1 cues cover show/hide composition). Keep sceneId/cueId stable across refactors (transition ids derive from cue ids); the filename stem must stay the sceneId's final segment (`story check` lints scene documents: admission, unique ids, filename↔id, cue motion references). The dev-only Studio binding (`src/tooling/studio-binding.tsx`, declared as `studio` in `sillymaker.config.ts`) shares the content catalog and `src/stage-renderers.tsx` with the composition; it never enters the player bundle.
 
 ## Forbidden
 

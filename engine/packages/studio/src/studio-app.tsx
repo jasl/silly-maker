@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { PointerEvent as ReactPointerEvent, ReactElement } from "react";
 
 import type {
@@ -49,12 +49,27 @@ export interface StudioMotionSourceV1 {
   readonly motionDocument: unknown;
 }
 
+/**
+ * Narrow runtime-image registry port: the canvas preloads the compiled
+ * target's assets through it and re-renders as bytes arrive. A Story
+ * binding constructs the same registry the game uses (resolved manifest +
+ * browser image loader) and binds its renderers to it; without one the
+ * canvas keeps the Story's code-native fallbacks.
+ */
+export interface StudioAssetRegistryPortV1 {
+  preload(assetIds: readonly string[], signal: AbortSignal): Promise<unknown>;
+  observe(): { readonly revision: number };
+  subscribe(listener: () => void): () => void;
+}
+
 /** The application's Studio binding, declared in `sillymaker.config.ts`. */
 export interface StudioBindingV1 {
   readonly catalog: StageContentCatalogV1;
   readonly renderers: Readonly<Record<string, SemanticStageEntryRendererV1>>;
   /** Motion sources the scenes may bind; feeds the embedded Workbench. */
   readonly motions?: readonly StudioMotionSourceV1[];
+  /** Runtime-image registry so the canvas draws real art; renderers must be bound to it. */
+  readonly assets?: StudioAssetRegistryPortV1;
 }
 
 export interface StudioAppPropsV1 {
@@ -307,6 +322,51 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
 
   const workbenchStore = useMemo(() => createMotionWorkbenchStoreV1(), []);
   const motionIo = useMemo(() => createDevServerMotionIoV1(), []);
+
+  // Real art: preload the assets the compiled targets require and re-render
+  // as bytes arrive; the Story's renderers resolve URLs from the same
+  // registry, so loaded images replace the code-native fallbacks in place.
+  const assets = binding.assets ?? null;
+  const assetsRevision = useSyncExternalStore(
+    useCallback(
+      (listener: () => void) => (assets === null ? () => {} : assets.subscribe(listener)),
+      [assets],
+    ),
+    () => (assets === null ? 0 : assets.observe().revision),
+    () => 0,
+  );
+  void assetsRevision;
+
+  // Newline-joined key: placement drags recompile the target but keep the
+  // same asset set, so they must not restart the preload effect.
+  const requiredAssetIdsKey = useMemo(() => {
+    const ids = new Set<string>();
+    if (compiled !== null && compiled.kind === "ok") {
+      for (const assetId of compiled.target.requiredAssetIds) ids.add(assetId as string);
+    }
+    if (workbench !== null) {
+      for (const previewCase of workbench.cases) {
+        for (const assetId of previewCase.preview.target.requiredAssetIds) {
+          ids.add(assetId as string);
+        }
+      }
+    }
+    return [...ids].sort().join("\n");
+  }, [compiled, workbench]);
+
+  useEffect(() => {
+    if (assets === null || requiredAssetIdsKey.length === 0) return undefined;
+    const controller = new AbortController();
+    try {
+      void assets.preload(requiredAssetIdsKey.split("\n"), controller.signal).catch(() => {
+        // Failed loads keep the code-native fallback; the dev canvas never
+        // crashes over missing art.
+      });
+    } catch {
+      // Unknown asset ids stay on their fallback rendering.
+    }
+    return () => controller.abort();
+  }, [assets, requiredAssetIdsKey]);
 
   const save = useCallback((): void => {
     if (loaded === null || draft === null || busy) return;

@@ -290,4 +290,65 @@ describe("StudioAppV1", () => {
       spy.mockRestore();
     }
   });
+
+  it("preloads the compiled target's assets and re-renders as bytes arrive", async () => {
+    const preloaded: string[][] = [];
+    let loaded = false;
+    const listeners = new Set<() => void>();
+    let revision = 0;
+    const registry = {
+      preload(assetIds: readonly string[], _signal: AbortSignal): Promise<unknown> {
+        preloaded.push([...assetIds]);
+        return Promise.resolve([]);
+      },
+      observe: () => ({ revision }),
+      subscribe(listener: () => void) {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      publishLoaded(): void {
+        loaded = true;
+        revision += 1;
+        for (const listener of [...listeners]) listener();
+      },
+    };
+    const artRenderer: SemanticStageEntryRendererV1 = ({ entry }) =>
+      loaded
+        ? <img data-test-art={entry.contentId} alt="" src="blob:hero" />
+        : <span data-test-fallback={entry.contentId} />;
+    const assetCatalog: StageContentCatalogV1 = {
+      resolveContent: (contentId) =>
+        Object.freeze({
+          rendererId: "renderer.test.art",
+          assetIds: Object.freeze([`asset.for.${contentId as string}` as never]),
+          accessibleName: `内容 ${contentId}`,
+          props: Object.freeze({}),
+        }),
+    };
+    const binding: StudioBindingV1 = Object.freeze({
+      catalog: assetCatalog,
+      renderers: Object.freeze({ "renderer.test.art": artRenderer }),
+      assets: registry,
+    });
+    const io = fakeIoV1(sceneDocumentV1());
+    const { container } = render(<StudioAppV1 binding={binding} io={io} />);
+
+    await waitFor(() =>
+      expect(
+        container.querySelector('[data-test-fallback="content.test.hero"]'),
+      ).not.toBeNull()
+    );
+    expect(preloaded.at(-1)).toEqual([
+      "asset.for.content.test.background",
+      "asset.for.content.test.hero",
+    ]);
+
+    // Bytes arrive: the registry publishes and the canvas swaps to real art
+    // without any user interaction.
+    const { act } = await import("@testing-library/react");
+    act(() => registry.publishLoaded());
+    await waitFor(() =>
+      expect(container.querySelector('[data-test-art="content.test.hero"]')).not.toBeNull()
+    );
+  });
 });

@@ -8,16 +8,25 @@ Story code imports only `@sillymaker/*` package exports (`@sillymaker/base`, `@s
 
 Prefer importing from `@sillymaker/base/story`: it exports the current author-facing contract under version-suffix-free names (`SemanticStageState`, `StageMutation`, `PendingInteraction`, `NarrativeGraph`, `reduceStageMutations`, `evaluateInteractionResolution`…), fully equivalent to the suffixed originals.
 
+## Scene authoring first: play the game, open Studio
+
+Ordinary scene work — moving an actor, resizing it, changing which motion plays on an entrance — does not start in a TypeScript tree. Start the game (`deno task author <application-id>` or `deno task dev`), enable developer tools, and open **调试 → 场景 → Studio** (a same-origin new tab; the live session keeps running so saves apply over HMR). The starter (`template`) and the Cat Cafe opening are live scene-managed references.
+
+- A scene lives in one document: `src/scenes/<scene>/<scene>.scene.json` is the **single authoring authority** for that scene's visual composition — entries (layer/tag/content/zOrder/placement/appearance) and named cues (`show`/`hide`, each optionally binding one `*.motion.json` to exactly that cue's stage edge). The script references cues (`cueMutations`/`cueMayShow`); it never repeats placement literals.
+- In Studio: drag geometry-declared actors on the canvas (snap to edges/centers, corner handle scales), edit exact numbers in the inspector, rebind cue motions in the cue table, and tune keyframes in the embedded Motion Workbench. When the Studio binding supplies an asset registry, the canvas preloads and draws the real backgrounds/poses (Cat Cafe does; asset-free stories keep code-native placeholders). Saving writes the scene/motion document through the dev-only CAS port; `git diff` should show only those JSON files.
+- What still needs code, one tier down: new dialogue/text (Tier A textIds), new stage content (content catalog + renderer + geometry), mid-scene appearance beats (script-owned `setAppearance`; V1 cues cover show/hide composition), and gameplay (Tier B/C).
+
 ## Tier A: script, text, and choices (weak models start here)
 
 Use the starter template (`template`, minimally playable) or the Engine Lab (`e2e`, full capability) as the runnable example. Scripts are ordinary TypeScript data, not a DSL:
 
-| What to change                        | Which file                                                         |
-| ------------------------------------- | ------------------------------------------------------------------ |
-| Dialogue, narration, option text      | `labTextCatalogsV1` in `src/presentation.ts` (textId → text)       |
-| Story nodes, branches, stage commands | `labNarrativeScriptV1` in `src/gameplay/narrative.ts` (node array) |
-| Voice/BGM mapping                     | `src/gameplay/audio.ts`                                            |
-| Static annotations for the graph lint | `mayShow` on stage nodes, `successors` on branch nodes             |
+| What to change                             | Which file                                                                                  |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| Dialogue, narration, option text           | `labTextCatalogsV1` in `src/presentation.ts` (textId → text)                                |
+| Story nodes, branches, stage commands      | `labNarrativeScriptV1` in `src/gameplay/narrative.ts` (node array)                          |
+| Scene composition (placements, cue→motion) | `src/scenes/<scene>/<scene>.scene.json` (Studio or direct edit; scene-managed stories only) |
+| Voice/BGM mapping                          | `src/gameplay/audio.ts`                                                                     |
+| Static annotations for the graph lint      | `mayShow` on stage nodes, `successors` on branch nodes                                      |
 
 Node kinds: `say` (speakerTextId/textId/next), `choice` (options: choiceId/textId/requiresSamples/consumesSamples/next), `stage` (`mutations(stage)` returns a StageMutation array; `mayShow` statically declares the contentIds it might show), `branch` (`choose(context)` is a pure function picking next, which must land inside `successors`), `pause`, `barrier`, `custom`, `end`. Every new say/choice needs a brand-new `definitionId` (`interaction.<story>.<name>`); never reuse one.
 

@@ -16,6 +16,8 @@ import {
   reduceStageMutations,
 } from "@sillymaker/base/story";
 
+import { templateOpeningCueIdsV1, templateOpeningSceneV1 } from "./scenes/opening/index.ts";
+
 /**
  * The starter narrative: a typed TypeScript script, not a DSL. Authors edit
  * `templateScriptV1` (the node array) and the text catalog in
@@ -128,51 +130,28 @@ function batchV1(batch: readonly unknown[]): readonly StageMutation[] {
   );
 }
 
-function hasTagV1(stage: SemanticStageState, layerId: string, tag: string): boolean {
-  const layer = stage.layers.find((candidate) => candidate.layerId === layerId);
-  return layer !== undefined && layer.entries.some((entry) => entry.tag === tag);
-}
-
 /**
  * The placeholder scene: a short "rain has just stopped" vignette proving
  * every node kind once. Replace it wholesale when starting a real game.
+ * Visual composition (entries, placements, entrance motion) lives in
+ * `src/scenes/opening/opening.scene.json`; stage nodes reference its cues
+ * (idempotent ensure semantics — re-entry never double-shows content).
  */
 export const templateScriptV1: readonly TemplateNarrativeNodeV1[] = [
   {
     kind: "stage",
     nodeId: "node.template.opening",
     mutations: (stage) =>
-      hasTagV1(stage, templateLayersV1.characters, templateTagsV1.mei) ? [] : batchV1([
-        {
-          // `show` places new content; `replace` swaps content already
-          // on stage (a background change mid-scene, for example).
-          kind: hasTagV1(stage, templateLayersV1.background, templateTagsV1.background)
-            ? "replace"
-            : "show",
-          layerId: templateLayersV1.background,
-          tag: templateTagsV1.background,
-          contentId: templateContentIdsV1.backgroundCourtyard,
-          ...(hasTagV1(stage, templateLayersV1.background, templateTagsV1.background)
-            ? {}
-            : { zOrder: 0 }),
-        },
-        {
-          kind: "show",
-          layerId: templateLayersV1.characters,
-          tag: templateTagsV1.mei,
-          contentId: templateContentIdsV1.characterMei,
-          zOrder: 10,
-          placement: {
-            x: 1180,
-            y: 880,
-            scalePermille: 1000,
-            opacityPermille: 1000,
-            mirrored: false,
-          },
-          appearance: { expression: "calm" },
-        },
-      ]),
-    mayShow: [templateContentIdsV1.backgroundCourtyard, templateContentIdsV1.characterMei],
+      templateOpeningSceneV1.cueMutations(templateOpeningCueIdsV1.courtyard, stage),
+    mayShow: templateOpeningSceneV1.cueMayShow(templateOpeningCueIdsV1.courtyard),
+    next: "node.template.mei-enters",
+  },
+  {
+    kind: "stage",
+    nodeId: "node.template.mei-enters",
+    mutations: (stage) =>
+      templateOpeningSceneV1.cueMutations(templateOpeningCueIdsV1.meiEnters, stage),
+    mayShow: templateOpeningSceneV1.cueMayShow(templateOpeningCueIdsV1.meiEnters),
     next: "node.template.greeting",
   },
   {
@@ -219,6 +198,8 @@ export const templateScriptV1: readonly TemplateNarrativeNodeV1[] = [
   {
     kind: "stage",
     nodeId: "node.template.mei-smiles",
+    // Mid-scene appearance beats stay script-owned: scene cues cover
+    // show/hide composition, not expression changes on standing content.
     mutations: () =>
       batchV1([
         {

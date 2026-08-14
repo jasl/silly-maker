@@ -29,6 +29,7 @@ export {
   defineSimulationPatchSurface,
 } from "./patch-surface.ts";
 export type { PatchSurfaceV1 } from "./patch-surface.ts";
+export { resolveAssetManifestV1 } from "./asset-resolver.ts";
 export { resolveGamePackageV1 } from "./story-resolver.ts";
 export { createRuntimeSchemaV1, fromStandardSchemaV1 } from "./runtime-schema.ts";
 export type {

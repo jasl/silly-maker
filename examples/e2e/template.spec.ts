@@ -22,3 +22,27 @@ test("Template uses the production Narrative renderer through completion", async
     "本段落已结束",
   );
 });
+
+test("the scene-first starter advertises Studio from the debug dock", async ({ page }) => {
+  await page.goto(templateTargetUrlV1("?capability=debug_tools"));
+  await page.getByRole("button", { name: "调试" }).click();
+  const studio = page.getByRole("group", { name: "调试" }).getByRole("link", { name: "Studio" });
+  await expect(studio).toHaveAttribute("href", "/__sillymaker/studio/");
+  await expect(studio).toHaveAttribute("target", "_blank");
+});
+
+test("the starter Studio opens the opening scene with its cue-bound motion", async ({ page }) => {
+  await page.goto(templateTargetUrlV1("__sillymaker/studio/"));
+
+  // The navigator lists the scene by label and auto-opens the first one;
+  // the canvas draws through the starter's real renderers.
+  const sceneButton = page.getByRole("button", { name: "雨后的庭院" });
+  await expect(sceneButton).toHaveAttribute("aria-pressed", "true");
+  const canvas = page.locator("[data-studio-canvas]");
+  await expect(canvas.locator('[data-stage-key="layer.template.characters:tag.mei"]'))
+    .toBeVisible();
+
+  // Mei's entrance cue carries its motion binding in the cue table.
+  const meiRow = page.locator('[data-studio-cue="cue.template.opening.mei-enters"]');
+  await expect(meiRow.getByRole("combobox")).toHaveValue("motion.template.mei-entrance");
+});

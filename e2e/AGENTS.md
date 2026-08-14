@@ -36,6 +36,10 @@ Four wiring points: `state.ts` (interface + schema + initial value) → `simulat
 
 Stage entrance/exit animations are `src/motions/*.motion.json` assets bound through `motionStageTransitionV1`. Do not overwrite a motion whose `authoring.status` is `"human_tuned"` or that is `locked` unless the task explicitly names it (locked changes go through a new variant file); preserve stable motion/transition ids across scene refactors; new tunable animation goes into a new motion file, never inline duration/easing constants in scene code.
 
+## Scene collaboration contract
+
+The Engine Lab intentionally stays a low-level rig: it declares no `*.scene.json` today, and its placement literals in the script are the exercised low-level API. If a scene document is ever added, the same contract as `template`/`examples` applies — the document becomes that scene's single authoring authority (stage nodes reference cues; no duplicated placement literals or global enter-edge motion inference), sceneId/cueId stay stable across refactors, and the filename stem matches the sceneId's final segment.
+
 ## Forbidden
 
 - Import only `@sillymaker/*` package exports; never import engine `src/**` paths, never import another Story.

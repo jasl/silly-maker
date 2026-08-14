@@ -2,12 +2,20 @@
 
 # Starter template Story
 
-这是一个可以直接游玩的最小 Story，也是开新游戏的起点。复制本目录、全局替换 `template`/`Template` 为你的故事名、改好 `sillymaker.config.ts`，即可开始创作——副本本身就是完整项目（自带 `vite.config.ts` 与本地 story CLI）。在本仓库内开发时，把目录加进根 `project.config.ts` 清单；在仓库外开发时，把 `package.json` 里的引擎依赖改为相对 `file:` 路径并在 `deno.json` 设 `"nodeModulesDir": "manual"`。
+这是一个可以直接游玩的 scene-first 最小 Story，也是开新游戏的起点。先玩起来，再进 Studio 改场景：
+
+```sh
+deno task dev        # 启动游戏（根目录可用 deno task author template）
+```
+
+打开游戏 → 设置 → 开发者工具 → **调试 → 场景 → Studio**（同源新标签，进行中的会话继续跑）。在 Studio 里可以直接拖动小梅、改缩放、换入场动画，保存后运行中的游戏 HMR 生效，`git diff` 只会出现 `src/scenes/opening/opening.scene.json`（以及编辑过的 `*.motion.json`）。场景文档是构图/站位/cue→motion 绑定的唯一作者权威；剧本只引用 cue。
+
+复制本目录、全局替换 `template`/`Template` 为你的故事名、改好 `sillymaker.config.ts`，即可开始创作——副本本身就是完整项目（自带 `vite.config.ts` 与本地 story CLI）。在本仓库内开发时，把目录加进根 `project.config.ts` 清单；在仓库外开发时，把 `package.json` 里的引擎依赖改为相对 `file:` 路径并在 `deno.json` 设 `"nodeModulesDir": "manual"`。
 
 ## 现在就能跑
 
 ```sh
-deno task story check .                              # 结构化 Story 诊断
+deno task story check .                              # 结构化 Story 诊断（含 scene/motion lint）
 deno task story simulate . --scenario opening        # 无浏览器跑完整叙事
 deno task test                                        # 基线 + 图 lint + 全剧本走通
 deno task dev                                         # 在本目录启动开发服务器
@@ -19,16 +27,17 @@ deno task clean                                       # 清理 dist-web/ 与 dis
 
 ## 文件地图（按"你想改什么"排列）
 
-| 想改什么                 | 文件                                                                                                                       |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| 台词、选项文字、界面文案 | `src/presentation.ts`（textId → 文本，全部字符串都在这里）                                                                 |
-| 剧情节点、分支、舞台指令 | `src/narrative.ts` 的 `templateScriptV1`                                                                                   |
-| 舞台内容与渲染器绑定     | `src/presentation.ts` 的 `templateStageContentCatalogV1` + `src/application/composition.tsx` 的 `templateStageRenderersV1` |
-| 玩法规则与命令           | `src/simulation.ts`（`template.inventory` 是可替换的空壳模块）                                                             |
-| 玩家可见的动作目录       | `src/application/semantic.ts`                                                                                              |
-| UI 布局与对话框样式      | `src/application/composition.tsx`                                                                                          |
-| 模块清单与版本           | `src/simulation-definition.ts`（manifest/contract revision）+ `src/story.ts`（package identity revision）                  |
-| 网页标题与分享卡片       | `metadata.json`（标题/描述/语言/主题色/分享图/favicon，构建时注入 `<head>`）                                               |
+| 想改什么                           | 文件                                                                                                      |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| 场景构图（站位/缩放/入场动画绑定） | `src/scenes/opening/opening.scene.json`（推荐用 Studio 编辑）+ `src/scenes/opening/motions/*.motion.json` |
+| 台词、选项文字、界面文案           | `src/presentation.ts`（textId → 文本，全部字符串都在这里）                                                |
+| 剧情节点、分支、舞台指令           | `src/narrative.ts` 的 `templateScriptV1`（stage 节点引用场景 cue）                                        |
+| 舞台内容与渲染器绑定               | `src/presentation.ts` 的 `templateStageContentCatalogV1` + `src/stage-renderers.tsx`                      |
+| 玩法规则与命令                     | `src/simulation.ts`（`template.inventory` 是可替换的空壳模块）                                            |
+| 玩家可见的动作目录                 | `src/application/semantic.ts`（Advanced 层）                                                              |
+| UI 布局与对话框样式                | `src/application/composition.tsx`（Advanced 层——普通场景制作不改这里）                                    |
+| 模块清单与版本                     | `src/simulation-definition.ts`（manifest/contract revision）+ `src/story.ts`（package identity revision） |
+| 网页标题与分享卡片                 | `metadata.json`（标题/描述/语言/主题色/分享图/favicon，构建时注入 `<head>`）                              |
 
 ## 剧本模型（不是 DSL，就是 TypeScript 数据）
 

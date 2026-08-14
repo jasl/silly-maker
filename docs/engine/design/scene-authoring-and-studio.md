@@ -250,12 +250,13 @@ Story 侧目录约定（scene-managed Story）：
   application/…             # 高级层：普通场景制作不修改
 ```
 
-Starter 重定位（A4 拥有最终命名）：`template/` 重建为 scene-first 起点（主入口是
-启动游戏——`deno task author` 或 `dev`——用户先看到示例场景，再从调试坞进 Studio，
-而不是 TypeScript 工程树），现有低层 starter
-降级为 advanced/low-level 参考示例；`application/**` 标注 "Advanced — ordinary
-scene authoring does not edit these files."。cat-cafe opening 是第一条完整
-dogfood 纵切。
+Starter 重定位（A4 已定名，2026-08-14）：`template/` 原地重建为 scene-first 起点
+（主入口是启动游戏——`deno task author` 或 `dev`——用户先看到示例场景，再从调试坞
+进 Studio，而不是 TypeScript 工程树），不新建第二个 starter 目录；低层 authoring
+API 以同包 Advanced 层保留（`application/**` 标注 "Advanced — ordinary scene
+authoring does not edit these files."，quickstart 低层 Tier 降为高级路径）。
+cat-cafe opening 是第一条完整 dogfood 纵切，template opening 是第二个
+scene-managed 消费者。
 
 ## 7. 非目标
 

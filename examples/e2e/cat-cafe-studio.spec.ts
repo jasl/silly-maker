@@ -23,12 +23,14 @@ test.describe("cat-cafe studio (A2)", () => {
       await expect(sceneButton).toBeVisible();
       await expect(sceneButton).toHaveAttribute("aria-pressed", "true");
 
-      // The canvas renders through the real Story renderers (the detached
-      // registry draws the code-native cat) without playing to the scene.
+      // The canvas renders through the real Story renderers without playing
+      // to the scene, and the binding's asset registry loads the real art:
+      // the shopfront background and the kitten pose are actual images.
       const canvas = page.locator("[data-studio-canvas]");
       await expect(canvas.locator('[data-stage-key="layer.catcafe.characters:tag.xiaoyu"]'))
         .toBeVisible();
-      await expect(canvas.locator("[data-cc-cat='kitten']")).toBeVisible();
+      await expect(canvas.locator("img[data-cc-surface='shopfront']")).toBeVisible();
+      await expect(canvas.locator("[data-cc-cat='kitten'] img")).toBeVisible();
 
       // Select the cat and nudge it left through the inspector.
       await page.getByLabel("条目").selectOption("tag.xiaoyu");
