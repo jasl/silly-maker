@@ -41,6 +41,12 @@ export interface WholeCanvasSurfaceHostPropsInternalV1 {
   readonly inputRouter: InputRouterV1;
 }
 
+interface WholeCanvasSurfaceMountedHostInternalV1 {
+  readonly runtime: WholeCanvasSurfaceHostBindingRuntimeInternalV1;
+  readonly portalContainer: HTMLDivElement;
+  readonly inputRouter: InputRouterV1;
+}
+
 type SurfacePhaseInternalV1 = "current" | "preparing" | "failed";
 
 interface SurfaceDomLifecycleInternalV1 {
@@ -237,6 +243,18 @@ function focusOwnerKeyInternalV1(
 function hasRootInternalV1(snapshot: WholeCanvasManagedSurfaceSnapshotInternalV1): boolean {
   return snapshot.root.current !== null || snapshot.root.pending !== null ||
     snapshot.root.failure?.transition === "initial_open";
+}
+
+function WholeCanvasSurfaceCurrentnessCommitInternalV1(props: {
+  readonly lifecycle: SurfaceDomLifecycleInternalV1;
+  readonly ownerKey: string | null;
+  readonly snapshot: WholeCanvasManagedSurfaceSnapshotInternalV1;
+}): null {
+  useLayoutEffect(() => {
+    props.lifecycle.snapshot.current = props.snapshot;
+    props.lifecycle.ownerKey.current = props.ownerKey;
+  }, [props.lifecycle, props.ownerKey, props.snapshot]);
+  return null;
 }
 
 function hasDetailInternalV1(snapshot: WholeCanvasManagedSurfaceSnapshotInternalV1): boolean {
@@ -713,10 +731,8 @@ function WholeCanvasSurfaceRuntimeInternalV1(
     };
   }
   const lifecycle = lifecycleRef.current;
-  lifecycle.snapshot.current = snapshot;
   const entries = useMemo(() => snapshotEntriesInternalV1(snapshot), [snapshot]);
   const ownerKey = focusOwnerKeyInternalV1(snapshot);
-  lifecycle.ownerKey.current = ownerKey;
   const previousSnapshot = useRef(snapshot);
   const armPointerFence = useStagePointerGestureFenceV1("whole_canvas");
   useStageInputIsolationV1("whole_canvas", entries.length > 0);
@@ -821,35 +837,43 @@ function WholeCanvasSurfaceRuntimeInternalV1(
     }
   }, [hostIdentity, lifecycle, runtime, snapshot]);
 
-  if (entries.length === 0) return null;
-  return createPortal(
-    <div className={styles.host} data-whole-canvas-surface-host="true">
-      {entries.map((view) => (
-        <div className={styles.slot} key={view.key}>
-          <WholeCanvasSurfaceEntryInternalV1
-            view={view}
-            runtime={runtime}
-            hostIdentity={hostIdentity}
-            lifecycle={lifecycle}
-            focusOwner={view.key === ownerKey}
-            blocked={view.entry.placement === "primary" && hasDetailInternalV1(snapshot)}
-            armPointerFence={armPointerFence}
-          />
-          {view.blockingFallback
-            ? (
-              <div
-                className={`${styles.preparing} ${
-                  view.entry.placement === "detail" ? styles.detail : styles.root
-                }`}
-                data-whole-canvas-readiness-fallback={view.entry.placement}
-                role="status"
+  return (
+    <>
+      <WholeCanvasSurfaceCurrentnessCommitInternalV1
+        lifecycle={lifecycle}
+        ownerKey={ownerKey}
+        snapshot={snapshot}
+      />
+      {entries.length === 0 ? null : createPortal(
+        <div className={styles.host} data-whole-canvas-surface-host="true">
+          {entries.map((view) => (
+            <div className={styles.slot} key={view.key}>
+              <WholeCanvasSurfaceEntryInternalV1
+                view={view}
+                runtime={runtime}
+                hostIdentity={hostIdentity}
+                lifecycle={lifecycle}
+                focusOwner={view.key === ownerKey}
+                blocked={view.entry.placement === "primary" && hasDetailInternalV1(snapshot)}
+                armPointerFence={armPointerFence}
               />
-            )
-            : null}
-        </div>
-      ))}
-    </div>,
-    portalContainer,
+              {view.blockingFallback
+                ? (
+                  <div
+                    className={`${styles.preparing} ${
+                      view.entry.placement === "detail" ? styles.detail : styles.root
+                    }`}
+                    data-whole-canvas-readiness-fallback={view.entry.placement}
+                    role="status"
+                  />
+                )
+                : null}
+            </div>
+          ))}
+        </div>,
+        portalContainer,
+      )}
+    </>
   );
 }
 
@@ -862,7 +886,7 @@ export function WholeCanvasSurfaceHostInternalV1(
   );
   const hostIdentity = useRef<object | null>(null);
   if (hostIdentity.current === null) hostIdentity.current = Object.freeze({});
-  const [mounted, setMounted] = useState(false);
+  const [mounted, setMounted] = useState<WholeCanvasSurfaceMountedHostInternalV1 | null>(null);
   useLayoutEffect(() => {
     let release: (() => void) | null = null;
     try {
@@ -871,16 +895,25 @@ export function WholeCanvasSurfaceHostInternalV1(
         portalContainer: props.portalContainer,
         inputRouter: props.inputRouter,
       }));
-      setMounted(true);
+      setMounted(Object.freeze({
+        runtime,
+        portalContainer: props.portalContainer,
+        inputRouter: props.inputRouter,
+      }));
     } catch (error) {
+      setMounted(null);
       runtime.failHostInternalV1(error);
     }
     return () => release?.();
   }, [props.inputRouter, props.portalContainer, runtime]);
-  if (!mounted) return null;
+  const mountedRuntime = mounted !== null && mounted.runtime === runtime &&
+      mounted.portalContainer === props.portalContainer && mounted.inputRouter === props.inputRouter
+    ? mounted.runtime
+    : null;
+  if (mountedRuntime === null) return null;
   return (
     <WholeCanvasSurfaceRuntimeInternalV1
-      runtime={runtime}
+      runtime={mountedRuntime}
       hostIdentity={hostIdentity.current}
       portalContainer={props.portalContainer}
     />
