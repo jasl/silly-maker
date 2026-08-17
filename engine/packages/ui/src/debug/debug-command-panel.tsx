@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import type { DebugToolsOperationResultV1, DeepReadonly } from "@sillymaker/base";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent, ReactElement, ReactNode } from "react";
 import { Button } from "../primitives/button.tsx";
 
@@ -30,8 +30,11 @@ export function DebugCommandPanelV1<TCommand>(
   const pendingRef = useRef(false);
   const operationGenerationRef = useRef(0);
   const latestCommandRef = useRef(props.command);
-  latestCommandRef.current = props.command;
   const disabledReasonId = useId();
+
+  useLayoutEffect(() => {
+    latestCommandRef.current = props.command;
+  }, [props.command]);
 
   useEffect(() => {
     operationGenerationRef.current += 1;

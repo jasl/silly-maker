@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import type { Digest, NonNegativeSafeInteger, RuntimeSessionStatusV1 } from "@sillymaker/base";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Button } from "../primitives/button.tsx";
 
@@ -126,7 +126,10 @@ export function DiagnosticExportButtonV1(props: DiagnosticExportButtonPropsV1): 
   const operationEpochRef = useRef(0);
   const mountedRef = useRef(true);
   const currentDiagnosticsRef = useRef(props.diagnostics);
-  currentDiagnosticsRef.current = props.diagnostics;
+
+  useLayoutEffect(() => {
+    currentDiagnosticsRef.current = props.diagnostics;
+  }, [props.diagnostics]);
 
   useEffect(() => {
     mountedRef.current = true;

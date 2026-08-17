@@ -3,6 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+import { useLayoutEffect } from "react";
 import type { ReactElement } from "react";
 
 import type { GameViewportGeometryV1 } from "./game-viewport.tsx";
@@ -11,7 +12,9 @@ import { GameViewportV1, useGameViewportV1 } from "./game-viewport.tsx";
 afterEach(cleanup);
 
 function GeometryProbeV1(props: { onGeometry(geometry: GameViewportGeometryV1): void }): null {
-  props.onGeometry(useGameViewportV1());
+  const geometry = useGameViewportV1();
+  const { onGeometry } = props;
+  useLayoutEffect(() => onGeometry(geometry), [geometry, onGeometry]);
   return null;
 }
 

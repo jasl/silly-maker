@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, ReactElement } from "react";
 
 import type {
@@ -249,7 +249,9 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
 
   const parsedDraft = useMemo(() => tryParseMotionDocumentV1(draft), [draft]);
   const lastValidRef = useRef<MotionDocumentV1>(saved);
-  if (parsedDraft.motionDocument !== null) lastValidRef.current = parsedDraft.motionDocument;
+  useLayoutEffect(() => {
+    if (parsedDraft.motionDocument !== null) lastValidRef.current = parsedDraft.motionDocument;
+  }, [parsedDraft.motionDocument]);
 
   // Direct manipulation: selecting a keyframe dot seeks to its stop and
   // shows the pose ghost there; dragging the ghost writes the offsets at
@@ -268,7 +270,9 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
     return keyframe === undefined ? null : keyframe.atPermille;
   }, [draft, selectedKeyframe]);
 
-  const viewedDocument = viewMode === "saved" ? saved : lastValidRef.current;
+  const viewedDocument = viewMode === "saved"
+    ? saved
+    : parsedDraft.motionDocument ?? lastValidRef.current;
   const definition = useMemo(
     () => motionDefinitionFromDocumentV1(viewedDocument),
     [viewedDocument],
@@ -281,7 +285,9 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
   const [loop, setLoop] = useState(true);
   const [rate, setRate] = useState<number>(1);
   const timeMsRef = useRef(timeMs);
-  timeMsRef.current = timeMs;
+  useLayoutEffect(() => {
+    timeMsRef.current = timeMs;
+  }, [timeMs]);
   useEffect(() => {
     if (!playing) return () => {};
     let frame = 0;
