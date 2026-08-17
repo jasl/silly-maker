@@ -4,8 +4,9 @@
 // settled entries sample their loop on the presentation clock, edges
 // suspend and restart the phase, freeze holds it, reduced motion settles
 // it — all purely presentational.
-import { act, cleanup, render } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { act, cleanup, render, waitFor } from "@testing-library/react";
+import { startTransition, Suspense, useLayoutEffect, useState } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type {
   AssetId,
@@ -124,6 +125,75 @@ function entryOf(container: HTMLElement, tag: string): HTMLElement {
 afterEach(cleanup);
 
 describe("SemanticStageV1 ambient loops", () => {
+  it("starts a first ambient phase at commit after its earlier render was suspended", async () => {
+    const clock = createManualPresentationClockV1();
+    let releaseSuspension!: () => void;
+    let suspensionReleased = false;
+    const suspension = new Promise<void>((resolve) => {
+      releaseSuspension = () => {
+        suspensionReleased = true;
+        resolve();
+      };
+    });
+    const suspendedRender = vi.fn();
+    const ambient = ambientCatalogV1();
+    const resolveAmbient = vi.spyOn(ambient, "resolveAmbient");
+    let enableAmbient: (() => void) | null = null;
+
+    function SuspendFirstAmbientInternalV1(props: { readonly active: boolean }) {
+      if (props.active && !suspensionReleased) {
+        suspendedRender();
+        throw suspension;
+      }
+      return null;
+    }
+
+    function AmbientCommitHarnessInternalV1() {
+      const [enabled, setEnabled] = useState(false);
+      useLayoutEffect(() => {
+        enableAmbient = () => startTransition(() => setEnabled(true));
+        return () => {
+          enableAmbient = null;
+        };
+      }, []);
+      return (
+        <Suspense fallback={null}>
+          <SemanticStageV1
+            target={targetV1(["tag.test.actor"])}
+            revision={1}
+            epoch={0}
+            catalog={cutCatalogV1}
+            {...(enabled ? { ambient } : {})}
+            renderers={renderersV1}
+            accessibleName="Ambient commit 舞台"
+            clock={clock}
+          />
+          <SuspendFirstAmbientInternalV1 active={enabled} />
+        </Suspense>
+      );
+    }
+
+    const view = render(<AmbientCommitHarnessInternalV1 />);
+    const entry = () => entryOf(view.container, "tag.test.actor");
+    expect(entry().dataset.stageAmbient).toBeUndefined();
+    expect(enableAmbient).not.toBeNull();
+
+    act(() => enableAmbient!());
+    await waitFor(() => {
+      expect(suspendedRender).toHaveBeenCalled();
+      expect(resolveAmbient).toHaveBeenCalled();
+    });
+    act(() => clock.advance(100));
+    await act(async () => {
+      releaseSuspension();
+      await suspension;
+    });
+    await waitFor(() => expect(entry().dataset.stageAmbient).toBe("true"));
+
+    expect(entry().style.transform).toContain("translate3d(0px");
+    view.unmount();
+  });
+
   it("samples the loop on the presentation clock, wraps the phase, and keeps the stage settled", () => {
     const clock = createManualPresentationClockV1();
     const { container, rerender } = render(

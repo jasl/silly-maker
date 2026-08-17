@@ -51,19 +51,32 @@ function returnOwnedFocusV1(target: HTMLElement | null, scope: HTMLElement | nul
   });
 }
 
+function RuntimeFailureDialogCurrentnessCommitInternalV1(props: {
+  readonly initialFocusRef: {
+    current: { readonly target: HTMLElement | null } | null;
+  };
+  readonly returnFocusRef: { current: HTMLElement | null };
+  readonly returnFocusTo: HTMLElement | null | undefined;
+}): null {
+  const { initialFocusRef, returnFocusRef, returnFocusTo } = props;
+  useLayoutEffect(() => {
+    let initialFocus = initialFocusRef.current;
+    if (initialFocus === null) {
+      initialFocus = Object.freeze({ target: readFocusedElementV1() });
+      initialFocusRef.current = initialFocus;
+    }
+    returnFocusRef.current = returnFocusTo === undefined ? initialFocus.target : returnFocusTo;
+  }, [initialFocusRef, returnFocusRef, returnFocusTo]);
+  return null;
+}
+
 /** A terminal, player-safe System surface over an application-supplied recovery port. */
 export function RuntimeFailureDialogV1(props: RuntimeFailureDialogPropsV1): ReactElement {
   const portalContainer = useStageSystemPortalContainerV1();
   const [focusScopeElement, setFocusScopeElement] = useState<HTMLDivElement | null>(null);
   const focusScopeRef = useRef<HTMLDivElement | null>(null);
   const initialFocusRef = useRef<{ readonly target: HTMLElement | null } | null>(null);
-  if (initialFocusRef.current === null) {
-    initialFocusRef.current = Object.freeze({ target: readFocusedElementV1() });
-  }
   const returnFocusRef = useRef<HTMLElement | null>(null);
-  returnFocusRef.current = props.returnFocusTo === undefined
-    ? initialFocusRef.current.target
-    : props.returnFocusTo;
 
   useStageInputIsolationV1("system", true);
   useStageSystemFocusScopeRegistrationV1(focusScopeElement);
@@ -97,6 +110,11 @@ export function RuntimeFailureDialogV1(props: RuntimeFailureDialogPropsV1): Reac
   return (
     <DialogPrimitive.Root open>
       <DialogPrimitive.Portal container={portalContainer ?? undefined}>
+        <RuntimeFailureDialogCurrentnessCommitInternalV1
+          initialFocusRef={initialFocusRef}
+          returnFocusRef={returnFocusRef}
+          returnFocusTo={props.returnFocusTo}
+        />
         <DialogPrimitive.Overlay
           className={styles["blocking-dialog__backdrop"]}
           data-system-dialog-backdrop="runtime_failure"
