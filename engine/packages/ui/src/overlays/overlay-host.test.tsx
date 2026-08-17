@@ -6,7 +6,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
-import { useEffect, useState } from "react";
+import { startTransition, Suspense, useEffect, useLayoutEffect, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DevDockPortalCoordinatorV1,
@@ -147,10 +147,12 @@ function createResolverV1(
 
 function createOverlaySessionStoreV1(
   inputRouter = createInputRouterV1(),
+  epochAllocator: CreateWorkspaceOverlayTestSessionInputV1<OverlayIdV1>["epochAllocator"] =
+    createLocalManagedSurfaceEpochAllocatorInternalV1(),
 ): WorkspaceOverlaySessionInternalV1<OverlayIdV1> {
   const session = createWorkspaceOverlaySessionInternalV1({
     inputRouter,
-    epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
+    epochAllocator,
     definitions: overlayDefinitionsV1,
   });
   session.attachRendererResolverInternalV1(createResolverV1(session));
@@ -1111,6 +1113,94 @@ describe("OverlayHostV1", () => {
     expect(screen.queryByRole("dialog", { name: "背包" })).not.toBeInTheDocument();
     expect(store.getSnapshot()).toEqual({ primaryId: null, detailIds: [] });
     expect(externalOpener).toHaveFocus();
+  });
+
+  it("ignores an abandoned session render when detaching the committed host", async () => {
+    const inputRouter = createInputRouterV1();
+    const epochAllocator = createLocalManagedSurfaceEpochAllocatorInternalV1();
+    const committedStore = createOverlaySessionStoreV1(inputRouter, epochAllocator);
+    const abandonedStore = createOverlaySessionStoreV1(inputRouter, epochAllocator);
+    await openReadyV1(abandonedStore, "overlay.test.inventory");
+    const committedResolver = createResolverV1(committedStore);
+    const abandonedResolver = createResolverV1(abandonedStore);
+    const never = new Promise<void>(() => {});
+    const suspendedRender = vi.fn();
+    let attemptAbandonedRender: (() => void) | null = null;
+
+    function SuspendAbandonedRenderV1(props: { readonly active: boolean }) {
+      if (props.active) {
+        suspendedRender();
+        throw never;
+      }
+      return null;
+    }
+
+    function CurrentnessHarnessV1() {
+      const [store, setStore] = useState(committedStore);
+      useLayoutEffect(() => {
+        attemptAbandonedRender = () => {
+          startTransition(() => setStore(abandonedStore));
+        };
+        return () => {
+          attemptAbandonedRender = null;
+        };
+      }, []);
+      return (
+        <Suspense fallback={null}>
+          <OverlayHostV1
+            session={store}
+            rendererResolver={store === committedStore ? committedResolver : abandonedResolver}
+            inputRouter={inputRouter}
+            closeLabel="关闭"
+          />
+          <SuspendAbandonedRenderV1 active={store === abandonedStore} />
+        </Suspense>
+      );
+    }
+
+    render(
+      <>
+        <button type="button">Committed opener</button>
+        <button type="button">Abandoned opener</button>
+      </>,
+    );
+    const committedOpener = screen.getByRole("button", { name: "Committed opener" });
+    const abandonedOpener = screen.getByRole("button", { name: "Abandoned opener" });
+    committedOpener.focus();
+    const rendered = render(<CurrentnessHarnessV1 />);
+
+    act(() => {
+      committedStore.openPrimary("overlay.test.inventory");
+    });
+    expect(await screen.findByRole("dialog", { name: "背包" })).toBeVisible();
+    const committedInstanceId = committedStore.getRenderSnapshotInternalV1().entries[0]
+      ?.surfaceInstanceId;
+    const abandonedInstanceId = abandonedStore.getRenderSnapshotInternalV1().entries[0]
+      ?.surfaceInstanceId;
+    expect(committedInstanceId).toBeDefined();
+    expect(abandonedInstanceId).toBeDefined();
+    expect(abandonedInstanceId).not.toBe(committedInstanceId);
+    expect(attemptAbandonedRender).not.toBeNull();
+
+    act(() => {
+      fireEvent.click(abandonedOpener);
+      attemptAbandonedRender!();
+    });
+    await waitFor(() => expect(suspendedRender).toHaveBeenCalled());
+    const committedFocusTarget = screen.getByRole("button", { name: "食材详情" });
+    committedFocusTarget.focus();
+    const committedRestore = vi.spyOn(committedOpener, "focus");
+    const abandonedRestore = vi.spyOn(abandonedOpener, "focus");
+
+    rendered.unmount();
+
+    expect(committedRestore).toHaveBeenCalledOnce();
+    expect(abandonedRestore).not.toHaveBeenCalled();
+    expect(committedStore.getSnapshot()).toEqual({ primaryId: null, detailIds: [] });
+    expect(abandonedStore.getSnapshot()).toEqual({
+      primaryId: "overlay.test.inventory",
+      detailIds: [],
+    });
   });
 
   it("suppresses predecessor focus restore and family close during terminal unmount", async () => {

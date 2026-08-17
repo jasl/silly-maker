@@ -49,6 +49,7 @@ import {
   type SystemDialogHostAttachmentInternalV1,
   type SystemDialogConfirmationHostRenderEntryInternalV1,
   type SystemDialogHostRenderEntryInternalV1,
+  type SystemDialogHostRenderSnapshotInternalV1,
   type SystemDialogManagedSessionInternalV1,
   type SystemDialogRootCatalogInternalV1,
 } from "./system-dialog-managed-session.ts";
@@ -296,7 +297,9 @@ function SystemDialogCandidateEntryInternalV1(props: {
   const gate = gateRef.current;
   const shellRef = useRef<HTMLDivElement | null>(null);
   const deferRootFocusRecoveryRef = useRef(false);
-  if (props.deferRootFocusRecovery) deferRootFocusRecoveryRef.current = true;
+  useLayoutEffect(() => {
+    if (props.deferRootFocusRecovery) deferRootFocusRecoveryRef.current = true;
+  }, [props.deferRootFocusRecovery]);
   const [shellElement, setShellElement] = useState<HTMLDivElement | null>(null);
   const setShellRef = useCallback((element: HTMLDivElement | null): void => {
     shellRef.current = element;
@@ -746,6 +749,70 @@ function restoreDetachedSystemDialogHostFocusInternalV1(input: {
   });
 }
 
+/** Commits before later sibling candidates run their layout-time autofocus. */
+function SystemDialogCurrentnessCommitInternalV1(props: {
+  readonly snapshot: SystemDialogHostRenderSnapshotInternalV1;
+  readonly snapshotRef: MutableCellInternalV1<SystemDialogHostRenderSnapshotInternalV1>;
+  readonly previousSnapshotRef: MutableCellInternalV1<SystemDialogHostRenderSnapshotInternalV1>;
+  readonly rootFocusLedgerRef: MutableCellInternalV1<
+    Map<ManagedSurfaceInstanceIdV1, RootFocusRecordInternalV1>
+  >;
+}): null {
+  useLayoutEffect(() => {
+    props.snapshotRef.current = props.snapshot;
+    const currentRootEntries = props.snapshot.entries.filter(
+      (entry): entry is Extract<
+        SystemDialogHostRenderEntryInternalV1,
+        { readonly kind: "root" }
+      > => entry.kind === "root",
+    );
+    const currentRootIds = new Set(
+      currentRootEntries.map((entry) => entry.surfaceInstanceId),
+    );
+    for (const entry of currentRootEntries) {
+      if (props.rootFocusLedgerRef.current.has(entry.surfaceInstanceId)) continue;
+      const publicationInstance = props.snapshot.publication.orderedInstances.find((instance) =>
+        instance.surfaceInstanceId === entry.surfaceInstanceId
+      );
+      let inheritedTarget: HTMLElement | null | undefined;
+      if (
+        publicationInstance?.readiness.kind === "preparing" &&
+        publicationInstance.readiness.transition === "primary_replacement"
+      ) {
+        inheritedTarget = props.rootFocusLedgerRef.current.get(
+          publicationInstance.readiness.retainedInstanceId,
+        )?.returnTarget;
+      } else {
+        const supersededInitial = props.previousSnapshotRef.current.entries.toReversed().find(
+          (previousEntry) =>
+            previousEntry.kind === "root" &&
+            previousEntry.phase === "preparing" &&
+            !currentRootIds.has(previousEntry.surfaceInstanceId),
+        );
+        if (supersededInitial !== undefined) {
+          inheritedTarget = props.rootFocusLedgerRef.current.get(
+            supersededInitial.surfaceInstanceId,
+          )?.returnTarget;
+        }
+      }
+      props.rootFocusLedgerRef.current.set(
+        entry.surfaceInstanceId,
+        Object.freeze({
+          returnTarget: inheritedTarget === undefined
+            ? readSystemDialogReturnFocusTargetInternalV1()
+            : inheritedTarget,
+        }),
+      );
+    }
+  }, [
+    props.previousSnapshotRef,
+    props.rootFocusLedgerRef,
+    props.snapshot,
+    props.snapshotRef,
+  ]);
+  return null;
+}
+
 function SystemDialogBlockingFallbackInternalV1(props: {
   readonly candidateInstanceId: ManagedSurfaceInstanceIdV1;
   readonly entry: SystemDialogHostRenderEntryInternalV1;
@@ -864,52 +931,9 @@ function SystemDialogAttachedHostInternalV1(props: {
   );
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const snapshotRef = useRef(snapshot);
-  snapshotRef.current = snapshot;
   const previousSnapshotRef = useRef(snapshot);
   const hostElementRef = useRef<HTMLDivElement | null>(null);
   const hostMountGenerationRef = useRef(0);
-  const currentRootEntries = snapshot.entries.filter(
-    (entry): entry is Extract<SystemDialogHostRenderEntryInternalV1, { readonly kind: "root" }> =>
-      entry.kind === "root",
-  );
-  const currentRootIds = new Set(
-    currentRootEntries.map((entry) => entry.surfaceInstanceId),
-  );
-  for (const entry of currentRootEntries) {
-    if (rootFocusLedgerRef.current.has(entry.surfaceInstanceId)) continue;
-    const publicationInstance = snapshot.publication.orderedInstances.find((instance) =>
-      instance.surfaceInstanceId === entry.surfaceInstanceId
-    );
-    let inheritedTarget: HTMLElement | null | undefined;
-    if (
-      publicationInstance?.readiness.kind === "preparing" &&
-      publicationInstance.readiness.transition === "primary_replacement"
-    ) {
-      inheritedTarget = rootFocusLedgerRef.current.get(
-        publicationInstance.readiness.retainedInstanceId,
-      )?.returnTarget;
-    } else {
-      const supersededInitial = previousSnapshotRef.current.entries.toReversed().find(
-        (previousEntry) =>
-          previousEntry.kind === "root" &&
-          previousEntry.phase === "preparing" &&
-          !currentRootIds.has(previousEntry.surfaceInstanceId),
-      );
-      if (supersededInitial !== undefined) {
-        inheritedTarget = rootFocusLedgerRef.current.get(
-          supersededInitial.surfaceInstanceId,
-        )?.returnTarget;
-      }
-    }
-    rootFocusLedgerRef.current.set(
-      entry.surfaceInstanceId,
-      Object.freeze({
-        returnTarget: inheritedTarget === undefined
-          ? readSystemDialogReturnFocusTargetInternalV1()
-          : inheritedTarget,
-      }),
-    );
-  }
   const entryIds = new Set(snapshot.entries.map((entry) => entry.surfaceInstanceId));
   const deferredRootFocusIds = new Set(
     [...childFocusLedgerRef.current]
@@ -1061,6 +1085,12 @@ function SystemDialogAttachedHostInternalV1(props: {
       data-system-dialog-application-epoch={snapshot.publication.applicationEpoch}
       data-system-dialog-topology-revision={snapshot.publication.topologyRevision}
     >
+      <SystemDialogCurrentnessCommitInternalV1
+        snapshot={snapshot}
+        snapshotRef={snapshotRef}
+        previousSnapshotRef={previousSnapshotRef}
+        rootFocusLedgerRef={rootFocusLedgerRef}
+      />
       {snapshot.entries.map((entry) => (
         <SystemDialogCandidateEntryInternalV1
           key={entry.surfaceInstanceId}
@@ -1111,7 +1141,6 @@ export function SystemDialogManagedHostInternalV1(
   const session = resolveSystemDialogSessionInternalV1(props.session);
   const portalContainer = useStageSystemPortalContainerV1();
   const catalogRef = useRef(props.catalog);
-  catalogRef.current = props.catalog;
   const hostIdentityRef = useRef<object | null>(null);
   hostIdentityRef.current ??= Object.freeze({ kind: "system-dialog-logical-host" });
   const hostIdentity = hostIdentityRef.current;
@@ -1122,6 +1151,10 @@ export function SystemDialogManagedHostInternalV1(
       readonly portalContainer: HTMLDivElement;
     } | null
   >(null);
+
+  useLayoutEffect(() => {
+    catalogRef.current = props.catalog;
+  }, [props.catalog]);
 
   useLayoutEffect(() => {
     if (portalContainer === null) {
