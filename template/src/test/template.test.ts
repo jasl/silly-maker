@@ -214,7 +214,12 @@ describe("template story baseline", () => {
     );
     expect(lookEdge).toMatchObject({
       to: "node.template.cat-line",
-      label: { kind: "choice", textId: "text.template.choice.look", gates: [] },
+      label: {
+        kind: "choice",
+        textId: "text.template.choice.look",
+        text: "去看看檐下的动静",
+        gates: [],
+      },
     });
     const gateEdge = templateFlowGraphV1.edges.find(
       (edge) =>
@@ -228,6 +233,7 @@ describe("template story baseline", () => {
       (node) => node.nodeId === "node.template.first-choice",
     );
     expect(menuNode?.kind).toBe("menu");
+    expect(menuNode?.summary).toBe("接下来做什么？ / 去看看檐下的动静 / 先回屋里");
   });
 
   it("keeps branch choosers inside their static successor annotations", () => {

@@ -12,6 +12,7 @@ import { createSceneDocumentSessionV1 } from "./core/scene-session.ts";
 import { loadStudioMotionSourcesV1 } from "./core/motion-sources.ts";
 import type { StudioMotionSourcesV1 } from "./core/motion-sources.ts";
 import {
+  applyPreviewAppearanceV1,
   compileSceneV1,
   defaultPlacementV1,
   editDocumentV1,
@@ -28,6 +29,7 @@ import {
 import { SceneCanvasV1 } from "./workspaces/scene/scene-canvas.tsx";
 import { SceneCuesV1 } from "./workspaces/scene/scene-cues.tsx";
 import { SceneInspectorV1 } from "./workspaces/scene/scene-inspector.tsx";
+import type { SceneEntryResolutionV1 } from "./workspaces/scene/scene-inspector.tsx";
 import { ContentBrowserV1 } from "./workspaces/content/content-browser.tsx";
 import { FlowWorkspaceSectionV1 } from "./workspaces/flow/flow-workspace.tsx";
 import {
@@ -71,6 +73,12 @@ export interface StudioAppPropsV1 {
 
 const studioPreviewMaxWidthV1 = 720;
 
+function saveNoteV1(code: string): string {
+  return code === "digest_conflict"
+    ? "文件已被其他编辑更改——请重新加载后再改。"
+    : `保存失败：${code}`;
+}
+
 export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
   const { binding, io, motionIo } = props;
   const [scenes, setScenes] = useState<readonly SceneIoListEntryV1[] | null>(null);
@@ -79,6 +87,12 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
   const [motionSources, setMotionSources] = useState<StudioMotionSourcesV1 | null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [throughCueId, setThroughCueId] = useState<string | null>(null);
+  // 试穿 (fitting) preview: per-tag appearance overrides that recompile the
+  // canvas only — the session draft, dirty state, and saves never see them.
+  const [fitting, setFitting] = useState(false);
+  const [fittingByTag, setFittingByTag] = useState<
+    Readonly<Record<string, Readonly<Record<string, string>>>>
+  >(Object.freeze({}));
   const [note, setNote] = useState<string | null>(null);
   /** A dirty draft gates navigation: save, discard, or cancel — never silent loss. */
   const [confirmNavigation, setConfirmNavigation] = useState<{ readonly path: string } | null>(
@@ -119,6 +133,8 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
       const opened = session.getSnapshot().draft;
       setSelectedTag((opened?.entries[0]?.tag as string | undefined) ?? null);
       setThroughCueId(null);
+      setFitting(false);
+      setFittingByTag(Object.freeze({}));
       setAssetWarning(null);
     });
   }, [session]);
@@ -174,7 +190,21 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
     () => (draft === null ? null : compileSceneV1(draft, throughCueId, binding.catalog)),
     [draft, throughCueId, binding.catalog],
   );
+  // Save gating and blocking diagnostics stay on the real draft's compile;
+  // the fitting preview only ever swaps what the canvas renders.
   const compileBlocked = compiled === null || compiled.kind === "error";
+
+  const fittingCompiled = useMemo(() => {
+    if (draft === null || !fitting || Object.keys(fittingByTag).length === 0) return null;
+    return compileSceneV1(
+      applyPreviewAppearanceV1(draft, fittingByTag),
+      throughCueId,
+      binding.catalog,
+    );
+  }, [binding.catalog, draft, fitting, fittingByTag, throughCueId]);
+  const canvasCompiled = fittingCompiled !== null && fittingCompiled.kind === "ok"
+    ? fittingCompiled
+    : compiled;
 
   // Navigation gate: switching or reloading a scene with a dirty draft asks
   // first; the browser unload path gets the same protection.
@@ -219,8 +249,8 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
   // same asset set, so they must not restart the preload effect.
   const requiredAssetIdsKey = useMemo(() => {
     const ids = new Set<string>();
-    if (compiled !== null && compiled.kind === "ok") {
-      for (const assetId of compiled.target.requiredAssetIds) ids.add(assetId as string);
+    if (canvasCompiled !== null && canvasCompiled.kind === "ok") {
+      for (const assetId of canvasCompiled.target.requiredAssetIds) ids.add(assetId as string);
     }
     if (workbench.kind === "ready") {
       for (const previewCase of workbench.cases) {
@@ -230,7 +260,7 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
       }
     }
     return [...ids].sort().join("\n");
-  }, [compiled, workbench]);
+  }, [canvasCompiled, workbench]);
 
   useEffect(() => {
     if (assets === null || requiredAssetIdsKey.length === 0) return undefined;
@@ -250,9 +280,6 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
     }
     return () => controller.abort();
   }, [assets, requiredAssetIdsKey]);
-
-  const saveNoteV1 = (code: string): string =>
-    code === "digest_conflict" ? "文件已被其他编辑更改——请重新加载后再改。" : `保存失败：${code}`;
 
   const save = useCallback((): void => {
     setNote(null);
@@ -363,6 +390,9 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
     if (workbench.kind === "unavailable") warnings.push(...workbench.reasons);
     if (workbench.kind === "ready") warnings.push(...workbench.warnings);
     if (assetWarning !== null) warnings.push(assetWarning);
+    if (fittingCompiled !== null && fittingCompiled.kind === "error") {
+      warnings.push(`试穿预览无法编译：${fittingCompiled.message}（画布退回文档声明状态）`);
+    }
     warnings.push(...rendererWarnings);
     warnings.push(...geometryWarnings);
     warnings.push(...ambientWarnings);
@@ -371,6 +401,7 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
     ambientWarnings,
     assetWarning,
     compiled,
+    fittingCompiled,
     geometryWarnings,
     motionCatalog.failures,
     rendererWarnings,
@@ -452,6 +483,40 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
     ) ?? null;
   }, [contents, draft, selectedTag]);
 
+  // The selected entry's declared appearance merged with active fitting
+  // overrides — what the inspector fields display and the resolution uses.
+  const selectedEffectiveAppearance = useMemo((): Readonly<Record<string, string>> => {
+    if (draft === null || selectedTag === null) return Object.freeze({});
+    const entry = draft.entries.find((candidate) => (candidate.tag as string) === selectedTag);
+    if (entry === undefined) return Object.freeze({});
+    const declared = { ...entry.appearance } as Record<string, string>;
+    const override = fitting ? fittingByTag[selectedTag] ?? {} : {};
+    return Object.freeze({ ...declared, ...override });
+  }, [draft, fitting, fittingByTag, selectedTag]);
+
+  // Read-only derived data: what the catalog actually resolved for the
+  // effective appearance (renderer, assets in resolution order). The Story
+  // compositor keeps ownership; Studio only shows its output.
+  const selectedResolution = useMemo((): SceneEntryResolutionV1 | null => {
+    if (draft === null || selectedTag === null) return null;
+    const entry = draft.entries.find((candidate) => (candidate.tag as string) === selectedTag);
+    if (entry === undefined) return null;
+    try {
+      const resolution = binding.catalog.resolveContent(
+        entry.contentId,
+        selectedEffectiveAppearance as StageAppearanceV1,
+      );
+      if (resolution === null || resolution === undefined) return null;
+      return Object.freeze({
+        rendererId: resolution.rendererId as string,
+        assetIds: Object.freeze(resolution.assetIds.map((assetId) => assetId as string)),
+        hasGeometry: resolution.geometry !== undefined,
+      });
+    } catch {
+      return null;
+    }
+  }, [binding.catalog, draft, selectedEffectiveAppearance, selectedTag]);
+
   const addContent = useCallback((descriptor: StudioContentDescriptorV1): void => {
     const current = session.getSnapshot().draft;
     if (current === null) return;
@@ -490,6 +555,20 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
 
   const editSelectedAppearance = useCallback((key: string, value: string | null): void => {
     if (selectedTag === null) return;
+    if (fitting) {
+      // Fitting routes the same edits into the ephemeral override map;
+      // clearing a key drops the override (back to the declared value).
+      setFittingByTag((current) => {
+        const forTag: Record<string, string> = { ...current[selectedTag] };
+        if (value === null) delete forTag[key];
+        else forTag[key] = value;
+        const next: Record<string, Readonly<Record<string, string>>> = { ...current };
+        if (Object.keys(forTag).length === 0) delete next[selectedTag];
+        else next[selectedTag] = Object.freeze(forTag);
+        return Object.freeze(next);
+      });
+      return;
+    }
     editDraft((plain) => {
       const entry = plain.entries.find((candidate) => candidate.tag === selectedTag);
       if (entry === undefined) return;
@@ -499,7 +578,12 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
       if (Object.keys(appearance).length === 0) delete entry.appearance;
       else entry.appearance = appearance;
     }, `field:${selectedTag}:appearance:${key}`);
-  }, [editDraft, selectedTag]);
+  }, [editDraft, fitting, selectedTag]);
+
+  const toggleFitting = useCallback((next: boolean): void => {
+    setFitting(next);
+    if (!next) setFittingByTag(Object.freeze({}));
+  }, []);
 
   // A new scene: id prefix inferred from the project, the file lands at
   // src/scenes/<stem>/<stem>.scene.json (stem = the id's final segment),
@@ -798,7 +882,9 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
             : (
               <SceneCanvasV1
                 draft={draft}
-                target={compiled.target}
+                target={(canvasCompiled !== null && canvasCompiled.kind === "ok"
+                  ? canvasCompiled
+                  : compiled).target}
                 renderers={binding.renderers}
                 accessibleName={`场景预览 ${draft.label}`}
                 showHitRegions={showHitRegions}
@@ -835,9 +921,13 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
               draft={draft}
               selectedTag={selectedTag}
               selectedDescriptor={selectedDescriptor}
+              effectiveAppearance={selectedEffectiveAppearance}
+              fitting={fitting}
+              resolution={selectedResolution}
               motionIds={motionCatalog.ids}
               busy={busy || loading || creating}
               onSelectTag={setSelectedTag}
+              onToggleFitting={toggleFitting}
               onEditSelectedPlacement={editSelectedPlacement}
               onEditSelectedZOrder={(next) => {
                 if (selectedTag === null) return;
@@ -873,7 +963,12 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
       {workbench.kind !== "ready"
         ? null
         : <MotionWorkspaceSectionV1 workbench={workbench} io={motionIo} />}
-      {binding.flow === undefined ? null : <FlowWorkspaceSectionV1 flow={binding.flow} />}
+      {binding.flow === undefined ? null : (
+        <FlowWorkspaceSectionV1
+          flow={binding.flow}
+          {...(binding.resolveText === undefined ? {} : { resolveText: binding.resolveText })}
+        />
+      )}
     </div>
   );
 }

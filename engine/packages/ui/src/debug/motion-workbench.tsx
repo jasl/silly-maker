@@ -280,6 +280,8 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
   const [playing, setPlaying] = useState(false);
   const [loop, setLoop] = useState(true);
   const [rate, setRate] = useState<number>(1);
+  const timeMsRef = useRef(timeMs);
+  timeMsRef.current = timeMs;
   useEffect(() => {
     if (!playing) return () => {};
     let frame = 0;
@@ -287,13 +289,20 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
     const tick = (now: number): void => {
       const delta = (now - last) * rate;
       last = now;
-      setTimeMs((current) => {
-        const next = current + delta;
-        if (next < totalMs) return next;
-        if (loop) return next % Math.max(1, totalMs);
+      const current = timeMsRef.current;
+      const next = current + delta;
+      if (next < totalMs) {
+        timeMsRef.current = next;
+        setTimeMs(next);
+      } else if (loop) {
+        const wrapped = next % Math.max(1, totalMs);
+        timeMsRef.current = wrapped;
+        setTimeMs(wrapped);
+      } else {
+        timeMsRef.current = totalMs;
+        setTimeMs(totalMs);
         setPlaying(false);
-        return totalMs;
-      });
+      }
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);

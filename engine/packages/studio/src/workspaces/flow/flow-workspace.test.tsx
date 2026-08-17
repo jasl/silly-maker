@@ -6,7 +6,7 @@ import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { NarrativeFlowGraphV1 } from "../../core/binding.ts";
-import { buildFlowDocGroupsV1, buildFlowDocLayoutV1 } from "./flow-model.ts";
+import { buildFlowDocGroupsV1, buildFlowDocLayoutV1, resolveFlowTextV1 } from "./flow-model.ts";
 import { FlowWorkspaceSectionV1 } from "./flow-workspace.tsx";
 
 afterEach(cleanup);
@@ -19,7 +19,7 @@ const flowV1: NarrativeFlowGraphV1 = Object.freeze({
       kind: "say" as const,
       docId: "doc.demo.tea",
       blockName: "intro",
-      summary: "text.demo.tea.intro",
+      summary: "今晚喝点什么？",
       source: "interaction-doc:doc.demo.tea#intro",
     },
     {
@@ -68,7 +68,19 @@ const flowV1: NarrativeFlowGraphV1 = Object.freeze({
         kind: "choice" as const,
         choiceId: "choice.demo.tea.green",
         textId: "text.demo.tea.green",
+        text: "绿茶",
         gates: Object.freeze(["stock.has"]),
+      }),
+    },
+    {
+      // A shared-copy option: the block references a textId, no inline text.
+      from: "node.demo.tea.menu",
+      to: "node.demo.tea.intro",
+      label: Object.freeze({
+        kind: "choice" as const,
+        choiceId: "choice.demo.tea.back",
+        textId: "text.demo.tea.back",
+        gates: Object.freeze([]),
       }),
     },
     {
@@ -83,6 +95,16 @@ const flowV1: NarrativeFlowGraphV1 = Object.freeze({
     },
   ]),
 });
+
+/** The binding text port fake: default-locale copy, null for unknown ids. */
+const resolveTextV1 = (textId: string): string | null =>
+  (
+    {
+      "text.demo.tea.menu-prompt": "菜单：今晚喝什么",
+      "text.demo.tea.back": "返回",
+      "text.demo.tea.green": "解析绿茶",
+    } as Record<string, string>
+  )[textId] ?? null;
 
 describe("flow model", () => {
   it("groups documents in first-appearance order with hand-written last", () => {
@@ -108,9 +130,27 @@ describe("flow model", () => {
     });
     // Labels carry the author-meaningful text.
     const texts = layout.edges.map((edge) => edge.text);
-    expect(texts).toContain("green [stock.has]");
+    expect(texts).toContain("绿茶 [stock.has]");
     expect(texts).toContain("eq 1");
     expect(texts).toContain("@night-menu");
+    // Without a text port the shared-copy option falls back to the id tail.
+    expect(texts).toContain("back");
+  });
+
+  it("resolves shared textIds through the optional text port; inline copy wins", () => {
+    const layout = buildFlowDocLayoutV1(flowV1, "doc.demo.tea", resolveTextV1);
+    const texts = layout.edges.map((edge) => edge.text);
+    expect(texts).toContain("返回");
+    // The green option inlined its copy: the resolver must not override it.
+    expect(texts).toContain("绿茶 [stock.has]");
+
+    // Summary resolution replaces only resolvable text.* tokens.
+    expect(resolveFlowTextV1("text.demo.tea.menu-prompt / 去看看", resolveTextV1)).toBe(
+      "菜单：今晚喝什么 / 去看看",
+    );
+    expect(resolveFlowTextV1("text.demo.tea.unknown", resolveTextV1)).toBe(
+      "text.demo.tea.unknown",
+    );
   });
 });
 
@@ -124,9 +164,13 @@ describe("FlowWorkspaceSectionV1", () => {
     expect(teaDoc).toHaveAttribute("aria-pressed", "true");
     const intro = container.querySelector('[data-studio-flow-node="node.demo.tea.intro"]');
     expect(intro).not.toBeNull();
+    expect(intro).toHaveTextContent("今晚喝点什么？");
 
     // Clicking a node reveals its source reference.
     await user.click(intro as Element);
+    expect(container.querySelector("[data-studio-flow-summary]")).toHaveTextContent(
+      "今晚喝点什么？",
+    );
     expect(container.querySelector("[data-studio-flow-source]")).toHaveTextContent(
       "interaction-doc:doc.demo.tea#intro",
     );
@@ -153,5 +197,28 @@ describe("FlowWorkspaceSectionV1", () => {
     expect(
       container.querySelector('[data-studio-flow-node="node.demo.legacy"]'),
     ).not.toBeNull();
+  });
+
+  it("resolves textId summaries and choice labels through the binding text port", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <FlowWorkspaceSectionV1 flow={flowV1} resolveText={resolveTextV1} />,
+    );
+
+    // The menu node's summary is a bare textId — the box shows the copy.
+    const menu = container.querySelector('[data-studio-flow-node="node.demo.tea.menu"]');
+    expect(menu).toHaveTextContent("菜单：今晚喝什么");
+
+    // The shared-copy option's edge label resolves too.
+    const labels = [...container.querySelectorAll("svg text")].map(
+      (node) => node.textContent ?? "",
+    );
+    expect(labels).toContain("返回");
+
+    // The details panel shows the resolved summary.
+    await user.click(menu as Element);
+    expect(container.querySelector("[data-studio-flow-summary]")).toHaveTextContent(
+      "菜单：今晚喝什么",
+    );
   });
 });

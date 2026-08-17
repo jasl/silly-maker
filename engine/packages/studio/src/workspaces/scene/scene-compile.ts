@@ -78,6 +78,25 @@ export function defaultPlacementV1(): {
   return { x: 0, y: 0, scalePermille: 1000, opacityPermille: 1000, mirrored: false };
 }
 
+/**
+ * The fitting preview (试穿): merge per-tag appearance overrides into a
+ * compile-input copy so authors can jump to "this composition + this
+ * appearance" without playing there. The result feeds the canvas compile
+ * only — the session draft, dirty state, and saves never see it.
+ */
+export function applyPreviewAppearanceV1(
+  draft: SceneDocumentV1,
+  overridesByTag: Readonly<Record<string, Readonly<Record<string, string>>>>,
+): SceneDocumentV1 {
+  return editDocumentV1(draft, (plain) => {
+    for (const entry of plain.entries) {
+      const override = overridesByTag[entry.tag];
+      if (override === undefined) continue;
+      entry.appearance = { ...entry.appearance, ...override };
+    }
+  });
+}
+
 /** One draft edit: clone, mutate the plain JSON, and hand back a new doc. */
 export function editDocumentV1(
   draft: SceneDocumentV1,

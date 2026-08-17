@@ -9,7 +9,7 @@
 // the application composition.
 import type { StudioBindingV1 } from "@sillymaker/studio";
 
-import { templateStageContentCatalogV1 } from "../content/presentation.ts";
+import { templateStageContentCatalogV1, templateTextForLocaleV1 } from "../content/presentation.ts";
 import { templateFlowGraphV1 } from "../story/narrative.ts";
 import { templateStageRenderersV1 } from "../ui/stage-renderers.tsx";
 
@@ -20,6 +20,15 @@ export const templateStudioBindingV1: StudioBindingV1 = Object.freeze({
   // read-only (S5). Derived data from the interaction document — no layout,
   // no second authority.
   flow: templateFlowGraphV1,
+  // Default-locale copy for Flow displays: summaries and choice labels that
+  // reference shared textIds resolve to readable text (null when unknown).
+  resolveText: (textId: string): string | null => {
+    try {
+      return templateTextForLocaleV1(null, textId);
+    } catch {
+      return null;
+    }
+  },
   contents: Object.freeze([
     {
       contentId: "content.template.background.courtyard",

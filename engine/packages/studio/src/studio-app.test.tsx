@@ -113,14 +113,25 @@ function fakeIoV1(initial: SceneDocumentV1): FakeSceneIoV1 {
 }
 
 const boxRendererV1: SemanticStageEntryRendererV1 = ({ entry }) => (
-  <span data-test-content={entry.contentId} />
+  <span
+    data-test-content={entry.contentId}
+    data-test-expression={(entry.appearance as Record<string, string>)["expression"] ?? ""}
+  />
 );
 
 const catalogV1: StageContentCatalogV1 = {
-  resolveContent: (contentId) =>
+  resolveContent: (contentId, appearance) =>
     Object.freeze({
       rendererId: "renderer.test.box",
-      assetIds: Object.freeze([]),
+      // The hero's assets follow its appearance, so the resolution panel and
+      // the fitting preview can observe the compositor being asked again.
+      assetIds: (contentId as string) === "content.test.hero"
+        ? Object.freeze([
+          `asset.test.hero-${
+            (appearance as Record<string, string>)["expression"] ?? "none"
+          }` as never,
+        ])
+        : Object.freeze([]),
       accessibleName: `内容 ${contentId}`,
       props: Object.freeze({}),
       ...(contentId === "content.test.hero"
@@ -1073,6 +1084,102 @@ describe("StudioAppV1", () => {
     expect(hero?.appearance).toEqual({ expression: "happy" });
   });
 
+  it("edits appearance keys without a manifest descriptor (free-text rows)", async () => {
+    const io = fakeIoV1(sceneDocumentV1());
+    const { container } = render(
+      <StudioAppV1 binding={bindingV1} io={io} motionIo={fakeMotionIoV1()} />,
+    );
+    const { fireEvent } = await import("@testing-library/react");
+    const user = userEvent.setup();
+
+    await waitFor(() => expect(screen.getByLabelText("条目")).toBeVisible());
+    await user.selectOptions(screen.getByLabelText("条目"), "tag.hero");
+
+    // The declared key renders editable although no descriptor exists;
+    // committed values recompile the canvas through the real compositor.
+    const row = screen.getByLabelText("外观 expression");
+    expect(row).toHaveValue("calm");
+    fireEvent.change(row, { target: { value: "happy" } });
+    await waitFor(() =>
+      expect(container.querySelector('[data-test-expression="happy"]')).not.toBeNull()
+    );
+
+    // A brand-new key joins through the admission-gated add row.
+    await user.type(screen.getByLabelText("新外观键"), "mood");
+    await user.type(screen.getByLabelText("新外观值"), "sad");
+    await user.click(screen.getByRole("button", { name: "添加外观键" }));
+    expect(screen.getByLabelText("外观 mood")).toHaveValue("sad");
+
+    await user.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(io.writes).toHaveLength(1));
+    const hero = io.writes[0]?.sceneDocument.entries.find(
+      (entry) => (entry.tag as string) === "tag.hero",
+    );
+    expect(hero?.appearance).toEqual({ expression: "happy", mood: "sad" });
+
+    // Removing a key deletes it from the document draft.
+    await user.click(
+      container.querySelector('[data-studio-appearance-remove="mood"]') as HTMLElement,
+    );
+    expect(screen.queryByLabelText("外观 mood")).toBeNull();
+  });
+
+  it("shows the catalog's resolved renderer and assets for the selected entry", async () => {
+    const io = fakeIoV1(sceneDocumentV1());
+    const { container } = render(
+      <StudioAppV1 binding={bindingV1} io={io} motionIo={fakeMotionIoV1()} />,
+    );
+    const { fireEvent } = await import("@testing-library/react");
+    const user = userEvent.setup();
+
+    await waitFor(() => expect(screen.getByLabelText("条目")).toBeVisible());
+    await user.selectOptions(screen.getByLabelText("条目"), "tag.hero");
+    const panel = container.querySelector('[data-studio-resolution="tag.hero"]');
+    expect(panel).toHaveTextContent("renderer.test.box");
+    expect(
+      panel?.querySelector('[data-studio-resolution-asset="asset.test.hero-calm"]'),
+    ).not.toBeNull();
+
+    // The panel follows appearance edits — the compositor is asked again.
+    fireEvent.change(screen.getByLabelText("外观 expression"), { target: { value: "happy" } });
+    await waitFor(() =>
+      expect(
+        container.querySelector('[data-studio-resolution-asset="asset.test.hero-happy"]'),
+      ).not.toBeNull()
+    );
+  });
+
+  it("previews appearance through 试穿 without dirtying the draft", async () => {
+    const io = fakeIoV1(sceneDocumentV1());
+    const { container } = render(
+      <StudioAppV1 binding={bindingV1} io={io} motionIo={fakeMotionIoV1()} />,
+    );
+    const { fireEvent } = await import("@testing-library/react");
+    const user = userEvent.setup();
+
+    await waitFor(() => expect(screen.getByLabelText("条目")).toBeVisible());
+    await user.selectOptions(screen.getByLabelText("条目"), "tag.hero");
+    await user.click(screen.getByRole("checkbox", { name: "试穿预览" }));
+
+    fireEvent.change(screen.getByLabelText("外观 expression"), { target: { value: "happy" } });
+    // The canvas recompiles with the override and the resolution follows…
+    await waitFor(() =>
+      expect(container.querySelector('[data-test-expression="happy"]')).not.toBeNull()
+    );
+    expect(
+      container.querySelector('[data-studio-resolution-asset="asset.test.hero-happy"]'),
+    ).not.toBeNull();
+    // …but the draft stays clean: nothing to save, nothing to undo.
+    expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "撤销" })).toBeDisabled();
+
+    // Toggling off drops the overrides; the canvas returns to the document.
+    await user.click(screen.getByRole("checkbox", { name: "试穿预览" }));
+    await waitFor(() =>
+      expect(container.querySelector('[data-test-expression="calm"]')).not.toBeNull()
+    );
+  });
+
   it("creates a blank scene through the dev port and opens it (S4)", async () => {
     const io = fakeIoV1(sceneDocumentV1());
     const { container } = render(
@@ -1318,6 +1425,8 @@ describe("StudioAppV1", () => {
         ]),
         edges: Object.freeze([]),
       }),
+      // The binding's text port reaches the Flow workspace unchanged.
+      resolveText: (textId: string) => (textId === "text.test.hello" ? "你好。" : null),
     });
     const withFlow = render(
       <StudioAppV1
@@ -1332,6 +1441,9 @@ describe("StudioAppV1", () => {
     expect(
       withFlow.container.querySelector('[data-studio-flow-node="node.test.hello"]'),
     ).not.toBeNull();
+    expect(
+      withFlow.container.querySelector('[data-studio-flow-node="node.test.hello"]'),
+    ).toHaveTextContent("你好。");
     withFlow.unmount();
 
     // Without a flow projection the workspace stays hidden.

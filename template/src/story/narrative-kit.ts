@@ -219,6 +219,8 @@ export type TemplateFlowGraphEdgeLabelV1 =
     readonly kind: "choice";
     readonly choiceId: string;
     readonly textId: string;
+    /** Authored option copy when the block inlined it. */
+    readonly text?: string;
     readonly gates: readonly string[];
   }
   | { readonly kind: "roll"; readonly outcome: string }
@@ -333,7 +335,7 @@ export function compileTemplateInteractionDocV1(
           kind: "say",
           docId: doc.docId,
           blockName: block.name,
-          summary: textId,
+          summary: block.text ?? textId,
           source,
         }));
         edge(block.name, id, block.next, Object.freeze({ kind: "next" as const }));
@@ -380,7 +382,10 @@ export function compileTemplateInteractionDocV1(
           kind: "menu",
           docId: doc.docId,
           blockName: block.name,
-          summary: promptTextId,
+          summary: [
+            block.prompt ?? promptTextId,
+            ...block.options.map((option) => option.text ?? option.name),
+          ].join(" / "),
           source,
         }));
         for (const [index, option] of block.options.entries()) {
@@ -394,6 +399,7 @@ export function compileTemplateInteractionDocV1(
               kind: "choice" as const,
               choiceId: compiled.choiceId,
               textId: compiled.textId,
+              text: option.text,
               gates: Object.freeze(
                 compiled.consumesCoins > 0 ? [`coins:${String(compiled.consumesCoins)}`] : [],
               ),

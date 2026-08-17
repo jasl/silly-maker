@@ -85,6 +85,8 @@ export type NarrativeFlowEdgeLabelV1 =
     readonly kind: "choice";
     readonly choiceId: string;
     readonly textId: string;
+    /** Authored option copy when the Story compiler inlined it. */
+    readonly text?: string;
     readonly gates: readonly string[];
   }
   | { readonly kind: "roll"; readonly outcome: string }
@@ -120,4 +122,12 @@ export interface StudioBindingV1 {
    * has not wired the projection) and the Flow workspace stays hidden.
    */
   readonly flow?: NarrativeFlowGraphV1;
+  /**
+   * Optional default-locale text lookup for authoring displays: the Flow
+   * workspace resolves `text.*` ids in node summaries and choice-edge
+   * textIds through it, so projections that reference shared copy stay
+   * human-readable without every kit inlining text. Returns null for
+   * unknown ids. Presentation-only — never a second text authority.
+   */
+  readonly resolveText?: (textId: string) => string | null;
 }

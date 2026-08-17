@@ -3,7 +3,8 @@ import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
 
 import type { NarrativeFlowGraphV1 } from "../../core/binding.ts";
-import { buildFlowDocGroupsV1, buildFlowDocLayoutV1 } from "./flow-model.ts";
+import { buildFlowDocGroupsV1, buildFlowDocLayoutV1, resolveFlowTextV1 } from "./flow-model.ts";
+import type { FlowTextResolverV1 } from "./flow-model.ts";
 import styles from "../../studio-app.module.css";
 
 /**
@@ -17,6 +18,8 @@ import styles from "../../studio-app.module.css";
 
 export interface FlowWorkspaceSectionPropsV1 {
   readonly flow: NarrativeFlowGraphV1;
+  /** The binding's optional default-locale text lookup for `text.*` ids. */
+  readonly resolveText?: FlowTextResolverV1;
 }
 
 const flowNodeWidthV1 = 168;
@@ -38,8 +41,22 @@ function idTailV1(id: string): string {
   return dot === -1 ? id : id.slice(dot + 1);
 }
 
+function truncateFlowLabelV1(text: string, max = 18): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function nodeCanvasLabelV1(
+  node: NarrativeFlowGraphV1["nodes"][number],
+  resolveText: FlowTextResolverV1 | undefined,
+): string {
+  if ((node.kind === "say" || node.kind === "menu") && node.summary.length > 0) {
+    return truncateFlowLabelV1(resolveFlowTextV1(node.summary, resolveText));
+  }
+  return node.blockName ?? idTailV1(node.nodeId);
+}
+
 export function FlowWorkspaceSectionV1(props: FlowWorkspaceSectionPropsV1): ReactElement {
-  const { flow } = props;
+  const { flow, resolveText } = props;
   const groups = useMemo(() => buildFlowDocGroupsV1(flow), [flow]);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(groups[0]?.docId ?? null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -48,8 +65,8 @@ export function FlowWorkspaceSectionV1(props: FlowWorkspaceSectionPropsV1): Reac
     ? selectedDocId
     : groups[0]?.docId ?? null;
   const layout = useMemo(
-    () => buildFlowDocLayoutV1(flow, activeDocId),
-    [activeDocId, flow],
+    () => buildFlowDocLayoutV1(flow, activeDocId, resolveText),
+    [activeDocId, flow, resolveText],
   );
   const centerByNodeId = useMemo(() => {
     const centers = new Map<string, { readonly x: number; readonly y: number }>();
@@ -119,7 +136,7 @@ export function FlowWorkspaceSectionV1(props: FlowWorkspaceSectionPropsV1): Reac
                 <path d="M0,0 L8,4 L0,8 z" className={styles["flow-arrow"] ?? ""} />
               </marker>
             </defs>
-            {layout.edges.map((edge, index) => {
+            {layout.edges.map((edge) => {
               const from = centerByNodeId.get(edge.from);
               const to = centerByNodeId.get(edge.to);
               if (from === undefined || to === undefined) return null;
@@ -128,7 +145,7 @@ export function FlowWorkspaceSectionV1(props: FlowWorkspaceSectionPropsV1): Reac
               const x2 = to.x;
               const y2 = to.y;
               return (
-                <g key={`${edge.from}->${edge.to}:${String(index)}`}>
+                <g key={`${edge.from}->${edge.to}:${edge.kind}:${edge.text}`}>
                   <line
                     className={styles["flow-edge"]}
                     x1={x1}
@@ -162,7 +179,7 @@ export function FlowWorkspaceSectionV1(props: FlowWorkspaceSectionPropsV1): Reac
                   className={styles["flow-node"]}
                   onClick={() => setSelectedNodeId(placed.node.nodeId)}
                 >
-                  <title>{placed.node.summary}</title>
+                  <title>{resolveFlowTextV1(placed.node.summary, resolveText)}</title>
                   <rect
                     x={x}
                     y={y}
@@ -177,7 +194,7 @@ export function FlowWorkspaceSectionV1(props: FlowWorkspaceSectionPropsV1): Reac
                     {placed.node.kind}
                   </text>
                   <text className={styles["flow-node-name"]} x={x + 8} y={y + 34}>
-                    {placed.node.blockName ?? idTailV1(placed.node.nodeId)}
+                    {nodeCanvasLabelV1(placed.node, resolveText)}
                   </text>
                 </g>
               );
@@ -222,7 +239,9 @@ export function FlowWorkspaceSectionV1(props: FlowWorkspaceSectionPropsV1): Reac
               <dt>类型</dt>
               <dd>{selectedNode.kind}</dd>
               <dt>摘要</dt>
-              <dd>{selectedNode.summary}</dd>
+              <dd data-studio-flow-summary="true">
+                {resolveFlowTextV1(selectedNode.summary, resolveText)}
+              </dd>
               <dt>源文档</dt>
               <dd data-studio-flow-source="true">{selectedNode.source}</dd>
             </dl>

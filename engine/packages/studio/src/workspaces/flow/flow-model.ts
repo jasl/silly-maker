@@ -69,16 +69,55 @@ function idTailV1(id: string): string {
   return dot === -1 ? id : id.slice(dot + 1);
 }
 
+/** The binding's optional default-locale text lookup (null for unknown ids). */
+export type FlowTextResolverV1 = (textId: string) => string | null;
+
+const flowTextIdPatternV1 = /text\.[a-z0-9][a-z0-9_.-]*/gu;
+
+/**
+ * Replace every resolvable `text.*` token in a summary with catalog copy.
+ * Unknown tokens (and inline copy) stay verbatim, so projections that mix
+ * shared textIds with inlined text degrade to today's display.
+ */
+export function resolveFlowTextV1(
+  text: string,
+  resolveText: FlowTextResolverV1 | undefined,
+): string {
+  if (resolveText === undefined) return text;
+  return text.replace(flowTextIdPatternV1, (token) => {
+    try {
+      return resolveText(token) ?? token;
+    } catch {
+      return token;
+    }
+  });
+}
+
+function resolveFlowTokenV1(
+  textId: string,
+  resolveText: FlowTextResolverV1 | undefined,
+): string | null {
+  if (resolveText === undefined) return null;
+  try {
+    return resolveText(textId);
+  } catch {
+    return null;
+  }
+}
+
 function edgeLabelTextV1(
   label: NarrativeFlowGraphV1["edges"][number]["label"],
+  resolveText: FlowTextResolverV1 | undefined,
 ): string {
   switch (label.kind) {
     case "next":
       return "";
-    case "choice":
-      return label.gates.length === 0
-        ? idTailV1(label.choiceId)
-        : `${idTailV1(label.choiceId)} [${label.gates.join(", ")}]`;
+    case "choice": {
+      const copy = label.text !== undefined && label.text.length > 0
+        ? label.text
+        : resolveFlowTokenV1(label.textId, resolveText) ?? idTailV1(label.choiceId);
+      return label.gates.length === 0 ? copy : `${copy} [${label.gates.join(", ")}]`;
+    }
     case "roll":
       return label.outcome;
     case "branch":
@@ -95,6 +134,7 @@ function edgeLabelTextV1(
 export function buildFlowDocLayoutV1(
   graph: NarrativeFlowGraphV1,
   docId: string | null,
+  resolveText?: FlowTextResolverV1,
 ): FlowDocLayoutV1 {
   const docNodes = graph.nodes.filter((node) => node.docId === docId);
   const docNodeIds = new Set(docNodes.map((node) => node.nodeId));
@@ -170,7 +210,7 @@ export function buildFlowDocLayoutV1(
       from: edge.from,
       to: edge.to,
       kind: edge.label.kind,
-      text: edgeLabelTextV1(edge.label),
+      text: edgeLabelTextV1(edge.label, resolveText),
     }));
   }
 

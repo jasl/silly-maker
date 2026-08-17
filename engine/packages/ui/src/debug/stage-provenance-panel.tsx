@@ -146,9 +146,10 @@ export function StageProvenancePanelV1(props: StageProvenancePanelPropsV1): Reac
               data-stage-provenance-open={motionSource.path}
               onClick={() => {
                 setOpenResult("idle");
-                void props.openSource?.(motionSource.path).then((opened) =>
-                  setOpenResult(opened ? "opened" : "failed")
-                );
+                void (async () => {
+                  const opened = await props.openSource?.(motionSource.path);
+                  setOpenResult(opened ? "opened" : "failed");
+                })();
               }}
             >
               打开源文件

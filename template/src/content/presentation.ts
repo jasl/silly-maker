@@ -45,25 +45,34 @@ export const templateTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
   ],
 });
 
+const templateTextByLocaleV1: ReadonlyMap<
+  string,
+  { readonly texts: ReadonlyMap<string, string>; readonly fallbackLocale: string | null }
+> = new Map(
+  templateTextCatalogsV1.catalogs.map((catalog) => [
+    catalog.locale,
+    Object.freeze({
+      texts: new Map(catalog.entries.map((entry) => [entry.textId, entry.text])),
+      fallbackLocale: catalog.fallbackLocale,
+    }),
+  ]),
+);
+
 /** Locale-aware Story text with a deterministic fallback to the default catalog. */
 export function templateTextForLocaleV1(locale: string | null, textId: string): string {
   const visited: string[] = [];
   let cursor: string | null = locale ?? templateTextCatalogsV1.defaultLocale;
   while (cursor !== null && !visited.includes(cursor)) {
     visited.push(cursor);
-    const catalog = templateTextCatalogsV1.catalogs.find(
-      (candidate) => candidate.locale === cursor,
-    );
-    const entry = catalog?.entries.find((candidate) => candidate.textId === textId);
-    if (entry !== undefined) return entry.text;
+    const catalog = templateTextByLocaleV1.get(cursor);
+    const text = catalog?.texts.get(textId);
+    if (text !== undefined) return text;
     cursor = catalog?.fallbackLocale ?? null;
   }
-  const fallback = templateTextCatalogsV1.catalogs.find(
-    (candidate) => candidate.locale === templateTextCatalogsV1.defaultLocale,
-  );
-  const entry = fallback?.entries.find((candidate) => candidate.textId === textId);
-  if (entry === undefined) throw new TypeError(`template.text_missing:${textId}`);
-  return entry.text;
+  const fallback = templateTextByLocaleV1.get(templateTextCatalogsV1.defaultLocale);
+  const text = fallback?.texts.get(textId);
+  if (text === undefined) throw new TypeError(`template.text_missing:${textId}`);
+  return text;
 }
 
 /**
