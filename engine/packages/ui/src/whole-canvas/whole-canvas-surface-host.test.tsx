@@ -3,7 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 import { parseNonNegativeSafeInteger } from "@sillymaker/base";
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
-import { StrictMode } from "react";
+import { startTransition, StrictMode, Suspense, useLayoutEffect, useState } from "react";
 import type { ComponentType } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -73,6 +73,7 @@ function inputRouterInternalV1() {
 
 function hostHarnessInternalV1(
   input: Readonly<{
+    readonly applicationEpoch?: number;
     readonly prepare?: (entry: WholeCanvasManagedSurfaceRenderEntryInternalV1) => Promise<unknown>;
     readonly renderer: ComponentType<WholeCanvasSurfaceRendererPropsInternalV1>;
     readonly reportFailure?: (error: unknown) => void;
@@ -161,7 +162,7 @@ function hostHarnessInternalV1(
   );
   const family = resolveWholeCanvasSurfaceCompositionFamilyContractInternalV1(definition);
   const bundle = createManagedSurfaceCompositeKernelBundleInternalV1(Object.freeze({
-    applicationEpoch: parseNonNegativeSafeInteger(71),
+    applicationEpoch: parseNonNegativeSafeInteger(input.applicationEpoch ?? 71),
     recipe: Object.freeze({
       resolvedOwnerIds: family.resolvedOwnerIds,
       resolvedSlotDescriptors: family.resolvedSlotDescriptors,
@@ -839,6 +840,125 @@ describe("S4b.1b WholeCanvas React Host", () => {
     captures.at(-1)!.onAction(ownerActionIdInternalV1);
     expect(harness.dispatchOwner).toHaveBeenCalledTimes(1);
     harness.portalContainer.remove();
+  });
+
+  it("replaces the committed portal tuple without retaining predecessor DOM lifecycle", async () => {
+    const first = hostHarnessInternalV1({
+      applicationEpoch: 71,
+      renderer: () => <button type="button">First surface</button>,
+    });
+    const successor = hostHarnessInternalV1({
+      applicationEpoch: 73,
+      renderer: () => <button type="button">Successor surface</button>,
+    });
+    const firstPreviousOwner = document.createElement("button");
+    const successorPreviousOwner = document.createElement("button");
+    firstPreviousOwner.type = "button";
+    successorPreviousOwner.type = "button";
+    document.body.append(firstPreviousOwner, successorPreviousOwner);
+    firstPreviousOwner.focus();
+
+    const view = render(hostElementInternalV1(first));
+    await waitFor(() => {
+      expect(first.portalContainer.querySelector(
+        '[data-whole-canvas-phase="current"]',
+      )).not.toBeNull();
+    });
+    expect(document.activeElement).not.toBe(firstPreviousOwner);
+
+    act(() => {
+      successorPreviousOwner.focus();
+      view.rerender(hostElementInternalV1(successor));
+    });
+    await waitFor(() => {
+      expect(successor.portalContainer.querySelector(
+        '[data-whole-canvas-phase="current"]',
+      )).not.toBeNull();
+    });
+    expect(first.portalContainer).toBeEmptyDOMElement();
+
+    act(() => successor.closeRoot());
+    await waitFor(() => expect(successor.portalContainer).toBeEmptyDOMElement());
+    await act(async () => await Promise.resolve());
+
+    expect(document.activeElement).toBe(successorPreviousOwner);
+
+    view.unmount();
+    firstPreviousOwner.remove();
+    successorPreviousOwner.remove();
+    first.dispose();
+    successor.dispose();
+  });
+
+  it("keeps the committed focus owner when a successor binding render is abandoned", async () => {
+    const first = hostHarnessInternalV1({
+      applicationEpoch: 71,
+      renderer: () => <button type="button">First surface</button>,
+    });
+    const successor = hostHarnessInternalV1({
+      applicationEpoch: 73,
+      renderer: () => <button type="button">Successor surface</button>,
+    });
+    const never = new Promise<void>(() => {});
+    const suspendedRender = vi.fn();
+    let attemptSuccessorRender: (() => void) | null = null;
+
+    function SuspendSuccessorRenderInternalV1(props: { readonly active: boolean }) {
+      if (props.active) {
+        suspendedRender();
+        throw never;
+      }
+      return null;
+    }
+
+    function CurrentnessHarnessInternalV1() {
+      const [selected, setSelected] = useState(first);
+      useLayoutEffect(() => {
+        attemptSuccessorRender = () => {
+          startTransition(() => setSelected(successor));
+        };
+        return () => {
+          attemptSuccessorRender = null;
+        };
+      }, []);
+      return (
+        <Suspense fallback={null}>
+          <WholeCanvasSurfaceHostInternalV1
+            binding={selected.binding}
+            portalContainer={selected.portalContainer}
+            inputRouter={selected.router.router}
+          />
+          <SuspendSuccessorRenderInternalV1 active={selected === successor} />
+        </Suspense>
+      );
+    }
+
+    const view = render(<CurrentnessHarnessInternalV1 />);
+    await waitFor(() => {
+      expect(first.portalContainer.querySelector(
+        '[data-whole-canvas-phase="current"]',
+      )).not.toBeNull();
+    });
+    const firstShell = first.portalContainer.querySelector<HTMLElement>(
+      '[data-whole-canvas-phase="current"]',
+    )!;
+    expect(attemptSuccessorRender).not.toBeNull();
+    act(() => attemptSuccessorRender!());
+    await waitFor(() => expect(suspendedRender).toHaveBeenCalled());
+
+    const escapedFocus = document.createElement("button");
+    escapedFocus.type = "button";
+    document.body.append(escapedFocus);
+    act(() => escapedFocus.focus());
+    await act(async () => await Promise.resolve());
+
+    expect(document.activeElement).toBe(firstShell);
+    expect(successor.portalContainer).toBeEmptyDOMElement();
+
+    view.unmount();
+    escapedFocus.remove();
+    first.dispose();
+    successor.dispose();
   });
 
   it("terminalizes both portals when a distinct Host concurrently claims one binding", async () => {

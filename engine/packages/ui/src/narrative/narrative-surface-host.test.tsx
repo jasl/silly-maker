@@ -8,8 +8,18 @@ import {
   type NarrativeHistoryV1,
 } from "@sillymaker/base";
 import { defaultPlayerProfileV1, type PlayerProfileV1 } from "@sillymaker/base/runtime";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { Component, StrictMode, useSyncExternalStore, type ErrorInfo, type ReactNode } from "react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  Component,
+  startTransition,
+  StrictMode,
+  Suspense,
+  useLayoutEffect,
+  useState,
+  useSyncExternalStore,
+  type ErrorInfo,
+  type ReactNode,
+} from "react";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import {
@@ -427,6 +437,7 @@ function syntheticDialogueRenderEntryV1(
   input: Readonly<{
     readonly phase: SyntheticDialogueRenderEntryV1["phase"];
     readonly preparation: NarrativeStableRootPreparationInternalV1 | null;
+    readonly renderKey?: string;
     readonly rendererComponent: SyntheticDialogueRenderEntryV1["rendererComponent"];
     readonly playerObservation?: MutableDialoguePlayerObservationV1["port"];
   }>,
@@ -434,7 +445,7 @@ function syntheticDialogueRenderEntryV1(
   return Object.freeze({
     kind: "dialogue",
     phase: input.phase,
-    renderKey: "narrative-host-render.synthetic-repair",
+    renderKey: input.renderKey ?? "narrative-host-render.synthetic-repair",
     preparation: input.preparation,
     initialFocusTargetId: parseManagedSurfaceFocusTargetIdV1(
       "surface-focus.narrative.primary",
@@ -457,6 +468,7 @@ function mutableHostRenderSourceV1(
 ): Readonly<{
   readonly source: NarrativeStableHostRenderSourceInternalV1;
   publish(entry: NarrativeStableHostRenderEntryInternalV1): void;
+  selectWithoutNotify(entry: NarrativeStableHostRenderEntryInternalV1): void;
 }> {
   let snapshot = Object.freeze({ entries: Object.freeze([initialEntry]) });
   const listeners = new Set<() => void>();
@@ -472,6 +484,9 @@ function mutableHostRenderSourceV1(
     publish(entry: NarrativeStableHostRenderEntryInternalV1): void {
       snapshot = Object.freeze({ entries: Object.freeze([entry]) });
       for (const listener of [...listeners]) listener();
+    },
+    selectWithoutNotify(entry: NarrativeStableHostRenderEntryInternalV1): void {
+      snapshot = Object.freeze({ entries: Object.freeze([entry]) });
     },
   });
 }
@@ -667,6 +682,91 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     view.unmount();
     narrativeLayer.remove();
     higherOwner.remove();
+  });
+
+  it("keeps the committed Narrative snapshot when a successor render is abandoned", async () => {
+    const firstRenderer = vi.fn(() => <button type="button">First narrative</button>);
+    const successorRenderer = vi.fn(() => <button type="button">Successor narrative</button>);
+    const firstEntry = syntheticDialogueRenderEntryV1({
+      phase: "active",
+      preparation: null,
+      renderKey: "narrative-host-render.first-currentness",
+      rendererComponent: firstRenderer,
+    });
+    const successorEntry = syntheticDialogueRenderEntryV1({
+      phase: "active",
+      preparation: null,
+      renderKey: "narrative-host-render.successor-currentness",
+      rendererComponent: successorRenderer,
+    });
+    const runtime = syntheticHostRuntimeV1(firstEntry);
+    vi.spyOn(narrativeFamilyModuleV1, "prepareNarrativeStableHostReadyCommitInternalV1")
+      .mockReturnValue(Object.freeze({ kind: "reattached" as const, completion: null }));
+    const portalContainer = document.createElement("div");
+    document.body.append(portalContainer);
+    const session = Object.freeze({}) as unknown as NarrativeStableSessionInternalV1;
+    const inputRouter = createInputRouterV1();
+    const isGestureCurrent = () => true;
+    const never = new Promise<void>(() => {});
+    const suspendedRender = vi.fn();
+    let attemptSuccessorRender: (() => void) | null = null;
+
+    function SuspendSuccessorRenderInternalV1(props: { readonly active: boolean }) {
+      if (props.active) {
+        suspendedRender();
+        throw never;
+      }
+      return null;
+    }
+
+    function CurrentnessHarnessInternalV1() {
+      const [attempted, setAttempted] = useState(false);
+      useLayoutEffect(() => {
+        attemptSuccessorRender = () => {
+          runtime.renderSource.selectWithoutNotify(successorEntry);
+          startTransition(() => setAttempted(true));
+        };
+        return () => {
+          attemptSuccessorRender = null;
+        };
+      }, []);
+      return (
+        <Suspense fallback={null}>
+          <NarrativeSurfaceHostInternalV1
+            session={session}
+            portalContainer={portalContainer}
+            inputRouter={inputRouter}
+            isGestureCurrent={isGestureCurrent}
+          />
+          <SuspendSuccessorRenderInternalV1 active={attempted} />
+        </Suspense>
+      );
+    }
+
+    const view = render(<CurrentnessHarnessInternalV1 />);
+    await waitFor(() => expect(firstRenderer).toHaveBeenCalled());
+    const firstFocusScope = narrativeFocusScopeV1(portalContainer.querySelector("button"));
+    expect(document.activeElement).toBe(firstFocusScope);
+    expect(attemptSuccessorRender).not.toBeNull();
+
+    act(() => attemptSuccessorRender!());
+    await waitFor(() => {
+      expect(suspendedRender).toHaveBeenCalled();
+      expect(successorRenderer).toHaveBeenCalled();
+    });
+
+    const escapedFocus = document.createElement("button");
+    escapedFocus.type = "button";
+    document.body.append(escapedFocus);
+    act(() => escapedFocus.focus());
+    await act(async () => await Promise.resolve());
+
+    expect(document.activeElement).toBe(firstFocusScope);
+    expect(portalContainer).toContainElement(firstFocusScope);
+
+    view.unmount();
+    escapedFocus.remove();
+    portalContainer.remove();
   });
 
   it("freezes the physical-ingress source-relative API and rejects malformed registration before Host work", () => {
@@ -3268,6 +3368,130 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     view.unmount();
     expect(disconnect).toHaveBeenCalledOnce();
     expect(runtime.release).toHaveBeenCalledOnce();
+    portalContainer.remove();
+  });
+
+  it("does not reopen a cancelled readiness gate from an abandoned successor render", async () => {
+    const preparation = Object.freeze({}) as unknown as NarrativeStableRootPreparationInternalV1;
+    const Renderer = () => <button type="button">Cancelled narrative</button>;
+    const firstEntry = syntheticDialogueRenderEntryV1({
+      phase: "preparing",
+      preparation,
+      rendererComponent: Renderer,
+    });
+    const successorRenderer = vi.fn(() => <button type="button">Successor narrative</button>);
+    const successorEntry = syntheticDialogueRenderEntryV1({
+      phase: "preparing",
+      preparation,
+      rendererComponent: successorRenderer,
+    });
+    const renderSource = mutableHostRenderSourceV1(firstEntry);
+    const settleReady = vi.fn(() => Object.freeze({ kind: "stale" as const, completion: null }));
+    const release = vi.fn();
+    const runtime = Object.freeze({
+      attachment: Object.freeze({
+        settleRootReadinessReadyInternalV1: settleReady,
+        settleRootReadinessFailedInternalV1: vi.fn(),
+        settleHistoryReadinessReadyInternalV1: vi.fn(),
+        settleHistoryReadinessFailedInternalV1: vi.fn(),
+        releaseInternalV1: release,
+      }),
+      renderSource: renderSource.source,
+    }) as unknown as NarrativeStableHostRuntimeInternalV1;
+    vi.spyOn(narrativeFamilyModuleV1, "createNarrativeStableHostRuntimeInternalV1")
+      .mockReturnValue(runtime);
+    const readyMint = vi.spyOn(
+      narrativeFamilyModuleV1,
+      "prepareNarrativeStableHostReadyCommitInternalV1",
+    ).mockReturnValue(Object.freeze({
+      kind: "prepared" as const,
+      readyCommit: Object.freeze({}) as unknown as NarrativeStableHostReadyCommitInternalV1,
+      completion: null,
+    }));
+    const portalContainer = document.createElement("div");
+    document.body.append(portalContainer);
+    const session = Object.freeze({}) as unknown as NarrativeStableSessionInternalV1;
+    const inputRouter = createInputRouterV1();
+    const isGestureCurrent = () => true;
+    const never = new Promise<void>(() => {});
+    const suspendedRender = vi.fn();
+    let attemptSuccessorRender: (() => void) | null = null;
+    let hideCommittedTree: (() => void) | null = null;
+    let revealCommittedTree: (() => void) | null = null;
+
+    function SuspendGateProbeInternalV1(props: { readonly active: boolean }) {
+      if (props.active) {
+        suspendedRender();
+        throw never;
+      }
+      return null;
+    }
+
+    function GateCurrentnessHarnessInternalV1() {
+      const [attempted, setAttempted] = useState(false);
+      const [cancelled, setCancelled] = useState(false);
+      const [hidden, setHidden] = useState(false);
+      useLayoutEffect(() => {
+        attemptSuccessorRender = () => {
+          renderSource.selectWithoutNotify(successorEntry);
+          startTransition(() => setAttempted(true));
+        };
+        hideCommittedTree = () => {
+          renderSource.selectWithoutNotify(firstEntry);
+          setHidden(true);
+        };
+        revealCommittedTree = () => {
+          setCancelled(true);
+          setHidden(false);
+        };
+        return () => {
+          attemptSuccessorRender = null;
+          hideCommittedTree = null;
+          revealCommittedTree = null;
+        };
+      }, []);
+      return (
+        <Suspense fallback={<output data-testid="narrative-gate-fallback" />}>
+          <NarrativeSurfaceHostInternalV1
+            session={session}
+            portalContainer={portalContainer}
+            inputRouter={inputRouter}
+            isGestureCurrent={isGestureCurrent}
+          />
+          <SuspendGateProbeInternalV1 active={hidden || (attempted && !cancelled)} />
+        </Suspense>
+      );
+    }
+
+    const view = render(<GateCurrentnessHarnessInternalV1 />);
+    await flushHostMicrotasksV1();
+    expect(readyMint).toHaveBeenCalledOnce();
+    expect(settleReady).toHaveBeenCalledOnce();
+    expect(attemptSuccessorRender).not.toBeNull();
+    expect(hideCommittedTree).not.toBeNull();
+    expect(revealCommittedTree).not.toBeNull();
+
+    act(() => attemptSuccessorRender!());
+    await waitFor(() => {
+      expect(suspendedRender).toHaveBeenCalled();
+      expect(successorRenderer).toHaveBeenCalled();
+    });
+
+    act(() => hideCommittedTree!());
+    await waitFor(() => {
+      expect(view.getByTestId("narrative-gate-fallback")).toBeInTheDocument();
+    });
+    act(() => revealCommittedTree!());
+    await waitFor(() => {
+      expect(view.queryByTestId("narrative-gate-fallback")).toBeNull();
+    });
+    await flushHostMicrotasksV1();
+
+    expect(readyMint).toHaveBeenCalledOnce();
+    expect(settleReady).toHaveBeenCalledOnce();
+
+    view.unmount();
+    expect(release).toHaveBeenCalledTimes(2);
     portalContainer.remove();
   });
 

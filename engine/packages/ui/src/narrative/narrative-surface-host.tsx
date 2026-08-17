@@ -1006,35 +1006,65 @@ function NarrativeSurfaceEntryInternalV1(
       observedEntry: entry,
       observedRuntime: runtime,
     };
-  } else if (
-    gateRef.current.observedEntry !== entry || gateRef.current.observedRuntime !== runtime
-  ) {
-    gateRef.current.observedEntry = entry;
-    gateRef.current.observedRuntime = runtime;
-    if (gateRef.current.status === "cancelled") {
-      gateRef.current.status = "pending";
-      gateRef.current.runtime = null;
-    }
   }
   const gate = gateRef.current;
   return (
-    <NarrativeSurfaceEntryBoundaryInternalV1
-      attachment={runtime.attachment}
-      entry={entry}
-      gate={gate}
-    >
-      <NarrativeSurfaceEntryShellInternalV1
-        runtime={runtime}
+    <>
+      <NarrativeSurfaceEntryCurrentnessCommitInternalV1
         entry={entry}
         gate={gate}
-        portalContainer={portalContainer}
-        lifecycle={lifecycle}
-        focusOwner={focusOwner}
-        suppressImmediateFocus={suppressImmediateFocus}
-        armPointerFence={armPointerFence}
+        runtime={runtime}
       />
-    </NarrativeSurfaceEntryBoundaryInternalV1>
+      <NarrativeSurfaceEntryBoundaryInternalV1
+        attachment={runtime.attachment}
+        entry={entry}
+        gate={gate}
+      >
+        <NarrativeSurfaceEntryShellInternalV1
+          runtime={runtime}
+          entry={entry}
+          gate={gate}
+          portalContainer={portalContainer}
+          lifecycle={lifecycle}
+          focusOwner={focusOwner}
+          suppressImmediateFocus={suppressImmediateFocus}
+          armPointerFence={armPointerFence}
+        />
+      </NarrativeSurfaceEntryBoundaryInternalV1>
+    </>
   );
+}
+
+function NarrativeSurfaceEntryCurrentnessCommitInternalV1(props: {
+  readonly entry: NarrativeStableHostRenderEntryInternalV1;
+  readonly gate: NarrativeSurfaceEntryGateInternalV1;
+  readonly runtime: NarrativeStableHostRuntimeInternalV1;
+}): null {
+  useLayoutEffect(() => {
+    if (
+      props.gate.observedEntry === props.entry &&
+      props.gate.observedRuntime === props.runtime
+    ) return;
+    props.gate.observedEntry = props.entry;
+    props.gate.observedRuntime = props.runtime;
+    if (props.gate.status === "cancelled") {
+      props.gate.status = "pending";
+      props.gate.runtime = null;
+    }
+  }, [props.entry, props.gate, props.runtime]);
+  return null;
+}
+
+function NarrativeSurfaceCurrentnessCommitInternalV1(props: {
+  readonly lifecycle: NarrativeSurfaceDomLifecycleInternalV1;
+  readonly snapshot: ReturnType<
+    NarrativeStableHostRuntimeInternalV1["renderSource"]["getSnapshotInternalV1"]
+  >;
+}): null {
+  useLayoutEffect(() => {
+    props.lifecycle.snapshot.current = props.snapshot;
+  }, [props.lifecycle, props.snapshot]);
+  return null;
 }
 
 function NarrativeSurfaceRuntimeInternalV1(
@@ -1068,7 +1098,6 @@ function NarrativeSurfaceRuntimeInternalV1(
     };
   }
   const lifecycle = lifecycleRef.current;
-  lifecycle.snapshot.current = snapshot;
   const armPointerFence = useStagePointerGestureFenceV1("narrative");
   useStageInputIsolationV1("narrative", snapshot.entries.length > 0);
 
@@ -1213,19 +1242,25 @@ function NarrativeSurfaceRuntimeInternalV1(
   }, [focusOwnerEntry, lifecycle, runtime, snapshot]);
 
   return createPortal(
-    snapshot.entries.map((entry) => (
-      <NarrativeSurfaceEntryInternalV1
-        key={entry.renderKey}
-        runtime={runtime}
-        entry={entry}
-        portalContainer={portalContainer}
+    <>
+      <NarrativeSurfaceCurrentnessCommitInternalV1
         lifecycle={lifecycle}
-        focusOwner={focusOwnerEntry?.renderKey === entry.renderKey}
-        suppressImmediateFocus={suppressImmediateParentFocus &&
-          focusOwnerEntry?.renderKey === entry.renderKey}
-        armPointerFence={armPointerFence}
+        snapshot={snapshot}
       />
-    )),
+      {snapshot.entries.map((entry) => (
+        <NarrativeSurfaceEntryInternalV1
+          key={entry.renderKey}
+          runtime={runtime}
+          entry={entry}
+          portalContainer={portalContainer}
+          lifecycle={lifecycle}
+          focusOwner={focusOwnerEntry?.renderKey === entry.renderKey}
+          suppressImmediateFocus={suppressImmediateParentFocus &&
+            focusOwnerEntry?.renderKey === entry.renderKey}
+          armPointerFence={armPointerFence}
+        />
+      ))}
+    </>,
     portalContainer,
   );
 }
