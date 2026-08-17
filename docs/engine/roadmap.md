@@ -94,6 +94,13 @@ active plan：Studio 作者信任加固、统一创作外壳与共享文档会�
 index、Story 包目录 locality 与 Scene Construction，目标合同见
 [统一创作架构](design/authoring-architecture.md)。
 
+2026-08-18 新的外部规模证据激活了一个独立分支实验：
+[Experimental composition kernel and State Runtime](plans/2026-08-18-experimental-composition-state-runtime.md)。
+它以 Cordis-backed composition façade 和中立 State Runtime 检验大型 State-heavy Story
+的 capability composition 与 dependency locality；必须先用仓库内中性 workload 复现，并保持
+唯一 State authority、Save/replay 等价与热路径预算。该实验不是已实现能力，也不自动激活 Mod
+ABI 或 State Format V2。
+
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实
 Host evidence 主要来自 macOS；三个平台都尚未完成各自 production
