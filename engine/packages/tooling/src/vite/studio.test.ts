@@ -31,6 +31,14 @@ function studioHtmlTransformV1(
   return (html) => run(html);
 }
 
+function studioEntrySourceFromPluginV1(plugin: Plugin): string {
+  if (typeof plugin.load !== "function") throw new TypeError("missing Studio virtual entry loader");
+  const load = plugin.load as unknown as (id: string) => unknown;
+  const source = load("/__sillymaker/studio-entry.tsx");
+  if (typeof source !== "string") throw new TypeError("missing Studio virtual entry source");
+  return source;
+}
+
 describe("studioPluginV1", () => {
   it("advertises the Studio page on the game HTML", () => {
     const transform = studioHtmlTransformV1(studioPluginV1(studioBindingV1));
@@ -59,5 +67,26 @@ describe("studioPluginV1", () => {
       "</html>",
     ].join("");
     expect(transform(html)).toBe(html);
+  });
+
+  it("boots an isolated live composition and commits HMR renders only after reload succeeds", () => {
+    const source = studioEntrySourceFromPluginV1(studioPluginV1(studioBindingV1));
+
+    expect(source).toContain(
+      'import { createStudioToolingHmrCoordinatorV1, createStudioToolingLiveCompositionV1 } from "@sillymaker/studio/composition";',
+    );
+    expect(source).toContain('profileId: "sillymaker.studio.live"');
+    expect(source).toContain(
+      'import.meta.hot.accept("/src/application/studio.ts", (moduleV1) => {',
+    );
+    expect(source).toContain("hmrV1.accept(moduleV1);");
+    expect(source).toContain("void hmrV1.dispose();");
+    const mountIndex = source.indexOf("await compositionV1.mount");
+    const initialRenderIndex = source.indexOf("renderStudioV1(initialPlanV1)");
+    expect(mountIndex).toBeGreaterThan(-1);
+    expect(initialRenderIndex).toBeGreaterThan(mountIndex);
+    expect(source).not.toContain("@sillymaker/state");
+    expect(source).not.toContain("GameSession");
+    expect(source).not.toContain("Context");
   });
 });
