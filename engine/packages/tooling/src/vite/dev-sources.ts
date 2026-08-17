@@ -22,9 +22,23 @@ export type DevSourceResolutionV1 =
   | { readonly kind: "file"; readonly filePath: string }
   | { readonly kind: "bad_request" | "not_found" };
 
+export type DevSourceCreateResolutionV1 =
+  | { readonly kind: "create"; readonly filePath: string; readonly directoryPath: string }
+  | { readonly kind: "bad_request" | "already_exists" };
+
 function escapesRootV1(root: string, candidate: string): boolean {
   const path = relative(root, candidate);
   return path === ".." || path.startsWith(`..${sep}`) || isAbsolute(path);
+}
+
+function invalidRelativePathV1(relativePath: string): boolean {
+  return (
+    relativePath.length === 0 ||
+    relativePath.includes("\0") ||
+    relativePath.includes("\\") ||
+    relativePath.startsWith("/") ||
+    relativePath.split("/").includes("node_modules")
+  );
 }
 
 /**
@@ -37,13 +51,7 @@ export function resolveDevSourcePathV1(
   appRoot: string,
   relativePath: string,
 ): DevSourceResolutionV1 {
-  if (
-    relativePath.length === 0 ||
-    relativePath.includes("\0") ||
-    relativePath.includes("\\") ||
-    relativePath.startsWith("/") ||
-    relativePath.split("/").includes("node_modules")
-  ) {
+  if (invalidRelativePathV1(relativePath)) {
     return Object.freeze({ kind: "bad_request" });
   }
 
@@ -75,6 +83,65 @@ export function resolveDevSourcePathV1(
   }
 
   return Object.freeze({ kind: "file", filePath: candidate });
+}
+
+/**
+ * Resolves one project-relative path for creating a brand-new file below
+ * the application root: same path-shape and containment discipline as
+ * `resolveDevSourcePathV1`, but the file itself must not exist. Existing
+ * ancestor segments must be real (non-symlink) directories so a linked
+ * segment can never widen the endpoint; missing trailing directories are
+ * the caller's to create (they become real directories).
+ */
+export function resolveDevSourceCreatePathV1(
+  appRoot: string,
+  relativePath: string,
+): DevSourceCreateResolutionV1 {
+  if (invalidRelativePathV1(relativePath)) {
+    return Object.freeze({ kind: "bad_request" });
+  }
+
+  const root = resolve(appRoot);
+  const candidate = resolve(root, relativePath);
+  if (escapesRootV1(root, candidate) || !existsSync(root) || candidate === root) {
+    return Object.freeze({ kind: "bad_request" });
+  }
+  if (existsSync(candidate)) return Object.freeze({ kind: "already_exists" });
+
+  try {
+    let current = root;
+    for (const segment of relative(root, candidate).split(sep)) {
+      current = resolve(current, segment);
+      if (!existsSync(current)) continue;
+      const stat = lstatSync(current);
+      if (stat.isSymbolicLink()) return Object.freeze({ kind: "bad_request" });
+      // An existing non-directory segment means the path routes through a
+      // file; nothing can be created below it.
+      if (current !== candidate && !stat.isDirectory()) {
+        return Object.freeze({ kind: "bad_request" });
+      }
+    }
+    // Containment re-check after symlink resolution of the existing tree.
+    let deepestExisting = root;
+    for (const segment of relative(root, candidate).split(sep)) {
+      const next = resolve(deepestExisting, segment);
+      if (!existsSync(next)) break;
+      deepestExisting = next;
+    }
+    const realRoot = realpathSync(root);
+    const realDeepest = realpathSync(deepestExisting);
+    if (deepestExisting !== root && escapesRootV1(realRoot, realDeepest)) {
+      return Object.freeze({ kind: "bad_request" });
+    }
+  } catch {
+    return Object.freeze({ kind: "bad_request" });
+  }
+
+  return Object.freeze({
+    kind: "create",
+    filePath: candidate,
+    directoryPath: resolve(candidate, ".."),
+  });
 }
 
 export const devSourcesOpenUrlV1 = "/__sillymaker/dev-sources/open";

@@ -15,7 +15,7 @@ import type {
   CatcafeNarrativeViewV1,
   CatcafeQueriesV1,
   CatcafeSimulationTypesV1,
-} from "../simulation.ts";
+} from "../game/simulation.ts";
 import { catcafeStoryEntryV1 } from "../story.ts";
 
 /**

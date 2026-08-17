@@ -115,6 +115,39 @@ describe("StoryDebugDockV1", () => {
     expect(control.openPanelIds.getCurrent()).toEqual(["panel.story.workbench"]);
   });
 
+  it("shows the session's last fault cause when one is recorded", async () => {
+    const cause = Object.freeze({
+      at: "dispatch" as const,
+      message: "TypeError: module demo.items already proposed",
+      stackSummary: Object.freeze(["at executeAttempt (simulation.ts:42:11)"]),
+    });
+    renderDockV1({
+      faultCause: Object.freeze({
+        getCurrent: () => cause,
+        subscribe: () => () => undefined,
+      }),
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByText("调试"));
+    const block = document.querySelector("[data-debug-dock-fault-cause]");
+    expect(block).not.toBeNull();
+    expect(block).toHaveTextContent("最近故障");
+    expect(block).toHaveTextContent("module demo.items already proposed");
+    expect(block).toHaveTextContent("simulation.ts:42:11");
+  });
+
+  it("renders no fault block while the cause is null", async () => {
+    renderDockV1({
+      faultCause: Object.freeze({
+        getCurrent: () => null,
+        subscribe: () => () => undefined,
+      }),
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByText("调试"));
+    expect(document.querySelector("[data-debug-dock-fault-cause]")).toBeNull();
+  });
+
   it("freezes and resumes the presentation plane", async () => {
     const freeze = createPresentationFreezePortV1({ inner: createManualPresentationClockV1() });
     renderDockV1({ presentationFreeze: freeze });

@@ -1,250 +1,127 @@
 // SPDX-License-Identifier: MIT
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import type { PointerEvent as ReactPointerEvent, ReactElement } from "react";
+import type { ReactElement } from "react";
 
-import type {
-  SceneDocumentV1,
-  StageContentCatalogV1,
-  StageContentGeometryV1,
-  StagePlacementV1,
-  StageRenderTargetV1,
-} from "@sillymaker/base";
-import {
-  createSemanticStageStateV1,
-  parseMotionDocumentV1,
-  projectStageRenderTargetV1,
-  reduceStageMutationsV1,
-  sceneFromDocumentV1,
-  sceneSettledMutationsV1,
-} from "@sillymaker/base";
-import type { SemanticStageEntryRendererV1 } from "@sillymaker/ui";
-import { SemanticStageTargetHostV1 } from "@sillymaker/ui";
-import {
-  createDevServerMotionIoV1,
-  createMotionSourceIndexV1,
-  createMotionWorkbenchStoreV1,
-  MotionWorkbenchLauncherV1,
-} from "@sillymaker/ui/debug";
-import type { MotionPreviewCaseV1 } from "@sillymaker/ui/debug";
+import { useAuthoringDocumentSessionV1 } from "@sillymaker/ui/debug";
+import type { MotionSourceIoV1 } from "@sillymaker/ui/debug";
 
-import type { SceneIoListEntryV1, SceneSourceIoV1 } from "./scene-io.ts";
+import type { StageAppearanceV1, StageContentIdV1 } from "@sillymaker/base";
+
+import type { SceneIoListEntryV1, SceneIoListSkipV1, SceneSourceIoV1 } from "./core/scene-io.ts";
+import { createSceneDocumentSessionV1 } from "./core/scene-session.ts";
+import { loadStudioMotionSourcesV1 } from "./core/motion-sources.ts";
+import type { StudioMotionSourcesV1 } from "./core/motion-sources.ts";
+import {
+  compileSceneV1,
+  defaultPlacementV1,
+  editDocumentV1,
+} from "./workspaces/scene/scene-compile.ts";
+import {
+  addContentEntryV1,
+  addCueV1,
+  deriveMotionPlanV1,
+  inferSceneIdPrefixV1,
+  newSceneDocumentV1,
+  removeCueV1,
+  removeEntryV1,
+} from "./workspaces/scene/scene-construction.ts";
+import { SceneCanvasV1 } from "./workspaces/scene/scene-canvas.tsx";
+import { SceneCuesV1 } from "./workspaces/scene/scene-cues.tsx";
+import { SceneInspectorV1 } from "./workspaces/scene/scene-inspector.tsx";
+import { ContentBrowserV1 } from "./workspaces/content/content-browser.tsx";
+import { FlowWorkspaceSectionV1 } from "./workspaces/flow/flow-workspace.tsx";
+import {
+  buildMotionCatalogV1,
+  buildMotionWorkbenchModelV1,
+} from "./workspaces/motion/motion-cases.ts";
+import { MotionWorkspaceSectionV1 } from "./workspaces/motion/motion-workspace.tsx";
+import type { StudioBindingV1, StudioContentDescriptorV1 } from "./core/binding.ts";
 import styles from "./studio-app.module.css";
 
-/**
- * SillyMaker Studio V1: the project-level scene workspace. The navigator
- * lists the app's `*.scene.json` sources, the canvas renders the selected
- * scene through the Story's real renderers (a detached target — no Session,
- * no reconciler, no gameplay state), the inspector edits the selected
- * entry's placement, and the cue list drives the replay point and
- * cue→motion bindings. The canvas defaults to the declared composition
- * (`openMutations` over an empty stage) so every declared entry — including
- * actors whose cue arc ends with a hide — stays visible and draggable;
- * `到此为止` switches to the replay-through-cue story preview. Drafts live
- * only in Studio memory; saving goes through the dev-only CAS scene port
- * and the running game picks the file change up over HMR. The Scene
- * document stays the single authoring authority — Studio never becomes a
- * second gameplay or Stage authority.
- */
-
-export interface StudioMotionSourceV1 {
-  /** App-root-relative source path, e.g. `src/scenes/x/motions/y.motion.json`. */
-  readonly path: string;
-  /** The raw `*.motion.json` import value (or a parsed document). */
-  readonly motionDocument: unknown;
-}
+export type {
+  NarrativeFlowEdgeLabelV1,
+  NarrativeFlowGraphEdgeV1,
+  NarrativeFlowGraphNodeV1,
+  NarrativeFlowGraphV1,
+  StudioAppearanceFieldV1,
+  StudioAssetRegistryPortV1,
+  StudioBindingV1,
+  StudioContentDescriptorV1,
+} from "./core/binding.ts";
 
 /**
- * Narrow runtime-image registry port: the canvas preloads the compiled
- * target's assets through it and re-renders as bytes arrive. A Story
- * binding constructs the same registry the game uses (resolved manifest +
- * browser image loader) and binds its renderers to it; without one the
- * canvas keeps the Story's code-native fallbacks.
+ * SillyMaker Studio: the unified authoring shell. The shell owns project
+ * navigation, the shared authoring document session (drafts, dirty, CAS
+ * saves, undo/redo, the dirty-navigation gate, the stale-open fence), the
+ * authoring-diagnostics panel, and asset preloading; the workspaces own
+ * their domain representations — the scene workspace's canvas/inspector/
+ * cue table and the embedded Motion workspace. Drafts live only in session
+ * memory; saving goes through the dev-only CAS scene port and the running
+ * game picks the file change up over HMR. The Scene document stays the
+ * single authoring authority — Studio never becomes a second gameplay or
+ * Stage authority.
  */
-export interface StudioAssetRegistryPortV1 {
-  preload(assetIds: readonly string[], signal: AbortSignal): Promise<unknown>;
-  observe(): { readonly revision: number };
-  subscribe(listener: () => void): () => void;
-}
-
-/** The application's Studio binding, declared in `sillymaker.config.ts`. */
-export interface StudioBindingV1 {
-  readonly catalog: StageContentCatalogV1;
-  readonly renderers: Readonly<Record<string, SemanticStageEntryRendererV1>>;
-  /** Motion sources the scenes may bind; feeds the embedded Workbench. */
-  readonly motions?: readonly StudioMotionSourceV1[];
-  /** Runtime-image registry so the canvas draws real art; renderers must be bound to it. */
-  readonly assets?: StudioAssetRegistryPortV1;
-}
 
 export interface StudioAppPropsV1 {
   readonly binding: StudioBindingV1;
   readonly io: SceneSourceIoV1;
+  /** The motion port: the index-backed list plus per-document read/write. */
+  readonly motionIo: MotionSourceIoV1;
 }
 
-const studioPreviewStageIdV1 = "stage.studio.preview";
 const studioPreviewMaxWidthV1 = 720;
-const studioSnapThresholdCssPxV1 = 8;
-const studioMinScalePermilleV1 = 10;
-const studioMaxScalePermilleV1 = 100_000;
-
-/** One selectable actor on the canvas: projected placement plus its box. */
-interface StudioCanvasActorV1 {
-  readonly key: string;
-  readonly tag: string;
-  readonly placement: StagePlacementV1;
-  readonly geometry: StageContentGeometryV1;
-}
-
-/** The rendered box in logical canvas pixels (anchor + scale + mirror applied). */
-function actorBoxV1(actor: StudioCanvasActorV1): {
-  readonly left: number;
-  readonly top: number;
-  readonly width: number;
-  readonly height: number;
-} {
-  const scale = actor.placement.scalePermille / 1000;
-  const width = actor.geometry.width * scale;
-  const height = actor.geometry.height * scale;
-  const anchorX = (actor.geometry.width * actor.geometry.anchorXPermille * scale) / 1000;
-  const anchorY = (actor.geometry.height * actor.geometry.anchorYPermille * scale) / 1000;
-  return {
-    left: actor.placement.mirrored
-      ? actor.placement.x + anchorX - width
-      : actor.placement.x - anchorX,
-    top: actor.placement.y - anchorY,
-    width,
-    height,
-  };
-}
-
-function snapAxisV1(
-  value: number,
-  targets: readonly number[],
-  threshold: number,
-): { readonly value: number; readonly snapped: number | null } {
-  for (const target of targets) {
-    if (Math.abs(value - target) <= threshold) return { value: target, snapped: target };
-  }
-  return { value, snapped: null };
-}
-
-interface StudioDragStateV1 {
-  readonly pointerId: number;
-  readonly tag: string;
-  readonly mode: "move" | "scale";
-  readonly startClientX: number;
-  readonly startClientY: number;
-  readonly startPlacement: StagePlacementV1;
-  readonly geometry: StageContentGeometryV1;
-}
-
-interface StudioLoadedSceneV1 {
-  readonly path: string;
-  readonly digest: string;
-  readonly saved: SceneDocumentV1;
-}
-
-type StudioCompiledV1 =
-  | { readonly kind: "ok"; readonly target: StageRenderTargetV1 }
-  | { readonly kind: "empty" }
-  | { readonly kind: "error"; readonly message: string };
-
-function cloneDocumentV1(sceneDocument: SceneDocumentV1): SceneDocumentV1 {
-  return JSON.parse(JSON.stringify(sceneDocument)) as SceneDocumentV1;
-}
-
-function compileSceneV1(
-  draft: SceneDocumentV1,
-  throughCueId: string | null,
-  catalog: StageContentCatalogV1,
-): StudioCompiledV1 {
-  try {
-    const scene = sceneFromDocumentV1(draft);
-    const layerIds: string[] = [];
-    for (const entry of scene.sceneDocument.entries) {
-      if (!layerIds.includes(entry.layerId as string)) layerIds.push(entry.layerId as string);
-    }
-    if (layerIds.length === 0) return { kind: "empty" };
-    const emptyStage = createSemanticStageStateV1({
-      stageId: studioPreviewStageIdV1,
-      layerIds,
-    });
-    // The workspace default is the declared composition: every declared
-    // entry visible at its declared placement, so an actor whose story arc
-    // ends with a hide cue (an exit) still has a selection box to edit.
-    // Replay-through-cue is the explicit story-progression preview.
-    const mutations = throughCueId === null
-      ? scene.openMutations(emptyStage)
-      : sceneSettledMutationsV1(scene, { throughCueId });
-    const outcome = reduceStageMutationsV1(emptyStage, mutations);
-    if (outcome.kind !== "applied") {
-      return { kind: "error", message: outcome.rejection.reason };
-    }
-    return {
-      kind: "ok",
-      target: projectStageRenderTargetV1(outcome.state, catalog).target,
-    };
-  } catch (error) {
-    return { kind: "error", message: error instanceof Error ? error.message : String(error) };
-  }
-}
-
-function defaultPlacementV1(): {
-  x: number;
-  y: number;
-  scalePermille: number;
-  opacityPermille: number;
-  mirrored: boolean;
-} {
-  return { x: 0, y: 0, scalePermille: 1000, opacityPermille: 1000, mirrored: false };
-}
-
-/** One draft edit: clone, mutate the plain JSON, and hand back a new doc. */
-function editDocumentV1(
-  draft: SceneDocumentV1,
-  mutate: (plain: {
-    entries: {
-      layerId: string;
-      tag: string;
-      contentId: string;
-      zOrder?: number;
-      placement?: ReturnType<typeof defaultPlacementV1>;
-      appearance?: Record<string, string>;
-    }[];
-    cues: { cueId: string; kind: string; tag: string; motionId?: string }[];
-  }) => void,
-): SceneDocumentV1 {
-  const plain = JSON.parse(JSON.stringify(draft)) as Parameters<typeof mutate>[0];
-  mutate(plain);
-  return plain as unknown as SceneDocumentV1;
-}
 
 export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
-  const { binding, io } = props;
+  const { binding, io, motionIo } = props;
   const [scenes, setScenes] = useState<readonly SceneIoListEntryV1[] | null>(null);
-  const [loaded, setLoaded] = useState<StudioLoadedSceneV1 | null>(null);
-  const [draft, setDraft] = useState<SceneDocumentV1 | null>(null);
+  const [sceneSkips, setSceneSkips] = useState<readonly SceneIoListSkipV1[]>(Object.freeze([]));
+  // Index-enumerated motion documents (null while loading); registration-free.
+  const [motionSources, setMotionSources] = useState<StudioMotionSourcesV1 | null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [throughCueId, setThroughCueId] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  /** A dirty draft gates navigation: save, discard, or cancel — never silent loss. */
+  const [confirmNavigation, setConfirmNavigation] = useState<{ readonly path: string } | null>(
+    null,
+  );
+  const [assetWarning, setAssetWarning] = useState<string | null>(null);
   // Declared hit regions render as labeled outlines by default: authors
   // place art against the interactive areas, not blind.
   const [showHitRegions, setShowHitRegions] = useState(true);
+  // Scene Construction: the new-scene form (navigator) and the busy flag
+  // shared by every dev-port create call.
+  const [newSceneStem, setNewSceneStem] = useState<string | null>(null);
+  const [newSceneLabel, setNewSceneLabel] = useState("");
+  const [creating, setCreating] = useState(false);
+  // Bumped after a motion create so the index-backed catalog re-lists.
+  const [motionsRevision, setMotionsRevision] = useState(0);
+  const [scenesRevision, setScenesRevision] = useState(0);
+
+  // The shared authoring session owns saved/draft/dirty, the CAS save, the
+  // monotonic open fence, and undo/redo; the shell maps its results to
+  // notes and confirms.
+  const session = useMemo(() => createSceneDocumentSessionV1(io), [io]);
+  const snapshot = useAuthoringDocumentSessionV1(session);
+  const draft = snapshot.draft;
+  const dirty = snapshot.dirty;
+  const busy = snapshot.saving;
+  const loading = snapshot.loading;
 
   const openScene = useCallback((path: string): void => {
     setNote(null);
-    void io.read(path).then((result) => {
-      if (result.kind !== "ok") {
+    setConfirmNavigation(null);
+    void session.open(path).then((result) => {
+      if (result.kind === "stale") return;
+      if (result.kind === "error") {
         setNote(`读取场景失败：${result.code}`);
         return;
       }
-      setLoaded({ path, digest: result.digest, saved: result.sceneDocument });
-      setDraft(cloneDocumentV1(result.sceneDocument));
-      setSelectedTag(result.sceneDocument.entries[0]?.tag ?? null);
+      const opened = session.getSnapshot().draft;
+      setSelectedTag((opened?.entries[0]?.tag as string | undefined) ?? null);
       setThroughCueId(null);
+      setAssetWarning(null);
     });
-  }, [io]);
+  }, [session]);
 
   useEffect(() => {
     let active = true;
@@ -256,83 +133,73 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
         return;
       }
       setScenes(result.scenes);
+      setSceneSkips(result.skipped);
     });
     return () => {
       active = false;
     };
-  }, [io]);
+  }, [io, scenesRevision]);
+
+  // The motion catalog comes from the Project Authoring Index (list) plus
+  // per-document reads — no hand-registered source paths anywhere. The
+  // revision bumps after a motion create so the new document lists.
+  useEffect(() => {
+    let active = true;
+    void loadStudioMotionSourcesV1(motionIo).then((result) => {
+      if (active) setMotionSources(result);
+    });
+    return () => {
+      active = false;
+    };
+  }, [motionIo, motionsRevision]);
 
   // The first listed scene opens automatically so the workspace never
-  // greets the author with an empty canvas.
+  // greets the author with an empty canvas. A failed first open must not
+  // retry on the loading false-edge — path stays null, and putting
+  // `loading` in this effect's deps would loop forever (S0 kept `loaded`
+  // null on error and did not re-fire). Authors retry from the navigator.
+  const autoOpenedRef = useRef(false);
   useEffect(() => {
-    if (scenes !== null && scenes.length > 0 && loaded === null && scenes[0] !== undefined) {
-      openScene(scenes[0].path);
+    if (
+      autoOpenedRef.current || scenes === null || scenes.length === 0 ||
+      snapshot.path !== null || scenes[0] === undefined
+    ) {
+      return;
     }
-  }, [scenes, loaded, openScene]);
+    autoOpenedRef.current = true;
+    openScene(scenes[0].path);
+  }, [scenes, snapshot.path, openScene]);
 
   const compiled = useMemo(
     () => (draft === null ? null : compileSceneV1(draft, throughCueId, binding.catalog)),
     [draft, throughCueId, binding.catalog],
   );
+  const compileBlocked = compiled === null || compiled.kind === "error";
 
-  const dirty = useMemo(
-    () =>
-      loaded !== null && draft !== null &&
-      JSON.stringify(loaded.saved) !== JSON.stringify(draft),
-    [loaded, draft],
+  // Navigation gate: switching or reloading a scene with a dirty draft asks
+  // first; the browser unload path gets the same protection.
+  const requestOpenScene = useCallback((path: string): void => {
+    if (dirty) {
+      setConfirmNavigation({ path });
+      return;
+    }
+    openScene(path);
+  }, [dirty, openScene]);
+
+  useEffect(() => {
+    if (!dirty) return undefined;
+    const onBeforeUnload = (event: BeforeUnloadEvent): void => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty]);
+
+  const motionCatalog = useMemo(() => buildMotionCatalogV1(motionSources), [motionSources]);
+  const workbench = useMemo(
+    () => buildMotionWorkbenchModelV1(motionSources, binding, draft),
+    [motionSources, binding, draft],
   );
-
-  const motionIds = useMemo(() => {
-    const ids: string[] = [];
-    for (const source of binding.motions ?? []) {
-      try {
-        ids.push(parseMotionDocumentV1(source.motionDocument).motionId);
-      } catch {
-        continue;
-      }
-    }
-    return Object.freeze(ids);
-  }, [binding.motions]);
-
-  const workbench = useMemo(() => {
-    const motions = binding.motions ?? [];
-    if (motions.length === 0 || draft === null) return null;
-    try {
-      const sources = createMotionSourceIndexV1(
-        Object.fromEntries(motions.map((source) => [source.path, source.motionDocument])),
-      );
-      const canvas = { width: draft.canvas.width, height: draft.canvas.height };
-      const cases: MotionPreviewCaseV1[] = [];
-      let fallbackEntryKey: string | null = null;
-      for (const cue of draft.cues) {
-        if (cue.motionId === undefined) continue;
-        const entry = draft.entries.find((candidate) => candidate.tag === cue.tag);
-        if (entry === undefined) continue;
-        const throughCue = compileSceneV1(draft, cue.cueId, binding.catalog);
-        if (throughCue.kind !== "ok") continue;
-        const entryKey = `${entry.layerId}:${entry.tag}`;
-        fallbackEntryKey = fallbackEntryKey ?? entryKey;
-        cases.push({
-          caseId: cue.cueId,
-          label: `${cue.cueId}（${entry.contentId}）`,
-          motionId: cue.motionId,
-          preview: {
-            target: throughCue.target,
-            renderers: binding.renderers,
-            entryKey,
-            canvas,
-          },
-        });
-      }
-      if (cases.length === 0 || fallbackEntryKey === null || cases[0] === undefined) return null;
-      return { sources, cases, fallbackPreview: cases[0].preview };
-    } catch {
-      return null;
-    }
-  }, [binding.catalog, binding.motions, binding.renderers, draft]);
-
-  const workbenchStore = useMemo(() => createMotionWorkbenchStoreV1(), []);
-  const motionIo = useMemo(() => createDevServerMotionIoV1(), []);
 
   // Real art: preload the assets the compiled targets require and re-render
   // as bytes arrive; the Story's renderers resolve URLs from the same
@@ -355,7 +222,7 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
     if (compiled !== null && compiled.kind === "ok") {
       for (const assetId of compiled.target.requiredAssetIds) ids.add(assetId as string);
     }
-    if (workbench !== null) {
+    if (workbench.kind === "ready") {
       for (const previewCase of workbench.cases) {
         for (const assetId of previewCase.preview.target.requiredAssetIds) {
           ids.add(assetId as string);
@@ -369,206 +236,396 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
     if (assets === null || requiredAssetIdsKey.length === 0) return undefined;
     const controller = new AbortController();
     try {
-      void assets.preload(requiredAssetIdsKey.split("\n"), controller.signal).catch(() => {
-        // Failed loads keep the code-native fallback; the dev canvas never
-        // crashes over missing art.
-      });
+      void assets.preload(requiredAssetIdsKey.split("\n"), controller.signal)
+        .then(() => setAssetWarning(null))
+        .catch(() => {
+          // Failed loads keep the code-native fallback; the dev canvas
+          // never crashes over missing art — but the author must know.
+          if (!controller.signal.aborted) {
+            setAssetWarning("部分资产加载失败，画布显示替代图形。");
+          }
+        });
     } catch {
-      // Unknown asset ids stay on their fallback rendering.
+      setAssetWarning("部分资产标识无法解析，画布显示替代图形。");
     }
     return () => controller.abort();
   }, [assets, requiredAssetIdsKey]);
 
-  const save = useCallback((): void => {
-    if (loaded === null || draft === null || busy) return;
-    setBusy(true);
-    setNote(null);
-    void io
-      .write({ path: loaded.path, expectedDigest: loaded.digest, sceneDocument: draft })
-      .then((result) => {
-        if (result.kind !== "ok") {
-          setNote(
-            result.code === "digest_conflict"
-              ? "文件已被其他编辑更改——请重新加载后再改。"
-              : `保存失败：${result.code}`,
-          );
-          return;
-        }
-        setLoaded({ path: loaded.path, digest: result.digest, saved: cloneDocumentV1(draft) });
-        setNote("已保存；运行中的游戏会热更新。");
-      })
-      .finally(() => setBusy(false));
-  }, [busy, draft, io, loaded]);
+  const saveNoteV1 = (code: string): string =>
+    code === "digest_conflict" ? "文件已被其他编辑更改——请重新加载后再改。" : `保存失败：${code}`;
 
-  const selectedEntry = draft?.entries.find((entry) => entry.tag === selectedTag) ?? null;
+  const save = useCallback((): void => {
+    setNote(null);
+    void session.save().then((result) => {
+      if (result.kind === "ok") setNote("已保存；运行中的游戏会热更新。");
+      else if (result.kind === "error") setNote(saveNoteV1(result.code));
+    });
+  }, [session]);
+
+  const confirmSaveAndOpen = useCallback((): void => {
+    // The same compile guard as the top-bar save: a non-compilable draft
+    // cannot be persisted from the navigation confirm either.
+    if (confirmNavigation === null || busy || compileBlocked) return;
+    const path = confirmNavigation.path;
+    void session.save().then((result) => {
+      if (result.kind === "ok") {
+        setNote("已保存；运行中的游戏会热更新。");
+        openScene(path);
+      } else if (result.kind === "error") {
+        setNote(saveNoteV1(result.code));
+      }
+    });
+  }, [busy, compileBlocked, confirmNavigation, openScene, session]);
+
+  const confirmDiscardAndOpen = useCallback((): void => {
+    if (confirmNavigation === null) return;
+    openScene(confirmNavigation.path);
+  }, [confirmNavigation, openScene]);
+
   const scale = draft === null ? 1 : Math.min(1, studioPreviewMaxWidthV1 / draft.canvas.width);
 
-  const editSelectedPlacement = useCallback(
-    (mutatePlacement: (placement: ReturnType<typeof defaultPlacementV1>) => void): void => {
-      if (draft === null || selectedTag === null) return;
-      setDraft(
-        editDocumentV1(draft, (plain) => {
-          const entry = plain.entries.find((candidate) => candidate.tag === selectedTag);
-          if (entry === undefined) return;
-          const placement = entry.placement ?? defaultPlacementV1();
-          mutatePlacement(placement);
-          entry.placement = placement;
-        }),
-      );
-    },
-    [draft, selectedTag],
-  );
-
-  // Direct manipulation: dragging an actor writes its placement in logical
-  // canvas pixels (pointer deltas ÷ preview scale, snapped to the canvas
-  // edges/centers, clamped inside the canvas); the corner handle scales.
-  const dragRef = useRef<StudioDragStateV1 | null>(null);
-  const [guides, setGuides] = useState<{ readonly x: number | null; readonly y: number | null }>(
-    { x: null, y: null },
-  );
-
-  const canvasActors = useMemo(() => {
-    if (compiled === null || compiled.kind !== "ok") return Object.freeze([]);
-    const actors: StudioCanvasActorV1[] = [];
+  // Renderer coverage derives from the compiled target every recompile, so
+  // fixed gaps heal on their own (empty rendererIds are already reported by
+  // the projection as stage.renderer_missing / content_unresolved).
+  const rendererWarnings = useMemo(() => {
+    if (compiled === null || compiled.kind !== "ok") return Object.freeze([]) as readonly string[];
+    const lines: string[] = [];
     for (const layer of compiled.target.layers) {
       for (const entry of layer.entries) {
-        if (entry.geometry === undefined) continue;
-        actors.push({
-          key: entry.key,
-          tag: entry.tag as string,
-          placement: entry.placement,
-          geometry: entry.geometry,
-        });
+        if (
+          (entry.rendererId as string) === "" ||
+          Object.hasOwn(binding.renderers, entry.rendererId as string)
+        ) {
+          continue;
+        }
+        const line = `stage.renderer_unregistered: ${entry.key}（renderer "${entry
+          .rendererId as string}" 未在 Studio 绑定注册）`;
+        if (!lines.includes(line)) lines.push(line);
       }
     }
-    return Object.freeze(actors);
-  }, [compiled]);
+    return Object.freeze(lines);
+  }, [binding.renderers, compiled]);
+
+  // Placeable manifest content whose resolution declares no geometry gets
+  // no canvas selection box; the author must know why dragging is missing
+  // (backgrounds legitimately omit geometry and stay quiet).
+  const geometryWarnings = useMemo(() => {
+    const manifest = binding.contents;
+    if (manifest === undefined || draft === null) return Object.freeze([]) as readonly string[];
+    const lines: string[] = [];
+    for (const entry of draft.entries) {
+      const descriptor = manifest.find(
+        (candidate) => candidate.contentId === (entry.contentId as string),
+      );
+      if (descriptor === undefined || descriptor.category === "background") continue;
+      let geometry;
+      try {
+        geometry = binding.catalog.resolveContent(
+          entry.contentId,
+          entry.appearance ?? (Object.freeze({}) as StageAppearanceV1),
+        )?.geometry;
+      } catch {
+        continue;
+      }
+      if (geometry !== undefined) continue;
+      lines.push(
+        `内容 ${entry.contentId as string} 未声明 geometry——画布无法直接拖拽（条目 ${entry
+          .tag as string}，可在检视器数字编辑）`,
+      );
+    }
+    return Object.freeze(lines);
+  }, [binding.catalog, binding.contents, draft]);
+
+  // Ambient loops reference motion documents by id; a binding the index
+  // cannot resolve would silently never play, so it warns per entry.
+  const ambientWarnings = useMemo(() => {
+    if (draft === null || motionSources === null) return Object.freeze([]) as readonly string[];
+    const known = new Set(motionCatalog.ids);
+    return Object.freeze(
+      draft.entries
+        .filter((entry) => entry.ambient !== undefined && !known.has(entry.ambient.motionId))
+        .map((entry) =>
+          `条目 ${entry.tag as string} 的循环动效 ${entry.ambient?.motionId ?? ""} 未被索引` +
+          "——循环不会播放（检查 motion 文档是否存在且可解析）"
+        ),
+    );
+  }, [draft, motionCatalog.ids, motionSources]);
+
+  // Authoring diagnostics: warnings stay visible but never block saving;
+  // only a compile failure (shown as blocking) disables the save button.
+  const authoringWarnings = useMemo(() => {
+    const warnings: string[] = [];
+    if (compiled !== null && compiled.kind === "ok") warnings.push(...compiled.diagnostics);
+    for (const skip of sceneSkips) {
+      warnings.push(`场景文件未索引（${skip.path}）：${skip.reason}`);
+    }
+    warnings.push(...motionCatalog.failures);
+    if (workbench.kind === "unavailable") warnings.push(...workbench.reasons);
+    if (workbench.kind === "ready") warnings.push(...workbench.warnings);
+    if (assetWarning !== null) warnings.push(assetWarning);
+    warnings.push(...rendererWarnings);
+    warnings.push(...geometryWarnings);
+    warnings.push(...ambientWarnings);
+    return Object.freeze(warnings);
+  }, [
+    ambientWarnings,
+    assetWarning,
+    compiled,
+    geometryWarnings,
+    motionCatalog.failures,
+    rendererWarnings,
+    sceneSkips,
+    workbench,
+  ]);
+
+  const editDraft = useCallback(
+    (
+      mutate: Parameters<typeof editDocumentV1>[1],
+      coalesceKey?: string,
+    ): void => {
+      const current = session.getSnapshot().draft;
+      if (current === null) return;
+      session.replaceDraft(
+        editDocumentV1(current, mutate),
+        coalesceKey === undefined ? {} : { coalesceKey },
+      );
+    },
+    [session],
+  );
 
   const writeActorPlacement = useCallback(
-    (tag: string, mutatePlacement: (placement: ReturnType<typeof defaultPlacementV1>) => void) => {
-      setDraft((current) => {
-        if (current === null) return current;
-        return editDocumentV1(current, (plain) => {
-          const entry = plain.entries.find((candidate) => candidate.tag === tag);
-          if (entry === undefined) return;
-          const placement = entry.placement ?? defaultPlacementV1();
-          mutatePlacement(placement);
-          entry.placement = placement;
-        });
-      });
+    (
+      tag: string,
+      mutatePlacement: (placement: ReturnType<typeof defaultPlacementV1>) => void,
+      coalesceKey?: string,
+    ): void => {
+      editDraft((plain) => {
+        const entry = plain.entries.find((candidate) => candidate.tag === tag);
+        if (entry === undefined) return;
+        const placement = entry.placement ?? defaultPlacementV1();
+        mutatePlacement(placement);
+        entry.placement = placement;
+      }, coalesceKey);
     },
-    [],
+    [editDraft],
   );
 
-  const onActorPointerDown = (
-    event: ReactPointerEvent<HTMLElement>,
-    actor: StudioCanvasActorV1,
-    mode: "move" | "scale",
-  ): void => {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    setSelectedTag(actor.tag);
-    dragRef.current = {
-      pointerId: event.pointerId,
-      tag: actor.tag,
-      mode,
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startPlacement: actor.placement,
-      geometry: actor.geometry,
-    };
-    if (typeof event.currentTarget.setPointerCapture === "function") {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    }
-  };
+  const editSelectedPlacement = useCallback(
+    (
+      mutatePlacement: (placement: ReturnType<typeof defaultPlacementV1>) => void,
+      coalesceKey?: string,
+    ): void => {
+      if (selectedTag === null) return;
+      writeActorPlacement(selectedTag, mutatePlacement, coalesceKey);
+    },
+    [selectedTag, writeActorPlacement],
+  );
 
-  const onActorPointerMove = (event: ReactPointerEvent<HTMLElement>): void => {
-    const drag = dragRef.current;
-    if (drag === null || drag.pointerId !== event.pointerId || draft === null) return;
-    if (drag.mode === "scale") {
-      const deltaUp = (drag.startClientY - event.clientY) / scale;
-      const startHeight = (drag.geometry.height * drag.startPlacement.scalePermille) / 1000;
-      const next = Math.min(
-        studioMaxScalePermilleV1,
-        Math.max(
-          studioMinScalePermilleV1,
-          Math.round(((startHeight + deltaUp) / drag.geometry.height) * 1000),
-        ),
-      );
-      writeActorPlacement(drag.tag, (placement) => {
-        placement.scalePermille = next;
-      });
+  // ---- Scene Construction (S4) ------------------------------------------
+
+  const contents = binding.contents ?? null;
+
+  // ContentIds whose default resolution declares geometry: these get a
+  // draggable selection box on the canvas; the browser flags the rest.
+  const geometryContentIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const descriptor of contents ?? []) {
+      try {
+        const resolution = binding.catalog.resolveContent(
+          descriptor.contentId as StageContentIdV1,
+          Object.freeze({ ...descriptor.defaultAppearance }) as StageAppearanceV1,
+        );
+        if (resolution?.geometry !== undefined) ids.add(descriptor.contentId);
+      } catch {
+        // Unresolvable content is the projection diagnostics' report.
+      }
+    }
+    return ids;
+  }, [binding.catalog, contents]);
+
+  const selectedDescriptor = useMemo((): StudioContentDescriptorV1 | null => {
+    if (contents === null || selectedTag === null || draft === null) return null;
+    const entry = draft.entries.find((candidate) => (candidate.tag as string) === selectedTag);
+    if (entry === undefined) return null;
+    return contents.find(
+      (descriptor) => descriptor.contentId === (entry.contentId as string),
+    ) ?? null;
+  }, [contents, draft, selectedTag]);
+
+  const addContent = useCallback((descriptor: StudioContentDescriptorV1): void => {
+    const current = session.getSnapshot().draft;
+    if (current === null) return;
+    let addedTag: string | null = null;
+    editDraft((plain) => {
+      addedTag = addContentEntryV1(plain, descriptor, current.canvas);
+    });
+    if (addedTag !== null) setSelectedTag(addedTag);
+  }, [editDraft, session]);
+
+  const removeSelectedEntry = useCallback((): void => {
+    if (selectedTag === null) return;
+    let removedCueIds: readonly string[] = Object.freeze([]);
+    editDraft((plain) => {
+      removedCueIds = removeEntryV1(plain, selectedTag);
+    });
+    if (throughCueId !== null && removedCueIds.includes(throughCueId)) setThroughCueId(null);
+    const remaining = session.getSnapshot().draft;
+    setSelectedTag((remaining?.entries[0]?.tag as string | undefined) ?? null);
+  }, [editDraft, selectedTag, session, throughCueId]);
+
+  const addCue = useCallback((tag: string, kind: "show" | "hide"): void => {
+    const current = session.getSnapshot().draft;
+    if (current === null) return;
+    editDraft((plain) => {
+      addCueV1(plain, current.sceneId, tag, kind);
+    });
+  }, [editDraft, session]);
+
+  const removeCue = useCallback((cueId: string): void => {
+    editDraft((plain) => {
+      removeCueV1(plain, cueId);
+    });
+    if (throughCueId === cueId) setThroughCueId(null);
+  }, [editDraft, throughCueId]);
+
+  const editSelectedAppearance = useCallback((key: string, value: string | null): void => {
+    if (selectedTag === null) return;
+    editDraft((plain) => {
+      const entry = plain.entries.find((candidate) => candidate.tag === selectedTag);
+      if (entry === undefined) return;
+      const appearance = entry.appearance ?? {};
+      if (value === null) delete appearance[key];
+      else appearance[key] = value;
+      if (Object.keys(appearance).length === 0) delete entry.appearance;
+      else entry.appearance = appearance;
+    }, `field:${selectedTag}:appearance:${key}`);
+  }, [editDraft, selectedTag]);
+
+  // A new scene: id prefix inferred from the project, the file lands at
+  // src/scenes/<stem>/<stem>.scene.json (stem = the id's final segment),
+  // and the created document opens through the ordinary navigation gate.
+  const sceneIdPrefix = useMemo(
+    () =>
+      inferSceneIdPrefixV1(
+        (scenes ?? []).map((scene) => scene.sceneId),
+        (contents ?? []).map((descriptor) => descriptor.contentId),
+      ),
+    [contents, scenes],
+  );
+
+  const createScene = useCallback((): void => {
+    if (newSceneStem === null || creating) return;
+    const stem = newSceneStem.trim();
+    if (!/^[a-z0-9][a-z0-9_-]*$/u.test(stem)) {
+      setNote("场景名只能使用小写字母、数字、下划线和连字符。");
       return;
     }
-    const threshold = studioSnapThresholdCssPxV1 / scale;
-    const candidateX = drag.startPlacement.x + (event.clientX - drag.startClientX) / scale;
-    const candidateY = drag.startPlacement.y + (event.clientY - drag.startClientY) / scale;
-    const snappedX = snapAxisV1(
-      Math.round(candidateX),
-      [0, Math.round(draft.canvas.width / 2), draft.canvas.width],
-      threshold,
-    );
-    const snappedY = snapAxisV1(
-      Math.round(candidateY),
-      [0, Math.round(draft.canvas.height / 2), draft.canvas.height],
-      threshold,
-    );
-    const x = Math.min(draft.canvas.width, Math.max(0, snappedX.value));
-    const y = Math.min(draft.canvas.height, Math.max(0, snappedY.value));
-    setGuides({ x: snappedX.snapped, y: snappedY.snapped });
-    writeActorPlacement(drag.tag, (placement) => {
-      placement.x = x;
-      placement.y = y;
+    const label = newSceneLabel.trim();
+    const sceneDocument = newSceneDocumentV1({
+      sceneId: `${sceneIdPrefix}${stem}`,
+      label: label.length === 0 ? stem : label,
+      canvas: draft?.canvas ?? { width: 1280, height: 720 },
     });
-  };
+    const path = `src/scenes/${stem}/${stem}.scene.json`;
+    setCreating(true);
+    void io.create({ path, sceneDocument }).then((result) => {
+      setCreating(false);
+      if (result.kind === "error") {
+        setNote(
+          result.code === "already_exists"
+            ? "同名场景或场景 id 已存在。"
+            : `新建场景失败：${result.code}`,
+        );
+        return;
+      }
+      setNewSceneStem(null);
+      setNewSceneLabel("");
+      setScenesRevision((revision) => revision + 1);
+      setNote(`已创建 ${path}。`);
+      requestOpenScene(path);
+    });
+  }, [creating, draft, io, newSceneLabel, newSceneStem, requestOpenScene, sceneIdPrefix]);
 
-  const onActorPointerEnd = (event: ReactPointerEvent<HTMLElement>): void => {
-    const drag = dragRef.current;
-    if (drag === null || drag.pointerId !== event.pointerId) return;
-    dragRef.current = null;
-    setGuides({ x: null, y: null });
-  };
-
-  const numberField = (
-    label: string,
-    value: number,
-    onValue: (next: number) => void,
-  ): ReactElement => (
-    <label className={styles["field"]}>
-      <span>{label}</span>
-      <input
-        type="number"
-        value={value}
-        onChange={(event) => {
-          const next = Number(event.target.value);
-          if (Number.isSafeInteger(next)) onValue(next);
-        }}
-      />
-    </label>
-  );
+  // Create-or-clone a motion for one cue: the document lands next to the
+  // scene, the Project Authoring Index picks it up (revision bump), and
+  // the cue rebinds to the new id as one undoable draft edit.
+  const createMotionForCue = useCallback((cueId: string): void => {
+    const current = session.getSnapshot().draft;
+    const scenePath = session.getSnapshot().path;
+    if (current === null || scenePath === null || creating) return;
+    const cue = current.cues.find((candidate) => candidate.cueId === cueId);
+    if (cue === undefined) return;
+    const source = cue.motionId === undefined ? null : (motionSources?.sources ?? []).find(
+      (candidate) => candidate.motionDocument.motionId === cue.motionId,
+    )?.motionDocument ?? null;
+    const plan = deriveMotionPlanV1({
+      scenePath,
+      sceneId: current.sceneId,
+      cueId,
+      kind: cue.kind,
+      existingMotionIds: (motionSources?.sources ?? []).map(
+        (candidate) => candidate.motionDocument.motionId,
+      ),
+      source,
+    });
+    setCreating(true);
+    void motionIo.create({ path: plan.path, motionDocument: plan.motionDocument }).then(
+      (result) => {
+        setCreating(false);
+        if (result.kind === "error") {
+          setNote(`新建 motion 失败：${result.code}`);
+          return;
+        }
+        setMotionsRevision((revision) => revision + 1);
+        editDraft((plain) => {
+          const target = plain.cues.find((candidate) => candidate.cueId === cueId);
+          if (target !== undefined) target.motionId = plan.motionId;
+        });
+        setNote(`已创建 ${plan.path} 并绑定到 ${cueId}。`);
+      },
+    );
+  }, [creating, editDraft, motionIo, motionSources, session]);
 
   return (
     <div className={styles["studio"]} data-studio-root="true">
       <header className={styles["topbar"]}>
         <strong>SillyMaker Studio</strong>
         <span className={styles["topbar-scene"]}>
-          {loaded === null ? "未选择场景" : `${draft?.label ?? ""} · ${loaded.path}`}
+          {snapshot.path === null ? "未选择场景" : `${draft?.label ?? ""} · ${snapshot.path}`}
         </span>
         <button
           type="button"
+          data-studio-undo="true"
+          disabled={!snapshot.canUndo || busy || loading}
+          onClick={() => session.undo()}
+        >
+          撤销
+        </button>
+        <button
+          type="button"
+          data-studio-redo="true"
+          disabled={!snapshot.canRedo || busy || loading}
+          onClick={() => session.redo()}
+        >
+          重做
+        </button>
+        <button
+          type="button"
           data-studio-save="true"
-          disabled={!dirty || busy || compiled === null || compiled.kind === "error"}
+          disabled={!dirty || busy || loading || compileBlocked}
           onClick={save}
         >
           {busy ? "保存中…" : "保存"}
         </button>
-        {loaded === null ? null : (
+        {snapshot.path === null ? null : (
           <button
             type="button"
             data-studio-reload="true"
-            disabled={busy}
-            onClick={() => openScene(loaded.path)}
+            disabled={busy || loading}
+            onClick={() => {
+              const path = snapshot.path;
+              if (path !== null) requestOpenScene(path);
+            }}
           >
             重新加载
           </button>
@@ -588,6 +645,64 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
           {note}
         </p>
       )}
+      {confirmNavigation === null ? null : (
+        <div
+          className={styles["confirm"]}
+          role="alertdialog"
+          aria-label="未保存的修改"
+          data-studio-dirty-confirm="true"
+        >
+          <p>当前场景有未保存的修改。先保存，还是放弃这些修改？</p>
+          <div className={styles["confirm-actions"]}>
+            <button
+              type="button"
+              data-studio-confirm-save="true"
+              disabled={busy || compileBlocked}
+              onClick={confirmSaveAndOpen}
+            >
+              保存并继续
+            </button>
+            <button
+              type="button"
+              data-studio-confirm-discard="true"
+              disabled={busy}
+              onClick={confirmDiscardAndOpen}
+            >
+              放弃修改
+            </button>
+            <button
+              type="button"
+              data-studio-confirm-cancel="true"
+              disabled={busy}
+              onClick={() => setConfirmNavigation(null)}
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+      {authoringWarnings.length === 0 && (compiled === null || compiled.kind !== "error")
+        ? null
+        : (
+          <section
+            className={styles["diagnostics"]}
+            aria-label="创作诊断"
+            data-studio-diagnostics="true"
+          >
+            {compiled !== null && compiled.kind === "error"
+              ? (
+                <p data-studio-diagnostic="blocking">
+                  阻断：场景无法编译——{compiled.message}（保存已禁用）
+                </p>
+              )
+              : null}
+            {authoringWarnings.map((warning, index) => (
+              <p key={`${warning}:${String(index)}`} data-studio-diagnostic="warning">
+                警告：{warning}
+              </p>
+            ))}
+          </section>
+        )}
       <div className={styles["columns"]}>
         <nav className={styles["navigator"]} aria-label="场景">
           <h2>场景</h2>
@@ -602,8 +717,8 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
                     <button
                       type="button"
                       data-studio-scene={scene.sceneId}
-                      aria-pressed={loaded?.path === scene.path}
-                      onClick={() => openScene(scene.path)}
+                      aria-pressed={snapshot.path === scene.path}
+                      onClick={() => requestOpenScene(scene.path)}
                     >
                       {scene.label}
                     </button>
@@ -611,6 +726,63 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
                 ))}
               </ul>
             )}
+          {newSceneStem === null
+            ? (
+              <button
+                type="button"
+                data-studio-new-scene="true"
+                disabled={creating}
+                onClick={() => setNewSceneStem("")}
+              >
+                新建场景
+              </button>
+            )
+            : (
+              <div className={styles["new-scene"]} data-studio-new-scene-form="true">
+                <label className={styles["field"]}>
+                  <span>场景名（{sceneIdPrefix}…）</span>
+                  <input
+                    type="text"
+                    data-studio-new-scene-stem="true"
+                    value={newSceneStem}
+                    onChange={(event) => setNewSceneStem(event.target.value)}
+                  />
+                </label>
+                <label className={styles["field"]}>
+                  <span>标题</span>
+                  <input
+                    type="text"
+                    data-studio-new-scene-label="true"
+                    value={newSceneLabel}
+                    onChange={(event) => setNewSceneLabel(event.target.value)}
+                  />
+                </label>
+                <button
+                  type="button"
+                  data-studio-new-scene-create="true"
+                  disabled={creating || newSceneStem.trim().length === 0}
+                  onClick={createScene}
+                >
+                  创建
+                </button>
+                <button
+                  type="button"
+                  data-studio-new-scene-cancel="true"
+                  disabled={creating}
+                  onClick={() => setNewSceneStem(null)}
+                >
+                  取消
+                </button>
+              </div>
+            )}
+          {contents === null || contents.length === 0 ? null : (
+            <ContentBrowserV1
+              contents={contents}
+              geometryContentIds={geometryContentIds}
+              canAdd={draft !== null && !busy && !loading}
+              onAdd={addContent}
+            />
+          )}
         </nav>
         <main className={styles["stage"]}>
           {draft === null || compiled === null
@@ -624,262 +796,84 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
             : compiled.kind === "empty"
             ? <p>这个场景还没有条目。</p>
             : (
-              <div
-                className={styles["canvas-clip"]}
-                data-studio-canvas="true"
-                style={{
-                  width: `${String(draft.canvas.width * scale)}px`,
-                  height: `${String(draft.canvas.height * scale)}px`,
-                }}
-              >
-                <div
-                  className={styles["canvas-scale"]}
-                  style={{
-                    width: `${String(draft.canvas.width)}px`,
-                    height: `${String(draft.canvas.height)}px`,
-                    transform: `scale(${String(scale)})`,
-                  }}
-                >
-                  <SemanticStageTargetHostV1
-                    target={compiled.target}
-                    renderers={binding.renderers}
-                    accessibleName={`场景预览 ${draft.label}`}
-                    highlightHitRegions={showHitRegions}
-                  />
-                  <div className={styles["overlay"]}>
-                    {guides.x === null ? null : (
-                      <div
-                        className={styles["guide-x"]}
-                        data-studio-guide-x={String(guides.x)}
-                        style={{ left: `${String(guides.x)}px` }}
-                      />
-                    )}
-                    {guides.y === null ? null : (
-                      <div
-                        className={styles["guide-y"]}
-                        data-studio-guide-y={String(guides.y)}
-                        style={{ top: `${String(guides.y)}px` }}
-                      />
-                    )}
-                    {canvasActors.map((actor) => {
-                      const box = actorBoxV1(actor);
-                      const selected = actor.tag === selectedTag;
-                      return (
-                        <div key={actor.key}>
-                          <button
-                            type="button"
-                            className={styles["select-box"]}
-                            data-studio-select={actor.tag}
-                            data-studio-selected={selected ? "true" : undefined}
-                            aria-label={`选择并拖动 ${actor.tag}`}
-                            style={{
-                              left: `${String(box.left)}px`,
-                              top: `${String(box.top)}px`,
-                              width: `${String(box.width)}px`,
-                              height: `${String(box.height)}px`,
-                            }}
-                            onPointerDown={(event) => onActorPointerDown(event, actor, "move")}
-                            onPointerMove={onActorPointerMove}
-                            onPointerUp={onActorPointerEnd}
-                            onPointerCancel={onActorPointerEnd}
-                          />
-                          {selected
-                            ? (
-                              <>
-                                <div
-                                  className={styles["anchor-dot"]}
-                                  data-studio-anchor={actor.tag}
-                                  style={{
-                                    left: `${String(actor.placement.x)}px`,
-                                    top: `${String(actor.placement.y)}px`,
-                                  }}
-                                />
-                                <button
-                                  type="button"
-                                  className={styles["scale-handle"]}
-                                  data-studio-scale-handle={actor.tag}
-                                  aria-label={`缩放 ${actor.tag}`}
-                                  style={{
-                                    left: `${String(box.left + box.width)}px`,
-                                    top: `${String(box.top)}px`,
-                                  }}
-                                  onPointerDown={(event) =>
-                                    onActorPointerDown(event, actor, "scale")}
-                                  onPointerMove={onActorPointerMove}
-                                  onPointerUp={onActorPointerEnd}
-                                  onPointerCancel={onActorPointerEnd}
-                                />
-                              </>
-                            )
-                            : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
+              <SceneCanvasV1
+                draft={draft}
+                target={compiled.target}
+                renderers={binding.renderers}
+                accessibleName={`场景预览 ${draft.label}`}
+                showHitRegions={showHitRegions}
+                scale={scale}
+                selectedTag={selectedTag}
+                onSelectTag={setSelectedTag}
+                onWritePlacement={writeActorPlacement}
+              />
             )}
           {draft === null ? null : (
-            <section className={styles["cues"]} aria-label="Cue 列表">
-              <h2>Cue</h2>
-              <p data-studio-canvas-mode={throughCueId ?? "declared"}>
-                {throughCueId === null
-                  ? "画布：声明构图（全部条目按声明位置显示，可直接拖拽）"
-                  : `画布：回放到 ${throughCueId}（再点一次「到此为止」回到声明构图）`}
-              </p>
-              <table data-studio-cues="true">
-                <thead>
-                  <tr>
-                    <th>cue</th>
-                    <th>kind</th>
-                    <th>tag</th>
-                    <th>motion</th>
-                    <th>查看</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {draft.cues.map((cue) => (
-                    <tr key={cue.cueId} data-studio-cue={cue.cueId}>
-                      <td>{cue.cueId}</td>
-                      <td>{cue.kind}</td>
-                      <td>{cue.tag}</td>
-                      <td>
-                        {cue.kind !== "show" ? (cue.motionId ?? "—") : (
-                          <select
-                            aria-label={`${cue.cueId} 的 motion`}
-                            value={cue.motionId ?? ""}
-                            onChange={(event) => {
-                              const next = event.target.value;
-                              setDraft(
-                                editDocumentV1(draft, (plain) => {
-                                  const target = plain.cues.find(
-                                    (candidate) => candidate.cueId === cue.cueId,
-                                  );
-                                  if (target === undefined) return;
-                                  if (next === "") delete target.motionId;
-                                  else target.motionId = next;
-                                }),
-                              );
-                            }}
-                          >
-                            <option value="">（无）</option>
-                            {motionIds.map((motionId) => (
-                              <option key={motionId} value={motionId}>{motionId}</option>
-                            ))}
-                          </select>
-                        )}
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          aria-pressed={throughCueId === cue.cueId}
-                          onClick={() =>
-                            setThroughCueId(throughCueId === cue.cueId ? null : cue.cueId)}
-                        >
-                          到此为止
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
+            <SceneCuesV1
+              draft={draft}
+              motionIds={motionCatalog.ids}
+              throughCueId={throughCueId}
+              busy={busy || loading || creating}
+              onToggleThroughCue={(cueId) => setThroughCueId(throughCueId === cueId ? null : cueId)}
+              onBindMotion={(cueId, motionId) =>
+                editDraft((plain) => {
+                  const target = plain.cues.find((candidate) => candidate.cueId === cueId);
+                  if (target === undefined) return;
+                  if (motionId === null) delete target.motionId;
+                  else target.motionId = motionId;
+                })}
+              onAddCue={addCue}
+              onRemoveCue={removeCue}
+              onCreateMotion={createMotionForCue}
+            />
           )}
         </main>
         <aside className={styles["inspector"]} aria-label="检视器">
           <h2>检视器</h2>
           {draft === null ? <p>—</p> : (
-            <>
-              <label className={styles["field"]}>
-                <span>条目</span>
-                <select
-                  data-studio-entry-select="true"
-                  value={selectedTag ?? ""}
-                  onChange={(event) => setSelectedTag(event.target.value || null)}
-                >
-                  {draft.entries.map((entry) => (
-                    <option key={entry.tag} value={entry.tag}>
-                      {entry.tag}（{entry.contentId}）
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {selectedEntry === null ? null : (
-                <div data-studio-entry-inspector={selectedEntry.tag}>
-                  {numberField(
-                    "x",
-                    selectedEntry.placement?.x ?? 0,
-                    (next) =>
-                      editSelectedPlacement((placement) => {
-                        placement.x = next;
-                      }),
-                  )}
-                  {numberField(
-                    "y",
-                    selectedEntry.placement?.y ?? 0,
-                    (next) =>
-                      editSelectedPlacement((placement) => {
-                        placement.y = next;
-                      }),
-                  )}
-                  {numberField(
-                    "缩放‰",
-                    selectedEntry.placement?.scalePermille ?? 1000,
-                    (next) =>
-                      editSelectedPlacement((placement) => {
-                        placement.scalePermille = next;
-                      }),
-                  )}
-                  {numberField(
-                    "层级",
-                    selectedEntry.zOrder ?? 0,
-                    (next) => {
-                      setDraft(
-                        editDocumentV1(draft, (plain) => {
-                          const entry = plain.entries.find(
-                            (candidate) => candidate.tag === selectedEntry.tag,
-                          );
-                          if (entry !== undefined) entry.zOrder = next;
-                        }),
-                      );
-                    },
-                  )}
-                  <label className={styles["field"]}>
-                    <span>镜像</span>
-                    <input
-                      type="checkbox"
-                      checked={selectedEntry.placement?.mirrored ?? false}
-                      onChange={(event) => {
-                        const next = event.target.checked;
-                        editSelectedPlacement((placement) => {
-                          placement.mirrored = next;
-                        });
-                      }}
-                    />
-                  </label>
-                  <p className={styles["appearance"]}>
-                    外观：{JSON.stringify(selectedEntry.appearance ?? {})}
-                  </p>
-                </div>
-              )}
-            </>
+            <SceneInspectorV1
+              draft={draft}
+              selectedTag={selectedTag}
+              selectedDescriptor={selectedDescriptor}
+              motionIds={motionCatalog.ids}
+              busy={busy || loading || creating}
+              onSelectTag={setSelectedTag}
+              onEditSelectedPlacement={editSelectedPlacement}
+              onEditSelectedZOrder={(next) => {
+                if (selectedTag === null) return;
+                editDraft((plain) => {
+                  const entry = plain.entries.find(
+                    (candidate) => candidate.tag === selectedTag,
+                  );
+                  if (entry !== undefined) entry.zOrder = next;
+                }, `field:${selectedTag}:zOrder`);
+              }}
+              onEditSelectedAppearance={editSelectedAppearance}
+              onEditSelectedAmbient={(motionId) => {
+                if (selectedTag === null) return;
+                // Bind or clear the presence loop as one undoable draft
+                // edit; an explicit phaseMs survives a motion swap.
+                editDraft((plain) => {
+                  const entry = plain.entries.find(
+                    (candidate) => candidate.tag === selectedTag,
+                  );
+                  if (entry === undefined) return;
+                  if (motionId === null) delete entry.ambient;
+                  else {
+                    const phaseMs = entry.ambient?.phaseMs;
+                    entry.ambient = { motionId, ...(phaseMs === undefined ? {} : { phaseMs }) };
+                  }
+                });
+              }}
+              onRemoveSelectedEntry={removeSelectedEntry}
+            />
           )}
         </aside>
       </div>
-      {workbench === null
+      {workbench.kind !== "ready"
         ? null
-        : (
-          <section className={styles["workbench"]} aria-label="Motion 工坊">
-            <h2>Motion 工坊</h2>
-            <MotionWorkbenchLauncherV1
-              store={workbenchStore}
-              sources={workbench.sources}
-              fallbackPreview={workbench.fallbackPreview}
-              cases={workbench.cases}
-              io={motionIo}
-            />
-          </section>
-        )}
+        : <MotionWorkspaceSectionV1 workbench={workbench} io={motionIo} />}
+      {binding.flow === undefined ? null : <FlowWorkspaceSectionV1 flow={binding.flow} />}
     </div>
   );
 }

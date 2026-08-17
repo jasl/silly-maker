@@ -1,24 +1,25 @@
 // SPDX-License-Identifier: MIT
 import { createHash, randomUUID } from "node:crypto";
-import { lstatSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { relative, resolve, sep } from "node:path";
 
 import type { SceneDocumentV1 } from "@sillymaker/base";
 import { parseSceneDocumentV1 } from "@sillymaker/base";
 
-import { resolveDevSourcePathV1 } from "./dev-sources.ts";
+import { buildAuthoringProjectIndexV1 } from "../project/authoring-index.ts";
+import { resolveDevSourceCreatePathV1, resolveDevSourcePathV1 } from "./dev-sources.ts";
 
 /**
  * The Scene write-back port: the dev-server half of the Studio save loop,
- * mirroring the Motion port discipline. List enumerates the app's
- * `*.scene.json` sources; read returns the parsed Document plus a content
- * digest; write is compare-and-swap on that digest — schema-validated,
- * id-stable, deterministically formatted, and atomically renamed into
- * place. The port exists only under `vite dev`; builds and previews have
- * no such endpoint. Scene files are Story sources: this channel is
- * Host/tooling I/O and never touches authoritative State, Saves, digests,
- * or CommandLog.
+ * mirroring the Motion port discipline. List serves the shared Project
+ * Authoring Index's scene enumeration (files the index cannot admit come
+ * back as structured skips, not silence); read returns the parsed Document
+ * plus a content digest; write is compare-and-swap on that digest —
+ * schema-validated, id-stable, deterministically formatted, and atomically
+ * renamed into place. The port exists only under `vite dev`; builds and
+ * previews have no such endpoint. Scene files are Story sources: this
+ * channel is Host/tooling I/O and never touches authoritative State,
+ * Saves, digests, or CommandLog.
  */
 
 export const scenePortUrlV1 = "/__sillymaker/dev-sources/scene";
@@ -31,6 +32,7 @@ export type ScenePortErrorCodeV1 =
   | "bad_request"
   | "not_found"
   | "digest_conflict"
+  | "already_exists"
   | "scene_invalid"
   | "scene_id_mismatch";
 
@@ -38,6 +40,17 @@ export interface SceneListEntryV1 {
   readonly path: string;
   readonly sceneId: string;
   readonly label: string;
+}
+
+export interface SceneListSkipV1 {
+  readonly path: string;
+  readonly reason: string;
+}
+
+export interface SceneListResultV1 {
+  readonly scenes: readonly SceneListEntryV1[];
+  /** `*.scene.json` files the index could not admit, named with the reason. */
+  readonly skipped: readonly SceneListSkipV1[];
 }
 
 export type SceneReadResultV1 =
@@ -75,57 +88,17 @@ function resolveSceneFileV1(
   return { kind: "file", filePath: resolution.filePath };
 }
 
-function walkSceneFilesV1(root: string, collected: string[]): void {
-  let names: string[];
-  try {
-    names = readdirSync(root);
-  } catch {
-    return;
-  }
-  for (const name of names) {
-    if (name === "node_modules" || name.startsWith(".")) continue;
-    const path = resolve(root, name);
-    let stat;
-    try {
-      stat = lstatSync(path);
-    } catch {
-      continue;
-    }
-    if (stat.isSymbolicLink()) continue;
-    if (stat.isDirectory()) {
-      walkSceneFilesV1(path, collected);
-      continue;
-    }
-    if (stat.isFile() && name.endsWith(sceneFileSuffixV1)) collected.push(path);
-  }
-}
-
-/** Every admissible scene source under the app root, in stable path order. */
-export function listSceneSourceFilesV1(appRoot: string): readonly SceneListEntryV1[] {
-  const root = resolve(appRoot);
-  const files: string[] = [];
-  walkSceneFilesV1(root, files);
-  files.sort((a, b) => a.localeCompare(b));
-  const entries: SceneListEntryV1[] = [];
-  for (const filePath of files) {
-    let sceneDocument: SceneDocumentV1;
-    try {
-      sceneDocument = parseSceneDocumentV1(
-        JSON.parse(readFileSync(filePath, "utf8")) as unknown,
-      );
-    } catch {
-      // Broken documents are `story check` lint findings, not navigator rows.
-      continue;
-    }
-    entries.push(
-      Object.freeze({
-        path: relative(root, filePath).split(sep).join("/"),
-        sceneId: sceneDocument.sceneId,
-        label: sceneDocument.label,
-      }),
-    );
-  }
-  return Object.freeze(entries);
+/** The Project Authoring Index's scene view: navigator rows + named skips. */
+export function listSceneSourceFilesV1(appRoot: string): SceneListResultV1 {
+  const index = buildAuthoringProjectIndexV1(appRoot);
+  return Object.freeze({
+    scenes: index.scenes,
+    skipped: Object.freeze(
+      index.skipped
+        .filter((skip) => skip.kind === "scene")
+        .map((skip) => Object.freeze({ path: skip.path, reason: skip.reason })),
+    ),
+  });
 }
 
 export function readSceneSourceFileV1(appRoot: string, path: string): SceneReadResultV1 {
@@ -230,6 +203,78 @@ export function writeSceneSourceFileV1(
   return Object.freeze({ kind: "ok", digest: sceneDigestV1(formatted) });
 }
 
+export interface CreateSceneSourceInputV1 {
+  readonly path: string;
+  readonly sceneDocument: unknown;
+}
+
+/**
+ * Creates a brand-new scene document (Scene Construction S4): the file must
+ * not exist, the document must pass strict admission, the filename stem
+ * must be the sceneId's final segment (the same id↔path rule `story check`
+ * lints), and the sceneId must not already be admitted elsewhere in the
+ * story tree. Missing directories are created; the write lands via temp
+ * file + atomic rename, same as CAS updates.
+ */
+export function createSceneSourceFileV1(
+  appRoot: string,
+  input: CreateSceneSourceInputV1,
+): SceneWriteResultV1 {
+  if (!input.path.endsWith(sceneFileSuffixV1)) return { kind: "error", code: "bad_request" };
+  const resolved = resolveDevSourceCreatePathV1(appRoot, input.path);
+  if (resolved.kind !== "create") return { kind: "error", code: resolved.kind };
+
+  let incoming: SceneDocumentV1;
+  try {
+    incoming = parseSceneDocumentV1(input.sceneDocument, `/${input.path}`);
+  } catch (error) {
+    return {
+      kind: "error",
+      code: "scene_invalid",
+      detail: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  const stem = input.path.split("/").at(-1)?.slice(0, -sceneFileSuffixV1.length) ?? "";
+  if (!incoming.sceneId.endsWith(`.${stem}`)) {
+    return {
+      kind: "error",
+      code: "scene_id_mismatch",
+      detail: `scene id "${incoming.sceneId}" does not end with the file stem ".${stem}"`,
+    };
+  }
+
+  const index = buildAuthoringProjectIndexV1(appRoot);
+  const existing = index.scenes.find((scene) => scene.sceneId === incoming.sceneId);
+  if (existing !== undefined) {
+    return {
+      kind: "error",
+      code: "already_exists",
+      detail: `scene id "${incoming.sceneId}" is already declared by ${existing.path}`,
+    };
+  }
+
+  const formatted = new TextEncoder().encode(formatSceneDocumentV1(incoming));
+  const temporaryPath = `${resolved.filePath}.tmp-${randomUUID()}`;
+  try {
+    mkdirSync(resolved.directoryPath, { recursive: true });
+    writeFileSync(temporaryPath, formatted);
+    renameSync(temporaryPath, resolved.filePath);
+  } catch (error) {
+    try {
+      rmSync(temporaryPath, { force: true });
+    } catch {
+      // Best-effort temp cleanup; no original file exists to damage.
+    }
+    return {
+      kind: "error",
+      code: "bad_request",
+      detail: error instanceof Error ? error.message : String(error),
+    };
+  }
+  return Object.freeze({ kind: "ok", digest: sceneDigestV1(formatted) });
+}
+
 function scenePortStatusV1(code: ScenePortErrorCodeV1): number {
   switch (code) {
     case "bad_request":
@@ -237,6 +282,7 @@ function scenePortStatusV1(code: ScenePortErrorCodeV1): number {
     case "not_found":
       return 404;
     case "digest_conflict":
+    case "already_exists":
       return 409;
     case "scene_invalid":
     case "scene_id_mismatch":
@@ -283,7 +329,7 @@ export function createScenePortMiddlewareV1(input: { readonly appRoot: string })
         response.end("method not allowed");
         return;
       }
-      sendJsonV1(response, 200, { scenes: listSceneSourceFilesV1(input.appRoot) });
+      sendJsonV1(response, 200, listSceneSourceFilesV1(input.appRoot));
       return;
     }
 
@@ -330,15 +376,25 @@ export function createScenePortMiddlewareV1(input: { readonly appRoot: string })
           return;
         }
         const record = parsed as Record<string, unknown>;
-        if (typeof record.path !== "string" || typeof record.expectedDigest !== "string") {
+        if (
+          typeof record.path !== "string" ||
+          (typeof record.expectedDigest !== "string" && record.expectedDigest !== null)
+        ) {
           sendJsonV1(response, 400, { error: "bad_request" });
           return;
         }
-        const result = writeSceneSourceFileV1(input.appRoot, {
-          path: record.path,
-          expectedDigest: record.expectedDigest,
-          sceneDocument: record.sceneDocument,
-        });
+        // `expectedDigest: null` is the create form of CAS: the expected
+        // prior state is "no file". A string digest is the ordinary update.
+        const result = record.expectedDigest === null
+          ? createSceneSourceFileV1(input.appRoot, {
+            path: record.path,
+            sceneDocument: record.sceneDocument,
+          })
+          : writeSceneSourceFileV1(input.appRoot, {
+            path: record.path,
+            expectedDigest: record.expectedDigest,
+            sceneDocument: record.sceneDocument,
+          });
         if (result.kind === "error") {
           sendJsonV1(response, scenePortStatusV1(result.code), {
             error: result.code,

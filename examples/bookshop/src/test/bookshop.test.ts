@@ -5,9 +5,9 @@ import { lintNarrativeGraph } from "@sillymaker/base/story";
 import { createGameHarnessV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
 
 import { createBookshopApplicationInstanceV1 } from "../application/core-application.ts";
-import { projectBookshopNarrativeGraphV1 } from "../narrative-graph.ts";
-import { bookshopScriptV1 } from "../narrative.ts";
-import { bookshopTextCatalogsV1 } from "../presentation.ts";
+import { projectBookshopNarrativeGraphV1 } from "../story/narrative-graph.ts";
+import { bookshopScriptV1 } from "../story/narrative.ts";
+import { bookshopTextCatalogsV1 } from "../content/presentation.ts";
 import { bookshopSemanticAdapterV1 } from "../application/semantic.ts";
 import { bookshopStoryEntryV1 } from "../story.ts";
 

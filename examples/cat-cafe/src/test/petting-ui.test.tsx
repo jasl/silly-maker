@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CatcafeApplicationInstanceV1 } from "../application/core-application.ts";
 import { createCatcafeApplicationInstanceV1 } from "../application/core-application.ts";
-import { catcafePettingV1 } from "../content.ts";
+import { catcafePettingV1 } from "../game/content.ts";
 
 async function dispatchCommittedV1(
   instance: CatcafeApplicationInstanceV1,

@@ -50,9 +50,9 @@ import type {
   CatcafeUiOverlayIdV1,
   CatcafeUiPublicationV1,
 } from "./ui-kit.ts";
-import { CatcafeAlbumViewV1 } from "../features/album/index.tsx";
-import { createCatcafeStageRenderersV1 } from "../features/stage/renderers.tsx";
-import { CatcafeStageV1 } from "../features/stage/stage-view.tsx";
+import { CatcafeAlbumViewV1 } from "../game/features/album/index.tsx";
+import { createCatcafeStageRenderersV1 } from "../game/features/stage/renderers.tsx";
+import { CatcafeStageV1 } from "../game/features/stage/stage-view.tsx";
 import { catcafeChromeForLocaleV1, catcafeSaveGuardForLocaleV1 } from "./labels.ts";
 export {
   catcafeChromeForLocaleV1,
@@ -65,11 +65,14 @@ import type {
   CatcafeNarrativeViewV1,
   CatcafeQueriesV1,
   CatcafeSimulationTypesV1,
-} from "../simulation.ts";
-import { catcafeAudioManifestV1, resolveCatcafeEffectAssetV1 } from "../features/audio/index.ts";
-import { catcafeStageContentCatalogV1, catcafeTextForLocaleV1 } from "../presentation.ts";
+} from "../game/simulation.ts";
+import {
+  catcafeAudioManifestV1,
+  resolveCatcafeEffectAssetV1,
+} from "../game/features/audio/index.ts";
+import { catcafeStageContentCatalogV1, catcafeTextForLocaleV1 } from "../content/presentation.ts";
 import { CatcafeHudV1, CatcafeNarrativeRendererV1, CatcafeSettingsV1 } from "./ui.tsx";
-import { CatcafeEndingScreenV1 } from "../features/endings/ending-screen.tsx";
+import { CatcafeEndingScreenV1 } from "../game/features/endings/ending-screen.tsx";
 
 export const catcafeViewportCanvasV1 = Object.freeze({ width: 1280, height: 720 });
 

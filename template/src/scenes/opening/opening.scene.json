@@ -12,6 +12,20 @@
       "zOrder": 0
     },
     {
+      "layerId": "layer.template.background",
+      "tag": "tag.mist",
+      "contentId": "content.template.effect.mist",
+      "zOrder": 1,
+      "placement": {
+        "x": -320,
+        "y": 96,
+        "scalePermille": 1000,
+        "opacityPermille": 550,
+        "mirrored": false
+      },
+      "ambient": { "motionId": "motion.template.mist-drift" }
+    },
+    {
       "layerId": "layer.template.characters",
       "tag": "tag.mei",
       "contentId": "content.template.character.mei",
@@ -33,10 +47,27 @@
       "tag": "tag.background"
     },
     {
+      "cueId": "cue.template.opening.mist",
+      "kind": "show",
+      "tag": "tag.mist"
+    },
+    {
       "cueId": "cue.template.opening.mei-enters",
       "kind": "show",
       "tag": "tag.mei",
       "motionId": "motion.template.mei-entrance"
+    },
+    {
+      "cueId": "cue.template.opening.mei-fetches",
+      "kind": "hide",
+      "tag": "tag.mei",
+      "cut": true
+    },
+    {
+      "cueId": "cue.template.opening.mei-returns",
+      "kind": "show",
+      "tag": "tag.mei",
+      "cut": true
     }
   ]
 }

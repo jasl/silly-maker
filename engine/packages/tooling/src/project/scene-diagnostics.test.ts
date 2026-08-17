@@ -9,7 +9,7 @@ import { collectSceneSourceDiagnosticsV1 } from "./scene-diagnostics.ts";
 function sceneJsonV1(
   sceneId: string,
   motionId?: string,
-  options?: { readonly contentId?: string; readonly cueId?: string },
+  options?: { readonly contentId?: string; readonly cueId?: string; readonly cut?: true },
 ): string {
   return `${
     JSON.stringify(
@@ -33,6 +33,7 @@ function sceneJsonV1(
             kind: "show",
             tag: "tag.hero",
             ...(motionId === undefined ? {} : { motionId }),
+            ...(options?.cut === undefined ? {} : { cut: true }),
           },
         ],
       },
@@ -126,14 +127,58 @@ describe("collectSceneSourceDiagnosticsV1", () => {
     expect(codes).toEqual(["scene.cue_motion_missing"]);
   });
 
+  it("reports an uncovered ambient motion reference and accepts a covered one", () => {
+    const ambientScene = (motionId: string): string =>
+      `${
+        JSON.stringify(
+          {
+            format: "sillymaker.scene",
+            version: 1,
+            sceneId: "scene.app.opening",
+            label: "开场",
+            canvas: { width: 1280, height: 720 },
+            entries: [
+              {
+                layerId: "layer.app.characters",
+                tag: "tag.hero",
+                contentId: "content.app.character.hero",
+                zOrder: 10,
+                ambient: { motionId, phaseMs: 100 },
+              },
+            ],
+            cues: [{ cueId: "cue.app.opening.hero-enters", kind: "show", tag: "tag.hero" }],
+          },
+          null,
+          2,
+        )
+      }\n`;
+    const scenePath = join(sourceRoot, "scenes", "opening", "opening.scene.json");
+    writeFileSync(scenePath, ambientScene("motion.app.breathe"));
+    expect(
+      collectSceneSourceDiagnosticsV1(sourceRoot).map((diagnostic) => diagnostic.code),
+    ).toEqual(["scene.ambient_motion_missing"]);
+
+    writeFileSync(
+      join(sourceRoot, "scenes", "opening", "breathe.motion.json"),
+      motionJsonV1("motion.app.breathe"),
+    );
+    expect(collectSceneSourceDiagnosticsV1(sourceRoot)).toEqual([]);
+  });
+
   it("skips node_modules and dot directories", () => {
     mkdirSync(join(sourceRoot, "node_modules", "pkg"), { recursive: true });
     writeFileSync(join(sourceRoot, "node_modules", "pkg", "x.scene.json"), "{ nope\n");
     expect(collectSceneSourceDiagnosticsV1(sourceRoot)).toEqual([]);
   });
 
-  it("flags two scenes binding different motions to one stage edge", () => {
+  it("accepts two scenes declaring divergent presentations on one stage edge", () => {
+    // Legal per-cue bindings since cue identity (accepted 2026-08-17): each
+    // scene's dispatch resolves its own declaration through presentation
+    // edge context, so divergent declared-vs-declared edges no longer
+    // diagnose. Final lint disposition is re-evaluated after the clone
+    // migration completes (owner ruling #3).
     mkdirSync(join(sourceRoot, "scenes", "living-room"), { recursive: true });
+    mkdirSync(join(sourceRoot, "scenes", "yard"), { recursive: true });
     writeFileSync(
       join(sourceRoot, "scenes", "opening", "opening.scene.json"),
       sceneJsonV1("scene.app.opening", "motion.app.peek"),
@@ -142,6 +187,14 @@ describe("collectSceneSourceDiagnosticsV1", () => {
       join(sourceRoot, "scenes", "living-room", "living-room.scene.json"),
       sceneJsonV1("scene.app.living-room", "motion.app.breakfast", {
         cueId: "cue.app.living-room.hero-enters",
+      }),
+    );
+    // An explicit cut is a declaration too, not a bare-cue leak.
+    writeFileSync(
+      join(sourceRoot, "scenes", "yard", "yard.scene.json"),
+      sceneJsonV1("scene.app.yard", undefined, {
+        cueId: "cue.app.yard.hero-pops",
+        cut: true,
       }),
     );
     writeFileSync(
@@ -153,16 +206,60 @@ describe("collectSceneSourceDiagnosticsV1", () => {
       motionJsonV1("motion.app.breakfast"),
     );
 
+    expect(collectSceneSourceDiagnosticsV1(sourceRoot)).toEqual([]);
+  });
+
+  it("flags a bound edge that another scene leaves unbound", () => {
+    mkdirSync(join(sourceRoot, "scenes", "living-room"), { recursive: true });
+    // Sorted scan order: living-room registers the unbound edge first, so
+    // the binding opening file reports the pairing and names the leak site.
+    writeFileSync(
+      join(sourceRoot, "scenes", "living-room", "living-room.scene.json"),
+      sceneJsonV1("scene.app.living-room", undefined, {
+        cueId: "cue.app.living-room.hero-enters",
+      }),
+    );
+    writeFileSync(
+      join(sourceRoot, "scenes", "opening", "opening.scene.json"),
+      sceneJsonV1("scene.app.opening", "motion.app.peek"),
+    );
+    writeFileSync(
+      join(sourceRoot, "scenes", "opening", "peek.motion.json"),
+      motionJsonV1("motion.app.peek"),
+    );
+
     const diagnostics = collectSceneSourceDiagnosticsV1(sourceRoot);
     expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
-      "scene.cue_binding_collision",
+      "scene.cue_binding_scope_collision",
     ]);
-    // Sorted scan order: living-room registers the edge first, so the
-    // opening file reports the collision and names the earlier binding.
     expect(diagnostics[0]?.location?.file).toBe("scenes/opening/opening.scene.json");
     expect(diagnostics[0]?.message).toContain("cue.app.living-room.hero-enters");
-    expect(diagnostics[0]?.message).toContain("motion.app.breakfast");
     expect(diagnostics[0]?.message).toContain("motion.app.peek");
+  });
+
+  it("flags an unbound cue whose edge another scene already binds", () => {
+    mkdirSync(join(sourceRoot, "scenes", "yard"), { recursive: true });
+    // Sorted scan order: opening binds the edge first, so the later yard
+    // file reports the leak from the unbound side.
+    writeFileSync(
+      join(sourceRoot, "scenes", "opening", "opening.scene.json"),
+      sceneJsonV1("scene.app.opening", "motion.app.peek"),
+    );
+    writeFileSync(
+      join(sourceRoot, "scenes", "opening", "peek.motion.json"),
+      motionJsonV1("motion.app.peek"),
+    );
+    writeFileSync(
+      join(sourceRoot, "scenes", "yard", "yard.scene.json"),
+      sceneJsonV1("scene.app.yard", undefined, { cueId: "cue.app.yard.hero-enters" }),
+    );
+
+    const diagnostics = collectSceneSourceDiagnosticsV1(sourceRoot);
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+      "scene.cue_binding_scope_collision",
+    ]);
+    expect(diagnostics[0]?.location?.file).toBe("scenes/yard/yard.scene.json");
+    expect(diagnostics[0]?.message).toContain("cue.app.opening.hero-enters");
   });
 
   it("accepts one motion shared by the same edge across scenes and distinct edges", () => {

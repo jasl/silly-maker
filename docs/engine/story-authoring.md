@@ -114,7 +114,9 @@ Visual scene composition may be authored as a first-class Scene document: a `sil
 ### Create the Story package
 
 Keep the simulation facet and its materialization/construction callbacks in
-`src/simulation-definition.ts`, without Presentation or React imports. Compose
+a dedicated simulation-definition module (`src/game/simulation-definition.ts`
+in the by-authoring-object story layout; the Engine Lab rig keeps flat
+`src/simulation-definition.ts`), without Presentation or React imports. Compose
 that definition with the presentation facet in `src/story.ts` using
 `defineGamePackage`. Define separate simulation and presentation patch surfaces
 only for reviewed bootstrap-time replacement points. Resolve the package before

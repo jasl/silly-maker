@@ -6,14 +6,14 @@ import {
   bookshopPresentationPatchSurfaceV1,
   bookshopTextCatalogsV1,
   materializeBookshopPresentationV1,
-} from "./presentation.ts";
-import { bookshopSimulationDefinitionV1 } from "./simulation-definition.ts";
+} from "./content/presentation.ts";
+import { bookshopSimulationDefinitionV1 } from "./game/simulation-definition.ts";
 
-export type { BookshopSimulationProgramV1 } from "./simulation-definition.ts";
+export type { BookshopSimulationProgramV1 } from "./game/simulation-definition.ts";
 export {
   bookshopSimulationPatchSurfaceV1,
   bookshopStateContractManifestV1,
-} from "./simulation-definition.ts";
+} from "./game/simulation-definition.ts";
 
 /**
  * The Story package: identity, the state contract manifest, and the two

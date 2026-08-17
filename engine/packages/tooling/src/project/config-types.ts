@@ -103,9 +103,11 @@ export interface SillymakerAppConfigV1 {
   readonly simulate?: ProjectModuleRefV1 | null;
   readonly web?: SillymakerAppWebTargetV1 | null;
   /**
-   * Module exporting a `StudioBindingV1` (catalog + renderers + motions)
-   * for the dev-only SillyMaker Studio page (`/__sillymaker/studio/`).
-   * Studio code never enters the player bundle; omit to opt out.
+   * Module exporting a `StudioBindingV1` (catalog + renderers + optional
+   * asset registry; scene/motion documents are enumerated by the Project
+   * Authoring Index, not registered here) for the dev-only SillyMaker
+   * Studio page (`/__sillymaker/studio/`). Studio code never enters the
+   * player bundle; omit to opt out.
    */
   readonly studio?: ProjectModuleRefV1 | null;
 }

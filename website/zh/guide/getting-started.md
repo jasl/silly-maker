@@ -37,8 +37,9 @@ Agent 汇报 `deno task check` 全绿时，你就有了一个可工作的引擎�
    （template/Template → ⟨新名字⟩），改 sillymaker.config.ts 与 metadata.json。
    在本仓库内再把目录加进根 project.config.ts 清单；在仓库外则把 package.json
    的引擎依赖改成相对 file: 路径。
-3. 剧本写在 src/narrative.ts + src/presentation.ts 的文本目录；玩法状态走
-   src/state.ts → src/simulation.ts → src/application/semantic.ts → src/story.ts。
+3. 剧本写在 src/story/narrative.ts + src/content/presentation.ts 的文本目录；
+   玩法状态走 src/game/state.ts → src/game/simulation.ts →
+   src/application/semantic.ts → src/story.ts。
 4. 动剧本前先列节点序列表（每个 say/choice 边界一个 occurrence 编号），
    场景脚本与测试一次写对。
 

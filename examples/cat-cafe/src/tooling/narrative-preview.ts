@@ -2,14 +2,14 @@
 import type { StageRenderTarget } from "@sillymaker/base/story";
 import { projectStageRenderTarget, reduceStageMutations } from "@sillymaker/base/story";
 
-import type { CatcafeNarrativeNodeV1 } from "../features/dialogue/script.ts";
+import type { CatcafeNarrativeNodeV1 } from "../game/features/dialogue/script.ts";
 import {
   catcafeEntryNodeIdV1,
   catcafeNodeIdsV1,
   catcafeScriptV1,
-} from "../features/dialogue/script.ts";
-import { catcafeStageContentCatalogV1 } from "../presentation.ts";
-import { createInitialCatcafeStageStateV1 } from "../state.ts";
+} from "../game/features/dialogue/script.ts";
+import { catcafeStageContentCatalogV1 } from "../content/presentation.ts";
+import { createInitialCatcafeStageStateV1 } from "../game/state.ts";
 
 export type CatcafeNarrativePreviewRouteV1 = "named" | "later";
 

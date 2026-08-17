@@ -10,7 +10,7 @@ import { createPlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 
 import { createCatcafeApplicationInstanceV1 } from "../application/core-application.ts";
 import { createCatcafeDevDockContributionsV1 } from "../application/dev-dock.tsx";
-import { catcafeContentIdsV1, catcafeNodeIdsV1 } from "../features/dialogue/script.ts";
+import { catcafeContentIdsV1, catcafeNodeIdsV1 } from "../game/features/dialogue/script.ts";
 import { catcafeNarrativePreviewCasesV1 } from "../tooling/narrative-preview.ts";
 
 afterEach(cleanup);

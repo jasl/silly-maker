@@ -5,10 +5,14 @@
 不激活。同日以真实产品证据接受并完成了
 [Authorable Motion Workbench](2026-08-13-authorable-motion-workbench.md)（M1–M5：
 motion 资产地板、点击反查溯源、Motion Workbench 编辑闭环、预览捕获/preview case、
-协作护栏；外部实验的 12 步痛点闭环实测走通）。2026-08-14 以新的真实产品证据
-（孤立数字 Workbench 仍无法支撑基本场景修改）接受
-[VN Scene Workspace V1](2026-08-14-vn-scene-workspace.md) 为当前 active plan；目标
-合同见[场景创作模型与 SillyMaker Studio 设计](../design/scene-authoring-and-studio.md)。
+协作护栏；外部实验仓的 12 步痛点闭环实测走通）。2026-08-14 以新的真实产品证据
+（孤立数字 Workbench 仍无法支撑基本场景修改）接受并于 2026-08-15 完成
+[VN Scene Workspace V1](2026-08-14-vn-scene-workspace.md)；目标合同见
+[场景创作模型与 SillyMaker Studio 设计](../design/scene-authoring-and-studio.md)。
+2026-08-15 以 A5 两轮基准与实验仓真实内容迁移证据及所有者角色决定（常态为试玩与 bug
+汇报，日常修改由 Agent 与 Studio 完成）接受
+[Authoring Architecture V1](2026-08-15-authoring-architecture.md) 为当前 active
+plan；目标合同见[统一创作架构设计](../design/authoring-architecture.md)。
 
 本文是唯一跨计划排序入口。它只保留 current、next、依赖、验收与 stop conditions。
 旧版逐提交 delivery ledger 已退出 active authority；完成里程碑摘要在
@@ -16,13 +20,50 @@ motion 资产地板、点击反查溯源、Motion Workbench 编辑闭环、预�
 
 ## 1. Current and next
 
-当前：[VN Scene Workspace V1](2026-08-14-vn-scene-workspace.md)（Scene authoring
-layer + Studio）。A0（Scene 文档与编译）、A1（authoring geometry）、A2（Studio
-shell 与写回）与 A3（直接操纵，实现与自动化证据）已于 2026-08-14 完成；A3 的
-十步闭环仍待所有者实测签收。current 切片是 A4 starter 与文档迁移，next 为 A5
-第二消费者验证。切片验收与 stop conditions 由该计划拥有。
+当前：[Ambient Loop Motion V1](2026-08-15-ambient-loop-motion.md) 的 M0–M3 已
+于 2026-08-15 当日交付（表现侧循环运行时、Scene 文档 `ambient` admission、创作
+面、双消费者实证；交付记录见该计划）。高密度内容波已在外部实验仓完成
+（2026-08-15 开工，2026-08-17 收口：约 65 轮迭代、台词逐字覆盖 99.4%，残余全
+部是运行时插值模板字面量与源数据笔误；内容全程引擎零改动）。2026-08-17 证据环收环结论（详见
+[Authoring Architecture V1](2026-08-15-authoring-architecture.md) 证据循环）：本
+波未产生新的引擎激活项——叙事内动态文本经核实可在既有 narrative surface
+`resolveText` 注入合同内由 Story 侧解决（残余插值里 8 行真实功能缺口以实验仓
+内容刀落地，不扩 runtime）；appearance 交换循环与文档聚合税维持观察记录。cue
+identity 独立设计文档于 2026-08-17 起草、**同日经所有者批复 open questions 后
+接受，V1 实现切片同日交付**（[cue-identity 提案](../proposals/cue-identity.md)
+持有交付记录与剩余验收：词汇/facts 投影 seam/retarget 与 change 的可选
+`dispatches`/场景绑定 cue-first 与显式 cut/保守 lint 起点/template 取猫节拍首
+个消费者；`deno task check` 与浏览器套件绿，引擎切片通过全量退化等位门）。
+**第二消费者验收已于 2026-08-17 完成**：外部实验仓撤销其唯一
+裂 tag——第二登场立绘回归共享 tag，show/hide 声明显式 cut，dispatch 链
+（叙事节点标注 → fact → 适配器投影 → composition）全线打通；digest 经 stash
+对照逐字节不变，e2e 断言第二登场立绘瞬现。验收回灌两处引擎修正（同日交付）：外场
+景 open 不再具备 edge-tuple 回落资格（裁决 #2 澄清为**仅本场景自己的 open**
+保持无上下文回落语义，杜绝共享 enter 边被外场景 open 偷走），以及批盖章前移
+——`onAttempt`（发布前）暂存已提交 facts、实例作为 semantic port 首个订阅者
+在 UI 收到通知前盖章，消除同步 flush React 宿主下 rev N+1 首帧配对失败的竞
+态。证据环收口（2026-08-17 同日）：locality 复测第 2 轮达标（新增词汇行
+"改 cue 表现 = 1 场景文档编辑点"；接线为每包一次采纳成本，template 起步为
+零），cue/dispatch 全内容普查完成（单 commit 峰值 4 条、上限 32 余量 8 倍、
+declared-vs-bare 碰撞零出现）；裁决 #3/#4 同日经所有者批复采纳（上限 32
+冻结为终值、lint 保守起点转正），**cue identity 线整体收口**，记录归
+[cue-identity 提案](../proposals/cue-identity.md)。下一个可命名任务来自
+实验仓新内容波或所有者新证据带来的激活项。
 
-一次只领取一个可命名任务。不得把 A0–A5 合成一次重写，也不得把 CR2.2–CR2.5、CR3、
+上一条 lane：[Authoring Architecture V1](2026-08-15-authoring-architecture.md)
+（Studio 作者信任加固 → 统一创作外壳与共享文档会话 → project authoring index →
+Story 包目录 locality → Scene Construction → Flow workspace；目标合同见
+[统一创作架构设计](../design/authoring-architecture.md)）。S0–S5 全部切片已于
+2026-08-15 交付（S5 的激活门——interaction-table kit 按提案判据升格进
+template——同日满足：`roll` 块补齐并被实验仓真实内容使用、提案四问裁决冻结、
+template 的 narrative-kit 换成 interaction 文档 kit 且 simulate 逐字节平价；交付
+记录见该计划）。其证据循环复测（S2 "新 motion ≤2 文件"、设计 §5 局部性硬指标）
+随实验仓下一轮回流。切片验收与 stop conditions 由各计划拥有。
+[VN Scene Workspace V1](2026-08-14-vn-scene-workspace.md) 已于
+2026-08-15 完成并移交（A3 所有者实测按所有者角色决定重新定标，A5 证据循环由新计
+划承接）。
+
+一次只领取一个可命名任务。不得把 S0–S5 合成一次重写，也不得把 CR2.2–CR2.5、CR3、
 CR4 或 PF6 合成一次重写。
 
 ## 2. Completed production floor

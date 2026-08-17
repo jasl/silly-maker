@@ -5637,3 +5637,144 @@ describe("createCoreGameApplicationInstanceV1", () => {
     await instance.dispose();
   });
 });
+
+describe("stage cue dispatch batches", () => {
+  it("stamps the latest commit's dispatches with its exact revision and epoch", async () => {
+    let projection: "cue" | "open" | "invalid" | "throwing" = "cue";
+    const adapter = Object.freeze({
+      ...adapterV1,
+      projectStageCueDispatches: (facts: readonly { readonly count: number }[]) => {
+        if (projection === "throwing") throw new Error("synthetic dispatch projection failure");
+        if (projection === "invalid") {
+          return [{ sceneId: "not-a-scene-id", cueId: "cue.test.counter.tick" }];
+        }
+        if (projection === "open") return [{ sceneId: "scene.test.counter", open: true as const }];
+        return facts.map(() => ({
+          sceneId: "scene.test.counter",
+          cueId: "cue.test.counter.tick",
+        }));
+      },
+    });
+    const definition = defineCoreGameApplicationV1({
+      entry: createSyntheticCounterGamePackageV1(),
+      semantic: adapter as unknown as CoreSemanticAdapterV1<
+        SyntheticSimulationTypesV1,
+        SyntheticQueriesV1,
+        SyntheticQueriesV1,
+        null,
+        { readonly actionId: string; readonly count: number },
+        SyntheticInvocationV1,
+        { readonly countBefore: number },
+        SyntheticResultV1
+      >,
+    });
+    const resolved = resolveCoreGameApplicationV1(definition, {
+      buildIdentityInput: deterministicBuildIdentityInputV1,
+    });
+    if (resolved.kind !== "resolved") throw new Error("dispatch fixture must resolve");
+    const instance = await createCoreGameApplicationInstanceV1(resolved.application, {
+      // Two entropy draws: bootstrap plus the restart at the end.
+      host: hostServicesV1(createMemoryHostRecordStoreV1(), [77, 83]),
+    });
+
+    // No commit yet: no context.
+    expect(instance.stageCueDispatches()).toBeNull();
+
+    await instance.semantic.dispatch(incrementV1);
+    const batch = instance.stageCueDispatches();
+    expect(batch).toEqual({
+      revision: instance.semantic.observe().revision,
+      epoch: instance.presentationAnchor().epoch,
+      dispatches: [{ sceneId: "scene.test.counter", cueId: "cue.test.counter.tick" }],
+    });
+
+    // A rejected command commits nothing and leaves the batch untouched.
+    await instance.semantic.dispatch(rejectV1);
+    expect(instance.stageCueDispatches()).toBe(batch);
+
+    // The next commit replaces the batch (open form, one revision later).
+    projection = "open";
+    await instance.semantic.dispatch(incrementV1);
+    const openBatch = instance.stageCueDispatches();
+    expect(openBatch).toEqual({
+      revision: instance.semantic.observe().revision,
+      epoch: instance.presentationAnchor().epoch,
+      dispatches: [{ sceneId: "scene.test.counter", open: true }],
+    });
+    expect(openBatch?.revision).toBe((batch?.revision ?? 0) + 1);
+
+    // Invalid and throwing projections drop the context (fail-open) and
+    // surface as observer faults; the stale batch no longer pairs.
+    const faultsBefore = instance.diagnostics.runtimeFailures().length;
+    projection = "invalid";
+    await instance.semantic.dispatch(incrementV1);
+    expect(instance.stageCueDispatches()).toBe(openBatch);
+    projection = "throwing";
+    await instance.semantic.dispatch(incrementV1);
+    expect(instance.stageCueDispatches()).toBe(openBatch);
+    expect(instance.diagnostics.runtimeFailures().length).toBe(faultsBefore + 2);
+    expect(instance.stageCueDispatches()?.revision).not.toBe(
+      instance.semantic.observe().revision,
+    );
+
+    // Anchor replacement (restart) advances the epoch and clears the batch.
+    projection = "cue";
+    await instance.semantic.dispatch(incrementV1);
+    expect(instance.stageCueDispatches()).not.toBeNull();
+    const epochBefore = instance.presentationAnchor().epoch;
+    await expect(instance.lifecycle.restart()).resolves.toMatchObject({ kind: "anchored" });
+    expect(instance.presentationAnchor().epoch).toBe(epochBefore + 1);
+    expect(instance.stageCueDispatches()).toBeNull();
+    await instance.dispose();
+  });
+
+  it("stamps the batch before semantic subscribers observe the commit's publication", async () => {
+    // Hosts flush React synchronously inside the publication notification,
+    // so the batch must already pair when the FIRST notification carrying
+    // the committed revision reaches any later subscriber — stamping after
+    // the dispatch promise resolves would present the commit context-free.
+    const adapter = Object.freeze({
+      ...adapterV1,
+      projectStageCueDispatches: (facts: readonly { readonly count: number }[]) =>
+        facts.map(() => ({ sceneId: "scene.test.counter", cueId: "cue.test.counter.tick" })),
+    });
+    const definition = defineCoreGameApplicationV1({
+      entry: createSyntheticCounterGamePackageV1(),
+      semantic: adapter as unknown as CoreSemanticAdapterV1<
+        SyntheticSimulationTypesV1,
+        SyntheticQueriesV1,
+        SyntheticQueriesV1,
+        null,
+        { readonly actionId: string; readonly count: number },
+        SyntheticInvocationV1,
+        { readonly countBefore: number },
+        SyntheticResultV1
+      >,
+    });
+    const resolved = resolveCoreGameApplicationV1(definition, {
+      buildIdentityInput: deterministicBuildIdentityInputV1,
+    });
+    if (resolved.kind !== "resolved") throw new Error("dispatch fixture must resolve");
+    const instance = await createCoreGameApplicationInstanceV1(resolved.application, {
+      host: hostServicesV1(createMemoryHostRecordStoreV1(), [77]),
+    });
+
+    const seen: { readonly revision: number; readonly batchRevision: number | null }[] = [];
+    const unsubscribe = instance.semantic.subscribe(() => {
+      seen.push({
+        revision: instance.semantic.observe().revision as number,
+        batchRevision: instance.stageCueDispatches()?.revision ?? null,
+      });
+    });
+    await instance.semantic.dispatch(incrementV1);
+    unsubscribe();
+
+    const committedRevision = instance.semantic.observe().revision as number;
+    const commitNotifications = seen.filter((entry) => entry.revision === committedRevision);
+    expect(commitNotifications.length).toBeGreaterThan(0);
+    for (const entry of commitNotifications) {
+      expect(entry.batchRevision).toBe(committedRevision);
+    }
+    await instance.dispose();
+  });
+});

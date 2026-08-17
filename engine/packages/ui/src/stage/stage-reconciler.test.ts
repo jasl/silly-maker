@@ -234,6 +234,52 @@ describe("createStageReconcilerV1", () => {
     reconciler.dispose();
   });
 
+  it("attaches retarget dispatches verbatim to every derived change", () => {
+    const clock = createManualPresentationClockV1();
+    const seen: (readonly unknown[] | undefined)[] = [];
+    const reconciler = createStageReconcilerV1({
+      clock,
+      catalog: {
+        resolveTransition: (change) => {
+          seen.push(change.dispatches);
+          return null;
+        },
+      },
+    });
+    const dispatches = Object.freeze([
+      { sceneId: "scene.test.opening", cueId: "cue.test.opening.bg" },
+    ]);
+
+    // The bootstrap publication derives no edges, with or without context.
+    reconciler.retarget({ target: targetOfV1([]), revision: 1, epoch: 0, dispatches });
+    expect(seen).toEqual([]);
+
+    // A commit edge with context attaches the same frozen list to each change.
+    reconciler.retarget({
+      target: targetOfV1([showBackV1]),
+      revision: 2,
+      epoch: 0,
+      dispatches,
+    });
+    expect(seen).toEqual([dispatches]);
+    expect(seen[0]).toBe(dispatches);
+
+    // Re-projection of the same revision derives nothing to re-annotate.
+    reconciler.retarget({
+      target: targetOfV1([showBackV1]),
+      revision: 2,
+      epoch: 0,
+      dispatches,
+    });
+    expect(seen).toHaveLength(1);
+
+    // A context-free commit derives changes without the field.
+    reconciler.retarget({ target: targetOfV1([]), revision: 3, epoch: 0 });
+    expect(seen).toHaveLength(2);
+    expect(seen[1]).toBeUndefined();
+    reconciler.dispose();
+  });
+
   it("settle_and_retarget interrupts instantly and never flashes the old target", () => {
     const clock = createManualPresentationClockV1();
     const reconciler = createStageReconcilerV1({

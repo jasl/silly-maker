@@ -11,11 +11,11 @@ const ownerV1 = createStoryBuildIdentityOwnerV1({
   label: "ExampleBookshop",
   storySourceRoot: "examples/bookshop/src/",
   simulation: {
-    entry: "examples/bookshop/src/simulation-definition.ts",
-    forbiddenPrefixes: ["examples/bookshop/src/presentation"],
+    entry: "examples/bookshop/src/game/simulation-definition.ts",
+    forbiddenPrefixes: ["examples/bookshop/src/content/presentation"],
   },
   presentation: {
-    entry: "examples/bookshop/src/presentation.ts",
+    entry: "examples/bookshop/src/content/presentation.ts",
     forbiddenPrefixes: [],
   },
   applicationEntries: [

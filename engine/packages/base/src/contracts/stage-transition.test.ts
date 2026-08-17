@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { motionStageTransitionV1, parseStageTransitionDefinitionV1 } from "./stage-transition.ts";
+import {
+  motionStageTransitionV1,
+  parseStageCueDispatchesV1,
+  parseStageTransitionDefinitionV1,
+  stageCueDispatchLimitV1,
+} from "./stage-transition.ts";
 
 function rawEntranceMotionV1(): Record<string, unknown> {
   return {
@@ -139,5 +144,47 @@ describe("stage transition definition contract", () => {
   it("rejects an unknown transition kind", () => {
     expect(() => parseStageTransitionDefinitionV1(legacyDefinitionV1({ kind: "wipe" })))
       .toThrowError(/transition_kind_invalid/);
+  });
+});
+
+describe("stage cue dispatch admission", () => {
+  it("admits cue and open dispatch forms and freezes the list", () => {
+    const dispatches = parseStageCueDispatchesV1([
+      { sceneId: "scene.app.opening", cueId: "cue.app.opening.hero-enters" },
+      { sceneId: "scene.app.opening", open: true },
+    ]);
+    expect(dispatches).toEqual([
+      { sceneId: "scene.app.opening", cueId: "cue.app.opening.hero-enters" },
+      { sceneId: "scene.app.opening", open: true },
+    ]);
+    expect(Object.isFrozen(dispatches)).toBe(true);
+    expect(Object.isFrozen(dispatches[0])).toBe(true);
+    expect(parseStageCueDispatchesV1([])).toEqual([]);
+  });
+
+  it("rejects non-arrays, over-bound lists, malformed entries, and bad ids", () => {
+    expect(() => parseStageCueDispatchesV1(null)).toThrowError(/stage_cue_dispatches_invalid/);
+    expect(() =>
+      parseStageCueDispatchesV1(
+        Array.from({ length: stageCueDispatchLimitV1 + 1 }, () => ({
+          sceneId: "scene.app.opening",
+          open: true,
+        })),
+      )
+    ).toThrowError(/stage_cue_dispatches_count_invalid/);
+    expect(() => parseStageCueDispatchesV1(["cue.app.x"])).toThrowError(
+      /stage_cue_dispatch_invalid/,
+    );
+    expect(() => parseStageCueDispatchesV1([{ sceneId: "scene.app.opening", open: false }]))
+      .toThrowError(/stage_cue_dispatch_open_invalid/);
+    expect(() => parseStageCueDispatchesV1([{ sceneId: "opening", cueId: "cue.app.x" }]))
+      .toThrowError(/stage_cue_dispatch_id_invalid/);
+    expect(() => parseStageCueDispatchesV1([{ sceneId: "scene.app.opening", cueId: "hero" }]))
+      .toThrowError(/stage_cue_dispatch_id_invalid/);
+    expect(() =>
+      parseStageCueDispatchesV1([
+        { sceneId: "scene.app.opening", cueId: "cue.app.x", extra: 1 },
+      ])
+    ).toThrowError(/object_keys/);
   });
 });

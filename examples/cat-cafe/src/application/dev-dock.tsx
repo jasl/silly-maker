@@ -10,9 +10,9 @@ import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import type { CatcafeApplicationInstanceV1 } from "./core-definition.ts";
 import type { CatcafeAssetRegistryV1 } from "./ui-kit.ts";
 import { CatcafeNarrativePreviewV1 } from "./narrative-preview.tsx";
-import type { CatcafeDebugCommandV1 } from "../simulation.ts";
-import { catcafeDebugStatsV1 } from "../simulation.ts";
-import { catcafeEncountersV1 } from "../content.ts";
+import type { CatcafeDebugCommandV1 } from "../game/simulation.ts";
+import { catcafeDebugStatsV1 } from "../game/simulation.ts";
+import { catcafeEncountersV1 } from "../game/content.ts";
 
 /**
  * The cat cafe's DevDock: story-specific 作弊 (fast-forward / force encounter /

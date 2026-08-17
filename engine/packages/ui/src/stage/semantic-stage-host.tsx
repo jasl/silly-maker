@@ -3,6 +3,7 @@ import { useEffect, useMemo, useSyncExternalStore } from "react";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 
 import type {
+  MotionSampleV1,
   StageContentGeometryV1,
   StageLayerIdV1,
   StageRenderEntryV1,
@@ -53,6 +54,13 @@ export interface SemanticStageHostPropsV1 {
   readonly accessibleName: string;
   /** Active timeline overlay channels; null when no cue is playing. */
   readonly overlay?: readonly TimelineChannelValueV1[] | null;
+  /**
+   * Presence-bound ambient loop samples keyed by entry key, precomputed on
+   * the presentation clock for settled entries only (the stage owner
+   * suspends loops while an entry's transition is in flight). Composes over
+   * the settled placement like a one-shot motion; null when no loops run.
+   */
+  readonly ambient?: ReadonlyMap<string, MotionSampleV1> | null;
   /** The playing cue's ID, exposed as `data-stage-cue` for observation. */
   readonly activeCueId?: string | null;
   /**
@@ -161,6 +169,7 @@ function layerStyleV1(layer: StageFrameLayerV1): CSSProperties {
 function entryStyleV1(
   frameEntry: StageFrameEntryV1,
   channels: ReadonlyMap<TimelinePropertyV1, number> | undefined,
+  ambientSample: MotionSampleV1 | undefined,
 ): CSSProperties {
   const { entry, phase, transitionKind, progress, slide, fromPlacement, motion } = frameEntry;
   let x = entry.placement.x;
@@ -196,6 +205,16 @@ function entryStyleV1(
     opacity *= permilleV1(sample.opacityPermille);
   } else if (phase === "exiting") {
     opacity *= 1 - progress;
+  }
+
+  // Presence-bound ambient loop: sampled on the presentation clock for
+  // settled entries only, composing over the settled placement exactly
+  // like a one-shot motion (offsets add, permille channels multiply).
+  if (ambientSample !== undefined && phase === "settled") {
+    x += ambientSample.offsetX;
+    y += ambientSample.offsetY;
+    scale *= permilleV1(ambientSample.scalePermille);
+    opacity *= permilleV1(ambientSample.opacityPermille);
   }
 
   // Timeline overlay: decorative offsets and multipliers on top of the
@@ -237,6 +256,7 @@ function StageEntryV1(props: {
   readonly frameEntry: StageFrameEntryV1;
   readonly renderer: SemanticStageEntryRendererV1 | undefined;
   readonly overlayChannels: ReadonlyMap<TimelinePropertyV1, number> | undefined;
+  readonly ambientSample: MotionSampleV1 | undefined;
   readonly onHitRegionActivate: SemanticStageHostPropsV1["onHitRegionActivate"];
   readonly inspect: StageInspectControllerV1 | null;
   readonly inspectEnabled: boolean;
@@ -246,14 +266,16 @@ function StageEntryV1(props: {
   const { layerId, frameEntry, renderer, onHitRegionActivate, inspect } = props;
   const { entry, phase } = frameEntry;
   const exiting = phase === "exiting";
+  const ambientLooping = props.ambientSample !== undefined && phase === "settled";
   return (
     <div
       className={styles.entry}
-      style={entryStyleV1(frameEntry, props.overlayChannels)}
+      style={entryStyleV1(frameEntry, props.overlayChannels, props.ambientSample)}
       role={exiting ? undefined : "img"}
       aria-label={exiting ? undefined : entry.accessibleName}
       aria-hidden={exiting ? true : undefined}
       data-stage-phase={phase}
+      data-stage-ambient={ambientLooping ? "true" : undefined}
       {...(exiting
         ? { "data-stage-exiting": "true", "data-stage-exiting-key": entry.key }
         : { "data-stage-key": entry.key, "data-stage-tag": entry.tag })}
@@ -424,6 +446,7 @@ export function SemanticStageHostV1(props: SemanticStageHostPropsV1): ReactEleme
                 overlayChannels={overlayIndex.entry.get(
                   `${layer.layerId}\u0000${frameEntry.entry.tag}`,
                 )}
+                ambientSample={props.ambient?.get(frameEntry.entry.key)}
                 renderer={Object.hasOwn(renderers, frameEntry.entry.rendererId)
                   ? renderers[frameEntry.entry.rendererId]
                   : undefined}

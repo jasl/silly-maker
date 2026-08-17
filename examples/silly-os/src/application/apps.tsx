@@ -8,19 +8,19 @@ import type { DeepReadonly } from "@sillymaker/base";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 
 import type { OsSemanticPortV1, OsUiPublicationV1 } from "./ui-kit.ts";
-import type { OsWindowRectV1 } from "../features/desktop/window-manager.ts";
+import type { OsWindowRectV1 } from "../game/features/desktop/window-manager.ts";
 import {
   OsBrowserIconV1,
   OsComputerIconV1,
   OsDisplayIconV1,
   OsMineIconV1,
   OsNotepadIconV1,
-} from "../features/desktop/icons.tsx";
-import { OsBrowserAppV1 } from "../features/browser/browser-app.tsx";
-import { OsMinesweeperAppV1 } from "../features/minesweeper/minesweeper-app.tsx";
-import { OsNotepadAppV1 } from "../features/notepad/notepad-app.tsx";
-import { OsControlPanelAppV1 } from "../features/desktop/control-panel-app.tsx";
-import { OsWallpaperAppV1 } from "../features/desktop/wallpaper-app.tsx";
+} from "../game/features/desktop/icons.tsx";
+import { OsBrowserAppV1 } from "../game/features/browser/browser-app.tsx";
+import { OsMinesweeperAppV1 } from "../game/features/minesweeper/minesweeper-app.tsx";
+import { OsNotepadAppV1 } from "../game/features/notepad/notepad-app.tsx";
+import { OsControlPanelAppV1 } from "../game/features/desktop/control-panel-app.tsx";
+import { OsWallpaperAppV1 } from "../game/features/desktop/wallpaper-app.tsx";
 
 export interface OsAppContextV1 {
   readonly publication: DeepReadonly<OsUiPublicationV1>;

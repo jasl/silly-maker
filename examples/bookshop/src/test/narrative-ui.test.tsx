@@ -15,7 +15,7 @@ import {
 } from "../application/composition.tsx";
 import { createBookshopApplicationInstanceV1 } from "../application/core-application.ts";
 import { BookshopNarrativeRendererV1 } from "../application/ui.tsx";
-import { bookshopTextForLocaleV1 } from "../presentation.ts";
+import { bookshopTextForLocaleV1 } from "../content/presentation.ts";
 
 afterEach(cleanup);
 

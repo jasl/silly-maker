@@ -8,7 +8,7 @@ import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import type { RuntimePresentationPublicationV1 } from "@sillymaker/ui";
 
 import type { OsApplicationInstanceV1 } from "./core-definition.ts";
-import { osResolveLocaleV1, osTextForLocaleV1 } from "../presentation.ts";
+import { osResolveLocaleV1, osTextForLocaleV1 } from "../content/presentation.ts";
 
 export type OsSemanticPublicationV1 = ReturnType<OsApplicationInstanceV1["semantic"]["observe"]>;
 export type OsSemanticPortV1 = OsApplicationInstanceV1["semantic"];

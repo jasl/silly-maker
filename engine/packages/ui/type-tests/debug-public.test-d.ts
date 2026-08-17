@@ -20,6 +20,8 @@ type DebugRuntimeKeysV1 = ExpectV1<
   EqualV1<
     keyof typeof import("@sillymaker/ui/debug"),
     | "CapabilityPanelV1"
+    | "createAuthoringDocumentSessionV1"
+    | "useAuthoringDocumentSessionV1"
     | "DebugCommandPanelV1"
     | "DebugNarrativeGraphViewV1"
     | "DebugValueInspectorV1"

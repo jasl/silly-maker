@@ -11,6 +11,7 @@ import type {
   GameUiProjectorV1,
   KeyboardActionMapV1,
   NarrativeSurfaceSelectionV1,
+  PresentationFreezePortV1,
   RuntimePresentationPublicationV1,
   SaveOverlayLabelsV1,
 } from "@sillymaker/ui";
@@ -30,14 +31,15 @@ import type {
   TemplateNarrativeViewV1,
   TemplateQueriesV1,
   TemplateSimulationTypesV1,
-} from "../simulation.ts";
+} from "../game/simulation.ts";
 import {
   templateStageContentCatalogV1,
   templateStageTransitionCatalogV1,
   templateTextForLocaleV1,
   templateTextCatalogsV1,
-} from "../presentation.ts";
-import { templateStageRenderersV1 } from "../stage-renderers.tsx";
+} from "../content/presentation.ts";
+import { templateOpeningAmbientCatalogV1 } from "../scenes/opening/index.ts";
+import { templateStageRenderersV1 } from "../ui/stage-renderers.tsx";
 
 import { TemplateHudV1, TemplateNarrativeRendererV1 } from "./ui.tsx";
 
@@ -131,7 +133,10 @@ const projectorDefinitionV1: GameUiProjectorV1<
 
 export const templateUiProjectorV1 = Object.freeze(projectorDefinitionV1);
 
-function createTemplateUiSlotsV1(): DefaultGameRootSlotsV1<
+function createTemplateUiSlotsV1(
+  instance: TemplateApplicationInstanceV1,
+  presentationFreeze: PresentationFreezePortV1,
+): DefaultGameRootSlotsV1<
   TemplateUiPublicationV1,
   TemplateSemanticPortV1,
   TemplateUiOverlayIdV1
@@ -143,9 +148,15 @@ function createTemplateUiSlotsV1(): DefaultGameRootSlotsV1<
           target={context.publication.view.stageTarget}
           revision={context.publication.semantic.revision}
           epoch={context.publication.view.anchorEpoch}
+          // Presentation edge context: the stage pairs the batch against
+          // exactly this publication's revision/epoch and drops anything
+          // stale, so per-cue bindings resolve by dispatching cue.
+          dispatches={instance.stageCueDispatches()}
           catalog={templateStageTransitionCatalogV1}
+          ambient={templateOpeningAmbientCatalogV1}
           renderers={templateStageRenderersV1}
           accessibleName={templateUiTextV1("text.template.stage.name")}
+          clock={presentationFreeze.clock}
         />
       </section>
     ),
@@ -292,7 +303,12 @@ export const templateGameApplicationV1: WebGameApplicationV1<
     maxScale: 4,
   }),
   core: templateCoreApplicationDefinitionV1,
-  ui: ({ instance }: { readonly instance: TemplateApplicationInstanceV1 }) =>
+  ui: (
+    { instance, presentationFreeze }: {
+      readonly instance: TemplateApplicationInstanceV1;
+      readonly presentationFreeze: PresentationFreezePortV1;
+    },
+  ) =>
     Object.freeze({
       titleScreen: Object.freeze({ title: "SillyMaker Starter" }),
       projector: templateUiProjectorV1,
@@ -314,7 +330,7 @@ export const templateGameApplicationV1: WebGameApplicationV1<
           } satisfies DefineNarrativeSurfaceInputV1<TemplateSemanticPublicationV1>,
         ),
       ),
-      slots: createTemplateUiSlotsV1(),
+      slots: createTemplateUiSlotsV1(instance, presentationFreeze),
       labels: templateRootLabelsV1,
       saveLabels: templateSaveOverlayLabelsV1,
       inputMaps: Object.freeze({ keyboard: templateKeyboardMapV1 }),

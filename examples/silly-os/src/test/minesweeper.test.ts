@@ -8,8 +8,8 @@ import {
   osCreateBoardV1,
   osPlaceMinesV1,
   osRevealFloodV1,
-} from "../features/minesweeper/rules.ts";
-import { osCellMineV1, osCellRevealedV1 } from "../state.ts";
+} from "../game/features/minesweeper/rules.ts";
+import { osCellMineV1, osCellRevealedV1 } from "../game/state.ts";
 
 function mineIndexes(cells: readonly number[]): readonly number[] {
   return cells.flatMap((cell, index) => ((cell & osCellMineV1) !== 0 ? [index] : []));

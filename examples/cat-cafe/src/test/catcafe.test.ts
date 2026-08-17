@@ -5,19 +5,19 @@ import { drawFromEventPool, lintNarrativeGraph } from "@sillymaker/base/story";
 import { createTransactionalRngV1, parseNonZeroUint32 } from "@sillymaker/base";
 import { createGameHarnessV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
 
-import { catcafeEndingForV1 } from "../simulation.ts";
+import { catcafeEndingForV1 } from "../game/simulation.ts";
 import { projectCatcafeTransientEffectsV1 } from "../application/semantic.ts";
 import { createCatcafeApplicationInstanceV1 } from "../application/core-application.ts";
 import type { CatcafeApplicationInstanceV1 } from "../application/core-application.ts";
 import { catcafeSemanticAdapterV1 } from "../application/semantic.ts";
-import { projectCatcafeNarrativeGraphV1 } from "../narrative-graph.ts";
+import { projectCatcafeNarrativeGraphV1 } from "../story/narrative-graph.ts";
 import {
   catcafeContentV1,
   catcafeEncounterConditionsV1,
   catcafeEncountersV1,
   catcafePettingV1,
-} from "../content.ts";
-import { catcafeTextCatalogsV1 } from "../presentation.ts";
+} from "../game/content.ts";
+import { catcafeTextCatalogsV1 } from "../content/presentation.ts";
 import { catcafeStoryEntryV1 } from "../story.ts";
 
 async function dispatchCommittedV1(

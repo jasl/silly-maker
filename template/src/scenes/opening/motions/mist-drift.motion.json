@@ -1,0 +1,21 @@
+{
+  "format": "sillymaker.motion",
+  "version": 1,
+  "motionId": "motion.template.mist-drift",
+  "label": "薄雾漂移",
+  "durationMs": 9000,
+  "delayMs": 0,
+  "tracks": [
+    {
+      "channel": "offsetX",
+      "keyframes": [
+        { "atPermille": 0, "value": 0 },
+        { "atPermille": 1000, "value": -320 }
+      ]
+    }
+  ],
+  "authoring": {
+    "status": "human_tuned",
+    "notes": "锯齿循环：位移恰为雾带纹理的一个平铺周期（320px），回绕视觉无缝。"
+  }
+}

@@ -7,7 +7,7 @@ import { expect, it } from "vitest";
 import { createPlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 
-import { catcafeAlbumV1 } from "../content.ts";
+import { catcafeAlbumV1 } from "../game/content.ts";
 
 it("album meta progress is monotonic and survives a fresh profile store", async () => {
   const records = createMemoryHostRecordStoreV1();

@@ -7,7 +7,7 @@ import { SemanticStageTargetHostV1 } from "@sillymaker/ui";
 
 import type { CatcafeAssetRegistryV1 } from "./ui-kit.ts";
 import { useCatcafeTextV1 } from "./ui-kit.ts";
-import { createCatcafeStageRenderersV1 } from "../features/stage/renderers.tsx";
+import { createCatcafeStageRenderersV1 } from "../game/features/stage/renderers.tsx";
 import {
   catcafeNarrativePreviewCasesV1,
   type CatcafeNarrativePreviewRouteV1,

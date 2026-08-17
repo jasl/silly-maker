@@ -14,7 +14,7 @@ import type {
   OsNarrativeViewV1,
   OsQueriesV1,
   OsSimulationTypesV1,
-} from "../simulation.ts";
+} from "../game/simulation.ts";
 import { osStoryEntryV1 } from "../story.ts";
 
 /** Host-neutral core application: a desktop simulation needs no rollback (minesweeper undo = cheating), so none is configured. */

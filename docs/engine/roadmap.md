@@ -82,10 +82,17 @@ PF6/S5 broad harness 复审后仍不激活。PF7 现已完成。2026-08-13 所�
 点击反查溯源、单 motion Workbench 编辑闭环含 CAS 写回与 seek scrubber、预览捕获/
 preview case、协作护栏）。2026-08-14 所有者以新的真实产品证据（孤立数字 Workbench
 仍无法支撑基本场景修改：placement 埋在剧情源码、锚点藏在 Story CSS、cue→motion 靠
-全局推断）接受 [VN Scene Workspace V1](plans/2026-08-14-vn-scene-workspace.md) 为
-当前 active plan：一等 Scene 文档 + authoring geometry + 项目级 Studio（Track D
-第 6 项 editor shell 的 VN 窄纵切），目标合同见
-[场景创作模型与 SillyMaker Studio](design/scene-authoring-and-studio.md)。
+全局推断）接受并于 2026-08-15 完成
+[VN Scene Workspace V1](plans/2026-08-14-vn-scene-workspace.md)：一等 Scene 文档 +
+authoring geometry + 项目级 Studio（Track D 第 6 项 editor shell 的 VN 窄纵切），
+目标合同见[场景创作模型与 SillyMaker Studio](design/scene-authoring-and-studio.md)。
+2026-08-15 所有者以 A5 两轮基准与实验仓真实内容迁移证据（调校既有场景可用，但从零构
+造与素材/内容进场未收敛）及自身角色决定（常态为试玩与 bug 汇报，日常修改由 Agent
+与 Studio 完成）接受
+[Authoring Architecture V1](plans/2026-08-15-authoring-architecture.md) 为当前
+active plan：Studio 作者信任加固、统一创作外壳与共享文档会话、project authoring
+index、Story 包目录 locality 与 Scene Construction，目标合同见
+[统一创作架构](design/authoring-architecture.md)。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实
@@ -111,7 +118,9 @@ SQLite operational contract；除非出现 concrete blocker，不再把 journal/
 - [Authorable Motion Workbench](plans/2026-08-13-authorable-motion-workbench.md)（2026-08-13
   接受并完成）
 - [VN Scene Workspace](plans/2026-08-14-vn-scene-workspace.md)（2026-08-14 接受，
-  当前 active plan）
+  2026-08-15 完成）
+- [Authoring Architecture](plans/2026-08-15-authoring-architecture.md)（2026-08-15
+  接受，当前 active plan）
 
 原则是**一次只迁移一个可独立验收的 authority**。不接受把 Surface、Save、
 Snapshot 数据结构、determinism guard 或 Mod resolver 作为一个大改动交给 Agent。
@@ -269,35 +278,32 @@ Editor/project/asset index
 
 Prisma 风格只借鉴可发现、type-safe 的 query ergonomics；runtime 不引入通用 ORM/SQL transaction authority。SQLite 可用于 editor/project index 或 authoring backend，正式 runtime 优先消费编译后只读 pack。
 
-### Tooling status and remaining order
+### Tooling status and Studio workspaces
 
 已交付的基础包括 `story check/inspect`、Narrative graph viewer、通过
 `story simulate` 运行 named scenario（含 `--trace`）与 `story diff`，以及
 capability-gated debug command 合同和 DevDock 面板。它们不再作为未来 editor
-工作的前置待办。
+工作的前置待办。Motion Workbench（原顺序第 2/3 项）与 editor shell（原第 6 项）
+分别由 [Authorable Motion Workbench](plans/2026-08-13-authorable-motion-workbench.md)
+与 [VN Scene Workspace](plans/2026-08-14-vn-scene-workspace.md) 以窄纵切交付。
 
-剩余工作按以下顺序推进：
+2026-08-15 起，未来编辑器不再是并列产品清单，而是统一 Studio 外壳内的
+workspace（[统一创作架构](design/authoring-architecture.md)；"deferred"表示
+workspace 未激活，不表示未来另做独立编辑器产品）：
 
-1. 在现有 `check/inspect` 不能承载新的修复型诊断时，再定义独立的 `story doctor`；
-2. arbitrary-boundary Stage preview；
-3. Timeline scrubber 与 audio/transition inspection；
-4. content table/asset/dependency tooling；
-5. Save migration inspector；
-6. 最后组合 editor shell。
+- **Live**：Scene composition、Scene construction / Content browser
+  （Authoring Architecture S4：新建场景/条目/cue、结构化外观、新建与克隆
+  motion）、Motion、Runtime/State diagnostics（点击溯源、hit-region 显示、
+  状态调试入口）、Narrative Flow workspace（只读投影——
+  [interaction-table 提案](proposals/interaction-table-authoring.md) 升格判据
+  于 2026-08-15 满足后随 Authoring Architecture S5 交付；可编辑写回仍按设计 §6
+  的载体分级另行裁决）；
+- **Evidence-gated**：Scene Timing Sheet、gameplay data grid、UI layout、
+  Save/migration inspector、卡牌/SLG/战棋域工具；`story doctor` 只在现有
+  check/inspect 无法承载新的修复型诊断时另立。
 
-第 2/3 项已经
-[Authorable Motion Workbench](plans/2026-08-13-authorable-motion-workbench.md)
-以窄纵切完整交付：可写回的 motion 资产、点击反向定位溯源、单 motion Workbench
-（真实 Renderer detached 画布 + seek 时钟 + saved/draft A/B + CAS 写回 + HMR）、
-live 预览捕获与命名 preview case、AI 协作护栏。
-
-第 6 项（editor shell）已由 2026-08-14 接受的
-[场景创作模型与 SillyMaker Studio](design/scene-authoring-and-studio.md) 与
-[VN Scene Workspace 计划](plans/2026-08-14-vn-scene-workspace.md) 以 VN 场景纵切
-激活：一等 `*.scene.json` 作者文档编译进现有 runtime contracts、authoring
-geometry（宽高 + 锚点）、项目级 Studio（navigator/画布/Inspector/cue 列表，收编
-Motion Workbench 为 panel）与 dev-only CAS 写回。它不是通用 editor：第 1/4/5 项与
-audio/transition inspection 仍待各自真实证据激活。
+外壳统一化、project authoring index、共享文档会话与 Story 包目录 locality 由
+[Authoring Architecture 计划](plans/2026-08-15-authoring-architecture.md) 拥有。
 
 Editor 写普通 TS 或被 TS 引用的稳定数据（JSON 文档经严格 admission），不形成另一
 种运行时语言。

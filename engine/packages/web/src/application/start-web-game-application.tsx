@@ -981,6 +981,12 @@ export async function startWebGameApplicationV1<
           savePort: saveSurfaces.maintenance.savePort,
           clearAllSaves: saveSurfaces.maintenance.clearAllSaves,
           reloadCurrentState,
+          faultCause: Object.freeze({
+            getCurrent: () => instance.admin.lastFaultCause(),
+            // Faults flip the session status, and the semantic port's
+            // subscribe passes session publishes through.
+            subscribe: (listener: () => void) => instance.semantic.subscribe(listener),
+          }),
         })}
         stateTuner={createEngineStateTunerPortV1({ instance, capabilities })}
         {...(uiDefinition.labels === undefined ? {} : { labels: uiDefinition.labels })}

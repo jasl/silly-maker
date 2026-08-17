@@ -14,6 +14,7 @@ import type {
   DeepReadonly,
   RuntimeCapabilityPortV1,
   SessionAnchorResultV1,
+  SessionFaultCauseV1,
 } from "@sillymaker/base";
 
 import { createDevDockContributionSetV1, DevDockV1 } from "../debug/dev-dock.tsx";
@@ -283,6 +284,11 @@ export interface DefaultGameRootPropsV1<
     readonly clearAllSaves?: () => Promise<void>;
     /** Serialize the live snapshot and load it as the current session. */
     readonly reloadCurrentState?: () => Promise<void>;
+    /** The session's non-authoritative last-fault-cause record. */
+    readonly faultCause?: {
+      getCurrent(): SessionFaultCauseV1 | null;
+      subscribe(listener: () => void): () => void;
+    };
   };
   /**
    * Authoritative story-state inspector + leaf table. Engine-owned debug
@@ -331,6 +337,10 @@ function DefaultDevDockV1(props: {
   readonly clearAllSaves?: () => Promise<void>;
   readonly onReloadCurrentState?: () => void | Promise<unknown>;
   readonly onReinitialize?: () => void | Promise<unknown>;
+  readonly faultCause?: {
+    getCurrent(): SessionFaultCauseV1 | null;
+    subscribe(listener: () => void): () => void;
+  };
   readonly stateTuner?: StateTunerPortV1;
   readonly composition: {
     readonly input: GameUiCompositionV1<
@@ -430,6 +440,7 @@ function DefaultDevDockV1(props: {
               ? {}
               : { onReinitialize: props.onReinitialize })}
             {...(props.info === undefined ? {} : { info: props.info })}
+            {...(props.faultCause === undefined ? {} : { faultCause: props.faultCause })}
           />
         )
         : null}
@@ -923,6 +934,9 @@ export function DefaultGameRootV1<
             {...(props.sessionMaintenance?.reloadCurrentState === undefined
               ? {}
               : { onReloadCurrentState: props.sessionMaintenance.reloadCurrentState })}
+            {...(props.sessionMaintenance?.faultCause === undefined
+              ? {}
+              : { faultCause: props.sessionMaintenance.faultCause })}
             {...(props.stateTuner === undefined ? {} : { stateTuner: props.stateTuner })}
             {...(props.lifecycle === undefined
               ? {}

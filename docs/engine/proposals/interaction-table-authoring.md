@@ -1,21 +1,22 @@
 # Interaction table authoring proposal (声明式交互文档 → 叙事节点编译)
 
-状态：提案（2026-08-14）。孵化地：`tmp/external-experiment` 真实规模实验（story 侧实现，
-不动引擎核心）；验证后经 `template/` narrative-kit 升格，引擎化再议。
+状态：提案（2026-08-14）；2026-08-15 升格门 1 达成——template 已消费本 kit
+（第二个真实消费者），四个 open questions 已裁决冻结，引擎化门未开。孵化地：
+外部实验仓（story 侧实现，不动引擎核心）。
 与 [content-database 提案](content-database.md)（已实现第一刀）**互补且分层**：
 content-database 管"目录行"（物品、价目、数值带），本提案管"交互流程"（菜单、
 台词、闸门、效果、掷骰的编排）。与 [typed-state-store](typed-state-store.md) 无耦合。
 
-## Motivation（来自外部实验的实证）
+## Motivation（来自实验仓的实证）
 
-external-experiment 菜单闭环（2026-08-14 交付）暴露的真实摩擦：**给枢纽菜单加一种
+实验仓菜单闭环（2026-08-14 交付）暴露的真实摩擦：**给菜单加一种
 茶饮要改 5 处**——规则表常量、文案目录、选项闸门表、效果 id 联合、叙事节点
-（选项 + 两句台词 + 效果节点）。这五处全部可以从"一行定义"推导。原作
-（RPG Maker）作者加一行事件表就完事——数据表驱动正是它可被单人维护的原因。
+（选项 + 两句台词 + 效果节点）。这五处全部可以从"一行定义"推导。表驱动
+引擎里作者加一行事件表就完事——数据表驱动正是其可被单人维护的原因。
 
 对 SillyMaker 的特有动机与 content-database 相同：**LLM authoring**。追加一个
-声明块比跨五个文件手写节点可靠一个量级，diff 可审、逐块可校验。高密度表现场景等
-后续内容的事件量是菜单的十倍，手写节点先撑爆维护性。
+声明块比跨五个文件手写节点可靠一个量级，diff 可审、逐块可校验。后续高密度
+内容的事件量是首个闭环的十倍，手写节点先撑爆维护性。
 
 行业参照（取其收敛点，不搬形态）：
 
@@ -86,8 +87,10 @@ const teaInteractionV1 = defineInteractionDocV1({
         { name: "cancel", cancel: true, text: "返回", next: "@night.menu" },
       ],
     },
-    // 掷骰块：持久化 roll 槽（对话中途存档稳定），outcome 按区间路由。
-    // { kind: "roll", name: "spark", draw: { max: 3 }, outcomes: [{ eq: 1, next: "bonus" }], else: "@leave" },
+    // 掷骰块（形状已按试点冻结，见下方 2026-08-15 裁决）：注册 effect 抽签进
+    // 持久化 roll 槽，outcomes 立即按槽路由。
+    // { kind: "roll", name: "spark", effect: "chat.draw", slot: "chatRoll",
+    //   outcomes: [{ eq: 1, next: "bonus" }], else: "@leave" },
     // 场景块：引用 scene 文档 open/cue，mayShow 自动推导。
     // { kind: "stage", name: "towel", open: "scene.story.night-towel", next: "@close" },
     // 效果块：
@@ -151,13 +154,24 @@ admission 一次性全量校验，坏数据在 `story check`/vitest 阶段带 JS
 
 现有 `NarrativeGraph`（lint 在用）已有 nodes/kind/successors/dependencies/
 source；可视化还缺两样：**带标签的边**（哪个选项/掷骰结果/分支条件走向哪里）
-与**分组**（节点来自哪份文档的哪个块）。投影形状（JSON-safe）：
+与**分组**（节点来自哪份文档的哪个块）。投影形状（JSON-safe；`barrier` 为试点
+实证补入的第九种节点，`roll` 块投影为单节点——内部 route 节点是 kit 管道不进
+图）：
 
 ```ts
 interface NarrativeFlowGraphV1 {
   readonly nodes: readonly {
     readonly nodeId: string;
-    readonly kind: "say" | "menu" | "effect" | "roll" | "stage" | "branch" | "flag" | "end";
+    readonly kind:
+      | "say"
+      | "menu"
+      | "effect"
+      | "roll"
+      | "stage"
+      | "branch"
+      | "flag"
+      | "barrier"
+      | "end";
     /** 来源交互文档 id；手写存量节点为 null。 */
     readonly docId: string | null;
     readonly blockName: string | null;
@@ -187,21 +201,36 @@ ComfyUI 工作流 JSON（nodes + links + 类型化端口）是同构参照：nod
 labeled edge ≈ link、docId 分组 ≈ group。查看器（Studio 面板）按能力清单
 的 P2 节奏另行实现；本节只冻结形状，让编译器从第一天就能吐这份投影。
 
-## 应用路径（external-experiment 先行）
+## 应用路径（实验仓先行）
 
 1. ✅ 落 kit（registry + defineInteractionDocV1 + compiler + admission 校验），
-   与手写菜单共存（2026-08-14，external-experiment `b085640`）；
-2. ✅ 试点迁移「泡茶喝」：派生 id 字节级一致、金标/单测/e2e 全绿，
-   新增茶饮 = 目录一行 + 台词一行（验收标准达成，见该仓 NOTES #28）；
-3. 迁「网购」「聊天」「就寝」；新内容（看电视/打游戏/白天循环）表格先行；
-4. 高密度表现场景仅在本 kit + 氛围动效原语（另案）就绪后开工；
-5. 稳定后上提 `template/`（替换现 narrative-kit 为超集）；Studio 只读图
-   查看器消费上节的 `NarrativeFlowGraphV1` 投影，按真实需求再提案。
+   与手写存量共存（2026-08-14，实验仓）；
+2. ✅ 试点迁移一个菜单项：派生 id 字节级一致、金标/单测/e2e 全绿，
+   新增条目 = 目录一行 + 台词一行（验收标准达成，实验仓台账）；
+3. ✅ 迁购物/聊天/就寝与开场、结局等存量枢纽（2026-08-14，
+   实验仓台账）；kind 补齐 branch/stage/flag/barrier/end，效果与
+   闸门字面量兜底删除；
+4. ✅ 新内容全部文档先行（2026-08-15，实验仓台账）：日循环、多分支日常与
+   日历类的十余段全新内容——
+   kit 的首批**全新**内容消费者（非迁存量），引擎全程零改动；
+5. ✅ 独立 `roll` 块补齐（2026-08-15，实验仓台账）：注册 effect 抽签 + 持久化槽
+   - outcome 路由一体成块，编译成既有 effect+branch 节点对（`routeName` 覆盖
+     位保迁移 id 字节不变），两处真实内容迁移后运行时节点逐字节相
+     同。另一段"抽签与路由隔着台词"仍是 effect+branch——那是形状边界，不是缺口；
+6. ✅ 升格 `template/`（2026-08-15，本仓）：narrative-kit 换成 interaction
+   文档 kit 的 template 版（块超集 + admission + `NarrativeFlowGraphV1` 投
+   影），编译产物与旧 builder 逐字节相同（simulate digest 平价）——第二个真实
+   消费者达成；Studio 只读图查看器由
+   [Authoring Architecture 计划](../plans/2026-08-15-authoring-architecture.md)
+   S5 承接；
+7. 高密度表现内容仅在本 kit + 氛围动效原语（另案，证据与裁决入口见
+   [Authoring Architecture 计划](../plans/2026-08-15-authoring-architecture.md)）
+   就绪后开工。
 
 ## 为什么先 story 侧，何时进引擎（升格判据）
 
 引擎今天**不拥有叙事节点运行时**：节点 IR 与运行器是每个 Story 自己的
-（实验仓 的 `runner.ts`、template 的 narrative-kit 类型）。把 kit 收进引擎
+（实验仓的 runner、template 的 narrative-kit 类型）。把 kit 收进引擎
 等于引擎同时认领「标准叙事 IR + 运行器」——那是比 kit 大一圈的合同决定，
 必须单独立案接受，不作为试点的副作用发生。分层已为上提切好界面：
 
@@ -212,17 +241,30 @@ labeled edge ≈ link、docId 分组 ≈ group。查看器（Studio 面板）按
 
 判据（沿 content-database 的 adoption-gate 先例，不先建空 API）：
 
-1. **template 升格门**：实验仓 至少再迁两段、块种类补齐 roll/branch/stage
-   且被真实内容使用后，template 的 narrative-kit 换成本 kit 的超集——
-   第二个真实消费者证明通用性；
-2. **引擎化门**：template + 一个 example 消费同一 kit，且 Studio 图查看器
-   （或其他引擎侧消费者）需要稳定的编译产物合同时，将「标准叙事 IR +
-   interaction kit」作为独立案文提交 owner 接受后进 `base`。
+1. **template 升格门**（✅ 2026-08-15 达成）：实验仓至少再迁两段（实际七段）、
+   块种类补齐 roll/branch/stage 且被真实内容使用（新内容波 + 两处 roll 消费
+   者）后，template 的 narrative-kit 换成本 kit 的超
+   集——第二个真实消费者证明通用性；
+2. **引擎化门**（未开）：template + 一个 example 消费同一 kit，且 Studio 图查
+   看器（或其他引擎侧消费者）需要稳定的编译产物合同时，将「标准叙事 IR +
+   interaction kit」作为独立案文提交 owner 接受后进 `base`。Studio 只读查看器
+   消费的是 binding 递交的**投影数据**（JSON-safe），不构成对编译产物合同的
+   依赖，不触发本门。
 
-## Open questions（留给评审讨论）
+升格前置（2026-08-15 评审确认）：下节四项已裁决冻结；Studio 侧第一步只做只读
+流程图查看器，源/投影的阶段边界见
+[统一创作架构](../design/authoring-architecture.md) §6。
 
-- 跨文档标签命名空间与循环引用的裁决；
-- gate 的组合语义（目前 AND；是否需要 OR/NOT，还是拆成多选项）；
-- 效果 handler 与未来 content-database 查询 API 的注入面（tables 参数）
-  是否应约束为只读句柄；
-- 表达"每行选项记忆上次选择"（原作 VAR1384 类）之类 UI 态是否入档。
+## Open questions 裁决（2026-08-15 冻结，全部取试点已证形态）
+
+- **跨文档标签命名空间与循环引用**：`@label` 是唯一跨文档跳转方式，解析自
+  story 拥有的显式 `externalTargets` 注册表（label → 真实 nodeId），无隐式命
+  名空间推导；经标签成环合法（枢纽菜单/日循环本就是环），admission 只证标
+  签可解析，成环纪律仍由组合后的整图 lint（`parseNarrativeGraph`：无纯环、可
+  达性）把守。
+- **gate 组合语义**：仅 AND。需要 OR/NOT 时拆成多选项或注册一个复合 gate——
+  数据里不引入布尔表达式语法。
+- **效果 handler 的注入面**：facade 是唯一写面；注入的目录/表句柄一律只读。
+  未来 content-database 查询 API 进 tables 参数时同样约束为只读句柄。
+- **"记忆上次选择"类 UI 态**：不入档。选中记忆是 presentation/session 关注
+  点；若某游戏要把它做成权威行为，那是域模块的状态决定，不是 kit 块。

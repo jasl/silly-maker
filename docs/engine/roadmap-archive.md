@@ -4,6 +4,19 @@
 
 ## 1. Delivery and acceptance history
 
+- **2026-08-15（VN Scene Workspace 完成，Authoring Architecture 接受）** — Scene
+  文档 + authoring geometry + 项目级 Studio 全切片（A0–A6）交付：cat-cafe 与
+  template 迁为 scene-managed 消费者、直接操纵画布与真实资产预载、scene-first
+  starter、A5 两轮实验基准（台词单价 2 文件/2 点 → 1 文件/1 点）与台词 builder、
+  `scene.cue_binding_collision` lint、`openMutations` 重开原语、按 cue 的 edge
+  options；实验仓真实内容迁移 digest 逐字节平价。A3 所有者十步实测按所有者角色决定
+  （常态为试玩与 bug 汇报）重新定标为浏览器自动化 + 实验循环证据。同日接受
+  [Authoring Architecture](plans/2026-08-15-authoring-architecture.md)（合同：
+  [统一创作架构](design/authoring-architecture.md)）为当前 active plan：Studio
+  作者信任加固（脏草稿导航闸门、异步打开 fence、exit motion 闭环、authoring
+  diagnostics 面板、绑定边界 fail-closed 与 bound-vs-unbound lint）、统一创作外
+  壳与共享文档会话、project authoring index、Story 包目录 locality、Scene
+  Construction；蓝图限定为叙事/交互流的投影优先三阶段。
 - **2026-08-13（Complexity Reset 与 PF7 完成）** — CR2 按 proportional trust 删除
   Managed Surface/Narrative package-internal captured brands、重复 look-alike proofs 与无生产
   consumer comparator，并只拆出有清晰叶边界的 Narrative 模块；public/wire/Save/digest/replay

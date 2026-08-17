@@ -164,9 +164,15 @@ test("keeps resolved external package exports outside the managed application cl
       'import "@sillymaker/fixture-engine/private";\n',
     );
     const privateClosure = await collectImportClosure(applicationRoot, ["src/entry.ts"]);
-    assert.deepEqual(privateClosure.errors, [
-      "src/entry.ts: unknown workspace import @sillymaker/fixture-engine/private",
-    ]);
+    // The unknown classification carries the resolver's reason so transient
+    // host failures are distinguishable from genuinely-missing exports.
+    assert.equal(privateClosure.errors.length, 1);
+    assert(
+      privateClosure.errors[0].startsWith(
+        "src/entry.ts: unknown workspace import @sillymaker/fixture-engine/private (",
+      ),
+      privateClosure.errors[0],
+    );
   } finally {
     await rm(fixtureRoot, { force: true, recursive: true });
   }
@@ -235,10 +241,19 @@ test("rejects unknown internal workspace package subpaths instead of treating th
   );
   try {
     const closure = await collectImportClosure(root, [fixture]);
-    assert.deepEqual(closure.errors, [
-      `${fixture}: unknown workspace import @silly-maker/story-e2e/private`,
-      `${fixture}: unknown workspace import @sillymaker/ui/private`,
-    ]);
+    assert.equal(closure.errors.length, 2);
+    assert(
+      closure.errors[0].startsWith(
+        `${fixture}: unknown workspace import @silly-maker/story-e2e/private (`,
+      ),
+      closure.errors[0],
+    );
+    assert(
+      closure.errors[1].startsWith(
+        `${fixture}: unknown workspace import @sillymaker/ui/private (`,
+      ),
+      closure.errors[1],
+    );
     assert(
       !closure.externalImports.some(
         ({ specifier }) =>

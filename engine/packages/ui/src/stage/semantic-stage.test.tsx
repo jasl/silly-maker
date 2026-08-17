@@ -162,6 +162,50 @@ describe("SemanticStageV1", () => {
     expect(currentContent()).toBe("content.test.d");
   });
 
+  it("forwards a dispatch batch only when it pairs with the exact publication", () => {
+    const clock = createManualPresentationClockV1();
+    const seen: (readonly unknown[] | undefined)[] = [];
+    const spyingCatalog: StageTransitionCatalogV1 = {
+      resolveTransition: (change) => {
+        seen.push(change.dispatches);
+        return null;
+      },
+    };
+    const batch = Object.freeze({
+      revision: 2,
+      epoch: 0,
+      dispatches: Object.freeze([
+        { sceneId: "scene.test.component", cueId: "cue.test.component.bg" },
+      ]),
+    });
+    const stageProps = (revision: number, contentId: string) => ({
+      target: targetWithContentV1(contentId),
+      revision,
+      epoch: 0,
+      dispatches: batch,
+      catalog: spyingCatalog,
+      renderers: { "renderer.test.box": rendererV1 },
+      accessibleName: "配对舞台",
+      clock,
+    });
+
+    // Bootstrap publication: no edges derive, paired or not.
+    const view = render(<SemanticStageV1 {...stageProps(1, "content.test.a")} />);
+    expect(seen).toEqual([]);
+
+    // The batch pairs with revision 2 exactly: the replace change carries
+    // the same frozen dispatch list.
+    view.rerender(<SemanticStageV1 {...stageProps(2, "content.test.b")} />);
+    expect(seen).toEqual([batch.dispatches]);
+    expect(seen[0]).toBe(batch.dispatches);
+
+    // A later commit with the now-stale batch drops it: context-free edge.
+    view.rerender(<SemanticStageV1 {...stageProps(3, "content.test.c")} />);
+    expect(seen).toHaveLength(2);
+    expect(seen[1]).toBeUndefined();
+    view.unmount();
+  });
+
   it("token-fences a Barrier retarget delegate without widening the exact driver", () => {
     const clock = createManualPresentationClockV1();
     const reconciler = createStageReconcilerV1({

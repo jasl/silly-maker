@@ -4,13 +4,27 @@ import { describe, expect, it } from "vitest";
 import { lintNarrativeGraph } from "@sillymaker/base/story";
 import { createGameHarnessV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
 
+import type { StageTargetChange } from "@sillymaker/base/story";
+
 import { createTemplateApplicationInstanceV1 } from "../application/core-application.ts";
-import { defineTemplateScriptV1 } from "../narrative-kit.ts";
-import { projectTemplateNarrativeGraphV1 } from "../narrative-graph.ts";
-import { templateScriptV1 } from "../narrative.ts";
-import { templateTextCatalogsV1 } from "../presentation.ts";
+import type { TemplateInteractionDocV1 } from "../story/narrative-kit.ts";
+import { compileTemplateInteractionDocV1 } from "../story/narrative-kit.ts";
+import { projectTemplateNarrativeGraphV1 } from "../story/narrative-graph.ts";
+import { templateFlowGraphV1, templateScriptV1 } from "../story/narrative.ts";
+import {
+  templateStageTransitionCatalogV1,
+  templateTextCatalogsV1,
+} from "../content/presentation.ts";
 import { templateSemanticAdapterV1 } from "../application/semantic.ts";
 import { templateStoryEntryV1 } from "../story.ts";
+
+function compileDocV1(
+  doc: Omit<TemplateInteractionDocV1, "prefix" | "docId">,
+): ReturnType<typeof compileTemplateInteractionDocV1> {
+  return compileTemplateInteractionDocV1({
+    doc: { prefix: "template", docId: "doc.template.probe", ...doc },
+  });
+}
 
 /** Resolves whatever is pending now — inserting script lines never renumbers tests. */
 function currentResolveV1(
@@ -81,31 +95,139 @@ describe("template story baseline", () => {
     }
   });
 
-  it("rejects duplicate node names and conflicting inline text at build time", () => {
+  it("rejects bad documents at admission with pointed reasons", () => {
     expect(() =>
-      defineTemplateScriptV1({
-        prefix: "template",
-        nodes: [
+      compileDocV1({
+        entry: "close",
+        blocks: [
           { kind: "end", name: "close" },
           { kind: "end", name: "close" },
         ],
       })
-    ).toThrow("template.script_duplicate_node:close");
+    ).toThrow(/duplicate_block_name/u);
     expect(() =>
-      defineTemplateScriptV1({
-        prefix: "template",
-        nodes: [
+      compileDocV1({
+        entry: "a",
+        blocks: [
           { kind: "say", name: "a", speaker: null, text: "一句", next: "b", textId: "text.x" },
           { kind: "say", name: "b", speaker: null, text: "另一句", next: "a", textId: "text.x" },
         ],
       })
-    ).toThrow("template.script_text_conflict:text.x");
+    ).toThrow(/text_conflict:text\.x/u);
     expect(() =>
-      defineTemplateScriptV1({
-        prefix: "template",
-        nodes: [{ kind: "say", name: "a", speaker: "ghost", text: "……", next: "a" }],
+      compileDocV1({
+        entry: "a",
+        blocks: [{ kind: "say", name: "a", speaker: "ghost", text: "……", next: "a" }],
       })
-    ).toThrow("template.script_speaker_unknown:ghost");
+    ).toThrow(/speaker_unknown:ghost/u);
+    expect(() =>
+      compileDocV1({
+        entry: "a",
+        blocks: [{ kind: "say", name: "a", speaker: null, text: "……", next: "missing" }],
+      })
+    ).toThrow(/next_unresolved:missing/u);
+    expect(() =>
+      compileDocV1({
+        entry: "a",
+        blocks: [{ kind: "say", name: "a", speaker: null, text: "……", next: "@out" }],
+      })
+    ).toThrow(/external_target_unknown/u);
+    expect(() =>
+      compileDocV1({
+        entry: "pick",
+        blocks: [
+          {
+            kind: "choice",
+            name: "pick",
+            prompt: "选哪个？",
+            options: [
+              { name: "yes", text: "好", next: "close" },
+              { name: "yes", text: "好", next: "close" },
+            ],
+          },
+          { kind: "end", name: "close" },
+        ],
+      })
+    ).toThrow(/duplicate_option_name/u);
+    expect(() =>
+      compileDocV1({
+        entry: "gate",
+        blocks: [
+          {
+            kind: "branch",
+            name: "gate",
+            cases: [{ next: "close" }, { when: { flag: "flag.x" }, next: "close" }],
+          },
+          { kind: "end", name: "close" },
+        ],
+      })
+    ).toThrow(/branch_else_not_last/u);
+    expect(() =>
+      compileDocV1({
+        entry: "beat",
+        blocks: [
+          { kind: "stage", name: "beat", ops: [{ scene: "missing", open: true }], next: "close" },
+          { kind: "end", name: "close" },
+        ],
+      })
+    ).toThrow(/scene_unknown:missing/u);
+    // Reusing an option name across two different choices stays legal (a
+    // shared label shares its derived ids on purpose).
+    expect(() =>
+      compileDocV1({
+        entry: "pick",
+        blocks: [
+          {
+            kind: "choice",
+            name: "pick",
+            prompt: "选哪个？",
+            options: [{ name: "back", text: "返回", next: "close" }],
+          },
+          {
+            kind: "choice",
+            name: "again",
+            prompt: "再选一次？",
+            options: [{ name: "back", text: "返回", next: "close" }],
+          },
+          { kind: "end", name: "close" },
+        ],
+      })
+    ).not.toThrow();
+  });
+
+  it("projects the labeled flow graph with document grouping", () => {
+    const stageNode = templateFlowGraphV1.nodes.find(
+      (node) => node.nodeId === "node.template.opening",
+    );
+    expect(stageNode).toMatchObject({
+      kind: "stage",
+      docId: "doc.template.opening",
+      blockName: "opening",
+      summary: "cue:scene.template.opening/courtyard + cue:scene.template.opening/mist",
+      source: "interaction-doc:doc.template.opening#opening",
+    });
+    const lookEdge = templateFlowGraphV1.edges.find(
+      (edge) =>
+        edge.from === "node.template.first-choice" &&
+        edge.label.kind === "choice" &&
+        edge.label.choiceId === "choice.template.look",
+    );
+    expect(lookEdge).toMatchObject({
+      to: "node.template.cat-line",
+      label: { kind: "choice", textId: "text.template.choice.look", gates: [] },
+    });
+    const gateEdge = templateFlowGraphV1.edges.find(
+      (edge) =>
+        edge.from === "node.template.ending-gate" && edge.to === "node.template.ending-warm",
+    );
+    expect(gateEdge).toMatchObject({
+      label: { kind: "branch", condition: "flag flag.template.cat_found" },
+    });
+    // The choice block projects with the shared flow vocabulary ("menu").
+    const menuNode = templateFlowGraphV1.nodes.find(
+      (node) => node.nodeId === "node.template.first-choice",
+    );
+    expect(menuNode?.kind).toBe("menu");
   });
 
   it("keeps branch choosers inside their static successor annotations", () => {
@@ -120,6 +242,69 @@ describe("template story baseline", () => {
         expect(node.successors, node.nodeId).toContain(node.choose({ flags }));
       }
     }
+  });
+});
+
+describe("template presentation edge context", () => {
+  it("resolves Mei's shared enter edge per dispatching cue through the composed catalog", () => {
+    const meiEnter: StageTargetChange = {
+      kind: "enter",
+      layerId: "layer.template.characters" as StageTargetChange["layerId"],
+      entryKey: "layer.template.characters:tag.mei",
+      previous: null,
+      next: {
+        contentId: "content.template.character.mei",
+      } as unknown as NonNullable<StageTargetChange["next"]>,
+    };
+
+    // The ceremonial entrance plays its bound motion; the mid-beat return
+    // on the same edge is an explicit cut (non-null, so no outer rule can
+    // re-animate it).
+    expect(
+      templateStageTransitionCatalogV1.resolveTransition({
+        ...meiEnter,
+        dispatches: [
+          { sceneId: "scene.template.opening", cueId: "cue.template.opening.mei-enters" },
+        ],
+      }),
+    ).toMatchObject({ transitionId: "transition.template.opening.mei-enters", kind: "motion" });
+    expect(
+      templateStageTransitionCatalogV1.resolveTransition({
+        ...meiEnter,
+        dispatches: [
+          { sceneId: "scene.template.opening", cueId: "cue.template.opening.mei-returns" },
+        ],
+      }),
+    ).toMatchObject({ transitionId: "transition.template.opening.mei-returns", kind: "cut" });
+
+    // Without context the divergent edge declares nothing scene-level and
+    // no Story rule catches an enter: instant, deterministic.
+    expect(templateStageTransitionCatalogV1.resolveTransition(meiEnter)).toBeNull();
+  });
+
+  it("annotates stage nodes with their scene dispatches for the runner", () => {
+    const fetches = templateScriptV1.find((node) =>
+      node.kind === "stage" && node.nodeId === "node.template.mei-fetches"
+    );
+    expect(fetches).toMatchObject({
+      dispatches: [
+        { sceneId: "scene.template.opening", cueId: "cue.template.opening.mei-fetches" },
+      ],
+    });
+    const opening = templateScriptV1.find((node) =>
+      node.kind === "stage" && node.nodeId === "node.template.opening"
+    );
+    expect(opening).toMatchObject({
+      dispatches: [
+        { sceneId: "scene.template.opening", cueId: "cue.template.opening.courtyard" },
+        { sceneId: "scene.template.opening", cueId: "cue.template.opening.mist" },
+      ],
+    });
+    // Appearance-only beats dispatch nothing.
+    const smiles = templateScriptV1.find((node) =>
+      node.kind === "stage" && node.nodeId === "node.template.mei-smiles"
+    );
+    expect(smiles).toMatchObject({ dispatches: [] });
   });
 });
 
@@ -138,10 +323,11 @@ describe("template narrative playthrough", () => {
         kind: "say",
         textId: "text.template.line.greeting",
       });
-      // The opening stage node put the background and Mei on stage.
+      // The opening stage node put the background, mist, and Mei on stage.
       const layers = publication.game.stage.layers;
       expect(layers.flatMap((layer) => layer.entries.map((entry) => entry.contentId))).toEqual([
         "content.template.background.courtyard",
+        "content.template.effect.mist",
         "content.template.character.mei",
       ]);
 
@@ -162,7 +348,34 @@ describe("template narrative playthrough", () => {
 
       await dispatch(currentResolveV1(application, { kind: "advance" }));
       publication = application.semantic.observe();
-      // The branch routed on the flag; Mei is smiling now.
+      // Mei smiled, then darted off-frame to fetch the kitten: the
+      // explicit-cut hide leaves her absent while the narration plays, and
+      // the commit's dispatch batch pairs with exactly this revision.
+      expect(publication.narrative.pending).toMatchObject({
+        kind: "say",
+        textId: "text.template.line.fetch-line",
+      });
+      const meiAway = publication.game.stage.layers
+        .find((layer) => layer.layerId === "layer.template.characters")
+        ?.entries.find((entry) => entry.tag === "tag.mei");
+      expect(meiAway).toBeUndefined();
+      expect(application.stageCueDispatches()).toEqual({
+        revision: publication.revision,
+        epoch: application.presentationAnchor().epoch,
+        dispatches: [
+          {
+            sceneId: "scene.template.opening",
+            cueId: "cue.template.opening.mei-fetches",
+          },
+        ],
+      });
+
+      await dispatch(currentResolveV1(application, { kind: "advance" }));
+      publication = application.semantic.observe();
+      // She is instantly back in frame (explicit-cut show on the same enter
+      // edge her ceremonial entrance motion binds), carrying the kitten
+      // into the warm ending. The re-show restores the scene-declared
+      // appearance.
       expect(publication.narrative.pending).toMatchObject({
         kind: "say",
         textId: "text.template.line.ending-warm",
@@ -170,7 +383,17 @@ describe("template narrative playthrough", () => {
       const mei = publication.game.stage.layers
         .find((layer) => layer.layerId === "layer.template.characters")
         ?.entries.find((entry) => entry.tag === "tag.mei");
-      expect(mei?.appearance).toMatchObject({ expression: "smiling" });
+      expect(mei?.contentId).toBe("content.template.character.mei");
+      expect(mei?.appearance).toMatchObject({ expression: "calm" });
+      expect(application.stageCueDispatches()).toMatchObject({
+        revision: publication.revision,
+        dispatches: [
+          {
+            sceneId: "scene.template.opening",
+            cueId: "cue.template.opening.mei-returns",
+          },
+        ],
+      });
 
       await dispatch(currentResolveV1(application, { kind: "advance" }));
       publication = application.semantic.observe();

@@ -2,6 +2,11 @@
 import type { SessionLeaseOwnerId } from "../../contracts/application.ts";
 import type { TransientEffectRequestV1, TransientEffectV1 } from "../../contracts/asset-demand.ts";
 import type { SemanticGamePortSourceV1, SemanticGamePortV1 } from "../../contracts/application.ts";
+import type {
+  StageCueDispatchBatchV1,
+  StageCueDispatchV1,
+} from "../../contracts/stage-transition.ts";
+import { parseStageCueDispatchesV1 } from "../../contracts/stage-transition.ts";
 import type { BuildIdentityInputV1 } from "../../authoring/build-identity.ts";
 import { resolveGamePackageV1 } from "../../authoring/story-resolver.ts";
 import { digestBytes, digestCanonical } from "../../contracts/digest.ts";
@@ -33,6 +38,7 @@ import {
 import type {
   RuntimeSessionStatusV1,
   SessionAnchorResultV1,
+  SessionFaultCauseV1,
 } from "../../contracts/session-status.ts";
 import {
   createGameSnapshotEnvelopeSchemaV1,
@@ -231,6 +237,18 @@ export interface CoreSemanticAdapterV1<
   projectTransientEffects?(
     facts: readonly DeepReadonly<TTypes["fact"]>[],
   ): readonly TransientEffectRequestV1[];
+  /**
+   * Optional presentation edge context (cue-identity proposal, accepted
+   * 2026-08-17): the scene cue dispatches (and whole-scene opens) this
+   * commit performed, derived from its committed facts. The instance admits
+   * the list once (id patterns, bound), stamps it with the commit's
+   * semantic revision and presentation epoch, and keeps only the latest
+   * batch; the context never enters State, Saves, digests, replay, or
+   * command identity.
+   */
+  projectStageCueDispatches?(
+    facts: readonly DeepReadonly<TTypes["fact"]>[],
+  ): readonly StageCueDispatchV1[];
 }
 
 /**
@@ -887,6 +905,8 @@ export interface CoreApplicationAdminV1<TTypes extends GameSimulationTypeMapV1> 
     readonly runtimeFailures: readonly unknown[];
   };
   stateDigest(): Digest;
+  /** Non-authoritative raw-error record behind the latest unexpected fault. */
+  lastFaultCause(): SessionFaultCauseV1 | null;
   readonly debugControl?: GameSessionCompositionV1<TTypes>["debugControl"];
 }
 
@@ -939,6 +959,16 @@ export interface CoreGameApplicationInstanceV1<
    * carry no history, so new epochs never replay old effects.
    */
   subscribeTransientEffects(listener: (effect: TransientEffectV1) => void): () => void;
+  /**
+   * The latest commit's presentation edge context (cue-identity proposal,
+   * accepted 2026-08-17): scene cue dispatches projected from that commit's
+   * facts, stamped with exactly its semantic publication revision and the
+   * presentation epoch at commit time. Nothing is stored beyond the latest
+   * batch, anchor replacement (load/import/restart/rollback) clears it, and
+   * consumers must drop a batch whose revision or epoch does not match the
+   * publication they present — absence degrades to context-free resolution.
+   */
+  stageCueDispatches(): StageCueDispatchBatchV1 | null;
   bindToCurrentEpoch<TArgs extends readonly unknown[], TValue>(
     callback: (...args: TArgs) => TValue,
   ): (...args: TArgs) => CoreEpochBoundOutcomeV1<TValue>;
@@ -1129,6 +1159,17 @@ export async function createCoreGameApplicationInstanceV1<
     }
     | undefined = () => undefined;
 
+  // Presentation edge context: a committed attempt's facts are staged here
+  // (the session calls `onAttempt` BEFORE it publishes) and stamped into
+  // the dispatch batch by the instance's own first semantic-port
+  // subscriber — so the batch already pairs with the publication when UI
+  // subscribers render it. Stamping after the dispatch promise resolves is
+  // too late: hosts that flush React synchronously inside the publication
+  // notification would render (and retarget the stage) before the stamp.
+  let pendingStageCueDispatchFactsV1:
+    | readonly DeepReadonly<TTypes["fact"]>[]
+    | null = null;
+
   // Steps below acquire live resources; anything after session creation is
   // failure-guarded so a failed construction leaves no owner or listener.
   const sessionInput: GameSessionInputV1<TTypes> = {
@@ -1196,8 +1237,13 @@ export async function createCoreGameApplicationInstanceV1<
       } satisfies GameSessionDebugInputV1<TTypes>,
     ),
     onAttempt(attempt) {
+      const result = (attempt as {
+        readonly result?: { readonly kind?: unknown; readonly facts?: unknown };
+      }).result;
+      pendingStageCueDispatchFactsV1 = result?.kind === "committed"
+        ? (result as { readonly facts: readonly DeepReadonly<TTypes["fact"]>[] }).facts
+        : null;
       const pending = readLatestLoggedAttemptCommand();
-      const result = (attempt as { readonly result?: { readonly kind?: unknown } }).result;
       if (pending === undefined || result?.kind !== "faulted") return;
       latestAttemptFailure = Object.freeze({ ...pending, attempt });
     },
@@ -1400,6 +1446,19 @@ export async function createCoreGameApplicationInstanceV1<
       },
     });
 
+    // The instance's own FIRST semantic-port subscriber (registration order
+    // is the contract): stamp the staged commit facts as the dispatch batch
+    // before any later subscriber — including hosts that flush React
+    // synchronously — observes the new publication.
+    cleanups.push(
+      semantic.subscribe(() => {
+        const facts = pendingStageCueDispatchFactsV1;
+        if (facts === null) return;
+        pendingStageCueDispatchFactsV1 = null;
+        recordStageCueDispatchesFromFactsV1(facts);
+      }),
+    );
+
     recordCoreApplicationConstructionV1(constructionInstrumentation, "persistence_factory");
     const persistenceOptions: CreateStandardPersistenceServiceOptionsV1<
       TTypes["state"],
@@ -1465,6 +1524,10 @@ export async function createCoreGameApplicationInstanceV1<
     let origin: CorePresentationAnchorOriginV1 = "bootstrap";
     let lastReplayBase: unknown = created.commandLog.replayBase();
     let clearPendingAutoSaveForAnchorV1: () => void = () => {};
+    // Presentation edge context: only the latest commit's batch is kept
+    // (nothing accumulates), and anchor replacement clears it — a restored
+    // replay base has no commit edge to annotate.
+    let latestStageCueDispatchBatchV1: StageCueDispatchBatchV1 | null = null;
     const anchorListeners = new Set<(anchor: CorePresentationAnchorV1) => void>();
     const anchorEventListeners = new Set<
       (event: CorePresentationAnchorEventInternalV1) => void
@@ -1476,6 +1539,7 @@ export async function createCoreGameApplicationInstanceV1<
         if (replayBase === lastReplayBase) return;
         lastReplayBase = replayBase;
         epoch = parseNonNegativeSafeInteger(epoch + 1);
+        latestStageCueDispatchBatchV1 = null;
         const publicationContext = readActiveAuthoritativeReplacementPublicationContextInternalV1(
           created.runtimeControl,
         );
@@ -1564,6 +1628,32 @@ export async function createCoreGameApplicationInstanceV1<
       emitTransientEffectsFromFactsV1(
         result.execution.facts as readonly DeepReadonly<TTypes["fact"]>[],
       );
+    }
+
+    // Presentation edge context: the Story projection is public input, so
+    // it is admitted once here (id patterns, dispatch bound); a failed or
+    // invalid projection drops the context and the commit presents without
+    // it. Called from the instance's first semantic-port subscriber, where
+    // the port has already assigned this commit's publication revision but
+    // no UI subscriber has rendered it yet — the stamp pairs exactly.
+    function recordStageCueDispatchesFromFactsV1(
+      facts: readonly DeepReadonly<TTypes["fact"]>[],
+    ): void {
+      const project = definition.semantic.projectStageCueDispatches;
+      if (project === undefined || disposed) return;
+      let dispatches: readonly StageCueDispatchV1[];
+      try {
+        dispatches = parseStageCueDispatchesV1(project(facts));
+      } catch (error) {
+        reportObserverFailure(error);
+        return;
+      }
+      if (dispatches.length === 0) return;
+      latestStageCueDispatchBatchV1 = Object.freeze({
+        revision: semantic.observe().revision as number,
+        epoch: epoch as number,
+        dispatches,
+      });
     }
 
     // Autosave policy wiring.
@@ -2229,6 +2319,7 @@ export async function createCoreGameApplicationInstanceV1<
         }),
       stateDigest: () =>
         digestCanonical("sillymaker:state:v1", created.session.getCurrentSnapshot()),
+      lastFaultCause: () => created.session.getLastFaultCause(),
       ...(options.capabilities?.debugTools === true
         ? {
           debugControl: Object.freeze({
@@ -2242,6 +2333,9 @@ export async function createCoreGameApplicationInstanceV1<
             ) => {
               const result = await validatedDebugControl.execute(command, isCapabilityEnabled);
               if (result.kind === "executed" && result.attempt.result.kind === "committed") {
+                // Dispatch batches for committed debug commands are staged
+                // by `onAttempt` and stamped by the semantic-port
+                // subscriber, exactly like gameplay commits.
                 emitTransientEffectsFromFactsV1(
                   result.attempt.result.facts as readonly DeepReadonly<TTypes["fact"]>[],
                 );
@@ -2291,6 +2385,7 @@ export async function createCoreGameApplicationInstanceV1<
         effectListeners.add(listener);
         return () => effectListeners.delete(listener);
       },
+      stageCueDispatches: () => latestStageCueDispatchBatchV1,
       bindToCurrentEpoch: <TArgs extends readonly unknown[], TValue>(
         callback: (...args: TArgs) => TValue,
       ) => {

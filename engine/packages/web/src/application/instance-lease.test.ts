@@ -257,6 +257,31 @@ describe("createWebInstanceLeaseCoordinatorV1", () => {
     port.dispose();
   });
 
+  it("publishes unavailable when a background refresh throws, then recovers", async () => {
+    const scope = `test.background.${Math.random().toString(36).slice(2)}`;
+    const fake = fakeLeaseV1({ ownerId: null, token: 1 });
+    const port = await coordinatorV1(fake, "take_over", { channelScope: scope });
+    expect(port.state.getCurrent().role).toBe("owner");
+
+    const healthyGetStatus = fake.lease.getStatus;
+    fake.lease.getStatus = async () => {
+      throw new TypeError("host record store exploded");
+    };
+    // A peer's nudge drives the background refresh path (no await surface).
+    const peer = new BroadcastChannel(`sillymaker.instance-lease.${scope}`);
+    // oxlint-disable-next-line unicorn/require-post-message-target-origin -- BroadcastChannel has no targetOrigin
+    peer.postMessage("lease-changed");
+    await vi.waitFor(() => {
+      expect(port.state.getCurrent().role).toBe("unavailable");
+    });
+    peer.close();
+
+    fake.lease.getStatus = healthyGetStatus;
+    const state = await port.refresh();
+    expect(state.role).toBe("owner");
+    port.dispose();
+  });
+
   it("stays inert after dispose", async () => {
     const fake = fakeLeaseV1({ ownerId: null, token: 1 });
     const port = await coordinatorV1(fake, "take_over");

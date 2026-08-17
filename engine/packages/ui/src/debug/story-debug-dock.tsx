@@ -14,6 +14,7 @@ import {
   formatVersionStampV1,
   readVersionStampV1,
   type RuntimeCapabilityPortV1,
+  type SessionFaultCauseV1,
 } from "@sillymaker/base";
 
 import type { PresentationFreezePortV1 } from "../presentation-run/presentation-freeze.ts";
@@ -69,6 +70,7 @@ export interface StoryDebugDockLabelsV1 extends SessionMaintenanceLabelsV1 {
   readonly studioLabel: string;
   readonly studioOpenedNote: string;
   readonly cheatLockReason: string;
+  readonly faultCauseLabel: string;
 }
 
 export const defaultStoryDebugDockLabelsV1: StoryDebugDockLabelsV1 = Object.freeze({
@@ -110,6 +112,7 @@ export const defaultStoryDebugDockLabelsV1: StoryDebugDockLabelsV1 = Object.free
   studioLabel: "Studio",
   studioOpenedNote: "已在新标签页打开 Studio（游戏会话继续运行）。",
   cheatLockReason: "需要启用作弊功能",
+  faultCauseLabel: "最近故障",
 });
 
 export interface StoryDebugDockPropsV1 {
@@ -136,6 +139,15 @@ export interface StoryDebugDockPropsV1 {
   readonly onWiped?: () => void;
   /** Game-specific live stats; the dock never reads Story state itself. */
   readonly info?: ReactNode;
+  /**
+   * The session's non-authoritative last-fault-cause record (raw message +
+   * stack summary behind the latest normalized throw); rendered whenever
+   * non-null so a paused session explains itself without console digging.
+   */
+  readonly faultCause?: {
+    getCurrent(): SessionFaultCauseV1 | null;
+    subscribe(listener: () => void): () => void;
+  };
   /**
    * Tools to list before the panel registry is published. When omitted,
    * the dock lists `control.panels` (skipping inlined session maintenance).
@@ -392,6 +404,11 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
     props.control.panels.subscribe,
     props.control.panels.getCurrent,
     props.control.panels.getCurrent,
+  );
+  const faultCause = useSyncExternalStore(
+    props.faultCause?.subscribe ?? (() => () => undefined),
+    () => props.faultCause?.getCurrent() ?? null,
+    () => props.faultCause?.getCurrent() ?? null,
   );
   const openPanelIds = useSyncExternalStore(
     props.control.openPanelIds.subscribe,
@@ -783,6 +800,22 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
                   aria-live="polite"
                 >
                   {note}
+                </div>
+              )}
+              {faultCause === null ? null : (
+                <div
+                  className={styles["story-debug-dock__fault"]}
+                  data-debug-dock-fault-cause={faultCause.at}
+                >
+                  <strong>{labels.faultCauseLabel}</strong>
+                  <div>{faultCause.message}</div>
+                  {faultCause.stackSummary.length === 0
+                    ? null
+                    : (
+                      <pre className={styles["story-debug-dock__fault-stack"]}>
+                      {faultCause.stackSummary.join("\n")}
+                      </pre>
+                    )}
                 </div>
               )}
               {versionLine === null ? null : (

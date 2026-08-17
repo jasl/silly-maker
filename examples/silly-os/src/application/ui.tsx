@@ -18,12 +18,12 @@ import {
   OsStartMenuV1,
   OsTaskbarV1,
   osDesktopBoundsForV1,
-} from "../features/desktop/desktop.tsx";
-import { OsComputerIconV1, OsDisplayIconV1 } from "../features/desktop/icons.tsx";
-import { OsWindowFrameV1 } from "../features/desktop/window-frame.tsx";
-import { OsBootScreenV1 } from "../features/desktop/boot-screen.tsx";
-import { OsVolumeTrayV1 } from "../features/desktop/volume-tray.tsx";
-import type { OsWindowManagerV1 } from "../features/desktop/window-manager.ts";
+} from "../game/features/desktop/desktop.tsx";
+import { OsComputerIconV1, OsDisplayIconV1 } from "../game/features/desktop/icons.tsx";
+import { OsWindowFrameV1 } from "../game/features/desktop/window-frame.tsx";
+import { OsBootScreenV1 } from "../game/features/desktop/boot-screen.tsx";
+import { OsVolumeTrayV1 } from "../game/features/desktop/volume-tray.tsx";
+import type { OsWindowManagerV1 } from "../game/features/desktop/window-manager.ts";
 
 /** The desktop shell: icons, window layer, taskbar, Start menu, shutdown screen — all UI-transient. */
 export function OsShellV1(props: {

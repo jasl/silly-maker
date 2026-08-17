@@ -16,7 +16,7 @@ import {
 } from "../application/composition.tsx";
 import { createCatcafeApplicationInstanceV1 } from "../application/core-application.ts";
 import type { CatcafeSemanticPublicationV1 } from "../application/ui-kit.ts";
-import { CatcafeEndingScreenV1 } from "../features/endings/ending-screen.tsx";
+import { CatcafeEndingScreenV1 } from "../game/features/endings/ending-screen.tsx";
 
 type CatcafeWholeCanvasTargetIdV1 = "catcafe.ending";
 type CatcafeWholeCanvasActionIdV1 = "cc.enter_postgame" | "cc.restart";

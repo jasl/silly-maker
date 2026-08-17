@@ -6,11 +6,14 @@ import {
   materializeOsPresentationV1,
   osPresentationPatchSurfaceV1,
   osTextCatalogsV1,
-} from "./presentation.ts";
-import { osSimulationDefinitionV1 } from "./simulation-definition.ts";
+} from "./content/presentation.ts";
+import { osSimulationDefinitionV1 } from "./game/simulation-definition.ts";
 
-export type { OsSimulationProgramV1 } from "./simulation-definition.ts";
-export { osSimulationPatchSurfaceV1, osStateContractManifestV1 } from "./simulation-definition.ts";
+export type { OsSimulationProgramV1 } from "./game/simulation-definition.ts";
+export {
+  osSimulationPatchSurfaceV1,
+  osStateContractManifestV1,
+} from "./game/simulation-definition.ts";
 
 const osStoryDefinitionV1 = Object.freeze({
   simulation: osSimulationDefinitionV1,

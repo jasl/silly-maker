@@ -1,9 +1,14 @@
 # VN Scene Workspace V1
 
-状态：2026-08-14 由所有者接受为当前 active plan。目标合同由
-[场景创作模型与 SillyMaker Studio 设计](../design/scene-authoring-and-studio.md)
+状态：2026-08-14 由所有者接受；2026-08-15 完成并移交（A0–A6 全部交付）。A3 十步
+闭环的所有者实测验收按所有者 2026-08-15 决定重新定标：所有者常态角色是试玩与 bug
+汇报，直接操纵证据以浏览器自动化与实验循环真实使用为准（所有者首次实测已回流真实
+素材缺口并交付修复）。A5 证据循环与未关闭缺口（素材/内容进场、bound-vs-unbound
+泄漏、cue 身份扩展、Studio 作者信任项）由
+[Authoring Architecture 计划](2026-08-15-authoring-architecture.md) 承接。目标合同
+由[场景创作模型与 SillyMaker Studio 设计](../design/scene-authoring-and-studio.md)
 拥有；[Production-floor sequence](2026-07-30-production-floor-sequence.md) 仍是唯一
-跨计划排序入口，本文只拥有本能力的切片顺序与验收。
+跨计划排序入口。
 
 ## 1. Evidence and positioning
 
@@ -225,7 +230,7 @@ envelope 或第二 runtime authority。
 
 ### A5 — 第二消费者验证
 
-- 用 external-experiment 重写实验验证：多人物、多场景、同一人物不同登场 motion、
+- 用外部实验仓的真实内容项目验证：多人物、多场景、同一人物不同登场 motion、
   背景切换、表情、场景重开、人类修改与 AI 重构后保留人工资产（`human_tuned`/
   `locked` 纪律沿用）。
 - 外部实验只提供匿名需求反馈与真实使用验证；promotion 证据仅来自仓库内 Engine
@@ -235,11 +240,11 @@ envelope 或第二 runtime authority。
 
 基准切片（2026-08-14 定义；可重跑的度量单位，不是一次性移植进度）：
 
-- 范围＝实验目标的开场纵切，覆盖上列全部验证点一次：两名人物（各 ≥2 表情）、
+- 范围＝实验项目的开场纵切，覆盖上列全部验证点一次：两名人物（各 ≥2 表情）、
   两个场景与一次背景切换、同一人物两种登场 motion、一次场景重开（ensure 幂等）、
   一个选择分支、约 20–40 句台词。素材可用占位图，占位/真图切换不改度量口径。
 - 实验仓在本仓库外从 `template/` 复制创建（scene-first 流程照 quickstart 走）；
-  产物与实验素材不入本仓库，回流的只有匿名化度量与缺口描述。
+  产物与素材不入本仓库，回流的只有匿名化度量与缺口描述。
 - 每轮记录的度量（人与 Agent 同表）：每句台词触碰文件数与编辑点数；每张立绘/
   背景从文件到上台的登记点数；改一次站位/换一次 motion 触碰的文件数（预期 =1，
   即 scene/motion 文档本身）；切片从零到 `story check`+simulate+浏览器可玩的
@@ -279,7 +284,7 @@ envelope 或第二 runtime authority。
    档未声明的字段不触碰，zOrder 漂移不纠正（re-show 拥有）。纯 accessor 追加
    （`setPlacement`/`setAppearance` 变更原语本已存在），零 runtime/schema/Save
    影响；base 合同测试 18/18（含幂等、陌生条目隐藏、内容纠正、未声明层不触碰）。
-   第一消费者=高保真移植（下一步）；解决第 2 轮缺口 4/6/8 家族（忘 hide 叠人、
+   第一消费者=实验仓真实内容迁移（下一步）；解决第 2 轮缺口 4/6/8 家族（忘 hide 叠人、
    hide+show 丢表情的意外性、重开手写序列）。
 4. 素材/内容进场（Studio 无法从零登记人物；新场景要手拼 barrel 与 transition
    catalog；新 motion 要在 studio binding 重复登记路径）——预注册焦点二证实，
@@ -317,7 +322,7 @@ envelope 或第二 runtime authority。
   留）。template 单测 12/12、story check 绿。引擎化（进 `@sillymaker/base`
   authoring kit）等实验仓第 2 轮与第二消费者证据后再裁决。
 
-高保真移植预检（2026-08-14，`tmp/external-experiment` 迁移前）：现有实现的开场入场
+真实内容迁移预检（2026-08-14，实验仓迁移前）：现有实现的开场入场
 motion 带 `acknowledge: true` + `inputPolicy: "block"`（barrier 等确认），scene
 绑定无法表达 → 补最窄切片：`sceneStageTransitionBindingsV1` 输入增加可选
 `edges`（按 cueId 的边行为覆盖：inputPolicy/interruption/reducedMotion/
@@ -327,12 +332,12 @@ readiness/acknowledge；键必须指向绑定了 motion 的 cue，否则
 20/20。另：第二登场立绘「同 tag 同 content 故意无 motion」再次复现 bound-vs-
 unbound 泄漏变体（迁移按第 2 轮先例裂 tag 绕开），deferred cue 身份扩展的证据 +1。
 
-高保真移植完成（2026-08-14，仓库外，匿名证据回流）：三份场景文档接管构图，
+真实内容迁移完成（2026-08-14，仓库外，匿名证据回流）：三份场景文档接管构图，
 `openMutations` 与 `edges` 选项均获得第一个真实消费者（第二场景枢纽的手写 hasTag
 守卫被 openMutations 取代；开场入场经 cue 命名保持 barrier transition id 逐字
 节不变）；开场 scenario 与金标种子的 finalStateDigest 与迁移前完全相同，42 单测
 （含金标回放）与浏览器 e2e 全绿；Studio 在真实 vendor 素材上可拖。该项目后续由
-Agent 自主推进（菜单→H 场景→结局），台账记录对齐面与唯一有意保留的差距
+Agent 自主推进，台账记录对齐面与唯一有意保留的差距
 （A6 台词 builder 待移植，需扩展 effect/barrier 节点）。
 
 ## 3. Defer

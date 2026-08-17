@@ -17,17 +17,17 @@ import type {
   CatcafeUiPublicationV1,
 } from "./ui-kit.ts";
 import { catcafeThemeV1, dispatchV1, useCatcafeTextV1 } from "./ui-kit.ts";
-import { useCatcafeAlbumWatcherV1 } from "../features/album/index.tsx";
+import { useCatcafeAlbumWatcherV1 } from "../game/features/album/index.tsx";
 import {
   CatcafeContestPanelV1,
   useCatcafeContestToastV1,
-} from "../features/contest/contest-panel.tsx";
-import { useCatcafeAutoAdvanceV1 } from "../features/calendar/use-auto-advance.ts";
-import { useCatcafeAutoBeginV1 } from "../features/dialogue/use-auto-begin.ts";
-import { useCatcafeEncounterNoticeV1 } from "../features/encounters/notice.ts";
+} from "../game/features/contest/contest-panel.tsx";
+import { useCatcafeAutoAdvanceV1 } from "../game/features/calendar/use-auto-advance.ts";
+import { useCatcafeAutoBeginV1 } from "../game/features/dialogue/use-auto-begin.ts";
+import { useCatcafeEncounterNoticeV1 } from "../game/features/encounters/notice.ts";
 import { CatcafeStatBarV1 } from "./stat-bar.tsx";
-import { catcafeLocalesV1 } from "../presentation.ts";
-import { catcafeSlotsV1 } from "../content.ts";
+import { catcafeLocalesV1 } from "../content/presentation.ts";
+import { catcafeSlotsV1 } from "../game/content.ts";
 
 /* Compact in-game buttons: HUD and dialogue shortcut bar use the small size (32px touch targets preserved). */
 const catcafeChromeCssV1 = `

@@ -11,6 +11,7 @@ import type {
 import type {
   RuntimeSessionStatusV1,
   SessionDispatchOperationResultV1,
+  SessionFaultCauseV1,
 } from "../../contracts/session-status.ts";
 import type { SaveStateMigrationReceiptV1 } from "../../contracts/save-state-migration.ts";
 import type {
@@ -335,6 +336,13 @@ export function lookupInstalledSnapshotDigestInternalV1(
 export interface GameSessionV1<TTypes extends GameSimulationTypeMapV1> {
   getStatus(): RuntimeSessionStatusV1;
   getCurrentSnapshot(): DeepReadonly<TTypes["snapshot"]>;
+  /**
+   * The raw error behind the most recent unexpected fault, or null when no
+   * throw was normalized yet. Non-authoritative debug data (see
+   * `SessionFaultCauseV1`); `subscribe` listeners fire on the status flip
+   * that accompanies every fault, so observers re-read it there.
+   */
+  getLastFaultCause(): SessionFaultCauseV1 | null;
   subscribe(listener: () => void): () => void;
   dispatch(
     command: DeepReadonly<TTypes["command"]>,
@@ -693,6 +701,22 @@ function deepFreezeSnapshotV1<TSnapshot>(
   return value;
 }
 
+/** Builds the non-authoritative cause record for one normalized throw. */
+function sessionFaultCauseV1(
+  at: SessionFaultCauseV1["at"],
+  error: unknown,
+): SessionFaultCauseV1 {
+  const raw = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  const message = raw.length > 300 ? `${raw.slice(0, 300)}…` : raw;
+  const stack = error instanceof Error && typeof error.stack === "string" ? error.stack : "";
+  const stackSummary = stack
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && line !== raw)
+    .slice(0, 8);
+  return Object.freeze({ at, message, stackSummary: Object.freeze(stackSummary) });
+}
+
 function createInternal<TTypes extends GameSimulationTypeMapV1>(
   input: GameSessionInputV1<TTypes>,
   instrumentation?: SnapshotWorkInstrumentationV1,
@@ -715,6 +739,10 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
     {},
   ) as AuthoritativeReplacementOwnerInternalV1;
   let stableStatus: Exclude<RuntimeSessionStatusV1, "busy"> = "ready";
+  let lastFaultCause: SessionFaultCauseV1 | null = null;
+  const recordFaultCause = (at: SessionFaultCauseV1["at"], error: unknown): void => {
+    lastFaultCause = sessionFaultCauseV1(at, error);
+  };
   let pending = 0;
   let tail: Promise<void> = Promise.resolve();
   const commandLog = createCommandLogInternalV1<
@@ -934,6 +962,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           return outcome.result;
         } catch (error) {
           if (isHmrInvalidated()) return invalidatedResult();
+          recordFaultCause("session", error);
           stableStatus = "fault_paused";
           publish();
           return normalizeUnexpectedFault(error);
@@ -1010,6 +1039,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
         const debug = input.debug as GameSessionDebugInputV1<TTypes>;
         const before = snapshot as DeepReadonly<TTypes["snapshot"]>;
         const normalizeFault = (error: unknown): AttemptFor<TTypes> => {
+          recordFaultCause("debug", error);
           const normalized = debug.normalizeUnexpectedFault(error, before);
           if (isThenable(normalized)) {
             throw new TypeError("Debug fault normalizer returned thenable");
@@ -1288,6 +1318,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           return outcome.result;
         } catch (error) {
           if (isHmrInvalidated()) return hmrInvalidatedV1;
+          recordFaultCause("session", error);
           stableStatus = "fault_paused";
           publish();
           return normalizeUnexpectedFault(error);
@@ -1299,6 +1330,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
   const session: GameSessionV1<TTypes> = Object.freeze({
     getStatus: status,
     getCurrentSnapshot: () => snapshot as DeepReadonly<TTypes["snapshot"]>,
+    getLastFaultCause: () => lastFaultCause,
     subscribe(listener: () => void) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -1333,6 +1365,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
         }
         const before = snapshot as DeepReadonly<TTypes["snapshot"]>;
         const normalizeFault = (error: unknown): AttemptFor<TTypes> => {
+          recordFaultCause("dispatch", error);
           const normalized = input.normalizeUnexpectedDispatchFault(error, before);
           if (isThenable(normalized)) {
             throw new TypeError("Dispatch fault normalizer returned thenable");

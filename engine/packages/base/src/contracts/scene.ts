@@ -26,9 +26,11 @@ import type {
   StageTransitionReadinessV1,
   StageTransitionReducedMotionV1,
 } from "./stage-transition.ts";
-import { motionStageTransitionV1 } from "./stage-transition.ts";
+import { motionStageTransitionV1, parseStageTransitionDefinitionV1 } from "./stage-transition.ts";
+import type { StageAmbientBindingV1, StageAmbientCatalogV1 } from "./stage-ambient.ts";
+import type { StageRenderEntryV1 } from "./stage-render-target.ts";
 import type { MotionDocumentV1 } from "./motion.ts";
-import { parseMotionDocumentV1 } from "./motion.ts";
+import { motionDefinitionFromDocumentV1, parseMotionDocumentV1 } from "./motion.ts";
 
 /**
  * Scene authoring contracts: a Scene is plain, versioned, validated
@@ -36,8 +38,8 @@ import { parseMotionDocumentV1 } from "./motion.ts";
  * `*.scene.json` file under `src/scenes/<scene>/`). The Document is the
  * single authoring authority for a scene's visual composition — entries
  * (stable `<layerId, tag>` identity, content, placement, appearance) and
- * named cues that show/hide those entries, each optionally binding an
- * entrance/exit motion asset to exactly that cue's stage edge.
+ * named cues that show/hide those entries, each optionally declaring its
+ * stage-edge presentation: a bound motion asset or an explicit instant cut.
  *
  * Scenes compile into the existing runtime contracts and never become a
  * second gameplay or Stage authority: `cueMutations` emits ordinary
@@ -52,6 +54,18 @@ export interface SceneCanvasV1 {
   readonly height: number;
 }
 
+/**
+ * Presence-bound ambient loop (ambient-loop-motion, accepted 2026-08-15):
+ * an ordinary motion Document sampled on the presentation clock while this
+ * entry is settled on stage. Loop semantics live here in the binding, not
+ * in the motion Document; `phaseMs` is a presentation-only phase offset so
+ * entries sharing one loop Document need not move in lockstep.
+ */
+export interface SceneEntryAmbientV1 {
+  readonly motionId: string;
+  readonly phaseMs?: number;
+}
+
 export interface SceneEntryV1 {
   readonly layerId: StageLayerIdV1;
   readonly tag: StageTagV1;
@@ -59,6 +73,7 @@ export interface SceneEntryV1 {
   readonly zOrder?: number;
   readonly placement?: StagePlacementV1;
   readonly appearance?: StageAppearanceV1;
+  readonly ambient?: SceneEntryAmbientV1;
 }
 
 /**
@@ -78,6 +93,14 @@ export interface SceneCueV1 {
   readonly tag: StageTagV1;
   /** Motion asset presented on this cue's stage edge (enter for show, exit for hide). */
   readonly motionId?: string;
+  /**
+   * Explicit instant cut on this cue's stage edge (cue-identity proposal,
+   * owner ruling #1): resolved cue-first through presentation edge context,
+   * the derived binding returns a `kind: "cut"` definition — non-null, so
+   * it suppresses outer catalog rules instead of falling through. Mutually
+   * exclusive with `motionId`.
+   */
+  readonly cut?: true;
 }
 
 export interface SceneDocumentV1 {
@@ -152,15 +175,46 @@ function parseSceneCueIdV1(value: unknown, path: string): string {
   return value;
 }
 
-function parseSceneMotionIdV1(value: unknown, path: string): string {
+function parseSceneMotionIdV1(
+  value: unknown,
+  path: string,
+  code = "scene_cue_motion_id_invalid",
+): string {
   if (
     typeof value !== "string" ||
     value.length > sceneMaxIdLengthV1 ||
     !sceneMotionIdPatternV1.test(value)
   ) {
-    return dataFailure(path, "scene_cue_motion_id_invalid");
+    return dataFailure(path, code);
   }
   return value;
+}
+
+/** Bounded by the motion duration cap: phase is modulo the loop anyway. */
+const sceneAmbientPhaseLimitMsV1 = 60_000;
+
+function parseSceneEntryAmbientV1(value: unknown, path: string): SceneEntryAmbientV1 {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return dataFailure(path, "scene_ambient_invalid");
+  }
+  const hasPhase = hasOwnDataValueV1(value, "phaseMs");
+  const record = readExactRecord(value, hasPhase ? ["motionId", "phaseMs"] : ["motionId"], path);
+  const phaseMs = record.phaseMs;
+  if (
+    phaseMs !== undefined &&
+    (typeof phaseMs !== "number" || !Number.isSafeInteger(phaseMs) || phaseMs < 0 ||
+      phaseMs > sceneAmbientPhaseLimitMsV1)
+  ) {
+    return dataFailure(`${path}/phaseMs`, "scene_ambient_phase_invalid");
+  }
+  return Object.freeze({
+    motionId: parseSceneMotionIdV1(
+      record.motionId,
+      `${path}/motionId`,
+      "scene_ambient_motion_id_invalid",
+    ),
+    ...(phaseMs === undefined ? {} : { phaseMs }),
+  });
 }
 
 function parseSceneCanvasV1(value: unknown, path: string): SceneCanvasV1 {
@@ -182,13 +236,28 @@ function parseSceneCanvasV1(value: unknown, path: string): SceneCanvasV1 {
   });
 }
 
+/**
+ * Getter-free optional-key probe: Documents are untrusted input, so
+ * admission must not execute author-supplied accessors before rejecting
+ * them. An accessor property counts as present (so `readExactRecord`
+ * rejects it as `data_property_expected` without ever calling the getter);
+ * an explicit-`undefined` data property counts as absent (so the exact-key
+ * check rejects it, same as before).
+ */
+function hasOwnDataValueV1(value: object, key: string): boolean {
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  if (descriptor === undefined) return false;
+  if (descriptor.get !== undefined || descriptor.set !== undefined) return true;
+  return descriptor.value !== undefined;
+}
+
 function parseSceneEntryV1(value: unknown, path: string): SceneEntryV1 {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return dataFailure(path, "scene_entry_invalid");
   }
   const baseKeys = ["layerId", "tag", "contentId"];
-  const optionalKeys = ["zOrder", "placement", "appearance"].filter(
-    (key) => Reflect.get(value, key) !== undefined,
+  const optionalKeys = ["zOrder", "placement", "appearance", "ambient"].filter(
+    (key) => hasOwnDataValueV1(value, key),
   );
   const record = readExactRecord(value, [...baseKeys, ...optionalKeys], path);
   const zOrder = record.zOrder;
@@ -210,6 +279,9 @@ function parseSceneEntryV1(value: unknown, path: string): SceneEntryV1 {
     ...(record.appearance === undefined
       ? {}
       : { appearance: parseStageAppearanceV1(record.appearance, `${path}/appearance`) }),
+    ...(record.ambient === undefined
+      ? {}
+      : { ambient: parseSceneEntryAmbientV1(record.ambient, `${path}/ambient`) }),
   });
 }
 
@@ -217,20 +289,35 @@ function parseSceneCueV1(value: unknown, path: string): SceneCueV1 {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return dataFailure(path, "scene_cue_invalid");
   }
-  const hasMotion = Reflect.get(value, "motionId") !== undefined;
+  const hasMotion = hasOwnDataValueV1(value, "motionId");
+  const hasCut = hasOwnDataValueV1(value, "cut");
   const record = readExactRecord(
     value,
-    hasMotion ? ["cueId", "kind", "tag", "motionId"] : ["cueId", "kind", "tag"],
+    [
+      "cueId",
+      "kind",
+      "tag",
+      ...(hasMotion ? ["motionId"] : []),
+      ...(hasCut ? ["cut"] : []),
+    ],
     path,
   );
   if (record.kind !== "show" && record.kind !== "hide") {
     return dataFailure(`${path}/kind`, "scene_cue_kind_invalid");
+  }
+  if (hasCut && record.cut !== true) {
+    return dataFailure(`${path}/cut`, "scene_cue_cut_invalid");
+  }
+  if (hasCut && hasMotion) {
+    // A cue's edge plays a motion or is an explicit instant cut, never both.
+    return dataFailure(`${path}/cut`, "scene_cue_cut_motion_conflict");
   }
   return Object.freeze({
     cueId: parseSceneCueIdV1(record.cueId, `${path}/cueId`),
     kind: record.kind,
     tag: parseStageTagV1(record.tag, `${path}/tag`),
     ...(hasMotion ? { motionId: parseSceneMotionIdV1(record.motionId, `${path}/motionId`) } : {}),
+    ...(hasCut ? { cut: true as const } : {}),
   });
 }
 
@@ -238,8 +325,9 @@ function parseSceneCueV1(value: unknown, path: string): SceneCueV1 {
  * Parses a `sillymaker.scene` Document (for example the value of a
  * `*.scene.json` import). Admission is strict: exact keys, the existing
  * stage integer bounds, unique tags and cue ids, cue tags resolving to a
- * declared entry, and unambiguous cue→motion bindings — one structured
- * path on every failure.
+ * declared entry, and per-cue presentations (`motionId` xor `cut`) — one
+ * structured path on every failure. Divergent same-edge bindings are legal
+ * per-cue declarations resolved through presentation edge context.
  */
 export function parseSceneDocumentV1(value: unknown, path = ""): SceneDocumentV1 {
   const record = readExactRecord(
@@ -284,7 +372,6 @@ export function parseSceneDocumentV1(value: unknown, path = ""): SceneDocumentV1
   }
   const cues: SceneCueV1[] = [];
   const seenCueIds = new Set<string>();
-  const boundMotionByEdge = new Map<string, string>();
   for (const [index, cueValue] of rawCues.entries()) {
     const cuePath = `${path}/cues/${String(index)}`;
     const cue = parseSceneCueV1(cueValue, cuePath);
@@ -295,17 +382,10 @@ export function parseSceneDocumentV1(value: unknown, path = ""): SceneDocumentV1
     if (!entriesByTag.has(cue.tag as string)) {
       return dataFailure(`${cuePath}/tag`, "scene_cue_tag_unknown");
     }
-    if (cue.motionId !== undefined) {
-      // Two cues producing the same stage edge must agree on the motion;
-      // otherwise resolution would be non-deterministic. Order-dependent
-      // selection is an explicitly deferred runtime extension.
-      const edgeKey = `${cue.kind}|${cue.tag}`;
-      const bound = boundMotionByEdge.get(edgeKey);
-      if (bound !== undefined && bound !== cue.motionId) {
-        return dataFailure(`${cuePath}/motionId`, "scene_cue_binding_ambiguous");
-      }
-      boundMotionByEdge.set(edgeKey, cue.motionId);
-    }
+    // Two cues may bind divergent presentations to one stage edge: the
+    // derived bindings resolve cue-first through presentation edge context
+    // (cue-identity proposal, accepted 2026-08-17). Divergent edges leave
+    // the context-free fallback table, so admission no longer rejects them.
     cues.push(cue);
   }
 
@@ -574,17 +654,58 @@ export interface SceneStageTransitionBindingsInputV1 {
   readonly motions: readonly unknown[];
   /** Overrides keyed by cueId; keys must name cues that bind a motion. */
   readonly edges?: Readonly<Record<string, SceneCueEdgeOptionsV1>>;
+  /**
+   * Dev-only observational diagnostics (never a resolution outcome): today
+   * this reports a divergent multi-cue edge reached without presentation
+   * edge context, which resolves as an instant cut.
+   */
+  reportFailure?(code: string, detail: string): void;
 }
 
 /**
- * The scene-derived transition-catalog fragment: exact-match bindings from
- * a cue's stage edge (enter for show, exit for hide, matched on layer,
- * entry key, and content) to that cue's motion. Compose it in front of the
- * Story catalog; unbound edges return null and fall through.
+ * The scene-derived transition-catalog fragment. Resolution is cue-first:
+ * a change carrying presentation edge context resolves by the dispatching
+ * cue's own declaration (motion, explicit cut, or null fall-through for a
+ * bare cue). Without context, the exact-match edge-tuple fallback (enter
+ * for show, exit for hide, matched on layer, entry key, and content) keeps
+ * byte-identical pre-context behavior; divergent multi-cue edges resolve
+ * only through context. Compose it in front of the Story catalog; null
+ * returns fall through.
  */
 export interface SceneStageTransitionBindingsV1 extends StageTransitionCatalogV1 {
   readonly definitions: readonly StageTransitionDefinitionV1[];
   resolveTransitionById(transitionId: string): StageTransitionDefinitionV1 | null;
+}
+
+/**
+ * The effective edge behavior (with `motionStageTransitionV1` defaults
+ * applied): cues sharing one edge keep a context-free fallback entry only
+ * when both the motion and this behavior agree.
+ */
+function sceneEdgeBehaviorKeyV1(definition: StageTransitionDefinitionV1): string {
+  return JSON.stringify({
+    inputPolicy: definition.inputPolicy,
+    interruption: definition.interruption,
+    reducedMotion: definition.reducedMotion,
+    readiness: definition.readiness,
+    acknowledge: definition.acknowledge,
+  });
+}
+
+/** The synthesized explicit-cut definition for one `cut: true` cue. */
+function sceneCueCutTransitionV1(cueId: string): StageTransitionDefinitionV1 {
+  return parseStageTransitionDefinitionV1({
+    transitionId: sceneCueTransitionIdV1(cueId),
+    kind: "cut",
+    durationMs: 0,
+    easing: "linear",
+    inputPolicy: "target_active",
+    interruption: "settle_and_retarget",
+    reducedMotion: { kind: "settle" },
+    readiness: { kind: "immediate" },
+    acknowledge: false,
+    slide: null,
+  });
 }
 
 export function sceneStageTransitionBindingsV1(
@@ -602,22 +723,33 @@ export function sceneStageTransitionBindingsV1(
 
   const index = indexSceneV1(scene.sceneDocument);
   const edges = input.edges ?? {};
+  const reportFailure = input.reportFailure;
   for (const cueId of Object.keys(edges)) {
     const cue = index.cuesById.get(cueId);
     if (cue === undefined || cue.motionId === undefined) {
       return dataFailure(`/edges/${cueId}`, "scene_edge_options_unknown_cue");
     }
   }
+
   const definitions: StageTransitionDefinitionV1[] = [];
   const definitionsById = new Map<string, StageTransitionDefinitionV1>();
-  const bindingsByEdge = new Map<string, StageTransitionDefinitionV1>();
+  // Cue-first resolution state: each cue's stage-edge key, plus its declared
+  // presentation — a motion definition, an explicit cut, or null for a bare
+  // cue (no scene-level presentation; resolution falls through to the outer
+  // Story catalog instead of inheriting a sibling binding).
+  const edgeKeyByCueId = new Map<string, string>();
+  const presentationByCueId = new Map<string, StageTransitionDefinitionV1 | null>();
+  // Context-free fallback accumulation per edge. Only edges whose bound
+  // cues all agree (same motion, same effective options — exactly the set
+  // prior admission accepted) keep a fallback entry, so behavior without
+  // context stays byte-identical to the pre-cue-identity resolver.
+  const fallbackByEdge = new Map<
+    string,
+    { definition: StageTransitionDefinitionV1; motionId: string } | "divergent"
+  >();
+
   for (const cue of scene.sceneDocument.cues) {
-    if (cue.motionId === undefined) continue;
     const entry = requireCueEntryV1(index, cue);
-    const motionDocument = motionsById.get(cue.motionId);
-    if (motionDocument === undefined) {
-      return dataFailure(`/cues/${cue.cueId}/motionId`, "scene_cue_motion_missing");
-    }
     const changeKind = cue.kind === "show" ? "enter" : "exit";
     const edgeKey = [
       changeKind,
@@ -625,17 +757,45 @@ export function sceneStageTransitionBindingsV1(
       `${entry.layerId}:${entry.tag}`,
       entry.contentId as string,
     ].join("|");
-    // Document admission already rejected differing motions on one edge;
-    // an identical duplicate cue simply reuses the first binding.
-    if (bindingsByEdge.has(edgeKey)) continue;
-    const definition = motionStageTransitionV1({
-      transitionId: sceneCueTransitionIdV1(cue.cueId),
-      motion: motionDocument,
-      ...edges[cue.cueId],
-    });
+    edgeKeyByCueId.set(cue.cueId, edgeKey);
+
+    if (cue.motionId === undefined && cue.cut === undefined) {
+      presentationByCueId.set(cue.cueId, null);
+      continue;
+    }
+
+    let definition: StageTransitionDefinitionV1;
+    if (cue.motionId === undefined) {
+      definition = sceneCueCutTransitionV1(cue.cueId);
+    } else {
+      const motionDocument = motionsById.get(cue.motionId);
+      if (motionDocument === undefined) {
+        return dataFailure(`/cues/${cue.cueId}/motionId`, "scene_cue_motion_missing");
+      }
+      definition = motionStageTransitionV1({
+        transitionId: sceneCueTransitionIdV1(cue.cueId),
+        motion: motionDocument,
+        ...edges[cue.cueId],
+      });
+    }
+    presentationByCueId.set(cue.cueId, definition);
     definitions.push(definition);
     definitionsById.set(definition.transitionId, definition);
-    bindingsByEdge.set(edgeKey, definition);
+
+    // Explicit cuts resolve only cue-first (proposal ruling #1): they never
+    // enter the fallback, and their presence makes the edge divergent.
+    const accumulated = fallbackByEdge.get(edgeKey);
+    if (cue.cut !== undefined) {
+      fallbackByEdge.set(edgeKey, "divergent");
+    } else if (accumulated === undefined) {
+      fallbackByEdge.set(edgeKey, { definition, motionId: cue.motionId as string });
+    } else if (
+      accumulated === "divergent" ||
+      accumulated.motionId !== cue.motionId ||
+      sceneEdgeBehaviorKeyV1(accumulated.definition) !== sceneEdgeBehaviorKeyV1(definition)
+    ) {
+      fallbackByEdge.set(edgeKey, "divergent");
+    }
   }
 
   return Object.freeze({
@@ -653,10 +813,116 @@ export function sceneStageTransitionBindingsV1(
         change.entryKey,
         contentId as string,
       ].join("|");
-      return bindingsByEdge.get(edgeKey) ?? null;
+
+      // Cue-first: a dispatch of this scene whose declared edge matches the
+      // change resolves by that cue's own declaration (motion, explicit cut,
+      // or null fall-through for a bare cue).
+      const dispatches = change.dispatches;
+      let ownOpen = false;
+      if (dispatches !== undefined) {
+        for (const dispatch of dispatches) {
+          if (!("cueId" in dispatch)) {
+            if (dispatch.sceneId === scene.sceneId) ownOpen = true;
+            continue;
+          }
+          if (dispatch.sceneId !== scene.sceneId) continue;
+          if (edgeKeyByCueId.get(dispatch.cueId) !== edgeKey) continue;
+          return presentationByCueId.get(dispatch.cueId) ?? null;
+        }
+        // Dispatch context is complete for its commit: a change nothing of
+        // THIS scene explains was not this scene's doing, so the edge-tuple
+        // fallback must not claim it (that is exactly the cross-scene
+        // silent override — for cue dispatches and foreign opens alike; the
+        // un-fork evidence arrived as a foreign scene's open whose shared
+        // enter edge another scene's entrance binding must not steal).
+        // An open OF THIS SCENE genuinely produces its declared entries'
+        // edges and keeps context-free fallback semantics (owner ruling #2).
+        if (!ownOpen) return null;
+      }
+
+      const fallback = fallbackByEdge.get(edgeKey);
+      if (fallback === undefined) return null;
+      if (fallback === "divergent") {
+        // Divergent multi-cue edges are resolvable only through context;
+        // without it this scene declares nothing and resolution falls
+        // through to the outer Story catalog.
+        reportFailure?.(
+          "scene.cue_binding_context_missing",
+          `stage edge ${edgeKey} has divergent per-cue bindings and resolved without ` +
+            "presentation edge context; falling through to the outer catalog",
+        );
+        return null;
+      }
+      return fallback.definition;
     },
     resolveTransitionById(transitionId: string): StageTransitionDefinitionV1 | null {
       return definitionsById.get(transitionId) ?? null;
+    },
+  });
+}
+
+export interface SceneAmbientCatalogInputV1 {
+  /**
+   * The motion Documents the entries' `ambient` bindings reference: raw
+   * `*.motion.json` import values or already-parsed `MotionDocumentV1`s.
+   * Every declared ambient `motionId` must be covered.
+   */
+  readonly motions: readonly unknown[];
+}
+
+/**
+ * The scene-derived ambient catalog (ambient-loop-motion, accepted
+ * 2026-08-15): exact-match presence bindings from a declared entry (layer,
+ * entry key, content) to its looping motion. Same family as the derived
+ * transition bindings — derived presentation data, resolved per settled
+ * entry by the mounted stage; unmatched entries return null. Compose
+ * multiple scenes' catalogs by trying each in order.
+ */
+export function sceneAmbientCatalogV1(
+  scene: SceneV1,
+  input: SceneAmbientCatalogInputV1,
+): StageAmbientCatalogV1 {
+  const motionsById = new Map<string, MotionDocumentV1>();
+  for (const [index, motionValue] of input.motions.entries()) {
+    const motionDocument = parseMotionDocumentV1(motionValue, `/motions/${String(index)}`);
+    if (motionsById.has(motionDocument.motionId)) {
+      return dataFailure(`/motions/${String(index)}/motionId`, "scene_motion_duplicate");
+    }
+    motionsById.set(motionDocument.motionId, motionDocument);
+  }
+
+  const bindingsByKey = new Map<string, StageAmbientBindingV1>();
+  for (const [index, entry] of scene.sceneDocument.entries.entries()) {
+    const ambient = entry.ambient;
+    if (ambient === undefined) continue;
+    const motionDocument = motionsById.get(ambient.motionId);
+    if (motionDocument === undefined) {
+      return dataFailure(
+        `/entries/${String(index)}/ambient/motionId`,
+        "scene_ambient_motion_missing",
+      );
+    }
+    const key = [
+      entry.layerId as string,
+      `${entry.layerId}:${entry.tag}`,
+      entry.contentId as string,
+    ].join("|");
+    bindingsByKey.set(
+      key,
+      Object.freeze({
+        motion: motionDefinitionFromDocumentV1(motionDocument),
+        phaseMs: ambient.phaseMs ?? 0,
+      }),
+    );
+  }
+
+  return Object.freeze({
+    resolveAmbient(
+      layerId: StageLayerIdV1,
+      entry: StageRenderEntryV1,
+    ): StageAmbientBindingV1 | null {
+      const key = [layerId as string, entry.key, entry.contentId as string].join("|");
+      return bindingsByKey.get(key) ?? null;
     },
   });
 }

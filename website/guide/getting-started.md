@@ -40,9 +40,9 @@ Process:
    metadata.json. Inside this repository also add the directory to the root
    project.config.ts list; outside it, point package.json dependencies at the
    engine packages by relative file: path.
-3. Write the script in src/narrative.ts + text catalogs in src/presentation.ts;
-   gameplay state goes through src/state.ts → src/simulation.ts →
-   src/application/semantic.ts → src/story.ts.
+3. Write the script in src/story/narrative.ts + text catalogs in
+   src/content/presentation.ts; gameplay state goes through src/game/state.ts →
+   src/game/simulation.ts → src/application/semantic.ts → src/story.ts.
 4. Before editing the script, list the node sequence (one occurrence number per
    say/choice boundary) so scenario scripts and tests are written correctly once.
 

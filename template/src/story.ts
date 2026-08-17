@@ -6,14 +6,14 @@ import {
   templatePresentationPatchSurfaceV1,
   templateTextCatalogsV1,
   materializeTemplatePresentationV1,
-} from "./presentation.ts";
-import { templateSimulationDefinitionV1 } from "./simulation-definition.ts";
+} from "./content/presentation.ts";
+import { templateSimulationDefinitionV1 } from "./game/simulation-definition.ts";
 
-export type { TemplateSimulationProgramV1 } from "./simulation-definition.ts";
+export type { TemplateSimulationProgramV1 } from "./game/simulation-definition.ts";
 export {
   templateSimulationPatchSurfaceV1,
   templateStateContractManifestV1,
-} from "./simulation-definition.ts";
+} from "./game/simulation-definition.ts";
 
 /**
  * The Story package: identity, the state contract manifest, and the two

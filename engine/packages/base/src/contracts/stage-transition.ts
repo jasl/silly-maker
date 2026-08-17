@@ -270,9 +270,108 @@ export function motionStageTransitionV1(
 }
 
 /**
+ * One scene dispatch that produced a committed publication edge: either a
+ * named cue dispatch or a whole-scene open (`openMutations`). The list is
+ * ephemeral presentation edge context (cue-identity proposal, accepted
+ * 2026-08-17): derived from committed command facts, paired with exactly
+ * one semantic revision, and never stored in State, Saves, digests, or
+ * replay. Dropping it degrades to edge-tuple resolution; it never changes
+ * authoritative behavior.
+ */
+export type StageCueDispatchV1 =
+  | { readonly sceneId: string; readonly cueId: string }
+  | { readonly sceneId: string; readonly open: true };
+
+/** Provisional bound pending clone-scale evidence (proposal ruling #4). */
+export const stageCueDispatchLimitV1 = 32;
+
+const stageCueDispatchSceneIdPatternV1 = /^scene\.[a-z0-9_.-]+$/u;
+const stageCueDispatchCueIdPatternV1 = /^cue\.[a-z0-9_.-]+$/u;
+const stageCueDispatchMaxIdLengthV1 = 96;
+
+function parseStageCueDispatchIdV1(
+  value: unknown,
+  pattern: RegExp,
+  path: string,
+): string {
+  if (
+    typeof value !== "string" ||
+    value.length > stageCueDispatchMaxIdLengthV1 ||
+    !pattern.test(value)
+  ) {
+    return dataFailure(path, "stage_cue_dispatch_id_invalid");
+  }
+  return value;
+}
+
+/**
+ * Admits one Story-projected dispatch list at the instance boundary. The
+ * projection is public Story input, so it is validated once here and then
+ * carried as ordinary frozen data.
+ */
+export function parseStageCueDispatchesV1(
+  value: unknown,
+  path = "/stageCueDispatches",
+): readonly StageCueDispatchV1[] {
+  if (!Array.isArray(value)) return dataFailure(path, "stage_cue_dispatches_invalid");
+  if (value.length > stageCueDispatchLimitV1) {
+    return dataFailure(path, "stage_cue_dispatches_count_invalid");
+  }
+  return Object.freeze(value.map((entry, index) => {
+    const entryPath = `${path}/${String(index)}`;
+    if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
+      return dataFailure(entryPath, "stage_cue_dispatch_invalid");
+    }
+    if (Object.hasOwn(entry, "open")) {
+      const record = readExactRecord(entry, ["sceneId", "open"], entryPath);
+      if (record.open !== true) {
+        return dataFailure(`${entryPath}/open`, "stage_cue_dispatch_open_invalid");
+      }
+      return Object.freeze({
+        sceneId: parseStageCueDispatchIdV1(
+          record.sceneId,
+          stageCueDispatchSceneIdPatternV1,
+          `${entryPath}/sceneId`,
+        ),
+        open: true as const,
+      });
+    }
+    const record = readExactRecord(entry, ["sceneId", "cueId"], entryPath);
+    return Object.freeze({
+      sceneId: parseStageCueDispatchIdV1(
+        record.sceneId,
+        stageCueDispatchSceneIdPatternV1,
+        `${entryPath}/sceneId`,
+      ),
+      cueId: parseStageCueDispatchIdV1(
+        record.cueId,
+        stageCueDispatchCueIdPatternV1,
+        `${entryPath}/cueId`,
+      ),
+    });
+  }));
+}
+
+/**
+ * The instance-stamped dispatch batch: bound to exactly the semantic
+ * publication revision (and presentation epoch) of the commit that produced
+ * it. Consumers must drop a batch whose revision or epoch does not match
+ * the retarget they are presenting — absence degrades, presence is exact.
+ */
+export interface StageCueDispatchBatchV1 {
+  readonly revision: number;
+  readonly epoch: number;
+  readonly dispatches: readonly StageCueDispatchV1[];
+}
+
+/**
  * One observed stage change on the old-target-to-new-target edge, in
  * priority order: content replace wins over appearance, appearance over
  * placement. The catalog decides which transition (if any) presents it.
+ * When the producing retarget carried presentation edge context, every
+ * change of that edge carries the same frozen dispatch list verbatim; the
+ * reconciler never interprets it (cue-to-edge knowledge lives in the
+ * Story's scene documents and catalog).
  */
 export interface StageTargetChangeV1 {
   readonly kind: "enter" | "exit" | "replace" | "appearance" | "move";
@@ -280,6 +379,7 @@ export interface StageTargetChangeV1 {
   readonly entryKey: string;
   readonly previous: StageRenderEntryV1 | null;
   readonly next: StageRenderEntryV1 | null;
+  readonly dispatches?: readonly StageCueDispatchV1[];
 }
 
 /**

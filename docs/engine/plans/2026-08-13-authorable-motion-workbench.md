@@ -1,13 +1,13 @@
 # Authorable Motion Workbench
 
 状态：2026-08-13 由所有者接受为当前 active plan；M1–M5 全部完成，I4 闭环已在
-external-experiment 实测走通（外部证据，见其 NOTES 台账）。本计划交付完毕。
+外部实验仓实测走通（外部证据，见其台账）。本计划交付完毕。
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 仍是唯一跨计划排序入口，
 本文只拥有本能力的切片顺序与验收。
 
 ## 1. Evidence and positioning
 
-真实产品证据：外部实验的手玩期反复出现「动画/节奏只能靠对话描述、AI 盲改」的
+真实产品证据：外部实验仓的手玩期反复出现「动画/节奏只能靠对话描述、AI 盲改」的
 作者痛点；cat-cafe 的角色入场/反馈动画内联在 Story CSS 与 transition 字面量里，人类
 无法定位与微调。R5 当年把 `keyframes(...)` defer 到「真实创作成本出现」，该条件现已满足。
 
@@ -93,7 +93,7 @@ preview、Timeline scrubber）与 Track F 表现适配的落地。这不是 PF6/
   预览 fixture 为 storeroom 背景 + alpha 角色 detached target。浏览器验收
   `workbench.spec.ts`（chromium+webkit）：改 duration 470 + 起点 keyframe 200 → A/B →
   保存 → 磁盘文件变更且测试内还原。draft 只存在于组件内存；live 场景只消费已保存
-  资产。HMR 生效与"git diff 只有 motion JSON"的完整闭环由 I4 在 external-experiment 上
+  资产。HMR 生效与"git diff 只有 motion JSON"的完整闭环由 I4 在外部实验仓上
   走通（12 步验收）。
 
 ### M4 — 预览捕获与 Preview Case（已完成 2026-08-13）
@@ -129,7 +129,7 @@ preview、Timeline scrubber）与 Track F 表现适配的落地。这不是 PF6/
   该规则以协作合同交付（template/examples/e2e AGENTS「Motion collaboration
   contract」+ authoring-quickstart「Motion assets and the Workbench loop」+
   story-authoring 表现节），并已由 Grok 4.6 两轮真实内容/重构任务实证遵守（见
-  external-experiment 台账）。出现真实覆盖事故且合同不足以拦截时，再以事故为证据考虑
+  外部实验仓台账）。出现真实覆盖事故且合同不足以拦截时，再以事故为证据考虑
   机械检查。文档同步：features.md（M2/M3/M4 三条能力）、vn-presentation-runtime
   §9/§10 状态、authoring-quickstart 诊断表 + 工作流节、story-authoring 表现节、
   三份 AGENTS。
@@ -149,5 +149,5 @@ preview、Timeline scrubber）与 Track F 表现适配的落地。这不是 PF6/
 - motion 数据要进入 Save/digest/replay 语义 → 停；
 - 需要为编辑器引入第二套规则实现（无法由正常 application 重现）→ 停。
 
-外部实验只提供匿名需求反馈与真实使用验证；promotion 证据仅来自仓库内
+外部实验仓只提供匿名需求反馈与真实使用验证；promotion 证据仅来自仓库内
 Engine Lab 与 examples 消费者。

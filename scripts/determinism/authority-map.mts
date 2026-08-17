@@ -26,6 +26,8 @@ interface AuthorityModuleRefV1 {
 export interface ApplicationAuthorityPolicyV1 {
   readonly applicationId: string;
   readonly callbackOwnerEntry: string;
+  /** The app's presentation facet module (negative control; must exist). */
+  readonly presentationEntry: string;
   readonly coreDefinition: AuthorityModuleRefV1;
   /** Required when the core definition configures `summarizeSave`. */
   readonly saveProjectorOwner?: AuthorityModuleRefV1;
@@ -77,6 +79,7 @@ const applicationPoliciesV1 = Object.freeze(
     Object.freeze({
       applicationId: "e2e",
       callbackOwnerEntry: "e2e/src/simulation-definition.ts",
+      presentationEntry: "e2e/src/presentation.ts",
       coreDefinition: Object.freeze({
         module: "e2e/src/application/core-definition.ts",
         exportName: "labCoreApplicationDefinitionV1",
@@ -89,16 +92,18 @@ const applicationPoliciesV1 = Object.freeze(
     }),
     Object.freeze({
       applicationId: "template",
-      callbackOwnerEntry: "template/src/simulation-definition.ts",
+      callbackOwnerEntry: "template/src/game/simulation-definition.ts",
+      presentationEntry: "template/src/content/presentation.ts",
       coreDefinition: Object.freeze({
         module: "template/src/application/core-definition.ts",
         exportName: "templateCoreApplicationDefinitionV1",
       }),
-      dependencySeedEntries: Object.freeze(["template/src/simulation-definition.ts"]),
+      dependencySeedEntries: Object.freeze(["template/src/game/simulation-definition.ts"]),
     }),
     Object.freeze({
       applicationId: "example-bookshop",
-      callbackOwnerEntry: "examples/bookshop/src/simulation-definition.ts",
+      callbackOwnerEntry: "examples/bookshop/src/game/simulation-definition.ts",
+      presentationEntry: "examples/bookshop/src/content/presentation.ts",
       coreDefinition: Object.freeze({
         module: "examples/bookshop/src/application/core-definition.ts",
         exportName: "bookshopCoreApplicationDefinitionV1",
@@ -107,7 +112,8 @@ const applicationPoliciesV1 = Object.freeze(
     }),
     Object.freeze({
       applicationId: "example-silly-os",
-      callbackOwnerEntry: "examples/silly-os/src/simulation-definition.ts",
+      callbackOwnerEntry: "examples/silly-os/src/game/simulation-definition.ts",
+      presentationEntry: "examples/silly-os/src/content/presentation.ts",
       coreDefinition: Object.freeze({
         module: "examples/silly-os/src/application/core-definition.ts",
         exportName: "osCoreApplicationDefinitionV1",
@@ -116,7 +122,8 @@ const applicationPoliciesV1 = Object.freeze(
     }),
     Object.freeze({
       applicationId: "example-cat-cafe",
-      callbackOwnerEntry: "examples/cat-cafe/src/simulation-definition.ts",
+      callbackOwnerEntry: "examples/cat-cafe/src/game/simulation-definition.ts",
+      presentationEntry: "examples/cat-cafe/src/content/presentation.ts",
       coreDefinition: Object.freeze({
         module: "examples/cat-cafe/src/application/core-definition.ts",
         exportName: "catcafeCoreApplicationDefinitionV1",
@@ -452,10 +459,12 @@ function assertProductionClosureV1(
       `${label} includes React: ${reactImport.owner} -> ${reactImport.specifier}`,
     );
   }
+  // Both story-package layouts: the pre-locality `src/presentation.*` and
+  // the Authoring Architecture S3 `src/content/presentation.*` home.
   const presentationImplementation = closure.paths.find(
     (path) =>
       path.startsWith("engine/packages/ui/") ||
-      /(?:^|\/)src\/presentation(?:\.ts|\/)/u.test(path),
+      /(?:^|\/)src\/(?:content\/)?presentation(?:\.ts|\/)/u.test(path),
   );
   if (presentationImplementation !== undefined) {
     throw new TypeError(`${label} includes Presentation: ${presentationImplementation}`);
@@ -464,7 +473,9 @@ function assertProductionClosureV1(
   const presentationPath = closure.paths.find(
     (path) =>
       path === `${applicationDirectory}/src/presentation.ts` ||
-      path.startsWith(`${applicationDirectory}/src/presentation/`),
+      path.startsWith(`${applicationDirectory}/src/presentation/`) ||
+      path === `${applicationDirectory}/src/content/presentation.ts` ||
+      path.startsWith(`${applicationDirectory}/src/content/presentation/`),
   );
   if (presentationPath !== undefined) {
     throw new TypeError(`${label} includes Presentation: ${presentationPath}`);
@@ -955,7 +966,7 @@ export async function collectDeterminismAuthorityMapV1(options: {
     registry.applications.map((application) =>
       collectNegativeControlV1(repositoryRoot, {
         id: `${application.config.applicationId}-presentation`,
-        entry: `${application.directory}/src/presentation.ts`,
+        entry: policyById.get(application.config.applicationId)!.presentationEntry,
         classification: "presentation",
       })
     ),

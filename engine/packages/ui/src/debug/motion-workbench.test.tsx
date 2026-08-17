@@ -73,7 +73,7 @@ const rendererV1: SemanticStageEntryRendererV1 = ({ entry }) => (
   <span data-test-content={entry.contentId} />
 );
 
-function fixtureV1(io?: MotionSourceIoV1) {
+function fixtureV1(io?: MotionSourceIoV1, phase?: "enter" | "exit") {
   const index = createMotionSourceIndexV1(
     { "./motions/enter.motion.json": motionJsonV1 },
     { sourceRoot: "src" },
@@ -88,6 +88,7 @@ function fixtureV1(io?: MotionSourceIoV1) {
         renderers: { "renderer.test.box": rendererV1 },
         entryKey: "layer.test.chars:tag.test.actor",
         canvas: { width: 960, height: 540 },
+        ...(phase === undefined ? {} : { phase }),
       }}
       {...(io === undefined ? {} : { io })}
     />,
@@ -114,6 +115,18 @@ function fakeIoV1(): {
   const writes: { path: string; expectedDigest: string; motionDocument: MotionDocumentV1 }[] = [];
   return {
     io: {
+      list: () =>
+        Promise.resolve({
+          kind: "ok",
+          motions: [
+            {
+              path: "src/motions/enter.motion.json",
+              motionId: "motion.test.enter",
+              label: "登场",
+            },
+          ],
+          skipped: [],
+        }),
       read: (path) =>
         Promise.resolve({
           kind: "ok",
@@ -126,6 +139,7 @@ function fakeIoV1(): {
         bytesDigest = "sha256:bbbb";
         return Promise.resolve({ kind: "ok", digest: bytesDigest });
       },
+      create: () => Promise.resolve({ kind: "error", code: "unavailable" }),
     },
     writes: () => writes,
     setWriteResult: (result) => {
@@ -245,6 +259,67 @@ describe("MotionWorkbenchV1", () => {
     expect(
       (container.querySelector("[data-workbench-duration]") as HTMLInputElement).value,
     ).toBe("300");
+  });
+
+  it("flips the canvas back to draft when an edit lands while viewing saved", () => {
+    const { container } = fixtureV1();
+    const savedRadio = container.querySelector('[data-workbench-ab="saved"]');
+    if (!(savedRadio instanceof HTMLInputElement)) throw new Error("saved radio missing");
+    fireEvent.click(savedRadio);
+    expect(savedRadio.checked).toBe(true);
+
+    // Editing the duration while previewing "saved" must not silently edit
+    // an invisible draft: the canvas flips back to the draft it edits.
+    const duration = container.querySelector("[data-workbench-duration]");
+    if (!(duration instanceof HTMLInputElement)) throw new Error("duration input missing");
+    fireEvent.change(duration, { target: { value: "470" } });
+    const draftRadio = container.querySelector('[data-workbench-ab="draft"]');
+    expect((draftRadio as HTMLInputElement).checked).toBe(true);
+    expect(container.querySelector("[data-workbench-scrub]")?.getAttribute("max")).toBe("570");
+  });
+
+  it("renders an exit-phase preview as the exiting edge of the entry", () => {
+    const { container } = fixtureV1(undefined, "exit");
+    // The animated entry carries the exiting phase (not a hardcoded enter).
+    const exiting = container.querySelector(
+      '[data-stage-exiting-key="layer.test.chars:tag.test.actor"]',
+    );
+    expect(exiting).not.toBeNull();
+    expect((exiting as HTMLElement).dataset.stagePhase).toBe("exiting");
+  });
+
+  it("undoes and redoes draft edits, one coalesced step per field run", () => {
+    const { container } = fixtureV1();
+    const duration = container.querySelector("[data-workbench-duration]");
+    if (!(duration instanceof HTMLInputElement)) throw new Error("duration input missing");
+    const undoButton = container.querySelector("[data-workbench-undo]");
+    const redoButton = container.querySelector("[data-workbench-redo]");
+    if (!(undoButton instanceof HTMLButtonElement) || !(redoButton instanceof HTMLButtonElement)) {
+      throw new Error("undo/redo buttons missing");
+    }
+    expect(undoButton.disabled).toBe(true);
+
+    // Two keystrokes on one field coalesce into a single undo step.
+    fireEvent.change(duration, { target: { value: "470" } });
+    fireEvent.change(duration, { target: { value: "520" } });
+    expect(undoButton.disabled).toBe(false);
+
+    // Undoing while previewing "saved" flips the canvas back to the draft.
+    const savedRadio = container.querySelector('[data-workbench-ab="saved"]');
+    fireEvent.click(savedRadio as HTMLElement);
+    fireEvent.click(undoButton);
+    expect(
+      (container.querySelector('[data-workbench-ab="draft"]') as HTMLInputElement).checked,
+    ).toBe(true);
+    expect(
+      (container.querySelector("[data-workbench-duration]") as HTMLInputElement).value,
+    ).toBe("300");
+    expect(undoButton.disabled).toBe(true);
+
+    fireEvent.click(redoButton);
+    expect(
+      (container.querySelector("[data-workbench-duration]") as HTMLInputElement).value,
+    ).toBe("520");
   });
 
   it("saves through the CAS port and surfaces digest conflicts", async () => {

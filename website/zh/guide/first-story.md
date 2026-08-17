@@ -19,11 +19,11 @@ cd examples/my-game
 | 文件                               | 角色                                                      |
 | ---------------------------------- | --------------------------------------------------------- |
 | `src/scenes/opening/*.scene.json`  | 场景构图：站位/外观/cue→motion 绑定（推荐在 Studio 编辑） |
-| `src/narrative.ts`                 | 剧本：say/choice/stage/branch/end 节点与剧情 flag         |
-| `src/presentation.ts`              | 文本目录（全部显示文本走 textId）、舞台内容、转场         |
-| `src/stage-renderers.tsx`          | 游戏与 Studio 画布共用的舞台渲染器                        |
-| `src/state.ts`                     | 模块状态形状、schema、初始值                              |
-| `src/simulation.ts`                | 模块、命令与规则                                          |
+| `src/story/narrative.ts`           | 剧本：say/choice/stage/branch/end 节点与剧情 flag         |
+| `src/content/presentation.ts`      | 文本目录（全部显示文本走 textId）、舞台内容、转场         |
+| `src/ui/stage-renderers.tsx`       | 游戏与 Studio 画布共用的舞台渲染器                        |
+| `src/game/state.ts`                | 模块状态形状、schema、初始值                              |
+| `src/game/simulation.ts`           | 模块、命令与规则                                          |
 | `src/application/semantic.ts`      | 动作目录与可用性规则                                      |
 | `src/application/ui.tsx`           | React 组件：HUD 与被动 Narrative renderer                 |
 | `src/application/composition.tsx`  | 投影、slots、应用声明与 Narrative 绑定（Advanced 层）     |

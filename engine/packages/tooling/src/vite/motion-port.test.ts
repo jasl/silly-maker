@@ -5,7 +5,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  createMotionSourceFileV1,
   formatMotionDocumentV1,
+  listMotionSourceFilesV1,
   readMotionSourceFileV1,
   writeMotionSourceFileV1,
 } from "./motion-port.ts";
@@ -40,6 +42,19 @@ beforeEach(() => {
 
 afterEach(() => {
   rmSync(appRoot, { recursive: true, force: true });
+});
+
+describe("listMotionSourceFilesV1", () => {
+  it("lists admissible motions and names inadmissible files with a reason", () => {
+    writeFileSync(join(appRoot, "src", "motions", "broken.motion.json"), "{ nope\n");
+    const listed = listMotionSourceFilesV1(appRoot);
+    expect(listed.motions).toEqual([
+      { path: motionPathV1, motionId: "motion.test.enter", label: "登场" },
+    ]);
+    expect(listed.skipped).toHaveLength(1);
+    expect(listed.skipped[0]?.path).toBe("src/motions/broken.motion.json");
+    expect(listed.skipped[0]?.reason.length).toBeGreaterThan(0);
+  });
 });
 
 describe("readMotionSourceFileV1", () => {
@@ -126,5 +141,59 @@ describe("writeMotionSourceFileV1", () => {
     const reread = readMotionSourceFileV1(appRoot, motionPathV1);
     if (reread.kind !== "ok") throw new Error("reread failed");
     expect(reread.digest).toBe(read.digest);
+  });
+});
+
+describe("createMotionSourceFileV1", () => {
+  it("creates a new motion (missing directories included) and indexes it", () => {
+    const created = createMotionSourceFileV1(appRoot, {
+      path: "src/scenes/opening/motions/hero-exit.motion.json",
+      motionDocument: { ...motionJsonV1, motionId: "motion.test.hero-exit" },
+    });
+    if (created.kind !== "ok") throw new Error(`create failed: ${created.code}`);
+    const reread = readMotionSourceFileV1(
+      appRoot,
+      "src/scenes/opening/motions/hero-exit.motion.json",
+    );
+    if (reread.kind !== "ok") throw new Error("reread failed");
+    expect(reread.digest).toBe(created.digest);
+    expect(listMotionSourceFilesV1(appRoot).motions.map((motion) => motion.motionId)).toEqual([
+      "motion.test.enter",
+      "motion.test.hero-exit",
+    ]);
+  });
+
+  it("rejects existing files, duplicate motion ids, and id-stem mismatches", () => {
+    expect(
+      createMotionSourceFileV1(appRoot, { path: motionPathV1, motionDocument: motionJsonV1 }),
+    ).toMatchObject({ code: "already_exists" });
+
+    expect(
+      createMotionSourceFileV1(appRoot, {
+        path: "src/motions/enter2.motion.json",
+        motionDocument: motionJsonV1,
+      }),
+    ).toMatchObject({ code: "motion_id_mismatch" });
+
+    expect(
+      createMotionSourceFileV1(appRoot, {
+        path: "src/scenes/opening/motions/enter.motion.json",
+        motionDocument: motionJsonV1,
+      }),
+    ).toMatchObject({ code: "already_exists" });
+
+    expect(
+      createMotionSourceFileV1(appRoot, {
+        path: "src/motions/broken2.motion.json",
+        motionDocument: { nope: true },
+      }),
+    ).toMatchObject({ code: "motion_invalid" });
+
+    expect(
+      createMotionSourceFileV1(appRoot, {
+        path: "../outside/outside.motion.json",
+        motionDocument: motionJsonV1,
+      }),
+    ).toMatchObject({ code: "bad_request" });
   });
 });

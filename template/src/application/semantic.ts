@@ -14,13 +14,13 @@ import type {
   TemplateQueriesV1,
   TemplateRejectionV1,
   TemplateSimulationTypesV1,
-} from "../simulation.ts";
-import { createTemplateGameSimulationV1 } from "../simulation.ts";
+} from "../game/simulation.ts";
+import { createTemplateGameSimulationV1 } from "../game/simulation.ts";
 import {
   templateChoiceBlockedByV1,
   templateChoiceOptionsForV1,
   templateInteractionContextV1,
-} from "../narrative.ts";
+} from "../story/narrative.ts";
 
 /**
  * The semantic surface: what UI, agents, and automation can see and do.
@@ -201,4 +201,11 @@ export const templateSemanticAdapterV1: CoreSemanticAdapterV1<
   },
   invalidInvocationResult: () =>
     Object.freeze({ kind: "not_executed" as const, code: "validation_failed" as const }),
+  // Presentation edge context (cue identity, accepted 2026-08-17): the
+  // stage facts carry the scene dispatches behind each commit's mutations;
+  // the instance stamps them with the commit's revision/epoch and the
+  // stage forwards them so per-cue bindings (motions, explicit cuts)
+  // resolve by dispatching cue instead of edge tuple alone.
+  projectStageCueDispatches: (facts) =>
+    facts.flatMap((fact) => fact.kind === "template.stage_changed" ? fact.dispatches ?? [] : []),
 };

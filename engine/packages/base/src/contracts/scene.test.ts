@@ -7,8 +7,10 @@ import type { SemanticStageStateV1 } from "./semantic-stage.ts";
 import { reduceStageMutationsV1 } from "./semantic-stage-reducer.ts";
 import type { StageRenderEntryV1 } from "./stage-render-target.ts";
 import type { StageTargetChangeV1 } from "./stage-transition.ts";
+import type { StageLayerIdV1 } from "./semantic-stage.ts";
 import {
   parseSceneDocumentV1,
+  sceneAmbientCatalogV1,
   sceneCueTransitionIdV1,
   sceneFromDocumentV1,
   sceneSettledMutationsV1,
@@ -160,24 +162,94 @@ describe("parseSceneDocumentV1", () => {
     expect(reasonOfV1(() => parseSceneDocumentV1(badKind))).toBe("scene_cue_kind_invalid");
   });
 
-  it("rejects two cues binding different motions to one stage edge", () => {
-    const ambiguous = sceneDocumentV1();
-    (ambiguous.cues as Record<string, unknown>[]).push({
+  it("never executes author getters while probing optional keys", () => {
+    let zOrderReads = 0;
+    const entryDocument = sceneDocumentV1();
+    const entry = {
+      layerId: "layer.app.characters",
+      tag: "tag.villain",
+      contentId: "content.app.character.villain",
+    };
+    Object.defineProperty(entry, "zOrder", {
+      get() {
+        zOrderReads += 1;
+        return 10;
+      },
+      enumerable: true,
+      configurable: true,
+    });
+    (entryDocument.entries as unknown[]).push(entry);
+    expect(reasonOfV1(() => parseSceneDocumentV1(entryDocument))).toBe("data_property_expected");
+    expect(zOrderReads).toBe(0);
+
+    let motionReads = 0;
+    const cueDocument = sceneDocumentV1();
+    const cue = { cueId: "cue.app.opening.villain", kind: "show", tag: "tag.hero" };
+    Object.defineProperty(cue, "motionId", {
+      get() {
+        motionReads += 1;
+        return "motion.app.hero-enter";
+      },
+      enumerable: true,
+      configurable: true,
+    });
+    (cueDocument.cues as unknown[]).push(cue);
+    expect(reasonOfV1(() => parseSceneDocumentV1(cueDocument))).toBe("data_property_expected");
+    expect(motionReads).toBe(0);
+
+    // An explicit-undefined data property still fails the exact-key check.
+    const explicitUndefined = sceneDocumentV1();
+    (explicitUndefined.cues as Record<string, unknown>[])[0] = {
+      cueId: "cue.app.opening.backdrop",
+      kind: "show",
+      tag: "tag.backdrop",
+      motionId: undefined,
+    };
+    expect(reasonOfV1(() => parseSceneDocumentV1(explicitUndefined))).toBe("object_keys");
+  });
+
+  it("admits two cues binding divergent presentations to one stage edge", () => {
+    // Divergent same-edge bindings are legal per-cue declarations resolved
+    // through presentation edge context (cue-identity, accepted 2026-08-17).
+    const divergent = sceneDocumentV1();
+    (divergent.cues as Record<string, unknown>[]).push({
       cueId: "cue.app.opening.hero-re-enters",
       kind: "show",
       tag: "tag.hero",
       motionId: "motion.app.other",
     });
-    expect(reasonOfV1(() => parseSceneDocumentV1(ambiguous))).toBe("scene_cue_binding_ambiguous");
+    expect(parseSceneDocumentV1(divergent).cues).toHaveLength(4);
+  });
 
-    const agreeing = sceneDocumentV1();
-    (agreeing.cues as Record<string, unknown>[]).push({
-      cueId: "cue.app.opening.hero-re-enters",
+  it("admits explicit cut cues and rejects malformed cut declarations", () => {
+    const withCut = sceneDocumentV1();
+    (withCut.cues as Record<string, unknown>[]).push({
+      cueId: "cue.app.opening.hero-pops",
+      kind: "show",
+      tag: "tag.hero",
+      cut: true,
+    });
+    const document = parseSceneDocumentV1(withCut);
+    expect(document.cues[3]).toMatchObject({ cueId: "cue.app.opening.hero-pops", cut: true });
+
+    const nonTrue = sceneDocumentV1();
+    (nonTrue.cues as Record<string, unknown>[]).push({
+      cueId: "cue.app.opening.hero-pops",
+      kind: "show",
+      tag: "tag.hero",
+      cut: false,
+    });
+    expect(reasonOfV1(() => parseSceneDocumentV1(nonTrue))).toBe("scene_cue_cut_invalid");
+
+    const both = sceneDocumentV1();
+    (both.cues as Record<string, unknown>[]).push({
+      cueId: "cue.app.opening.hero-pops",
       kind: "show",
       tag: "tag.hero",
       motionId: "motion.app.hero-enter",
+      cut: true,
     });
-    expect(parseSceneDocumentV1(agreeing).cues).toHaveLength(4);
+    expect(reasonOfV1(() => parseSceneDocumentV1(both))).toBe("scene_cue_cut_motion_conflict");
   });
 });
 
@@ -331,6 +403,112 @@ describe("sceneStageTransitionBindingsV1", () => {
   });
 });
 
+describe("sceneAmbientCatalogV1", () => {
+  const layerId = "layer.app.characters" as StageLayerIdV1;
+  function ambientDocumentV1(phaseMs?: number): Record<string, unknown> {
+    const base = sceneDocumentV1();
+    const entries = base.entries as Record<string, unknown>[];
+    return {
+      ...base,
+      entries: [
+        entries[0],
+        {
+          ...entries[1],
+          ambient: {
+            motionId: "motion.app.breathe",
+            ...(phaseMs === undefined ? {} : { phaseMs }),
+          },
+        },
+      ],
+    };
+  }
+
+  it("admits the ambient binding and leaves cue/open mutations byte-identical", () => {
+    const plain = sceneFromDocumentV1(sceneDocumentV1());
+    const withAmbient = sceneFromDocumentV1(ambientDocumentV1(250));
+    const entry = withAmbient.sceneDocument.entries[1];
+    expect(entry?.ambient).toEqual({ motionId: "motion.app.breathe", phaseMs: 250 });
+    // Ambient is presentation-only derived data: the authoritative mutation
+    // batches do not change by a byte when a document declares it.
+    expect(JSON.stringify(withAmbient.openMutations(emptyStageV1()))).toBe(
+      JSON.stringify(plain.openMutations(emptyStageV1())),
+    );
+    expect(
+      JSON.stringify(withAmbient.cueMutations("cue.app.opening.hero-enters", emptyStageV1())),
+    ).toBe(JSON.stringify(plain.cueMutations("cue.app.opening.hero-enters", emptyStageV1())));
+  });
+
+  it("rejects bad ambient declarations at admission", () => {
+    const withAmbient = (ambient: unknown) => {
+      const base = sceneDocumentV1();
+      const entries = base.entries as Record<string, unknown>[];
+      return { ...base, entries: [entries[0], { ...entries[1], ambient }] };
+    };
+    expect(reasonOfV1(() => parseSceneDocumentV1(withAmbient("motion.app.breathe")))).toBe(
+      "scene_ambient_invalid",
+    );
+    expect(reasonOfV1(() => parseSceneDocumentV1(withAmbient({ motionId: "nope" })))).toBe(
+      "scene_ambient_motion_id_invalid",
+    );
+    expect(
+      reasonOfV1(() =>
+        parseSceneDocumentV1(withAmbient({ motionId: "motion.app.breathe", phaseMs: -1 }))
+      ),
+    ).toBe("scene_ambient_phase_invalid");
+    expect(
+      reasonOfV1(() =>
+        parseSceneDocumentV1(withAmbient({ motionId: "motion.app.breathe", extra: 1 }))
+      ),
+    ).toBe("object_keys");
+  });
+
+  it("resolves the exact declared entry and falls through otherwise", () => {
+    const scene = sceneFromDocumentV1(ambientDocumentV1(250));
+    const catalog = sceneAmbientCatalogV1(scene, {
+      motions: [motionDocumentV1("motion.app.breathe")],
+    });
+    const heroEntry = {
+      key: "layer.app.characters:tag.hero",
+      contentId: "content.app.character.hero",
+    } as unknown as StageRenderEntryV1;
+    const binding = catalog.resolveAmbient(layerId, heroEntry);
+    expect(binding?.motion.motionId).toBe("motion.app.breathe");
+    expect(binding?.phaseMs).toBe(250);
+    // Different content on the same tag (a gameplay replace) falls through:
+    // the loop was authored for the declared content.
+    const swapped = {
+      key: "layer.app.characters:tag.hero",
+      contentId: "content.app.character.other",
+    } as unknown as StageRenderEntryV1;
+    expect(catalog.resolveAmbient(layerId, swapped)).toBeNull();
+    expect(
+      catalog.resolveAmbient("layer.app.background" as StageLayerIdV1, heroEntry),
+    ).toBeNull();
+    // phaseMs defaults to 0 when omitted.
+    const defaulted = sceneAmbientCatalogV1(sceneFromDocumentV1(ambientDocumentV1()), {
+      motions: [motionDocumentV1("motion.app.breathe")],
+    });
+    expect(defaulted.resolveAmbient(layerId, heroEntry)?.phaseMs).toBe(0);
+  });
+
+  it("rejects uncovered ambient motions and duplicate motion documents", () => {
+    const scene = sceneFromDocumentV1(ambientDocumentV1());
+    expect(reasonOfV1(() => sceneAmbientCatalogV1(scene, { motions: [] }))).toBe(
+      "scene_ambient_motion_missing",
+    );
+    expect(
+      reasonOfV1(() =>
+        sceneAmbientCatalogV1(scene, {
+          motions: [
+            motionDocumentV1("motion.app.breathe"),
+            motionDocumentV1("motion.app.breathe"),
+          ],
+        })
+      ),
+    ).toBe("scene_motion_duplicate");
+  });
+});
+
 describe("sceneSettledMutationsV1", () => {
   const scene = sceneFromDocumentV1(sceneDocumentV1());
 
@@ -371,6 +549,202 @@ describe("sceneStageTransitionBindingsV1 edge options", () => {
       inputPolicy: "block",
       acknowledge: true,
     });
+  });
+
+  it("resolves divergent duplicate edges per-cue and drops them from the fallback", () => {
+    const document = sceneDocumentV1();
+    (document.cues as Record<string, unknown>[]).push({
+      cueId: "cue.app.opening.hero-re-enters",
+      kind: "show",
+      tag: "tag.hero",
+      motionId: "motion.app.hero-enter",
+    });
+    const scene = sceneFromDocumentV1(document);
+    const failures: string[] = [];
+    const bindings = sceneStageTransitionBindingsV1(scene, {
+      motions: [motionDocumentV1("motion.app.hero-enter")],
+      edges: { "cue.app.opening.hero-enters": { inputPolicy: "block", acknowledge: true } },
+      reportFailure: (code) => failures.push(code),
+    });
+    const heroEnter: StageTargetChangeV1 = {
+      kind: "enter",
+      layerId: "layer.app.characters" as StageTargetChangeV1["layerId"],
+      entryKey: "layer.app.characters:tag.hero",
+      previous: null,
+      next: renderEntryV1("content.app.character.hero"),
+    };
+
+    // Each dispatch selects its own cue's effective behavior.
+    expect(
+      bindings.resolveTransition({
+        ...heroEnter,
+        dispatches: [{ sceneId: "scene.app.opening", cueId: "cue.app.opening.hero-enters" }],
+      }),
+    ).toMatchObject({
+      transitionId: "transition.app.opening.hero-enters",
+      inputPolicy: "block",
+      acknowledge: true,
+    });
+    expect(
+      bindings.resolveTransition({
+        ...heroEnter,
+        dispatches: [{ sceneId: "scene.app.opening", cueId: "cue.app.opening.hero-re-enters" }],
+      }),
+    ).toMatchObject({
+      transitionId: "transition.app.opening.hero-re-enters",
+      inputPolicy: "target_active",
+      acknowledge: false,
+    });
+
+    // Without context the divergent edge declares nothing: null fall-through
+    // plus one observational diagnostic.
+    expect(bindings.resolveTransition(heroEnter)).toBeNull();
+    expect(failures).toEqual(["scene.cue_binding_context_missing"]);
+  });
+
+  it("keeps agreeing duplicate edges in the context-free fallback", () => {
+    const document = sceneDocumentV1();
+    (document.cues as Record<string, unknown>[]).push({
+      cueId: "cue.app.opening.hero-re-enters",
+      kind: "show",
+      tag: "tag.hero",
+      motionId: "motion.app.hero-enter",
+    });
+    const scene = sceneFromDocumentV1(document);
+    // An explicit default equals an omitted option after normalization.
+    const bindings = sceneStageTransitionBindingsV1(scene, {
+      motions: [motionDocumentV1("motion.app.hero-enter")],
+      edges: { "cue.app.opening.hero-enters": { acknowledge: false } },
+    });
+    // Every presentation-bearing cue owns a per-cue definition now.
+    expect(bindings.definitions.map((definition) => definition.transitionId)).toEqual([
+      "transition.app.opening.hero-enters",
+      "transition.app.opening.hero-re-enters",
+    ]);
+    // Context-free resolution keeps the pre-context behavior: the agreeing
+    // edge still resolves (first declaration wins).
+    expect(
+      bindings.resolveTransition({
+        kind: "enter",
+        layerId: "layer.app.characters" as StageTargetChangeV1["layerId"],
+        entryKey: "layer.app.characters:tag.hero",
+        previous: null,
+        next: renderEntryV1("content.app.character.hero"),
+      })?.transitionId,
+    ).toBe("transition.app.opening.hero-enters");
+  });
+
+  it("resolves explicit cut cues cue-first and never through the fallback", () => {
+    const document = sceneDocumentV1();
+    (document.cues as Record<string, unknown>[]).push({
+      cueId: "cue.app.opening.hero-pops",
+      kind: "show",
+      tag: "tag.hero",
+      cut: true,
+    });
+    const scene = sceneFromDocumentV1(document);
+    const failures: string[] = [];
+    const bindings = sceneStageTransitionBindingsV1(scene, {
+      motions: [motionDocumentV1("motion.app.hero-enter")],
+      reportFailure: (code) => failures.push(code),
+    });
+    const heroEnter: StageTargetChangeV1 = {
+      kind: "enter",
+      layerId: "layer.app.characters" as StageTargetChangeV1["layerId"],
+      entryKey: "layer.app.characters:tag.hero",
+      previous: null,
+      next: renderEntryV1("content.app.character.hero"),
+    };
+
+    // The cut dispatch returns a non-null cut definition, suppressing outer
+    // catalog rules instead of falling through.
+    expect(
+      bindings.resolveTransition({
+        ...heroEnter,
+        dispatches: [{ sceneId: "scene.app.opening", cueId: "cue.app.opening.hero-pops" }],
+      }),
+    ).toMatchObject({ transitionId: "transition.app.opening.hero-pops", kind: "cut" });
+    expect(
+      bindings.resolveTransition({
+        ...heroEnter,
+        dispatches: [{ sceneId: "scene.app.opening", cueId: "cue.app.opening.hero-enters" }],
+      }),
+    ).toMatchObject({ transitionId: "transition.app.opening.hero-enters", kind: "motion" });
+    expect(bindings.resolveTransitionById("transition.app.opening.hero-pops")).toMatchObject({
+      kind: "cut",
+      durationMs: 0,
+    });
+
+    // A motion + cut edge is divergent: context-free resolution declares
+    // nothing (the explicit cut never leaks into the fallback).
+    expect(bindings.resolveTransition(heroEnter)).toBeNull();
+    expect(failures).toEqual(["scene.cue_binding_context_missing"]);
+  });
+
+  it("resolves bare-cue dispatches to null instead of inheriting the edge binding", () => {
+    // The migration-precheck leak: a deliberately motionless cue on a bound
+    // edge previously required forking the stage identity.
+    const document = sceneDocumentV1();
+    (document.cues as Record<string, unknown>[]).push({
+      cueId: "cue.app.opening.hero-appears",
+      kind: "show",
+      tag: "tag.hero",
+    });
+    const scene = sceneFromDocumentV1(document);
+    const bindings = sceneStageTransitionBindingsV1(scene, {
+      motions: [motionDocumentV1("motion.app.hero-enter")],
+    });
+    const heroEnter: StageTargetChangeV1 = {
+      kind: "enter",
+      layerId: "layer.app.characters" as StageTargetChangeV1["layerId"],
+      entryKey: "layer.app.characters:tag.hero",
+      previous: null,
+      next: renderEntryV1("content.app.character.hero"),
+    };
+
+    // The bare cue declares nothing scene-level: null fall-through, no
+    // sibling-motion inheritance.
+    expect(
+      bindings.resolveTransition({
+        ...heroEnter,
+        dispatches: [{ sceneId: "scene.app.opening", cueId: "cue.app.opening.hero-appears" }],
+      }),
+    ).toBeNull();
+    // A bare cue does not make the edge divergent: context-free resolution
+    // keeps today's single-binding fallback (the documented leak).
+    expect(bindings.resolveTransition(heroEnter)?.transitionId).toBe(
+      "transition.app.opening.hero-enters",
+    );
+    // Dispatch context is complete: a change nothing of this scene explains
+    // must not be claimed by the edge-tuple fallback (the cross-scene
+    // silent override) — whether the dispatches name other scenes'
+    // cues, non-matching cues, or a foreign scene's open.
+    expect(
+      bindings.resolveTransition({
+        ...heroEnter,
+        dispatches: [
+          { sceneId: "scene.app.other", cueId: "cue.app.opening.hero-appears" },
+          { sceneId: "scene.app.opening", cueId: "cue.app.opening.hero-leaves" },
+        ],
+      }),
+    ).toBeNull();
+    expect(
+      bindings.resolveTransition({
+        ...heroEnter,
+        dispatches: [{ sceneId: "scene.app.other", open: true }],
+      }),
+    ).toBeNull();
+    // An open OF THIS SCENE genuinely produces its declared entries' edges
+    // and keeps context-free fallback semantics (owner ruling #2).
+    expect(
+      bindings.resolveTransition({
+        ...heroEnter,
+        dispatches: [
+          { sceneId: "scene.app.opening", open: true },
+          { sceneId: "scene.app.opening", cueId: "cue.app.opening.hero-leaves" },
+        ],
+      })?.transitionId,
+    ).toBe("transition.app.opening.hero-enters");
   });
 
   it("rejects edge options that name no motion-binding cue", () => {

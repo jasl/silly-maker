@@ -8,7 +8,7 @@ import type { AssetRegistryV1, RuntimePresentationPublicationV1 } from "@sillyma
 import { useLocaleTextV1 } from "@sillymaker/ui";
 
 import type { CatcafeApplicationInstanceV1 } from "./core-definition.ts";
-import { catcafeTextCatalogsV1, catcafeTextForLocaleV1 } from "../presentation.ts";
+import { catcafeTextCatalogsV1, catcafeTextForLocaleV1 } from "../content/presentation.ts";
 
 /** Locale-aware UI text: subscribes to Host preferences; language switches take effect immediately. */
 export function useCatcafeTextV1(playerProfile: PlayerProfileStoreV1): (textId: string) => string {

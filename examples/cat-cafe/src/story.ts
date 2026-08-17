@@ -8,14 +8,14 @@ import {
   catcafePresentationPatchSurfaceV1,
   catcafeTextCatalogsV1,
   materializeCatcafePresentationV1,
-} from "./presentation.ts";
-import { catcafeSimulationDefinitionV1 } from "./simulation-definition.ts";
+} from "./content/presentation.ts";
+import { catcafeSimulationDefinitionV1 } from "./game/simulation-definition.ts";
 
-export type { CatcafeSimulationProgramV1 } from "./simulation-definition.ts";
+export type { CatcafeSimulationProgramV1 } from "./game/simulation-definition.ts";
 export {
   catcafeSimulationPatchSurfaceV1,
   catcafeStateContractManifestV1,
-} from "./simulation-definition.ts";
+} from "./game/simulation-definition.ts";
 
 const catcafeStoryDefinitionV1 = Object.freeze({
   simulation: catcafeSimulationDefinitionV1,

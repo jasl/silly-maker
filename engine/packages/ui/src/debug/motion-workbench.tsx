@@ -19,6 +19,11 @@ import type { SemanticStageEntryRendererV1 } from "../stage/semantic-stage-host.
 import { SemanticStageHostV1 } from "../stage/semantic-stage-host.tsx";
 import type { StageRenderFrameV1 } from "../stage/stage-reconciler.ts";
 import { settledStageFrameV1 } from "../stage/stage-reconciler.ts";
+import {
+  createAuthoringDocumentSessionV1,
+  useAuthoringDocumentSessionV1,
+} from "./authoring-session.ts";
+import type { AuthoringDocumentIoV1 } from "./authoring-session.ts";
 import { moveMotionKeyframeV1, setMotionOffsetKeyframesV1 } from "./motion-edit.ts";
 import type { MotionSourceEntryV1 } from "./motion-sources.ts";
 import type { MotionIoErrorCodeV1, MotionSourceIoV1 } from "./motion-io.ts";
@@ -42,6 +47,12 @@ export interface MotionWorkbenchPreviewV1 {
   readonly entryKey: string;
   /** The logical canvas the placements were authored against. */
   readonly canvas: { readonly width: number; readonly height: number };
+  /**
+   * Which edge the motion plays on. `enter` (default) animates the entry
+   * arriving in the settled target; `exit` animates it leaving — the
+   * target must be the scene *before* the exit, with the entry present.
+   */
+  readonly phase?: "enter" | "exit";
 }
 
 export interface MotionWorkbenchPropsV1 {
@@ -74,8 +85,22 @@ function cloneMotionDocumentV1(motionDocument: MotionDocumentV1): MotionDocument
   return JSON.parse(JSON.stringify(motionDocument)) as MotionDocumentV1;
 }
 
-function sameMotionDocumentV1(a: MotionDocumentV1, b: MotionDocumentV1): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+/** Adapts the motion CAS port to the shared authoring-session io shape. */
+function motionSessionIoV1(io: MotionSourceIoV1): AuthoringDocumentIoV1<MotionDocumentV1> {
+  return Object.freeze({
+    read: (path: string) =>
+      io.read(path).then((result) =>
+        result.kind === "ok"
+          ? { kind: "ok" as const, digest: result.digest, document: result.motionDocument }
+          : { kind: "error" as const, code: result.code }
+      ),
+    write: (input: { path: string; expectedDigest: string; document: MotionDocumentV1 }) =>
+      io.write({
+        path: input.path,
+        expectedDigest: input.expectedDigest,
+        motionDocument: input.document,
+      }),
+  });
 }
 
 function tryParseMotionDocumentV1(
@@ -101,6 +126,7 @@ function workbenchFrameV1(
   motion: MotionDefinitionV1 | null,
   progress: number,
   ghostOnly: boolean,
+  phase: "enter" | "exit",
 ): StageRenderFrameV1 {
   const settled = settledStageFrameV1(target);
   return Object.freeze({
@@ -115,7 +141,7 @@ function workbenchFrameV1(
               frameEntry.entry.key === entryKey && motion !== null
                 ? Object.freeze({
                   ...frameEntry,
-                  phase: "entering" as const,
+                  phase: phase === "exit" ? ("exiting" as const) : ("entering" as const),
                   transitionKind: "motion" as const,
                   transitionId: null,
                   progress,
@@ -140,37 +166,10 @@ interface DraftEditorV1 {
         keyframes: { atPermille: number; value: number; easing?: unknown }[];
       }[];
     }) => void,
+    coalesceKey?: string,
   ): void;
   /** Replaces the whole draft (pure edit helpers return new documents). */
-  replace(next: MotionDocumentV1): void;
-}
-
-function useDraftEditorV1(
-  saved: MotionDocumentV1,
-  revision: number,
-): DraftEditorV1 {
-  const [draft, setDraft] = useState<MotionDocumentV1>(() => cloneMotionDocumentV1(saved));
-  const revisionRef = useRef(revision);
-  useEffect(() => {
-    if (revisionRef.current === revision) return;
-    revisionRef.current = revision;
-    setDraft(cloneMotionDocumentV1(saved));
-  }, [saved, revision]);
-  return {
-    draft,
-    update(mutate) {
-      setDraft((current) => {
-        const next = JSON.parse(JSON.stringify(current)) as Parameters<typeof mutate>[0] & {
-          motionId: string;
-        };
-        mutate(next);
-        return next as unknown as MotionDocumentV1;
-      });
-    },
-    replace(next) {
-      setDraft(next);
-    },
-  };
+  replace(next: MotionDocumentV1, coalesceKey?: string): void;
 }
 
 interface SelectedKeyframeV1 {
@@ -199,34 +198,54 @@ interface DotDragStateV1 {
 export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
   const { source, preview, io } = props;
 
-  // The saved side of A/B: refreshed from the dev-server port when present
-  // so the CAS digest always matches the file this edit started from.
-  const [saved, setSaved] = useState<MotionDocumentV1>(source.motionDocument);
-  const [savedDigest, setSavedDigest] = useState<string | null>(null);
+  // The shared authoring session owns saved/draft/dirty, CAS, discard, and
+  // undo/redo; the Workbench keeps its edit vocabulary and note texts. The
+  // saved side of A/B refreshes from the dev-server port when present so
+  // the CAS digest always matches the file this edit started from.
+  const session = useMemo(() => {
+    const created = createAuthoringDocumentSessionV1<MotionDocumentV1>(
+      io === undefined ? {} : { io: motionSessionIoV1(io) },
+    );
+    created.installSaved({ path: source.path, document: source.motionDocument, digest: null });
+    return created;
+  }, [io, source]);
+  const sessionSnapshot = useAuthoringDocumentSessionV1(session);
+  const saved = sessionSnapshot.saved ?? source.motionDocument;
+  const draft = sessionSnapshot.draft ?? source.motionDocument;
+  const savedDigest = sessionSnapshot.digest;
   const [saveStatus, setSaveStatus] = useState<WorkbenchSaveStatusV1>({ kind: "idle" });
-  const [revertRevision, setRevertRevision] = useState(0);
 
   useEffect(() => {
-    let cancelled = false;
-    setSaved(source.motionDocument);
-    setSavedDigest(null);
+    setSaveStatus({ kind: "idle" });
     if (io === undefined) return () => {};
-    void io.read(source.path).then((result) => {
-      if (cancelled) return;
-      if (result.kind === "ok") {
-        setSaved(result.motionDocument);
-        setSavedDigest(result.digest);
-      } else {
-        setSaveStatus({ kind: "read_failed", code: result.code });
-      }
+    let cancelled = false;
+    void session.refreshSaved().then((result) => {
+      if (cancelled || result.kind !== "error") return;
+      setSaveStatus({ kind: "read_failed", code: result.code as MotionIoErrorCodeV1 });
     });
     return () => {
       cancelled = true;
     };
-  }, [io, source]);
+  }, [io, session]);
 
-  const editor = useDraftEditorV1(saved, revertRevision);
-  const draft = editor.draft;
+  // A/B: which document drives the canvas; the inspector always edits the
+  // draft, so any edit gesture (including undo/redo) while previewing
+  // "saved" flips the canvas back to draft — editing what you see requires
+  // seeing what you edit.
+  const [viewMode, setViewMode] = useState<"draft" | "saved">("draft");
+  const editor: DraftEditorV1 = {
+    draft,
+    update(mutate, coalesceKey) {
+      setViewMode("draft");
+      const next = cloneMotionDocumentV1(draft);
+      mutate(next as unknown as Parameters<typeof mutate>[0]);
+      session.replaceDraft(next, coalesceKey === undefined ? {} : { coalesceKey });
+    },
+    replace(next, coalesceKey) {
+      setViewMode("draft");
+      session.replaceDraft(next, coalesceKey === undefined ? {} : { coalesceKey });
+    },
+  };
 
   const parsedDraft = useMemo(() => tryParseMotionDocumentV1(draft), [draft]);
   const lastValidRef = useRef<MotionDocumentV1>(saved);
@@ -239,6 +258,9 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
   const [selectedKeyframe, setSelectedKeyframe] = useState<SelectedKeyframeV1 | null>(null);
   const ghostDragRef = useRef<GhostDragStateV1 | null>(null);
   const dotDragRef = useRef<DotDragStateV1 | null>(null);
+  // One undo step per drag gesture: every pointer-down starts a new
+  // coalescing run, so scrubbing a ghost or a dot stays a single undo.
+  const gestureRef = useRef(0);
   const selectedStop = useMemo(() => {
     if (selectedKeyframe === null) return null;
     const track = draft.tracks.find((candidate) => candidate.channel === selectedKeyframe.channel);
@@ -246,8 +268,6 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
     return keyframe === undefined ? null : keyframe.atPermille;
   }, [draft, selectedKeyframe]);
 
-  // A/B: which document drives the canvas; the inspector always edits draft.
-  const [viewMode, setViewMode] = useState<"draft" | "saved">("draft");
   const viewedDocument = viewMode === "saved" ? saved : lastValidRef.current;
   const definition = useMemo(
     () => motionDefinitionFromDocumentV1(viewedDocument),
@@ -282,9 +302,18 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
   const clampedTimeMs = Math.min(totalMs, Math.max(0, timeMs));
   const progress = totalMs <= 0 ? 1 : clampedTimeMs / totalMs;
 
+  const previewPhase = preview.phase ?? "enter";
   const mainFrame = useMemo(
-    () => workbenchFrameV1(preview.target, preview.entryKey, definition, progress, false),
-    [preview.target, preview.entryKey, definition, progress],
+    () =>
+      workbenchFrameV1(
+        preview.target,
+        preview.entryKey,
+        definition,
+        progress,
+        false,
+        previewPhase,
+      ),
+    [preview.target, preview.entryKey, definition, progress, previewPhase],
   );
   // Without a selection the ghost pins the start pose; with a selected
   // keyframe it shows (and drags) the pose at that stop.
@@ -294,8 +323,16 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
     return total <= 0 ? 1 : (draft.delayMs + (draft.durationMs * selectedStop) / 1000) / total;
   }, [draft.delayMs, draft.durationMs, selectedStop]);
   const ghostFrame = useMemo(
-    () => workbenchFrameV1(preview.target, preview.entryKey, definition, ghostProgress, true),
-    [preview.target, preview.entryKey, definition, ghostProgress],
+    () =>
+      workbenchFrameV1(
+        preview.target,
+        preview.entryKey,
+        definition,
+        ghostProgress,
+        true,
+        previewPhase,
+      ),
+    [preview.target, preview.entryKey, definition, ghostProgress, previewPhase],
   );
 
   const canvasBoxWidth = 360;
@@ -312,6 +349,7 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
     const stopTimeMs = draftDefinition.delayMs +
       (draftDefinition.durationMs * selectedStop) / 1000;
     const sample = sampleMotionAtV1(draftDefinition, stopTimeMs);
+    gestureRef.current += 1;
     ghostDragRef.current = {
       pointerId: event.pointerId,
       startClientX: event.clientX,
@@ -330,7 +368,10 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
     if (drag === null || drag.pointerId !== event.pointerId) return;
     const offsetX = drag.startOffsetX + (event.clientX - drag.startClientX) / scale;
     const offsetY = drag.startOffsetY + (event.clientY - drag.startClientY) / scale;
-    editor.replace(setMotionOffsetKeyframesV1(draft, drag.atPermille, { offsetX, offsetY }));
+    editor.replace(
+      setMotionOffsetKeyframesV1(draft, drag.atPermille, { offsetX, offsetY }),
+      `ghost:${String(gestureRef.current)}`,
+    );
   };
 
   const onGhostPointerEnd = (event: ReactPointerEvent<HTMLDivElement>): void => {
@@ -350,6 +391,7 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
     if (bar === null) return;
     const rect = bar.getBoundingClientRect();
     if (rect.width <= 0) return;
+    gestureRef.current += 1;
     dotDragRef.current = {
       pointerId: event.pointerId,
       channel,
@@ -368,7 +410,10 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
     if (drag === null || drag.pointerId !== event.pointerId) return;
     drag.moved = true;
     const atPermille = ((event.clientX - drag.barLeft) / drag.barWidth) * 1000;
-    editor.replace(moveMotionKeyframeV1(draft, drag.channel, drag.index, atPermille));
+    editor.replace(
+      moveMotionKeyframeV1(draft, drag.channel, drag.index, atPermille),
+      `dot:${String(gestureRef.current)}`,
+    );
   };
 
   const onDotPointerEnd = (event: ReactPointerEvent<HTMLButtonElement>): void => {
@@ -377,12 +422,12 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
     dotDragRef.current = null;
   };
 
-  const dirty = !sameMotionDocumentV1(draft, saved);
+  const dirty = sessionSnapshot.dirty;
   const canSave = io !== undefined && savedDigest !== null &&
     parsedDraft.motionDocument !== null && dirty && saveStatus.kind !== "saving";
 
   const save = (): void => {
-    if (!canSave || io === undefined || savedDigest === null) return;
+    if (!canSave) return;
     const validDraft = parsedDraft.motionDocument;
     if (validDraft === null) return;
     // A Workbench save is a human decision: the asset graduates from
@@ -393,28 +438,24 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
       authoring: Object.freeze({ ...validDraft.authoring, status: "human_tuned" as const }),
     });
     setSaveStatus({ kind: "saving" });
-    void io.write({ path: source.path, expectedDigest: savedDigest, motionDocument }).then(
-      (result) => {
-        if (result.kind === "ok") {
-          setSaved(motionDocument);
-          setSavedDigest(result.digest);
-          setSaveStatus({ kind: "saved" });
-        } else {
-          setSaveStatus({ kind: "write_failed", code: result.code });
-        }
-      },
-    );
+    void session.save({ document: motionDocument }).then((result) => {
+      if (result.kind === "ok") {
+        setSaveStatus({ kind: "saved" });
+      } else if (result.kind === "error") {
+        setSaveStatus({ kind: "write_failed", code: result.code as MotionIoErrorCodeV1 });
+      } else {
+        setSaveStatus({ kind: "idle" });
+      }
+    });
   };
 
   const reload = (): void => {
     if (io === undefined) return;
-    void io.read(source.path).then((result) => {
+    void session.refreshSaved().then((result) => {
       if (result.kind === "ok") {
-        setSaved(result.motionDocument);
-        setSavedDigest(result.digest);
         setSaveStatus({ kind: "idle" });
-      } else {
-        setSaveStatus({ kind: "read_failed", code: result.code });
+      } else if (result.kind === "error") {
+        setSaveStatus({ kind: "read_failed", code: result.code as MotionIoErrorCodeV1 });
       }
     });
   };
@@ -550,9 +591,31 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
         </label>
         <button
           type="button"
+          data-workbench-undo="true"
+          disabled={!sessionSnapshot.canUndo}
+          onClick={() => {
+            setViewMode("draft");
+            session.undo();
+          }}
+        >
+          撤销
+        </button>
+        <button
+          type="button"
+          data-workbench-redo="true"
+          disabled={!sessionSnapshot.canRedo}
+          onClick={() => {
+            setViewMode("draft");
+            session.redo();
+          }}
+        >
+          重做
+        </button>
+        <button
+          type="button"
           data-workbench-revert="true"
           disabled={!dirty}
-          onClick={() => setRevertRevision((current) => current + 1)}
+          onClick={() => session.discard()}
         >
           恢复到已保存
         </button>
@@ -569,7 +632,7 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
             onChange={(event) =>
               editor.update((next) => {
                 next.durationMs = Math.trunc(Number(event.target.value));
-              })}
+              }, "field:durationMs")}
           />
         </label>
         <label>
@@ -582,7 +645,7 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
             onChange={(event) =>
               editor.update((next) => {
                 next.delayMs = Math.trunc(Number(event.target.value));
-              })}
+              }, "field:delayMs")}
           />
         </label>
       </div>
@@ -650,7 +713,7 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
                       if (target !== undefined) {
                         target.atPermille = Math.trunc(Number(event.target.value));
                       }
-                    })}
+                    }, `field:${track.channel}:${String(keyframeIndex)}:at`)}
                 />
                 <input
                   type="number"
@@ -663,7 +726,7 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
                       if (target !== undefined) {
                         target.value = Math.trunc(Number(event.target.value));
                       }
-                    })}
+                    }, `field:${track.channel}:${String(keyframeIndex)}:value`)}
                 />
                 <select
                   aria-label="缓动"

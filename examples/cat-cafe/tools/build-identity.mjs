@@ -11,11 +11,11 @@ const ownerV1 = createStoryBuildIdentityOwnerV1({
   label: "ExampleCatcafe",
   storySourceRoot: "examples/cat-cafe/src/",
   simulation: {
-    entry: "examples/cat-cafe/src/simulation-definition.ts",
-    forbiddenPrefixes: ["examples/cat-cafe/src/presentation"],
+    entry: "examples/cat-cafe/src/game/simulation-definition.ts",
+    forbiddenPrefixes: ["examples/cat-cafe/src/content/presentation"],
   },
   presentation: {
-    entry: "examples/cat-cafe/src/presentation.ts",
+    entry: "examples/cat-cafe/src/content/presentation.ts",
     forbiddenPrefixes: [],
   },
   applicationEntries: [

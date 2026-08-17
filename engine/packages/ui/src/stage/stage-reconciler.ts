@@ -3,6 +3,7 @@ import type {
   AssetId,
   MotionDefinitionV1,
   StageCameraV1,
+  StageCueDispatchV1,
   StageLayerIdV1,
   StageLayerTransformV1,
   StageRenderEntryV1,
@@ -75,6 +76,13 @@ export interface StageRetargetInputV1 {
   readonly target: StageRenderTargetV1;
   readonly revision: number;
   readonly epoch: number;
+  /**
+   * Presentation edge context for exactly this committed revision (already
+   * revision/epoch-paired by the caller). The reconciler attaches the list
+   * verbatim to every change this edge derives and never interprets it;
+   * absence keeps context-free resolution.
+   */
+  readonly dispatches?: readonly StageCueDispatchV1[];
 }
 
 export interface CreateStageReconcilerOptionsV1 {
@@ -404,15 +412,26 @@ function appearancesEqualV1(
 function deriveChangesV1(
   previous: StageRenderTargetV1 | null,
   next: StageRenderTargetV1,
+  dispatches?: readonly StageCueDispatchV1[],
 ): readonly StageTargetChangeV1[] {
   const changes: StageTargetChangeV1[] = [];
   const previousEntries = previous === null ? new Map() : entriesByKeyV1(previous);
   const nextEntries = entriesByKeyV1(next);
+  // The same frozen dispatch list rides on every change of this edge; the
+  // catalog owns cue-to-edge attribution.
+  const context = dispatches === undefined || dispatches.length === 0 ? {} : { dispatches };
 
   for (const [key, { layerId, entry }] of nextEntries) {
     const before = previousEntries.get(key);
     if (before === undefined) {
-      changes.push({ kind: "enter", layerId, entryKey: key, previous: null, next: entry });
+      changes.push({
+        kind: "enter",
+        layerId,
+        entryKey: key,
+        previous: null,
+        next: entry,
+        ...context,
+      });
       continue;
     }
     const previousEntry = before.entry;
@@ -423,6 +442,7 @@ function deriveChangesV1(
         entryKey: key,
         previous: previousEntry,
         next: entry,
+        ...context,
       });
     } else if (!appearancesEqualV1(previousEntry.appearance, entry.appearance)) {
       changes.push({
@@ -431,14 +451,29 @@ function deriveChangesV1(
         entryKey: key,
         previous: previousEntry,
         next: entry,
+        ...context,
       });
     } else if (!placementsEqualV1(previousEntry.placement, entry.placement)) {
-      changes.push({ kind: "move", layerId, entryKey: key, previous: previousEntry, next: entry });
+      changes.push({
+        kind: "move",
+        layerId,
+        entryKey: key,
+        previous: previousEntry,
+        next: entry,
+        ...context,
+      });
     }
   }
   for (const [key, { layerId, entry }] of previousEntries) {
     if (!nextEntries.has(key)) {
-      changes.push({ kind: "exit", layerId, entryKey: key, previous: entry, next: null });
+      changes.push({
+        kind: "exit",
+        layerId,
+        entryKey: key,
+        previous: entry,
+        next: null,
+        ...context,
+      });
     }
   }
   return changes;
@@ -870,7 +905,7 @@ export function createStageReconcilerV1(
       return;
     }
 
-    const changes = deriveChangesV1(previousTarget, input.target);
+    const changes = deriveChangesV1(previousTarget, input.target, input.dispatches);
     const suppressedKeys = new Set<string>();
 
     // Interrupt in-flight runs whose entries change again.
@@ -926,14 +961,17 @@ export function createStageReconcilerV1(
     listeners.clear();
   };
 
-  const capturePresentationGenerationRetargetInput = (
+  const captureStageRetargetRecordInternalV1 = (
     input: unknown,
   ): StageRetargetInputV1 | null => {
-    const raw = captureExactOwnDataRecordInternalV1(input, [
-      "target",
-      "revision",
-      "epoch",
-    ]);
+    const hasDispatches = typeof input === "object" && input !== null &&
+      hasOwnStageRecordIntrinsicInternalV1(input, "dispatches");
+    const raw = captureExactOwnDataRecordInternalV1(
+      input,
+      hasDispatches
+        ? ["target", "revision", "epoch", "dispatches"]
+        : ["target", "revision", "epoch"],
+    );
     if (
       raw === null ||
       typeof raw.revision !== "number" ||
@@ -945,12 +983,25 @@ export function createStageReconcilerV1(
     ) {
       return null;
     }
+    let dispatches: readonly StageCueDispatchV1[] | undefined;
+    if (hasDispatches) {
+      const rawDispatches = raw.dispatches;
+      if (!isArrayStageRecordIntrinsicInternalV1(rawDispatches)) return null;
+      // Entry contents were admitted at the instance boundary; the claimed
+      // path only pins the list itself against later mutation.
+      dispatches = freezeStageAcknowledgedRunDataInternalV1([
+        ...(rawDispatches as readonly StageCueDispatchV1[]),
+      ]);
+    }
     return freezeStageAcknowledgedRunDataInternalV1({
       target: raw.target as StageRenderTargetV1,
       revision: raw.revision,
       epoch: raw.epoch,
+      ...(dispatches === undefined ? {} : { dispatches }),
     });
   };
+
+  const capturePresentationGenerationRetargetInput = captureStageRetargetRecordInternalV1;
 
   const mintCurrentPresentationGenerationProof = (
     epoch: number,
@@ -1150,31 +1201,16 @@ export function createStageReconcilerV1(
       if (outer === null || typeof outer.expectedTransitionId !== "string") {
         return stageAcknowledgedRunFaultedResultInternalV1;
       }
-      const rawRetarget = captureExactOwnDataRecordInternalV1(outer.retarget, [
-        "target",
-        "revision",
-        "epoch",
-      ]);
+      const retarget = captureStageRetargetRecordInternalV1(outer.retarget);
       const commitGuard = captureStageAcknowledgedRunCommitGuardInternalV1(
         outer.commitGuard,
       );
       const terminalPort = captureStageAcknowledgedRunTerminalPortInternalV1(
         outer.terminalPort,
       );
-      if (
-        rawRetarget === null || commitGuard === null || terminalPort === null ||
-        typeof rawRetarget.revision !== "number" ||
-        !Number.isSafeInteger(rawRetarget.revision) || rawRetarget.revision < 0 ||
-        typeof rawRetarget.epoch !== "number" ||
-        !Number.isSafeInteger(rawRetarget.epoch) || rawRetarget.epoch < 0
-      ) {
+      if (retarget === null || commitGuard === null || terminalPort === null) {
         return stageAcknowledgedRunFaultedResultInternalV1;
       }
-      const retarget: StageRetargetInputV1 = Object.freeze({
-        target: rawRetarget.target as StageRenderTargetV1,
-        revision: rawRetarget.revision,
-        epoch: rawRetarget.epoch,
-      });
       const expectedTransitionId = outer.expectedTransitionId;
 
       if (
@@ -1186,7 +1222,7 @@ export function createStageReconcilerV1(
 
       const previousTarget = currentTarget;
       const activeSnapshot = [...active];
-      const changes = deriveChangesV1(previousTarget, retarget.target);
+      const changes = deriveChangesV1(previousTarget, retarget.target, retarget.dispatches);
       const changedKeys = new Set(changes.map((change) => change.entryKey));
       const interruptions: PlannedAcknowledgedInterruptionInternalV1[] = [];
       const suppressedKeys = new Set<string>();

@@ -19,11 +19,11 @@ Then register the application in the root `project.config.ts` (copy the template
 | File                               | Role                                                                           |
 | ---------------------------------- | ------------------------------------------------------------------------------ |
 | `src/scenes/opening/*.scene.json`  | Scene composition: placements, appearance, cue→motion binding (edit in Studio) |
-| `src/narrative.ts`                 | The script: say/choice/stage/branch/end nodes and story flags                  |
-| `src/presentation.ts`              | Text catalogs (all display text behind textIds), stage content, transitions    |
-| `src/stage-renderers.tsx`          | Stage renderers shared by the game and the Studio canvas                       |
-| `src/state.ts`                     | Module state shapes, schemas, and initial values                               |
-| `src/simulation.ts`                | Modules, commands, and rules                                                   |
+| `src/story/narrative.ts`           | The script: say/choice/stage/branch/end nodes and story flags                  |
+| `src/content/presentation.ts`      | Text catalogs (all display text behind textIds), stage content, transitions    |
+| `src/ui/stage-renderers.tsx`       | Stage renderers shared by the game and the Studio canvas                       |
+| `src/game/state.ts`                | Module state shapes, schemas, and initial values                               |
+| `src/game/simulation.ts`           | Modules, commands, and rules                                                   |
 | `src/application/semantic.ts`      | The action catalog and availability rules                                      |
 | `src/application/ui.tsx`           | React components: HUD and the passive Narrative renderer                       |
 | `src/application/composition.tsx`  | Projector, slots, application declaration, and Narrative binding (Advanced)    |

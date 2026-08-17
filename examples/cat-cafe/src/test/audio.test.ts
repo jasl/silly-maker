@@ -14,7 +14,7 @@ import {
   catcafeAudioManifestV1,
   projectCatcafeAudioIntentV1,
   resolveCatcafeEffectAssetV1,
-} from "../features/audio/index.ts";
+} from "../game/features/audio/index.ts";
 
 const storyRootV1 = resolve(import.meta.dirname, "..", "..");
 

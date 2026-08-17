@@ -16,14 +16,14 @@ import type {
   CatcafeQueriesV1,
   CatcafeRejectionV1,
   CatcafeSimulationTypesV1,
-} from "../simulation.ts";
+} from "../game/simulation.ts";
 import {
   catcafeContestTodayV1,
   catcafeEndingForV1,
   createCatcafeGameSimulationV1,
-} from "../simulation.ts";
-import { catcafeInteractionContextV1 } from "../features/dialogue/script.ts";
-import { catcafeActivitiesV1, catcafeSlotsV1, catcafeStageForWeekV1 } from "../content.ts";
+} from "../game/simulation.ts";
+import { catcafeInteractionContextV1 } from "../game/features/dialogue/script.ts";
+import { catcafeActivitiesV1, catcafeSlotsV1, catcafeStageForWeekV1 } from "../game/content.ts";
 
 /**
  * The semantic surface: the action catalog (with activity availability expanded

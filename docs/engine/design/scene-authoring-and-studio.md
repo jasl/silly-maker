@@ -1,7 +1,7 @@
 # 场景创作模型与 SillyMaker Studio
 
 状态：2026-08-14 接受的目标设计。产品证据：所有者本人无法用当前工具完成"把小雨向左拖一点、
-入场再快一点"级别的基本场景修改；外部实验（external-experiment，外部台账）持续复现同类
+入场再快一点"级别的基本场景修改；外部实验仓（真实规模内容项目，外部台账）持续复现同类
 作者痛点。本文固定 Human Authoring Model（Scene 文档、authoring geometry、cue→motion
 绑定）与 SillyMaker Studio 的目标合同；实施顺序与验收由
 [VN Scene Workspace 计划](../plans/2026-08-14-vn-scene-workspace.md) 拥有，落地后
@@ -138,12 +138,18 @@ typed accessors（形状由 A0 拥有）至少提供：
   cat-cafe 手写的 `hasTagV1(...) ? [] : batch(...)` 模式由编译层接管）；剧情
   `stage` 节点从内联字面量改为引用 cue；
 - `mayShow` → 供 stage 节点静态注解的 contentId 列表（从 cue/entry 派生）；
-- transition-catalog fragment → 由 cue 的 `motionId` 派生的**精确匹配**绑定
-  （按 kind/layerId/tag/contentId 元组）；同一场景内元组冲突是 admission/
-  `story check` 的结构化错误（`scene.cue_binding_ambiguous`），作者必须区分 cue，
-  而不是引擎猜；若未来出现"同 tag 同 kind 需按次序选不同 motion"的真实场景，再
-  评估 commit 发布的 `TransitionRequest` 携带 cue 身份（vn-presentation-runtime
-  §3.1 已预留），那是唯一可能触碰 runtime 合同的扩展，V1 不做；
+- transition-catalog fragment → 由 cue 的表现声明（`motionId` 或显式
+  `cut: true`，互斥）派生的 **per-cue** 绑定。解析 cue-first（2026-08-17 接受
+  并交付的 [cue-identity 提案](../proposals/cue-identity.md)）：提交边携带的
+  presentation edge context（`{sceneId, cueId}` / `{sceneId, open}` dispatch
+  列表，从已提交 facts 投影、与语义 revision 精确配对）指名哪个 cue 引发这条
+  边，各 cue 解析各自的声明——motion、压制外层的合成 cut、或裸 cue 的 null
+  落回；同边分歧声明因此合法。无上下文的边走 edge-tuple 回落（仅"全部绑定
+  一致"的边保留条目，与前上下文行为逐字节等位）；上下文存在时"本场景无
+  dispatch 解释的 change 不得由回落认领"对 cue 与外场景 open 一律适用，
+  **本场景自己的 open** 保持无上下文回落语义（所有者裁决 #2）。`story check` 仍诊断"声明对裸 cue"的同边组合
+  （`scene.cue_binding_scope_collision`，修法是显式声明而非裂 tag）；lint 保守
+  起点经真实内容普查后由所有者批复转正（2026-08-17，记录归 cue-identity 提案）；
 - preview case → 每个 cue 可派生 detached settled target + 绑定，直接喂
   `MotionWorkbenchLauncherV1` 与 Studio 画布；场景文档**取代**手写
   `MotionPreviewCaseV1` 声明（Engine Lab 现状）与 `preview.json` 之类的平行文件；

@@ -31,13 +31,13 @@ import type {
   BookshopNarrativeViewV1,
   BookshopQueriesV1,
   BookshopSimulationTypesV1,
-} from "../simulation.ts";
+} from "../game/simulation.ts";
 import {
   bookshopStageContentCatalogV1,
   bookshopStageTransitionCatalogV1,
   bookshopTextForLocaleV1,
   bookshopTextCatalogsV1,
-} from "../presentation.ts";
+} from "../content/presentation.ts";
 
 import { BookshopHudV1, BookshopNarrativeRendererV1 } from "./ui.tsx";
 

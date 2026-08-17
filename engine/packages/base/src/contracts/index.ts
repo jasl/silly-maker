@@ -198,6 +198,7 @@ export type {
   RuntimeViewModelEnvelopeV1,
   SessionAnchorResultV1,
   SessionDispatchOperationResultV1,
+  SessionFaultCauseV1,
   StageSceneId,
   StageSceneVariantId,
   TextCatalogSetV1,
@@ -515,10 +516,20 @@ export type {
   ContentTableViewV1,
   ContentWhereV1,
 } from "./content-database.ts";
-export { motionStageTransitionV1, parseStageTransitionDefinitionV1 } from "./stage-transition.ts";
-export type { MotionStageTransitionInputV1 } from "./stage-transition.ts";
+export {
+  motionStageTransitionV1,
+  parseStageCueDispatchesV1,
+  parseStageTransitionDefinitionV1,
+  stageCueDispatchLimitV1,
+} from "./stage-transition.ts";
+export type {
+  MotionStageTransitionInputV1,
+  StageCueDispatchBatchV1,
+  StageCueDispatchV1,
+} from "./stage-transition.ts";
 export {
   parseSceneDocumentV1,
+  sceneAmbientCatalogV1,
   sceneCueTransitionIdV1,
   sceneDocumentFormatV1,
   sceneDocumentVersionV1,
@@ -527,11 +538,13 @@ export {
   sceneStageTransitionBindingsV1,
 } from "./scene.ts";
 export type {
+  SceneAmbientCatalogInputV1,
   SceneCanvasV1,
   SceneCueKindV1,
   SceneCueV1,
   SceneCueEdgeOptionsV1,
   SceneDocumentV1,
+  SceneEntryAmbientV1,
   SceneEntryV1,
   SceneSettledMutationsOptionsV1,
   SceneStageTransitionBindingsInputV1,
@@ -590,6 +603,7 @@ export type {
   StageTransitionReadinessV1,
   StageTransitionReducedMotionV1,
 } from "./stage-transition.ts";
+export type { StageAmbientBindingV1, StageAmbientCatalogV1 } from "./stage-ambient.ts";
 export type {
   StageContentCatalogV1,
   StageContentGeometryV1,

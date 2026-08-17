@@ -1985,6 +1985,7 @@ describe("GameSession FIFO", () => {
 
   it("normalizes a thrown executor once and permits an anchor recovery", async () => {
     const { session, runtimeControl, commandLog, calls, attempts } = fixture();
+    expect(session.getLastFaultCause()).toBeNull();
     await expect(session.dispatch({ kind: "throw" })).resolves.toMatchObject({
       kind: "executed",
       execution: { kind: "faulted" },
@@ -1993,6 +1994,14 @@ describe("GameSession FIFO", () => {
     expect(attempts).toHaveLength(1);
     expect(commandLog.entries()).toHaveLength(1);
     expect(commandLog.entries()[0]?.outcome.kind).toBe("faulted");
+    // The raw cause is preserved for debug display but never enters the
+    // authoritative log (the normalizer's coded fault is all it records).
+    expect(session.getLastFaultCause()).toMatchObject({
+      at: "dispatch",
+      message: "Error: executor exploded",
+    });
+    expect(session.getLastFaultCause()?.stackSummary.length).toBeGreaterThan(0);
+    expect(JSON.stringify(commandLog.entries())).not.toContain("executor exploded");
     const acceptedIntegrity = runIntegrityV1Schema.parse({
       mode: "modified",
       mutationCount: 1,

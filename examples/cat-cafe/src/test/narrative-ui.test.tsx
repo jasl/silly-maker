@@ -14,7 +14,7 @@ import {
 } from "../application/composition.tsx";
 import { createCatcafeApplicationInstanceV1 } from "../application/core-application.ts";
 import { CatcafeNarrativeRendererV1 } from "../application/ui.tsx";
-import { catcafeTextForLocaleV1 } from "../presentation.ts";
+import { catcafeTextForLocaleV1 } from "../content/presentation.ts";
 
 afterEach(cleanup);
 

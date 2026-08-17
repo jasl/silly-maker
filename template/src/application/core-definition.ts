@@ -14,7 +14,7 @@ import type {
   TemplateNarrativeViewV1,
   TemplateQueriesV1,
   TemplateSimulationTypesV1,
-} from "../simulation.ts";
+} from "../game/simulation.ts";
 import { templateStoryEntryV1 } from "../story.ts";
 
 /**

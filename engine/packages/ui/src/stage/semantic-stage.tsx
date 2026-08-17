@@ -3,11 +3,15 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import type { ReactElement, ReactNode } from "react";
 
 import type {
+  MotionSampleV1,
+  StageAmbientCatalogV1,
+  StageCueDispatchBatchV1,
   StageRenderTargetV1,
   StageTransitionCatalogV1,
   TimelineCatalogV1,
   TimelineSampleV1,
 } from "@sillymaker/base";
+import { motionTotalDurationMsV1, sampleMotionAtV1 } from "@sillymaker/base";
 
 import type { PresentationClockV1 } from "../presentation-run/presentation-clock.ts";
 import { createAnimationFramePresentationClockV1 } from "../presentation-run/presentation-clock.ts";
@@ -335,7 +339,22 @@ export interface SemanticStagePropsV1 {
   readonly revision: number;
   /** The presentation epoch; load/rollback/rebootstrap suppress edges. */
   readonly epoch: number;
+  /**
+   * Presentation edge context: the instance-stamped dispatch batch (from
+   * `instance.stageCueDispatches()`). The stage forwards the list into the
+   * retarget only when the batch's revision and epoch match this exact
+   * publication; anything else is dropped and resolution stays
+   * context-free. Purely presentational — never authoritative.
+   */
+  readonly dispatches?: StageCueDispatchBatchV1 | null;
   readonly catalog: StageTransitionCatalogV1;
+  /**
+   * Presence-bound ambient loops (ambient-loop-motion, accepted
+   * 2026-08-15): looping motions sampled on the presentation clock while
+   * an entry is settled. Purely decorative presentation — no commands, no
+   * authoritative state, no Save/digest/replay bytes.
+   */
+  readonly ambient?: StageAmbientCatalogV1;
   readonly renderers: Readonly<Record<string, SemanticStageEntryRendererV1>>;
   readonly accessibleName: string;
   /** Injectable for tests; defaults to the animation-frame clock. */
@@ -361,6 +380,8 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
   const reducedMotionRef = useRef(readReducedMotionV1());
   const failureRef = useRef(props.reportFailure);
   const timelineEventRef = useRef(props.onTimelineEvent);
+  /** Each looping entry's settle instant; forgotten while its edge flies. */
+  const ambientSettledAtRef = useRef(new Map<string, number>());
   failureRef.current = props.reportFailure;
   timelineEventRef.current = props.onTimelineEvent;
 
@@ -509,12 +530,24 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
     };
   }, [compositionDriver, reconciler, timelinePlayer]);
 
+  // Pairing guard: a dispatch batch applies only to exactly the committed
+  // publication it was stamped for. `batch.dispatches` is a stable frozen
+  // list, so the paired value is reference-stable across re-renders.
+  const dispatchBatch = props.dispatches ?? null;
+  const pairedDispatches = dispatchBatch !== null && dispatchBatch.revision === revision &&
+      dispatchBatch.epoch === epoch && dispatchBatch.dispatches.length > 0
+    ? dispatchBatch.dispatches
+    : undefined;
+
   useEffect(() => {
-    if (compositionDriver === null) reconciler.retarget({ target, revision, epoch });
-    else compositionDriver.retargetInternalV1({ target, revision, epoch });
+    const input = pairedDispatches === undefined
+      ? { target, revision, epoch }
+      : { target, revision, epoch, dispatches: pairedDispatches };
+    if (compositionDriver === null) reconciler.retarget(input);
+    else compositionDriver.retargetInternalV1(input);
     retargetedRef.current = true;
     setVersion((current) => current + 1);
-  }, [compositionDriver, reconciler, target, revision, epoch]);
+  }, [compositionDriver, reconciler, target, revision, epoch, pairedDispatches]);
 
   useEffect(() => {
     if (typeof document === "undefined") return () => {};
@@ -541,6 +574,10 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
     const query = window.matchMedia(reducedMotionQueryV1);
     const onChange = (): void => {
       reducedMotionRef.current = query.matches;
+      // Ambient loops start/stop with this preference; re-render so the
+      // sampling pass below re-evaluates (transitions apply it at run
+      // derivation and are unaffected by the extra render).
+      setVersion((current) => current + 1);
     };
     onChange();
     query.addEventListener("change", onChange);
@@ -552,12 +589,78 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
   void version;
   const frame = retargetedRef.current ? reconciler.frame() : settledStageFrameV1(target);
 
+  // Presence-bound ambient loops, sampled per render on the presentation
+  // clock: a settled entry with a resolved binding samples at
+  // `(now - settledAt + phaseMs) % duration`; an in-flight edge suspends
+  // the loop (its settle instant is forgotten, so settling restarts the
+  // phase), and reduced motion settles every loop. Freeze semantics come
+  // free from the clock: a frozen `now()` holds the sampled pose and the
+  // resume offset keeps the phase continuous.
+  const ambientCatalog = props.ambient ?? null;
+  let ambientSamples: Map<string, MotionSampleV1> | null = null;
+  if (ambientCatalog !== null && !reducedMotionRef.current) {
+    const settledAtByKey = ambientSettledAtRef.current;
+    const seen = new Set<string>();
+    const now = clock.now();
+    for (const layer of frame.layers) {
+      for (const frameEntry of layer.entries) {
+        if (frameEntry.phase !== "settled") {
+          settledAtByKey.delete(frameEntry.entry.key);
+          continue;
+        }
+        seen.add(frameEntry.entry.key);
+        const binding = ambientCatalog.resolveAmbient(layer.layerId, frameEntry.entry);
+        if (binding === null) continue;
+        const total = motionTotalDurationMsV1(binding.motion);
+        if (total <= 0) continue;
+        let settledAt = settledAtByKey.get(frameEntry.entry.key);
+        if (settledAt === undefined) {
+          settledAt = now;
+          settledAtByKey.set(frameEntry.entry.key, settledAt);
+        }
+        const elapsed = (now - settledAt + binding.phaseMs) % total;
+        ambientSamples ??= new Map();
+        ambientSamples.set(frameEntry.entry.key, sampleMotionAtV1(binding.motion, elapsed));
+      }
+    }
+    for (const key of settledAtByKey.keys()) {
+      if (!seen.has(key)) settledAtByKey.delete(key);
+    }
+  }
+  const ambientActive = ambientSamples !== null;
+
+  // While at least one settled entry loops, keep requesting presentation
+  // ticks: each tick re-renders and resamples. The loop stops the moment
+  // every ambient suspends (edges in flight), reduced motion settles them,
+  // or the entries leave the stage. Transitions keep their own one-shot
+  // tickers, so `data-stage-settled` semantics are untouched; a freeze
+  // parks the pending tick until resume.
+  useEffect(() => {
+    if (!ambientActive) return () => {};
+    let effectActive = true;
+    let cancel: (() => void) | null = null;
+    const schedule = (): void => {
+      cancel = clock.requestTick(() => {
+        cancel = null;
+        if (!effectActive) return;
+        setVersion((current) => current + 1);
+        schedule();
+      });
+    };
+    schedule();
+    return () => {
+      effectActive = false;
+      cancel?.();
+    };
+  }, [ambientActive, clock]);
+
   return (
     <SemanticStageHostV1
       frame={frame}
       renderers={props.renderers}
       accessibleName={props.accessibleName}
       overlay={overlay?.values ?? null}
+      ambient={ambientSamples}
       activeCueId={activeCueId}
       {...(props.onHitRegionActivate === undefined
         ? {}

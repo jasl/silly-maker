@@ -181,19 +181,27 @@ async function resolveWorkspaceSpecifier(repository, owner, specifier) {
   let resolved;
   try {
     resolved = moduleResolve(specifier, pathToFileURL(owner), esmImportConditions, false);
-  } catch {
-    return Object.freeze({ kind: "unknown" });
+  } catch (error) {
+    return Object.freeze({ kind: "unknown", reason: resolutionReason(error) });
   }
   let actual;
   try {
     actual = await realpath(fileURLToPath(resolved));
-  } catch {
-    return Object.freeze({ kind: "unknown" });
+  } catch (error) {
+    return Object.freeze({ kind: "unknown", reason: resolutionReason(error) });
   }
   const managedPath = isWithin(repository, actual) ? posix(repository, actual) : null;
   return managedPath !== null && !managedPath.split("/").includes("node_modules")
     ? Object.freeze({ kind: "managed", path: actual })
     : Object.freeze({ kind: "external" });
+}
+
+function resolutionReason(error) {
+  const code = error !== null && typeof error === "object" && typeof error.code === "string"
+    ? error.code
+    : null;
+  const message = error instanceof Error ? error.message : String(error);
+  return code === null ? message : `${code}: ${message}`;
 }
 
 function addExternalImport(externalImports, relativePath, specifier) {
@@ -263,7 +271,9 @@ export async function collectImportClosure(root, entries) {
         } else if (resolution.kind === "external") {
           addExternalImport(externalImports, relativePath, specifier);
         } else {
-          errors.push(`${relativePath}: unknown workspace import ${specifier}`);
+          errors.push(
+            `${relativePath}: unknown workspace import ${specifier} (${resolution.reason})`,
+          );
         }
         continue;
       }

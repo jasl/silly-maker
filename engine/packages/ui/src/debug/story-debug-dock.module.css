@@ -156,6 +156,24 @@
   opacity: 0.65;
 }
 
+.story-debug-dock__fault {
+  display: grid;
+  gap: 4px;
+  overflow-wrap: anywhere;
+  text-align: start;
+  font-size: 11px;
+  color: var(--silly-color-danger, #e5484d);
+}
+
+.story-debug-dock__fault-stack {
+  margin: 0;
+  max-block-size: 8rem;
+  overflow: auto;
+  font-size: 10px;
+  opacity: 0.8;
+  white-space: pre-wrap;
+}
+
 .story-debug-dock__authority-reason {
   grid-column: 1 / -1;
   margin: 0;

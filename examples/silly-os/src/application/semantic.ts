@@ -12,8 +12,8 @@ import type {
   OsQueriesV1,
   OsRejectionV1,
   OsSimulationTypesV1,
-} from "../simulation.ts";
-import { createOsGameSimulationV1 } from "../simulation.ts";
+} from "../game/simulation.ts";
+import { createOsGameSimulationV1 } from "../game/simulation.ts";
 
 export type OsActionDescriptorV1 = never;
 

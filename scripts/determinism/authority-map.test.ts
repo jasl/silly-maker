@@ -206,7 +206,7 @@ describe("authoritative determinism authority map", () => {
           index === 0
             ? Object.freeze({
               ...control,
-              entry: "examples/cat-cafe/src/simulation.ts",
+              entry: "examples/cat-cafe/src/game/simulation.ts",
             })
             : control,
       );
@@ -220,7 +220,7 @@ describe("authoritative determinism authority map", () => {
           }),
         }),
       ).rejects.toThrow(
-        /authoritative closure includes negative control .*cat-cafe\/src\/simulation\.ts/u,
+        /authoritative closure includes negative control .*cat-cafe\/src\/game\/simulation\.ts/u,
       );
     },
     liveRepositoryIntegrationTimeoutV1,
@@ -234,7 +234,7 @@ describe("authoritative determinism authority map", () => {
           index === 0
             ? Object.freeze({
               ...control,
-              entry: "./examples/cat-cafe/src/simulation.ts",
+              entry: "./examples/cat-cafe/src/game/simulation.ts",
             })
             : control,
       );
@@ -442,6 +442,7 @@ describe("authoritative determinism authority map", () => {
               ? Object.freeze({
                 applicationId: policy.applicationId,
                 callbackOwnerEntry: policy.callbackOwnerEntry,
+                presentationEntry: policy.presentationEntry,
                 coreDefinition: policy.coreDefinition,
                 dependencySeedEntries: policy.dependencySeedEntries,
               })
@@ -502,10 +503,15 @@ describe("authoritative determinism authority map", () => {
     expect(map.applications.map(({ directory }) => directory)).toEqual(
       sillyMakerConfigV1.appDirectories,
     );
+    const policyByApplicationId = new Map(
+      determinismAuthorityPolicyV1.applications.map(
+        (policy) => [policy.applicationId, policy] as const,
+      ),
+    );
     for (const application of map.applications) {
       expect(application.managedSimulationRecords.length).toBeGreaterThan(0);
       expect(application.callbackOwner.entry).toBe(
-        `${application.directory}/src/simulation-definition.ts`,
+        policyByApplicationId.get(application.applicationId)?.callbackOwnerEntry,
       );
       expect(application.callbackOwner.paths).toContain(application.callbackOwner.entry);
       expect(application.managedSimulationRecords.some(
@@ -520,7 +526,7 @@ describe("authoritative determinism authority map", () => {
       expect(application.callbackOwner.paths.some(
         (path) =>
           path.startsWith("engine/packages/ui/") ||
-          /(?:^|\/)src\/presentation(?:\.ts|\/)/u.test(path),
+          /(?:^|\/)src\/(?:content\/)?presentation(?:\.ts|\/)/u.test(path),
       )).toBe(false);
       expect(application.callbackOwner.externalImports.some(
         ({ specifier }) => specifier === "react" || specifier.startsWith("react/"),
@@ -589,7 +595,7 @@ describe("authoritative determinism authority map", () => {
       "engine/packages/base/src/runtime/diagnostics/replay.ts",
       "engine/packages/base/src/runtime/session/game-session.ts",
       "engine/packages/base/src/runtime/session/run-integrity.ts",
-      "examples/cat-cafe/src/features/dev/debug-executor.ts",
+      "examples/cat-cafe/src/game/features/dev/debug-executor.ts",
     ]));
     const excludedBasePaths = [
       "engine/packages/base/src/index.ts",

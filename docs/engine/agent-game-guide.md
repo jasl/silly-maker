@@ -23,9 +23,9 @@ Process requirements:
 2. Copy template/ to examples/⟨new-name⟩, global-rename (template/Template → ⟨new-name⟩),
    register the application and simulate target in the root project.config.ts,
    update metadata.json.
-3. Write the script (src/narrative.ts + the text catalog in src/presentation.ts);
+3. Write the script (src/story/narrative.ts + the text catalog in src/content/presentation.ts);
    gameplay state goes into modules
-   (src/state.ts → src/simulation.ts → src/application/semantic.ts → src/story.ts).
+   (src/game/state.ts → src/game/simulation.ts → src/application/semantic.ts → src/story.ts).
 4. Before touching the script, table the node sequence (one occurrence number per
    say/choice) so the scenario script and tests are written correctly in one pass.
 

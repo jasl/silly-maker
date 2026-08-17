@@ -14,7 +14,7 @@ import type {
   BookshopNarrativeViewV1,
   BookshopQueriesV1,
   BookshopSimulationTypesV1,
-} from "../simulation.ts";
+} from "../game/simulation.ts";
 import { bookshopStoryEntryV1 } from "../story.ts";
 
 /**

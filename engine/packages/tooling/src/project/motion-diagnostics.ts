@@ -1,61 +1,36 @@
 // SPDX-License-Identifier: MIT
-import { lstatSync, readdirSync, readFileSync } from "node:fs";
-import { relative, resolve, sep } from "node:path";
+import { readFileSync } from "node:fs";
 
 import type { DiagnosticEnvelopeV1 } from "@sillymaker/base";
 import { createDiagnosticV1, parseMotionDocumentV1 } from "@sillymaker/base";
+
+import { listAuthoringSourceFilesV1 } from "./authoring-index.ts";
 
 /**
  * Motion source lint for `story check`: every `*.motion.json` under the
  * Story's source tree must pass strict Motion admission, keep one unique
  * motionId per file, and keep the filename in step with the id (the file
  * stem must be the id's final segment) so click-to-locate, the write port's
- * id↔path stability rule, and human navigation all agree. This guards the
- * authored data itself; the "no inline tunable animation constants in scene
- * code" rule stays a documented collaboration contract, not a heuristic
- * source scanner.
+ * id↔path stability rule, and human navigation all agree. The file walk is
+ * the shared Project Authoring Index, so `story check` and the Studio
+ * ports can never disagree about which files exist. This guards the
+ * authored data itself; the "no inline tunable animation constants in
+ * scene code" rule stays a documented collaboration contract, not a
+ * heuristic source scanner.
  */
 
 const motionFileSuffixV1 = ".motion.json";
-
-function walkMotionFilesV1(root: string, collected: string[]): void {
-  let names: string[];
-  try {
-    names = readdirSync(root);
-  } catch {
-    return;
-  }
-  for (const name of names) {
-    if (name === "node_modules" || name.startsWith(".")) continue;
-    const path = resolve(root, name);
-    let stat;
-    try {
-      stat = lstatSync(path);
-    } catch {
-      continue;
-    }
-    if (stat.isSymbolicLink()) continue;
-    if (stat.isDirectory()) {
-      walkMotionFilesV1(path, collected);
-      continue;
-    }
-    if (stat.isFile() && name.endsWith(motionFileSuffixV1)) collected.push(path);
-  }
-}
 
 /** Scans one source root; returns [] when everything is consistent. */
 export function collectMotionSourceDiagnosticsV1(
   sourceRoot: string,
 ): readonly DiagnosticEnvelopeV1[] {
-  const files: string[] = [];
-  walkMotionFilesV1(resolve(sourceRoot), files);
-  files.sort((a, b) => a.localeCompare(b));
-
   const diagnostics: DiagnosticEnvelopeV1[] = [];
   const byMotionId = new Map<string, string>();
 
-  for (const filePath of files) {
-    const file = relative(resolve(sourceRoot), filePath).split(sep).join("/");
+  for (
+    const { path: file, filePath } of listAuthoringSourceFilesV1(sourceRoot, motionFileSuffixV1)
+  ) {
     let parsedJson: unknown;
     try {
       parsedJson = JSON.parse(readFileSync(filePath, "utf8"));

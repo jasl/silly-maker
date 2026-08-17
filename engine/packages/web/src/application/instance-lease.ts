@@ -204,14 +204,25 @@ export async function createWebInstanceLeaseCoordinatorV1(
     return publishV1(roleForStatusV1(status));
   };
 
+  // Background refreshes (cross-tab nudge, visibility, poll) must never
+  // become unhandled rejections: an unexpected lease-store throw publishes
+  // `unavailable` until a later refresh succeeds. Explicit refresh() and
+  // takeOver() calls keep propagating their failure to the caller.
+  const refreshInBackgroundV1 = (): void => {
+    refreshV1().catch(() => {
+      if (disposed) return;
+      publishV1(Object.freeze({ policy, role: "unavailable" as const, holderOwnerId: null }));
+    });
+  };
+
   const onChannelMessageV1 = (): void => {
-    void refreshV1();
+    refreshInBackgroundV1();
   };
   channel?.addEventListener("message", onChannelMessageV1);
 
   const onVisibilityV1 = (): void => {
     if (typeof document !== "undefined" && document.visibilityState === "visible") {
-      void refreshV1();
+      refreshInBackgroundV1();
     }
   };
   if (typeof document !== "undefined") {
@@ -219,7 +230,7 @@ export async function createWebInstanceLeaseCoordinatorV1(
   }
 
   const timer = pollIntervalMs === 0 ? null : setInterval(() => {
-    void refreshV1();
+    refreshInBackgroundV1();
   }, pollIntervalMs);
 
   // Boot: only the seizing policies contend with a live holder; wait and

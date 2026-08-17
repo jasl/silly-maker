@@ -18,8 +18,8 @@ import type {
   OsNarrativeViewV1,
   OsQueriesV1,
   OsSimulationTypesV1,
-} from "../simulation.ts";
-import { osResolveLocaleV1 } from "../presentation.ts";
+} from "../game/simulation.ts";
+import { osResolveLocaleV1 } from "../content/presentation.ts";
 import type {
   OsPresentationViewV1,
   OsSemanticPortV1,
@@ -27,8 +27,8 @@ import type {
   OsUiPublicationV1,
 } from "./ui-kit.ts";
 import { osRootLabelsEnV1, osRootLabelsZhV1 } from "./labels.ts";
-import { osDesktopCanvasV1, osWallpaperStylesV1 } from "../features/desktop/desktop.tsx";
-import { createOsWindowManagerV1 } from "../features/desktop/window-manager.ts";
+import { osDesktopCanvasV1, osWallpaperStylesV1 } from "../game/features/desktop/desktop.tsx";
+import { createOsWindowManagerV1 } from "../game/features/desktop/window-manager.ts";
 import { OsShellV1 } from "./ui.tsx";
 
 export type { OsUiPublicationV1 } from "./ui-kit.ts";

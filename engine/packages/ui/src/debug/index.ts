@@ -1,4 +1,15 @@
 // SPDX-License-Identifier: MIT
+export {
+  createAuthoringDocumentSessionV1,
+  useAuthoringDocumentSessionV1,
+} from "./authoring-session.ts";
+export type {
+  AuthoringDocumentIoV1,
+  AuthoringDocumentSessionV1,
+  AuthoringSessionOpenResultV1,
+  AuthoringSessionSaveResultV1,
+  AuthoringSessionSnapshotV1,
+} from "./authoring-session.ts";
 export { CapabilityPanelV1 } from "./capability-panel.tsx";
 export type { CapabilityPanelPropsV1 } from "./capability-panel.tsx";
 export { DebugCommandPanelV1 } from "./debug-command-panel.tsx";
@@ -38,6 +49,9 @@ export type { DebugValueSourceV1, NarrativeGraphDiagnosticViewV1 } from "./inspe
 export { createDevServerMotionIoV1 } from "./motion-io.ts";
 export type {
   MotionIoErrorCodeV1,
+  MotionIoListEntryV1,
+  MotionIoListResultV1,
+  MotionIoListSkipV1,
   MotionIoReadResultV1,
   MotionIoWriteResultV1,
   MotionSourceIoV1,

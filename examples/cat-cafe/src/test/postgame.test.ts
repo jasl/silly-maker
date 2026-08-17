@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { createGameHarnessV1 } from "@sillymaker/base/testkit";
 
 import { catcafeSemanticAdapterV1 } from "../application/semantic.ts";
-import { catcafeContestTodayV1 } from "../simulation.ts";
+import { catcafeContestTodayV1 } from "../game/simulation.ts";
 import { catcafeStoryEntryV1 } from "../story.ts";
 
 async function harnessAtFinalNightV1() {

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  createSceneSourceFileV1,
   formatSceneDocumentV1,
   listSceneSourceFilesV1,
   readSceneSourceFileV1,
@@ -46,11 +47,15 @@ afterEach(() => {
 });
 
 describe("listSceneSourceFilesV1", () => {
-  it("lists admissible scenes with id and label, skipping broken files", () => {
+  it("lists admissible scenes and names inadmissible files with a reason", () => {
     writeFileSync(join(appRoot, "src", "scenes", "broken.scene.json"), "{ nope\n");
-    expect(listSceneSourceFilesV1(appRoot)).toEqual([
+    const listed = listSceneSourceFilesV1(appRoot);
+    expect(listed.scenes).toEqual([
       { path: scenePathV1, sceneId: "scene.test.opening", label: "开场" },
     ]);
+    expect(listed.skipped).toHaveLength(1);
+    expect(listed.skipped[0]?.path).toBe("src/scenes/broken.scene.json");
+    expect(listed.skipped[0]?.reason.length).toBeGreaterThan(0);
   });
 });
 
@@ -138,5 +143,73 @@ describe("writeSceneSourceFileV1", () => {
     const reread = readSceneSourceFileV1(appRoot, scenePathV1);
     if (reread.kind !== "ok") throw new Error("reread failed");
     expect(reread.digest).toBe(read.digest);
+  });
+});
+
+describe("createSceneSourceFileV1", () => {
+  const newSceneJsonV1 = {
+    format: "sillymaker.scene",
+    version: 1,
+    sceneId: "scene.test.garden",
+    label: "后院",
+    canvas: { width: 1280, height: 720 },
+    entries: [],
+    cues: [],
+  } as const;
+
+  it("creates a new scene (missing directories included) and indexes it", () => {
+    const created = createSceneSourceFileV1(appRoot, {
+      path: "src/scenes/garden/garden.scene.json",
+      sceneDocument: newSceneJsonV1,
+    });
+    if (created.kind !== "ok") throw new Error(`create failed: ${created.code}`);
+    const reread = readSceneSourceFileV1(appRoot, "src/scenes/garden/garden.scene.json");
+    if (reread.kind !== "ok") throw new Error("reread failed");
+    expect(reread.digest).toBe(created.digest);
+    expect(listSceneSourceFilesV1(appRoot).scenes.map((scene) => scene.sceneId)).toEqual([
+      "scene.test.garden",
+      "scene.test.opening",
+    ]);
+  });
+
+  it("rejects existing files, duplicate scene ids, and id-stem mismatches", () => {
+    expect(
+      createSceneSourceFileV1(appRoot, { path: scenePathV1, sceneDocument: sceneJsonV1 }),
+    ).toMatchObject({ code: "already_exists" });
+
+    expect(
+      createSceneSourceFileV1(appRoot, {
+        path: "src/scenes/copy/copy.scene.json",
+        sceneDocument: { ...newSceneJsonV1, sceneId: "scene.test.opening" },
+      }),
+    ).toMatchObject({ code: "scene_id_mismatch" });
+
+    expect(
+      createSceneSourceFileV1(appRoot, {
+        path: "src/scenes/opening2/opening.scene.json",
+        sceneDocument: { ...newSceneJsonV1, sceneId: "scene.test.opening" },
+      }),
+    ).toMatchObject({ code: "already_exists" });
+
+    expect(
+      createSceneSourceFileV1(appRoot, {
+        path: "src/scenes/other/other.scene.json",
+        sceneDocument: { ...newSceneJsonV1, sceneId: "scene.test.garden" },
+      }),
+    ).toMatchObject({ code: "scene_id_mismatch" });
+
+    expect(
+      createSceneSourceFileV1(appRoot, {
+        path: "src/scenes/broken/broken.scene.json",
+        sceneDocument: { nope: true },
+      }),
+    ).toMatchObject({ code: "scene_invalid" });
+
+    expect(
+      createSceneSourceFileV1(appRoot, {
+        path: "../outside/outside.scene.json",
+        sceneDocument: newSceneJsonV1,
+      }),
+    ).toMatchObject({ code: "bad_request" });
   });
 });

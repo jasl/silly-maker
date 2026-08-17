@@ -22,17 +22,29 @@ Read only the documents relevant to the change:
   implemented yet.
 - `docs/engine/plans/2026-07-30-production-floor-sequence.md` — the only
   cross-plan execution order. PF0–PF7 and the Complexity Reset are complete;
-  PF6 remains evidence-gated and inactive. The current active lane is
-  `docs/engine/plans/2026-08-14-vn-scene-workspace.md` (first-class Scene
-  documents, authoring geometry, and the project-level Studio; contract in
-  `docs/engine/design/scene-authoring-and-studio.md`). Desktop persistence
-  remains an independent promotion gate while the adapter is preview.
+  PF6 remains evidence-gated and inactive. The two most recent lanes both
+  delivered on 2026-08-15:
+  `docs/engine/plans/2026-08-15-authoring-architecture.md` (Studio author-trust
+  hardening, the unified authoring shell with workspaces, the project authoring
+  index, shared document sessions, story-package locality, Scene Construction,
+  and the read-only Flow workspace; contracts in
+  `docs/engine/design/authoring-architecture.md` and
+  `docs/engine/design/scene-authoring-and-studio.md`) and
+  `docs/engine/plans/2026-08-15-ambient-loop-motion.md` (presence-bound ambient
+  loop motion; the owner-accepted contract lives in
+  `docs/engine/proposals/ambient-loop-motion.md`). Cue identity (presentation
+  edge context) delivered 2026-08-17; its contract and closure record live in
+  `docs/engine/proposals/cue-identity.md`. The next nameable task comes from
+  the external experiment's evidence loop (capability backlog, locality
+  re-measurement) or new owner evidence. Desktop persistence remains an
+  independent promotion gate while the adapter is preview.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,
   `docs/engine/plans/2026-07-30-snapshot-commit-performance.md`,
   `docs/engine/plans/2026-07-30-save-migration.md`,
   `docs/engine/plans/2026-07-30-surface-contract-harness.md`,
-  `docs/engine/plans/2026-07-31-authoritative-determinism-guardrails.md`, and
-  `docs/engine/plans/2026-08-13-authorable-motion-workbench.md` —
+  `docs/engine/plans/2026-07-31-authoritative-determinism-guardrails.md`,
+  `docs/engine/plans/2026-08-13-authorable-motion-workbench.md`, and
+  `docs/engine/plans/2026-08-14-vn-scene-workspace.md` —
   focused contracts and completed evidence. Only the production-floor sequence
   owns current/next order; do not infer that list order or a historical pointer
   makes the conditional Desktop lane a core blocker.

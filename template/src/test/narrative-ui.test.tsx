@@ -15,7 +15,7 @@ import {
 } from "../application/composition.tsx";
 import { createTemplateApplicationInstanceV1 } from "../application/core-application.ts";
 import { TemplateNarrativeRendererV1 } from "../application/ui.tsx";
-import { templateTextForLocaleV1 } from "../presentation.ts";
+import { templateTextForLocaleV1 } from "../content/presentation.ts";
 
 afterEach(cleanup);
 

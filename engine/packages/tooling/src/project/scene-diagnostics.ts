@@ -1,88 +1,67 @@
 // SPDX-License-Identifier: MIT
-import { lstatSync, readdirSync, readFileSync } from "node:fs";
-import { relative, resolve, sep } from "node:path";
+import { readFileSync } from "node:fs";
 
 import type { DiagnosticEnvelopeV1 } from "@sillymaker/base";
-import { createDiagnosticV1, parseMotionDocumentV1, parseSceneDocumentV1 } from "@sillymaker/base";
+import { createDiagnosticV1, parseSceneDocumentV1 } from "@sillymaker/base";
+
+import { buildAuthoringProjectIndexV1, listAuthoringSourceFilesV1 } from "./authoring-index.ts";
 
 /**
  * Scene source lint for `story check`: every `*.scene.json` under the
  * Story's source tree must pass strict Scene admission, keep one unique
  * sceneId per file, keep the filename in step with the id (the file stem
- * must be the id's final segment), reference only motion ids that a
- * `*.motion.json` in the same tree declares, and never bind two different
- * motions to one stage edge across documents (composed bindings resolve
- * first-match, so the shadowed motion would silently never play). This
- * guards the authored data itself; the single-authoring-authority rule (a
- * scene-managed scene's placements live only in its document) stays a
- * documented collaboration contract, not a heuristic source scanner.
+ * must be the id's final segment), and reference only motion ids that a
+ * `*.motion.json` in the same tree declares.
+ *
+ * Edge collisions changed with cue identity (accepted 2026-08-17): two
+ * cues declaring divergent presentations (motion or explicit cut) on one
+ * stage edge are legal per-cue bindings resolved through presentation edge
+ * context, so they no longer diagnose. What still diagnoses is a declared
+ * presentation colliding with a **bare** cue on the same edge: the bare
+ * cue states no intent, so context-free resolution silently inherits the
+ * sibling's motion. The fix is an explicit declaration (`cut: true` or the
+ * same motion), not a stage-identity fork. Final lint disposition is
+ * re-evaluated after the clone migration completes (owner ruling #3).
+ *
+ * The file walk and motion-id enumeration are the shared Project Authoring
+ * Index, so `story check` and the Studio ports can never disagree about
+ * which files exist. This guards the authored data itself; the
+ * single-authoring-authority rule (a scene-managed scene's placements live
+ * only in its document) stays a documented collaboration contract, not a
+ * heuristic source scanner.
  */
 
 const sceneFileSuffixV1 = ".scene.json";
-const motionFileSuffixV1 = ".motion.json";
-
-function walkFilesV1(root: string, suffix: string, collected: string[]): void {
-  let names: string[];
-  try {
-    names = readdirSync(root);
-  } catch {
-    return;
-  }
-  for (const name of names) {
-    if (name === "node_modules" || name.startsWith(".")) continue;
-    const path = resolve(root, name);
-    let stat;
-    try {
-      stat = lstatSync(path);
-    } catch {
-      continue;
-    }
-    if (stat.isSymbolicLink()) continue;
-    if (stat.isDirectory()) {
-      walkFilesV1(path, suffix, collected);
-      continue;
-    }
-    if (stat.isFile() && name.endsWith(suffix)) collected.push(path);
-  }
-}
-
-/** Motion ids declared by parseable motion sources; broken files are the motion lint's job. */
-function knownMotionIdsV1(sourceRoot: string): ReadonlySet<string> {
-  const files: string[] = [];
-  walkFilesV1(sourceRoot, motionFileSuffixV1, files);
-  const ids = new Set<string>();
-  for (const filePath of files) {
-    try {
-      ids.add(parseMotionDocumentV1(JSON.parse(readFileSync(filePath, "utf8"))).motionId);
-    } catch {
-      continue;
-    }
-  }
-  return ids;
-}
 
 /** Scans one source root; returns [] when everything is consistent. */
 export function collectSceneSourceDiagnosticsV1(
   sourceRoot: string,
 ): readonly DiagnosticEnvelopeV1[] {
-  const root = resolve(sourceRoot);
-  const files: string[] = [];
-  walkFilesV1(root, sceneFileSuffixV1, files);
-  files.sort((a, b) => a.localeCompare(b));
+  const files = listAuthoringSourceFilesV1(sourceRoot, sceneFileSuffixV1);
   if (files.length === 0) return Object.freeze([]);
 
-  const motionIds = knownMotionIdsV1(root);
+  // Motion ids declared by parseable motion sources; broken files are the
+  // motion lint's job.
+  const motionIds = new Set(
+    buildAuthoringProjectIndexV1(sourceRoot).motions.map((motion) => motion.motionId),
+  );
   const diagnostics: DiagnosticEnvelopeV1[] = [];
   const bySceneId = new Map<string, string>();
-  // Cross-document stage-edge bindings (same tuple the runtime resolver
-  // matches on): kind + layer + entry key + content.
-  const boundEdges = new Map<
+  // Cross-document stage-edge declarations (same tuple the context-free
+  // fallback matches on): kind + layer + entry key + content. Explicit
+  // cuts are declarations too.
+  const declaredEdges = new Map<
     string,
-    { readonly file: string; readonly cueId: string; readonly motionId: string }
+    { readonly file: string; readonly cueId: string; readonly presentation: string }
   >();
+  // First bare cue seen per edge; a later declaration reports the pairing
+  // once and consumes the record, while later bare cues on an already
+  // declared edge each report their own leak site.
+  const bareEdges = new Map<string, { readonly file: string; readonly cueId: string }>();
+  const scopeSuggestionV1 = "declare the bare cue's presentation explicitly — `cut: true` " +
+    "for a deliberate instant edge, or the same motion if inheriting it is intended";
 
-  for (const filePath of files) {
-    const file = relative(root, filePath).split(sep).join("/");
+  for (const { path: file, filePath } of files) {
     let parsedJson: unknown;
     try {
       parsedJson = JSON.parse(readFileSync(filePath, "utf8"));
@@ -151,12 +130,62 @@ export function collectSceneSourceDiagnosticsV1(
       );
     }
 
+    // Ambient loops reference motions by the same discipline as cues: the
+    // id must resolve inside this source tree or the loop silently never
+    // plays.
+    for (const entry of sceneDocument.entries) {
+      if (entry.ambient === undefined || motionIds.has(entry.ambient.motionId)) continue;
+      diagnostics.push(
+        createDiagnosticV1({
+          code: "scene.ambient_motion_missing",
+          phase: "lint",
+          message: `entry "${entry.tag as string}" declares ambient motion ` +
+            `"${entry.ambient.motionId}", but no *.motion.json in this source tree declares it`,
+          location: { file },
+          subject: { kind: "scene", id: sceneDocument.sceneId },
+          details: {},
+        }),
+      );
+    }
+
     const entriesByTag = new Map(
       sceneDocument.entries.map((entry) => [entry.tag as string, entry]),
     );
     for (const cue of sceneDocument.cues) {
-      if (cue.motionId === undefined) continue;
-      if (!motionIds.has(cue.motionId)) {
+      // Admission guarantees the cue's tag names a declared entry.
+      const entry = entriesByTag.get(cue.tag as string);
+      if (entry === undefined) continue;
+      const edgeKey = [
+        cue.kind === "show" ? "enter" : "exit",
+        entry.layerId as string,
+        `${entry.layerId}:${entry.tag}`,
+        entry.contentId as string,
+      ].join("|");
+
+      if (cue.motionId === undefined && cue.cut === undefined) {
+        const declared = declaredEdges.get(edgeKey);
+        if (declared !== undefined) {
+          diagnostics.push(
+            createDiagnosticV1({
+              code: "scene.cue_binding_scope_collision",
+              phase: "lint",
+              message: `cue "${cue.cueId}" declares nothing for a stage edge that cue ` +
+                `"${declared.cueId}" (${declared.file}) presents with ` +
+                `${declared.presentation}; without dispatch context the fallback matches ` +
+                "the edge, not the cue, so that presentation also plays for this cue",
+              suggestion: scopeSuggestionV1,
+              location: { file },
+              subject: { kind: "scene", id: sceneDocument.sceneId },
+              details: {},
+            }),
+          );
+        } else if (!bareEdges.has(edgeKey)) {
+          bareEdges.set(edgeKey, { file, cueId: cue.cueId });
+        }
+        continue;
+      }
+
+      if (cue.motionId !== undefined && !motionIds.has(cue.motionId)) {
         diagnostics.push(
           createDiagnosticV1({
             code: "scene.cue_motion_missing",
@@ -170,35 +199,34 @@ export function collectSceneSourceDiagnosticsV1(
         );
       }
 
-      // Admission guarantees the cue's tag names a declared entry.
-      const entry = entriesByTag.get(cue.tag as string);
-      if (entry === undefined) continue;
-      const edgeKey = [
-        cue.kind === "show" ? "enter" : "exit",
-        entry.layerId as string,
-        `${entry.layerId}:${entry.tag}`,
-        entry.contentId as string,
-      ].join("|");
-      const bound = boundEdges.get(edgeKey);
-      if (bound === undefined) {
-        boundEdges.set(edgeKey, { file, cueId: cue.cueId, motionId: cue.motionId });
-        continue;
+      const presentation = cue.motionId === undefined
+        ? "an explicit cut"
+        : `motion "${cue.motionId}"`;
+      const bare = bareEdges.get(edgeKey);
+      if (bare !== undefined) {
+        bareEdges.delete(edgeKey);
+        diagnostics.push(
+          createDiagnosticV1({
+            code: "scene.cue_binding_scope_collision",
+            phase: "lint",
+            message: `cue "${cue.cueId}" presents a stage edge with ${presentation}, but ` +
+              `cue "${bare.cueId}" (${bare.file}) declares nothing for the same edge; ` +
+              "without dispatch context the fallback matches the edge, not the cue, so " +
+              "the presentation also plays for the bare cue",
+            suggestion: scopeSuggestionV1,
+            location: { file },
+            subject: { kind: "scene", id: sceneDocument.sceneId },
+            details: {},
+          }),
+        );
       }
-      if (bound.motionId === cue.motionId) continue;
-      diagnostics.push(
-        createDiagnosticV1({
-          code: "scene.cue_binding_collision",
-          phase: "lint",
-          message: `cue "${cue.cueId}" binds motion "${cue.motionId}" to a stage edge ` +
-            `already bound to "${bound.motionId}" by cue "${bound.cueId}" (${bound.file}); ` +
-            "composed bindings resolve first-match, so one of the motions silently never plays",
-          suggestion: "agree on one motion for this edge, or make the edges distinct " +
-            "(different tag or content) so each cue owns its own binding",
-          location: { file },
-          subject: { kind: "scene", id: sceneDocument.sceneId },
-          details: {},
-        }),
-      );
+
+      // Divergent declared-vs-declared edges are legal per-cue bindings
+      // (resolved through presentation edge context); only the first
+      // declaration is remembered for bare-cue pairing.
+      if (!declaredEdges.has(edgeKey)) {
+        declaredEdges.set(edgeKey, { file, cueId: cue.cueId, presentation });
+      }
     }
   }
 
