@@ -1,0 +1,20 @@
+{
+  "name": "@sillymaker/vendor-cordis",
+  "version": "4.0.0-rc.8",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Private SillyMaker source vendor of the Cordis composition core.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cordiverse/cordis.git",
+    "directory": "packages/core"
+  },
+  "dependencies": {
+    "@standard-schema/spec": "1.1.0",
+    "cosmokit": "1.8.1"
+  }
+}

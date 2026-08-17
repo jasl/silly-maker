@@ -1,3 +1,8 @@
 Required Notice: Copyright 2026 Jun Jiang (jasl).
 
 This repository is MIT-licensed; project-owned media assets are dedicated to the public domain under CC0 1.0. See LICENSE.md for scope and LICENSES/ for the standard legal texts.
+
+SillyMaker includes the MIT-licensed Cordis core from
+https://github.com/cordiverse/cordis at commit
+8cc9e33fab69e2d0476d126baaf2acb24e6a6ab4.
+Copyright (c) 2021-present Shigma. See vendor/cordis/LICENSE.

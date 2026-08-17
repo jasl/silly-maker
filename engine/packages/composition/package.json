@@ -1,0 +1,16 @@
+{
+  "name": "@sillymaker/composition",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts",
+    "./legacy": "./src/legacy.ts",
+    "./state": "./src/state.ts"
+  },
+  "dependencies": {
+    "@sillymaker/state": "workspace:*",
+    "@sillymaker/vendor-cordis": "workspace:*"
+  }
+}
