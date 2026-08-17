@@ -98,8 +98,9 @@ index、Story 包目录 locality 与 Scene Construction，目标合同见
 [Experimental composition kernel and State Runtime](plans/2026-08-18-experimental-composition-state-runtime.md)。
 它以 Cordis-backed composition façade 和中立 State Runtime 检验大型 State-heavy Story
 的 capability composition 与 dependency locality；必须先用仓库内中性 workload 复现，并保持
-唯一 State authority、Save/replay 等价与热路径预算。该实验不是已实现能力，也不自动激活 Mod
-ABI 或 State Format V2。
+唯一 State authority、Save/replay 等价与热路径预算。实验分支已完成 X0–X5 与最小 X6.1
+cycle cut；这些实现和证据不等同于 production promotion，也不自动激活 Mod ABI、State
+Format V2 或更深的 X6/X8 层。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实

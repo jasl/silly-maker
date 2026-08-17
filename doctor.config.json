@@ -1,0 +1,19 @@
+{
+  "$schema": "https://react.doctor/schema/config.json",
+  "ignore": {
+    "files": [
+      "references/**",
+      "vendor/**",
+      "tmp/**",
+      "node_modules/**",
+      "coverage/**",
+      "**/dist/**",
+      "**/dist-*/**"
+    ]
+  },
+  "supplyChain": {
+    "enabled": false
+  },
+  "noScore": true,
+  "blocking": "none"
+}

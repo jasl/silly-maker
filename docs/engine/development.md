@@ -39,6 +39,8 @@ Dependency reference rule: engine and Story sources (everything Vite builds or v
 
 ```text
 engine/packages/base     framework-neutral authoring, contracts, and runtime
+engine/packages/composition experimental Cordis-backed cold-path plugin façade
+engine/packages/state    experimental neutral State Runtime facade over Base
 engine/packages/tooling  non-browser CLI, Vite/identity, JSONL, and Desktop preview tools
 engine/packages/ui       generic React presentation, Narrative/WholeCanvas surfaces, and input
 engine/packages/web      browser Host and application adapters
@@ -51,9 +53,71 @@ scripts                  maintained build, asset, and product tooling
 docs/engine            active engine documentation
 docs/game              active gameplay design
 docs/policies          durable repository policy
+vendor/cordis          private MIT Cordis core source used only by composition
 ```
 
 Package manifests define supported cross-package entries. Do not bypass them with imports into another package's `src/**` directory.
+
+### Experimental State Runtime work
+
+`@sillymaker/state` is currently an experimental compatibility package. Use its
+root entry for neutral `State*` contracts and `createStateRuntimeV1`; the factory
+creates one Base `GameSession` composition and returns that exact Session as the
+only runtime authority. Do not add a Session proxy/spread wrapper or parallel
+State, digest, status, queue, or log cache.
+
+Migration and equivalence tests that need Base internals use only the explicit
+`@sillymaker/state/legacy` entry. Its adapter exposes the exact composition and
+runtime control created for the neutral runtime; do not import
+`engine/packages/state/src/legacy-adapter.ts` directly. Persistence, Save,
+migration, digest, and replay changes still belong to `@sillymaker/base` until a
+later accepted slice deliberately transfers ownership.
+
+When a strangler Story still constructs a legacy `GameSimulation`, convert a
+neutral module composition with
+`createLegacyGameplayModuleBindingsV1(composition, aggregateCommandSchema)`
+from that same legacy entry. It explicitly re-admits and freezes complete Base
+bindings while preserving tuple order. Do not spread `StateModuleBindingV1` or
+cast it to a Game binding: the neutral root intentionally promises only its
+descriptor.
+
+X5's `createStateAuthoringKitV1` exposes neutral State module/workflow names but
+delegates to the one Base authoring kit and transaction runner. Do not add a
+parallel proposal map, candidate State, RNG, queue, or commit path. Engine Lab
+uses the composition package only for experimental equivalence coverage; no
+maintained production Story uses the State runtime, and the experiment does not
+define State Format V2.
+
+`@sillymaker/composition` is cold-path only. Public plugins use its scope and
+typed tokens; they never import `@sillymaker/vendor-cordis`. Compile services
+and registries into direct plans before Session creation. State-backed legacy
+applications use `activateStateApplicationV1` from the `./state` entry so this
+ordering is enforced rather than left to caller convention. Authoritative mount
+is permanently frozen; use a separate kernel for reloadable Studio/
+presentation/tooling profiles. Lifecycle cleanup covers in-process resources
+only.
+
+The generated dev-only Studio entry uses `@sillymaker/studio/composition` for
+that separate live root. It renders only after a candidate mount/reload
+resolves, keeps the old UI when candidate setup fails, and unmounts React before
+disposing the provider scope during HMR teardown. Do not move React rendering
+into plugin setup: a later candidate failure would otherwise mutate the UI
+before the profile is admitted.
+
+While iterating on this package, run the focused runtime test plus the repository
+typecheck so its consumer type test is included:
+
+```sh
+deno run -A npm:vitest run engine/packages/state/src/state-runtime.test.ts
+deno run -A npm:vitest run engine/packages/state/src/state-authoring.test.ts
+deno run -A npm:vitest run engine/packages/state/src/legacy-authoring-adapter.test.ts
+deno run -A npm:vitest run engine/packages/composition/src/kernel.test.ts
+deno run -A npm:vitest run engine/packages/composition/src/state.test.ts
+deno run -A npm:vitest run e2e/src/test/experimental-composition-equivalence.test.ts
+deno run -A npm:vitest run engine/packages/studio/src/composition.test.ts
+deno run -A npm:vitest run engine/packages/tooling/src/vite/studio.test.ts
+deno task typecheck
+```
 
 ## Daily commands
 

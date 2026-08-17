@@ -1,6 +1,6 @@
 # SillyMaker architecture
 
-状态：持续维护的现状文档。最后结构性复核：2026-08-13。
+状态：持续维护的现状文档。最后结构性复核：2026-08-18。
 
 本文描述当前实现的主要边界和数据流。它不是冻结 ABI；修改包职责、权威状态、Story
 组合、持久化格式或公开入口时，应同时更新本文、相应类型和行为测试。
@@ -30,23 +30,95 @@ Story packages and applications
 ```
 
 依赖方向保持从具体游戏指向通用引擎。Base 不依赖 React、DOM、浏览器或具体
-Story；UI 和 Web 可以依赖 Base；具体 Story/application 可以依赖三个引擎包。
+Story；UI 和 Web 可以依赖 Base；具体 Story/application 可以依赖三个引擎包。实验性的
+`@sillymaker/state` 目前只依赖 Base；`@sillymaker/composition` 依赖 State 的中立组合契约与
+私有 vendored Cordis core，State 不反向依赖 Composition。两者尚未进入上图的
+Story/application production flow。
 
 ## 2. Package responsibilities
 
-| Package                 | Workspace public entries                                                                                          | Responsibility                                                                                                                                                                                                                                                                                                                                                                                   |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `@sillymaker/base`      | `.`, `./authoring`, `./runtime`, `./story`, `./testkit` + testkit subentries; workspace-only `./runtime/internal` | Contracts, the Story prelude and authoring kit, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, the agent port, and reusable behavior-test helpers.                                                                                                                                                                                            |
-| `@sillymaker/tooling`   | `.`, `./project` + subentries, `./vite` + subentries, `./identity/*`                                              | Non-browser project and Story CLI, Vite assembly, build identity, JSONL agent protocol/client, dev-only source/motion/scene write-back ports and the Studio page plugin, and package-internal Desktop preview packaging/local-server tools. Never imported by Base or browser bundles.                                                                                                           |
-| `@sillymaker/studio`    | `.`                                                                                                               | The dev-only SillyMaker Studio (VN Scene Workspace): scene navigator, Content browser, real-renderer canvas, placement inspector, cue list, scene/motion construction, the read-only narrative Flow workspace, and the scene CAS IO client (create is the no-file form of the same port). Served exclusively by the dev-server Studio page; player bundles and runtime packages never import it. |
-| `@sillymaker/ui`        | `.`, `./assets`, `./debug`, `./diagnostics`, `./styles.css`; workspace-only `./internal`                          | React shell, GameViewport, UI composition and default GameRoot, stage, characters, assets, interaction/input, overlays, Narrative/WholeCanvas presentation, settings, semantic/presentation bridges, recovery UI, and the published global theme stylesheet.                                                                                                                                     |
-| `@sillymaker/web`       | `.`                                                                                                               | Browser Host, IndexedDB record storage, files/images, Desktop-channel HTTP record/file adapters, `startWebGameApplicationV1`, mounting, routing, pointer input, capabilities, automation, Loader, and HMR rebootstrap.                                                                                                                                                                           |
-| `@sillymaker/story-e2e` | `.`                                                                                                               | The neutral Engine Conformance Story (Engine Lab, `e2e/`): gameplay modules, narrative script, presentation catalogs, semantic actions, and application composition used to validate engine contracts.                                                                                                                                                                                           |
-| Story packages          | `.` per package                                                                                                   | `template/` (the minimal starter, MIT) and `examples/*` (bookshop, cat-cafe, silly-os) each compose one self-contained application project (`sillymaker.config.ts` + `vite.config.ts`); the root `project.config.ts` only lists their directories for repository-level aggregation.                                                                                                              |
+| Package                   | Workspace public entries                                                                                          | Responsibility                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@sillymaker/base`        | `.`, `./authoring`, `./runtime`, `./story`, `./testkit` + testkit subentries; workspace-only `./runtime/internal` | Contracts, the Story prelude and authoring kit, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, the agent port, and reusable behavior-test helpers.                                                                                                                                                                                                                                                    |
+| `@sillymaker/composition` | `.`, `./legacy`, `./state`                                                                                        | Experimental Cordis-backed cold-path façade for typed plugins, profiles, services, registries, direct-plan compilation, authoritative freezing, live reload, reversible in-process lifecycle effects, and the neutral State-module registry bridge. Cordis types and Context remain private to this package.                                                                                                                                             |
+| `@sillymaker/state`       | `.`, `./legacy`                                                                                                   | Experimental neutral State Runtime, StateModule, StateTransaction, and StateWorkflow compatibility façade. Runtime and authoring adapters reuse the exact Base Session and transaction runner; `./legacy` exposes the same raw composition/runtime control for migration equivalence work. It is not a production Story runtime or a second persistence/replay owner.                                                                                    |
+| `@sillymaker/tooling`     | `.`, `./project` + subentries, `./vite` + subentries, `./identity/*`                                              | Non-browser project and Story CLI, Vite assembly, build identity, JSONL agent protocol/client, dev-only source/motion/scene write-back ports and the Studio page plugin, and package-internal Desktop preview packaging/local-server tools. Never imported by Base or browser bundles.                                                                                                                                                                   |
+| `@sillymaker/studio`      | `.`, `./composition`                                                                                              | The dev-only SillyMaker Studio (VN Scene Workspace): scene navigator, Content browser, real-renderer canvas, placement inspector, cue list, scene/motion construction, the read-only narrative Flow workspace, and the scene CAS IO client (create is the no-file form of the same port). `./composition` owns its isolated live tooling profile. Served exclusively by the dev-server Studio page; player bundles and runtime packages never import it. |
+| `@sillymaker/ui`          | `.`, `./assets`, `./debug`, `./diagnostics`, `./styles.css`; workspace-only `./internal`                          | React shell, GameViewport, UI composition and default GameRoot, stage, characters, assets, interaction/input, overlays, Narrative/WholeCanvas presentation, settings, semantic/presentation bridges, recovery UI, and the published global theme stylesheet.                                                                                                                                                                                             |
+| `@sillymaker/web`         | `.`                                                                                                               | Browser Host, IndexedDB record storage, files/images, Desktop-channel HTTP record/file adapters, `startWebGameApplicationV1`, mounting, routing, pointer input, capabilities, automation, Loader, and HMR rebootstrap.                                                                                                                                                                                                                                   |
+| `@sillymaker/story-e2e`   | `.`                                                                                                               | The neutral Engine Conformance Story (Engine Lab, `e2e/`): gameplay modules, narrative script, presentation catalogs, semantic actions, and application composition used to validate engine contracts.                                                                                                                                                                                                                                                   |
+| Story packages            | `.` per package                                                                                                   | `template/` (the minimal starter, MIT) and `examples/*` (bookshop, cat-cafe, silly-os) each compose one self-contained application project (`sillymaker.config.ts` + `vite.config.ts`); the root `project.config.ts` only lists their directories for repository-level aggregation.                                                                                                                                                                      |
 
 Cross-package imports use package exports and declared `workspace:*`
 dependencies. Application-only composition may stay internal to a Story package
 when no other package should consume it.
+
+### Experimental composition kernel
+
+`@sillymaker/composition` is the only SillyMaker plugin façade. Each mounted
+profile creates one private Cordis Context and one composite Fiber/disposer;
+public plugins never receive Context or Fiber. Profile admission validates the
+whole graph before setup, setup registers only façade-owned services, registry
+entries, and reversible effects, and `compileDirectPlan` resolves them once into
+ordinary direct objects/functions. Command, reducer, selector, and frame paths
+therefore do not perform Context or registry lookup.
+
+Authoritative profiles are permanently frozen by successful mount. A legacy
+application is exposed as a cold factory: profile setup captures dependencies
+without creating a Session. State-backed consumers call
+`activateStateApplicationV1`, which first compiles the admitted State modules,
+then activates the factory and finally creates the application/Session; a State
+compile failure leaves that factory inactive. Live profiles use a different
+kernel and replace an old snapshot only after a candidate fully mounts. A
+disposer covers in-process resources and application leases; it does not claim
+to reverse an external Host, network, LLM, or database write.
+
+The dev-only Studio Vite entry is the first live consumer. It mounts binding,
+scene IO, and motion IO into an isolated `@sillymaker/studio/composition` root,
+then commits the React render only after mount/reload succeeds. A failed HMR
+candidate leaves the old snapshot and UI commit intact. HMR teardown first
+unmounts the React consumer, then disposes live providers; both failure paths
+are reported and the fire-and-forget Vite callback cannot leak a rejected
+Promise. This root never receives an authoritative Session or State writer.
+
+The vendored Cordis source is private under `vendor/cordis`; no supported
+package declaration or Story import exposes its types. Composition boot
+identity is diagnostic-only in X1-X4 and is not included in Save
+`simulationDigest`.
+
+### Experimental neutral State facade and module pilot
+
+`@sillymaker/state` is the implemented X4 strangler seam, not a production
+promotion. `createStateRuntimeV1` accepts a neutral `StateRuntimeDefinitionV1`,
+invokes Base `createGameSessionV1` exactly once, and returns a `StateRuntimeV1`
+whose only owned runtime member is the exact physical Session under the neutral
+`StateSessionV1` type. It does not proxy or spread that Session and does not keep
+a second State, digest, status, queue, or CommandLog.
+
+The explicit `@sillymaker/state/legacy` entry returns the same runtime together
+with the exact Base `GameSessionCompositionV1` and
+`GameSessionRuntimeControlV1`. This entry exists for equivalence tests and
+incremental migration work; wrapping or reconstructing those authorities would
+break its contract. Base still owns the implemented physical Snapshot,
+whole-Snapshot digest, CommandLog, Save/persistence, migration, and replay
+semantics.
+
+That legacy entry also owns the only neutral-to-GameSimulation authoring seam.
+`createLegacyGameplayModuleBindingsV1` re-admits each physical binding through
+Base's public constructor, explicitly rebuilds every stateful/stateless field,
+attaches the legacy aggregate command Schema, and returns a frozen mapped tuple.
+Story migration code therefore does not spread a neutral descriptor or cast
+hidden Base binding fields. This adapter is deliberately absent from the
+neutral State root.
+
+X5 adds neutral `StateModule`, capability, `StateTransaction`, and
+`StateWorkflow` contracts. Their adapter creates one Base authoring kit and
+delegates composition and execution to its existing transaction runner; it does
+not keep another proposal map, candidate State, RNG, queue, or commit path. The
+original `calendar`/`inventory`/`actor`/`evening` pilot proves four-owner atomic
+commit, owner rejection rollback, and candidate-validation fault rollback. It
+is an engine fixture, not commercial game content. There is still no
+module-keyed State Format V2 or migrated production Story composition.
 
 `@sillymaker/base/runtime/internal` is the narrow cross-package seam for
 engine-owned implementation that cannot use `src/**` imports. Web consumes its
@@ -71,6 +143,11 @@ Implementation anchors:
 
 - Base root exports: `engine/packages/base/src/index.ts`
 - Base runtime exports: `engine/packages/base/src/runtime/index.ts`
+- Composition facade exports: `engine/packages/composition/src/index.ts`
+- Composition legacy factory exports: `engine/packages/composition/src/legacy.ts`
+- Composition State bridge exports: `engine/packages/composition/src/state.ts`
+- State facade root exports: `engine/packages/state/src/index.ts`
+- State legacy adapter exports: `engine/packages/state/src/legacy.ts`
 - HTTP record store (desktop channel):
   `engine/packages/web/src/host/http-record-store.ts`
 - UI exports: `engine/packages/ui/src/index.ts`

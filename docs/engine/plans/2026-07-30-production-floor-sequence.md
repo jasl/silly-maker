@@ -51,9 +51,10 @@ declared-vs-bare 碰撞零出现）；裁决 #3/#4 同日经所有者批复采�
 实验仓新内容波或所有者新证据带来的激活项。2026-08-18，所有者以约 67k 行的外部
 State-heavy workload、Cordis 参考实现和明确的中立 State Runtime 目标提供了新的架构证据，
 接受[Experimental composition kernel and State Runtime](2026-08-18-experimental-composition-state-runtime.md)
-为独立分支 strangler experiment。其 X0 已完成，当前为 X1；该实验必须先通过唯一权威、
-Save/replay 等价、dependency locality 与 `<10%` 稳定 command overhead gates，才可能回流正式
-架构，不自动激活 Mod ABI、State Format V2 或新的 release blocker。
+为独立分支 strangler experiment。其 X0–X5 与最小 X6.1 cycle cut 已完成，并已通过唯一权威、
+Save/replay 等价、dependency locality 与 `<10%` 稳定 command overhead gates。更深的 X6
+runtime ownership、State Format V2、X8 与 production promotion 仍需新的产品证据，不因实验
+完成而自动启动，也不构成新的 release blocker。
 
 上一条 lane：[Authoring Architecture V1](2026-08-15-authoring-architecture.md)
 （Studio 作者信任加固 → 统一创作外壳与共享文档会话 → project authoring index →

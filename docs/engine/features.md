@@ -10,6 +10,47 @@ checks 均通过。PF6 broad harness 没有因 Cat Cafe 的 Story-local preview 
 当前也没有新增 public authoring ABI。Desktop file persistence/packaging、通用 editor、Mod 与
 genre/compiler work 仍不在这项 production claim 内。
 
+2026-08-18 新增的 `@sillymaker/composition` X1/X2 kernel 与
+`@sillymaker/state` X4/X5 compatibility façade 是独立实验能力；它们没有扩展上述
+production claim，也没有迁移任何维护中的 Story、Save 格式或应用组合。
+
+## Experimental composition kernel
+
+- `@sillymaker/composition` 提供 typed service/registry token、plugin、profile、scope、稳定
+  graph identity、direct-plan compiler 与可逆 lifecycle。每个 profile 只创建一个私有 Cordis
+  Context/composite Fiber；公开 API、Story 和 hot path 均不接触 Cordis。
+- Graph preflight 在 setup 前拒绝 missing/duplicate provider、duplicate registry entry、同 ID
+  的不同 token object 与 dependency cycle。setup 失败逆序回滚；cleanup failure 形成诊断且继续
+  sibling cleanup。
+- authoritative mount 成功即永久冻结。State-backed legacy application 通过
+  `activateStateApplicationV1` 保证先编译 State module direct plan，再激活 factory 并创建
+  Session；State compile 失败时 factory 仍为 inactive。live profile candidate 完整 mount 后才替换
+  旧 snapshot。X1-X4 boot identity 不进入 Save `simulationDigest`。
+- dev-only Studio 是第一个真实 live consumer：独立 root 将 binding/scene IO/motion IO 编译为
+  direct plan，HMR candidate 成功后才提交 React render，失败保留旧 snapshot/UI。清理按
+  React consumer 在先、composition providers 在后的顺序执行，两路失败都转为诊断而不产生
+  unhandled rejection；该 root 不持有 authoritative Session/State。
+
+## Experimental neutral State Runtime
+
+- `@sillymaker/state` root 提供 `StateRuntimeV1`、`StateSessionV1`、
+  `StateSnapshotV1`、`StateRuntimeDefinitionV1` 与相关 command/result 类型，公开声明不暴露
+  Cordis 或 legacy Game 命名。`createStateRuntimeV1` 通过 Base
+  `createGameSessionV1` 只创建一次底层 composition，并把其 exact Session 作为唯一权威返回；
+  facade 不代理、不展开，也不复制 State、digest、status、queue 或 CommandLog。
+- `@sillymaker/state/legacy` 提供迁移期 adapter，可同时取得同一个 neutral runtime、exact
+  `GameSessionCompositionV1` 和 exact `GameSessionRuntimeControlV1`。它用于行为/类型等价验证，
+  不是新的 Story-facing production API。同一子入口的
+  `createLegacyGameplayModuleBindingsV1` 通过 Base 公开 constructor 重新 admission 完整 binding、显式
+  复制全部 stateful/stateless 字段并附着 aggregate command Schema，避免迁移 Story 依赖
+  中立 descriptor 未承诺的 Base 字段或 `as unknown`。
+- `createStateAuthoringKitV1` 提供中立 `StateModule`、capability、`StateTransaction` 与
+  `StateWorkflow`，内部直接复用一个 Base authoring kit/transaction runner。原创四模块 pilot
+  验证一次提交与完整回滚；没有第二份 staged proposal、candidate State、RNG 或 commit path。
+- 当前 Snapshot/State 物理格式、whole-Snapshot digest、Save、Persistence、migration、
+  CommandLog 与 replay 仍由 `@sillymaker/base` 的既有实现权威拥有。尚无 State Format V2 或
+  production Story 迁移。
+
 ## Story authoring and resolution
 
 - Typed `GamePackage`, `GameSimulation`, and `GameplayModule` definitions.
