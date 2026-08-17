@@ -345,6 +345,46 @@ function OverlayBlockingFallbackV1<TOverlayId extends string>(props: {
   );
 }
 
+interface OverlayMutableCellV1<T> {
+  current: T;
+}
+
+/** Commits before later sibling dialogs run their layout-time autofocus. */
+function OverlayCurrentnessCommitV1<TOverlayId extends string>(props: {
+  readonly snapshot: WorkspaceOverlayRenderSnapshotInternalV1<TOverlayId>;
+  readonly snapshotRef: OverlayMutableCellV1<WorkspaceOverlayRenderSnapshotInternalV1<TOverlayId>>;
+  readonly returnFocusTargetsRef: OverlayMutableCellV1<Map<string, HTMLElement | null>>;
+  readonly activationTargetRef: OverlayMutableCellV1<HTMLElement | null>;
+}): null {
+  useLayoutEffect(() => {
+    props.snapshotRef.current = props.snapshot;
+    for (const instance of props.snapshot.publication.orderedInstances) {
+      if (props.returnFocusTargetsRef.current.has(instance.surfaceInstanceId)) continue;
+      if (
+        instance.readiness.kind === "preparing" &&
+        instance.readiness.transition === "primary_replacement"
+      ) {
+        props.returnFocusTargetsRef.current.set(
+          instance.surfaceInstanceId,
+          props.returnFocusTargetsRef.current.get(instance.readiness.retainedInstanceId) ?? null,
+        );
+        continue;
+      }
+      const activationTarget = props.activationTargetRef.current;
+      props.returnFocusTargetsRef.current.set(
+        instance.surfaceInstanceId,
+        activationTarget?.isConnected === true ? activationTarget : readReturnFocusTargetV1(),
+      );
+    }
+  }, [
+    props.activationTargetRef,
+    props.returnFocusTargetsRef,
+    props.snapshot,
+    props.snapshotRef,
+  ]);
+  return null;
+}
+
 export function OverlayHostV1<TOverlayId extends string>(
   props: OverlayHostPropsV1<TOverlayId>,
 ): ReactElement {
@@ -358,7 +398,6 @@ export function OverlayHostV1<TOverlayId extends string>(
   );
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const snapshotRef = useRef(snapshot);
-  snapshotRef.current = snapshot;
   const previousSnapshotRef = useRef(snapshot);
   const returnFocusTargetsRef = useRef<Map<string, HTMLElement | null>>(new Map());
   const activationTargetRef = useRef<HTMLElement | null>(null);
@@ -398,25 +437,6 @@ export function OverlayHostV1<TOverlayId extends string>(
       activationTargetRef.current = null;
     };
   }, []);
-
-  for (const instance of snapshot.publication.orderedInstances) {
-    if (returnFocusTargetsRef.current.has(instance.surfaceInstanceId)) continue;
-    if (
-      instance.readiness.kind === "preparing" &&
-      instance.readiness.transition === "primary_replacement"
-    ) {
-      returnFocusTargetsRef.current.set(
-        instance.surfaceInstanceId,
-        returnFocusTargetsRef.current.get(instance.readiness.retainedInstanceId) ?? null,
-      );
-    } else {
-      const activationTarget = activationTargetRef.current;
-      returnFocusTargetsRef.current.set(
-        instance.surfaceInstanceId,
-        activationTarget?.isConnected === true ? activationTarget : readReturnFocusTargetV1(),
-      );
-    }
-  }
 
   const blocking = snapshot.publication.topmostBlockingInstanceId !== null ||
     snapshot.publication.preparationFallbacks.length > 0;
@@ -568,6 +588,12 @@ export function OverlayHostV1<TOverlayId extends string>(
       data-overlay-topology-revision={snapshot.publication.topologyRevision}
       style={{ pointerEvents: active ? "auto" : "none" }}
     >
+      <OverlayCurrentnessCommitV1
+        snapshot={snapshot}
+        snapshotRef={snapshotRef}
+        returnFocusTargetsRef={returnFocusTargetsRef}
+        activationTargetRef={activationTargetRef}
+      />
       {portalContainer === null ? null : (
         <>
           {readyEntries.map((entry) => (
