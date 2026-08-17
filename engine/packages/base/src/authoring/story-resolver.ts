@@ -176,12 +176,16 @@ function safeRejectedHotfixIdsV1(hotfixes: readonly HotfixEntryV1[]): readonly s
       ? Math.min(lengthValue, 1_000)
       : 0;
   const ids: string[] = [];
+  const seenIds = new Set<string>();
   for (let index = 0; index < length; index += 1) {
     const hotfix = ownDataPropertyV1(hotfixes, String(index));
     const manifest = ownDataPropertyV1(hotfix, "manifest");
     const identity = ownDataPropertyV1(manifest, "identity");
     const id = ownDataPropertyV1(identity, "id");
-    if (typeof id === "string" && !ids.includes(id)) ids.push(id);
+    if (typeof id === "string" && !seenIds.has(id)) {
+      seenIds.add(id);
+      ids.push(id);
+    }
   }
   return Object.freeze(ids);
 }

@@ -109,7 +109,7 @@ export function OsTaskbarV1(props: {
 }): ReactElement {
   const ordered = [...props.snapshot.windows].toSorted((a, b) => a.order - b.order);
   return (
-    <footer
+    <div
       role="toolbar"
       aria-label={props.taskbarLabel}
       data-os-taskbar="true"
@@ -179,7 +179,7 @@ export function OsTaskbarV1(props: {
       </div>
       {props.tray ?? null}
       <OsClockV1 />
-    </footer>
+    </div>
   );
 }
 
