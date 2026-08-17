@@ -16,7 +16,6 @@ import type {
   StateModuleCompositionV1,
   StateWorkflowTypeMapV1,
 } from "./state-authoring.ts";
-import type { LegacyStateRuntimeTypeMapV1 } from "./legacy-adapter.ts";
 
 type ErasedStatefulGameplayModuleBindingV1 = StatefulGameplayModuleBindingV1<
   GameSimulationTypeMapV1,
@@ -43,15 +42,15 @@ type ErasedGameplayModuleBindingV1 =
   | ErasedStatelessGameplayModuleBindingV1;
 
 export type LegacyGameplayModuleBindingV1<
-  TTypes extends StateWorkflowTypeMapV1,
+  TTypes extends StateWorkflowTypeMapV1 & GameSimulationTypeMapV1,
 > = GameplayModuleBindingV1<
-  LegacyStateRuntimeTypeMapV1<TTypes>,
+  TTypes,
   unknown,
   TTypes["command"]
 >;
 
 export type LegacyGameplayModuleBindingTupleV1<
-  TTypes extends StateWorkflowTypeMapV1,
+  TTypes extends StateWorkflowTypeMapV1 & GameSimulationTypeMapV1,
   TModules extends readonly StateAnyModuleV1[],
 > = {
   readonly [TIndex in keyof TModules]: LegacyGameplayModuleBindingV1<TTypes>;
@@ -131,7 +130,7 @@ function rebuildBindingV1(
  * aggregate command Schema without relying on property enumeration.
  */
 export function createLegacyGameplayModuleBindingsV1<
-  TTypes extends StateWorkflowTypeMapV1,
+  TTypes extends StateWorkflowTypeMapV1 & GameSimulationTypeMapV1,
   const TModules extends readonly StateAnyModuleV1[],
 >(
   composition: StateModuleCompositionV1<TTypes, TModules>,

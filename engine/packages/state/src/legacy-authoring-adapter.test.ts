@@ -2,6 +2,10 @@
 import {
   parseModuleId,
   parsePositiveSafeInteger,
+  type GameBootstrapInputV1,
+  type GameSimulationTypeMapV1,
+  type RngDrawTraceV1,
+  type RngStateV1,
   type RuntimeSchemaV1,
   type StatelessGameplayModuleBindingV1,
 } from "@sillymaker/base";
@@ -9,15 +13,8 @@ import { defineGameplayModule } from "@sillymaker/base/authoring";
 import { describe, expect, test } from "vitest";
 
 import { createStateAuthoringKitV1 } from "./index.ts";
-import {
-  createLegacyGameplayModuleBindingsV1,
-  type LegacyStateRuntimeTypeMapV1,
-} from "./legacy.ts";
-import type {
-  StateAnyModuleV1,
-  StateModuleCompositionV1,
-  StateWorkflowTypeMapV1,
-} from "./index.ts";
+import { createLegacyGameplayModuleBindingsV1 } from "./legacy.ts";
+import type { StateAnyModuleV1, StateModuleCompositionV1 } from "./index.ts";
 
 interface LegacyAdapterStateV1 {
   readonly simulation: {
@@ -26,11 +23,15 @@ interface LegacyAdapterStateV1 {
   };
 }
 
-interface LegacyAdapterTypesV1 extends StateWorkflowTypeMapV1<LegacyAdapterStateV1> {
+interface LegacyAdapterTypesV1
+  extends GameSimulationTypeMapV1<GameBootstrapInputV1, LegacyAdapterStateV1, RngStateV1> {
+  readonly rngDrawTrace: RngDrawTraceV1;
   readonly command: { readonly kind: "legacy.run" };
   readonly fact: never;
   readonly rejection: never;
   readonly fault: never;
+  readonly queries: { readValue(): number };
+  readonly viewModel: { readonly value: number };
 }
 
 const sliceSchemaV1: RuntimeSchemaV1<{ readonly value: number }> = Object.freeze({
@@ -193,14 +194,13 @@ describe("legacy State authoring adapter", () => {
   });
 
   test("preserves explicitly declared stateless capabilities without enumeration", () => {
-    type LegacyTypesV1 = LegacyStateRuntimeTypeMapV1<LegacyAdapterTypesV1>;
     const capabilities = {
       compileMarker() {
         return "marker";
       },
     };
     const sourceInput: StatelessGameplayModuleBindingV1<
-      LegacyTypesV1,
+      LegacyAdapterTypesV1,
       never,
       never,
       never,
@@ -226,7 +226,7 @@ describe("legacy State authoring adapter", () => {
       enumerable: false,
       configurable: true,
     });
-    const source = defineGameplayModule<LegacyTypesV1>()(sourceInput);
+    const source = defineGameplayModule<LegacyAdapterTypesV1>()(sourceInput);
     expect(Object.keys(source)).not.toContain("capabilities");
     const composition = {
       modules: Object.freeze([source]),
