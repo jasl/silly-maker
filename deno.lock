@@ -30,6 +30,7 @@
     "npm:react-router-dom@7.18.2": "7.18.2_react@19.2.8_react-dom@19.2.8__react@19.2.8",
     "npm:react@19.2.8": "19.2.8",
     "npm:stylelint-config-standard@40.0.0": "40.0.0_stylelint@17.14.1__typescript@7.0.2_typescript@7.0.2",
+    "npm:stylelint@*": "17.14.1_typescript@7.0.2",
     "npm:stylelint@17.14.1": "17.14.1_typescript@7.0.2",
     "npm:typescript@*": "7.0.2",
     "npm:typescript@7.0.2": "7.0.2",
