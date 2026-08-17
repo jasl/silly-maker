@@ -1,5 +1,13 @@
 // SPDX-License-Identifier: MIT
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { ReactElement, ReactNode } from "react";
 
 import type {
@@ -373,17 +381,62 @@ export interface SemanticStagePropsV1 {
   reportFailure?(code: string, detail: string): void;
 }
 
+function SemanticStageCurrentnessCommitInternalV1(props: {
+  readonly failureRef: { current: SemanticStagePropsV1["reportFailure"] };
+  readonly timelineEventRef: { current: SemanticStagePropsV1["onTimelineEvent"] };
+  readonly compositionDriverRef: {
+    current: SemanticStageCompositionDriverInternalV1 | null;
+  };
+  readonly timelinesRef: { current: TimelineCatalogV1 | undefined };
+  readonly ambientSettledAtRef: { current: Map<string, number> };
+  readonly failure: SemanticStagePropsV1["reportFailure"];
+  readonly timelineEvent: SemanticStagePropsV1["onTimelineEvent"];
+  readonly compositionDriver: SemanticStageCompositionDriverInternalV1 | null;
+  readonly timelines: TimelineCatalogV1 | undefined;
+  readonly ambientSettledAt: Map<string, number> | null;
+}): null {
+  const {
+    failureRef,
+    timelineEventRef,
+    compositionDriverRef,
+    timelinesRef,
+    ambientSettledAtRef,
+    failure,
+    timelineEvent,
+    compositionDriver,
+    timelines,
+    ambientSettledAt,
+  } = props;
+  useLayoutEffect(() => {
+    failureRef.current = failure;
+    timelineEventRef.current = timelineEvent;
+    compositionDriverRef.current = compositionDriver;
+    timelinesRef.current = timelines;
+    if (ambientSettledAt !== null) ambientSettledAtRef.current = ambientSettledAt;
+  }, [
+    ambientSettledAt,
+    ambientSettledAtRef,
+    compositionDriver,
+    compositionDriverRef,
+    failure,
+    failureRef,
+    timelineEvent,
+    timelineEventRef,
+    timelines,
+    timelinesRef,
+  ]);
+  return null;
+}
+
 export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
   const { target, revision, epoch } = props;
   const compositionBinding = useContext(SemanticStageCompositionClaimantContextInternalV1);
   const [version, setVersion] = useState(0);
-  const reducedMotionRef = useRef(readReducedMotionV1());
+  const [reducedMotionRef] = useState(() => ({ current: readReducedMotionV1() }));
   const failureRef = useRef(props.reportFailure);
   const timelineEventRef = useRef(props.onTimelineEvent);
   /** Each looping entry's settle instant; forgotten while its edge flies. */
   const ambientSettledAtRef = useRef(new Map<string, number>());
-  failureRef.current = props.reportFailure;
-  timelineEventRef.current = props.onTimelineEvent;
 
   // One raw clock, one drain-wrapped clock, one reconciler, and one timeline
   // player per mounted Stage. Preserve the raw receiver for custom clocks;
@@ -430,7 +483,6 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
       ? null
       : createSemanticStageCompositionDriverInternalV1(reconciler, compositionClaimant)
   );
-  compositionDriverRef.current = compositionDriver;
   const terminalCleanupGenerationRef = useRef(0);
   const retargetedRef = useRef(false);
 
@@ -444,7 +496,6 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
   const [activeCueId, setActiveCueId] = useState<string | null>(null);
   const activeCueRef = useRef<TimelineCueRunV1 | null>(null);
   const timelinesRef = useRef(props.timelines);
-  timelinesRef.current = props.timelines;
 
   useEffect(() => {
     if (compositionDriver === null) return () => {};
@@ -582,7 +633,7 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
     onChange();
     query.addEventListener("change", onChange);
     return () => query.removeEventListener("change", onChange);
-  }, []);
+  }, [reducedMotionRef]);
 
   // Frames are rebuilt per render; `version` bumps re-render the component
   // whenever the reconciler notifies (ticks, settles, retargets).
@@ -598,8 +649,10 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
   // resume offset keeps the phase continuous.
   const ambientCatalog = props.ambient ?? null;
   let ambientSamples: Map<string, MotionSampleV1> | null = null;
+  let ambientSettledAtCommit: Map<string, number> | null = null;
   if (ambientCatalog !== null && !reducedMotionRef.current) {
-    const settledAtByKey = ambientSettledAtRef.current;
+    const settledAtByKey = new Map(ambientSettledAtRef.current);
+    ambientSettledAtCommit = settledAtByKey;
     const seen = new Set<string>();
     const now = clock.now();
     for (const layer of frame.layers) {
@@ -655,20 +708,34 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
   }, [ambientActive, clock]);
 
   return (
-    <SemanticStageHostV1
-      frame={frame}
-      renderers={props.renderers}
-      accessibleName={props.accessibleName}
-      overlay={overlay?.values ?? null}
-      ambient={ambientSamples}
-      activeCueId={activeCueId}
-      {...(props.onHitRegionActivate === undefined
-        ? {}
-        : { onHitRegionActivate: props.onHitRegionActivate })}
-      {...(props.inspect === undefined ? {} : { inspect: props.inspect })}
-      {...(props.reportDiagnostic === undefined
-        ? {}
-        : { reportDiagnostic: props.reportDiagnostic })}
-    />
+    <>
+      <SemanticStageCurrentnessCommitInternalV1
+        failureRef={failureRef}
+        timelineEventRef={timelineEventRef}
+        compositionDriverRef={compositionDriverRef}
+        timelinesRef={timelinesRef}
+        ambientSettledAtRef={ambientSettledAtRef}
+        failure={props.reportFailure}
+        timelineEvent={props.onTimelineEvent}
+        compositionDriver={compositionDriver}
+        timelines={props.timelines}
+        ambientSettledAt={ambientSettledAtCommit}
+      />
+      <SemanticStageHostV1
+        frame={frame}
+        renderers={props.renderers}
+        accessibleName={props.accessibleName}
+        overlay={overlay?.values ?? null}
+        ambient={ambientSamples}
+        activeCueId={activeCueId}
+        {...(props.onHitRegionActivate === undefined
+          ? {}
+          : { onHitRegionActivate: props.onHitRegionActivate })}
+        {...(props.inspect === undefined ? {} : { inspect: props.inspect })}
+        {...(props.reportDiagnostic === undefined
+          ? {}
+          : { reportDiagnostic: props.reportDiagnostic })}
+      />
+    </>
   );
 }

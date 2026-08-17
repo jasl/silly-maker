@@ -3,7 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
-import { useState } from "react";
+import { startTransition, Suspense, useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DevDockPortalCoordinatorV1,
@@ -133,6 +133,71 @@ beforeEach(() => {
 });
 
 describe("RuntimeFailureDialogV1", () => {
+  it("restores the committed target after an abandoned return-focus successor", async () => {
+    const inputRouter = createInputRouterV1();
+    const committedTarget = document.createElement("button");
+    const successorTarget = document.createElement("button");
+    committedTarget.type = "button";
+    successorTarget.type = "button";
+    document.body.append(committedTarget, successorTarget);
+    const never = new Promise<void>(() => {});
+    const suspendedRender = vi.fn();
+    let attemptSuccessorRender: (() => void) | null = null;
+    let closeCommittedDialog: (() => void) | null = null;
+
+    function SuspendSuccessorInternalV1(props: { readonly active: boolean }) {
+      if (props.active) {
+        suspendedRender();
+        throw never;
+      }
+      return null;
+    }
+
+    function FocusCurrentnessHarnessInternalV1() {
+      const [open, setOpen] = useState(true);
+      const [successor, setSuccessor] = useState(false);
+      useLayoutEffect(() => {
+        attemptSuccessorRender = () => startTransition(() => setSuccessor(true));
+        closeCommittedDialog = () => setOpen(false);
+        return () => {
+          attemptSuccessorRender = null;
+          closeCommittedDialog = null;
+        };
+      }, []);
+      if (!open) return null;
+      return (
+        <Suspense fallback={null}>
+          <RuntimeFailureDialogV1
+            {...labelsV1}
+            inputRouter={inputRouter}
+            actions={{ retry: null, reloadApplication: () => undefined, requestExit: null }}
+            diagnosticExport={<button type="button">导出诊断包</button>}
+            returnFocusTo={successor ? successorTarget : committedTarget}
+          />
+          <SuspendSuccessorInternalV1 active={successor} />
+        </Suspense>
+      );
+    }
+
+    const view = render(<FocusCurrentnessHarnessInternalV1 />);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: labelsV1.reloadApplicationLabel })).toHaveFocus();
+    });
+    expect(attemptSuccessorRender).not.toBeNull();
+    expect(closeCommittedDialog).not.toBeNull();
+
+    act(() => attemptSuccessorRender!());
+    await waitFor(() => expect(suspendedRender).toHaveBeenCalled());
+    act(() => closeCommittedDialog!());
+    await waitFor(() => expect(committedTarget).toHaveFocus());
+
+    expect(successorTarget).not.toHaveFocus();
+
+    view.unmount();
+    committedTarget.remove();
+    successorTarget.remove();
+  });
+
   it("registers the actual failure Dialog.Content as the highest DevDock target", async () => {
     const inputRouter = createInputRouterV1();
     render(
