@@ -2130,7 +2130,7 @@ function compareCodeUnitsV1(left: string, right: string): number {
 function parserPluginsV1(file: string): ParserPlugin[] {
   const lowerFile = file.toLowerCase();
   const plugins: ParserPlugin[] = [
-    ["decorators", {}],
+    "decorators",
     "decoratorAutoAccessors",
   ];
   if (/\.(?:ts|tsx|mts|cts)$/u.test(lowerFile)) plugins.push("typescript");
@@ -3762,9 +3762,13 @@ export function analyzeDeterminismSourceV1(
       case "TSModuleBlock":
         visitStatementListV1(asNodesV1(node.body), scope);
         return;
-      case "TSEnumDeclaration":
+      case "TSEnumDeclaration": {
         if (node.declare !== true) {
-          for (const member of asNodesV1(node.members)) {
+          const body = asNodeV1(node.body);
+          const members = body?.type === "TSEnumBody"
+            ? asNodesV1(body.members)
+            : asNodesV1(node.members);
+          for (const member of members) {
             const initializer = asNodeV1(member.initializer);
             if (initializer !== null) {
               visitV1(initializer, scope);
@@ -3773,6 +3777,7 @@ export function analyzeDeterminismSourceV1(
           }
         }
         return;
+      }
       case "TSExportAssignment": {
         const expression = asNodeV1(node.expression);
         if (expression !== null) {

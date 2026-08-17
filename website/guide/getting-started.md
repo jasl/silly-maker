@@ -90,7 +90,7 @@ Workers:
 ```text
 Publish ⟨app directory⟩ to Cloudflare Workers:
 
-1. If wrangler is not authenticated yet, run `deno run -A npm:wrangler@4.114.0 login`
+1. If wrangler is not authenticated yet, run `deno run -A npm:wrangler@4.123.0 login`
    and hand the browser authorization to me.
 2. Check wrangler.jsonc in the app directory: the `name` field is the Worker
    name and becomes the public `<name>.<account>.workers.dev` URL — rename it

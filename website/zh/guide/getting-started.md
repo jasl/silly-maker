@@ -83,7 +83,7 @@ Cloudflare Workers 的 `deploy:cf` 任务：
 ```text
 把 ⟨应用目录⟩ 发布到 Cloudflare Workers：
 
-1. 如果 wrangler 还没登录，先运行 `deno run -A npm:wrangler@4.114.0 login`，
+1. 如果 wrangler 还没登录，先运行 `deno run -A npm:wrangler@4.123.0 login`，
    浏览器授权交给我来点。
 2. 检查应用目录里的 wrangler.jsonc：`name` 字段是 Worker 名，也是公开的
    `<name>.<账号>.workers.dev` 地址——如果还是模板名就改成游戏的名字。

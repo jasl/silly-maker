@@ -68,6 +68,6 @@
     "docs:build": "deno run -A npm:vitepress build website",
     "docs:preview": "deno run -A npm:vitepress preview website",
     "site:build": "deno run -A scripts/build-site.mts",
-    "site:deploy:cf": "deno run -A npm:wrangler@4.114.0 deploy"
+    "site:deploy:cf": "deno run -A npm:wrangler@4.123.0 deploy"
   }
 }
