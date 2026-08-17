@@ -38,7 +38,14 @@ export function OsBootScreenV1(props: {
   return (
     <div
       data-os-boot="true"
+      role="button"
+      tabIndex={0}
       onClick={() => setLeaving(true)}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        setLeaving(true);
+      }}
       style={{
         position: "absolute",
         inset: 0,

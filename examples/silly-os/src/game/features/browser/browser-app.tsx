@@ -92,6 +92,7 @@ export function OsBrowserAppV1(props: {
           type="text"
           className="os-input"
           data-os-browser-address="true"
+          aria-label={uiText("text.os.browser.address")}
           value={address}
           onChange={(event) => setAddress(event.target.value)}
           style={{ flex: 1, padding: "2px 4px" }}
