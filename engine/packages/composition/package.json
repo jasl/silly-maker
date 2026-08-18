@@ -12,5 +12,8 @@
   "dependencies": {
     "@sillymaker/state": "workspace:*",
     "@sillymaker/vendor-cordis": "workspace:*"
+  },
+  "devDependencies": {
+    "@sillymaker/base": "workspace:*"
   }
 }

@@ -576,7 +576,55 @@ before schema/digest mutation.
 
 `deno task bench:snapshot:memory` is a separate schema-v1 process-isolated memory baseline; it does not change the `bench:snapshot` report. It holds one neutral 1k-entity Session for 1,200 real cross-owner atomic commits, samples `Deno.memoryUsage()` before and after an explicit `gc -> macrotask -> gc` cycle at command sequences 0/200/400/800/1,200, and treats sequence 400 onward as steady state after the 200-entry CommandLog has filled. Dispatch timing excludes collection and sampling; its interval percentiles use each batch's average per-command duration so differently sized checkpoint intervals remain comparable. It likewise writes to an operating-system temporary directory by default and accepts `--output <path>` for a CI artifact. Run it as its own process through the task so the exposed collector and retained-heap measurements are isolated.
 
+`deno task bench:composition-state` measures the neutral Composition/State path
+that the physical Snapshot benchmark does not cover. Its generated fixture has
+16 neutral State modules and runs the complete `10 KiB / 100 KiB / 1 MiB`
+exported-Save by `1 / 4 / 16` atomically touched-module matrix. Save payload is
+ASCII data distributed across all 16 module-owned strings; calibration happens
+before timing, the final export has the declared exact byte size, and every
+string remains below the Save codec's 262,144-byte UTF-8 limit.
+
+Each matrix cell first proves a fixed 256-commit transcript: the CommandLog
+retains ordinals 57 through 256, its replay base is sequence 56, authoritative
+replay executes all 200 retained entries, and export to an isolated import
+Session round-trips the Save bytes and Snapshot digest without replacing the
+source Session. That retention-crossing duration is labelled separately. The
+steady command measurement uses a fresh Session, performs 256 untimed commits
+to fill the retention window and warm the path, then measures 64 more commits.
+Cold activation is also independent and reports profile mount, direct State
+plan plus application-factory resolution, sole Session creation, and complete
+disposal as four separate distributions. Defaults are one warmup and five
+samples; `--save-class`, `--touched-modules`, `--warmup`, `--samples`, and
+`--output` narrow or customize a run.
+
+`deno task bench:composition-state:memory` accepts exactly one of the five GC
+cells per process: `10kib/1`, `10kib/16`, `100kib/4`, `1mib/1`, or `1mib/16`.
+Pass the two axes explicitly, for example:
+
+```sh
+deno task bench:composition-state:memory --save-class 100kib --touched-modules 4
+```
+
+It samples sequences 0/200/400/800/1,200 after the same explicit
+`gc -> macrotask -> gc` protocol. Run five separate invocations when all five
+points are needed; one report never combines process heaps. Both Composition/
+State CLIs write schema-v1 JSON to an operating-system temporary directory by
+default and print only its path. Reports include Deno/V8/TypeScript and OS/arch,
+but no hostname, current directory, repository path, or machine identifier.
+The focused `deno task test:composition-state-bench` behavior suite is part of
+`deno task test`; it creates no report and locks only the matrix, correctness,
+portable report schema, and fake GC schedule.
+
 Wall-clock, memory, and GC values from either benchmark are trend evidence, not ordinary CI gates. Normal tests assert deterministic schedules, internal work counts, report schemas, and byte-equivalent Snapshot/CommandLog behavior; they do not assert one machine's timing, heap, RSS, or collector result. Raw local baseline JSON is not committed.
+
+The same policy applies to Composition/State measurements. Absolute p50/p95,
+heap, RSS, collection, and cold-activation observations are candidates for an
+owner-reviewed budget only after comparable repeated runs. The experiment's
+greater-than-10-percent stable-command stop condition applies only to repeated
+same-resolved-dependency comparisons; it is a review decision, not a portable
+CI threshold. The existing roughly 3 MiB physical Snapshot workload remains
+the high-node-count evidence and should not be duplicated by inflating this
+Save-locality matrix.
 
 The CR3 Player baselines follow the same policy. `deno task bench:surfaces`
 runs 1/4/16-target Stable publication workloads with small and medium parameters
