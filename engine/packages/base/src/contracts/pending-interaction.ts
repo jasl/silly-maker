@@ -228,7 +228,11 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
         path,
       );
       const optionsValue = readArray(record.options, `${path}/options`);
-      if (optionsValue.length < 1 || optionsValue.length > 16) {
+      // An empty menu has no resolvable option. There is no upper bound:
+      // untrusted Saves are already bounded by `saveJsonLimitsV1` array-item
+      // and node limits at admission, so a count cap here would only
+      // constrain authors.
+      if (optionsValue.length < 1) {
         return dataFailure(`${path}/options`, "choice_options_invalid");
       }
       const seen = new Set<string>();

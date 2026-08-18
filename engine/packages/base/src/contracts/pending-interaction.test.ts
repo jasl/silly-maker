@@ -69,6 +69,46 @@ describe("PendingInteractionV1", () => {
     }
   });
 
+  it("admits a choice menu with more than sixteen options", () => {
+    const options = Array.from({ length: 17 }, (_, index) => {
+      const token = String(index + 1).padStart(2, "0");
+      return {
+        choiceId: `choice.test.opt${token}`,
+        textId: `text.test.opt${token}`,
+      };
+    });
+    const pending = parsePendingInteractionV1({
+      kind: "choice",
+      definitionId: "interaction.test.wide-menu",
+      seenRevision: 1,
+      occurrenceId: interactionOccurrenceIdV1(6),
+      promptTextId: "text.test.prompt",
+      options,
+    });
+    if (pending.kind !== "choice") throw new Error("expected choice");
+    expect(pending.options).toHaveLength(17);
+    expect(
+      evaluateInteractionResolutionV1(
+        pending,
+        pending.occurrenceId,
+        parseInteractionResolutionV1({ kind: "choose", choiceId: "choice.test.opt17" }),
+      ),
+    ).toEqual({ kind: "accepted" });
+  });
+
+  it("still rejects an empty choice list", () => {
+    expect(() =>
+      parsePendingInteractionV1({
+        kind: "choice",
+        definitionId: "interaction.test.empty-menu",
+        seenRevision: 1,
+        occurrenceId: interactionOccurrenceIdV1(6),
+        promptTextId: "text.test.prompt",
+        options: [],
+      })
+    ).toThrow("choice_options_invalid");
+  });
+
   it("rejects functions, floats, duplicate choices, and unknown kinds", () => {
     expect(() =>
       parsePendingInteractionV1({

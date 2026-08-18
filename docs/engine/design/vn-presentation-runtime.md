@@ -134,7 +134,7 @@ Save 不记录 elapsed time。Load/HMR 时 renderer 丢弃旧 transient tree，�
 Narrative interpreter 在自动执行纯控制节点后，应停在一个明确、可保存的交互边界：
 
 - `say`：speaker、text/line ID、voice intent、advance policy；
-- `choice`：stable choice IDs、visibility/availability、resolution schema；
+- `choice`：stable choice IDs、visibility/availability、resolution schema；选项是非空列表，没有作者面数量上限；
 - `pause`：明确 duration/skip policy 或 semantic resume；
 - `presentationBarrier`：等待 stable cue/transition ID；
 - 后续可扩展的 custom interaction surface。
