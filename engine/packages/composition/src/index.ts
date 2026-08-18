@@ -8,6 +8,7 @@ export {
 } from "./contracts.ts";
 export type {
   CompositionBootDiagnosticV1,
+  CompositionCandidatePublisherV1,
   CompositionCleanupDiagnosticV1,
   CompositionCleanupV1,
   CompositionDirectResolverV1,

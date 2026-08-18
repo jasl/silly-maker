@@ -16,7 +16,10 @@ import {
   createStudioToolingHmrCoordinatorV1,
   createStudioToolingLiveCompositionV1,
 } from "./composition.ts";
-import type { StudioToolingLiveRootInputV1 } from "./composition.ts";
+import type {
+  StudioToolingLiveCompositionV1,
+  StudioToolingLiveRootInputV1,
+} from "./composition.ts";
 
 const sceneIoV1 = Object.freeze({}) as SceneSourceIoV1;
 const motionIoV1 = Object.freeze({}) as MotionSourceIoV1;
@@ -73,7 +76,7 @@ describe("Studio tooling live composition", () => {
     });
     const oldPlan = await live.mount(rootInputV1(1, oldBinding));
     const oldLiveSnapshot = live.getSnapshot();
-    const newPlan = await live.reload(rootInputV1(2, newBinding));
+    const newPlan = await live.reload(rootInputV1(2, newBinding), async () => undefined);
 
     expect(oldPlan.binding).toBe(oldBinding);
     expect(newPlan.binding).toBe(newBinding);
@@ -148,7 +151,10 @@ describe("Studio tooling live composition", () => {
     expect(subscriptionCalls).toBe(1);
     expect(timerCalls).toBe(1);
 
-    await live.reload(rootInputV1(2, bindingV1("replacement")));
+    await live.reload(
+      rootInputV1(2, bindingV1("replacement")),
+      async () => undefined,
+    );
     listeners.dispatchEvent(new Event("studio"));
     for (const subscriber of subscribers) subscriber();
     await vi.advanceTimersByTimeAsync(30);
@@ -198,7 +204,7 @@ describe("Studio tooling live composition", () => {
             : Object.freeze([]),
         );
       },
-      commit(plan) {
+      async publish(plan) {
         commits.push(plan.binding);
       },
       disposeRoot() {},
@@ -224,6 +230,158 @@ describe("Studio tooling live composition", () => {
     await coordinator.dispose();
   });
 
+  it.each(["synchronous", "asynchronous"] as const)(
+    "rolls back a mounted candidate after %s consumer publication failure",
+    async (failureKind) => {
+      const events: string[] = [];
+      const publicationFailure = new Error(`${failureKind} Studio publication failed`);
+      const live = createStudioToolingLiveCompositionV1({
+        profileId: `studio.test.publication-${failureKind}`,
+      });
+      await live.mount(rootInputV1(
+        1,
+        bindingV1("old"),
+        Object.freeze([
+          () => {
+            events.push("install:old");
+            return () => {
+              events.push("dispose:old");
+            };
+          },
+        ]),
+      ));
+      const oldSnapshot = live.getSnapshot() as CompositionSnapshotV1;
+
+      await expect(live.reload(
+        rootInputV1(
+          2,
+          bindingV1("candidate"),
+          Object.freeze([
+            () => {
+              events.push("install:candidate");
+              return () => {
+                events.push("dispose:candidate");
+              };
+            },
+          ]),
+        ),
+        failureKind === "synchronous"
+          ? () => {
+            throw publicationFailure;
+          }
+          : async () => {
+            await Promise.resolve();
+            throw publicationFailure;
+          },
+      )).rejects.toBe(publicationFailure);
+
+      expect(live.getSnapshot()).toBe(oldSnapshot);
+      expect(oldSnapshot.compileDirectPlan(() => "old still current")).toBe(
+        "old still current",
+      );
+      expect(events).toEqual([
+        "install:old",
+        "install:candidate",
+        "dispose:candidate",
+      ]);
+      await live.dispose();
+      expect(events.at(-1)).toBe("dispose:old");
+    },
+  );
+
+  it("rejects a bare synchronous render return instead of treating it as a commit acknowledgement", async () => {
+    const events: string[] = [];
+    const live = createStudioToolingLiveCompositionV1({
+      profileId: "studio.test.publication-acknowledgement",
+    });
+    await live.mount(rootInputV1(1, bindingV1("old")));
+    const oldSnapshot = live.getSnapshot();
+
+    await expect(live.reload(
+      rootInputV1(
+        2,
+        bindingV1("candidate"),
+        Object.freeze([
+          () => () => {
+            events.push("dispose:candidate");
+          },
+        ]),
+      ),
+      (() => undefined) as unknown as Parameters<StudioToolingLiveCompositionV1["reload"]>[1],
+    )).rejects.toThrow("layout-commit acknowledgement Promise");
+
+    expect(live.getSnapshot()).toBe(oldSnapshot);
+    expect(events).toEqual(["dispose:candidate"]);
+    await live.dispose();
+  });
+
+  it("aborts an in-flight publication before consumer-first HMR disposal without leaking a rejection", async () => {
+    const events: string[] = [];
+    const failures: unknown[] = [];
+    let enterPublication!: () => void;
+    const publicationEntered = new Promise<void>((resolve) => enterPublication = resolve);
+    const live = createStudioToolingLiveCompositionV1({
+      profileId: "studio.test.concurrent-dispose",
+    });
+    await live.mount(rootInputV1(
+      1,
+      bindingV1("old"),
+      Object.freeze([
+        () => {
+          events.push("install:old");
+          return () => {
+            events.push("dispose:old");
+          };
+        },
+      ]),
+    ));
+    const coordinator = createStudioToolingHmrCoordinatorV1<{ readonly binding: StudioBindingV1 }>({
+      composition: live,
+      resolveRoot: (module) =>
+        rootInputV1(
+          2,
+          module!.binding,
+          Object.freeze([
+            () => {
+              events.push("install:candidate");
+              return () => {
+                events.push("dispose:candidate");
+              };
+            },
+          ]),
+        ),
+      publish(_plan, signal) {
+        enterPublication();
+        return new Promise<void>((_resolve, reject) => {
+          signal.addEventListener("abort", () => {
+            events.push("abort:publication");
+            reject(signal.reason);
+          }, { once: true });
+        });
+      },
+      disposeRoot() {
+        events.push("dispose:root");
+      },
+      reportFailure(error) {
+        failures.push(error);
+      },
+    });
+
+    coordinator.accept(Object.freeze({ binding: bindingV1("candidate") }));
+    await publicationEntered;
+    await expect(coordinator.dispose()).resolves.toBeUndefined();
+
+    expect(events).toEqual([
+      "install:old",
+      "install:candidate",
+      "abort:publication",
+      "dispose:candidate",
+      "dispose:root",
+      "dispose:old",
+    ]);
+    expect(failures).toEqual([]);
+  });
+
   it("fire-and-reports both HMR disposal failures after removing the UI consumer first", async () => {
     type BindingModule = { readonly binding: StudioBindingV1 };
     const disposeFailure = new Error("async kernel disposal failed");
@@ -247,7 +405,7 @@ describe("Studio tooling live composition", () => {
     const coordinator = createStudioToolingHmrCoordinatorV1<BindingModule>({
       composition,
       resolveRoot: (module) => rootInputV1(2, module!.binding),
-      commit() {},
+      async publish() {},
       disposeRoot,
       reportFailure,
     });

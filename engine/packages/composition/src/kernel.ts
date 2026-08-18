@@ -6,6 +6,7 @@ import type {
   CompositionBootDiagnosticV1,
   CompositionCleanupDiagnosticV1,
   CompositionCleanupV1,
+  CompositionCandidatePublisherV1,
   CompositionDirectResolverV1,
   CompositionKernelOptionsV1,
   CompositionKernelV1,
@@ -768,7 +769,10 @@ class CompositionKernelV1Impl implements CompositionKernelV1, DiagnosticSinkV1 {
     });
   }
 
-  reload(profile: CompositionProfileV1): Promise<CompositionSnapshotV1> {
+  reload(
+    profile: CompositionProfileV1,
+    publish: CompositionCandidatePublisherV1,
+  ): Promise<CompositionSnapshotV1> {
     return this.#run(async () => {
       this.#assertActive();
       const current = this.#current;
@@ -793,11 +797,23 @@ class CompositionKernelV1Impl implements CompositionKernelV1, DiagnosticSinkV1 {
           `authoritative profile ${current.profile.id} was permanently sealed by mount`,
         );
       }
+      if (typeof publish !== "function") {
+        throw new CompositionErrorV1(
+          "composition.invalid_definition",
+          "live reload requires a consumer publication callback",
+        );
+      }
       const candidate = await mountProfileV1(
         profile,
         this,
         this.#lifecycleActivity,
       );
+      try {
+        await publish(candidate.snapshot, current.snapshot);
+      } catch (error) {
+        await candidate.dispose("rollback");
+        throw error;
+      }
       this.#current = candidate;
       await current.dispose("reload");
       return candidate.snapshot;

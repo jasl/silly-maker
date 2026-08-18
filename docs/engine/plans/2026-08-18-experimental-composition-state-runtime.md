@@ -35,8 +35,9 @@ State Runtime (hot path) ---------> Effect Broker
 Composition activation 是冷路径：先校验依赖、重复 provider 与环，再按稳定顺序 mount，最后
 编译为冻结的直接函数/对象表。Session 创建后 authoritative plan 冻结；命令与渲染热路径不再
 访问 Cordis Context、Proxy 或 registry。Studio/presentation/tooling 使用另一个 live root，能以
-“新 profile 完整 mount -> 原子换入 -> 旧 profile dispose”的方式 reload，不能反向卸载
-authoritative module。
+“新 profile 完整 mount -> consumer publication acknowledge -> 原子换入 -> 旧 profile dispose”
+的方式 reload；acknowledge 前旧 snapshot/provider 必须仍 current，失败回滚 candidate，且不能
+反向卸载 authoritative module。
 
 ### 1.2 Cordis vendor
 
@@ -120,7 +121,8 @@ Cordis 本身只能使用其最新的 `4.0.0-rc.8` prerelease。
 
 ### X3 — Live Studio/tooling profile
 
-- authoritative 与 live root 分离；live profile 原子 reload，失败保留旧 snapshot；
+- authoritative 与 live root 分离；live profile 仅在 consumer publication acknowledge 后原子
+  reload，setup/publication 失败保留旧 snapshot/provider/UI；
 - reload 后 authoritative plan、revision、Session 与 digest 不变；
 - timer/subscription/listener 全部有 disposer，cleanup failure 形成诊断且不阻断 sibling cleanup。
 
@@ -254,14 +256,16 @@ replay 等价与 X5/X6 的 locality 指标一起成立，实验才有资格进�
   Composition root/legacy/State entry 的 minified browser bundle 分别是 39,714/13,168、
   6,287/2,075 与 57,712/16,295 raw/gzip bytes。
 - Composition kernel 在 setup 前完成 graph/token/provider/registry/cycle preflight，authoritative
-  mount 永久冻结，live reload 先完整 mount candidate 再换入。Token 运行时 identity、
+  mount 永久冻结；live reload 在旧 snapshot/provider 仍 current 时要求 consumer publisher 确认
+  完整 candidate，拒绝则回滚，确认后才换入并退休 predecessor。Token 运行时 identity、
   lifecycle re-entry、factory create/dispose 交叉死锁和 failed cleanup 都有可重现回归。
   `activateStateApplicationV1` 强制 State direct plan 编译早于 factory activation/Session
   创建，失败时 factory 仍 inactive。
 - Engine Lab direct/composed 路径的 Snapshot、state digest、CommandLog、authoritative replay 和
   Save bytes 精确相等；command loop 前后 plugin activation count 不变。Dev-only Studio 已是
-  真实 X3 live consumer，失败 HMR candidate 保留旧 snapshot/UI，teardown 先卸载 React
-  consumer 再释放 providers。
+  真实 X3 live consumer：detached epoch root 的 layout acknowledgement 早于 host cutover；失败或
+  abort 保留 exact 旧 React tree、dirty document session、snapshot/provider，teardown 先卸载
+  React consumer 再释放 providers。
 - `@sillymaker/state` root 只有一个 exact Base Session，没有第二 State/digest/status/
   queue/CommandLog。中立 module/workflow 复用一个 Base authoring kit/transaction runner；原创四
   module fixture 验证一次原子提交、owner reject 和 candidate invariant fault 的完整回滚。

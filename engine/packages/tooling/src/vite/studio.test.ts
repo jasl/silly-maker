@@ -69,11 +69,11 @@ describe("studioPluginV1", () => {
     expect(transform(html)).toBe(html);
   });
 
-  it("boots an isolated live composition and commits HMR renders only after reload succeeds", () => {
+  it("publishes initial and HMR Studio epochs with acknowledged consumer-first cleanup", () => {
     const source = studioEntrySourceFromPluginV1(studioPluginV1(studioBindingV1));
 
     expect(source).toContain(
-      'import { createStudioToolingHmrCoordinatorV1, createStudioToolingLiveCompositionV1 } from "@sillymaker/studio/composition";',
+      'import { createStudioToolingHmrCoordinatorV1, createStudioToolingLiveCompositionV1, createStudioToolingReactPublicationV1 } from "@sillymaker/studio/composition";',
     );
     expect(source).toContain('profileId: "sillymaker.studio.live"');
     expect(source).toContain(
@@ -82,9 +82,30 @@ describe("studioPluginV1", () => {
     expect(source).toContain("hmrV1.accept(moduleV1);");
     expect(source).toContain("void hmrV1.dispose();");
     const mountIndex = source.indexOf("await compositionV1.mount");
-    const initialRenderIndex = source.indexOf("renderStudioV1(initialPlanV1)");
+    const initialPublicationIndex = source.indexOf(
+      "await reactPublicationV1.mount(initialPlanV1)",
+    );
+    const initialFailureIndex = source.indexOf("} catch (errorV1) {");
+    const rootCleanupIndex = source.indexOf(
+      "reactPublicationV1.dispose();",
+      initialFailureIndex,
+    );
+    const compositionCleanupIndex = source.indexOf(
+      "await compositionV1.dispose();",
+      initialFailureIndex,
+    );
     expect(mountIndex).toBeGreaterThan(-1);
-    expect(initialRenderIndex).toBeGreaterThan(mountIndex);
+    expect(initialPublicationIndex).toBeGreaterThan(mountIndex);
+    expect(initialFailureIndex).toBeGreaterThan(initialPublicationIndex);
+    expect(rootCleanupIndex).toBeGreaterThan(initialFailureIndex);
+    expect(compositionCleanupIndex).toBeGreaterThan(rootCleanupIndex);
+    expect(source).toContain(
+      "publish: (planV1, signalV1) => reactPublicationV1.publish(planV1, signalV1)",
+    );
+    expect(source).toContain("disposeRoot: () => reactPublicationV1.dispose()");
+    expect(source).not.toContain("reactRootV1.render");
+    expect(source).not.toContain("renderStudioV1");
+    expect(source).not.toContain('import { createRoot } from "react-dom/client"');
     expect(source).not.toContain("@sillymaker/state");
     expect(source).not.toContain("GameSession");
     expect(source).not.toContain("Context");

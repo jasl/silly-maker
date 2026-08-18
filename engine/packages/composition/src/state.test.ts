@@ -198,7 +198,7 @@ describe("Composition State module integration", () => {
       })),
     ).toEqual(expectedBindings);
 
-    await expect(forwardKernel.reload(reverseProfile)).rejects.toMatchObject({
+    await expect(forwardKernel.reload(reverseProfile, () => undefined)).rejects.toMatchObject({
       code: "composition.authoritative_sealed",
     });
     await forwardKernel.dispose();

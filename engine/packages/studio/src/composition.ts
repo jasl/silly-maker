@@ -17,6 +17,12 @@ import type { MotionSourceIoV1 } from "@sillymaker/ui/debug";
 import type { StudioBindingV1 } from "./core/binding.ts";
 import type { SceneSourceIoV1 } from "./core/scene-io.ts";
 
+export { createStudioToolingReactPublicationV1 } from "./react-publication.tsx";
+export type {
+  CreateStudioToolingReactPublicationInputV1,
+  StudioToolingReactPublicationV1,
+} from "./react-publication.tsx";
+
 /**
  * The direct, Context-free inputs consumed by one mounted Studio shell.
  * They are tooling and presentation ports only; no State Runtime or Session
@@ -37,11 +43,23 @@ export interface StudioToolingLiveRootInputV1 extends StudioToolingPlanV1 {
 
 export interface StudioToolingLiveCompositionV1 {
   mount(input: StudioToolingLiveRootInputV1): Promise<StudioToolingPlanV1>;
-  reload(input: StudioToolingLiveRootInputV1): Promise<StudioToolingPlanV1>;
+  reload(
+    input: StudioToolingLiveRootInputV1,
+    publish: StudioToolingPlanPublisherV1,
+  ): Promise<StudioToolingPlanV1>;
   getSnapshot(): CompositionSnapshotV1 | null;
   getDiagnostics(): readonly CompositionCleanupDiagnosticV1[];
   dispose(): Promise<void>;
 }
+
+/**
+ * Publishes a candidate plan and resolves only after its consumer commit is
+ * observable. React callers must acknowledge an actual layout commit; the
+ * synchronous return from `root.render()` is not an acknowledgement.
+ */
+export type StudioToolingPlanPublisherV1 = (
+  plan: StudioToolingPlanV1,
+) => PromiseLike<void>;
 
 export interface CreateStudioToolingLiveCompositionOptionsV1 {
   readonly profileId: string;
@@ -87,8 +105,9 @@ function compilePlanV1(snapshot: CompositionSnapshotV1): StudioToolingPlanV1 {
 
 /**
  * Creates the Studio page's independent live composition root. Candidate
- * setup and all reversible effects settle before a plan is returned, so the
- * caller can commit a React render only after mount/reload succeeds.
+ * setup and reversible effects settle before publication. Reload keeps the
+ * previous snapshot live until the consumer acknowledges the candidate plan,
+ * then retires the previous providers and returns the published plan.
  */
 export function createStudioToolingLiveCompositionV1(
   options: CreateStudioToolingLiveCompositionOptionsV1,
@@ -100,8 +119,34 @@ export function createStudioToolingLiveCompositionV1(
     async mount(input: StudioToolingLiveRootInputV1): Promise<StudioToolingPlanV1> {
       return compilePlanV1(await kernel.mount(profileV1(options.profileId, input)));
     },
-    async reload(input: StudioToolingLiveRootInputV1): Promise<StudioToolingPlanV1> {
-      return compilePlanV1(await kernel.reload(profileV1(options.profileId, input)));
+    async reload(
+      input: StudioToolingLiveRootInputV1,
+      publish: StudioToolingPlanPublisherV1,
+    ): Promise<StudioToolingPlanV1> {
+      let publishedPlan: StudioToolingPlanV1 | null = null;
+      await kernel.reload(profileV1(options.profileId, input), async (candidate) => {
+        const plan = compilePlanV1(candidate);
+        const acknowledgement = publish(plan);
+        if (
+          (typeof acknowledgement !== "object" || acknowledgement === null) &&
+          typeof acknowledgement !== "function"
+        ) {
+          throw new TypeError(
+            "Studio publication must return a layout-commit acknowledgement Promise",
+          );
+        }
+        if (typeof (acknowledgement as { readonly then?: unknown }).then !== "function") {
+          throw new TypeError(
+            "Studio publication must return a layout-commit acknowledgement Promise",
+          );
+        }
+        await acknowledgement;
+        publishedPlan = plan;
+      });
+      if (publishedPlan === null) {
+        throw new TypeError("Studio candidate completed without consumer publication");
+      }
+      return publishedPlan;
     },
     getSnapshot: () => kernel.getSnapshot(),
     getDiagnostics: () => kernel.getDiagnostics(),
@@ -121,8 +166,11 @@ export interface StudioToolingHmrCoordinatorV1<TModule> {
 export interface CreateStudioToolingHmrCoordinatorInputV1<TModule> {
   readonly composition: StudioToolingLiveCompositionV1;
   resolveRoot(module: TModule | undefined): StudioToolingLiveRootInputV1;
-  /** Synchronous React render commit, called only after a candidate reload succeeds. */
-  commit(plan: StudioToolingPlanV1): void;
+  /**
+   * Resolves only after the candidate consumer has committed. It must observe
+   * `signal` and reject promptly with `signal.reason` when closing aborts it.
+   */
+  publish(plan: StudioToolingPlanV1, signal: AbortSignal): PromiseLike<void>;
   disposeRoot(): void;
   reportFailure?(error: unknown): void;
 }
@@ -138,6 +186,7 @@ export function createStudioToolingHmrCoordinatorV1<TModule>(
 ): StudioToolingHmrCoordinatorV1<TModule> {
   let transition: Promise<void> = Promise.resolve();
   let closing = false;
+  let activePublication: AbortController | null = null;
 
   const reportFailure = (error: unknown): void => {
     try {
@@ -163,14 +212,31 @@ export function createStudioToolingHmrCoordinatorV1<TModule>(
     if (closing) return;
     enqueue(async () => {
       if (closing) return;
-      const plan = await input.composition.reload(input.resolveRoot(module));
-      if (!closing) input.commit(plan);
+      const publication = new AbortController();
+      activePublication = publication;
+      try {
+        try {
+          await input.composition.reload(input.resolveRoot(module), async (plan) => {
+            if (publication.signal.aborted) throw publication.signal.reason;
+            await input.publish(plan, publication.signal);
+          });
+        } catch (error) {
+          if (
+            closing && publication.signal.aborted &&
+            error === publication.signal.reason
+          ) return;
+          throw error;
+        }
+      } finally {
+        if (activePublication === publication) activePublication = null;
+      }
     });
   };
 
   const requestDispose = (): void => {
     if (closing) return;
     closing = true;
+    activePublication?.abort(new DOMException("Studio HMR is closing", "AbortError"));
     enqueue(async () => {
       try {
         input.disposeRoot();

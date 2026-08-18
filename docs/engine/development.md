@@ -98,11 +98,13 @@ presentation/tooling profiles. Lifecycle cleanup covers in-process resources
 only.
 
 The generated dev-only Studio entry uses `@sillymaker/studio/composition` for
-that separate live root. It renders only after a candidate mount/reload
-resolves, keeps the old UI when candidate setup fails, and unmounts React before
-disposing the provider scope during HMR teardown. Do not move React rendering
-into plugin setup: a later candidate failure would otherwise mutate the UI
-before the profile is admitted.
+that separate live root. A live reload keeps the predecessor snapshot/providers
+current while a detached React epoch reaches a layout commit; only the returned
+acknowledgement swaps the host and lets composition retire the predecessor.
+Setup, render, layout, or abort failure rolls the candidate back without
+touching the old UI or its shared dirty document session. HMR teardown unmounts
+React before disposing the provider scope. Do not use the return from
+`root.render()` as publication evidence or move rendering into plugin setup.
 
 While iterating on this package, run the focused runtime test plus the repository
 typecheck so its consumer type test is included:

@@ -475,7 +475,7 @@ describe("composition lifecycle", () => {
       },
     });
 
-    const reload = kernel.reload(profileV1([candidate]));
+    const reload = kernel.reload(profileV1([candidate]), () => undefined);
     await entered;
     expect(kernel.getSnapshot()).toBe(original);
     releaseCandidate();
@@ -485,7 +485,7 @@ describe("composition lifecycle", () => {
       "old",
     );
 
-    const replacement = await kernel.reload(profileV1([provider(3, "new")]));
+    const replacement = await kernel.reload(profileV1([provider(3, "new")]), () => undefined);
     expect(kernel.getSnapshot()).toBe(replacement);
     expect(replacement.compileDirectPlan((resolve) => resolve.use(service)))
       .toBe("new");
@@ -493,6 +493,124 @@ describe("composition lifecycle", () => {
     expect(() => original.compileDirectPlan((resolve) => resolve.use(service)))
       .toThrow("is no longer mounted");
   });
+
+  it("keeps the old provider current until consumer publication acknowledges the candidate", async () => {
+    const service = createCompositionServiceTokenV1<{ readonly read: () => string }>(
+      "live.publication.service",
+    );
+    let oldAlive = true;
+    const provider = (revision: number, value: string) =>
+      defineCompositionPluginV1({
+        id: "live.publication.provider",
+        revision,
+        provides: [service],
+        async setup(scope) {
+          scope.provide(
+            service,
+            Object.freeze({
+              read: () => {
+                if (value === "old" && !oldAlive) throw new Error("old provider retired early");
+                return value;
+              },
+            }),
+          );
+          if (value === "old") {
+            await scope.effect(() => () => {
+              oldAlive = false;
+            });
+          }
+        },
+      });
+    const kernel = kernelV1();
+    const original = await kernel.mount(profileV1([provider(1, "old")]));
+    const oldPlan = original.compileDirectPlan((resolve) => resolve.use(service));
+    let publicationCalled = false;
+    let enterPublication!: () => void;
+    let acknowledgePublication!: () => void;
+    const publicationEntered = new Promise<void>((resolve) => enterPublication = resolve);
+    const publicationAcknowledged = new Promise<void>((resolve) =>
+      acknowledgePublication = resolve
+    );
+
+    const reload = kernel.reload(
+      profileV1([provider(2, "new")]),
+      async (candidate, previous) => {
+        publicationCalled = true;
+        expect(previous).toBe(original);
+        expect(kernel.getSnapshot()).toBe(original);
+        expect(oldPlan.read()).toBe("old");
+        expect(candidate.compileDirectPlan((resolve) => resolve.use(service)).read()).toBe("new");
+        enterPublication();
+        await publicationAcknowledged;
+      },
+    );
+
+    await publicationEntered;
+    expect(publicationCalled).toBe(true);
+    expect(kernel.getSnapshot()).toBe(original);
+    expect(oldPlan.read()).toBe("old");
+    acknowledgePublication();
+    const replacement = await reload;
+    expect(kernel.getSnapshot()).toBe(replacement);
+    expect(oldAlive).toBe(false);
+    expect(() => original.compileDirectPlan(() => undefined)).toThrow("is no longer mounted");
+    await kernel.dispose();
+  });
+
+  it.each(["synchronous", "asynchronous"] as const)(
+    "rolls a candidate back after %s consumer publication failure",
+    async (failureKind) => {
+      const service = createCompositionServiceTokenV1<string>(
+        `live.publication.failure.${failureKind}`,
+      );
+      const events: string[] = [];
+      const provider = (revision: number, value: string) =>
+        defineCompositionPluginV1({
+          id: "live.publication.failure-provider",
+          revision,
+          provides: [service],
+          async setup(scope) {
+            scope.provide(service, value);
+            await scope.effect(() => {
+              events.push(`install:${value}`);
+              return () => {
+                events.push(`dispose:${value}`);
+              };
+            });
+          },
+        });
+      const kernel = kernelV1();
+      const original = await kernel.mount(profileV1([provider(1, "old")]));
+      const publicationFailure = new Error(`${failureKind} publication failed`);
+
+      await expect(kernel.reload(
+        profileV1([provider(2, "candidate")]),
+        failureKind === "synchronous"
+          ? () => {
+            throw publicationFailure;
+          }
+          : async () => {
+            await Promise.resolve();
+            throw publicationFailure;
+          },
+      )).rejects.toBe(publicationFailure);
+
+      expect(kernel.getSnapshot()).toBe(original);
+      expect(original.compileDirectPlan((resolve) => resolve.use(service))).toBe("old");
+      expect(events).toEqual([
+        "install:old",
+        "install:candidate",
+        "dispose:candidate",
+      ]);
+      await kernel.dispose();
+      expect(events).toEqual([
+        "install:old",
+        "install:candidate",
+        "dispose:candidate",
+        "dispose:old",
+      ]);
+    },
+  );
 
   it("rejects overlapping lifecycle mutation and accepts a later reload", async () => {
     const events: string[] = [];
@@ -520,16 +638,16 @@ describe("composition lifecycle", () => {
       });
     const kernel = kernelV1();
     await kernel.mount(profileV1([plugin(1)]));
-    const second = kernel.reload(profileV1([plugin(2, true)]));
+    const second = kernel.reload(profileV1([plugin(2, true)]), () => undefined);
     await enteredPromises.get(2);
     await expectCompositionErrorV1(
-      kernel.reload(profileV1([plugin(3)])),
+      kernel.reload(profileV1([plugin(3)]), () => undefined),
       "composition.lifecycle_busy",
     );
     expect(events).not.toContain("start:3");
     gates.get(2)!();
     await second;
-    await kernel.reload(profileV1([plugin(3)]));
+    await kernel.reload(profileV1([plugin(3)]), () => undefined);
     expect(events).toEqual([
       "start:1",
       "finish:1",
@@ -552,7 +670,7 @@ describe("composition lifecycle", () => {
       profileV1([plugin(1)], "authoritative"),
     );
     await expectCompositionErrorV1(
-      kernel.reload(profileV1([plugin(2)], "authoritative")),
+      kernel.reload(profileV1([plugin(2)], "authoritative"), () => undefined),
       "composition.authoritative_sealed",
     );
     expect(kernel.getSnapshot()).toBe(snapshot);
@@ -655,7 +773,7 @@ describe("direct plans and legacy application adapter", () => {
     expect(events).toEqual(["prepare", "setup:complete"]);
     expect(activeApplications).toBe(0);
     await expectCompositionErrorV1(
-      kernel.reload(profile),
+      kernel.reload(profile, () => undefined),
       "composition.authoritative_sealed",
     );
 
@@ -778,7 +896,7 @@ describe("direct plans and legacy application adapter", () => {
     const creation = factory.create();
     await entered;
     await expectCompositionErrorV1(
-      kernel.reload(profile),
+      kernel.reload(profile, () => undefined),
       "composition.lifecycle_busy",
     );
     await expectCompositionErrorV1(

@@ -5,7 +5,8 @@ import type { ReactElement } from "react";
 import { useAuthoringDocumentSessionV1 } from "@sillymaker/ui/debug";
 import type { MotionSourceIoV1 } from "@sillymaker/ui/debug";
 
-import type { StageAppearanceV1, StageContentIdV1 } from "@sillymaker/base";
+import type { SceneDocumentV1, StageAppearanceV1, StageContentIdV1 } from "@sillymaker/base";
+import type { AuthoringDocumentSessionV1 } from "@sillymaker/ui/debug";
 
 import type { SceneIoListEntryV1, SceneIoListSkipV1, SceneSourceIoV1 } from "./core/scene-io.ts";
 import { createSceneDocumentSessionV1 } from "./core/scene-session.ts";
@@ -71,6 +72,10 @@ export interface StudioAppPropsV1 {
   readonly motionIo: MotionSourceIoV1;
 }
 
+interface StudioAppWithSceneSessionPropsV1 extends StudioAppPropsV1 {
+  readonly sceneSession: AuthoringDocumentSessionV1<SceneDocumentV1>;
+}
+
 const studioPreviewMaxWidthV1 = 720;
 
 function saveNoteV1(code: string): string {
@@ -80,6 +85,14 @@ function saveNoteV1(code: string): string {
 }
 
 export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
+  const sceneSession = useMemo(() => createSceneDocumentSessionV1(props.io), [props.io]);
+  return <StudioAppWithSceneSessionV1 {...props} sceneSession={sceneSession} />;
+}
+
+/** Package-internal live-publication seam that keeps one draft session across staging roots. */
+export function StudioAppWithSceneSessionV1(
+  props: StudioAppWithSceneSessionPropsV1,
+): ReactElement {
   const { binding, io, motionIo } = props;
   const [scenes, setScenes] = useState<readonly SceneIoListEntryV1[] | null>(null);
   const [sceneSkips, setSceneSkips] = useState<readonly SceneIoListSkipV1[]>(Object.freeze([]));
@@ -114,7 +127,7 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
   // The shared authoring session owns saved/draft/dirty, the CAS save, the
   // monotonic open fence, and undo/redo; the shell maps its results to
   // notes and confirms.
-  const session = useMemo(() => createSceneDocumentSessionV1(io), [io]);
+  const session = props.sceneSession;
   const snapshot = useAuthoringDocumentSessionV1(session);
   const draft = snapshot.draft;
   const dirty = snapshot.dirty;

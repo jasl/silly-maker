@@ -69,17 +69,24 @@ without creating a Session. State-backed consumers call
 `activateStateApplicationV1`, which first compiles the admitted State modules,
 then activates the factory and finally creates the application/Session; a State
 compile failure leaves that factory inactive. Live profiles use a different
-kernel and replace an old snapshot only after a candidate fully mounts. A
+kernel: a candidate first mounts completely, then a required consumer publisher
+acknowledges it while the exact previous snapshot and providers remain current;
+only that acknowledgement replaces the snapshot and retires the predecessor. A
 disposer covers in-process resources and application leases; it does not claim
 to reverse an external Host, network, LLM, or database write.
 
 The dev-only Studio Vite entry is the first live consumer. It mounts binding,
-scene IO, and motion IO into an isolated `@sillymaker/studio/composition` root,
-then commits the React render only after mount/reload succeeds. A failed HMR
-candidate leaves the old snapshot and UI commit intact. HMR teardown first
-unmounts the React consumer, then disposes live providers; both failure paths
-are reported and the fire-and-forget Vite callback cannot leak a rejected
-Promise. This root never receives an authoritative Session or State writer.
+scene IO, and motion IO into an isolated `@sillymaker/studio/composition` root.
+Initial publication and every HMR candidate are acknowledged by a real React
+layout commit; the synchronous return from `root.render()` is not a commit.
+Each candidate renders in a detached epoch root and replaces the visible host
+only after acknowledgement, so render/layout failure or abort leaves the exact
+old React tree, snapshot, providers, and shared dirty document session intact.
+After a successful host cutover the old React root unmounts while its providers
+are still alive, and only then may composition retire them. HMR teardown follows
+the same consumer-first order; failures are reported and the fire-and-forget
+Vite callback cannot leak a rejected Promise. This root never receives an
+authoritative Session or State writer.
 
 The vendored Cordis source is private under `vendor/cordis`; no supported
 package declaration or Story import exposes its types. Composition boot

@@ -24,12 +24,14 @@ production claim，也没有迁移任何维护中的 Story、Save 格式或应�
   sibling cleanup。
 - authoritative mount 成功即永久冻结。State-backed legacy application 通过
   `activateStateApplicationV1` 保证先编译 State module direct plan，再激活 factory 并创建
-  Session；State compile 失败时 factory 仍为 inactive。live profile candidate 完整 mount 后才替换
-  旧 snapshot。X1-X4 boot identity 不进入 Save `simulationDigest`。
+  Session；State compile 失败时 factory 仍为 inactive。live profile candidate 完整 mount 后还必须
+  由 consumer publisher 确认；确认期间旧 snapshot/provider 仍 current，拒绝会回滚 candidate。
+  X1-X4 boot identity 不进入 Save `simulationDigest`。
 - dev-only Studio 是第一个真实 live consumer：独立 root 将 binding/scene IO/motion IO 编译为
-  direct plan，HMR candidate 成功后才提交 React render，失败保留旧 snapshot/UI。清理按
-  React consumer 在先、composition providers 在后的顺序执行，两路失败都转为诊断而不产生
-  unhandled rejection；该 root 不持有 authoritative Session/State。
+  direct plan。初次发布和 HMR 都等待真实 React layout commit；candidate 在 detached epoch root
+  中验证，成功才换 visible host，render/layout/abort 失败保留 exact 旧 React tree、snapshot、provider
+  与 dirty authoring session。清理按 React consumer 在先、composition providers 在后的顺序执行，
+  两路失败都转为诊断而不产生 unhandled rejection；该 root 不持有 authoritative Session/State。
 
 ## Experimental neutral State Runtime
 

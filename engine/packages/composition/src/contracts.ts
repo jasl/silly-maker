@@ -155,9 +155,22 @@ export interface CompositionKernelOptionsV1 {
   readonly onDiagnostic?: (diagnostic: CompositionCleanupDiagnosticV1) => void;
 }
 
+/**
+ * Publishes a fully mounted live candidate while the previous snapshot and
+ * all of its providers are still current. A rejection must leave (or restore)
+ * the previous consumer publication; the kernel then rolls the candidate back.
+ */
+export type CompositionCandidatePublisherV1 = (
+  candidate: CompositionSnapshotV1,
+  previous: CompositionSnapshotV1,
+) => void | PromiseLike<void>;
+
 export interface CompositionKernelV1 {
   mount(profile: CompositionProfileV1): Promise<CompositionSnapshotV1>;
-  reload(profile: CompositionProfileV1): Promise<CompositionSnapshotV1>;
+  reload(
+    profile: CompositionProfileV1,
+    publish: CompositionCandidatePublisherV1,
+  ): Promise<CompositionSnapshotV1>;
   getSnapshot(): CompositionSnapshotV1 | null;
   getDiagnostics(): readonly CompositionCleanupDiagnosticV1[];
   dispose(): Promise<void>;
