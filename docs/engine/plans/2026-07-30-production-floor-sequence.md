@@ -48,7 +48,16 @@ identity 独立设计文档于 2026-08-17 起草、**同日经所有者批复 op
 declared-vs-bare 碰撞零出现）；裁决 #3/#4 同日经所有者批复采纳（上限 32
 冻结为终值、lint 保守起点转正），**cue identity 线整体收口**，记录归
 [cue-identity 提案](../proposals/cue-identity.md)。下一个可命名任务来自
-实验仓新内容波或所有者新证据带来的激活项。
+实验仓新内容波或所有者新证据带来的激活项。2026-08-18，所有者以约 67k 行的外部
+State-heavy workload、Cordis 参考实现和明确的中立 State Runtime 目标提供了新的架构证据，
+接受[Experimental composition kernel and State Runtime](2026-08-18-experimental-composition-state-runtime.md)
+为独立分支 strangler experiment。其 X0–X6.3 已完成：X6.2 注入唯一 Narrative integrity
+catalog，X6.3 把 concrete registries 收口到 Session 前冻结的 environment/direct plans；实验已通过
+唯一权威、Save/replay 等价、dependency locality 与 `<10%` 稳定 command overhead gates。X1
+最初使用的 Cordis wrapper 经 retain/remove checkpoint 证明没有承担独立 scope/fiber 语义，最终由
+package-internal direct lifecycle 取代。X7 的中立 matrix/隔离 GC 与外部 paired 性能证据已完成，
+但没有激活 State Format V2；X8 与 production Story migration 仍未启动，也不因实验完成而成为
+release blocker。
 
 上一条 lane：[Authoring Architecture V1](2026-08-15-authoring-architecture.md)
 （Studio 作者信任加固 → 统一创作外壳与共享文档会话 → project authoring index →

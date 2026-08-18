@@ -94,6 +94,18 @@ active plan：Studio 作者信任加固、统一创作外壳与共享文档会�
 index、Story 包目录 locality 与 Scene Construction，目标合同见
 [统一创作架构](design/authoring-architecture.md)。
 
+2026-08-18 新的外部规模证据激活了一个独立分支实验：
+[Experimental composition kernel and State Runtime](plans/2026-08-18-experimental-composition-state-runtime.md)。
+它以 cold-path composition façade 和中立 State Runtime 检验大型 State-heavy Story
+的 capability composition 与 dependency locality；必须先用仓库内中性 workload 复现，并保持
+唯一 State authority、Save/replay 等价与热路径预算。实验分支已完成 X0–X6.3：X6.2 注入唯一
+Narrative integrity catalog，X6.3 将 concrete registries 收口到 frozen cold environment/direct
+plans；初始 X1 引入的私有 Cordis wrapper 在 retain/remove checkpoint 证明没有承担独立
+scope/fiber 语义后已由 package-internal direct lifecycle 取代。X7 的中立 3x3 matrix、隔离 GC
+trend 与外部两场景 paired evidence 也已完成且通过 stop gate，但这些实现和证据不等同于
+production promotion，也不自动激活 Mod ABI、State Format V2、X8 或 production Story migration；
+未激活层不构成新的 release blocker。
+
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实
 Host evidence 主要来自 macOS；三个平台都尚未完成各自 production
