@@ -1,4 +1,32 @@
 // SPDX-License-Identifier: MIT
+export { createStateAuthoringKitV1, getStateModuleContractRevisionV1 } from "./state-authoring.ts";
+export type {
+  ProvideStateCapabilityV1,
+  StateAnyModuleV1,
+  StateAuthoringKitV1,
+  StateCapabilityProviderContextV1,
+  StateCapabilityProvisionV1,
+  StateCapabilityRequirementsV1,
+  StateCapabilityV1,
+  StateDependencyPortsOfV1,
+  StateModuleCompositionV1,
+  StateModuleBindingV1,
+  StateModuleBindingsOfV1,
+  StateModuleDefinitionV1,
+  StateModuleDescriptorV1,
+  StateModuleOperationOfV1,
+  StateModuleOwnerV1,
+  StateModuleProposalResultV1,
+  StateModuleProposalV1,
+  StateModuleV1,
+  StateTransactionOutcomeV1,
+  StateTransactionProposeResultV1,
+  StateTransactionV1,
+  StateWorkflowDefinitionV1,
+  StateWorkflowRngV1,
+  StateWorkflowTypeMapV1,
+  StateWorkflowV1,
+} from "./state-authoring.ts";
 export { createStateRuntimeV1 } from "./state-runtime.ts";
 export type {
   StateCommandAttemptV1,
