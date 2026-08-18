@@ -100,7 +100,10 @@ promotion. `createStateRuntimeV1` accepts a neutral `StateRuntimeDefinitionV1`,
 invokes Base `createGameSessionV1` exactly once, and returns a `StateRuntimeV1`
 whose only owned runtime member is the exact physical Session under the neutral
 `StateSessionV1` type. It does not proxy or spread that Session and does not keep
-a second State, digest, status, queue, or CommandLog.
+a second State, digest, status, queue, or CommandLog. The bridge constructs the
+Base runtime input field by field and directionally type-checks the physical
+Session as a neutral Session; it no longer relies on a whole-definition or
+whole-Session cast that could hide a new required Base field.
 
 The explicit `@sillymaker/state/legacy` entry returns the same runtime together
 with the exact Base `GameSessionCompositionV1` and
@@ -122,6 +125,15 @@ X5 adds neutral `StateModule`, capability, `StateTransaction`, and
 `StateWorkflow` contracts. Their adapter creates one Base authoring kit and
 delegates composition and execution to its existing transaction runner; it does
 not keep another proposal map, candidate State, RNG, queue, or commit path. The
+admitted module exposes an immutable `contractRevision`; a non-enumerable
+package-private carrier references the same Base authoring module only on the
+cold composition path, and object-spread/prototype aliases without their own
+carrier fail rather than split neutral and physical metadata. Module initializers
+in V1 are deliberately bootstrap-independent, while aggregate candidate
+validation remains the only neutral invariant hook. A transaction reads the
+command-start State without read-your-writes, accepts at most one proposal per
+owner, and applies proposals/facts in UTF-16 module-ID order with atomic
+Snapshot/RNG rollback on rejection or fault. The
 original `calendar`/`inventory`/`actor`/`evening` pilot proves four-owner atomic
 commit, owner rejection rollback, and candidate-validation fault rollback. It
 is an engine fixture, not commercial game content. There is still no

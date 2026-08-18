@@ -218,6 +218,25 @@ describe("State Runtime compatibility facade", () => {
     expect(runtime.session.getLastFaultCause()?.message).toContain("synthetic executor failure");
   });
 
+  test("forwards optional availability and HMR reporting through the explicit Base input", async () => {
+    let invalidationReports = 0;
+    const adapter = createLegacyStateRuntimeAdapterV1({
+      ...createDefinitionV1(),
+      available: false,
+      onHmrInvalidated() {
+        invalidationReports += 1;
+      },
+    });
+
+    await expect(adapter.runtime.session.dispatch({ kind: "increment", amount: 1 })).resolves
+      .toEqual({ kind: "not_executed", code: "session_unavailable" });
+    adapter.composition.invalidationController.invalidateForHmr();
+    adapter.composition.invalidationController.invalidateForHmr();
+
+    expect(adapter.runtime.session.getStatus()).toBe("hmr_invalidated");
+    expect(invalidationReports).toBe(1);
+  });
+
   test("installs persistence-style replacements through the exact runtime control and replay anchor", async () => {
     const adapter = createLegacyStateRuntimeAdapterV1(createDefinitionV1());
     await adapter.runtime.session.dispatch({ kind: "increment", amount: 2 });

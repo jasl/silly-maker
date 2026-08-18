@@ -49,6 +49,11 @@ production claim，也没有迁移任何维护中的 Story、Save 格式或应�
 - `createStateAuthoringKitV1` 提供中立 `StateModule`、capability、`StateTransaction` 与
   `StateWorkflow`，内部直接复用一个 Base authoring kit/transaction runner。原创四模块 pilot
   验证一次提交与完整回滚；没有第二份 staged proposal、candidate State、RNG 或 commit path。
+  module 暴露 admission 时冻结的 `contractRevision`，冷路径私有 carrier 只引用同一个 Base module，
+  spread/prototype alias 会 fail-fast。V1 initializer 明确不读取 bootstrap；transaction 只读
+  command-start State、无 read-your-writes、每 owner 至多一个 proposal，并按 UTF-16 module ID
+  顺序 apply/收集 facts，reject/fault 保持 Snapshot 与 committed RNG 不变。module-local invariants
+  尚无已定义执行点，当前只支持 workflow aggregate `validateCandidate`。
 - 当前 Snapshot/State 物理格式、whole-Snapshot digest、Save、Persistence、migration、
   CommandLog 与 replay 仍由 `@sillymaker/base` 的既有实现权威拥有。尚无 State Format V2 或
   production Story 迁移。

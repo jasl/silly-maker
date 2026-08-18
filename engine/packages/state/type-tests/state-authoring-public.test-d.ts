@@ -66,6 +66,7 @@ type WorkflowKeysV1 = ExpectV1<
 >;
 
 const compositionV1 = kitV1.composeModules([calendarV1]);
+calendarV1.contractRevision satisfies PositiveSafeInteger;
 getStateModuleContractRevisionV1(calendarV1) satisfies PositiveSafeInteger;
 compositionV1.modules[0].descriptor.stateSlots[0] satisfies StateSlotId | undefined;
 const workflowV1 = compositionV1.createWorkflow({

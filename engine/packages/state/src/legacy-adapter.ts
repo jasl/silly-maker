@@ -38,11 +38,50 @@ export interface LegacyStateRuntimeAdapterV1<TTypes extends StateRuntimeTypeMapV
 export function createStateRuntimeBridgeInternalV1<TTypes extends StateRuntimeTypeMapV1>(
   definition: StateRuntimeDefinitionV1<TTypes>,
 ): LegacyStateRuntimeAdapterV1<TTypes> {
-  const composition = createGameSessionV1<LegacyStateRuntimeTypeMapV1<TTypes>>(
-    definition as unknown as GameSessionInputV1<LegacyStateRuntimeTypeMapV1<TTypes>>,
-  );
+  type TLegacyTypes = LegacyStateRuntimeTypeMapV1<TTypes>;
+  const available = definition.available;
+  const debugDefinition = definition.debug;
+  const onAttempt = definition.onAttempt;
+  const onObserverFailure = definition.onObserverFailure;
+  const onHmrInvalidated = definition.onHmrInvalidated;
+  const input: GameSessionInputV1<TLegacyTypes> = {
+    initialSnapshot: definition.initialSnapshot,
+    commandSchema: definition.commandSchema,
+    executionContext: definition.executionContext,
+    executeAttempt(snapshot, command, context) {
+      return definition.executeAttempt(snapshot, command, context);
+    },
+    normalizeUnexpectedDispatchFault(error, snapshot) {
+      return definition.normalizeUnexpectedDispatchFault(error, snapshot);
+    },
+    ...(available === undefined ? {} : { available }),
+    ...(debugDefinition === undefined ? {} : {
+      debug: {
+        validate(snapshot, command, context) {
+          return debugDefinition.validate(snapshot, command, context);
+        },
+        executeAttempt(snapshot, command, context) {
+          return debugDefinition.executeAttempt(snapshot, command, context);
+        },
+        normalizeUnexpectedFault(error, snapshot) {
+          return debugDefinition.normalizeUnexpectedFault(error, snapshot);
+        },
+      },
+    }),
+    ...(onAttempt === undefined
+      ? {}
+      : { onAttempt: (attempt) => onAttempt.call(definition, attempt) }),
+    ...(onObserverFailure === undefined
+      ? {}
+      : { onObserverFailure: (error) => onObserverFailure.call(definition, error) }),
+    ...(onHmrInvalidated === undefined
+      ? {}
+      : { onHmrInvalidated: () => onHmrInvalidated.call(definition) }),
+  };
+  const composition = createGameSessionV1<TLegacyTypes>(input);
+  const session: StateSessionV1<TTypes> = composition.session;
   const runtime: StateRuntimeV1<TTypes> = Object.freeze({
-    session: composition.session as unknown as StateSessionV1<TTypes>,
+    session,
   });
   return Object.freeze({
     runtime,

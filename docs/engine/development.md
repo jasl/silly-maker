@@ -88,6 +88,16 @@ uses the composition package only for experimental equivalence coverage; no
 maintained production Story uses the State runtime, and the experiment does not
 define State Format V2.
 
+`StateModuleV1.contractRevision` is the immutable revision admitted by
+`defineModule`; do not clone a module with object spread and then compose the
+clone. V1 module initializers are intentionally bootstrap-independent, and the
+neutral API does not expose Base module-local invariant metadata because the
+current transaction runner does not execute it. Use workflow
+`validateCandidate` for aggregate validation. `StateTransactionV1` reads only
+command-start State (no read-your-writes), stages at most one proposal per
+owner, and applies proposals and facts in UTF-16 module-ID order; rejection and
+fault leave the authoritative Snapshot and committed RNG unchanged.
+
 `@sillymaker/composition` is cold-path only. Public plugins use its scope and
 typed tokens; they never import `@sillymaker/vendor-cordis`. Compile services
 and registries into direct plans before Session creation. State-backed legacy

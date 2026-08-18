@@ -69,6 +69,15 @@ export type StateModuleProposalResultV1<TOperation, TFact, TRejection> =
   }
   | { readonly kind: "rejected"; readonly rejection: TRejection };
 
+/**
+ * Owner operations for one neutral State slice.
+ *
+ * Module-local invariants are deliberately not part of the V1 neutral
+ * surface. The existing Base transaction runner validates the aggregate
+ * candidate through `StateWorkflowDefinitionV1.validateCandidate`; expose a
+ * local invariant contract only when a real consumer establishes where and
+ * when those checks execute.
+ */
 export interface StateModuleOwnerV1<
   TTypes extends StateWorkflowTypeMapV1,
   TStateSlice,
@@ -101,6 +110,12 @@ export interface StateModuleDefinitionV1<
   readonly state: {
     readonly slot: string;
     readonly schema: RuntimeSchemaV1<TStateSlice>;
+    /**
+     * V1 module initialization is intentionally bootstrap-independent. The
+     * legacy bridge invokes this factory without forwarding Base's bootstrap
+     * input; add a typed bootstrap contract only when a real neutral consumer
+     * requires one.
+     */
     readonly initial: () => TStateSlice;
   };
   readonly requires?: TRequires;
@@ -115,6 +130,8 @@ declare const stateModuleTypeWitnessV1: unique symbol;
 
 export interface StateAnyModuleV1 {
   readonly id: ModuleId;
+  /** The immutable revision admitted when this neutral module was defined. */
+  readonly contractRevision: PositiveSafeInteger;
   readonly stateSlot: StateSlotId;
   readonly requires: StateCapabilityRequirementsV1;
   readonly initializesAfter: readonly string[];
@@ -172,6 +189,17 @@ export type StateTransactionProposeResultV1<TTypes extends StateWorkflowTypeMapV
   | { readonly kind: "proposed" }
   | { readonly kind: "rejected"; readonly rejection: TTypes["rejection"] };
 
+/**
+ * A snapshot-isolated, atomic multi-owner command transaction.
+ *
+ * Every `read()` and owner `propose()` observes the immutable command-start
+ * State; staged proposals are never visible through later reads (there is no
+ * read-your-writes). Each owner may stage at most one proposal. Once the
+ * workflow completes, proposals are applied against their command-start owner
+ * slices in locale-independent UTF-16 code-unit module-ID order, and facts are
+ * collected in that same order. A rejection or fault preserves the complete
+ * command-start Snapshot and transactional RNG state.
+ */
 export interface StateTransactionV1<TTypes extends StateWorkflowTypeMapV1> {
   read<TPort>(token: StateCapabilityV1<TPort>): TPort;
   propose<TModule extends StateAnyModuleV1>(

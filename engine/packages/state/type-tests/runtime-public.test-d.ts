@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: MIT
-import type { NonNegativeSafeInteger, RunIntegrityV1, RuntimeSchemaV1 } from "@sillymaker/base";
+import type {
+  GameSnapshotEnvelopeV1,
+  NonNegativeSafeInteger,
+  RunIntegrityV1,
+  RuntimeSchemaV1,
+} from "@sillymaker/base";
+import type { GameSessionInputV1 } from "@sillymaker/base/runtime";
 import {
   createStateRuntimeV1,
   type StateRuntimeDefinitionV1,
@@ -11,6 +17,7 @@ import {
 import {
   createLegacyStateRuntimeAdapterV1,
   type LegacyStateRuntimeAdapterV1,
+  type LegacyStateRuntimeTypeMapV1,
 } from "@sillymaker/state/legacy";
 
 type EqualV1<TLeft, TRight> = (<T>() => T extends TLeft ? 1 : 2) extends
@@ -56,6 +63,26 @@ type SnapshotKeysV1 = ExpectV1<
     keyof StateSnapshotV1<ConsumerStateV1, ConsumerRngStateV1>,
     "commandSequence" | "integrity" | "rng" | "state"
   >
+>;
+type SnapshotFitsPhysicalEnvelopeV1 = ExpectV1<
+  StateSnapshotV1<ConsumerStateV1, ConsumerRngStateV1> extends GameSnapshotEnvelopeV1<
+    ConsumerStateV1,
+    ConsumerRngStateV1
+  > ? true
+    : false
+>;
+type PhysicalEnvelopeFitsSnapshotV1 = ExpectV1<
+  GameSnapshotEnvelopeV1<ConsumerStateV1, ConsumerRngStateV1> extends StateSnapshotV1<
+    ConsumerStateV1,
+    ConsumerRngStateV1
+  > ? true
+    : false
+>;
+type DefinitionFitsPhysicalInputV1 = ExpectV1<
+  StateRuntimeDefinitionV1<ConsumerTypesV1> extends GameSessionInputV1<
+    LegacyStateRuntimeTypeMapV1<ConsumerTypesV1>
+  > ? true
+    : false
 >;
 
 declare const commandSchemaV1: RuntimeSchemaV1<ConsumerTypesV1["command"]>;
@@ -114,5 +141,8 @@ void (0 as unknown as RootValueKeysV1);
 void (0 as unknown as RuntimeKeysV1);
 void (0 as unknown as SessionKeysV1);
 void (0 as unknown as SnapshotKeysV1);
+void (0 as unknown as SnapshotFitsPhysicalEnvelopeV1);
+void (0 as unknown as PhysicalEnvelopeFitsSnapshotV1);
+void (0 as unknown as DefinitionFitsPhysicalInputV1);
 void (0 as unknown as _NoLegacyRuntimeNameV1);
 void (0 as unknown as _NoCordisContextV1);

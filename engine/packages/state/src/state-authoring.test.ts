@@ -5,12 +5,17 @@ import {
   faultAttemptV1,
   parseNonNegativeSafeInteger,
   parseNonZeroUint32,
+  parsePositiveSafeInteger,
   type DeepReadonly,
   type RuntimeSchemaV1,
 } from "@sillymaker/base";
 import { describe, expect, test } from "vitest";
 
-import { createStateAuthoringKitV1, createStateRuntimeV1 } from "./index.ts";
+import {
+  createStateAuthoringKitV1,
+  createStateRuntimeV1,
+  getStateModuleContractRevisionV1,
+} from "./index.ts";
 import type {
   StateCommandAttemptV1,
   StateRuntimeDefinitionV1,
@@ -339,6 +344,59 @@ function createPilotRuntimeV1(portions: number, forceCandidateFailure = false) {
 }
 
 describe("neutral State module workflow pilot", () => {
+  test("carries the admitted module revision after its definition alias changes", () => {
+    const kit = createStateAuthoringKitV1<EveningPilotTypesV1>();
+    const definition = {
+      id: "pilot.revision",
+      contractRevision: 3,
+      state: {
+        slot: "simulation.calendar",
+        schema: calendarStateSchemaV1,
+        initial: () => Object.freeze({ day: 1 }),
+      },
+      owner: {
+        operationSchema: kindSchemaV1("advance"),
+        propose(state: CalendarStateV1, operation: { readonly kind: "advance" }) {
+          return Object.freeze({
+            kind: "proposed" as const,
+            proposal: Object.freeze({
+              payload: operation,
+              facts: Object.freeze([
+                Object.freeze({ kind: "calendar.advanced" as const, day: state.day + 1 }),
+              ]),
+            }),
+          });
+        },
+        apply(state: CalendarStateV1) {
+          return Object.freeze({ day: state.day + 1 });
+        },
+      },
+    };
+
+    const module = kit.defineModule(definition);
+    Reflect.set(definition, "contractRevision", 99);
+    const spreadAlias = {
+      ...module,
+      contractRevision: parsePositiveSafeInteger(9),
+    };
+    const prototypeAlias: typeof module = Object.create(module, {
+      contractRevision: {
+        value: parsePositiveSafeInteger(9),
+        configurable: true,
+        enumerable: true,
+        writable: true,
+      },
+    });
+
+    expect(Object.getOwnPropertySymbols(spreadAlias)).toEqual([]);
+    expect(() => kit.composeModules([spreadAlias])).toThrow("invalid neutral State module");
+    expect(() => kit.composeModules([prototypeAlias])).toThrow("invalid neutral State module");
+    expect(module.contractRevision).toBe(3);
+    expect(getStateModuleContractRevisionV1(module)).toBe(3);
+    expect(kit.composeModules([module]).modules[0]?.descriptor.contractRevision).toBe(3);
+    expect(Object.isFrozen(module)).toBe(true);
+  });
+
   test("commits calendar, inventory, actor, and evening in one Session attempt", async () => {
     const { composition, runtime } = createPilotRuntimeV1(2);
     expect(composition.modules.map((module) => module.descriptor.id)).toEqual([

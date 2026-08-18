@@ -130,6 +130,8 @@ Cordis 本身只能使用其最新的 `4.0.0-rc.8` prerelease。
 
 - 新增 `@sillymaker/state` 根入口及明确的 legacy adapter 子入口；
 - `createStateRuntimeV1` 复用现有 `GameSession` 的一个 snapshot、queue、log、runtime control；
+- neutral definition 到 Base runtime input 逐字段构造，physical Session 以单向 assignability
+  检查为 neutral Session，不用 whole-object cast 掩盖 Base required-field drift；
 - Persistence import/load/migration 仍通过同一个 runtime control 做原子 replacement，并更新同一个
   replay anchor；
 - public consumer 不导入 Base GameSession 或 Cordis 也能 typecheck；legacy consumer 保持可用。
@@ -139,6 +141,12 @@ Cordis 本身只能使用其最新的 `4.0.0-rc.8` prerelease。
 主仓使用完全原创的中性 fixture：`calendar`、`inventory`、`actor`、`evening` 四个 module 与
 `use-evening-supply` workflow。它证明跨 module operation 在一个 transaction 中成功或完整回滚，
 不复制商业名称、文本、数值或实现。
+
+neutral module 公开 admission 后冻结的 `contractRevision`，冷路径 carrier 只引用同一个 Base
+authoring module；spread/prototype alias 不得让公开 metadata 与 physical binding 分叉。V1 initializer
+明确 bootstrap-independent；`StateTransaction` 只读 command-start State、无 read-your-writes、每 owner
+至多一个 proposal，并以 UTF-16 module-ID 顺序 apply/收集 facts。module-local invariants 在有真实
+执行语义前不进入 neutral surface，aggregate `validateCandidate` 保持唯一中立校验点。
 
 外部 workload 选择现有最窄的 `imouto.tea.brew`，而不是重置 108 fields 且触及更多领域的 sleep。
 接入时保持 `imouto.night`、`simulation.night`、全部 108 fields、Save slot 与 command identity，
@@ -267,7 +275,9 @@ replay 等价与 X5/X6 的 locality 指标一起成立，实验才有资格进�
   abort 保留 exact 旧 React tree、dirty document session、snapshot/provider，teardown 先卸载
   React consumer 再释放 providers。
 - `@sillymaker/state` root 只有一个 exact Base Session，没有第二 State/digest/status/
-  queue/CommandLog。中立 module/workflow 复用一个 Base authoring kit/transaction runner；原创四
+  queue/CommandLog。runtime definition 与 authoring config/runner 都显式逐字段桥接；中立
+  module/workflow 复用一个 Base authoring kit/transaction runner。module revision 是稳定 neutral
+  字段，私有 cold carrier 不可枚举且只接受 own property，避免 alias metadata 双权威；原创四
   module fixture 验证一次原子提交、owner reject 和 candidate invariant fault 的完整回滚。
   显式 `./legacy` adapter 用 Base 公开 constructor 重建完整 binding 并保留消费者的
   exact `GameSimulationTypeMapV1`，不要求 Story 展开隐藏字段或 `as unknown`。
