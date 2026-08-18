@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@sillymaker/base": "workspace:*",
+    "@sillymaker/composition": "workspace:*",
     "@sillymaker/ui": "workspace:*",
     "@sillymaker/web": "workspace:*",
     "react": "19.2.8",
