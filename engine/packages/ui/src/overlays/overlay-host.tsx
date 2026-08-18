@@ -191,6 +191,12 @@ function OverlayDialogEntryV1<TOverlayId extends string>(props: {
   const requestDismissV1 = (kind: "escape" | "backdrop"): void => {
     props.session.routeDismissInternalV1(props.entry.handle, kind);
   };
+  const requestCurrentEscapeDismissV1 = (): void => {
+    const inputOwnerId = props.session.getManagedSnapshotInternalV1().inputOwner
+      ?.surfaceInstanceId;
+    if (inputOwnerId !== props.entry.entry.surfaceInstanceId) return;
+    requestDismissV1("escape");
+  };
 
   return (
     <Dialog.Root
@@ -239,11 +245,29 @@ function OverlayDialogEntryV1<TOverlayId extends string>(props: {
               target?.focus({ preventScroll: true });
             }}
             onKeyDown={(event) => {
-              if (isTop && event.key === "Tab") routeTrappedTabV1(event);
+              if (!isTop) return;
+              if (event.key === "Tab") {
+                routeTrappedTabV1(event);
+                return;
+              }
+              if (
+                event.key === "Escape" &&
+                !isDevDockEscapeOwnerTargetV1(event.target)
+              ) {
+                // Radix registers its document-level Escape listener in a
+                // passive effect. A newly committed detail can therefore
+                // receive one key event while the previous layer still owns
+                // that listener. Revalidate the current input owner from both
+                // paths and route from the committed content as well.
+                event.preventDefault();
+                requestCurrentEscapeDismissV1();
+              }
             }}
             onEscapeKeyDown={(event) => {
               event.preventDefault();
-              if (!isDevDockEscapeOwnerTargetV1(event.target)) requestDismissV1("escape");
+              if (!isDevDockEscapeOwnerTargetV1(event.target)) {
+                requestCurrentEscapeDismissV1();
+              }
             }}
             onInteractOutside={(event) => event.preventDefault()}
             onCloseAutoFocus={(event) => event.preventDefault()}

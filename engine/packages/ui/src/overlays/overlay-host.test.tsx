@@ -996,6 +996,53 @@ describe("OverlayHostV1", () => {
     expect(opener).toHaveFocus();
   });
 
+  it("routes a committed top Escape when a stale native listener already prevented it", async () => {
+    const keydownCaptureListeners = new Set<EventListenerOrEventListenerObject>();
+    const originalAddEventListener: (
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ) => void = document.addEventListener.bind(document);
+    const addEventListener = vi.spyOn(document, "addEventListener").mockImplementation(
+      (type, listener, options) => {
+        const capture = options === true ||
+          (typeof options === "object" && options?.capture === true);
+        if (type === "keydown" && capture) keydownCaptureListeners.add(listener);
+        originalAddEventListener(type, listener, options);
+      },
+    );
+
+    try {
+      render(<OverlayHarnessV1 />);
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "打开背包" }));
+      const detailOpener = await screen.findByRole("button", { name: "食材详情" });
+      await user.click(detailOpener);
+      const detail = await screen.findByRole("dialog", { name: "食材详情" });
+      const detailAction = within(detail).getByRole("button", { name: "供应商详情" });
+
+      for (const listener of keydownCaptureListeners) {
+        document.removeEventListener("keydown", listener, true);
+      }
+      addEventListener.mockRestore();
+
+      const staleEscape = new KeyboardEvent("keydown", {
+        key: "Escape",
+        code: "Escape",
+        bubbles: true,
+        cancelable: true,
+      });
+      staleEscape.preventDefault();
+      fireEvent(detailAction, staleEscape);
+
+      expect(screen.queryByRole("dialog", { name: "食材详情" })).not.toBeInTheDocument();
+      expect(screen.getByRole("dialog", { name: "背包" })).toBeVisible();
+      expect(detailOpener).toHaveFocus();
+    } finally {
+      addEventListener.mockRestore();
+    }
+  });
+
   it("restores a pointer opener even when the browser leaves focus on its panel", async () => {
     const store = createOverlaySessionStoreV1();
     render(
