@@ -8,6 +8,11 @@ loader。执行优先级由 [roadmap](../roadmap.md) 与
 [production-floor sequence](../plans/2026-07-30-production-floor-sequence.md)
 控制；设计存在不构成 M0 激活。
 
+当前产品 Host target 是 Browser 与 Deno Desktop；Electron 仅为未来 adapter，Node.js server、
+通用 CLI 和 headless runtime 不是产品 target。辅助 headless conformance 仍可验证无 UI 的 Base
+facet。当前 Application Runtime AR1 对 private Extension Runtime 的 direct/Cordis-core-derived
+比较不等于激活本文的 resolver、manifest、public ABI、SDK 或 distribution。
+
 ## 1. Goal
 
 SillyMaker 需要让一个最终游戏或应用通过组合受支持的能力包来完成，而不是把
@@ -39,6 +44,7 @@ Mod 系统需要同时回答：
 - 不在运行中的 Session 热插拔 Simulation Mod；
 - 不把任意同 realm JavaScript 描述成安全沙箱；
 - 不把 Agent 生成的一份 UI、一个窗口或一次报表误称为 Mod。
+- 不把外部后台、companion service 或 LLM 连接误称为 Mod；它们经 typed RPC boundary 接入。
 
 ### 1.1 Activation gate
 
@@ -106,10 +112,10 @@ dependency direction 暴露独立 facet entry：
 @example/management/base      Simulation/content factory; no React/DOM
 @example/management/ui        React presentation and UI contribution
 @example/management/web       browser Host adapter, when genuinely required
-@example/management/tooling   Node-only authoring/build tooling
+@example/management/tooling   supported-Host authoring/build tooling
 ```
 
-不存在的 facet 不导出。Headless application 只解析 metadata/Base，不能为了读取
+不存在的 facet 不导出。辅助 headless conformance 只解析 metadata/Base，不能为了读取
 Mod 身份而加载 React；Base resolver 永远不接收 UI/Web/Tooling
 implementation。Web composition root 可以汇合已分别验证的 facet，但不能反向改变
 package ownership。
@@ -145,7 +151,7 @@ V1 需要一个 JSON-safe metadata definition，以及按 package layer
 分开的纯、同步、无副作用 facet factory。以下只是合同草图，不是已实现 API：
 
 ```ts
-// @example/management/mod — safe for project tooling and headless inspection
+// @example/management/mod — safe for project tooling and auxiliary inspection
 export const metadata = defineSillyModMetadataV1({
   contractRevision: 1,
   modId: "org.sillymaker.management",
@@ -289,9 +295,9 @@ V1 不提供含义模糊的 Mod-wide `initializesAfter`：
 - cross-facet lifecycle edge、只写 `modId` 的模糊 target 和用 lifecycle 决定
   override winner 都是 resolution error。
 
-每个被激活的 facet 独立验证自己的 resource DAG。Headless 不加载也不验证 UI/Web
-implementation graph；Web Application 则在创建 instance 前验证所有已选
-facet，再按固定 composer 层级初始化。
+每个被激活的 facet 独立验证自己的 resource DAG。辅助 headless conformance 不加载也不验证
+UI/Web implementation graph；Browser 或 Deno Desktop GUI Application 则在创建 instance 前
+验证所有已选 facet，再按固定 composer 层级初始化。
 
 ### 5.4 Application activation
 
@@ -317,8 +323,9 @@ defineSillyApplicationV1({
 });
 ```
 
-应用根是最终选择权威。Web root 可以汇合全部已选 facet；headless/Core root 只传
-metadata/Base 子集。一个 package 被安装、被另一个 package import，或出现在
+应用根是最终选择权威。Browser/Deno Desktop GUI root 可以汇合产品已选 facet；辅助
+headless conformance/Core root 只传 metadata/Base 子集。一个 package 被安装、被另一个
+package import，或出现在
 lockfile 中，都不等于它已激活。
 
 ## 6. Resolution and merge rules
@@ -564,9 +571,11 @@ Mod SDK。开放第三方代码 Mod 之前至少需要：
 
 - 实际发布的 JavaScript、`.d.ts`、CSS 和 runtime assets，而不是导出仓库
   `src/**`；
-- 明确 conditional exports、side-effects 和 browser/Node/Deno 支持面；
+- 明确 conditional exports、side-effects 和 Browser/Deno Desktop 支持面；Electron 必须另经
+  Host adapter promotion；
 - SillyMaker public API 与 first-party Mod 的 semver/兼容策略；
-- 在仓库外 consumer 中完成 Deno、Vite/browser 和 headless install/build smoke；
+- 在仓库外 consumer 中完成 Deno Desktop、Vite/browser GUI install/build smoke，并以辅助
+  headless conformance 验证 Base facet 不加载 React；
 - package、Mod、transitive dependencies 与资源的可复现 build identity；
 - 一条旧 Save + 新 Mod 版本的兼容/迁移验收。
 
@@ -680,7 +689,7 @@ Activation gate，并在独立 active plan 中记录证据。
   activation 和 bundle metadata；
 - 一个 first-party VN composition + 至少两个独立 application consumers（VN Mod
   本身不算 consumer）；
-- headless resolution 不加载 React/UI facet，两个 consumers 不用 `unknown`/cast
+- auxiliary headless resolution 不加载 React/UI facet，两个 GUI consumers 不用 `unknown`/cast
   共享 factory；
 - 无 node_modules scanning、无 runtime install、无 Save migration 承诺。
 
@@ -731,8 +740,8 @@ Artifact；不可信扩展另立安全设计，不由 M1–M5 自动推出。
 
 - Mod resolver 与 Authoring Kit 各自维护一套 GameplayModule/capability
   authority；
-- Base/headless resolver 为读取一个纵向 Mod 而导入 React、DOM、Web 或 Node-only
-  tooling；
+- Base/auxiliary-conformance resolver 为读取一个纵向 Mod 而导入 React、DOM、Web 或
+  Host-specific tooling；
 - 可复用 Mod 把应用联合类型擦成 `unknown`、运行时 cast 或字符串 service
   locator；
 - 一个 GameplayModule、State slot 或稳定 reference set 无法追溯到唯一

@@ -8,7 +8,8 @@
 
 ## 1. North star
 
-SillyMaker 是面向 **叙事、数据密集、事件/回合驱动游戏** 的浏览器优先 React + TypeScript 引擎。它优先服务：
+SillyMaker 是面向 **GUI 应用和游戏** 的 React + TypeScript 引擎；游戏仍是第一压力源。
+当前产品 Host target 是 Browser 与 Deno Desktop，Electron 只保留未来 adapter 位置。它优先服务：
 
 - Visual Novel 与互动叙事；
 - 经营/人物养成/时间经济 SLG；
@@ -27,34 +28,46 @@ stable deterministic core
   + optional agent/genui workspace
 ```
 
-作者或 Agent 只通过受支持的 package exports，用普通 TypeScript 与稳定数据编写 Story、GameplayModule、Narrative、内容表和 React UI。同一个产品可在 headless 与 browser 运行，被语义自动化操作、独立构建、诊断和长期迁移，不复制示例胶水，不修改 engine core。
+作者或 Agent 只通过受支持的 package exports，用普通 TypeScript 与稳定数据编写 Story、
+GameplayModule、Narrative、内容表和 React UI。产品在 Browser 或 Deno Desktop GUI 中运行，
+可被语义自动化操作、独立构建、诊断和长期迁移，不复制示例胶水，不修改 engine core。
+headless 只复用同一 semantic/application contract 做开发、测试、conformance 和自动化；它不是
+产品 target。Desktop CLI 只传入一次性 startup config，不是 interactive product 或运行时总线。
 
 真实游戏持续充当第一消费者，Engine Lab 是中性 conformance rig；任何一个游戏或外部验证 workload 都不是引擎隐含模板。
 
-2026-08-18 起，这一 north star 的产品表述扩展为 **game-first programmable
-application runtime**：游戏仍是确定性、Save/replay、表现和内容规模的第一压力源，
+2026-08-18 起，这一 north star 的产品表述扩展为 **game-first GUI application runtime**：
+游戏仍是确定性、Save/replay、表现和内容规模的第一压力源，
 同一 Application Host 可以按产品承载 Authoring Host 或 Agent Host，也可以承载 Agent-first
-产品。它不是通用桌面 OS、IDE、插件市场或任意代码宿主；产品领域不会因此并入
-GameSnapshot。
+产品。它不是 backend/server framework、通用 CLI/headless runtime、桌面 OS、IDE、插件市场或
+任意代码宿主；产品领域不会因此并入 GameSnapshot。必要后台、companion service 与 LLM 通过
+typed RPC 连接，不作为进程内 plugin。
 
 ## 2. Non-negotiable architecture
 
 - 一个 Session 只有一个 authoritative gameplay State；DOM、React state、renderer、editor、SQLite/IndexedDB 和 Agent transcript 都不能成为第二权威。
 - Simulation 拥有规则与可保存语义；Presentation 拥有动画、排版、相机、粒子和瞬时播放；Host 拥有浏览器/桌面资源、I/O、存储和墙钟。
 - Save 是 plain、versioned、validated data 与稳定 ID；不保存 DOM、renderer object、Promise、clock handle、audio node、cache 或动画进度。
-- Headless、玩家 UI、Browser Automation 与 Agent 使用同一 semantic/application contract，不各自重写规则。
+- Browser/Deno Desktop GUI、Browser Automation、Agent 与辅助 headless conformance 使用同一
+  semantic/application contract，不各自重写规则；GUI evidence 拥有产品验收。
 - 输入先成为语义 action，由当前 input owner/context 处理；物理设备不直接改 gameplay State。
 - 素材通过 manifest ID；加载、readiness、失败、fallback、预算和 technical identity 是一等构建/Host 边界。
 - 内容数据库只读；mutable gameplay 只能经 Session transaction；Host persistence 不是 runtime ORM。
 - 公共 API 由真实第二消费者、行为测试与迁移路径证明；design 文档或 passing typecheck 不足以冻结接口。
 - 新作者层减少样板，但不引入第二套 DSL、动态 eval 或模糊的万能 context。
-- package dependency direction 保持：Base 不导入 React/DOM/browser/Node-only tooling。
+- package dependency direction 保持：Base 不导入 React/DOM/browser/host-specific tooling。
 
 ## 3. Script and extension model
 
 Story、GameplayModule、Narrative、UI contribution 与可信 Hotfix 使用 TypeScript/JavaScript。运行时不引入 Ren'Py DSL、ATL、Screen Language、自研 VM 或任意表达式解释器。
 
 第一阶段扩展是构建期可信代码。发布后的 declarative content/assets/template、同 realm trusted code 与未来隔离扩展是不同信任模型；当前不承诺不可信 JavaScript sandbox。
+
+延迟加载与动态装卸明确分层：Browser/Deno Desktop 各自的 Module Update Source 只取得
+build-known candidate；平台中立 Extension Runtime 只管 trusted in-process domain/contribution
+lifecycle；SillyMaker publication/authority 继续拥有 admission、consumer ack、atomic cutover、
+Session migration 与 predecessor retirement。外部 RPC 是并列 Host boundary，不属于 plugin/HMR。
+普通静态游戏可以直接 mount 内聚 Game domain 并完全排除 dynamic extension backend。
 
 直接访问 `window`、DOM、IndexedDB、内部 `src/**` 或未公开 store 不受兼容承诺保护。Story 可使用明确的 Host/renderer escape hatch，但它们必须在 package ownership、Save 边界和测试中可见。
 
@@ -106,8 +119,9 @@ index、Story 包目录 locality 与 Scene Construction，目标合同见
 的 capability composition 与 dependency locality；必须先用仓库内中性 workload 复现，并保持
 唯一 State authority、Save/replay 等价与热路径预算。实验分支已完成 X0–X6.3：X6.2 注入唯一
 Narrative integrity catalog，X6.3 将 concrete registries 收口到 frozen cold environment/direct
-plans；初始 X1 引入的私有 Cordis wrapper 在 retain/remove checkpoint 证明没有承担独立
-scope/fiber 语义后已由 package-internal direct lifecycle 取代。X7 的中立 3x3 matrix、隔离 GC
+plans；初始 X1 引入的私有 Cordis wrapper 在 retain/remove checkpoint 证明当时的平面 wrapper
+没有承担独立 scope/fiber 语义后已由 package-internal direct lifecycle 取代；它不回答未来
+editor nested ownership/provider recovery 的总成本。X7 的中立 3x3 matrix、隔离 GC
 trend 与外部两场景 paired evidence 也已完成且通过 stop gate。探索历史保留在
 `codex/experimental-cordis-state-runtime`，经验证的最终树由
 `codex/promote-composition-state-runtime` 重组为后续主仓开发基线；这仍不自动激活 Mod ABI、
@@ -118,13 +132,14 @@ authoritative replay 的重复 canonicalization，再讨论改变 State 格式�
 
 2026-08-18 所有者以新的产品方向证据接受
 [Application Runtime and Embedded Authoring V1](plans/2026-08-18-application-runtime-embedded-authoring.md)
-为当前默认/core lane：先建立 startup/dependency floor、build-known first-party progressive
-activation、structured authoring operations、embeddable Authoring Host 与最窄 experimental
-Agent Host/UiArtifact seam，再做 build/browser/performance promotion。目标合同见
+为当前默认/core lane：先建立 Browser/Deno Desktop startup/dependency floor；AR1 用中立合同
+比较 direct 与 Cordis-core-derived private lifecycle 并只保留一条；随后交付 structured
+authoring operations、stable-sibling embeddable Authoring Host 与最窄 typed RPC/experimental
+Agent Host/UiArtifact seam，再做双 GUI Host build/performance promotion。目标合同见
 [Application Runtime and Embedded Authoring](design/application-runtime-and-embedded-authoring.md)。
-本轮只交付引擎基础设施；SillyOS、Cat Cafe 与商业克隆第三次重写随后分别立案。未写入
-active plan 的候选不是默认 backlog。已接受但未完成的 Desktop promotion 保持独立、条件性且
-不阻塞 core。
+本轮只交付引擎基础设施；AR6 后的作品、examples 或产品由所有者另行讨论和立案，不预设名称或
+顺序。未写入 active plan 的候选不是默认 backlog。已接受但未完成的 Desktop promotion 保持
+独立、条件性且不阻塞 core。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实
@@ -426,17 +441,23 @@ tool/intents、permission、idempotency 与 queue-front revalidation。模型不
 mutable reference、数据库连接、文件系统、任意网络 client、任意 React component 或 HTML/JS
 execution。
 
-当前 active plan 的 AR4 只建立 provider-neutral、package-internal 的 Agent Host/UiArtifact
-生命周期 seam，并以 deterministic fake 对本地 revisioned authoring draft 验证；fake 不保存
-文件、不提交 authoritative state、不执行 external effect，因此不激活独立 approval/receipt
-subsystem。真实 sidecar、协议选型、`UiArtifact` persistence 与具体 OpenUI/A2UI adapter 必须等
-SillyOS 产品计划单独激活，不能从 Track G 直接领取。
+当前 active plan 的 AR4 只建立 transport/provider-neutral、package-internal 的 Agent RPC client/
+UiArtifact lifecycle seam，并以 deterministic fake 对本地 revisioned authoring draft 验证；fake
+不保存文件、不提交 authoritative state、不执行 external effect，因此不激活独立 approval/
+receipt subsystem。真实后台/LLM、RPC protocol、`UiArtifact` persistence 与具体 OpenUI/A2UI
+adapter 必须由后续 owner-selected 产品计划单独激活，不能从 Track G 直接领取。required service
+不可用时，依赖 domain 不得谎报 ready，但 GUI 必须保留配置、诊断和 retry；外部 service 不是
+plugin，也不取得 Session/FilePort authority。
 
 Agent workspace 需要 tab/split/task/approval/artifact/history 等独立领域模型；不要把现有游戏 Overlay 膨胀成桌面 WindowManager。流式半成品是 transient presentation；只有完整验证的 document 可持久化，replay 渲染保存 document 而不是重新调用模型。
 
 ## 12. Strategic track H — Mod incubation
 
 [Mod design](design/mod-system.md) 保留为 accepted direction / incubation，不是当前实现队列。
+
+当前 AR1 的 private Extension Runtime A/B 不等于激活 Mod：它没有 resolver、manifest、public
+ABI、external SDK、post-release install 或 distribution。即使最终采用 vendored/forked Cordis
+core，也只是一项可从普通静态游戏 build 排除的内部 lifecycle backend。
 
 激活 M0–M2 前必须同时满足：
 
@@ -460,7 +481,8 @@ implementation plan，才能开始 resolver、public ABI、external SDK 或 dist
 1. owner 与 public contract 明确；
 2. focused behavior/property tests；
 3. 中性 Engine Lab 第二消费者；
-4. 适用的 headless/browser/prebuilt/normal-reduced-skip 一致性；
+4. Browser 与 Deno Desktop GUI 行为，以及适用的 prebuilt/reduced-skip/辅助 headless
+   conformance 一致性；
 5. 性能/兼容/可访问性等对应非功能证据；
 6. superseded owner/API/glue 被删除；
 7. live architecture/features/development/story-authoring/build docs 同步；

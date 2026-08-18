@@ -3,13 +3,18 @@
 ## Mission
 
 This repository is **SillyMaker** (https://github.com/jasl/silly-maker), a
-reusable React and TypeScript engine evolving into a **game-first programmable
-application runtime** through real games and application products. Games remain
-the first pressure source for deterministic State, Save/replay, presentation,
-input, content scale, and authoring. The current flagship is the Cat Cafe example
-(`examples/cat-cafe`); the retired Project Tavern PoC lives only in history. The
-active work may redesign gameplay, engine APIs, application hosting, state
-management, presentation, and authoring workflows.
+reusable React and TypeScript engine for **GUI applications and games**. Games
+remain the first pressure source for deterministic State, Save/replay,
+presentation, input, content scale, and authoring. Browser and Deno Desktop are
+the current product targets; Electron is only a possible future Host adapter.
+Backend services, CLI products, and headless products are not engine targets.
+Desktop CLI arguments may provide admitted startup configuration, and headless
+code may support development, tests, conformance, and automation. Required
+external or companion services, including LLMs, connect through typed RPC
+boundaries; they are not in-process plugins. The current flagship is the Cat
+Cafe example (`examples/cat-cafe`); the retired Project Tavern PoC lives only in
+history. The active work may redesign gameplay, engine APIs, application
+hosting, state management, presentation, and authoring workflows.
 
 Prefer a coherent maintainable system over compatibility with the completed
 first-PoC implementation. When a durable public contract changes, update its
@@ -39,18 +44,22 @@ Read only the documents relevant to the change:
   edge context) delivered 2026-08-17; its contract and closure record live in
   `docs/engine/proposals/cue-identity.md`. The current default/core lane is
   `docs/engine/plans/2026-08-18-application-runtime-embedded-authoring.md`:
-  startup/dependency evidence, build-known first-party progressive activation,
-  an embeddable Authoring Host, structured authoring operations, and a
-  provider-neutral experimental Agent/UiArtifact seam. Engine capabilities land
-  before the separately planned SillyOS, Cat Cafe, and external-clone rewrites.
+  Browser/Deno Desktop startup evidence, build-known progressive activation, an
+  orchestration-neutral domain lifecycle with a bounded direct/Cordis-core A/B,
+  structured authoring operations, an embeddable Authoring Host, and a typed RPC
+  plus experimental Agent/UiArtifact seam. AR1 chooses exactly one private
+  lifecycle backend; AR3 keeps Authoring stable across Game successors. Engine
+  capabilities land before any separately accepted follow-on product or work.
   Desktop persistence remains an accepted, unfinished, conditional promotion
   lane while the adapter is preview.
 - `docs/engine/design/application-runtime-and-embedded-authoring.md` — accepted
-  target contracts for product-relative runtime/author/headless entries,
-  progressive activation, the single Authoring Host with standalone and embedded
-  shells, structured authoring operations, and separated gameplay, authoring,
-  Agent-session, and UiArtifact authorities. It does not activate a public Mod
-  ABI, Cordis, OpenUI/A2UI adapter, Effect Broker, or Player source editor.
+  target contracts for Browser/Deno Desktop GUI entries, startup configuration,
+  external RPC, platform Module Update Sources, the private Extension Runtime,
+  SillyMaker-owned publication, the single Authoring Host with standalone and
+  embedded shells, structured authoring operations, and separated gameplay,
+  authoring, Agent-session, and UiArtifact authorities. It allows the bounded
+  AR1 Cordis-core comparison but does not activate a public Mod ABI, Cordis API,
+  OpenUI/A2UI adapter, Effect Broker, Electron/Node Host, or Player source editor.
 - `docs/engine/plans/2026-08-18-experimental-composition-state-runtime.md` —
   completed external strangler evidence and the curated promotion boundary for
   the maintained internal Composition package plus the still-experimental
@@ -112,9 +121,11 @@ accepted.
   authoritative profiles seal after mount, while a live candidate requires an
   explicit consumer publication acknowledgement. Live effects are installed
   before that acknowledgement and therefore must be staging-safe. Do not add
-  dynamic lifecycle lookup to command/render paths or recreate hierarchical
-  scopes, reactive injection, or replacement machinery without a real
-  consumer and an observable contract.
+  dynamic lifecycle lookup to command/render paths. The active AR1 may compare
+  the current direct lifecycle with a private Cordis-core-derived backend under
+  one neutral conformance suite; the selected backend must remain optional,
+  keep Cordis/Context out of domain and public contracts, exclude Node HMR, and
+  leave SillyMaker publication/State authority unchanged.
 - `@sillymaker/state` is an experimental neutral façade for authoritative
   transactional State, not a generic React/UI store. It must reuse exactly one
   Base Session and transaction runner; it never owns a second State, digest,
@@ -159,7 +170,8 @@ documented migration path.
   Maintained development, required CI, and Desktop promotion run on the latest
   stable Deno available at execution time. Do not pin one exact patch, require
   the floor as a second per-PR lane, or require a browser revision, machine
-  attestation, or shell layout.
+  attestation, or shell layout. Node compatibility supports dependencies; it
+  does not make Node.js a SillyMaker product Host target.
 - Install with `deno install`. Use `deno task dev` for local development and
   `deno task check` as the canonical local code-quality and product-behavior
   check.

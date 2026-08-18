@@ -24,15 +24,17 @@ S0–S5；目标合同见[统一创作架构设计](../design/authoring-architec
 当前：2026-08-18 所有者以新的产品方向证据接受
 [Application Runtime and Embedded Authoring V1](2026-08-18-application-runtime-embedded-authoring.md)
 为下一条默认/core lane。引擎能力全部前置，按 AR0 startup/dependency baseline → AR1
-first-party progressive activation → AR2 structured Scene operations → AR3 embeddable
-Authoring Host → AR4 experimental Agent Host/UiArtifact seam → AR5 build/browser/performance
-promotion → AR6 closure 顺序执行。目标合同见
+progressive activation 与 private extension-runtime selection → AR2 structured Scene operations →
+AR3 embeddable Authoring Host/stable sibling → AR4 experimental Agent RPC/UiArtifact seam → AR5
+Browser/Deno Desktop GUI/build/performance promotion → AR6 closure 顺序执行。目标合同见
 [Application Runtime and Embedded Authoring](../design/application-runtime-and-embedded-authoring.md)。
-SillyOS Agent/明确选型的 UiArtifact adapter、Cat Cafe gameplay/in-game authoring 与内容
-冻结后的商业克隆第三次重写只作为后续独立产品证据，不是本轮切片或完成 blocker；普通
-release 仍不得包含 author/source-write 依赖。本计划不激活 Cordis、Mod ABI、State Format
-V2、Effect Broker、具体 OpenUI/A2UI adapter 或 production Story State migration。下一项
-可领取任务只有 AR0。
+Browser 与 Deno Desktop 是当前 GUI product targets；CLI 只提供 Desktop startup config，
+headless 只作开发/测试辅助，外部后台与 LLM 统一经 RPC。AR1 用同一中立 suite 比较 direct 与
+Cordis-core-derived private backend，关闭时只保留一条；这不激活 public Cordis API、Mod ABI、
+runtime code installation、State Format V2、Effect Broker、具体 OpenUI/A2UI adapter 或
+production Story State migration。普通静态游戏 release 仍不得包含 author/source-write、未选
+extension runtime 或 RPC implementation。AR6 后的作品/examples/产品由所有者另行选择和立案，
+不在本计划预先排序。下一项可领取任务只有 AR0。
 
 前置证据：[Ambient Loop Motion V1](2026-08-15-ambient-loop-motion.md) 的 M0–M3 已
 于 2026-08-15 当日交付（表现侧循环运行时、Scene 文档 `ambient` admission、创作
@@ -68,8 +70,10 @@ State-heavy workload、Cordis 参考实现和明确的中立 State Runtime 目�
 为独立分支 strangler experiment。其 X0–X6.3 已完成：X6.2 注入唯一 Narrative integrity
 catalog，X6.3 把 concrete registries 收口到 Session 前冻结的 environment/direct plans；实验已通过
 唯一权威、Save/replay 等价、dependency locality 与 `<10%` 稳定 command overhead gates。X1
-最初使用的 Cordis wrapper 经 retain/remove checkpoint 证明没有承担独立 scope/fiber 语义，最终由
-package-internal direct lifecycle 取代。X7 的中立 matrix/隔离 GC 与外部 paired 性能证据已完成，
+最初使用的 Cordis wrapper 经 retain/remove checkpoint 证明当时的平面 wrapper 没有承担独立
+scope/fiber 语义，最终由 package-internal direct lifecycle 取代；该结论不回答未来 editor
+nested ownership/provider recovery 的实现成本，后者由当前 AR1 中立 A/B 重新裁决。X7 的中立
+matrix/隔离 GC 与外部 paired 性能证据已完成，
 源实验历史保留在 `codex/experimental-cordis-state-runtime`，经验证的最终树由
 `codex/promote-composition-state-runtime` 重组为后续主仓开发基线。但这没有激活 State Format
 V2、Effect Broker/OpenUI、独立的 i18n/message-catalog lane 或 production Story migration，也不因
@@ -370,7 +374,7 @@ one-shot setter 与 constructor factory 选择、formatter delta 或历史计划
 - generic content compiler；
 - genre-wide combat/card/SLG pack；
 - advanced renderer；
-- SillyOS、Cat Cafe 与商业克隆的替代实现（AR6 移交后分别立案）；
+- AR6 后由所有者另行选择并立案的作品、examples 或产品实现；
 - 真实 Agent/OpenUI/A2UI adapter、Agent persistence 与 Effect Broker；
 - machine/browser/runtime patch pinning；
 - unmeasured performance hard gates。
