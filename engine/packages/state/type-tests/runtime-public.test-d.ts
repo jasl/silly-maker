@@ -132,11 +132,11 @@ legacyV1.runtimeControl satisfies typeof legacyV1.composition.runtimeControl;
 
 // @ts-expect-error legacy runtime names are not exported by the neutral root
 import type { GameSessionV1 } from "@sillymaker/state";
-// @ts-expect-error Cordis types are not exported by the neutral root
+// @ts-expect-error lifecycle implementation types are not exported by the neutral root
 import type { Context } from "@sillymaker/state";
 
 type _NoLegacyRuntimeNameV1 = GameSessionV1;
-type _NoCordisContextV1 = Context;
+type _NoLifecycleContextV1 = Context;
 void (0 as unknown as RootValueKeysV1);
 void (0 as unknown as RuntimeKeysV1);
 void (0 as unknown as SessionKeysV1);
@@ -145,4 +145,4 @@ void (0 as unknown as SnapshotFitsPhysicalEnvelopeV1);
 void (0 as unknown as PhysicalEnvelopeFitsSnapshotV1);
 void (0 as unknown as DefinitionFitsPhysicalInputV1);
 void (0 as unknown as _NoLegacyRuntimeNameV1);
-void (0 as unknown as _NoCordisContextV1);
+void (0 as unknown as _NoLifecycleContextV1);

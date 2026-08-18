@@ -10,15 +10,16 @@ checks 均通过。PF6 broad harness 没有因 Cat Cafe 的 Story-local preview 
 当前也没有新增 public authoring ABI。Desktop file persistence/packaging、通用 editor、Mod 与
 genre/compiler work 仍不在这项 production claim 内。
 
-2026-08-18 新增的 `@sillymaker/composition` X1/X2 kernel 与
-`@sillymaker/state` X4/X5 compatibility façade 是独立实验能力；它们没有扩展上述
-production claim，也没有迁移任何维护中的 Story、Save 格式或应用组合。
+2026-08-18 新增的 `@sillymaker/composition` X1–X3 kernel/live-tooling path 与
+`@sillymaker/state` X4/X5 compatibility façade 是独立实验能力；外部 workload 已完成
+X6.1–X6.3 locality/runtime-plan 验证，主仓也完成 X7 性能证据。它们没有扩展上述 production
+claim，没有迁移任何维护中的 Story、Save 格式或应用组合，也没有激活 State Format V2 或 X8。
 
 ## Experimental composition kernel
 
 - `@sillymaker/composition` 提供 typed service/registry token、plugin、profile、scope、稳定
-  graph identity、direct-plan compiler 与可逆 lifecycle。每个 profile 只创建一个私有 Cordis
-  Context/composite Fiber；公开 API、Story 和 hot path 均不接触 Cordis。
+  graph identity、direct-plan compiler 与可逆 lifecycle。每个 profile 直接拥有一个 staging
+  record/composite disposer；公开 API、Story 和 hot path 均不接触动态 lifecycle Context。
 - Graph preflight 在 setup 前拒绝 missing/duplicate provider、duplicate registry entry、同 ID
   的不同 token object 与 dependency cycle。setup 失败逆序回滚；cleanup failure 形成诊断且继续
   sibling cleanup。
@@ -32,12 +33,21 @@ production claim，也没有迁移任何维护中的 Story、Save 格式或应�
   中验证，成功才换 visible host，render/layout/abort 失败保留 exact 旧 React tree、snapshot、provider
   与 dirty authoring session。清理按 React consumer 在先、composition providers 在后的顺序执行，
   两路失败都转为诊断而不产生 unhandled rejection；该 root 不持有 authoritative Session/State。
+- X1 曾以私有 Cordis core 包裹已经由 SillyMaker 拥有的 staging/disposal；retain/remove A/B 证明它
+  没有承担独立 Fiber tree、injection、isolation 或 publication 语义后，最终实现改为 package-internal
+  direct lifecycle。公开 exports、State/Save/replay 和维护中 Player 的 JavaScript/CSS application
+  chunks 均未改变；未来只有真实 consumer
+  需要这些层级语义时才重新评估依赖。
+- 外部 X6.2/X6.3 workload 把 concrete registries 限制在 Session 前的 cold environment，并让
+  compiler/runner 只保留冻结 script、一个 runtime node index、choice maps 与 direct gate/effect
+  functions。Simulation/semantic hot consumers 不查询 registry 或 lifecycle Context；兼容名称仍是
+  同一个 singleton runtime 的 exact aliases。外部源码和内容不属于引擎 feature 或 fixture。
 
 ## Experimental neutral State Runtime
 
 - `@sillymaker/state` root 提供 `StateRuntimeV1`、`StateSessionV1`、
   `StateSnapshotV1`、`StateRuntimeDefinitionV1` 与相关 command/result 类型，公开声明不暴露
-  Cordis 或 legacy Game 命名。`createStateRuntimeV1` 通过 Base
+  lifecycle Context 或 legacy Game 命名。`createStateRuntimeV1` 通过 Base
   `createGameSessionV1` 只创建一次底层 composition，并把其 exact Session 作为唯一权威返回；
   facade 不代理、不展开，也不复制 State、digest、status、queue 或 CommandLog。
 - `@sillymaker/state/legacy` 提供迁移期 adapter，可同时取得同一个 neutral runtime、exact
@@ -57,6 +67,10 @@ production claim，也没有迁移任何维护中的 Story、Save 格式或应�
 - 当前 Snapshot/State 物理格式、whole-Snapshot digest、Save、Persistence、migration、
   CommandLog 与 replay 仍由 `@sillymaker/base` 的既有实现权威拥有。尚无 State Format V2 或
   production Story 迁移。
+- 主仓提供一个 16-module neutral Composition/State benchmark：3x3 exact-Save/touched-owner matrix
+  先证明 256 commits、200-entry retention、authoritative replay 与 isolated import/export，再把
+  steady command、cold activation 和五个 process-isolated GC cells 分开采样。它不添加 production
+  instrumentation 或第二 authority；绝对 timing/heap 只作本机 trend，不进入普通 CI hard gate。
 
 ## Story authoring and resolution
 

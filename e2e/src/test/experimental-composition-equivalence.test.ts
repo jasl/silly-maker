@@ -107,7 +107,7 @@ function createExperimentalApplicationPluginV1(
   return Object.freeze({ factoryToken, applicationPlugin, markerA, markerB });
 }
 
-describe("experimental Cordis composition equivalence", () => {
+describe("experimental composition equivalence", () => {
   it("keeps the legacy application path byte-equivalent without hot-path activation", async () => {
     const direct = await createLabApplicationInstanceV1();
     const directObservation = await observeScenarioV1(direct);

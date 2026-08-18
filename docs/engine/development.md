@@ -39,7 +39,7 @@ Dependency reference rule: engine and Story sources (everything Vite builds or v
 
 ```text
 engine/packages/base     framework-neutral authoring, contracts, and runtime
-engine/packages/composition experimental Cordis-backed cold-path plugin façade
+engine/packages/composition experimental cold-path plugin façade
 engine/packages/state    experimental neutral State Runtime facade over Base
 engine/packages/tooling  non-browser CLI, Vite/identity, JSONL, and Desktop preview tools
 engine/packages/ui       generic React presentation, Narrative/WholeCanvas surfaces, and input
@@ -53,7 +53,6 @@ scripts                  maintained build, asset, and product tooling
 docs/engine            active engine documentation
 docs/game              active gameplay design
 docs/policies          durable repository policy
-vendor/cordis          private MIT Cordis core source used only by composition
 ```
 
 Package manifests define supported cross-package entries. Do not bypass them with imports into another package's `src/**` directory.
@@ -99,13 +98,20 @@ owner, and applies proposals and facts in UTF-16 module-ID order; rejection and
 fault leave the authoritative Snapshot and committed RNG unchanged.
 
 `@sillymaker/composition` is cold-path only. Public plugins use its scope and
-typed tokens; they never import `@sillymaker/vendor-cordis`. Compile services
-and registries into direct plans before Session creation. State-backed legacy
+typed tokens; no dynamic lifecycle Context is exported. Compile services and
+registries into direct plans before Session creation. State-backed legacy
 applications use `activateStateApplicationV1` from the `./state` entry so this
 ordering is enforced rather than left to caller convention. Authoritative mount
 is permanently frozen; use a separate kernel for reloadable Studio/
 presentation/tooling profiles. Lifecycle cleanup covers in-process resources
 only.
+
+The X1 Cordis wrapper was removed after a retain/remove checkpoint showed that
+it owned no independent Fiber tree, injection, isolation, or publication
+semantics. The composition package now stages and disposes its own records
+directly. Do not reintroduce a lifecycle framework for prospective use; first
+establish a real consumer and an observable behavior that the direct kernel
+cannot represent.
 
 The generated dev-only Studio entry uses `@sillymaker/studio/composition` for
 that separate live root. A live reload keeps the predecessor snapshot/providers
@@ -128,6 +134,7 @@ deno run -A npm:vitest run engine/packages/composition/src/state.test.ts
 deno run -A npm:vitest run e2e/src/test/experimental-composition-equivalence.test.ts
 deno run -A npm:vitest run engine/packages/studio/src/composition.test.ts
 deno run -A npm:vitest run engine/packages/tooling/src/vite/studio.test.ts
+deno task test:composition-state-bench
 deno task typecheck
 ```
 
@@ -139,12 +146,15 @@ deno task typecheck
 | `deno task check`                                | Canonical local code-quality and product-behavior check.                                                                                                   |
 | `deno task test`                                 | Run engine and game behavior tests.                                                                                                                        |
 | `deno task test:coverage`                        | Run unit tests with engine line-coverage reporting.                                                                                                        |
+| `deno task test:composition-state-bench`         | Run the deterministic Composition/State workload, report-schema, and fake-GC behavior tests without recording timing.                                      |
 | `deno task check:determinism`                    | Recollect and statically check the exact authoritative import closure (also part of `check`).                                                              |
 | `deno task test:determinism:deno`                | Run two Deno repeats of the guarded authoritative matrix.                                                                                                  |
 | `deno task test:determinism:browsers`            | Run the dedicated matrix twice in each locked Chromium, Firefox, and WebKit installation.                                                                  |
 | `deno task test:determinism`                     | Aggregate the Deno and three-browser determinism gates; requires all browser binaries to be installed.                                                     |
 | `deno task bench:snapshot`                       | Write a neutral Snapshot hot-path baseline JSON to a temporary path.                                                                                       |
 | `deno task bench:snapshot:memory`                | Sample retained memory for one long-lived neutral Snapshot Session.                                                                                        |
+| `deno task bench:composition-state`              | Run the neutral 16-module exact-Save/touched-owner matrix and write a trend-only temporary JSON report.                                                    |
+| `deno task bench:composition-state:memory`       | Sample one explicitly selected neutral Composition/State GC cell in an isolated process.                                                                   |
 | `deno task bench:surfaces`                       | Record the 30-row Stable publication lifecycle matrix as a trend-only temporary JSON report.                                                               |
 | `deno task bench:player`                         | Build Engine Lab, then record three Chromium interaction/heap/allocation trend samples in the OS temp directory.                                           |
 | `deno task bench:player:bundle`                  | Fresh-build Engine Lab release output and report entry/preload/lazy plus aggregate raw/gzip bytes to OS temp.                                              |
@@ -616,6 +626,8 @@ The focused `deno task test:composition-state-bench` behavior suite is part of
 portable report schema, and fake GC schedule.
 
 Wall-clock, memory, and GC values from either benchmark are trend evidence, not ordinary CI gates. Normal tests assert deterministic schedules, internal work counts, report schemas, and byte-equivalent Snapshot/CommandLog behavior; they do not assert one machine's timing, heap, RSS, or collector result. Raw local baseline JSON is not committed.
+
+The completed owner-grade 3x3 matrix and five isolated GC-cell observations are recorded in the [experimental Composition/State plan](plans/2026-08-18-experimental-composition-state-runtime.md). They are a dated local checkpoint, not default expectations for another machine.
 
 The same policy applies to Composition/State measurements. Absolute p50/p95,
 heap, RSS, collection, and cold-activation observations are candidates for an

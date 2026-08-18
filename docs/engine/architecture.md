@@ -9,6 +9,9 @@
 package-internal collaboration 并拆出清晰叶模块，没有改变 workspace public exports、Save/wire
 或 authoritative semantics；PF6 broad harness 经 Cat Cafe 真实作者纵切复审后没有激活。
 当前没有自动激活的默认核心实现节点，Desktop durability/packaging 仍是独立 preview lane。
+独立 Composition/State strangler experiment 已完成 X0–X6.3 与 X7 性能证据；它验证了本节的
+single-authority 和 direct-plan 边界，但没有把实验包接入 production Story flow，也没有激活
+State Format V2、Effect Broker 或 production migration。
 
 ## 1. System context
 
@@ -31,8 +34,8 @@ Story packages and applications
 
 依赖方向保持从具体游戏指向通用引擎。Base 不依赖 React、DOM、浏览器或具体
 Story；UI 和 Web 可以依赖 Base；具体 Story/application 可以依赖三个引擎包。实验性的
-`@sillymaker/state` 目前只依赖 Base；`@sillymaker/composition` 依赖 State 的中立组合契约与
-私有 vendored Cordis core，State 不反向依赖 Composition。两者尚未进入上图的
+`@sillymaker/state` 目前只依赖 Base；`@sillymaker/composition` 依赖 State 的中立组合契约并
+直接拥有其 package-internal lifecycle kernel，State 不反向依赖 Composition。两者尚未进入上图的
 Story/application production flow。
 
 ## 2. Package responsibilities
@@ -40,7 +43,7 @@ Story/application production flow。
 | Package                   | Workspace public entries                                                                                          | Responsibility                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@sillymaker/base`        | `.`, `./authoring`, `./runtime`, `./story`, `./testkit` + testkit subentries; workspace-only `./runtime/internal` | Contracts, the Story prelude and authoring kit, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, the agent port, and reusable behavior-test helpers.                                                                                                                                                                                                                                                    |
-| `@sillymaker/composition` | `.`, `./legacy`, `./state`                                                                                        | Experimental Cordis-backed cold-path façade for typed plugins, profiles, services, registries, direct-plan compilation, authoritative freezing, live reload, reversible in-process lifecycle effects, and the neutral State-module registry bridge. Cordis types and Context remain private to this package.                                                                                                                                             |
+| `@sillymaker/composition` | `.`, `./legacy`, `./state`                                                                                        | Experimental cold-path façade for typed plugins, profiles, services, registries, direct-plan compilation, authoritative freezing, live reload, reversible in-process lifecycle effects, and the neutral State-module registry bridge. Lifecycle staging and disposal are package-internal; no dynamic Context is part of a supported entry.                                                                                                              |
 | `@sillymaker/state`       | `.`, `./legacy`                                                                                                   | Experimental neutral State Runtime, StateModule, StateTransaction, and StateWorkflow compatibility façade. Runtime and authoring adapters reuse the exact Base Session and transaction runner; `./legacy` exposes the same raw composition/runtime control for migration equivalence work. It is not a production Story runtime or a second persistence/replay owner.                                                                                    |
 | `@sillymaker/tooling`     | `.`, `./project` + subentries, `./vite` + subentries, `./identity/*`                                              | Non-browser project and Story CLI, Vite assembly, build identity, JSONL agent protocol/client, dev-only source/motion/scene write-back ports and the Studio page plugin, and package-internal Desktop preview packaging/local-server tools. Never imported by Base or browser bundles.                                                                                                                                                                   |
 | `@sillymaker/studio`      | `.`, `./composition`                                                                                              | The dev-only SillyMaker Studio (VN Scene Workspace): scene navigator, Content browser, real-renderer canvas, placement inspector, cue list, scene/motion construction, the read-only narrative Flow workspace, and the scene CAS IO client (create is the no-file form of the same port). `./composition` owns its isolated live tooling profile. Served exclusively by the dev-server Studio page; player bundles and runtime packages never import it. |
@@ -56,12 +59,12 @@ when no other package should consume it.
 ### Experimental composition kernel
 
 `@sillymaker/composition` is the only SillyMaker plugin façade. Each mounted
-profile creates one private Cordis Context and one composite Fiber/disposer;
-public plugins never receive Context or Fiber. Profile admission validates the
+profile creates one admitted staging record and one composite disposer; public
+plugins receive only the typed façade scope. Profile admission validates the
 whole graph before setup, setup registers only façade-owned services, registry
 entries, and reversible effects, and `compileDirectPlan` resolves them once into
 ordinary direct objects/functions. Command, reducer, selector, and frame paths
-therefore do not perform Context or registry lookup.
+therefore do not perform lifecycle-context or registry lookup.
 
 Authoritative profiles are permanently frozen by successful mount. A legacy
 application is exposed as a cold factory: profile setup captures dependencies
@@ -88,10 +91,20 @@ the same consumer-first order; failures are reported and the fire-and-forget
 Vite callback cannot leak a rejected Promise. This root never receives an
 authoritative Session or State writer.
 
-The vendored Cordis source is private under `vendor/cordis`; no supported
-package declaration or Story import exposes its types. Composition boot
-identity is diagnostic-only in X1-X4 and is not included in Save
-`simulationDigest`.
+The lifecycle implementation is private to the composition package; no
+supported package declaration or Story import exposes a dynamic Context.
+Composition boot identity is diagnostic-only in X1-X4 and is not included in
+Save `simulationDigest`.
+
+The external X6.2/X6.3 workload validates the same boundary at larger scale
+without becoming a repository dependency. Its State schemas capture one frozen
+Narrative node-integrity catalog before Session creation. Concrete effect, gate,
+scene, and target registries are admitted by one cold environment; the compiler
+and runner then retain only frozen data, one runtime node index, choice maps,
+and direct gate/effect functions. Production simulation and semantic consumers
+call that singleton runtime rather than looking up a registry or lifecycle
+Context. Compatibility exports remain exact aliases, so this evidence does not
+introduce a second State or Narrative authority.
 
 ### Experimental neutral State facade and module pilot
 
@@ -138,6 +151,13 @@ original `calendar`/`inventory`/`actor`/`evening` pilot proves four-owner atomic
 commit, owner rejection rollback, and candidate-validation fault rollback. It
 is an engine fixture, not commercial game content. There is still no
 module-keyed State Format V2 or migrated production Story composition.
+
+The repository's neutral Composition/State benchmark composes 16 generated
+modules through these same public seams. Its 3x3 Save-size/touched-owner matrix,
+retention-crossing replay, isolated import/export, and process-isolated GC cells
+all continue to use the exact Base Session and transaction runner. The benchmark
+adds neither production instrumentation nor another persistence/replay owner;
+absolute wall-clock and heap observations are local trend evidence only.
 
 `@sillymaker/base/runtime/internal` is the narrow cross-package seam for
 engine-owned implementation that cannot use `src/**` imports. Web consumes its

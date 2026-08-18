@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: MIT
-import { Context } from "@sillymaker/vendor-cordis";
-
 import { CompositionErrorV1, defineCompositionProfileV1 } from "./contracts.ts";
 import type {
   CompositionBootDiagnosticV1,
@@ -640,31 +638,7 @@ async function mountProfileV1(
   lifecycleActivity: CompositionLifecycleActivityV1,
 ): Promise<MountedProfileV1> {
   const plan = preflightProfileV1(input);
-  const context = new Context();
-  let stage: StagingProfileV1 | null = null;
-  let cleanupPhase: CompositionCleanupDiagnosticV1["phase"] = "dispose";
-  const compositePluginV1 = async () => {
-    stage = await setupStageV1(plan, diagnostics, lifecycleActivity);
-    return async () => {
-      if (stage !== null) {
-        await cleanupStageV1(plan.profile.id, stage, cleanupPhase, diagnostics);
-      }
-    };
-  };
-  const fiber = context.plugin(compositePluginV1);
-  try {
-    await fiber;
-  } catch (error) {
-    await fiber.dispose().catch(() => undefined);
-    throw error;
-  }
-  if (stage === null) {
-    await fiber.dispose();
-    throw new CompositionErrorV1(
-      "composition.setup_failed",
-      `profile ${plan.profile.id} mounted without a staged composition`,
-    );
-  }
+  const stage = await setupStageV1(plan, diagnostics, lifecycleActivity);
   const snapshotRecord = createSnapshotV1(plan, stage);
   let disposed = false;
   return {
@@ -675,8 +649,7 @@ async function mountProfileV1(
       if (disposed) return;
       disposed = true;
       snapshotRecord.retire();
-      cleanupPhase = phase;
-      await fiber.dispose();
+      await cleanupStageV1(plan.profile.id, stage, phase, diagnostics);
     },
   };
 }

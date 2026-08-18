@@ -10,8 +10,7 @@
     "./state": "./src/state.ts"
   },
   "dependencies": {
-    "@sillymaker/state": "workspace:*",
-    "@sillymaker/vendor-cordis": "workspace:*"
+    "@sillymaker/state": "workspace:*"
   },
   "devDependencies": {
     "@sillymaker/base": "workspace:*"

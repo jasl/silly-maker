@@ -1,7 +1,6 @@
 {
   "nodeModulesDir": "auto",
   "workspace": [
-    "./vendor/cordis",
     "./engine/packages/base",
     "./engine/packages/composition",
     "./engine/packages/state",
@@ -18,7 +17,6 @@
   ],
   "fmt": {
     "exclude": [
-      "vendor/cordis",
       "e2e/fixtures/saves/engine-lab-state-3.save.json",
       "e2e/fixtures/saves/engine-lab-state-4.save.json",
       "e2e/fixtures/saves/engine-lab-state-5.save.json",

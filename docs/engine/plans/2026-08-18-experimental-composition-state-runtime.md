@@ -2,9 +2,9 @@
 
 状态：2026-08-18 接受为独立分支上的 strangler experiment。工作分支是
 `codex/experimental-cordis-state-runtime`；它不替换已交付 production floor，也不把
-Incubation Mod 设计提前变成公开 ABI。X0–X5 与最小 X6.1 cycle cut 已完成；
-X6.2/X6.3 的更深 runtime ownership 收口、State Format V2 与 X8 仍需新的产品证据，
-本次不启动。
+Incubation Mod 设计提前变成公开 ABI。X0–X6.3 已完成；X1 最初引入的 Cordis wrapper 已在
+retain/remove checkpoint 后由 direct lifecycle 取代。X7 的中立性能证据已完成，但没有激活
+State Format V2；X8 与 production Story migration 未启动，也不构成 release blocker。
 
 本实验要回答两个问题：SillyMaker 能否用一个可逆、可诊断的 composition kernel 组合
 能力；能否把唯一权威 Session 从游戏命名中抽成中立 State Runtime，同时保持 State、
@@ -24,28 +24,29 @@ State Runtime (hot path) ---------> Effect Broker
 ```
 
 - `@sillymaker/composition` 是 SillyMaker 唯一的 plugin façade。Story、公开 API、command、
-  reducer、selector 与 frame path 不得导入 Cordis 类型。
+  reducer、selector 与 frame path 不得导入 implementation Context/Fiber 类型。
 - `@sillymaker/state` 拥有中立命名：`StateRuntime`、`StateSession`、`StateSnapshot`、
   `StateModule`、`StateTransaction`。X4 先适配同一个现有 Session composition；不得保存第二份
   State、digest、status，不得创建第二条队列或 CommandLog。
-- Effect Broker 只负责不可逆或需 receipt 的 Host/LLM/network/database 操作。Cordis disposer
+- Effect Broker 只负责不可逆或需 receipt 的 Host/LLM/network/database 操作。Composition disposer
   只撤销 listener、subscription、timer、connection handle 等进程内 effect，不能声称撤销已发生
   的外部写入。
 
 Composition activation 是冷路径：先校验依赖、重复 provider 与环，再按稳定顺序 mount，最后
 编译为冻结的直接函数/对象表。Session 创建后 authoritative plan 冻结；命令与渲染热路径不再
-访问 Cordis Context、Proxy 或 registry。Studio/presentation/tooling 使用另一个 live root，能以
+访问 lifecycle Context、Proxy 或 registry。Studio/presentation/tooling 使用另一个 live root，能以
 “新 profile 完整 mount -> consumer publication acknowledge -> 原子换入 -> 旧 profile dispose”
 的方式 reload；acknowledge 前旧 snapshot/provider 必须仍 current，失败回滚 candidate，且不能
 反向卸载 authoritative module。
 
-### 1.2 Cordis vendor
+### 1.2 Cordis vendor checkpoint（历史输入）
 
-实验 vendoring 以 Cordis core `4.0.0-rc.8`、commit
+X1 最初以 Cordis core `4.0.0-rc.8`、commit
 `8cc9e33fab69e2d0476d126baaf2acb24e6a6ab4` 为输入，复制完整九个 core source 文件而不复制
 loader/HMR/CLI 等 Node-only workspace。相对 import 改为显式 `.ts`，类型 import 使用
-`import type`；只由 `@sillymaker/composition` 依赖。`vendor/cordis/LICENSE` 保持原 MIT 文本，
-普通第三方声明进入现有 `NOTICE`。不创建 upstream history、来源数据库、自动同步或递归扫描工具。
+`import type`；当时只由 `@sillymaker/composition` 依赖，并保留原 MIT LICENSE 与普通第三方
+NOTICE。一次性人工归一化检查确认差异只来自上述 ESM/类型适配与本仓 strict aggregate compiler
+的 vendor opt-out；没有创建 upstream history、来源数据库、自动同步或递归扫描工具。
 
 rc.8 的 reentrant setup/cleanup、unload 期 effect 注册、publication failure ownership 与
 `Fiber.update()` awaitability 存在可复现缺口。第一版 façade 不使用 `Fiber.update()`、
@@ -53,8 +54,27 @@ rc.8 的 reentrant setup/cleanup、unload 期 effect 注册、publication failur
 public scope 在 setup 完成后关闭、unload 开始后拒绝注册，setup 失败由 façade 先回滚其已登记
 effect。这样缺口不可达，同时保持最小 vendor diff。若后续真实 consumer 必须放宽这些约束，
 先以行为测试重现，再在 rc.8 上做最窄修复；不整棵复制基于 rc.7 的参考 fork。
+这些是实验输入与当时的安全边界，不是当前依赖；§1.3 记录了最终 remove 裁决。
 
-### 1.3 State、identity 与兼容基线
+### 1.3 Cordis retain/remove checkpoint
+
+X1 的 Cordis 调用面最终只有每次 profile mount 创建一个 `Context`、挂载一个不读取 Context 的
+composite plugin，并把 façade 已实现的 `setupStageV1`/`cleanupStageV1` 再包成一个 Fiber
+disposer。Plugin-level scope/effect、逆序 rollback、snapshot retirement、reload publication 与
+busy gate 都由 SillyMaker 自己拥有；nested Fiber、inject/isolate、service lookup 与
+`Fiber.update()` 没有消费者。
+
+同一 HEAD 的 direct lifecycle A/B 保持 Composition、State、Studio publication/HMR 与 Engine Lab
+等价测试通过。16-module cold trend 只在 mount/dispose 出现稳定改善，direct-plan compile 与
+Session create 保持噪声中性；维护中的 Player all-JavaScript/CSS 字节不变，因为实验包尚未进入
+Player。
+独立 composition public-root bundle 则从 40,350/13,557 降为 13,213/4,203 raw/gzip bytes。
+因此 vendor、workspace dependency、NOTICE 与 composite Fiber wrapper 一并移除；这不改变公开
+exports、Save/digest/replay 或 single-authority 边界。若未来出现必须由 hierarchical Fiber tree、
+dynamic injection 或 isolate 解决的真实 consumer，再以那个行为合同重新评估依赖，而不为潜在
+用途保留当前无语义职责的 wrapper。
+
+### 1.4 State、identity 与兼容基线
 
 X1–X4 的 legacy profile identity 只用于 boot audit/诊断，不进入
 `BuildProvenance.resolved.simulationDigest`。否则即使 State 与 Snapshot 相同，Save envelope bytes
@@ -93,9 +113,9 @@ Cordis 本身只能使用其最新的 `4.0.0-rc.8` prerelease。
 - 全静态图 390 edges，其中 191 cross-domain；最大 cross-domain SCC 49 files；
 - 去掉 type-only edges 后 `game/story` runtime SCC 为零，所以 X6 的目标是编译、认知和改动
   locality，不把它误报为 ESM 初始化故障；
-- clone 的 `file:` 依赖与 `node_modules` 当前 realpath 指向
-  `/Users/jasl/Workspaces/tavern_game/engine`。它在 X0 恰好也是 `55fc9f80`，但后续实验必须先把
-  隔离副本/分支显式指到本工作分支并核验 realpath，才能作为回归或性能证据。
+- clone 的 `file:` 依赖与 `node_modules` 在 X0 指向另一个独立 engine checkout；该 checkout
+  当时恰好也是 `55fc9f80`。后续证据均先把隔离副本显式指到目标工作树并核验解析结果，避免把
+  相同提交号误当成持续等价的依赖来源。
 
 原始性能与扫描 JSON 只写 OS temp 或已忽略的
 `tmp/experimental-cordis-state-runtime/**`，不提交机器结果或商业源码 inventory。主仓只提交
@@ -116,7 +136,7 @@ Cordis 本身只能使用其最新的 `4.0.0-rc.8` prerelease。
 
 - 用一个 legacy application plugin 包住当前 resolved application/host composition；
 - 反转 plugin 声明顺序产生相同 plan identity 与直接 execution plan；
-- command loop 前后 Cordis lookup/activation count 不变；
+- command loop 前后 lifecycle lookup/activation count 不变；
 - State、Snapshot digest、Save round-trip 与 replay bytes 与无 kernel 路径等价。
 
 ### X3 — Live Studio/tooling profile
@@ -134,7 +154,8 @@ Cordis 本身只能使用其最新的 `4.0.0-rc.8` prerelease。
   检查为 neutral Session，不用 whole-object cast 掩盖 Base required-field drift；
 - Persistence import/load/migration 仍通过同一个 runtime control 做原子 replacement，并更新同一个
   replay anchor；
-- public consumer 不导入 Base GameSession 或 Cordis 也能 typecheck；legacy consumer 保持可用。
+- public consumer 不导入 Base GameSession 或 implementation lifecycle 类型也能 typecheck；legacy
+  consumer 保持可用。
 
 ### X5 — Module/workflow pilot
 
@@ -155,22 +176,28 @@ authoring module；spread/prototype alias 不得让公开 metadata 与 physical 
 
 ### X6 — Night/narrative locality
 
-- 清除全静态图中的 `game/story` cross-domain SCC，不增加 runtime SCC；
-- module 目录不导入 root State、presentation/application 或别的 module internals；
-- `rules.ts` 直接依赖者与目标 workflow 改动闭包显著下降；
-- 若只是移动文件或改 barrel、49-file SCC 和改动闭包不变，则停止并撤回抽象。
+- X6.1 清除全静态图中的 `game/story` cross-domain SCC，不增加 runtime SCC；module 目录不导入
+  root State、presentation/application 或别的 module internals，目标 workflow 改动闭包必须真实下降；
+- X6.2 让 State schema 显式接收 Session 前冻结的 node-id integrity catalog，未知 cursor 仍在
+  load/admission 时拒绝，State 不再通过总 Narrative façade 抓取 script registry；
+- X6.3 把 concrete effect/gate/scene/target registries 收口到 cold environment，compiler/runner
+  只消费冻结输入与预绑定 gate/effect plan；production simulation/semantic hot path 只调用捕获的
+  函数、Map/WeakMap，不进行 lifecycle Context 或 registry lookup；
+- 若只是移动文件或改 barrel、SCC/closure 不变，或引入第二 node/State authority，则停止并撤回抽象。
 
 ### X7 — Optional State Format V2 and performance
 
-只有 X5/X6 等价与 locality 均达标才开启。先测直接 plan 的稳定 command 开销；同机、同 Deno、
-预热、交错多轮中位数超过旧路径 10% 时停止。Format V2 必须有明确 module-keyed schema、迁移、
-Save/replay identity 与 corpus，不能与 façade migration 混做。
+X7 的性能证据在 X5/X6 等价与 locality 达标后单独完成：直接 plan 使用同机、同 Deno、预热、
+交错多轮配对，稳定 command 中位数超过旧路径 10% 时停止；中立 16-module workload 另测
+Save size、touched-owner locality、retention/replay 与 process-isolated GC trend。绝对 timing/heap
+不是跨机器预算或 CI hard gate。State Format V2 仍未激活；若未来开启，必须同时定义明确的
+module-keyed schema、迁移、Save/replay identity 与 corpus，不能与 façade migration 混做。
 
 ### X8 — Effects, OpenUI and i18n
 
 先定义 Effect Broker request/receipt 与 replay policy，再接 Host/LLM/network/database。OpenUI、i18n
 与 presentation plugin 只消费只读 State projection/receipt，不获得 authoritative writer。任何已发生
-外部 effect 都不能靠 Cordis unload 假装回滚。
+外部 effect 都不能靠 composition unload 假装回滚。
 
 ## 4. 全局 stop conditions
 
@@ -178,8 +205,8 @@ Save/replay identity 与 corpus，不能与 façade migration 混做。
 
 - 两个 State writer、两份 digest/status、两条 authoritative queue 或两套 CommandLog；
 - Save/replay 不兼容且没有明确 migration/identity 边界；
-- Cordis Context/Proxy lookup 进入 command、reducer、selector 或 frame hot path；
-- Cordis 类型出现在 Story 或任一受支持 package declaration；
+- lifecycle Context/Proxy lookup 进入 command、reducer、selector 或 frame hot path；
+- implementation lifecycle 类型出现在 Story 或任一受支持 package declaration；
 - 同机配对基准连续确认稳定 command median overhead 超过 10%；
 - X5 后 dependency locality 与目标 workflow 改动闭包没有改善；
 - module 需要 root State、presentation/application 或其他 module internals；
@@ -219,7 +246,7 @@ Save/replay identity 与 corpus，不能与 façade migration 混做。
 `rejected` 并保留：
 
 - 2 个 `effect-needs-cleanup` 是规则无法跟踪 `observe()` 的函数契约；Game Audio 与
-  Narrative 的 effect 已把 `observe()` 返回的 disposer 作为 React cleanup 返回，没有未释放
+  Narrative 的 effect 已把 `observe()` 返回的 disposer 作为 React cleanup 返回，不会遗留未清理
   的 subscription。
 - 7 个 `no-ref-current-in-render` 是 `ref.current ??=` 形式的确定性惰性建构，初始值
   不取决于被放弃 render，且不对外发布。保留位置是 Default Game Root、Dev Dock
@@ -245,30 +272,29 @@ Save/replay identity 与 corpus，不能与 façade migration 混做。
 - `deno outdated --recursive`
 - `deno task check`
 - `deno task bench:snapshot`
+- `deno task test:composition-state-bench`
+- `deno task bench:composition-state`
+- `deno task bench:composition-state:memory`（每个 GC cell 使用独立进程）
 - `deno task bench:player:bundle`
 - `deno run -A scripts/research/ts-locality.mts --repo <explicit-path> ...`
 - pinned React Doctor full/changed JSON scans
 - 外部 workload 的 focused parity、Save/replay 与配对 benchmark（先核验 dependency realpath）
 
-每个切片先跑 changed behavior 的聚焦测试，再跑适当的 broader gate。只有 X4/X5 的 State/Save/
-replay 等价与 X5/X6 的 locality 指标一起成立，实验才有资格进入 Format V2 或公开 promotion 讨论。
+每个切片先跑 changed behavior 的聚焦测试，再跑适当的 broader gate。X4/X5 的 State/Save/replay
+等价、X5/X6 的 locality 与 X7 性能证据均已成立；它们使实验有资格进入独立的 promotion 讨论，
+但不会自动激活 Format V2、X8 或 production Story migration。
 
 ## 7. 实验结果
 
-### 7.1 主仓 X1–X5
+### 7.1 主仓 X1–X5 与最终 lifecycle
 
-- Cordis core `4.0.0-rc.8` 以九个完整 source files 和 MIT LICENSE 私有引入；
-  归一化后与 upstream commit
-  `8cc9e33fab69e2d0476d126baaf2acb24e6a6ab4` 只差显式 `.ts`、type-only import 与
-  本仓 strict aggregate compiler 的 vendor opt-out。Deno mount/dispose smoke 与 browser bundle 通过；
-  Composition root/legacy/State entry 的 minified browser bundle 分别是 39,714/13,168、
-  6,287/2,075 与 57,712/16,295 raw/gzip bytes。
 - Composition kernel 在 setup 前完成 graph/token/provider/registry/cycle preflight，authoritative
   mount 永久冻结；live reload 在旧 snapshot/provider 仍 current 时要求 consumer publisher 确认
   完整 candidate，拒绝则回滚，确认后才换入并退休 predecessor。Token 运行时 identity、
   lifecycle re-entry、factory create/dispose 交叉死锁和 failed cleanup 都有可重现回归。
   `activateStateApplicationV1` 强制 State direct plan 编译早于 factory activation/Session
-  创建，失败时 factory 仍 inactive。
+  创建，失败时 factory 仍 inactive。§7.4 的 retain/remove checkpoint 最终把没有独立语义职责的
+  Cordis wrapper 替换为 package-internal direct staging/disposal，没有改变这些公开合同。
 - Engine Lab direct/composed 路径的 Snapshot、state digest、CommandLog、authoritative replay 和
   Save bytes 精确相等；command loop 前后 plugin activation count 不变。Dev-only Studio 已是
   真实 X3 live consumer：detached epoch root 的 layout acknowledgement 早于 host cutover；失败或
@@ -281,13 +307,12 @@ replay 等价与 X5/X6 的 locality 指标一起成立，实验才有资格进�
   module fixture 验证一次原子提交、owner reject 和 candidate invariant fault 的完整回滚。
   显式 `./legacy` adapter 用 Base 公开 constructor 重建完整 binding 并保留消费者的
   exact `GameSimulationTypeMapV1`，不要求 Story 展开隐藏字段或 `as unknown`。
-- 最终 `deno task check` 通过 307 个 test files / 5,018 tests、五个 Story check 与 Engine Lab
-  production build。100k single/cross-owner Snapshot spot check p50 是 175.63/191.46 ms，基线为
-  168.57/187.25 ms；committed 仍只做一次 whole-Snapshot digest，rejected/faulted 为零次。
-  Engine Lab all-JavaScript 是 1,459,909 raw / 371,062 gzip bytes（相对 X0 +0.44%/+0.49%），
-  最大 composition chunk 是 1,152,685/275,690 bytes（+0.20%/+0.22%）。
+- Cordis removal 后的最终 canonical check、bundle 与 lifecycle A/B 见 §7.4。committed command
+  仍只做一次 whole-Snapshot digest，rejected/faulted 为零次；维护中的 Player all-JavaScript/CSS
+  字节不变，
+  因为实验 Composition/State 包仍未进入 production Story flow。
 
-### 7.2 外部 workload X5/X6.1
+### 7.2 外部 workload X5–X6.3
 
 隔离 workload 分支是 `codex/experimental-state-runtime-pilot`。X5 commit
 `ac390a21d7d8da37a12aab5cea080a1a7a75a18f` 把 calendar/items/player/night 收口为四个真实
@@ -295,42 +320,109 @@ ownership 目录，所有九个 authoritative module 由中立 kit compose；tea
 contributor 与 Narrative/Stage 一起在同一个 outer `StateWorkflow` transaction 内提交，不存在
 嵌套第二事务。X6.1 commit `8e8da6c62cbeb18d4080174131383e8c77bc511e` 把 gate
 reason/context/definition/helper 收口为零 import leaf contract，保留旧 public/deep import 的单向
-re-export。没有商业内容、资产或 fixture 回流主仓。
+re-export。
 
-等价与原子性：
+X6.2 commit `04ae512d7a211c1da41b2d5685218b4d6c824bce` 让 State schema 显式接收唯一
+Narrative node-id integrity catalog；同一冻结 catalog 在 Session 前生成并被 root/narrative Schema
+复用，未知 cursor 仍拒绝。X6.3 commit `66a829febf5f993fba03c0348d5475c2cd3223f2`
+新增 concrete cold environment：它一次 snapshot effect/gate/scene/target registries，content compile
+后不保留源 Proxy/record；runtime admission 建立一个 node Map、choice Maps 与按 exact effect-ref
+identity 保存的预绑定计划。Simulation 与 Semantic production consumers 只调用同一个冻结 runtime，
+旧 façade 名称保持 exact aliases。没有商业内容、资产或 fixture 回流主仓。
 
-- clean baseline/current 在同 seed 的 opening→night→tea 33-entry trajectory 上，完整
-  State JSON、State digest、108 个 night fields、`stateContractDigest`、`simulationDigest` 和
-  authoritative replay 全部相等；两份 Save 都是 10,985 bytes 且逐 byte 相等，baseline
-  Save 导入 current 是 `compatibility: "exact"`。
+等价、原子性与 admission：
+
+- clean baseline/current 在同 seed 的 opening→night→tea 33-entry trajectory 上，完整 State JSON、
+  State digest、9 个 root fields、108 个 night fields、`stateContractDigest`、`simulationDigest` 和
+  authoritative replay 全部相等；两份 Save 都是 10,985 bytes 且逐 byte 相等，baseline Save 导入
+  current 是 `compatibility: "exact"`。Narrative fingerprint 也是 exact 1,003,391 bytes。
 - zero-stock tea 精确 reject `imouto.item_out_of_stock`，原 Snapshot identity、sequence 和 State
-  不变。Focused night/opening/rollback 是 20/20，X6.1 后 gate 聚焦总计 28/28。Full suite
-  426/428，仅有两个既知未放入本地的商业资产失败；Story check 无诊断，
-  standalone typecheck/lint 都只减少旧诊断而没有新诊断。
-- Deno 2.9.5/V8 15.0 同进程 500 warmup/variant、9 轮每轮 400 operations 细粒度交错基准：
-  baseline/current 独立 median 是 1.2197848/1.22667271 ms/op（+0.565%），paired
-  overhead median -0.055%，逐轮范围 -0.492%…+3.470%，没有稳定 >10% 回归。
+  不变。X6.3 focused 是 5 files / 28 tests；完整 suite 仍只剩同两个未放入本地的商业图片失败，
+  format、changed-file lint 与 diff check 通过，standalone check 没有新增诊断。
+- mutation-sensitive tests 锁定 environment 不晚读源 records、script source mutation 不改变 runtime、
+  duplicate node/choice 与 missing gate/effect 在 admission 时 fail-fast、gate 顺序保持 authored first
+  blocked，以及所有 legacy alias 的 exact identity。Parameter schema 只在 content compile 时解析一次，
+  bind 和 hot execution 不重复 admission。
 
 Locality：
 
 - `modules.ts` 1,630→434 LOC，`state.ts` 798→293，`rules.ts` 4,320→4,253。Tea workflow
   闭包是 8 all-static / 2 runtime files，tea rules 是 2/1，不是给旧集中式事务加一层包装。
-- X6.1 将 game/story all-static SCC 从 49 直接清零；全仓最大 SCC 现在是无关的
-  application UI 4 files，runtime SCC 保持 2。`state.ts` reverse static/runtime closure
-  99/34→46/34，`rules.ts` 103/80→89/80。新 leaf 使 tracked files 137→138、runtime edges
-  372→373，但是单向兼容 re-export，不形成新环。
+- X6.1 将 game/story all-static SCC 从 49 清零；X6.3 后全仓最大 static/runtime SCC 仍为 4/2，
+  game/story SCC 仍为 0。tracked TS/TSX 是 141 files，static/runtime edges 是 460/382。
+- X6.2→X6.3 的 compiler forward closure 从 23/22 降为 4/3，runner 从 64/64 降为 3/1；
+  concrete environment 是 24/23。Narrative façade保持 65/65，simulation 保持 84/81，State 保持
+  9/9，没有为追求表面数字把真实 consumer 移出闭包。reverse closure 是 rules 90/81、State 48/36、
+  compiler 76/66、runner 51/40。
 
-### 7.3 暂不开启的层
+最终 paired runner commit 是 `0e52f9bbb354b0c048f9fb879e37cb22a3714f4d`。每轮使用 fresh
+applications，40 warmup、600 个 AB/BA pairs，共 9 轮；输出只有 labels 与聚合值，不写 raw samples
+或机器路径：
 
-X6.1 是 type ownership/cycle cut，不冒充 runtime ownership 完成。Simulation runtime closure 仍为
-81 files，Narrative compiler/runner 仍静态抓取全局 registries/content。下一个可命名切片是：
+- `tea-green-attempt` 从同一个固定 tea-menu Snapshot 依次执行 choose gate、say advance、brew-effect
+  advance，证明 direct gate/effect plans、三次 State transaction 与最终 stock/night/calendar/player/fact
+  变化都真实可达；baseline/current ratio median `0.9994891`（-0.0511%），范围
+  `0.9764788..1.0111181`，0/9 超过 +10%。
+- `set-money-commit` 在计时前填满 200-entry CommandLog，并在 steady window 保持 retention；ratio
+  median `1.0008746`（+0.08746%），范围 `0.9977538..1.0038850`，0/9 超过 +10%。
 
-1. X6.2：把 Narrative State schema 对总 Facade 的 runtime import 改为显式注入、冻结的 node-id
-   integrity catalog；必须保留未知 cursor 的 load rejection 与完整 Save bytes。
-2. X6.3：让 compiler/runner 消费 Session 前编译的 frozen environment/direct gate plan；hot path
-   只走捕获的函数/Map，不允许 Cordis/Context lookup。
+### 7.3 X7 性能证据与未开启层
 
-当前 State/Save/replay 已精确等价且稳定 command overhead 远低于 10%，没有证据支持冒险
-改变物理 State 格式，因此不开启 Format V2。当前切片也没有需要 receipt/replay policy 的
-真实 Host/LLM/network/database effect consumer，因此不为了完成编号而提前发明 X8 broker
-ABI。
+主仓 owner-grade neutral matrix 使用 16 个原创 State modules，完整覆盖 exact exported-Save
+`10 KiB / 100 KiB / 1 MiB` × atomically touched modules `1 / 4 / 16`。每格 correctness 先执行
+256 commits，锁定 retained=200、replay base sequence=56、ordinals 57..256；authoritative replay
+执行全部 200 entries，isolated import/export 的 State、digest 与 Save bytes 全等，source Session
+不被替换。随后 fresh Session 先执行 256 次 untimed prefill，再测 64 次 steady commands。
+
+同机 owner run 的毫秒 p50/p95 如下；这些是本次趋势证据，不是 portable budget：
+
+| Save / touched | steady command  | Save round-trip   | authoritative replay    |
+| -------------- | --------------- | ----------------- | ----------------------- |
+| 10 KiB / 1     | 0.188 / 0.201   | 1.985 / 2.356     | 192.381 / 202.901       |
+| 10 KiB / 4     | 0.203 / 0.210   | 1.609 / 1.670     | 198.840 / 200.043       |
+| 10 KiB / 16    | 0.257 / 0.260   | 1.579 / 1.627     | 220.871 / 221.043       |
+| 100 KiB / 1    | 1.420 / 1.425   | 11.754 / 12.527   | 1,668.646 / 1,685.316   |
+| 100 KiB / 4    | 1.426 / 1.440   | 11.668 / 11.916   | 1,684.418 / 1,692.777   |
+| 100 KiB / 16   | 1.487 / 1.507   | 11.566 / 12.622   | 1,711.615 / 1,740.821   |
+| 1 MiB / 1      | 15.400 / 15.559 | 130.427 / 130.965 | 18,504.462 / 18,627.625 |
+| 1 MiB / 4      | 15.380 / 15.772 | 127.125 / 133.236 | 18,472.519 / 18,617.169 |
+| 1 MiB / 16     | 15.437 / 15.857 | 133.356 / 135.045 | 18,656.402 / 18,778.708 |
+
+同一 run 将 cold path 分开计时：profile mount `0.347/0.414`、direct State plan + factory resolve
+`0.138/0.178`、唯一 Session create `0.161/0.325`、完整 dispose `0.053/0.054` ms p50/p95，
+没有把 activation、Session create 或 retention crossing 混入 steady command。
+
+五个 GC cells 分别在独立进程按 sequence 0/200/400/800/1,200 执行两次显式 GC 和一个 macrotask。
+post-GC `heapUsed` MiB 序列与 400→1,200 增量是：
+
+| Cell        | 0 / 200 / 400 / 800 / 1,200 MiB           | 400→1,200 |
+| ----------- | ----------------------------------------- | --------- |
+| 10 KiB / 1  | 7.544 / 8.404 / 8.209 / 8.264 / 8.267     | +0.057    |
+| 10 KiB / 16 | 7.544 / 8.379 / 8.539 / 8.587 / 8.594     | +0.054    |
+| 100 KiB / 4 | 7.720 / 8.486 / 8.470 / 8.504 / 8.755     | +0.285    |
+| 1 MiB / 1   | 9.524 / 10.264 / 10.189 / 10.237 / 10.406 | +0.217    |
+| 1 MiB / 16  | 9.524 / 10.350 / 10.504 / 10.537 / 10.550 | +0.046    |
+
+这些 double-GC snapshots 只显示 retention 满后的本机趋势；它们不测 GC latency，RSS/heapTotal
+reservation 也不能单独证明或否定 live-object leak。报告不含 hostname、cwd、repository path 或
+machine identifier，raw JSON 只在 OS temp。X7 的性能证据因此完成，但结果没有提供改变物理 State
+格式的产品理由，State Format V2 未激活。当前也没有需要 receipt/replay policy 的真实
+Host/LLM/network/database effect consumer；X8 与 production Story migration 未启动，且都不是
+release blocker。
+
+### 7.4 Cordis retain/remove checkpoint
+
+- 移除前的实际调用面只有 `new Context()`、一个不读取 Context 的 composite `ctx.plugin()`、await Fiber 与
+  `fiber.dispose()`；Cordis 看不到单个 SillyMaker plugin/effect，也不承担 nested scope、依赖注入、
+  reload publication 或 authority fencing。九个 TS source 是 1,866 LOC / 60,096 bytes；连许可与
+  manifest 共 12 files / 61,989 bytes。`kernel.ts` 的 Deno graph 从 14 nodes / 98,697 reported
+  source bytes 降为 3 nodes / 37,849 bytes，并移除唯一使用 `cosmokit` 的 runtime edge。
+- Direct 版本的 focused parity 是 10 files / 71 tests；完整 removal 后 canonical check 通过
+  308 files / 5,037 tests、五项 neutral bench behavior tests、五个 Story checks 与 Engine Lab
+  build。五个独立 cold samples 各含 60 warmup + 300 个 AB/BA pairs；mount paired p50 为
+  -83.79%…-85.05%，dispose 为
+  -89.37%…-89.76%，四阶段合计为 -52.85%…-55.01%，而 direct-plan compile 与 Session create
+  保持在约 1% 的噪声带内。这些数值只说明本次同机 trend，不是跨机器预算或 CI gate。
+- Engine Lab release ABBA 的 all-JavaScript 四次均为 1,459,909 raw / 371,062 gzip bytes；实验
+  composition 尚未进入维护中的 Player。独立 public-root bundle 为 40,350/13,557 →
+  13,213/4,203 raw/gzip bytes。行为全等且没有可归因的 Fiber 语义，因此 checkpoint 选择 remove。

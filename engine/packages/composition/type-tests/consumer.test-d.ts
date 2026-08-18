@@ -12,7 +12,7 @@ import type {
   CompositionSnapshotV1,
 } from "../src/index.ts";
 
-// @ts-expect-error Cordis Context is not part of the composition public API.
+// @ts-expect-error An implementation lifecycle Context is not part of the public API.
 import type { Context } from "../src/index.ts";
 
 export const serviceV1 = createCompositionServiceTokenV1<
@@ -70,10 +70,10 @@ const forgedServiceV1: CompositionServiceTokenV1<string> = {
 kernelV1.sealAuthoritative();
 
 declare const scopeV1: CompositionPluginScopeV1;
-// @ts-expect-error Cordis plugin mounting stays behind the façade.
+// @ts-expect-error Low-level plugin mounting stays behind the façade.
 scopeV1.plugin;
-// @ts-expect-error Cordis Context stays behind the façade.
+// @ts-expect-error A dynamic lifecycle Context stays behind the façade.
 scopeV1.context;
 
-export type ConsumerDoesNotSeeCordisContextV1 = Context;
+export type ConsumerDoesNotSeeLifecycleContextV1 = Context;
 export type ConsumerCannotForgeServiceV1 = typeof forgedServiceV1;

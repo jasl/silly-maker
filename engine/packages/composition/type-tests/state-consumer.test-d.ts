@@ -18,7 +18,7 @@ import {
 } from "@sillymaker/composition/state";
 import type { StateApplicationActivationV1 } from "@sillymaker/composition/state";
 
-// @ts-expect-error Cordis Context is not part of the State composition API.
+// @ts-expect-error An implementation lifecycle Context is not part of this API.
 import type { Context } from "@sillymaker/composition/state";
 
 interface ConsumerStateV1 {
@@ -76,4 +76,4 @@ defineStateCompositionProfileV1({
   modules: [moduleV1],
 });
 
-export type ConsumerDoesNotSeeCordisContextV1 = Context;
+export type ConsumerDoesNotSeeLifecycleContextV1 = Context;

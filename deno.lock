@@ -5,7 +5,6 @@
     "npm:@babel/parser@8.0.4": "8.0.4",
     "npm:@playwright/test@1.62.1": "1.62.1",
     "npm:@radix-ui/react-dialog@1.1.23": "1.1.23_@types+react@19.2.18_@types+react-dom@19.2.4__@types+react@19.2.18_react@19.2.8_react-dom@19.2.8__react@19.2.8",
-    "npm:@standard-schema/spec@1.1.0": "1.1.0",
     "npm:@testing-library/dom@10.4.1": "10.4.1",
     "npm:@testing-library/jest-dom@7.0.1": "7.0.1_@testing-library+dom@10.4.1_vitest@4.1.10__@types+node@26.2.0__@vitest+coverage-v8@4.1.10__jsdom@30.0.1__vite@8.2.1___@types+node@26.2.0___yaml@2.9.0__yaml@2.9.0_@types+node@26.2.0_@vitest+coverage-v8@4.1.10__vitest@4.1.10__@types+node@26.2.0__jsdom@30.0.1__vite@8.2.1___@types+node@26.2.0___yaml@2.9.0_jsdom@30.0.1_vite@8.2.1__@types+node@26.2.0__yaml@2.9.0_yaml@2.9.0",
     "npm:@testing-library/react@16.3.2": "16.3.2_@testing-library+dom@10.4.1_@types+react@19.2.18_@types+react-dom@19.2.4__@types+react@19.2.18_react@19.2.8_react-dom@19.2.8__react@19.2.8",
@@ -15,7 +14,6 @@
     "npm:@types/react@19.2.18": "19.2.18",
     "npm:@vitejs/plugin-react@6.0.5": "6.0.5_vite@8.2.1__@types+node@26.2.0__yaml@2.9.0_@types+node@26.2.0_yaml@2.9.0",
     "npm:@vitest/coverage-v8@4.1.10": "4.1.10_vitest@4.1.10_@types+node@26.2.0_jsdom@30.0.1_vite@8.2.1__@types+node@26.2.0__yaml@2.9.0",
-    "npm:cosmokit@1.8.1": "1.8.1",
     "npm:fake-indexeddb@6.2.5": "6.2.5",
     "npm:fast-check@4.9.0": "4.9.0",
     "npm:idb@8.0.3": "8.0.3",
@@ -2112,9 +2110,6 @@
         "typescript"
       ]
     },
-    "cosmokit@1.8.1": {
-      "integrity": "sha512-PDBv4l90xZKrUsZ0vtoycgZpO/j4iFsqJXrAxsyBDsnQRI7ZMJXIjgDJsKNjd5L8jnVnnlrDCdhkFbTncgCVjQ=="
-    },
     "css-functions-list@3.3.3": {
       "integrity": "sha512-8HFEBPKhOpJPEPu70wJJetjKta86Gw9+CCyCnB3sui2qQfOvRyqBy4IKLKKAwdMpWb2lHXWk9Wb4Z6AmaUT1Pg=="
     },
@@ -3901,14 +3896,6 @@
             "npm:vitest@4.1.10",
             "npm:wrangler@4.123.0",
             "npm:zod@4.4.3"
-          ]
-        }
-      },
-      "vendor/cordis": {
-        "packageJson": {
-          "dependencies": [
-            "npm:@standard-schema/spec@1.1.0",
-            "npm:cosmokit@1.8.1"
           ]
         }
       },
