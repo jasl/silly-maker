@@ -6,6 +6,10 @@
   "license": "MIT",
   "exports": {
     ".": "./src/index.ts",
-    "./legacy": "./src/legacy.ts"
+    "./legacy": "./src/legacy.ts",
+    "./state": "./src/state.ts"
+  },
+  "dependencies": {
+    "@sillymaker/state": "workspace:*"
   }
 }
