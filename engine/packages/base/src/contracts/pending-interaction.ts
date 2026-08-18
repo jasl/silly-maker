@@ -160,6 +160,12 @@ export type PendingInteractionV1 =
     readonly skippable: boolean;
   })
   | (PendingInteractionBaseV1 & {
+    readonly kind: "hold";
+    readonly totalMs: number;
+    readonly remainingMs: number;
+    readonly skippable: boolean;
+  })
+  | (PendingInteractionBaseV1 & {
     readonly kind: "presentation_barrier";
     readonly expectedTransitionId: string;
     readonly loadRecovery: "replay" | "settle";
@@ -174,6 +180,7 @@ export type InteractionResolutionV1 =
   | { readonly kind: "advance" }
   | { readonly kind: "choose"; readonly choiceId: string }
   | { readonly kind: "resume" }
+  | { readonly kind: "hold_tick"; readonly elapsedMs: number }
   | { readonly kind: "barrier_completed"; readonly transitionId: string }
   | { readonly kind: "custom"; readonly payload: StrictJsonObjectV1 };
 
@@ -279,6 +286,28 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
         skippable: parseBooleanV1(record.skippable, `${path}/skippable`),
       });
     }
+    case "hold": {
+      const record = readExactRecord(
+        value,
+        [...interactionBaseKeysV1, "totalMs", "remainingMs", "skippable"],
+        path,
+      );
+      const totalMs = parsePositiveDurationMsV1(record.totalMs, `${path}/totalMs`);
+      const remainingMs = parsePositiveDurationMsV1(record.remainingMs, `${path}/remainingMs`);
+      // A saved hold always has at least one live millisecond: the tick that
+      // reaches zero expires the boundary in the same commit, so a pending
+      // with remainingMs 0 (or beyond its total) cannot exist.
+      if (remainingMs > totalMs) {
+        return dataFailure(`${path}/remainingMs`, "hold_remaining_invalid");
+      }
+      return freezeInteractionDataInternalV1({
+        kind,
+        ...parseInteractionBaseV1(record, path),
+        totalMs,
+        remainingMs,
+        skippable: parseBooleanV1(record.skippable, `${path}/skippable`),
+      });
+    }
     case "presentation_barrier": {
       const record = readExactRecord(
         value,
@@ -342,6 +371,20 @@ export function parseInteractionResolutionV1(
         choiceId: parseInteractionIdV1(record.choiceId, `${path}/choiceId`, "choice_id_invalid"),
       });
     }
+    case "hold_tick": {
+      const record = readExactRecord(value, ["kind", "elapsedMs"], path);
+      // Any positive integer is admissible: overshoot from a frame hitch or
+      // a skip fold clamps against the remaining milliseconds when applied,
+      // so no gameplay cap is invented here.
+      if (
+        typeof record.elapsedMs !== "number" ||
+        !Number.isSafeInteger(record.elapsedMs) ||
+        record.elapsedMs < 1
+      ) {
+        return dataFailure(`${path}/elapsedMs`, "hold_elapsed_invalid");
+      }
+      return freezeInteractionDataInternalV1({ kind, elapsedMs: record.elapsedMs });
+    }
     case "barrier_completed": {
       const record = readExactRecord(value, ["kind", "transitionId"], path);
       return freezeInteractionDataInternalV1({
@@ -394,6 +437,7 @@ const resolutionKindForInteractionV1: Readonly<
   say: "advance",
   choice: "choose",
   pause: "resume",
+  hold: "hold_tick",
   presentation_barrier: "barrier_completed",
   custom: "custom",
 });
@@ -441,4 +485,36 @@ export function evaluateInteractionResolutionV1(
     }
   }
   return freezeInteractionDataInternalV1({ kind: "accepted" });
+}
+
+export type HoldPendingInteractionV1 = Extract<PendingInteractionV1, { readonly kind: "hold" }>;
+
+export type HoldTickOutcomeV1 =
+  | { readonly kind: "holding"; readonly pending: HoldPendingInteractionV1 }
+  | { readonly kind: "expired" };
+
+/**
+ * The shared hold arithmetic every Narrative runner applies after an
+ * accepted `hold_tick`: consume `min(elapsedMs, remainingMs)` — overshoot
+ * from a frame hitch or a skip fold clamps instead of rejecting — and
+ * either keep the same boundary with the decremented remainder (the one
+ * partial resolution in the vocabulary that does not consume its
+ * interaction: the occurrence stays stable across ticks) or report expiry
+ * so the runner advances to the node's successor in the same commit. The
+ * terminal state depends only on the sum of elapsed milliseconds, never on
+ * how a Host batched them.
+ */
+export function applyHoldTickV1(
+  pending: HoldPendingInteractionV1,
+  elapsedMs: number,
+): HoldTickOutcomeV1 {
+  if (!Number.isSafeInteger(elapsedMs) || elapsedMs < 1) {
+    throw new TypeError("hold tick elapsedMs must be a positive integer");
+  }
+  const remainingMs = pending.remainingMs - Math.min(elapsedMs, pending.remainingMs);
+  if (remainingMs === 0) return freezeInteractionDataInternalV1({ kind: "expired" });
+  return freezeInteractionDataInternalV1({
+    kind: "holding",
+    pending: freezeInteractionDataInternalV1({ ...pending, remainingMs }),
+  });
 }

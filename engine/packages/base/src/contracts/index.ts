@@ -470,6 +470,7 @@ export type {
   VoiceStopPolicyV1,
 } from "./media-audio.ts";
 export {
+  applyHoldTickV1,
   evaluateInteractionResolutionV1,
   interactionOccurrenceIdV1,
   parseInteractionJsonObjectV1,
@@ -478,6 +479,8 @@ export {
   parsePendingInteractionV1,
 } from "./pending-interaction.ts";
 export type {
+  HoldPendingInteractionV1,
+  HoldTickOutcomeV1,
   InteractionChoiceOptionV1,
   InteractionRejectionCodeV1,
   InteractionResolutionContextV1,

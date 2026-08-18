@@ -4,12 +4,13 @@ import { describe, expect, it } from "vitest";
 import { canonicalJsonBytes } from "./canonical-json.ts";
 import { PresentationDataError } from "./presentation-data.ts";
 import {
+  applyHoldTickV1,
   evaluateInteractionResolutionV1,
   interactionOccurrenceIdV1,
   parseInteractionResolutionV1,
   parsePendingInteractionV1,
 } from "./pending-interaction.ts";
-import type { PendingInteractionV1 } from "./pending-interaction.ts";
+import type { HoldPendingInteractionV1, PendingInteractionV1 } from "./pending-interaction.ts";
 
 function choiceFixtureV1(): PendingInteractionV1 {
   return parsePendingInteractionV1({
@@ -39,11 +40,21 @@ describe("PendingInteractionV1", () => {
       },
       {
         kind: "pause",
-        definitionId: "interaction.test.hold",
+        definitionId: "interaction.test.legacy-pause",
         seenRevision: 1,
         occurrenceId: interactionOccurrenceIdV1(2),
         durationMs: 400,
         skippable: true,
+      },
+      {
+        // A mid-hold Save shape: partial progress already committed.
+        kind: "hold",
+        definitionId: "interaction.test.hold",
+        seenRevision: 1,
+        occurrenceId: interactionOccurrenceIdV1(10),
+        totalMs: 7833,
+        remainingMs: 833,
+        skippable: false,
       },
       {
         kind: "presentation_barrier",
@@ -341,6 +352,146 @@ describe("PendingInteractionV1", () => {
         { isChoiceEnabled: (choiceId) => choiceId !== "choice.test.precise" },
       ),
     ).toEqual({ kind: "rejected", code: "interaction.choice_disabled" });
+  });
+
+  it("admits holds strictly and fences hold_tick by occurrence and kind", () => {
+    const holdRawV1 = {
+      kind: "hold",
+      definitionId: "interaction.test.commute-hold",
+      seenRevision: 1,
+      occurrenceId: interactionOccurrenceIdV1(11),
+      totalMs: 1500,
+      remainingMs: 1500,
+      skippable: false,
+    };
+    const hold = parsePendingInteractionV1(holdRawV1);
+    if (hold.kind !== "hold") throw new Error("expected hold");
+
+    // remainingMs may never exceed the total, and a zero remainder cannot
+    // be saved: the tick reaching zero expires the boundary in-commit.
+    expect(() => parsePendingInteractionV1({ ...holdRawV1, remainingMs: 1501 })).toThrow(
+      "hold_remaining_invalid",
+    );
+    expect(() => parsePendingInteractionV1({ ...holdRawV1, remainingMs: 0 })).toThrow(
+      "duration_invalid",
+    );
+    expect(() => parsePendingInteractionV1({ ...holdRawV1, totalMs: 0 })).toThrow(
+      "duration_invalid",
+    );
+
+    for (const elapsedMs of [0, -1, 0.5, Number.NaN, Number.MAX_SAFE_INTEGER + 2]) {
+      expect(() => parseInteractionResolutionV1({ kind: "hold_tick", elapsedMs })).toThrow(
+        "hold_elapsed_invalid",
+      );
+    }
+
+    expect(
+      evaluateInteractionResolutionV1(
+        hold,
+        hold.occurrenceId,
+        parseInteractionResolutionV1({ kind: "hold_tick", elapsedMs: 500 }),
+      ),
+    ).toEqual({ kind: "accepted" });
+    expect(
+      evaluateInteractionResolutionV1(
+        hold,
+        interactionOccurrenceIdV1(99),
+        parseInteractionResolutionV1({ kind: "hold_tick", elapsedMs: 500 }),
+      ),
+    ).toEqual({ kind: "rejected", code: "interaction.occurrence_mismatch" });
+    expect(
+      evaluateInteractionResolutionV1(
+        hold,
+        hold.occurrenceId,
+        parseInteractionResolutionV1({ kind: "resume" }),
+      ),
+    ).toEqual({ kind: "rejected", code: "interaction.kind_mismatch" });
+    expect(
+      evaluateInteractionResolutionV1(
+        hold,
+        hold.occurrenceId,
+        parseInteractionResolutionV1({ kind: "advance" }),
+      ),
+    ).toEqual({ kind: "rejected", code: "interaction.kind_mismatch" });
+  });
+
+  it("keeps the boundary occurrence across partial ticks and expires on the zero-reaching tick", () => {
+    const hold = parsePendingInteractionV1({
+      kind: "hold",
+      definitionId: "interaction.test.commute-hold",
+      seenRevision: 1,
+      occurrenceId: interactionOccurrenceIdV1(12),
+      totalMs: 1500,
+      remainingMs: 1500,
+      skippable: false,
+    }) as HoldPendingInteractionV1;
+
+    const afterFirst = applyHoldTickV1(hold, 500);
+    if (afterFirst.kind !== "holding") throw new Error("expected holding");
+    expect(afterFirst.pending.remainingMs).toBe(1000);
+    expect(afterFirst.pending.totalMs).toBe(1500);
+    expect(afterFirst.pending.occurrenceId).toBe(hold.occurrenceId);
+    expect(afterFirst.pending.definitionId).toBe(hold.definitionId);
+    expect(Object.isFrozen(afterFirst.pending)).toBe(true);
+
+    const afterSecond = applyHoldTickV1(afterFirst.pending, 500);
+    if (afterSecond.kind !== "holding") throw new Error("expected holding");
+    expect(afterSecond.pending.remainingMs).toBe(500);
+    expect(afterSecond.pending.occurrenceId).toBe(hold.occurrenceId);
+
+    // The zero-reaching tick expires in the same application: there is no
+    // separate hold_expire step.
+    expect(applyHoldTickV1(afterSecond.pending, 500)).toEqual({ kind: "expired" });
+
+    // Overshoot clamps instead of rejecting (frame hitches, skip folds).
+    expect(applyHoldTickV1(afterSecond.pending, 900_000)).toEqual({ kind: "expired" });
+
+    expect(() => applyHoldTickV1(hold, 0)).toThrow(TypeError);
+    expect(() => applyHoldTickV1(hold, 16.7)).toThrow(TypeError);
+  });
+
+  it("reaches the same terminal state for any batch split with the same millisecond sum", () => {
+    const hold = parsePendingInteractionV1({
+      kind: "hold",
+      definitionId: "interaction.test.commute-hold",
+      seenRevision: 1,
+      occurrenceId: interactionOccurrenceIdV1(13),
+      totalMs: 1500,
+      remainingMs: 1500,
+      skippable: false,
+    }) as HoldPendingInteractionV1;
+
+    const runBatches = (batches: readonly number[]) => {
+      let pending: HoldPendingInteractionV1 | null = hold;
+      const trace: (number | "expired")[] = [];
+      for (const elapsedMs of batches) {
+        if (pending === null) throw new Error("ticked past expiry");
+        const outcome = applyHoldTickV1(pending, elapsedMs);
+        if (outcome.kind === "expired") {
+          pending = null;
+          trace.push("expired");
+        } else {
+          pending = outcome.pending;
+          trace.push(outcome.pending.remainingMs);
+        }
+      }
+      return { pending, trace };
+    };
+
+    const fine = runBatches([500, 500, 500]);
+    const coarse = runBatches([1500]);
+    const uneven = runBatches([1, 1498, 1]);
+    expect(fine.pending).toBeNull();
+    expect(coarse.pending).toBeNull();
+    expect(uneven.pending).toBeNull();
+    expect(fine.trace).toEqual([1000, 500, "expired"]);
+    expect(uneven.trace).toEqual([1499, 1, "expired"]);
+
+    // Equal prefix sums produce byte-identical pendings (Save shape).
+    const viaTwo = runBatches([300, 700]);
+    const viaOne = runBatches([1000]);
+    expect(viaTwo.pending).not.toBeNull();
+    expect(canonicalJsonBytes(viaTwo.pending)).toEqual(canonicalJsonBytes(viaOne.pending));
   });
 
   it("fences barriers by transition identity and customs by payload schema", () => {
