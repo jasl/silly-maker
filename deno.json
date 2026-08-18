@@ -2,6 +2,7 @@
   "nodeModulesDir": "auto",
   "workspace": [
     "./engine/packages/base",
+    "./engine/packages/state",
     "./engine/packages/studio",
     "./engine/packages/tooling",
     "./engine/packages/ui",
