@@ -11,5 +11,8 @@
   },
   "dependencies": {
     "@sillymaker/state": "workspace:*"
+  },
+  "devDependencies": {
+    "@sillymaker/base": "workspace:*"
   }
 }
