@@ -1,15 +1,29 @@
 // SPDX-License-Identifier: MIT
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { expect, gotoLabV1, test } from "./fixtures.ts";
+import type { Page } from "@playwright/test";
+import { engineTargetV1, expect, gotoLabV1, labApplicationNameV1, test } from "./fixtures.ts";
 
 const motionFileV1 = fileURLToPath(
   new URL("../../../../../e2e/src/motions/char-enter.motion.json", import.meta.url),
 );
 
+type LoadSettlementV1 =
+  | { readonly kind: "loaded" }
+  | { readonly kind: "failed"; readonly error: unknown };
+
+function settleNextLoadV1(page: Page): Promise<LoadSettlementV1> {
+  return page.waitForEvent("load").then(
+    () => Object.freeze({ kind: "loaded" as const }),
+    (error: unknown) => Object.freeze({ kind: "failed" as const, error }),
+  );
+}
+
 test.describe("engine motion workbench (M3)", () => {
   test("edits a motion draft, saves through CAS, and the file changes on disk", async ({ page }) => {
     const originalBytes = readFileSync(motionFileV1, "utf8");
+    let saveReload: Promise<LoadSettlementV1> | null = null;
+    let cleanupFailure: { readonly error: unknown } | null = null;
     try {
       await gotoLabV1(page, "?capability=debug_tools");
 
@@ -45,6 +59,7 @@ test.describe("engine motion workbench (M3)", () => {
 
       // Save commits through the CAS port.
       await expect(save).toBeEnabled();
+      saveReload = settleNextLoadV1(page);
       await save.click();
       await expect(dock.locator('[data-workbench-status="saved"]')).toBeVisible();
 
@@ -57,8 +72,31 @@ test.describe("engine motion workbench (M3)", () => {
       expect(savedJson.durationMs).toBe(470);
       const offsetTrack = savedJson.tracks.find((track) => track.channel === "offsetY");
       expect(offsetTrack?.keyframes[0]?.value).toBe(200);
+      const saveSettlement = await saveReload;
+      if (saveSettlement.kind === "failed") throw saveSettlement.error;
     } finally {
-      writeFileSync(motionFileV1, originalBytes);
+      try {
+        if (readFileSync(motionFileV1, "utf8") !== originalBytes) {
+          const saveSettlement = saveReload === null ? null : await saveReload;
+          const restoreReload = page.isClosed() ? null : settleNextLoadV1(page);
+          writeFileSync(motionFileV1, originalBytes);
+          if (restoreReload !== null) {
+            const restoreSettlement = await restoreReload;
+            if (restoreSettlement.kind === "failed") {
+              cleanupFailure = Object.freeze({ error: restoreSettlement.error });
+            } else {
+              await expect(page.getByRole("application", { name: labApplicationNameV1 }))
+                .toHaveAttribute("data-application-id", engineTargetV1.applicationId);
+            }
+          }
+          if (saveSettlement?.kind === "failed" && cleanupFailure === null) {
+            cleanupFailure = Object.freeze({ error: saveSettlement.error });
+          }
+        }
+      } catch (error) {
+        cleanupFailure ??= Object.freeze({ error });
+      }
     }
+    if (cleanupFailure !== null) throw cleanupFailure.error;
   });
 });
