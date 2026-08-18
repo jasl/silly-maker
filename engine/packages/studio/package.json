@@ -5,13 +5,15 @@
   "type": "module",
   "license": "MIT",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./composition": "./src/composition.ts"
   },
   "scripts": {
     "test": "deno run -A npm:vitest run engine/packages/studio/src"
   },
   "dependencies": {
     "@sillymaker/base": "workspace:*",
+    "@sillymaker/composition": "workspace:*",
     "@sillymaker/ui": "workspace:*"
   },
   "peerDependencies": {

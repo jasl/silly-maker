@@ -31,6 +31,14 @@ function studioHtmlTransformV1(
   return (html) => run(html);
 }
 
+function studioEntrySourceFromPluginV1(plugin: Plugin): string {
+  if (typeof plugin.load !== "function") throw new TypeError("missing Studio virtual entry loader");
+  const load = plugin.load as unknown as (id: string) => unknown;
+  const source = load("/__sillymaker/studio-entry.tsx");
+  if (typeof source !== "string") throw new TypeError("missing Studio virtual entry source");
+  return source;
+}
+
 describe("studioPluginV1", () => {
   it("advertises the Studio page on the game HTML", () => {
     const transform = studioHtmlTransformV1(studioPluginV1(studioBindingV1));
@@ -59,5 +67,47 @@ describe("studioPluginV1", () => {
       "</html>",
     ].join("");
     expect(transform(html)).toBe(html);
+  });
+
+  it("publishes initial and HMR Studio epochs with acknowledged consumer-first cleanup", () => {
+    const source = studioEntrySourceFromPluginV1(studioPluginV1(studioBindingV1));
+
+    expect(source).toContain(
+      'import { createStudioToolingHmrCoordinatorV1, createStudioToolingLiveCompositionV1, createStudioToolingReactPublicationV1 } from "@sillymaker/studio/composition";',
+    );
+    expect(source).toContain('profileId: "sillymaker.studio.live"');
+    expect(source).toContain(
+      'import.meta.hot.accept("/src/application/studio.ts", (moduleV1) => {',
+    );
+    expect(source).toContain("hmrV1.accept(moduleV1);");
+    expect(source).toContain("void hmrV1.dispose();");
+    const mountIndex = source.indexOf("await compositionV1.mount");
+    const initialPublicationIndex = source.indexOf(
+      "await reactPublicationV1.mount(initialPlanV1)",
+    );
+    const initialFailureIndex = source.indexOf("} catch (errorV1) {");
+    const rootCleanupIndex = source.indexOf(
+      "reactPublicationV1.dispose();",
+      initialFailureIndex,
+    );
+    const compositionCleanupIndex = source.indexOf(
+      "await compositionV1.dispose();",
+      initialFailureIndex,
+    );
+    expect(mountIndex).toBeGreaterThan(-1);
+    expect(initialPublicationIndex).toBeGreaterThan(mountIndex);
+    expect(initialFailureIndex).toBeGreaterThan(initialPublicationIndex);
+    expect(rootCleanupIndex).toBeGreaterThan(initialFailureIndex);
+    expect(compositionCleanupIndex).toBeGreaterThan(rootCleanupIndex);
+    expect(source).toContain(
+      "publish: (planV1, signalV1) => reactPublicationV1.publish(planV1, signalV1)",
+    );
+    expect(source).toContain("disposeRoot: () => reactPublicationV1.dispose()");
+    expect(source).not.toContain("reactRootV1.render");
+    expect(source).not.toContain("renderStudioV1");
+    expect(source).not.toContain('import { createRoot } from "react-dom/client"');
+    expect(source).not.toContain("@sillymaker/state");
+    expect(source).not.toContain("GameSession");
+    expect(source).not.toContain("Context");
   });
 });

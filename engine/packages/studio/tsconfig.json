@@ -8,5 +8,9 @@
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.test-d.ts"],
-  "references": [{ "path": "../base" }, { "path": "../ui" }]
+  "references": [
+    { "path": "../base" },
+    { "path": "../composition" },
+    { "path": "../ui" }
+  ]
 }
