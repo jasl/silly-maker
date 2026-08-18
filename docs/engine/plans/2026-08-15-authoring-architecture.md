@@ -1,7 +1,7 @@
 # Authoring Architecture V1
 
-状态：2026-08-15 由所有者接受为当前 active plan；S0–S5 全部切片已于同日交付
-（各切片交付记录在文内），计划无剩余可命名切片。目标合同由
+状态：2026-08-15 由所有者接受并于同日完成；S0–S5 全部切片已交付
+（各切片交付记录在文内），计划已结束且无剩余可命名切片。目标合同由
 [统一创作架构设计](../design/authoring-architecture.md) 拥有（Scene 文档与 Scene
 workspace 的领域合同仍归
 [场景创作模型与 SillyMaker Studio](../design/scene-authoring-and-studio.md)）；

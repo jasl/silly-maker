@@ -88,9 +88,9 @@ authoring geometry + 项目级 Studio（Track D 第 6 项 editor shell 的 VN �
 目标合同见[场景创作模型与 SillyMaker Studio](design/scene-authoring-and-studio.md)。
 2026-08-15 所有者以 A5 两轮基准与实验仓真实内容迁移证据（调校既有场景可用，但从零构
 造与素材/内容进场未收敛）及自身角色决定（常态为试玩与 bug 汇报，日常修改由 Agent
-与 Studio 完成）接受
-[Authoring Architecture V1](plans/2026-08-15-authoring-architecture.md) 为当前
-active plan：Studio 作者信任加固、统一创作外壳与共享文档会话、project authoring
+与 Studio 完成）接受并于同日完成
+[Authoring Architecture V1](plans/2026-08-15-authoring-architecture.md)：Studio 作者信任
+加固、统一创作外壳与共享文档会话、project authoring
 index、Story 包目录 locality 与 Scene Construction，目标合同见
 [统一创作架构](design/authoring-architecture.md)。
 
@@ -109,6 +109,10 @@ State Format V2、Effect Broker/OpenUI、独立的 i18n/message-catalog lane 或
 migration，未激活层不构成新的 release blocker。X7 证明 Composition 开销很低并刻画
 whole-Snapshot 规模成本；若真实 replay/fast-forward/Save latency 成为产品问题，先 profile
 authoritative replay 的重复 canonicalization，再讨论改变 State 格式。
+
+当前没有已激活且未完成的默认/core implementation lane。下一项 core 工作必须由新的外部
+workload/content 证据或所有者新证据激活；未激活候选不是默认 backlog。已接受但未完成的
+Desktop promotion 保持独立、条件性且不阻塞 core。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实
@@ -136,7 +140,7 @@ SQLite operational contract；除非出现 concrete blocker，不再把 journal/
 - [VN Scene Workspace](plans/2026-08-14-vn-scene-workspace.md)（2026-08-14 接受，
   2026-08-15 完成）
 - [Authoring Architecture](plans/2026-08-15-authoring-architecture.md)（2026-08-15
-  接受，当前 active plan）
+  接受并完成）
 
 原则是**一次只迁移一个可独立验收的 authority**。不接受把 Surface、Save、
 Snapshot 数据结构、determinism guard 或 Mod resolver 作为一个大改动交给 Agent。

@@ -16,11 +16,13 @@ Active documentation describes the code and decisions maintained after the first
 
 The public documentation site lives in `website/` (VitePress, English and Chinese) and is the audience-facing portal; this `docs/` tree holds internal engineering documents and is not published.
 
-## Accepted direction and active plans
+## Accepted direction and execution plans
 
 - [Engine roadmap](engine/roadmap.md) — accepted direction, remaining milestones, and continuous tracks; dated delivery history lives in the [roadmap archive](engine/roadmap-archive.md).
-- [Production-floor execution sequence](engine/plans/2026-07-30-production-floor-sequence.md) — the only cross-plan ordering entry; PF0–PF7 and the Complexity Reset are complete, PF6 stays evidence-gated, the current active lane is the VN Scene Workspace plan, and desktop durability remains a conditional promotion lane.
-- [VN Scene Workspace plan](engine/plans/2026-08-14-vn-scene-workspace.md) — the current active plan: first-class Scene documents compiled into existing runtime contracts, authoring geometry, the project-level Studio shell, direct manipulation, and the scene-first starter migration.
+- [Production-floor execution sequence](engine/plans/2026-07-30-production-floor-sequence.md) — the only cross-plan ordering entry; all activated default/core implementation lanes are complete, PF6 stays evidence-gated, and accepted but unfinished desktop durability remains a conditional promotion lane.
+- [VN Scene Workspace plan](engine/plans/2026-08-14-vn-scene-workspace.md) — completed 2026-08-15: first-class Scene documents compiled into existing runtime contracts, authoring geometry, the project-level Studio shell, direct manipulation, and the scene-first starter migration.
+- [Authoring Architecture plan](engine/plans/2026-08-15-authoring-architecture.md) — completed 2026-08-15: Studio author-trust hardening, the unified authoring shell, shared document sessions, project indexing, Story locality, Scene Construction, and the read-only Flow workspace.
+- [Experimental Composition and State Runtime plan](engine/plans/2026-08-18-experimental-composition-state-runtime.md) — completed strangler evidence and the curated promotion boundary for maintained internal Composition and the experimental State façade.
 - [Authorable Motion Workbench plan](engine/plans/2026-08-13-authorable-motion-workbench.md) — completed 2026-08-13: motion assets, click-to-locate provenance, the single-motion Workbench edit loop with CAS write-back, preview capture/cases, and collaboration guardrails.
 - [Desktop persistence durability plan](engine/plans/2026-07-30-desktop-persistence-durability.md) — independent Host-record conformance, crash/cross-process transaction backend, recovery, and real packaged-app promotion before desktop leaves preview.
 - [Snapshot commit performance plan](engine/plans/2026-07-30-snapshot-commit-performance.md) — baseline, digest/serialization reuse, and byte-equivalence gates.

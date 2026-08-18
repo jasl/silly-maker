@@ -1,6 +1,6 @@
 # Ambient Loop Motion V1（存在期循环动效）
 
-状态：2026-08-15 提案被所有者接受后立项为当前 active plan（案文与证据门见
+状态：2026-08-15 提案被所有者接受，M0–M3 同日全部交付，计划已完成（案文与证据门见
 [ambient-loop-motion 提案](../proposals/ambient-loop-motion.md)，含 2026-08-15
 泛化性评审补充）。本文只拥有实现切片顺序、admission 裁决与验收；
 [production-floor sequence](2026-07-30-production-floor-sequence.md) 仍是唯一

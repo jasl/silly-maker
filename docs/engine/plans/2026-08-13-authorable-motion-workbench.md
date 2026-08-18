@@ -1,6 +1,6 @@
 # Authorable Motion Workbench
 
-状态：2026-08-13 由所有者接受为当前 active plan；M1–M5 全部完成，I4 闭环已在
+状态：2026-08-13 由所有者接受并完成；M1–M5 全部交付，I4 闭环已在
 外部实验仓实测走通（外部证据，见其台账）。本计划交付完毕。
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 仍是唯一跨计划排序入口，
 本文只拥有本能力的切片顺序与验收。

@@ -34,10 +34,11 @@ Read only the documents relevant to the change:
   loop motion; the owner-accepted contract lives in
   `docs/engine/proposals/ambient-loop-motion.md`). Cue identity (presentation
   edge context) delivered 2026-08-17; its contract and closure record live in
-  `docs/engine/proposals/cue-identity.md`. The next nameable task comes from
-  the external experiment's evidence loop (capability backlog, locality
-  re-measurement) or new owner evidence. Desktop persistence remains an
-  independent promotion gate while the adapter is preview.
+  `docs/engine/proposals/cue-identity.md`. No default/core implementation lane
+  is currently active. The next nameable core task requires a new external
+  workload/content evidence loop or new owner evidence. Desktop persistence
+  remains an accepted, unfinished, conditional promotion lane while the adapter
+  is preview.
 - `docs/engine/plans/2026-08-18-experimental-composition-state-runtime.md` —
   completed external strangler evidence and the curated promotion boundary for
   the maintained internal Composition package plus the still-experimental

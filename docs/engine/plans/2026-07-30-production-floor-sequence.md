@@ -11,8 +11,8 @@ motion 资产地板、点击反查溯源、Motion Workbench 编辑闭环、预�
 [场景创作模型与 SillyMaker Studio 设计](../design/scene-authoring-and-studio.md)。
 2026-08-15 以 A5 两轮基准与实验仓真实内容迁移证据及所有者角色决定（常态为试玩与 bug
 汇报，日常修改由 Agent 与 Studio 完成）接受
-[Authoring Architecture V1](2026-08-15-authoring-architecture.md) 为当前 active
-plan；目标合同见[统一创作架构设计](../design/authoring-architecture.md)。
+[Authoring Architecture V1](2026-08-15-authoring-architecture.md)，并于同日完成
+S0–S5；目标合同见[统一创作架构设计](../design/authoring-architecture.md)。
 
 本文是唯一跨计划排序入口。它只保留 current、next、依赖、验收与 stop conditions。
 旧版逐提交 delivery ledger 已退出 active authority；完成里程碑摘要在
@@ -47,8 +47,8 @@ identity 独立设计文档于 2026-08-17 起草、**同日经所有者批复 op
 零），cue/dispatch 全内容普查完成（单 commit 峰值 4 条、上限 32 余量 8 倍、
 declared-vs-bare 碰撞零出现）；裁决 #3/#4 同日经所有者批复采纳（上限 32
 冻结为终值、lint 保守起点转正），**cue identity 线整体收口**，记录归
-[cue-identity 提案](../proposals/cue-identity.md)。下一个可命名任务来自
-实验仓新内容波或所有者新证据带来的激活项。2026-08-18，所有者以约 67k 行的外部
+[cue-identity 提案](../proposals/cue-identity.md)。这轮收口后的新证据于
+2026-08-18 到来：所有者以约 67k 行的外部
 State-heavy workload、Cordis 参考实现和明确的中立 State Runtime 目标提供了新的架构证据，
 接受[Experimental composition kernel and State Runtime](2026-08-18-experimental-composition-state-runtime.md)
 为独立分支 strangler experiment。其 X0–X6.3 已完成：X6.2 注入唯一 Narrative integrity
@@ -61,6 +61,10 @@ package-internal direct lifecycle 取代。X7 的中立 matrix/隔离 GC 与外�
 V2、Effect Broker/OpenUI、独立的 i18n/message-catalog lane 或 production Story migration，也不因
 实验完成而成为 release blocker。
 
+当前没有已激活且未完成的默认/core implementation lane。下一个可命名 core 任务必须由新的
+实验仓内容/规模证据或所有者新证据激活，不能从未激活的 roadmap 候选中自行领取。已接受但
+未完成的 Desktop promotion 是独立、条件性且不阻塞 core 的 lane，仍由 §7 拥有。
+
 上一条 lane：[Authoring Architecture V1](2026-08-15-authoring-architecture.md)
 （Studio 作者信任加固 → 统一创作外壳与共享文档会话 → project authoring index →
 Story 包目录 locality → Scene Construction → Flow workspace；目标合同见
@@ -69,7 +73,7 @@ Story 包目录 locality → Scene Construction → Flow workspace；目标合�
 template——同日满足：`roll` 块补齐并被实验仓真实内容使用、提案四问裁决冻结、
 template 的 narrative-kit 换成 interaction 文档 kit 且 simulate 逐字节平价；交付
 记录见该计划）。其证据循环复测（S2 "新 motion ≤2 文件"、设计 §5 局部性硬指标）
-随实验仓下一轮回流。切片验收与 stop conditions 由各计划拥有。
+已随 2026-08-15 至 2026-08-17 的实验仓内容波完成。切片验收与 stop conditions 由各计划拥有。
 [VN Scene Workspace V1](2026-08-14-vn-scene-workspace.md) 已于
 2026-08-15 完成并移交（A3 所有者实测按所有者角色决定重新定标，A5 证据循环由新计
 划承接）。
