@@ -8,7 +8,9 @@
 默认 web/core production floor 已完成 PF0–PF7 stabilization。Complexity Reset 只简化
 package-internal collaboration 并拆出清晰叶模块，没有改变 workspace public exports、Save/wire
 或 authoritative semantics；PF6 broad harness 经 Cat Cafe 真实作者纵切复审后没有激活。
-当前没有自动激活的默认核心实现节点，Desktop durability/packaging 仍是独立 preview lane。
+当前执行顺序不由这份 live architecture 拥有，统一以
+[production-floor sequence](plans/2026-07-30-production-floor-sequence.md) 为准；本文只随已落地
+能力更新。Desktop durability/packaging 仍是独立 preview lane。
 独立 Composition/State strangler experiment 已完成 X0–X6.3 与 X7 性能证据；curated promotion
 把 Composition 收口为 maintained internal capability，State façade 继续 experimental。它验证了
 本节的 single-authority 和 direct-plan 边界，但没有把 State 接入 production Story flow，也没有

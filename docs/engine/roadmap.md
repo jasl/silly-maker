@@ -1,9 +1,9 @@
 # SillyMaker engine roadmap
 
-状态：2026-07-19 接受，最近审查修订 2026-08-04。已实现能力以
+状态：2026-07-19 接受，最近审查修订 2026-08-18。已实现能力以
 [features](features.md) 为准；历史交付见
 [roadmap archive](roadmap-archive.md)。当前执行入口只有
-[Production-floor execution sequence](plans/2026-07-30-production-floor-sequence.md)，它再引用五个独立计划；design/roadmap
+[Production-floor execution sequence](plans/2026-07-30-production-floor-sequence.md)，它再引用各 focused plan；design/roadmap
 条目本身不等于 live capability。
 
 ## 1. North star
@@ -30,6 +30,12 @@ stable deterministic core
 作者或 Agent 只通过受支持的 package exports，用普通 TypeScript 与稳定数据编写 Story、GameplayModule、Narrative、内容表和 React UI。同一个产品可在 headless 与 browser 运行，被语义自动化操作、独立构建、诊断和长期迁移，不复制示例胶水，不修改 engine core。
 
 真实游戏持续充当第一消费者，Engine Lab 是中性 conformance rig；任何一个游戏或外部验证 workload 都不是引擎隐含模板。
+
+2026-08-18 起，这一 north star 的产品表述扩展为 **game-first programmable
+application runtime**：游戏仍是确定性、Save/replay、表现和内容规模的第一压力源，
+同一 Application Host 可以按产品承载 Authoring Host 或 Agent Host，也可以承载 Agent-first
+产品。它不是通用桌面 OS、IDE、插件市场或任意代码宿主；产品领域不会因此并入
+GameSnapshot。
 
 ## 2. Non-negotiable architecture
 
@@ -110,9 +116,15 @@ migration，未激活层不构成新的 release blocker。X7 证明 Composition 
 whole-Snapshot 规模成本；若真实 replay/fast-forward/Save latency 成为产品问题，先 profile
 authoritative replay 的重复 canonicalization，再讨论改变 State 格式。
 
-当前没有已激活且未完成的默认/core implementation lane。下一项 core 工作必须由新的外部
-workload/content 证据或所有者新证据激活；未激活候选不是默认 backlog。已接受但未完成的
-Desktop promotion 保持独立、条件性且不阻塞 core。
+2026-08-18 所有者以新的产品方向证据接受
+[Application Runtime and Embedded Authoring V1](plans/2026-08-18-application-runtime-embedded-authoring.md)
+为当前默认/core lane：先建立 startup/dependency floor、build-known first-party progressive
+activation、structured authoring operations、embeddable Authoring Host 与最窄 experimental
+Agent Host/UiArtifact seam，再做 build/browser/performance promotion。目标合同见
+[Application Runtime and Embedded Authoring](design/application-runtime-and-embedded-authoring.md)。
+本轮只交付引擎基础设施；SillyOS、Cat Cafe 与商业克隆第三次重写随后分别立案。未写入
+active plan 的候选不是默认 backlog。已接受但未完成的 Desktop promotion 保持独立、条件性且
+不阻塞 core。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实
@@ -307,9 +319,11 @@ capability-gated debug command 合同和 DevDock 面板。它们不再作为未�
 分别由 [Authorable Motion Workbench](plans/2026-08-13-authorable-motion-workbench.md)
 与 [VN Scene Workspace](plans/2026-08-14-vn-scene-workspace.md) 以窄纵切交付。
 
-2026-08-15 起，未来编辑器不再是并列产品清单，而是统一 Studio 外壳内的
-workspace（[统一创作架构](design/authoring-architecture.md)；"deferred"表示
-workspace 未激活，不表示未来另做独立编辑器产品）：
+2026-08-18 起，未来编辑器不再是并列产品清单，而是统一 Authoring Host 内的
+workspace；现有独立 Studio route 与未来应用内 author surface 是同一 Host 的不同 shell
+（[统一创作架构](design/authoring-architecture.md)、
+[Application Runtime and Embedded Authoring](design/application-runtime-and-embedded-authoring.md)；
+"deferred"表示 workspace 未激活，不表示未来另做不共享会话/命令的编辑器产品）：
 
 - **Live**：Scene composition、Scene construction / Content browser
   （Authoring Architecture S4：新建场景/条目/cue、结构化外观、新建与克隆
@@ -322,8 +336,10 @@ workspace 未激活，不表示未来另做独立编辑器产品）：
   Save/migration inspector、卡牌/SLG/战棋域工具；`story doctor` 只在现有
   check/inspect 无法承载新的修复型诊断时另立。
 
-外壳统一化、project authoring index、共享文档会话与 Story 包目录 locality 由
-[Authoring Architecture 计划](plans/2026-08-15-authoring-architecture.md) 拥有。
+已交付的外壳统一化、project authoring index、共享文档会话与 Story 包目录 locality 由
+[Authoring Architecture 计划](plans/2026-08-15-authoring-architecture.md) 拥有；可嵌入
+Host、workspace progressive activation 与结构化人机共用 operation 的下一步由当前
+[Application Runtime plan](plans/2026-08-18-application-runtime-embedded-authoring.md) 拥有。
 
 Editor 写普通 TS 或被 TS 引用的稳定数据（JSON 文档经严格 admission），不形成另一
 种运行时语言。
@@ -404,7 +420,17 @@ Model stream
   -> authoritative owner
 ```
 
-OpenUI 等 renderer-agnostic streaming UI 可作为 adapter，不进入 Base。模型读取 approved immutable publications；修改必须经过 typed tool/intents、permission、idempotency 与 queue-front revalidation。模型不取得 `GameSession` mutable reference、数据库连接、文件系统、任意网络 client、任意 React component 或 HTML/JS execution。
+OpenUI 等 renderer-agnostic streaming UI 可作为 adapter，不进入 Base。模型读取 approved
+immutable publications；对 authoritative、durable 或 external state 的修改必须经过 typed
+tool/intents、permission、idempotency 与 queue-front revalidation。模型不取得 `GameSession`
+mutable reference、数据库连接、文件系统、任意网络 client、任意 React component 或 HTML/JS
+execution。
+
+当前 active plan 的 AR4 只建立 provider-neutral、package-internal 的 Agent Host/UiArtifact
+生命周期 seam，并以 deterministic fake 对本地 revisioned authoring draft 验证；fake 不保存
+文件、不提交 authoritative state、不执行 external effect，因此不激活独立 approval/receipt
+subsystem。真实 sidecar、协议选型、`UiArtifact` persistence 与具体 OpenUI/A2UI adapter 必须等
+SillyOS 产品计划单独激活，不能从 Track G 直接领取。
 
 Agent workspace 需要 tab/split/task/approval/artifact/history 等独立领域模型；不要把现有游戏 Overlay 膨胀成桌面 WindowManager。流式半成品是 transient presentation；只有完整验证的 document 可持久化，replay 渲染保存 document 而不是重新调用模型。
 

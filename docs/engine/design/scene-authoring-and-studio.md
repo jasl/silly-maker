@@ -3,9 +3,17 @@
 状态：2026-08-14 接受的目标设计。产品证据：所有者本人无法用当前工具完成"把小雨向左拖一点、
 入场再快一点"级别的基本场景修改；外部实验仓（真实规模内容项目，外部台账）持续复现同类
 作者痛点。本文固定 Human Authoring Model（Scene 文档、authoring geometry、cue→motion
-绑定）与 SillyMaker Studio 的目标合同；实施顺序与验收由
-[VN Scene Workspace 计划](../plans/2026-08-14-vn-scene-workspace.md) 拥有，落地后
-`features.md` 记录实况。设计存在不等于 live capability。
+绑定）与 SillyMaker Studio 的目标合同；2026-08-14 已交付 V1 的实施顺序与验收记录由
+[VN Scene Workspace 计划](../plans/2026-08-14-vn-scene-workspace.md) 保留，live 实况由
+`features.md` 记录。设计存在不等于 live capability。
+
+2026-08-18 接受的
+[Application Runtime and Embedded Authoring](application-runtime-and-embedded-authoring.md)
+把本文的独立 dev Studio 页面重新定位为已交付的 V1 shell，而非永久放置限制。Scene 文档、
+authoring geometry、cue→motion、dev-only CAS 与普通 Player 排除 source-write 的合同仍由本文
+拥有；standalone/embedded shell 共享同一 Authoring Host 的目标由新设计拥有。AR0–AR6 不增加
+dev-server 之外的写回；未来 Desktop/remote author Host 必须经过独立 promotion 才能复用该
+CAS contract。
 
 ## 1. 问题：有 Runtime，没有 Authoring Model
 
@@ -204,13 +212,14 @@ interface StageContentGeometryV1 {
   canvas、preview scale、selected entry、settled target 与纯采样，这是给现有画布加
   交互层，不是第二套 runtime。
 
-## 5. SillyMaker Studio V1 外形
+## 5. SillyMaker Studio V1 standalone 外形
 
 - 入口：`deno task author`（分发到 `story author <application-id>`）或
   `deno task dev` 启动该应用的 Vite dev server 并挂 Studio 页。人类从游戏调试坞
-  「场景 → Studio」打开（同源新标签，不替换进行中的会话）。Studio 只存在于
-  dev（同 `sillymaker:dev-sources` 的 `apply: "serve"` 纪律），构建/预览/Player
-  不包含，未声明 `studio` 绑定的应用不显示该入口。
+  「场景 → Studio」打开（同源新标签，不替换进行中的会话）。这一 standalone shell
+  只存在于 dev（同 `sillymaker:dev-sources` 的 `apply: "serve"` 纪律）；普通构建/预览/
+  Player 不包含 source-write 能力，未声明 `studio` 绑定的应用不显示该入口。未来可信
+  embedded author surface 复用同一 Host，不改变这一 release 边界。
 - 左侧 navigator：scene scanner 列出项目内全部 `*.scene.json`（点击即开，无需把游
   戏玩到该场景）+ content/asset 浏览。
 - 中央画布：真实 Story renderer（`SemanticStageHostV1` detached target，同 CR4/
@@ -241,9 +250,10 @@ engine/packages/
 ```
 
 先例对齐：motion 已经是"schema 在 base、lint 与端口在 tooling、编辑 UI 在 ui"，
-scene 照搬同一分层；Studio shell 因为是独立产品面（不进 player bundle、不以浮窗
-嵌进 DevDock）单独成包，依赖 base/ui/tooling，任何 runtime 包不得反向依赖它。
-DevDock 只提供同源入口链接。
+scene 照搬同一分层；`studio` 包拥有 Authoring Host、workspace UI 与当前 standalone
+wrapper，依赖 base/ui/tooling，任何 runtime 包不得反向依赖它。V1 的 DevDock 只提供
+同源入口链接；未来 dev-only embedded shell 按新设计从产品 author entry 消费 Host，普通
+Player 依赖图仍完全排除它。
 
 Story 侧目录约定（scene-managed Story）：
 
@@ -299,9 +309,16 @@ scene-managed 消费者。
 - [Authorable Motion Workbench 计划](../plans/2026-08-13-authorable-motion-workbench.md)
   的交付全部保留并被复用（资产、溯源、CAS、seek、preview case、协作护栏）；其
   Defer 节的"Scene Timing Sheet / cue 文档化"两个钩子由本设计接管演进。
-- [window-model](window-model.md) 与 Managed Surface 合同不受影响：Studio 是 dev
-  工具面，不进入游戏窗体体系。
-- 执行顺序、切片与验收细节由
-  [VN Scene Workspace 计划](../plans/2026-08-14-vn-scene-workspace.md) 拥有；
+- [window-model](window-model.md) 与 Managed Surface 合同不受影响：当前 standalone
+  Studio wrapper 不进入游戏窗体体系；未来 embedded author surface 仍须服从既有
+  Host/Surface authority，不自建第二窗口或输入权威。
+- [Application Runtime and Embedded Authoring](application-runtime-and-embedded-authoring.md)
+  接管 Authoring Host 的 shell placement、progressive activation 与普通 release 排除；本文
+  继续拥有 Scene 领域合同与 V1 authoring workflow。
+- 2026-08-14 V1 的执行记录由
+  [VN Scene Workspace 计划](../plans/2026-08-14-vn-scene-workspace.md) 保留；
+  2026-08-18 的后续切片由
+  [Application Runtime plan](../plans/2026-08-18-application-runtime-embedded-authoring.md)
+  拥有；
   [production-floor sequence](../plans/2026-07-30-production-floor-sequence.md)
   仍是唯一跨计划排序入口。

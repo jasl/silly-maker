@@ -3,10 +3,13 @@
 ## Mission
 
 This repository is **SillyMaker** (https://github.com/jasl/silly-maker), a
-reusable React and TypeScript game engine developed by building real games. The
-current flagship is the Cat Cafe example (`examples/cat-cafe`); the retired
-Project Tavern PoC lives only in history. The active work may redesign gameplay,
-engine APIs, state management, presentation, and authoring workflows.
+reusable React and TypeScript engine evolving into a **game-first programmable
+application runtime** through real games and application products. Games remain
+the first pressure source for deterministic State, Save/replay, presentation,
+input, content scale, and authoring. The current flagship is the Cat Cafe example
+(`examples/cat-cafe`); the retired Project Tavern PoC lives only in history. The
+active work may redesign gameplay, engine APIs, application hosting, state
+management, presentation, and authoring workflows.
 
 Prefer a coherent maintainable system over compatibility with the completed
 first-PoC implementation. When a durable public contract changes, update its
@@ -22,8 +25,8 @@ Read only the documents relevant to the change:
   implemented yet.
 - `docs/engine/plans/2026-07-30-production-floor-sequence.md` — the only
   cross-plan execution order. PF0–PF7 and the Complexity Reset are complete;
-  PF6 remains evidence-gated and inactive. The two most recent lanes both
-  delivered on 2026-08-15:
+  PF6 remains evidence-gated and inactive. The two authoring/presentation lanes
+  accepted on 2026-08-15 both delivered that day:
   `docs/engine/plans/2026-08-15-authoring-architecture.md` (Studio author-trust
   hardening, the unified authoring shell with workspaces, the project authoring
   index, shared document sessions, story-package locality, Scene Construction,
@@ -34,11 +37,20 @@ Read only the documents relevant to the change:
   loop motion; the owner-accepted contract lives in
   `docs/engine/proposals/ambient-loop-motion.md`). Cue identity (presentation
   edge context) delivered 2026-08-17; its contract and closure record live in
-  `docs/engine/proposals/cue-identity.md`. No default/core implementation lane
-  is currently active. The next nameable core task requires a new external
-  workload/content evidence loop or new owner evidence. Desktop persistence
-  remains an accepted, unfinished, conditional promotion lane while the adapter
-  is preview.
+  `docs/engine/proposals/cue-identity.md`. The current default/core lane is
+  `docs/engine/plans/2026-08-18-application-runtime-embedded-authoring.md`:
+  startup/dependency evidence, build-known first-party progressive activation,
+  an embeddable Authoring Host, structured authoring operations, and a
+  provider-neutral experimental Agent/UiArtifact seam. Engine capabilities land
+  before the separately planned SillyOS, Cat Cafe, and external-clone rewrites.
+  Desktop persistence remains an accepted, unfinished, conditional promotion
+  lane while the adapter is preview.
+- `docs/engine/design/application-runtime-and-embedded-authoring.md` — accepted
+  target contracts for product-relative runtime/author/headless entries,
+  progressive activation, the single Authoring Host with standalone and embedded
+  shells, structured authoring operations, and separated gameplay, authoring,
+  Agent-session, and UiArtifact authorities. It does not activate a public Mod
+  ABI, Cordis, OpenUI/A2UI adapter, Effect Broker, or Player source editor.
 - `docs/engine/plans/2026-08-18-experimental-composition-state-runtime.md` —
   completed external strangler evidence and the curated promotion boundary for
   the maintained internal Composition package plus the still-experimental

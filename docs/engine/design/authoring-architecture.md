@@ -8,10 +8,18 @@
 Studio 完成——这要求创作工具的信任性、结构化编辑操作与工程局部性优先于新增底层
 Runtime 能力。2026-08-15 外部评审与所有者结论一致。
 
-本文固定创作架构的目标合同；实施顺序与验收由
-[Authoring Architecture 计划](../plans/2026-08-15-authoring-architecture.md) 拥有；
+本文固定创作架构的目标合同；2026-08-15 已交付 V1 的实施顺序与验收记录由
+[Authoring Architecture 计划](../plans/2026-08-15-authoring-architecture.md) 保留；
 [场景创作模型与 SillyMaker Studio](scene-authoring-and-studio.md) 继续拥有 Scene
 文档与 Scene workspace 的领域合同。设计存在不等于 live capability。
+
+2026-08-18 接受的
+[Application Runtime and Embedded Authoring](application-runtime-and-embedded-authoring.md)
+扩展了外壳放置合同：本文的“一个 Studio 外壳”现在解释为“一个 Authoring Host”，可以由
+独立 Studio route 或应用内 author surface 承载。本文已经交付的 project index、共享文档
+会话、workspace、CAS、dirty gate 与 undo/redo 合同不变；live V1 与 AR0–AR6 仍只有 dev-server
+source-write。未来 Desktop/remote author Host 若取得写回能力，须由独立 promotion 复用同一
+CAS contract；普通 runtime/Player 永远不因嵌入 shell 获得 source-write。
 
 ## 1. 问题：调校可用，构造与局部性未收敛
 
@@ -38,12 +46,12 @@ Interaction、Content、State 路径）组织成一个统一、可直接编辑�
 可导航 → 可直接修改 → 可组合创作 → 人类与 AI 共同维护   （本设计）
 ```
 
-## 2. Studio 是唯一创作外壳，编辑器是 workspace
+## 2. Authoring Host 是唯一创作内核，编辑器是 workspace
 
-未来编辑器不再是并列产品，而是同一外壳内的 workspace：
+未来编辑器不再是并列产品，而是同一 Host 内的 workspace：
 
 ```text
-SillyMaker Studio
+SillyMaker Authoring Host
 ├── Scene workspace          （live：画布 + Inspector + cue 列表）
 ├── Motion workspace         （live：Workbench 时间轴）
 ├── Diagnostics / Preview    （live：溯源、hit-region、状态调试入口）
@@ -52,7 +60,7 @@ SillyMaker Studio
 └── Data / UI / Timing / Save-inspector workspaces（evidence-gated）
 ```
 
-Studio 外壳统一拥有：项目导航、文档打开/关闭、草稿/保存/CAS 冲突、undo/redo、
+Authoring Host 统一拥有：项目导航、文档打开/关闭、草稿/保存/CAS 冲突、undo/redo、
 authoring diagnostics、source provenance、selection、preview host、文件与运行时
 对象之间的跳转、dev-only 写回、以及 Agent 可调用的结构化编辑操作。各 workspace
 只拥有领域表示与领域编辑命令。
@@ -229,7 +237,12 @@ renderer / catalog / transition / tooling binding 七类文件。
   workspace 的数据来源；升格判据由提案拥有，本设计只固定"投影优先"的阶段边界。
 - [roadmap](../roadmap.md) Track D：deferred 编辑器改述为 Studio workspace 的
   Live / Research / Evidence-gated 状态，不再是并列产品。
-- 执行顺序、切片与验收由
+- [Application Runtime and Embedded Authoring](application-runtime-and-embedded-authoring.md)：
+  接管 Authoring Host 的 standalone/embedded shell、workspace progressive activation 与
+  typed operation 演进；本文继续拥有 project index、文档会话和 workspace 领域合同。
+- 2026-08-15 V1 的执行记录由
   [Authoring Architecture 计划](../plans/2026-08-15-authoring-architecture.md)
+  保留；2026-08-18 的后续切片由
+  [Application Runtime plan](../plans/2026-08-18-application-runtime-embedded-authoring.md)
   拥有；[production-floor sequence](../plans/2026-07-30-production-floor-sequence.md)
   仍是唯一跨计划排序入口。

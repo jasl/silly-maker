@@ -1,7 +1,8 @@
 # Production-floor execution sequence
 
-状态：2026-08-13，PF0–PF7 与 Complexity Reset 的 CR0、CR1、CR2.1–CR2.5、CR3、CR4
-已完成。CR4 的真实作者纵切没有暴露需要通用 PF6 harness 解决的问题，PF6 已重新裁决为
+状态：持续维护的唯一跨计划排序入口；最近排序修订 2026-08-18。PF0–PF7 与 Complexity
+Reset 的 CR0、CR1、CR2.1–CR2.5、CR3、CR4 已于 2026-08-13 完成。CR4 的真实作者纵切没有
+暴露需要通用 PF6 harness 解决的问题，PF6 已重新裁决为
 不激活。同日以真实产品证据接受并完成了
 [Authorable Motion Workbench](2026-08-13-authorable-motion-workbench.md)（M1–M5：
 motion 资产地板、点击反查溯源、Motion Workbench 编辑闭环、预览捕获/preview case、
@@ -20,7 +21,20 @@ S0–S5；目标合同见[统一创作架构设计](../design/authoring-architec
 
 ## 1. Current and next
 
-当前：[Ambient Loop Motion V1](2026-08-15-ambient-loop-motion.md) 的 M0–M3 已
+当前：2026-08-18 所有者以新的产品方向证据接受
+[Application Runtime and Embedded Authoring V1](2026-08-18-application-runtime-embedded-authoring.md)
+为下一条默认/core lane。引擎能力全部前置，按 AR0 startup/dependency baseline → AR1
+first-party progressive activation → AR2 structured Scene operations → AR3 embeddable
+Authoring Host → AR4 experimental Agent Host/UiArtifact seam → AR5 build/browser/performance
+promotion → AR6 closure 顺序执行。目标合同见
+[Application Runtime and Embedded Authoring](../design/application-runtime-and-embedded-authoring.md)。
+SillyOS Agent/明确选型的 UiArtifact adapter、Cat Cafe gameplay/in-game authoring 与内容
+冻结后的商业克隆第三次重写只作为后续独立产品证据，不是本轮切片或完成 blocker；普通
+release 仍不得包含 author/source-write 依赖。本计划不激活 Cordis、Mod ABI、State Format
+V2、Effect Broker、具体 OpenUI/A2UI adapter 或 production Story State migration。下一项
+可领取任务只有 AR0。
+
+前置证据：[Ambient Loop Motion V1](2026-08-15-ambient-loop-motion.md) 的 M0–M3 已
 于 2026-08-15 当日交付（表现侧循环运行时、Scene 文档 `ambient` admission、创作
 面、双消费者实证；交付记录见该计划）。高密度内容波已在外部实验仓完成
 （2026-08-15 开工，2026-08-17 收口：约 65 轮迭代、台词逐字覆盖 99.4%，残余全
@@ -61,9 +75,8 @@ package-internal direct lifecycle 取代。X7 的中立 matrix/隔离 GC 与外�
 V2、Effect Broker/OpenUI、独立的 i18n/message-catalog lane 或 production Story migration，也不因
 实验完成而成为 release blocker。
 
-当前没有已激活且未完成的默认/core implementation lane。下一个可命名 core 任务必须由新的
-实验仓内容/规模证据或所有者新证据激活，不能从未激活的 roadmap 候选中自行领取。已接受但
-未完成的 Desktop promotion 是独立、条件性且不阻塞 core 的 lane，仍由 §7 拥有。
+本轮所有者证据已经激活上述 engine-only lane；未写入该计划的 roadmap 候选仍不能自行领取。
+已接受但未完成的 Desktop promotion 是独立、条件性且不阻塞 core 的 lane，仍由 §7 拥有。
 
 上一条 lane：[Authoring Architecture V1](2026-08-15-authoring-architecture.md)
 （Studio 作者信任加固 → 统一创作外壳与共享文档会话 → project authoring index →
@@ -345,10 +358,11 @@ one-shot setter 与 constructor factory 选择、formatter delta 或历史计划
 可并行：
 
 - Story-local gameplay/content；
+- 外部商业克隆补齐内容与只读对比证据；它不改变本仓 active contract，也不把商业内容带回；
 - 不改 authority 的文档和示例；
-- CR3 read-only measurement；
+- 当前 AR0/AR5 所需的只读 startup/bundle measurement；
 - 独立 Desktop evidence；
-- 与当前 CR 文件无重叠的 bug fix。
+- 与当前 AR0–AR6 文件无重叠的 bug fix。
 
 继续 defer：
 
@@ -356,5 +370,7 @@ one-shot setter 与 constructor factory 选择、formatter delta 或历史计划
 - generic content compiler；
 - genre-wide combat/card/SLG pack；
 - advanced renderer；
+- SillyOS、Cat Cafe 与商业克隆的替代实现（AR6 移交后分别立案）；
+- 真实 Agent/OpenUI/A2UI adapter、Agent persistence 与 Effect Broker；
 - machine/browser/runtime patch pinning；
 - unmeasured performance hard gates。
