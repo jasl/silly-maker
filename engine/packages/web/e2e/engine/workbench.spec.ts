@@ -20,7 +20,7 @@ function settleNextLoadV1(page: Page): Promise<LoadSettlementV1> {
 }
 
 test.describe("engine motion workbench (M3)", () => {
-  test("edits a motion draft, saves through CAS, and the file changes on disk", async ({ page }) => {
+  test("@dev-source-io edits a motion draft, saves through CAS, and the file changes on disk", async ({ page }) => {
     const originalBytes = readFileSync(motionFileV1, "utf8");
     let saveReload: Promise<LoadSettlementV1> | null = null;
     let cleanupFailure: { readonly error: unknown } | null = null;

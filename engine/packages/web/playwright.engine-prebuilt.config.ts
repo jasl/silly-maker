@@ -5,13 +5,17 @@ import { defineConfig, devices } from "@playwright/test";
  * The engine conformance suite against the prebuilt Engine Lab Artifact:
  * `deno task test:e2e:engine:prebuilt` builds `e2e/dist-web` first, then this config
  * serves the exact bytes with `vite preview` on the same host/port the dev
- * suite uses, so every engine spec runs unchanged against the Artifact.
+ * suite uses, so every production-relevant engine spec runs unchanged against
+ * the Artifact.
  */
 export default defineConfig({
   testDir: "./e2e/engine",
   // DET0's source-served determinism probe intentionally stays outside the
   // production Artifact and its BuildIdentity closure.
   testIgnore: /authoritative-determinism\.spec\.ts/u,
+  // Source editing is a Vite-dev capability. Production previews intentionally
+  // expose no filesystem read/write endpoint.
+  grepInvert: /@dev-source-io/u,
   fullyParallel: false,
   workers: 1,
   retries: 0,
