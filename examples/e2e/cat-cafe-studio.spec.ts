@@ -5,6 +5,7 @@
 // changes on disk.
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import type { Page } from "@playwright/test";
 
 import { catcafeTargetUrlV1, expect, test } from "./fixtures.ts";
 
@@ -12,9 +13,51 @@ const sceneFileV1 = fileURLToPath(
   new URL("../cat-cafe/src/scenes/opening/opening.scene.json", import.meta.url),
 );
 
+type LoadSettlementV1 =
+  | { readonly kind: "loaded" }
+  | { readonly kind: "failed"; readonly error: unknown };
+
+interface CleanupFailureV1 {
+  readonly error: unknown;
+}
+
+function settleNextLoadV1(page: Page): Promise<LoadSettlementV1> {
+  return page.waitForEvent("load").then(
+    () => Object.freeze({ kind: "loaded" as const }),
+    (error: unknown) => Object.freeze({ kind: "failed" as const, error }),
+  );
+}
+
+async function restoreSceneAfterReloadV1(
+  page: Page,
+  originalBytes: string,
+  saveReload: Promise<LoadSettlementV1> | null,
+): Promise<CleanupFailureV1 | null> {
+  try {
+    if (readFileSync(sceneFileV1, "utf8") === originalBytes) return null;
+    const saveSettlement = saveReload === null ? null : await saveReload;
+    const restoreReload = page.isClosed() ? null : settleNextLoadV1(page);
+    writeFileSync(sceneFileV1, originalBytes);
+    if (restoreReload !== null) {
+      const restoreSettlement = await restoreReload;
+      if (restoreSettlement.kind === "failed") {
+        return Object.freeze({ error: restoreSettlement.error });
+      }
+      await expect(page.locator("[data-studio-canvas]")).toBeVisible();
+    }
+    return saveSettlement?.kind === "failed"
+      ? Object.freeze({ error: saveSettlement.error })
+      : null;
+  } catch (error) {
+    return Object.freeze({ error });
+  }
+}
+
 test.describe("cat-cafe studio (A2)", () => {
   test("opens the opening scene, edits x through the inspector, and saves via CAS", async ({ page }) => {
     const originalBytes = readFileSync(sceneFileV1, "utf8");
+    let saveReload: Promise<LoadSettlementV1> | null = null;
+    let cleanupFailure: CleanupFailureV1 | null = null;
     try {
       await page.goto(catcafeTargetUrlV1("__sillymaker/studio/"));
 
@@ -40,6 +83,7 @@ test.describe("cat-cafe studio (A2)", () => {
       await expect(save).toBeDisabled();
       await xInput.fill("880");
       await expect(save).toBeEnabled();
+      saveReload = settleNextLoadV1(page);
       await save.click();
       await expect(page.getByRole("status")).toContainText("已保存");
 
@@ -49,13 +93,18 @@ test.describe("cat-cafe studio (A2)", () => {
       };
       const xiaoyu = savedJson.entries.find((entry) => entry.tag === "tag.xiaoyu");
       expect(xiaoyu?.placement?.x).toBe(880);
+      const saveSettlement = await saveReload;
+      if (saveSettlement.kind === "failed") throw saveSettlement.error;
     } finally {
-      writeFileSync(sceneFileV1, originalBytes);
+      cleanupFailure = await restoreSceneAfterReloadV1(page, originalBytes, saveReload);
     }
+    if (cleanupFailure !== null) throw cleanupFailure.error;
   });
 
   test("drags the cat on the canvas and saves the new placement (A3)", async ({ page }) => {
     const originalBytes = readFileSync(sceneFileV1, "utf8");
+    let saveReload: Promise<LoadSettlementV1> | null = null;
+    let cleanupFailure: CleanupFailureV1 | null = null;
     try {
       await page.goto(catcafeTargetUrlV1("__sillymaker/studio/"));
 
@@ -76,6 +125,7 @@ test.describe("cat-cafe studio (A2)", () => {
       await expect(page.getByLabel("x", { exact: true })).toHaveValue("840");
       const save = page.getByRole("button", { name: "保存" });
       await expect(save).toBeEnabled();
+      saveReload = settleNextLoadV1(page);
       await save.click();
       await expect(page.getByRole("status")).toContainText("已保存");
 
@@ -84,9 +134,12 @@ test.describe("cat-cafe studio (A2)", () => {
       };
       const xiaoyu = savedJson.entries.find((entry) => entry.tag === "tag.xiaoyu");
       expect(xiaoyu?.placement?.x).toBe(840);
+      const saveSettlement = await saveReload;
+      if (saveSettlement.kind === "failed") throw saveSettlement.error;
     } finally {
-      writeFileSync(sceneFileV1, originalBytes);
+      cleanupFailure = await restoreSceneAfterReloadV1(page, originalBytes, saveReload);
     }
+    if (cleanupFailure !== null) throw cleanupFailure.error;
   });
 
   test("lists cue bindings and replays the scene up to a chosen cue", async ({ page }) => {
