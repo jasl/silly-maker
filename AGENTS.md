@@ -38,6 +38,11 @@ Read only the documents relevant to the change:
   the external experiment's evidence loop (capability backlog, locality
   re-measurement) or new owner evidence. Desktop persistence remains an
   independent promotion gate while the adapter is preview.
+- `docs/engine/plans/2026-08-18-experimental-composition-state-runtime.md` —
+  completed external strangler evidence and the curated promotion boundary for
+  the maintained internal Composition package plus the still-experimental
+  neutral State façade. It does not activate a public Mod ABI, State Format V2,
+  Effect Broker, or production Story migration.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,
   `docs/engine/plans/2026-07-30-snapshot-commit-performance.md`,
   `docs/engine/plans/2026-07-30-save-migration.md`,
@@ -89,6 +94,19 @@ accepted.
   deterministic runtime state, sessions, persistence orchestration, replay, and
   diagnostics. It has no React, DOM, browser-storage, or game-specific
   dependency.
+- `@sillymaker/composition` owns cold-path trusted profile composition. Compile
+  services and registries into direct plans before hot execution;
+  authoritative profiles seal after mount, while a live candidate requires an
+  explicit consumer publication acknowledgement. Live effects are installed
+  before that acknowledgement and therefore must be staging-safe. Do not add
+  dynamic lifecycle lookup to command/render paths or recreate hierarchical
+  scopes, reactive injection, or replacement machinery without a real
+  consumer and an observable contract.
+- `@sillymaker/state` is an experimental neutral façade for authoritative
+  transactional State, not a generic React/UI store. It must reuse exactly one
+  Base Session and transaction runner; it never owns a second State, digest,
+  Save, replay, queue, or CommandLog authority. Production Story migration
+  remains evidence-gated.
 - `@sillymaker/ui` owns reusable React presentation, input, interaction,
   overlays, diagnostics UI, assets, characters, stages, and semantic-publication
   bridges.

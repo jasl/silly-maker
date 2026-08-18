@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   createCompositionKernelV1,
@@ -24,10 +24,6 @@ import type {
 const sceneIoV1 = Object.freeze({}) as SceneSourceIoV1;
 const motionIoV1 = Object.freeze({}) as MotionSourceIoV1;
 
-afterEach(() => {
-  vi.useRealTimers();
-});
-
 function bindingV1(label: string): StudioBindingV1 {
   return Object.freeze({ label }) as unknown as StudioBindingV1;
 }
@@ -35,10 +31,16 @@ function bindingV1(label: string): StudioBindingV1 {
 function rootInputV1(
   revision: number,
   binding: StudioBindingV1,
-  effects: StudioToolingLiveRootInputV1["effects"] = Object.freeze([]),
 ): StudioToolingLiveRootInputV1 {
-  return Object.freeze({ revision, binding, sceneIo: sceneIoV1, motionIo: motionIoV1, effects });
+  return Object.freeze({ revision, binding, sceneIo: sceneIoV1, motionIo: motionIoV1 });
 }
+
+const unsupportedEffectsInputV1 = {
+  ...rootInputV1(1, bindingV1("unsupported-effects")),
+  // @ts-expect-error Studio live roots do not accept arbitrary pre-publication effects.
+  effects: Object.freeze([]),
+} satisfies StudioToolingLiveRootInputV1;
+void unsupportedEffectsInputV1;
 
 describe("Studio tooling live composition", () => {
   it("reloads an isolated live root without changing an authoritative plan, Session, or digest", async () => {
@@ -92,93 +94,10 @@ describe("Studio tooling live composition", () => {
     await authoritativeKernel.dispose();
   });
 
-  it("disposes timer, subscription, and listener resources in reverse order and diagnoses cleanup failures", async () => {
-    vi.useFakeTimers();
-    const cleanupFailure = new Error("listener-adjacent cleanup failed");
-    const cleanupOrder: string[] = [];
-    const listeners = new EventTarget();
-    let listenerCalls = 0;
-    const listener = (): void => {
-      listenerCalls += 1;
-    };
-    const subscribers = new Set<() => void>();
-    let subscriptionCalls = 0;
-    let timerCalls = 0;
-    const live = createStudioToolingLiveCompositionV1({
-      profileId: "studio.test.resources",
-    });
-
-    await live.mount(rootInputV1(
-      1,
-      bindingV1("resources"),
-      Object.freeze([
-        () => {
-          const timer = setInterval(() => {
-            timerCalls += 1;
-          }, 10);
-          return () => {
-            clearInterval(timer);
-            cleanupOrder.push("timer");
-          };
-        },
-        () => {
-          const subscriber = (): void => {
-            subscriptionCalls += 1;
-          };
-          subscribers.add(subscriber);
-          return () => {
-            subscribers.delete(subscriber);
-            cleanupOrder.push("subscription");
-          };
-        },
-        () => () => {
-          cleanupOrder.push("failing");
-          throw cleanupFailure;
-        },
-        () => {
-          listeners.addEventListener("studio", listener);
-          return () => {
-            listeners.removeEventListener("studio", listener);
-            cleanupOrder.push("listener");
-          };
-        },
-      ]),
-    ));
-    listeners.dispatchEvent(new Event("studio"));
-    for (const subscriber of subscribers) subscriber();
-    await vi.advanceTimersByTimeAsync(10);
-    expect(listenerCalls).toBe(1);
-    expect(subscriptionCalls).toBe(1);
-    expect(timerCalls).toBe(1);
-
-    await live.reload(
-      rootInputV1(2, bindingV1("replacement")),
-      async () => undefined,
-    );
-    listeners.dispatchEvent(new Event("studio"));
-    for (const subscriber of subscribers) subscriber();
-    await vi.advanceTimersByTimeAsync(30);
-
-    expect(listenerCalls).toBe(1);
-    expect(subscriptionCalls).toBe(1);
-    expect(timerCalls).toBe(1);
-    expect(cleanupOrder).toEqual(["listener", "failing", "subscription", "timer"]);
-    expect(live.getDiagnostics()).toEqual([
-      expect.objectContaining({
-        code: "composition.cleanup_failed",
-        profileId: "studio.test.resources",
-        pluginId: "sillymaker.studio.tooling-root",
-        phase: "reload",
-        error: cleanupFailure,
-      }),
-    ]);
-
-    await live.dispose();
-  });
-
-  it("keeps the old snapshot and UI commit when an HMR candidate fails, then commits a valid successor", async () => {
-    type BindingModule = { readonly binding: StudioBindingV1; readonly fail?: boolean };
+  it("keeps the old snapshot and UI commit when an HMR publisher rejects, then commits a valid successor", async () => {
+    type BindingModule = { readonly binding: StudioBindingV1 };
     const oldBinding = bindingV1("old");
+    const rejectedBinding = bindingV1("rejected");
     const newBinding = bindingV1("new");
     const commits: StudioBindingV1[] = [];
     const failures: unknown[] = [];
@@ -194,17 +113,10 @@ describe("Studio tooling live composition", () => {
       resolveRoot(module) {
         if (module === undefined) throw new TypeError("accepted Studio module missing");
         revision += 1;
-        return rootInputV1(
-          revision,
-          module.binding,
-          module.fail
-            ? Object.freeze([() => {
-              throw new Error("candidate rejected");
-            }])
-            : Object.freeze([]),
-        );
+        return rootInputV1(revision, module.binding);
       },
       async publish(plan) {
+        if (plan.binding === rejectedBinding) throw new Error("candidate rejected");
         commits.push(plan.binding);
       },
       disposeRoot() {},
@@ -213,7 +125,7 @@ describe("Studio tooling live composition", () => {
       },
     });
 
-    coordinator.accept(Object.freeze({ binding: newBinding, fail: true }));
+    coordinator.accept(Object.freeze({ binding: rejectedBinding }));
     await coordinator.waitForIdle();
     expect(commits).toEqual([oldBinding]);
     expect(live.getSnapshot()).toBe(oldSnapshot);
@@ -233,38 +145,15 @@ describe("Studio tooling live composition", () => {
   it.each(["synchronous", "asynchronous"] as const)(
     "rolls back a mounted candidate after %s consumer publication failure",
     async (failureKind) => {
-      const events: string[] = [];
       const publicationFailure = new Error(`${failureKind} Studio publication failed`);
       const live = createStudioToolingLiveCompositionV1({
         profileId: `studio.test.publication-${failureKind}`,
       });
-      await live.mount(rootInputV1(
-        1,
-        bindingV1("old"),
-        Object.freeze([
-          () => {
-            events.push("install:old");
-            return () => {
-              events.push("dispose:old");
-            };
-          },
-        ]),
-      ));
+      await live.mount(rootInputV1(1, bindingV1("old")));
       const oldSnapshot = live.getSnapshot() as CompositionSnapshotV1;
 
       await expect(live.reload(
-        rootInputV1(
-          2,
-          bindingV1("candidate"),
-          Object.freeze([
-            () => {
-              events.push("install:candidate");
-              return () => {
-                events.push("dispose:candidate");
-              };
-            },
-          ]),
-        ),
+        rootInputV1(2, bindingV1("candidate")),
         failureKind === "synchronous"
           ? () => {
             throw publicationFailure;
@@ -279,18 +168,11 @@ describe("Studio tooling live composition", () => {
       expect(oldSnapshot.compileDirectPlan(() => "old still current")).toBe(
         "old still current",
       );
-      expect(events).toEqual([
-        "install:old",
-        "install:candidate",
-        "dispose:candidate",
-      ]);
       await live.dispose();
-      expect(events.at(-1)).toBe("dispose:old");
     },
   );
 
   it("rejects a bare synchronous render return instead of treating it as a commit acknowledgement", async () => {
-    const events: string[] = [];
     const live = createStudioToolingLiveCompositionV1({
       profileId: "studio.test.publication-acknowledgement",
     });
@@ -298,20 +180,11 @@ describe("Studio tooling live composition", () => {
     const oldSnapshot = live.getSnapshot();
 
     await expect(live.reload(
-      rootInputV1(
-        2,
-        bindingV1("candidate"),
-        Object.freeze([
-          () => () => {
-            events.push("dispose:candidate");
-          },
-        ]),
-      ),
+      rootInputV1(2, bindingV1("candidate")),
       (() => undefined) as unknown as Parameters<StudioToolingLiveCompositionV1["reload"]>[1],
     )).rejects.toThrow("layout-commit acknowledgement Promise");
 
     expect(live.getSnapshot()).toBe(oldSnapshot);
-    expect(events).toEqual(["dispose:candidate"]);
     await live.dispose();
   });
 
@@ -323,33 +196,10 @@ describe("Studio tooling live composition", () => {
     const live = createStudioToolingLiveCompositionV1({
       profileId: "studio.test.concurrent-dispose",
     });
-    await live.mount(rootInputV1(
-      1,
-      bindingV1("old"),
-      Object.freeze([
-        () => {
-          events.push("install:old");
-          return () => {
-            events.push("dispose:old");
-          };
-        },
-      ]),
-    ));
+    await live.mount(rootInputV1(1, bindingV1("old")));
     const coordinator = createStudioToolingHmrCoordinatorV1<{ readonly binding: StudioBindingV1 }>({
       composition: live,
-      resolveRoot: (module) =>
-        rootInputV1(
-          2,
-          module!.binding,
-          Object.freeze([
-            () => {
-              events.push("install:candidate");
-              return () => {
-                events.push("dispose:candidate");
-              };
-            },
-          ]),
-        ),
+      resolveRoot: (module) => rootInputV1(2, module!.binding),
       publish(_plan, signal) {
         enterPublication();
         return new Promise<void>((_resolve, reject) => {
@@ -372,12 +222,8 @@ describe("Studio tooling live composition", () => {
     await expect(coordinator.dispose()).resolves.toBeUndefined();
 
     expect(events).toEqual([
-      "install:old",
-      "install:candidate",
       "abort:publication",
-      "dispose:candidate",
       "dispose:root",
-      "dispose:old",
     ]);
     expect(failures).toEqual([]);
   });

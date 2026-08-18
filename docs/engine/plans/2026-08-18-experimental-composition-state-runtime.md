@@ -1,10 +1,13 @@
 # Experimental composition kernel and State Runtime
 
-状态：2026-08-18 接受为独立分支上的 strangler experiment。工作分支是
-`codex/experimental-cordis-state-runtime`；它不替换已交付 production floor，也不把
+状态：2026-08-18 接受为独立分支上的 strangler experiment。源实验分支是
+`codex/experimental-cordis-state-runtime`；经验证的最终树在
+`codex/promote-composition-state-runtime` 重组为 curated promotion branch。前者保留探索历史，
+后者是后续主仓开发与合并审查的代码基线；二者都不自动替换已交付 production floor，也不把
 Incubation Mod 设计提前变成公开 ABI。X0–X6.3 已完成；X1 最初引入的 Cordis wrapper 已在
 retain/remove checkpoint 后由 direct lifecycle 取代。X7 的中立性能证据已完成，但没有激活
-State Format V2；X8 与 production Story migration 未启动，也不构成 release blocker。
+State Format V2；Effect Broker/OpenUI、i18n 与 production Story migration 均未启动，也不构成
+release blocker。
 
 本实验要回答两个问题：SillyMaker 能否用一个可逆、可诊断的 composition kernel 组合
 能力；能否把唯一权威 Session 从游戏命名中抽成中立 State Runtime，同时保持 State、
@@ -37,7 +40,13 @@ Composition activation 是冷路径：先校验依赖、重复 provider 与环�
 访问 lifecycle Context、Proxy 或 registry。Studio/presentation/tooling 使用另一个 live root，能以
 “新 profile 完整 mount -> consumer publication acknowledge -> 原子换入 -> 旧 profile dispose”
 的方式 reload；acknowledge 前旧 snapshot/provider 必须仍 current，失败回滚 candidate，且不能
-反向卸载 authoritative module。
+反向卸载 authoritative module。完整 mount 已经安装 candidate 的 lifecycle effects；它们在
+publication 期间会与 predecessor effects 共存，所以 live effect 必须 staging-safe：不能在 cutover
+前处理用户输入、写 authoritative State、成为 exclusive global writer 或执行不可逆外部操作，并且
+必须能被 rollback 完整撤销。需要 exclusive cutover 的资源当前不受支持；等真实 consumer 出现后
+再评估 `prepare -> publish -> activate -> retire`，不提前扩张 API。Kernel 只能回滚 candidate
+profile；任意 publisher 若已对外部分提交 mutation，保持或恢复 predecessor publication 是该 trusted
+consumer 的合同义务，不是 kernel 能机械撤销的事务。
 
 ### 1.2 Cordis vendor checkpoint（历史输入）
 
@@ -143,6 +152,7 @@ Cordis 本身只能使用其最新的 `4.0.0-rc.8` prerelease。
 
 - authoritative 与 live root 分离；live profile 仅在 consumer publication acknowledge 后原子
   reload，setup/publication 失败保留旧 snapshot/provider/UI；
+- live candidate effect 必须满足 §1.1 的 staging-safe 合同；Studio root 暂不公开任意 effect 输入；
 - reload 后 authoritative plan、revision、Session 与 digest 不变；
 - timer/subscription/listener 全部有 disposer，cleanup failure 形成诊断且不阻断 sibling cleanup。
 
@@ -193,11 +203,17 @@ Save size、touched-owner locality、retention/replay 与 process-isolated GC tr
 不是跨机器预算或 CI hard gate。State Format V2 仍未激活；若未来开启，必须同时定义明确的
 module-keyed schema、迁移、Save/replay identity 与 corpus，不能与 façade migration 混做。
 
-### X8 — Effects, OpenUI and i18n
+### X8 — Effects and OpenUI
 
-先定义 Effect Broker request/receipt 与 replay policy，再接 Host/LLM/network/database。OpenUI、i18n
-与 presentation plugin 只消费只读 State projection/receipt，不获得 authoritative writer。任何已发生
+先定义 Effect Broker request/receipt 与 replay policy，再接 Host/LLM/network/database。OpenUI 与
+presentation plugin 只消费只读 State projection/receipt，不获得 authoritative writer。任何已发生
 外部 effect 都不能靠 composition unload 假装回滚。
+
+### Independent future lane — i18n and message catalogs
+
+i18n、Message Catalog、动态文本与 MessageFormat 属于 authoring/presentation capability，不依赖
+Effect Broker，也不因 X8 缺少外部 effect consumer 而被阻塞。只有真实多语言内容、作者工作流或
+locale fallback 证据激活该 lane；它同样不能成为第二 authoritative text/State writer。
 
 ## 4. 全局 stop conditions
 
@@ -211,6 +227,7 @@ module-keyed schema、迁移、Save/replay identity 与 corpus，不能与 faça
 - X5 后 dependency locality 与目标 workflow 改动闭包没有改善；
 - module 需要 root State、presentation/application 或其他 module internals；
 - irreversible effect 没有 broker receipt，或 disposer 被当成外部回滚；
+- live effect 不能与 predecessor 安全共存，或在 consumer publication 前成为 exclusive writer；
 - live tooling reload 能改变已租用 authoritative plan。
 
 ## 5. React Doctor 处理规则
@@ -281,8 +298,8 @@ module-keyed schema、迁移、Save/replay identity 与 corpus，不能与 faça
 - 外部 workload 的 focused parity、Save/replay 与配对 benchmark（先核验 dependency realpath）
 
 每个切片先跑 changed behavior 的聚焦测试，再跑适当的 broader gate。X4/X5 的 State/Save/replay
-等价、X5/X6 的 locality 与 X7 性能证据均已成立；它们使实验有资格进入独立的 promotion 讨论，
-但不会自动激活 Format V2、X8 或 production Story migration。
+等价、X5/X6 的 locality 与 X7 性能证据均已成立；它们使最终树有资格进入 curated promotion，
+但不会自动激活 Format V2、Effect Broker/OpenUI、i18n 或 production Story migration。
 
 ## 7. 实验结果
 
@@ -297,9 +314,13 @@ module-keyed schema、迁移、Save/replay identity 与 corpus，不能与 faça
   Cordis wrapper 替换为 package-internal direct staging/disposal，没有改变这些公开合同。
 - Engine Lab direct/composed 路径的 Snapshot、state digest、CommandLog、authoritative replay 和
   Save bytes 精确相等；command loop 前后 plugin activation count 不变。Dev-only Studio 已是
-  真实 X3 live consumer：detached epoch root 的 layout acknowledgement 早于 host cutover；失败或
-  abort 保留 exact 旧 React tree、dirty document session、snapshot/provider，teardown 先卸载
-  React consumer 再释放 providers。
+  真实 X3 live consumer：detached epoch root 的 React layout-effect acknowledgement 早于 host
+  cutover；失败或 abort 保留 exact 旧 React tree、dirty document session、snapshot/provider，
+  teardown 先卸载 React consumer 再释放 providers。该 acknowledgement 不承诺 detached host 的
+  connected-browser geometry；layout-sensitive renderer 必须先提供真实 consumer 与浏览器验收。
+  Cat Cafe 的真实 Vite/browser HMR acceptance 以可求值但 render 时失败的 binding 验证 exact old
+  host、dirty placement 与 Save 能力不变，再恢复原源码并确认合法 successor host 换入且共享 draft
+  保留；它不冒充 ResizeObserver 或 mount-time geometry 证据。
 - `@sillymaker/state` root 只有一个 exact Base Session，没有第二 State/digest/status/
   queue/CommandLog。runtime definition 与 authoring config/runner 都显式逐字段桥接；中立
   module/workflow 复用一个 Base authoring kit/transaction runner。module revision 是稳定 neutral
@@ -408,7 +429,15 @@ reservation 也不能单独证明或否定 live-object leak。报告不含 hostn
 machine identifier，raw JSON 只在 OS temp。X7 的性能证据因此完成，但结果没有提供改变物理 State
 格式的产品理由，State Format V2 未激活。当前也没有需要 receipt/replay policy 的真实
 Host/LLM/network/database effect consumer；X8 与 production Story migration 未启动，且都不是
-release blocker。
+release blocker；独立的 i18n/message-catalog lane 也未激活。
+
+X7 证明的是 Composition cold/direct-plan 开销很低，并刻画了现有 whole-Snapshot Runtime 的规模
+成本，不是“性能没有问题”。100 KiB 与 1 MiB cells 的 200-entry authoritative replay 分别约为
+200 次 steady command 总时长的 5–6 倍；在讨论 State Format V2 前，独立 replay profile 应先定位
+digest、continuity、evidence admission、comparison 与 replay-driver validation 中是否存在可消除的
+重复 whole-Snapshot canonicalization。只有真实 10x workload 的交互 p95、fast-forward throughput、
+Save/autosave long task、replay/diagnostics 等待或 1 MiB 级 State 成为产品问题时才激活性能切片；
+先做不改变 wire、State shape 或 digest domain 的优化。
 
 ### 7.4 Cordis retain/remove checkpoint
 

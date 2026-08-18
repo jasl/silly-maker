@@ -39,7 +39,7 @@ Dependency reference rule: engine and Story sources (everything Vite builds or v
 
 ```text
 engine/packages/base     framework-neutral authoring, contracts, and runtime
-engine/packages/composition experimental cold-path plugin façade
+engine/packages/composition maintained internal cold-path plugin façade
 engine/packages/state    experimental neutral State Runtime facade over Base
 engine/packages/tooling  non-browser CLI, Vite/identity, JSONL, and Desktop preview tools
 engine/packages/ui       generic React presentation, Narrative/WholeCanvas surfaces, and input
@@ -83,9 +83,9 @@ descriptor.
 X5's `createStateAuthoringKitV1` exposes neutral State module/workflow names but
 delegates to the one Base authoring kit and transaction runner. Do not add a
 parallel proposal map, candidate State, RNG, queue, or commit path. Engine Lab
-uses the composition package only for experimental equivalence coverage; no
-maintained production Story uses the State runtime, and the experiment does not
-define State Format V2.
+uses the State-composition bridge only for experimental equivalence coverage;
+no maintained production Story uses the State runtime, and the experiment does
+not define State Format V2.
 
 `StateModuleV1.contractRevision` is the immutable revision admitted by
 `defineModule`; do not clone a module with object spread and then compose the
@@ -104,7 +104,13 @@ applications use `activateStateApplicationV1` from the `./state` entry so this
 ordering is enforced rather than left to caller convention. Authoritative mount
 is permanently frozen; use a separate kernel for reloadable Studio/
 presentation/tooling profiles. Lifecycle cleanup covers in-process resources
-only.
+only. A live candidate's effects are installed before consumer publication and
+coexist with predecessor effects during acknowledgement; they must be
+staging-safe, must not write authoritative State or perform irreversible work,
+and must roll back completely. Exclusive cutover resources are unsupported.
+The kernel rolls back its candidate profile, while a publisher that partially
+mutated an external consumer remains responsible for preserving or restoring
+the predecessor publication.
 
 The X1 Cordis wrapper was removed after a retain/remove checkpoint showed that
 it owned no independent Fiber tree, injection, isolation, or publication
@@ -115,12 +121,15 @@ cannot represent.
 
 The generated dev-only Studio entry uses `@sillymaker/studio/composition` for
 that separate live root. A live reload keeps the predecessor snapshot/providers
-current while a detached React epoch reaches a layout commit; only the returned
-acknowledgement swaps the host and lets composition retire the predecessor.
+current while a detached React epoch reaches a layout-effect commit; only the
+returned acknowledgement swaps the host and lets composition retire the
+predecessor.
 Setup, render, layout, or abort failure rolls the candidate back without
 touching the old UI or its shared dirty document session. HMR teardown unmounts
 React before disposing the provider scope. Do not use the return from
 `root.render()` as publication evidence or move rendering into plugin setup.
+This is not connected-browser geometry evidence; activate a stronger HMR
+contract only with a real layout-sensitive renderer and browser acceptance.
 
 While iterating on this package, run the focused runtime test plus the repository
 typecheck so its consumer type test is included:

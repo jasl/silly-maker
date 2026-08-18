@@ -102,9 +102,13 @@ index、Story 包目录 locality 与 Scene Construction，目标合同见
 Narrative integrity catalog，X6.3 将 concrete registries 收口到 frozen cold environment/direct
 plans；初始 X1 引入的私有 Cordis wrapper 在 retain/remove checkpoint 证明没有承担独立
 scope/fiber 语义后已由 package-internal direct lifecycle 取代。X7 的中立 3x3 matrix、隔离 GC
-trend 与外部两场景 paired evidence 也已完成且通过 stop gate，但这些实现和证据不等同于
-production promotion，也不自动激活 Mod ABI、State Format V2、X8 或 production Story migration；
-未激活层不构成新的 release blocker。
+trend 与外部两场景 paired evidence 也已完成且通过 stop gate。探索历史保留在
+`codex/experimental-cordis-state-runtime`，经验证的最终树由
+`codex/promote-composition-state-runtime` 重组为后续主仓开发基线；这仍不自动激活 Mod ABI、
+State Format V2、Effect Broker/OpenUI、独立的 i18n/message-catalog lane 或 production Story
+migration，未激活层不构成新的 release blocker。X7 证明 Composition 开销很低并刻画
+whole-Snapshot 规模成本；若真实 replay/fast-forward/Save latency 成为产品问题，先 profile
+authoritative replay 的重复 canonicalization，再讨论改变 State 格式。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实

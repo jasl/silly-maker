@@ -498,6 +498,8 @@ describe("composition lifecycle", () => {
     const service = createCompositionServiceTokenV1<{ readonly read: () => string }>(
       "live.publication.service",
     );
+    const events = new EventTarget();
+    const deliveries: string[] = [];
     let oldAlive = true;
     const provider = (revision: number, value: string) =>
       defineCompositionPluginV1({
@@ -514,11 +516,16 @@ describe("composition lifecycle", () => {
               },
             }),
           );
-          if (value === "old") {
-            await scope.effect(() => () => {
-              oldAlive = false;
-            });
-          }
+          await scope.effect(() => {
+            const listener = (): void => {
+              deliveries.push(value);
+            };
+            events.addEventListener("probe", listener);
+            return () => {
+              events.removeEventListener("probe", listener);
+              if (value === "old") oldAlive = false;
+            };
+          });
         },
       });
     const kernel = kernelV1();
@@ -540,6 +547,8 @@ describe("composition lifecycle", () => {
         expect(kernel.getSnapshot()).toBe(original);
         expect(oldPlan.read()).toBe("old");
         expect(candidate.compileDirectPlan((resolve) => resolve.use(service)).read()).toBe("new");
+        events.dispatchEvent(new Event("probe"));
+        expect(deliveries).toEqual(["old", "new"]);
         enterPublication();
         await publicationAcknowledged;
       },
@@ -553,6 +562,8 @@ describe("composition lifecycle", () => {
     const replacement = await reload;
     expect(kernel.getSnapshot()).toBe(replacement);
     expect(oldAlive).toBe(false);
+    events.dispatchEvent(new Event("probe"));
+    expect(deliveries).toEqual(["old", "new", "new"]);
     expect(() => original.compileDirectPlan(() => undefined)).toThrow("is no longer mounted");
     await kernel.dispose();
   });

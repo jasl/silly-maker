@@ -56,8 +56,10 @@ catalog，X6.3 把 concrete registries 收口到 Session 前冻结的 environmen
 唯一权威、Save/replay 等价、dependency locality 与 `<10%` 稳定 command overhead gates。X1
 最初使用的 Cordis wrapper 经 retain/remove checkpoint 证明没有承担独立 scope/fiber 语义，最终由
 package-internal direct lifecycle 取代。X7 的中立 matrix/隔离 GC 与外部 paired 性能证据已完成，
-但没有激活 State Format V2；X8 与 production Story migration 仍未启动，也不因实验完成而成为
-release blocker。
+源实验历史保留在 `codex/experimental-cordis-state-runtime`，经验证的最终树由
+`codex/promote-composition-state-runtime` 重组为后续主仓开发基线。但这没有激活 State Format
+V2、Effect Broker/OpenUI、独立的 i18n/message-catalog lane 或 production Story migration，也不因
+实验完成而成为 release blocker。
 
 上一条 lane：[Authoring Architecture V1](2026-08-15-authoring-architecture.md)
 （Studio 作者信任加固 → 统一创作外壳与共享文档会话 → project authoring index →

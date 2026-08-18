@@ -7,7 +7,6 @@ import {
 } from "@sillymaker/composition";
 import type {
   CompositionCleanupDiagnosticV1,
-  CompositionEffectInstallerV1,
   CompositionKernelOptionsV1,
   CompositionKernelV1,
   CompositionSnapshotV1,
@@ -37,8 +36,6 @@ export interface StudioToolingPlanV1 {
 export interface StudioToolingLiveRootInputV1 extends StudioToolingPlanV1 {
   /** Positive safe integer advanced by the HMR owner for each candidate. */
   readonly revision: number;
-  /** Reversible Studio/tooling resources installed only for this live epoch. */
-  readonly effects?: readonly CompositionEffectInstallerV1[];
 }
 
 export interface StudioToolingLiveCompositionV1 {
@@ -75,7 +72,6 @@ function profileV1(
   profileId: string,
   input: StudioToolingLiveRootInputV1,
 ) {
-  const effects = Object.freeze([...(input.effects ?? [])]);
   const plan = Object.freeze({
     binding: input.binding,
     sceneIo: input.sceneIo,
@@ -85,11 +81,8 @@ function profileV1(
     id: studioToolingRootPluginIdV1,
     revision: input.revision,
     provides: [studioToolingRootTokenV1],
-    async setup(scope) {
+    setup(scope) {
       scope.provide(studioToolingRootTokenV1, plan);
-      for (const effect of effects) {
-        await scope.effect(effect);
-      }
     },
   });
   return defineCompositionProfileV1({
@@ -105,9 +98,10 @@ function compilePlanV1(snapshot: CompositionSnapshotV1): StudioToolingPlanV1 {
 
 /**
  * Creates the Studio page's independent live composition root. Candidate
- * setup and reversible effects settle before publication. Reload keeps the
- * previous snapshot live until the consumer acknowledges the candidate plan,
- * then retires the previous providers and returns the published plan.
+ * setup settles before publication. Reload keeps the previous snapshot live
+ * until the consumer acknowledges the candidate plan, then retires the
+ * previous providers and returns the published plan. Arbitrary lifecycle
+ * effects are intentionally not accepted by this Studio root.
  */
 export function createStudioToolingLiveCompositionV1(
   options: CreateStudioToolingLiveCompositionOptionsV1,

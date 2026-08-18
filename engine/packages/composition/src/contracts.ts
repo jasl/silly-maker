@@ -51,6 +51,14 @@ export interface CompositionRegistryEntryV1<T> {
 }
 
 export type CompositionCleanupV1 = () => void | PromiseLike<void>;
+/**
+ * Installs one reversible in-process resource during profile setup. A live
+ * candidate installs effects before consumer publication while predecessor
+ * effects remain installed. Live effects must therefore be staging-safe: they
+ * may coexist with the predecessor, must not perform authoritative or
+ * irreversible writes, and must be completely reversible on rollback.
+ * Resources that require exclusive cutover are not supported by this contract.
+ */
 export type CompositionEffectInstallerV1 = () =>
   | void
   | CompositionCleanupV1
@@ -63,6 +71,7 @@ export interface CompositionPluginScopeV1 {
     token: CompositionRegistryTokenV1<T>,
     entry: CompositionRegistryEntryInputV1<T>,
   ): void;
+  /** Installs an effect under the profile lifecycle contract above. */
   effect(install: CompositionEffectInstallerV1): Promise<void>;
 }
 
@@ -156,9 +165,12 @@ export interface CompositionKernelOptionsV1 {
 }
 
 /**
- * Publishes a fully mounted live candidate while the previous snapshot and
- * all of its providers are still current. A rejection must leave (or restore)
- * the previous consumer publication; the kernel then rolls the candidate back.
+ * Publishes a fully mounted live candidate while the previous snapshot,
+ * providers, and effects are still current. Candidate effects are already
+ * installed at this point. A rejection must leave (or restore) the previous
+ * consumer publication; the kernel then rolls the candidate back. Restoring a
+ * publisher's partial external mutation is the trusted caller's obligation;
+ * the kernel cannot reverse it mechanically.
  */
 export type CompositionCandidatePublisherV1 = (
   candidate: CompositionSnapshotV1,

@@ -10,12 +10,13 @@ checks 均通过。PF6 broad harness 没有因 Cat Cafe 的 Story-local preview 
 当前也没有新增 public authoring ABI。Desktop file persistence/packaging、通用 editor、Mod 与
 genre/compiler work 仍不在这项 production claim 内。
 
-2026-08-18 新增的 `@sillymaker/composition` X1–X3 kernel/live-tooling path 与
-`@sillymaker/state` X4/X5 compatibility façade 是独立实验能力；外部 workload 已完成
-X6.1–X6.3 locality/runtime-plan 验证，主仓也完成 X7 性能证据。它们没有扩展上述 production
-claim，没有迁移任何维护中的 Story、Save 格式或应用组合，也没有激活 State Format V2 或 X8。
+2026-08-18 新增的 `@sillymaker/composition` X1–X3 kernel/live-tooling path 是 maintained
+internal capability；`@sillymaker/state` X4/X5 compatibility façade 继续 experimental。外部
+workload 已完成 X6.1–X6.3 locality/runtime-plan 验证，主仓也完成 X7 性能证据。它们没有扩展
+上述 production claim，没有迁移任何维护中的 Story、Save 格式或应用组合，也没有激活 State
+Format V2、Effect Broker/OpenUI、i18n 或 production Story migration。
 
-## Experimental composition kernel
+## Internal composition kernel
 
 - `@sillymaker/composition` 提供 typed service/registry token、plugin、profile、scope、稳定
   graph identity、direct-plan compiler 与可逆 lifecycle。每个 profile 直接拥有一个 staging
@@ -27,12 +28,19 @@ claim，没有迁移任何维护中的 Story、Save 格式或应用组合，也�
   `activateStateApplicationV1` 保证先编译 State module direct plan，再激活 factory 并创建
   Session；State compile 失败时 factory 仍为 inactive。live profile candidate 完整 mount 后还必须
   由 consumer publisher 确认；确认期间旧 snapshot/provider 仍 current，拒绝会回滚 candidate。
-  X1-X4 boot identity 不进入 Save `simulationDigest`。
+  完整 mount 已安装的 live effects 会与 predecessor 共存，所以必须 staging-safe、可完整回滚且不得
+  成为 publication 前的 exclusive writer；任意 publisher 的部分外部 mutation 仍由 consumer 自己
+  保持或恢复。X1-X4 boot identity 不进入 Save `simulationDigest`。
 - dev-only Studio 是第一个真实 live consumer：独立 root 将 binding/scene IO/motion IO 编译为
-  direct plan。初次发布和 HMR 都等待真实 React layout commit；candidate 在 detached epoch root
-  中验证，成功才换 visible host，render/layout/abort 失败保留 exact 旧 React tree、snapshot、provider
-  与 dirty authoring session。清理按 React consumer 在先、composition providers 在后的顺序执行，
-  两路失败都转为诊断而不产生 unhandled rejection；该 root 不持有 authoritative Session/State。
+  direct plan，且不公开任意 live-effect 输入。初次发布和 HMR 都等待 detached React layout-effect
+  commit；candidate 在 detached epoch root 中验证，成功才换 visible host，render/layout/abort 失败
+  保留 exact 旧 React tree、snapshot、provider 与 dirty authoring session。清理按 React consumer
+  在先、composition providers 在后的顺序执行，两路失败都转为诊断而不产生 unhandled rejection；
+  该 root 不持有 authoritative Session/State。当前合同不承诺 detached host 的 connected-browser
+  geometry；layout-sensitive renderer 需要独立真实 consumer 和浏览器验收。Cat Cafe 的真实 Vite
+  HMR acceptance 会加载一个可求值但 render 时失败的 binding，证明 exact predecessor DOM 与 dirty
+  scene 保留，再恢复原 binding 并观察 successor host 换入；它只覆盖当前非 layout-sensitive Studio
+  合同。
 - X1 曾以私有 Cordis core 包裹已经由 SillyMaker 拥有的 staging/disposal；retain/remove A/B 证明它
   没有承担独立 Fiber tree、injection、isolation 或 publication 语义后，最终实现改为 package-internal
   direct lifecycle。公开 exports、State/Save/replay 和维护中 Player 的 JavaScript/CSS application

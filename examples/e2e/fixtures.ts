@@ -36,6 +36,8 @@ export function sillyOsTargetUrlV1(query = ""): string {
 interface PageDiagnosticsV1 {
   readonly pageErrors: readonly string[];
   readonly consoleErrors: readonly string[];
+  /** Removes one exact, deliberately exercised console error; every other error still fails. */
+  consumeExpectedConsoleError(message: string): void;
 }
 
 export const test = base.extend<{ pageDiagnostics: PageDiagnosticsV1 }>({
@@ -50,7 +52,23 @@ export const test = base.extend<{ pageDiagnostics: PageDiagnosticsV1 }>({
         if (message.type() === "error") consoleErrors.push(message.text());
       });
 
-      await use(Object.freeze({ pageErrors, consoleErrors }));
+      await use(Object.freeze({
+        pageErrors,
+        consoleErrors,
+        consumeExpectedConsoleError(message: string): void {
+          const matchingIndexes = consoleErrors.flatMap((candidate, index) =>
+            candidate === message ? [index] : []
+          );
+          if (matchingIndexes.length !== 1 || matchingIndexes[0] === undefined) {
+            throw new Error(
+              `expected one exact console error to consume, found ${
+                String(matchingIndexes.length)
+              }`,
+            );
+          }
+          consoleErrors.splice(matchingIndexes[0], 1);
+        },
+      }));
 
       if (pageErrors.length > 0 || consoleErrors.length > 0) {
         await testInfo.attach("page-diagnostics", {

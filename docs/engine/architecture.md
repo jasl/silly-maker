@@ -9,9 +9,10 @@
 package-internal collaboration 并拆出清晰叶模块，没有改变 workspace public exports、Save/wire
 或 authoritative semantics；PF6 broad harness 经 Cat Cafe 真实作者纵切复审后没有激活。
 当前没有自动激活的默认核心实现节点，Desktop durability/packaging 仍是独立 preview lane。
-独立 Composition/State strangler experiment 已完成 X0–X6.3 与 X7 性能证据；它验证了本节的
-single-authority 和 direct-plan 边界，但没有把实验包接入 production Story flow，也没有激活
-State Format V2、Effect Broker 或 production migration。
+独立 Composition/State strangler experiment 已完成 X0–X6.3 与 X7 性能证据；curated promotion
+把 Composition 收口为 maintained internal capability，State façade 继续 experimental。它验证了
+本节的 single-authority 和 direct-plan 边界，但没有把 State 接入 production Story flow，也没有
+激活 State Format V2、Effect Broker/OpenUI、i18n 或 production migration。
 
 ## 1. System context
 
@@ -43,7 +44,7 @@ Story/application production flow。
 | Package                   | Workspace public entries                                                                                          | Responsibility                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@sillymaker/base`        | `.`, `./authoring`, `./runtime`, `./story`, `./testkit` + testkit subentries; workspace-only `./runtime/internal` | Contracts, the Story prelude and authoring kit, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, the agent port, and reusable behavior-test helpers.                                                                                                                                                                                                                                                    |
-| `@sillymaker/composition` | `.`, `./legacy`, `./state`                                                                                        | Experimental cold-path façade for typed plugins, profiles, services, registries, direct-plan compilation, authoritative freezing, live reload, reversible in-process lifecycle effects, and the neutral State-module registry bridge. Lifecycle staging and disposal are package-internal; no dynamic Context is part of a supported entry.                                                                                                              |
+| `@sillymaker/composition` | `.`, `./legacy`, `./state`                                                                                        | Maintained internal cold-path façade for typed plugins, profiles, services, registries, direct-plan compilation, authoritative freezing, live reload, reversible staging-safe in-process lifecycle effects, and the neutral State-module registry bridge. It is not a stable public Mod SDK; lifecycle staging and disposal are package-internal, and no dynamic Context is part of a supported entry.                                                   |
 | `@sillymaker/state`       | `.`, `./legacy`                                                                                                   | Experimental neutral State Runtime, StateModule, StateTransaction, and StateWorkflow compatibility façade. Runtime and authoring adapters reuse the exact Base Session and transaction runner; `./legacy` exposes the same raw composition/runtime control for migration equivalence work. It is not a production Story runtime or a second persistence/replay owner.                                                                                    |
 | `@sillymaker/tooling`     | `.`, `./project` + subentries, `./vite` + subentries, `./identity/*`                                              | Non-browser project and Story CLI, Vite assembly, build identity, JSONL agent protocol/client, dev-only source/motion/scene write-back ports and the Studio page plugin, and package-internal Desktop preview packaging/local-server tools. Never imported by Base or browser bundles.                                                                                                                                                                   |
 | `@sillymaker/studio`      | `.`, `./composition`                                                                                              | The dev-only SillyMaker Studio (VN Scene Workspace): scene navigator, Content browser, real-renderer canvas, placement inspector, cue list, scene/motion construction, the read-only narrative Flow workspace, and the scene CAS IO client (create is the no-file form of the same port). `./composition` owns its isolated live tooling profile. Served exclusively by the dev-server Studio page; player bundles and runtime packages never import it. |
@@ -56,7 +57,7 @@ Cross-package imports use package exports and declared `workspace:*`
 dependencies. Application-only composition may stay internal to a Story package
 when no other package should consume it.
 
-### Experimental composition kernel
+### Maintained internal composition kernel
 
 `@sillymaker/composition` is the only SillyMaker plugin façade. Each mounted
 profile creates one admitted staging record and one composite disposer; public
@@ -76,12 +77,18 @@ kernel: a candidate first mounts completely, then a required consumer publisher
 acknowledges it while the exact previous snapshot and providers remain current;
 only that acknowledgement replaces the snapshot and retires the predecessor. A
 disposer covers in-process resources and application leases; it does not claim
-to reverse an external Host, network, LLM, or database write.
+to reverse an external Host, network, LLM, or database write. Candidate effects
+are installed by the completed mount before publication and coexist with their
+predecessors during acknowledgement, so live effects must be staging-safe and
+fully reversible. Exclusive cutover resources are not supported yet. The kernel
+can roll back the candidate profile; preserving or restoring a consumer that
+partially mutated before rejecting remains the trusted publisher's obligation.
 
 The dev-only Studio Vite entry is the first live consumer. It mounts binding,
 scene IO, and motion IO into an isolated `@sillymaker/studio/composition` root.
-Initial publication and every HMR candidate are acknowledged by a real React
-layout commit; the synchronous return from `root.render()` is not a commit.
+Initial publication and every HMR candidate are acknowledged by a detached
+React layout-effect commit; the synchronous return from `root.render()` is not
+an acknowledgement.
 Each candidate renders in a detached epoch root and replaces the visible host
 only after acknowledgement, so render/layout failure or abort leaves the exact
 old React tree, snapshot, providers, and shared dirty document session intact.
@@ -89,7 +96,9 @@ After a successful host cutover the old React root unmounts while its providers
 are still alive, and only then may composition retire them. HMR teardown follows
 the same consumer-first order; failures are reported and the fire-and-forget
 Vite callback cannot leak a rejected Promise. This root never receives an
-authoritative Session or State writer.
+authoritative Session or State writer. This contract does not claim that a
+detached host has connected-browser geometry; a layout-sensitive renderer needs
+a real consumer and browser acceptance before that stronger HMR promise exists.
 
 The lifecycle implementation is private to the composition package; no
 supported package declaration or Story import exposes a dynamic Context.
