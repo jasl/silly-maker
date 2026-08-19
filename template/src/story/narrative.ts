@@ -10,6 +10,7 @@ import type {
 } from "@sillymaker/base/story";
 import {
   appendNarrativeHistory,
+  applyHoldTick,
   interactionOccurrenceId,
   emptyNarrativeHistory,
   parsePendingInteraction,
@@ -39,10 +40,13 @@ export type { TemplateChoiceOptionV1, TemplateNarrativeNodeV1 } from "./narrativ
  * - `stage`   scene ops (open / cue by short key) or `setAppearance`.
  * - `choice`  a menu; each option may set flags and move to its own block.
  * - `branch`  declarative flag routing; the last case may be the else arm.
+ * - `hold`    holds the screen for an authoritative duration; expiry (or a
+ *             skippable hold's fold) advances. Optional `ops` open a stage
+ *             batch before the wait. Remaining time is authoritative State.
  * - `end`     finishes the narrative run.
  *
- * The Engine Lab (`e2e`) additionally demonstrates `pause`,
- * `barrier` (transition-acknowledged), and `custom` interaction surfaces.
+ * The Engine Lab (`e2e`) additionally demonstrates `barrier`
+ * (transition-acknowledged) and `custom` interaction surfaces.
  */
 
 export interface TemplateNarrativeStateV1 {
@@ -189,13 +193,18 @@ const templateOpeningDocV1: TemplateInteractionDocV1 = {
       next: "mei-fetches",
     },
     {
-      kind: "stage",
+      kind: "hold",
       name: "mei-fetches",
       // Mid-beat exit: Mei darts to the eaves for the kitten. Both edges of
       // this beat are explicit cuts in the scene document — her return
       // shares the enter edge with the ceremonial entrance motion, and the
       // dispatch context (cue identity) selects which presentation plays.
+      // The opening ops commit before the wait (never a silent flash), then
+      // the screen holds for an authoritative 600ms while she is off-frame;
+      // remaining time is saveable State, so a mid-hold load resumes the
+      // beat instead of replaying a wall clock.
       ops: [{ scene: "opening", cue: "meiFetches" }],
+      durationMs: 600,
       next: "fetch-line",
     },
     {
@@ -345,6 +354,16 @@ function pendingForNodeV1(node: TemplateNarrativeNodeV1, sequence: number): Pend
         promptTextId: node.promptTextId,
         options: node.options.map(({ choiceId, textId }) => ({ choiceId, textId })),
       });
+    case "hold":
+      return parsePendingInteraction({
+        kind: "hold",
+        definitionId: node.definitionId,
+        seenRevision: node.seenRevision,
+        occurrenceId,
+        totalMs: node.durationMs,
+        remainingMs: node.durationMs,
+        skippable: node.skippable,
+      });
     default:
       throw new TypeError(`template.narrative_node_not_interactive:${node.nodeId}`);
   }
@@ -431,15 +450,27 @@ function withFlagsV1(flags: readonly string[], added: readonly string[]): readon
 }
 
 /**
+ * The continuation of an accepted resolution: `advanced` consumed the
+ * pending boundary (the caller runs the script from the new cursor);
+ * `holding` is a partial hold tick — the same occurrence stays pending
+ * with its authoritative `remainingMs` decremented, and the caller
+ * commits that state without running the script.
+ */
+export type TemplateNarrativeResolutionContinuationV1 =
+  | { readonly kind: "advanced"; readonly narrative: TemplateNarrativeStateV1 }
+  | { readonly kind: "holding"; readonly narrative: TemplateNarrativeStateV1 };
+
+/**
  * Applies an accepted resolution to the pending node: moves the cursor to
- * the continuation, records flags, and appends the history entry. The
- * caller runs the script afterwards; validation already happened in the
- * shared evaluator.
+ * the continuation, records flags, and appends the history entry. A hold
+ * tick goes through the shared `applyHoldTick` arithmetic — only expiry
+ * consumes the boundary. The caller runs the script after an `advanced`
+ * continuation; validation already happened in the shared evaluator.
  */
 export function templateNarrativeAfterResolutionV1(
   narrative: TemplateNarrativeStateV1,
   resolution: InteractionResolution,
-): TemplateNarrativeStateV1 {
+): TemplateNarrativeResolutionContinuationV1 {
   const pending = narrative.pending;
   if (pending === null || narrative.cursor === null) {
     throw new TypeError("template.narrative_nothing_pending");
@@ -473,16 +504,31 @@ export function templateNarrativeAfterResolutionV1(
       textId: node.textId,
       voiceAssetId: null,
     });
+  } else if (node.kind === "hold" && resolution.kind === "hold_tick") {
+    if (pending.kind !== "hold") {
+      throw new TypeError(`template.narrative_resolution_mismatch:${node.nodeId}`);
+    }
+    const outcome = applyHoldTick(pending, resolution.elapsedMs);
+    if (outcome.kind === "holding") {
+      return Object.freeze({
+        kind: "holding" as const,
+        narrative: Object.freeze({ ...narrative, pending: outcome.pending }),
+      });
+    }
+    next = node.next;
   } else {
     throw new TypeError(`template.narrative_resolution_mismatch:${node.nodeId}`);
   }
   return Object.freeze({
-    phase: "active" as const,
-    cursor: next,
-    pending: null,
-    sequence: narrative.sequence,
-    flags,
-    history,
+    kind: "advanced" as const,
+    narrative: Object.freeze({
+      phase: "active" as const,
+      cursor: next,
+      pending: null,
+      sequence: narrative.sequence,
+      flags,
+      history,
+    }),
   });
 }
 

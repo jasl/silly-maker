@@ -26,6 +26,13 @@ function chooseV1(choiceId: string) {
   });
 }
 
+function holdTickV1(elapsedMs: number) {
+  return Object.freeze({
+    kind: "resolve" as const,
+    resolution: Object.freeze({ kind: "hold_tick" as const, elapsedMs }),
+  });
+}
+
 const scenariosV1 = Object.freeze({
   /** Take the courtyard look and reach the warm ending. */
   opening: Object.freeze([
@@ -33,6 +40,9 @@ const scenariosV1 = Object.freeze({
     advanceV1(),
     chooseV1("choice.template.look"),
     advanceV1(),
+    // The fetch beat holds for an authoritative 600ms; the scenario expires
+    // it in one tick (the browser Host accumulates the same milliseconds).
+    holdTickV1(600),
     advanceV1(),
   ]),
   /** Go inside instead and reach the plain ending. */

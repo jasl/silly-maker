@@ -1,7 +1,10 @@
 # Authoritative Hold Clock V1（权威计时持有）
 
 状态：2026-08-19 起草，**同日所有者接受，当前 active plan**（引擎侧代
-码授权覆盖 template 与 examples）。案文、正交性收敛（归并删除
+码授权覆盖 template 与 examples）。M0（base 合同）、M1（Host 提议 +
+`pause` 归并删除）、M2（kit `hold` 块 + Studio Flow 节点 + 实验仓独浴
+`soak-wait` 活路径与持有中 Save/load 测试）已于同日交付；当前剩
+M3（条件/换帧/滴，证据够再领）。案文、正交性收敛（归并删除
 `pause`、无 `hold_abort` 动词）与裁决记录见
 [authoritative-hold-clock 提案](../proposals/authoritative-hold-clock.md)。
 本文只拥有实现切片顺序、admission 落地与验收；

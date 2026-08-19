@@ -150,6 +150,21 @@ writer, or a second stage claimant. Engine Lab, the starter template, Bookshop,
 and Cat Cafe are the maintained examples. SillyOS intentionally omits the
 definition and therefore mounts no Narrative surface.
 
+An authoritative screen-hold between two lines is authored as a `hold`
+interaction: positive integer `totalMs`/`remainingMs` plus the author's
+`skippable` flag (original frame counts convert to milliseconds at Story
+compile time). The single advancing resolution is `hold_tick({ elapsedMs })`;
+Story runners apply it with `applyHoldTick` from `@sillymaker/base/story` — a
+partial tick keeps the same boundary occurrence and decrements `remainingMs`,
+and the tick that reaches zero expires into the node's successor. The
+Narrative Host owns the presentation clock and proposes the fold/expiry
+commits, so a mid-hold Save restores the hold with the last committed
+remainder and wall clocks never enter State, Saves, digests, or replay. Show
+the held picture by committing its stage node before the hold — the starter
+template's interaction-document kit does this with a `hold` block whose
+inline `ops` compile to a preceding stage node — never by flashing a
+zero-duration stage during the wait.
+
 For a whole-canvas primary or exact-parent detail, freeze the seven-key input
 to `defineWholeCanvasSurfaceV1`: `catalog`, `source`, `resolveTarget`,
 `dispatchAction`, `renderer`, `prepareTarget`, and `resolveText`. Use a

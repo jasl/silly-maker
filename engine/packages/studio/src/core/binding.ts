@@ -69,6 +69,7 @@ export interface NarrativeFlowGraphNodeV1 {
     | "branch"
     | "flag"
     | "barrier"
+    | "hold"
     | "end";
   /** The source interaction document; null for hand-written legacy nodes. */
   readonly docId: string | null;

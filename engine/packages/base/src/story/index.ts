@@ -108,6 +108,7 @@ export type {
 // Pending interactions (current generation: V1).
 // ---------------------------------------------------------------------------
 export {
+  applyHoldTickV1 as applyHoldTick,
   evaluateInteractionResolutionV1 as evaluateInteractionResolution,
   interactionOccurrenceIdV1 as interactionOccurrenceId,
   parseInteractionOccurrenceIdV1 as parseInteractionOccurrenceId,
@@ -116,6 +117,8 @@ export {
 } from "../index.ts";
 export type {
   PendingInteractionV1 as PendingInteraction,
+  HoldPendingInteractionV1 as HoldPendingInteraction,
+  HoldTickOutcomeV1 as HoldTickOutcome,
   InteractionResolutionV1 as InteractionResolution,
   InteractionResolutionContextV1 as InteractionResolutionContext,
   InteractionResolutionOutcomeV1 as InteractionResolutionOutcome,

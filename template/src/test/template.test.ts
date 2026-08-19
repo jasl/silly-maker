@@ -95,6 +95,70 @@ describe("template story baseline", () => {
     }
   });
 
+  it("compiles hold blocks with an opening stage batch and jump redirection", () => {
+    const compiled = compileDocV1({
+      entry: "wait",
+      blocks: [
+        {
+          kind: "hold",
+          name: "wait",
+          durationMs: 500,
+          skippable: true,
+          ops: [
+            {
+              setAppearance: {
+                layerId: "layer.template.characters",
+                tag: "tag.mei",
+                appearance: { expression: "smiling" },
+              },
+            },
+          ],
+          next: "again",
+        },
+        { kind: "say", name: "again", speaker: null, text: "……", next: "wait" },
+      ],
+    });
+    // Entry and jumps land on the compiled opening stage node, so the held
+    // picture is committed stage state — never a silent flash.
+    expect(compiled.entryNodeId).toBe("node.template.wait-stage");
+    const say = compiled.nodes.find((node) => node.nodeId === "node.template.again");
+    expect(say).toMatchObject({ next: "node.template.wait-stage" });
+    const stage = compiled.nodes.find((node) => node.nodeId === "node.template.wait-stage");
+    expect(stage).toMatchObject({ kind: "stage", next: "node.template.wait" });
+    const hold = compiled.nodes.find((node) => node.nodeId === "node.template.wait");
+    expect(hold).toMatchObject({
+      kind: "hold",
+      definitionId: "interaction.template.wait",
+      durationMs: 500,
+      skippable: true,
+      next: "node.template.again",
+    });
+    expect(compiled.flowGraph.nodes.find((node) => node.nodeId === "node.template.wait"))
+      .toMatchObject({ kind: "hold", summary: "hold 500ms skippable" });
+    // The stage→hold edge keeps the flow projection connected.
+    expect(compiled.flowGraph.edges).toContainEqual(
+      expect.objectContaining({ from: "node.template.wait-stage", to: "node.template.wait" }),
+    );
+  });
+
+  it("compiles a bare hold without ops onto the current stage picture", () => {
+    const compiled = compileDocV1({
+      entry: "beat",
+      blocks: [
+        { kind: "hold", name: "beat", durationMs: 240, next: "close" },
+        { kind: "end", name: "close" },
+      ],
+    });
+    expect(compiled.entryNodeId).toBe("node.template.beat");
+    expect(compiled.nodes.find((node) => node.nodeId === "node.template.beat")).toMatchObject({
+      kind: "hold",
+      durationMs: 240,
+      skippable: false,
+    });
+    expect(compiled.flowGraph.nodes.find((node) => node.nodeId === "node.template.beat"))
+      .toMatchObject({ kind: "hold", summary: "hold 240ms" });
+  });
+
   it("rejects bad documents at admission with pointed reasons", () => {
     expect(() =>
       compileDocV1({
@@ -171,6 +235,40 @@ describe("template story baseline", () => {
         ],
       })
     ).toThrow(/scene_unknown:missing/u);
+    expect(() =>
+      compileDocV1({
+        entry: "wait",
+        blocks: [
+          { kind: "hold", name: "wait", durationMs: 0, next: "close" },
+          { kind: "end", name: "close" },
+        ],
+      })
+    ).toThrow(/hold_duration_invalid/u);
+    // A hold with ops reserves `<name>-stage`; colliding block names fail.
+    expect(() =>
+      compileDocV1({
+        entry: "wait",
+        blocks: [
+          {
+            kind: "hold",
+            name: "wait",
+            durationMs: 500,
+            ops: [
+              {
+                setAppearance: {
+                  layerId: "layer.template.characters",
+                  tag: "tag.mei",
+                  appearance: { expression: "smiling" },
+                },
+              },
+            ],
+            next: "close",
+          },
+          { kind: "end", name: "wait-stage" },
+          { kind: "end", name: "close" },
+        ],
+      })
+    ).toThrow(/duplicate_block_name/u);
     // Reusing an option name across two different choices stays legal (a
     // shared label shares its derived ids on purpose).
     expect(() =>
@@ -234,6 +332,18 @@ describe("template story baseline", () => {
     );
     expect(menuNode?.kind).toBe("menu");
     expect(menuNode?.summary).toBe("接下来做什么？ / 去看看檐下的动静 / 先回屋里");
+    // The hold beat projects its authoritative duration; its opening ops
+    // stage node precedes it in the same document.
+    const holdNode = templateFlowGraphV1.nodes.find(
+      (node) => node.nodeId === "node.template.mei-fetches",
+    );
+    expect(holdNode).toMatchObject({ kind: "hold", summary: "hold 600ms" });
+    expect(templateFlowGraphV1.edges).toContainEqual(
+      expect.objectContaining({
+        from: "node.template.mei-fetches-stage",
+        to: "node.template.mei-fetches",
+      }),
+    );
   });
 
   it("keeps branch choosers inside their static successor annotations", () => {
@@ -289,10 +399,13 @@ describe("template presentation edge context", () => {
   });
 
   it("annotates stage nodes with their scene dispatches for the runner", () => {
+    // The hold block's opening ops compile to a real stage node entered
+    // before the wait, carrying the cue dispatch like any stage beat.
     const fetches = templateScriptV1.find((node) =>
-      node.kind === "stage" && node.nodeId === "node.template.mei-fetches"
+      node.kind === "stage" && node.nodeId === "node.template.mei-fetches-stage"
     );
     expect(fetches).toMatchObject({
+      next: "node.template.mei-fetches",
       dispatches: [
         { sceneId: "scene.template.opening", cueId: "cue.template.opening.mei-fetches" },
       ],
@@ -355,11 +468,14 @@ describe("template narrative playthrough", () => {
       await dispatch(currentResolveV1(application, { kind: "advance" }));
       publication = application.semantic.observe();
       // Mei smiled, then darted off-frame to fetch the kitten: the
-      // explicit-cut hide leaves her absent while the narration plays, and
-      // the commit's dispatch batch pairs with exactly this revision.
+      // explicit-cut hide committed in this same command (the hold block's
+      // opening ops), and the screen now holds on the empty frame for an
+      // authoritative 600ms. The dispatch batch pairs with this revision.
       expect(publication.narrative.pending).toMatchObject({
-        kind: "say",
-        textId: "text.template.line.fetch-line",
+        kind: "hold",
+        totalMs: 600,
+        remainingMs: 600,
+        skippable: false,
       });
       const meiAway = publication.game.stage.layers
         .find((layer) => layer.layerId === "layer.template.characters")
@@ -374,6 +490,26 @@ describe("template narrative playthrough", () => {
             cueId: "cue.template.opening.mei-fetches",
           },
         ],
+      });
+
+      // A partial hold tick decrements the authoritative remaining time
+      // without consuming the boundary: same occurrence, script not run.
+      const holdOccurrence = publication.narrative.pending?.occurrenceId;
+      await dispatch(currentResolveV1(application, { kind: "hold_tick", elapsedMs: 250 }));
+      publication = application.semantic.observe();
+      expect(publication.narrative.pending).toMatchObject({
+        kind: "hold",
+        occurrenceId: holdOccurrence,
+        totalMs: 600,
+        remainingMs: 350,
+      });
+
+      // The tick that reaches zero expires the hold; the narration plays.
+      await dispatch(currentResolveV1(application, { kind: "hold_tick", elapsedMs: 350 }));
+      publication = application.semantic.observe();
+      expect(publication.narrative.pending).toMatchObject({
+        kind: "say",
+        textId: "text.template.line.fetch-line",
       });
 
       await dispatch(currentResolveV1(application, { kind: "advance" }));

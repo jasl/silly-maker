@@ -39,7 +39,10 @@ Read only the documents relevant to the change:
   `docs/engine/proposals/authoritative-hold-clock.md` and
   `docs/engine/plans/2026-08-19-authoritative-hold-clock.md` (new `hold`
   pending interaction driven by `hold_tick` milliseconds; `pause`/`resume`
-  are merged into `hold` and deleted). Desktop persistence remains an
+  are merged into `hold` and deleted). M0–M2 delivered 2026-08-19 (base
+  contract, Host proposing loop with the pause merge-and-delete, kit `hold`
+  blocks with the Studio Flow node); M3 (conditions/frame-swap/tick effects)
+  remains evidence-gated. Desktop persistence remains an
   independent promotion gate while the adapter is preview.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,
   `docs/engine/plans/2026-07-30-snapshot-commit-performance.md`,

@@ -11,8 +11,8 @@ import { parseStageMutation } from "@sillymaker/base/story";
  * The interaction-document kit (the template flavor of
  * `docs/engine/proposals/interaction-table-authoring.md`).
  *
- * A document is PURE DATA: say/choice/stage/branch/end blocks with short
- * names. Every id the runtime needs derives from one stable short name
+ * A document is PURE DATA: say/choice/stage/branch/hold/end blocks with
+ * short names. Every id the runtime needs derives from one stable short name
  * (`node.<prefix>.<name>`, `interaction.<prefix>.<name>`,
  * `text.<prefix>.line.<name>`, …), the default-locale line lives inline
  * with its block, and every derived id accepts an explicit override, so
@@ -82,6 +82,18 @@ export type TemplateNarrativeNodeV1 =
     readonly successors: readonly string[];
     /** Pure flag-conditioned routing; must pick a successor. */
     readonly choose: (context: { readonly flags: readonly string[] }) => string;
+  }
+  | {
+    /** Holds the screen for an authoritative duration; expiry advances. */
+    readonly kind: "hold";
+    readonly nodeId: string;
+    readonly definitionId: string;
+    readonly seenRevision: number;
+    /** Authoritative dwell in milliseconds; never a wall-clock deadline. */
+    readonly durationMs: number;
+    /** Player input may fold the remaining wait into one tick. */
+    readonly skippable: boolean;
+    readonly next: string;
   }
   | { readonly kind: "end"; readonly nodeId: string };
 
@@ -157,6 +169,33 @@ export interface TemplateBranchBlockV1 {
   readonly cases: readonly TemplateBranchCaseV1[];
 }
 
+/**
+ * An authoritative timed hold between two beats (the engine `hold`
+ * interaction): the screen holds for `durationMs`, the Narrative Host
+ * proposes elapsed milliseconds as `hold_tick` commits, and expiry
+ * advances to `next`. Remaining time lives in authoritative State, so a
+ * mid-hold Save restores the wait instead of replaying a wall clock.
+ * Ported MV `WAIT n` frame counts convert here: `round(n × 1000 / 60)`.
+ */
+export interface TemplateHoldBlockV1 {
+  readonly kind: "hold";
+  readonly name: string;
+  /** Positive integer milliseconds. */
+  readonly durationMs: number;
+  /** Player input folds the remaining wait; original WAIT is never skippable. */
+  readonly skippable?: boolean;
+  /**
+   * Optional opening stage batch: compiles to a stage node entered before
+   * the hold, so the held picture is real committed stage state (never a
+   * silent flash). Jumps to this block land on the stage node.
+   */
+  readonly ops?: readonly TemplateStageOpV1[];
+  /** Override the derived `interaction.<prefix>.<name>`. */
+  readonly definitionId?: string;
+  readonly seenRevision?: number;
+  readonly next: string;
+}
+
 export interface TemplateEndBlockV1 {
   readonly kind: "end";
   readonly name: string;
@@ -167,6 +206,7 @@ export type TemplateInteractionBlockV1 =
   | TemplateChoiceBlockV1
   | TemplateStageBlockV1
   | TemplateBranchBlockV1
+  | TemplateHoldBlockV1
   | TemplateEndBlockV1;
 
 export interface TemplateInteractionDocV1 {
@@ -206,6 +246,7 @@ export interface TemplateFlowGraphNodeV1 {
     | "branch"
     | "flag"
     | "barrier"
+    | "hold"
     | "end";
   readonly docId: string | null;
   readonly blockName: string | null;
@@ -261,9 +302,17 @@ export function compileTemplateInteractionDocV1(
   const nodeId = (name: string): string => `node.${doc.prefix}.${name}`;
 
   const blockNames = new Set<string>();
+  /** Hold blocks with an opening stage batch; jumps land on `<name>-stage`. */
+  const holdOpsBlocks = new Set<string>();
   for (const block of doc.blocks) {
     if (blockNames.has(block.name)) failV1(doc, block.name, "duplicate_block_name");
     blockNames.add(block.name);
+    if (block.kind === "hold" && block.ops !== undefined && block.ops.length > 0) {
+      const stageName = `${block.name}-stage`;
+      if (blockNames.has(stageName)) failV1(doc, stageName, "duplicate_block_name");
+      blockNames.add(stageName);
+      holdOpsBlocks.add(block.name);
+    }
   }
   if (!blockNames.has(doc.entry)) failV1(doc, doc.entry, "entry_missing");
 
@@ -289,8 +338,56 @@ export function compileTemplateInteractionDocV1(
       return target;
     }
     if (!blockNames.has(next)) failV1(doc, at, `next_unresolved:${next}`);
+    // A hold block with an opening stage batch is entered through its
+    // compiled stage node so the held picture commits before the wait.
+    if (holdOpsBlocks.has(next)) return nodeId(`${next}-stage`);
     return nodeId(next);
   };
+
+  const compileStageOps = (blockName: string, ops: readonly TemplateStageOpV1[]) =>
+    ops.map((op, index) => {
+      const at = `${blockName}/op-${String(index)}`;
+      if ("setAppearance" in op) {
+        const parsed = parseStageMutation(
+          {
+            kind: "setAppearance",
+            layerId: op.setAppearance.layerId,
+            tag: op.setAppearance.tag,
+            appearance: op.setAppearance.appearance,
+          },
+          `/${at}`,
+        );
+        const mutations = Object.freeze([parsed]);
+        return Object.freeze({
+          mutations: () => mutations,
+          mayShow: Object.freeze([]) as readonly string[],
+          dispatches: Object.freeze([]) as readonly StageCueDispatch[],
+          summary: `appearance:${op.setAppearance.tag}`,
+        });
+      }
+      const binding = scenes[op.scene];
+      if (binding === undefined) failV1(doc, at, `scene_unknown:${op.scene}`);
+      if ("open" in op) {
+        return Object.freeze({
+          mutations: (stage: SemanticStageState) => binding.scene.openMutations(stage),
+          mayShow: binding.scene.mayShow,
+          dispatches: Object.freeze([
+            { sceneId: binding.scene.sceneId, open: true as const },
+          ]) as readonly StageCueDispatch[],
+          summary: `open:${binding.scene.sceneId}`,
+        });
+      }
+      const cueId = binding.cues?.[op.cue];
+      if (cueId === undefined) failV1(doc, at, `cue_unknown:${op.scene}/${op.cue}`);
+      return Object.freeze({
+        mutations: (stage: SemanticStageState) => binding.scene.cueMutations(cueId, stage),
+        mayShow: binding.scene.cueMayShow(cueId),
+        dispatches: Object.freeze([
+          { sceneId: binding.scene.sceneId, cueId },
+        ]) as readonly StageCueDispatch[],
+        summary: `cue:${binding.scene.sceneId}/${op.cue}`,
+      });
+    });
 
   const nodes: TemplateNarrativeNodeV1[] = [];
   const graphNodes: TemplateFlowGraphNodeV1[] = [];
@@ -410,49 +507,7 @@ export function compileTemplateInteractionDocV1(
       }
       case "stage": {
         if (block.ops.length === 0) failV1(doc, block.name, "stage_ops_empty");
-        const compiledOps = block.ops.map((op, index) => {
-          const at = `${block.name}/op-${String(index)}`;
-          if ("setAppearance" in op) {
-            const parsed = parseStageMutation(
-              {
-                kind: "setAppearance",
-                layerId: op.setAppearance.layerId,
-                tag: op.setAppearance.tag,
-                appearance: op.setAppearance.appearance,
-              },
-              `/${at}`,
-            );
-            const mutations = Object.freeze([parsed]);
-            return Object.freeze({
-              mutations: () => mutations,
-              mayShow: Object.freeze([]) as readonly string[],
-              dispatches: Object.freeze([]) as readonly StageCueDispatch[],
-              summary: `appearance:${op.setAppearance.tag}`,
-            });
-          }
-          const binding = scenes[op.scene];
-          if (binding === undefined) failV1(doc, at, `scene_unknown:${op.scene}`);
-          if ("open" in op) {
-            return Object.freeze({
-              mutations: (stage: SemanticStageState) => binding.scene.openMutations(stage),
-              mayShow: binding.scene.mayShow,
-              dispatches: Object.freeze([
-                { sceneId: binding.scene.sceneId, open: true as const },
-              ]) as readonly StageCueDispatch[],
-              summary: `open:${binding.scene.sceneId}`,
-            });
-          }
-          const cueId = binding.cues?.[op.cue];
-          if (cueId === undefined) failV1(doc, at, `cue_unknown:${op.scene}/${op.cue}`);
-          return Object.freeze({
-            mutations: (stage: SemanticStageState) => binding.scene.cueMutations(cueId, stage),
-            mayShow: binding.scene.cueMayShow(cueId),
-            dispatches: Object.freeze([
-              { sceneId: binding.scene.sceneId, cueId },
-            ]) as readonly StageCueDispatch[],
-            summary: `cue:${binding.scene.sceneId}/${op.cue}`,
-          });
-        });
+        const compiledOps = compileStageOps(block.name, block.ops);
         const lastOp = compiledOps.at(-1);
         if (lastOp === undefined) failV1(doc, block.name, "stage_ops_empty");
         nodes.push(Object.freeze({
@@ -531,6 +586,61 @@ export function compileTemplateInteractionDocV1(
         }
         break;
       }
+      case "hold": {
+        if (!Number.isSafeInteger(block.durationMs) || block.durationMs < 1) {
+          failV1(doc, block.name, "hold_duration_invalid");
+        }
+        if (holdOpsBlocks.has(block.name)) {
+          const stageName = `${block.name}-stage`;
+          const stageId = nodeId(stageName);
+          const compiledOps = compileStageOps(stageName, block.ops ?? []);
+          const lastOp = compiledOps.at(-1);
+          if (lastOp === undefined) failV1(doc, stageName, "stage_ops_empty");
+          nodes.push(Object.freeze({
+            kind: "stage",
+            nodeId: stageId,
+            mutations: (stage: SemanticStageState) =>
+              Object.freeze(compiledOps.flatMap((op) => [...op.mutations(stage)])),
+            mayShow: lastOp.mayShow,
+            dispatches: Object.freeze(compiledOps.flatMap((op) => [...op.dispatches])),
+            next: id,
+          }));
+          graphNodes.push(Object.freeze({
+            nodeId: stageId,
+            kind: "stage",
+            docId: doc.docId,
+            blockName: stageName,
+            summary: compiledOps.map((op) => op.summary).join(" + "),
+            source,
+          }));
+          graphEdges.push(Object.freeze({
+            from: stageId,
+            to: id,
+            label: Object.freeze({ kind: "next" as const }),
+          }));
+        }
+        nodes.push(Object.freeze({
+          kind: "hold",
+          nodeId: id,
+          definitionId: block.definitionId ?? `interaction.${doc.prefix}.${block.name}`,
+          seenRevision: block.seenRevision ?? 1,
+          durationMs: block.durationMs,
+          skippable: block.skippable ?? false,
+          next: resolveNext(block.name, block.next),
+        }));
+        graphNodes.push(Object.freeze({
+          nodeId: id,
+          kind: "hold",
+          docId: doc.docId,
+          blockName: block.name,
+          summary: `hold ${String(block.durationMs)}ms${
+            (block.skippable ?? false) ? " skippable" : ""
+          }`,
+          source,
+        }));
+        edge(block.name, id, block.next, Object.freeze({ kind: "next" as const }));
+        break;
+      }
       case "end": {
         nodes.push(Object.freeze({ kind: "end", nodeId: id }));
         graphNodes.push(Object.freeze({
@@ -551,7 +661,7 @@ export function compileTemplateInteractionDocV1(
   }
 
   return Object.freeze({
-    entryNodeId: nodeId(doc.entry),
+    entryNodeId: holdOpsBlocks.has(doc.entry) ? nodeId(`${doc.entry}-stage`) : nodeId(doc.entry),
     nodes: Object.freeze(nodes),
     textEntries: Object.freeze(
       [...textByTextId.entries()].map(([textId, text]) => Object.freeze({ textId, text })),

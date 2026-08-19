@@ -55,6 +55,14 @@ function graphNodeForV1(node: TemplateNarrativeNodeV1): unknown {
           stageContentIds: [],
         },
       };
+    case "hold":
+      return {
+        ...base,
+        kind: "interaction",
+        successors: [node.next],
+        interaction: { definitionId: node.definitionId, seenRevision: node.seenRevision },
+        dependencies: { textIds: [], assetIds: [], stageContentIds: [] },
+      };
     case "end":
       return {
         ...base,
