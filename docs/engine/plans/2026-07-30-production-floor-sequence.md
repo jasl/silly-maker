@@ -56,7 +56,7 @@ declared-vs-bare 碰撞零出现）；裁决 #3/#4 同日经所有者批复采�
 WAIT / 换帧 / 滴权威（实验仓 `docs/fidelity-gaps.md` E1/E2）。切片
 M0（base 合同）→ M1（Host 提议 + `pause` 归并删除）→ M2（作者块 +
 实验仓消费者）→ M3（`tickQuantumMs` 部分 commit + 阈值穿越滴/换帧，
-Lab 与实验仓口 H 双消费者）。唯一显式 defer：hold 块声明条件改道，等
+Lab 与实验仓滴路径双消费者）。唯一显式 defer：hold 块声明条件改道，等
 第一条真实中止路径（记录见该计划 §3）。Desktop persistence 仍是独立
 promotion gate。
 

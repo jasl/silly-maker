@@ -3,10 +3,10 @@
 状态：2026-08-19 起草，**同日所有者接受，同日 M0–M3 全部交付**（引擎
 侧代码授权覆盖 template 与 examples）。M0（base 合同）、M1（Host 提议
 
-- `pause` 归并删除）、M2（kit `hold` 块 + Studio Flow 节点 + 实验仓独
-  浴 `soak-wait` 活路径与持有中 Save/load 测试）、M3（部分 tick 帧刷
-  新、`tickQuantumMs` 量子提交、阈值穿越滴与换帧，Lab + 实验仓口 H 双消
-  费者）均已交付；唯一显式 defer 是 hold 块声明条件改道（复用 branch
+- `pause` 归并删除）、M2（kit `hold` 块 + Studio Flow 节点 + 实验仓
+  `soak-wait` 活路径与持有中 Save/load 测试）、M3（部分 tick 帧刷
+  新、`tickQuantumMs` 量子提交、阈值穿越滴与换帧，Lab + 实验仓滴路径双
+  消费者）均已交付；唯一显式 defer 是 hold 块声明条件改道（复用 branch
   `when`），等第一条真实需要中止/改道的活路径再领（见 §3 M3 记录）。案
   文、正交性收敛（归并删除 `pause`、无 `hold_abort` 动词）与裁决记录见
   [authoritative-hold-clock 提案](../proposals/authoritative-hold-clock.md)。
@@ -87,12 +87,11 @@
 
 - interaction-table kit `hold` 块（毫秒；可选开场 stage 批）；Flow 图
   新节点种类；template 不强制消费。
-- 实验仓迁一条活路径：独浴 `006-01` 后 WAIT 30（500ms），或一本现有
-  flipbook 改为 hold 到期开末帧。禁止 silent flash stage。
+- 实验仓迁一条活路径：一段 WAIT 30（500ms）过场，或一本现有 flipbook
+  改为 hold 到期开末帧。禁止 silent flash stage。
 - 验收：该路径持有中 Save/load 落回 hold、剩余为最近一次权威 commit
   的值（M2 无部分 tick 时即全额；部分流逝的持久化随 M3 flush）；该段
-  墙钟退出权威路径；`story-authoring.md` 与实验仓 `fidelity-gaps.md`
-  回流。
+  墙钟退出权威路径；`story-authoring.md` 与实验仓活清单回流。
 
 ### M3 — 条件、换帧与 E2 滴（已交付 2026-08-19）
 
@@ -101,9 +100,9 @@
   （形态见下方裁定）。
 - hold 块可选：tick 效果（阈值穿越结算）、按经过毫秒的 stage 批、声明
   条件（复用 branch `when`）在 commit 内改道。
-- 六格条 / `icon04`％ 读 `remainingMs` 或同一 commit 写下的权威域。
+- 六格条 / HUD ％ 读 `remainingMs` 或同一 commit 写下的权威域。
 - 第一消费者：Engine Lab 一条穿越滴单测路径；实验仓接一条已有投影条的
-  活路径（CE277 警戒或口 H 每 5s），不扫全表。
+  活路径（任一每 N 秒权威滴），不扫全表。
 - 验收：滴在 `{500,500,500}` ≡ `{1500}` 下权威加分相同；换帧按阈值
   开，不闪帧。
 
@@ -118,25 +117,23 @@
   `tickQuantumMs` 量子提交承担（丢失上界一个量子），autosave 沿既有
   debounce/pagehide 策略持久化最近权威 commit。声明量子即声明持久化粒
   度，避免在 pagehide 里塞一条与命令队列竞争的同步权威提交。
-- **声明条件改道 defer**：两个已领消费者（Lab 滴、口 H 滴+换帧）都不
-  需要中止/改道，按「证据够再领」不预铺 `when` 词汇；第一条真实需要
-  条件中止的活路径（如 CE277 警戒抓包改道）出现时按提案 q7 的推导式
-  中止落地。
+- **声明条件改道 defer**：两个已领消费者（Lab 滴、实验仓滴+换帧）都
+  不需要中止/改道，按「证据够再领」不预铺 `when` 词汇；第一条真实需要
+  条件中止的活路径（如警戒抓包改道）出现时按提案 q7 的推导式中止落
+  地。
 - **消费者证据**：Lab `cal-hold` 声明每 500ms +1 rapport，
-  `{500,500,500}` ≡ `{1500}` 终态单测锁定；实验仓口 H drip 活路径
-  15s 持有、`tickQuantumMs` 5000、每 5s V157+1、5s 阈值 `4-15→4-14`
-  换帧与滴同 commit、亚阈值 tick 不闪帧、持有中 Save/load 落回最近权
-  威余量、两种批切终态一致；警戒/高潮条读同 commit 写下的权威域（该
-  场景按原作 SW15 关闭整条不画，由 V159 场景锁单测与活路径断言锁
-  定）。
+  `{500,500,500}` ≡ `{1500}` 终态单测锁定；实验仓滴活路径 15s 持有、
+  `tickQuantumMs` 5000、每 5s 权威 +1、5s 阈值换帧与滴同 commit、亚阈
+  值 tick 不闪帧、持有中 Save/load 落回最近权威余量、两种批切终态一
+  致；进度条读同 commit 写下的权威域（该场景按原作场景锁关闭整条不
+  画，由场景锁单测与活路径断言锁定）。
 
 ## 4. Defer
 
-- E3 热区接线与 CE19 双区连击（输入轴；`StageHitRegionV1` 合同已有）。
+- E3 热区接线与双区连击（输入轴；`StageHitRegionV1` 合同已有）。
 - E4 装饰帧集 / 制作名单圆擦除（表现钟轴；分界石蕊在提案 §4）。
 - 每条目多条并行 hold；MV trigger=2 解释器形态。
-- 一次迁完 6 本 flipbook 与全部澡/厕/素股/通勤 `WAIT`（Story 刀逐条
-  走）。
+- 一次迁完 6 本 flipbook 与全部存量 `WAIT`（Story 刀逐条走）。
 
 ## 5. Stop conditions
 
