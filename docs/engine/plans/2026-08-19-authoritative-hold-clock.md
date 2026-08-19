@@ -1,15 +1,18 @@
 # Authoritative Hold Clock V1（权威计时持有）
 
-状态：2026-08-19 起草，**同日所有者接受，当前 active plan**（引擎侧代
-码授权覆盖 template 与 examples）。M0（base 合同）、M1（Host 提议 +
-`pause` 归并删除）、M2（kit `hold` 块 + Studio Flow 节点 + 实验仓独浴
-`soak-wait` 活路径与持有中 Save/load 测试）已于同日交付；当前剩
-M3（条件/换帧/滴，证据够再领）。案文、正交性收敛（归并删除
-`pause`、无 `hold_abort` 动词）与裁决记录见
-[authoritative-hold-clock 提案](../proposals/authoritative-hold-clock.md)。
-本文只拥有实现切片顺序、admission 落地与验收；
-[production-floor sequence](2026-07-30-production-floor-sequence.md)
-仍是唯一跨计划排序入口。
+状态：2026-08-19 起草，**同日所有者接受，同日 M0–M3 全部交付**（引擎
+侧代码授权覆盖 template 与 examples）。M0（base 合同）、M1（Host 提议
+
+- `pause` 归并删除）、M2（kit `hold` 块 + Studio Flow 节点 + 实验仓独
+  浴 `soak-wait` 活路径与持有中 Save/load 测试）、M3（部分 tick 帧刷
+  新、`tickQuantumMs` 量子提交、阈值穿越滴与换帧，Lab + 实验仓口 H 双消
+  费者）均已交付；唯一显式 defer 是 hold 块声明条件改道（复用 branch
+  `when`），等第一条真实需要中止/改道的活路径再领（见 §3 M3 记录）。案
+  文、正交性收敛（归并删除 `pause`、无 `hold_abort` 动词）与裁决记录见
+  [authoritative-hold-clock 提案](../proposals/authoritative-hold-clock.md)。
+  本文只拥有实现切片顺序、admission 落地与验收；
+  [production-floor sequence](2026-07-30-production-floor-sequence.md)
+  仍是唯一跨计划排序入口。
 
 ## 1. Positioning
 
@@ -91,11 +94,11 @@ M3（条件/换帧/滴，证据够再领）。案文、正交性收敛（归并�
   墙钟退出权威路径；`story-authoring.md` 与实验仓 `fidelity-gaps.md`
   回流。
 
-### M3 — 条件、换帧与 E2 滴（证据够再领）
+### M3 — 条件、换帧与 E2 滴（已交付 2026-08-19）
 
 - 部分 tick 的同 occurrence 帧刷新（narrative reconcile 接受同
-  occurrence 下仅 `remainingMs` 递减的新帧）；autosave / pagehide 前
-  flush 已积累流逝，持有中存档保留部分进度。
+  occurrence 下仅 `remainingMs` 递减的新帧）；持有中存档保留部分进度
+  （形态见下方裁定）。
 - hold 块可选：tick 效果（阈值穿越结算）、按经过毫秒的 stage 批、声明
   条件（复用 branch `when`）在 commit 内改道。
 - 六格条 / `icon04`％ 读 `remainingMs` 或同一 commit 写下的权威域。
@@ -103,6 +106,29 @@ M3（条件/换帧/滴，证据够再领）。案文、正交性收敛（归并�
   活路径（CE277 警戒或口 H 每 5s），不扫全表。
 - 验收：滴在 `{500,500,500}` ≡ `{1500}` 下权威加分相同；换帧按阈值
   开，不闪帧。
+
+交付记录与两条范围裁定：
+
+- **落地形态**：UI family reconcile 接受同 occurrence 下仅
+  `remainingMs` 递减的 hold 帧（其余差异仍 fault）；base 合同增可选
+  `tickQuantumMs`，Host 按量子积累提议部分 tick（无量子时仍只有折余/
+  到期两类 commit）；base 增批切不变穿越算术
+  `countHoldTickCrossingsV1`（story facade `countHoldTickCrossings`）。
+- **flush 形态裁定**：不加同步 flush 钩子——持有中进度的持久化保底由
+  `tickQuantumMs` 量子提交承担（丢失上界一个量子），autosave 沿既有
+  debounce/pagehide 策略持久化最近权威 commit。声明量子即声明持久化粒
+  度，避免在 pagehide 里塞一条与命令队列竞争的同步权威提交。
+- **声明条件改道 defer**：两个已领消费者（Lab 滴、口 H 滴+换帧）都不
+  需要中止/改道，按「证据够再领」不预铺 `when` 词汇；第一条真实需要
+  条件中止的活路径（如 CE277 警戒抓包改道）出现时按提案 q7 的推导式
+  中止落地。
+- **消费者证据**：Lab `cal-hold` 声明每 500ms +1 rapport，
+  `{500,500,500}` ≡ `{1500}` 终态单测锁定；实验仓口 H drip 活路径
+  15s 持有、`tickQuantumMs` 5000、每 5s V157+1、5s 阈值 `4-15→4-14`
+  换帧与滴同 commit、亚阈值 tick 不闪帧、持有中 Save/load 落回最近权
+  威余量、两种批切终态一致；警戒/高潮条读同 commit 写下的权威域（该
+  场景按原作 SW15 关闭整条不画，由 V159 场景锁单测与活路径断言锁
+  定）。
 
 ## 4. Defer
 

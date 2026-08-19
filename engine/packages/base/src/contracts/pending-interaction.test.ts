@@ -5,6 +5,7 @@ import { canonicalJsonBytes } from "./canonical-json.ts";
 import { PresentationDataError } from "./presentation-data.ts";
 import {
   applyHoldTickV1,
+  countHoldTickCrossingsV1,
   evaluateInteractionResolutionV1,
   interactionOccurrenceIdV1,
   parseInteractionResolutionV1,
@@ -402,6 +403,105 @@ describe("PendingInteractionV1", () => {
         parseInteractionResolutionV1({ kind: "advance" }),
       ),
     ).toEqual({ kind: "rejected", code: "interaction.kind_mismatch" });
+  });
+
+  it("admits the optional block-declared tick cadence and keeps it across partial ticks", () => {
+    const cadencedRawV1 = {
+      kind: "hold",
+      definitionId: "interaction.test.commute-hold",
+      seenRevision: 1,
+      occurrenceId: interactionOccurrenceIdV1(12),
+      totalMs: 1500,
+      remainingMs: 1500,
+      skippable: false,
+      tickQuantumMs: 250,
+    };
+    const cadenced = parsePendingInteractionV1(cadencedRawV1);
+    if (cadenced.kind !== "hold") throw new Error("expected hold");
+    expect(cadenced.tickQuantumMs).toBe(250);
+    // The canonical shape omits the member entirely when absent, so an
+    // M1-era hold without a cadence stays byte-identical.
+    const { tickQuantumMs: _omitted, ...plainRawV1 } = cadencedRawV1;
+    const plain = parsePendingInteractionV1(plainRawV1);
+    if (plain.kind !== "hold") throw new Error("expected hold");
+    expect(Object.hasOwn(plain, "tickQuantumMs")).toBe(false);
+
+    for (const tickQuantumMs of [0, -1, 0.5, "250", null, 600_001]) {
+      expect(() => parsePendingInteractionV1({ ...cadencedRawV1, tickQuantumMs })).toThrow(
+        "duration_invalid",
+      );
+    }
+
+    // The runner arithmetic ignores the cadence but preserves the member
+    // across partial ticks, so a mid-hold Save keeps the block's rhythm.
+    const afterPartial = applyHoldTickV1(cadenced, 250);
+    if (afterPartial.kind !== "holding") throw new Error("expected holding");
+    expect(afterPartial.pending.tickQuantumMs).toBe(250);
+    expect(afterPartial.pending.remainingMs).toBe(1250);
+  });
+
+  it("settles tick-effect crossings identically for any batch split of the same sum", () => {
+    const totalMs = 1500;
+    const everyMs = 400;
+    const settle = (elapsedBatches: readonly number[]): number => {
+      let remainingMs = totalMs;
+      let crossings = 0;
+      for (const elapsedMs of elapsedBatches) {
+        const beforeRemainingMs = remainingMs;
+        remainingMs = Math.max(0, remainingMs - elapsedMs);
+        crossings += countHoldTickCrossingsV1({
+          totalMs,
+          beforeRemainingMs,
+          afterRemainingMs: remainingMs,
+          everyMs,
+        });
+      }
+      return crossings;
+    };
+
+    // {500,500,500} ≡ {1500} ≡ any other split: 400/800/1200 crossed 3 times.
+    expect(settle([1500])).toBe(3);
+    expect(settle([500, 500, 500])).toBe(3);
+    expect(settle([100, 299, 1, 700, 400])).toBe(3);
+    expect(settle([1499, 1])).toBe(3);
+
+    // A multiple landing exactly on expiry belongs to the zero-reaching
+    // tick: every 500 over 1500 settles 3 crossings, the last at expiry.
+    expect(
+      countHoldTickCrossingsV1({
+        totalMs: 1500,
+        beforeRemainingMs: 500,
+        afterRemainingMs: 0,
+        everyMs: 500,
+      }),
+    ).toBe(1);
+
+    // No progress, no crossing; sub-threshold progress, no crossing.
+    expect(
+      countHoldTickCrossingsV1({
+        totalMs: 1500,
+        beforeRemainingMs: 1500,
+        afterRemainingMs: 1101,
+        everyMs: 400,
+      }),
+    ).toBe(0);
+
+    expect(() =>
+      countHoldTickCrossingsV1({
+        totalMs: 1500,
+        beforeRemainingMs: 100,
+        afterRemainingMs: 200,
+        everyMs: 400,
+      })
+    ).toThrow(TypeError);
+    expect(() =>
+      countHoldTickCrossingsV1({
+        totalMs: 1500,
+        beforeRemainingMs: 1500,
+        afterRemainingMs: 1000,
+        everyMs: 0,
+      })
+    ).toThrow(TypeError);
   });
 
   it("keeps the boundary occurrence across partial ticks and expires on the zero-reaching tick", () => {

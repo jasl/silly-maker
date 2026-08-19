@@ -157,13 +157,20 @@ compile time). The single advancing resolution is `hold_tick({ elapsedMs })`;
 Story runners apply it with `applyHoldTick` from `@sillymaker/base/story` — a
 partial tick keeps the same boundary occurrence and decrements `remainingMs`,
 and the tick that reaches zero expires into the node's successor. The
-Narrative Host owns the presentation clock and proposes the fold/expiry
-commits, so a mid-hold Save restores the hold with the last committed
-remainder and wall clocks never enter State, Saves, digests, or replay. Show
-the held picture by committing its stage node before the hold — the starter
-template's interaction-document kit does this with a `hold` block whose
-inline `ops` compile to a preceding stage node — never by flashing a
-zero-duration stage during the wait.
+Narrative Host owns the presentation clock and proposes the commits: without
+a declared cadence it commits only skip-folds and expiry, while a hold that
+sets the optional `tickQuantumMs` gets partial commits per quantum, so a
+mid-hold Save restores the hold with the last committed remainder (loss
+bounded by one quantum) and wall clocks never enter State, Saves, digests,
+or replay. A hold that drips authority or swaps frames mid-hold settles
+those inside the same `hold_tick` commit by threshold crossing:
+`countHoldTickCrossings` from `@sillymaker/base/story` counts how many
+interval boundaries fall in `(elapsed before, elapsed after]`, so the
+outcome depends only on the millisecond sum and never on how the Host
+batches ticks. Show the held picture by committing its stage node before
+the hold — the starter template's interaction-document kit does this with a
+`hold` block whose inline `ops` compile to a preceding stage node — never by
+flashing a zero-duration stage during the wait.
 
 For a whole-canvas primary or exact-parent detail, freeze the seven-key input
 to `defineWholeCanvasSurfaceV1`: `catalog`, `source`, `resolveTarget`,

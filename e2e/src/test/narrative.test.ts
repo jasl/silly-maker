@@ -201,6 +201,94 @@ describe("Engine Lab pending interactions", () => {
     await harness.dispose();
   });
 
+  it("settles the hold's declared tick effect identically for any batch split", async () => {
+    // cal-hold declares +1 rapport per 150ms of consumed hold time —
+    // crossings at 150ms and 300ms inside the 400ms hold. The authoritative
+    // gain must depend only on the millisecond sum, never on how a Host
+    // batched the hold_ticks (the E2 batch-invariance canary).
+    function rapportV1(harness: LabHarnessV1): number {
+      const state = harness.admin.inspectForTest().snapshot.state as {
+        simulation: { narrative: { rapport: number } };
+      };
+      return state.simulation.narrative.rapport;
+    }
+    async function playToHoldV1(harness: LabHarnessV1): Promise<PendingInteractionV1> {
+      await dispatchCommittedV1(harness, beginV1);
+      await dispatchCommittedV1(
+        harness,
+        resolveV1(pendingV1(harness).occurrenceId, { kind: "advance" }),
+      );
+      await dispatchCommittedV1(
+        harness,
+        resolveV1(pendingV1(harness).occurrenceId, { kind: "advance" }),
+      );
+      await dispatchCommittedV1(
+        harness,
+        resolveV1(pendingV1(harness).occurrenceId, {
+          kind: "choose",
+          choiceId: "choice.e2e.cal.basic",
+        }),
+      );
+      await dispatchCommittedV1(
+        harness,
+        resolveV1(pendingV1(harness).occurrenceId, {
+          kind: "barrier_completed",
+          transitionId: "transition.e2e.bg-crossfade",
+        }),
+      );
+      const hold = pendingV1(harness);
+      expect(hold.kind).toBe("hold");
+      return hold;
+    }
+
+    // Single shot: one expiry tick carries both crossings.
+    const single = await createLabHarnessV1();
+    const singleHold = await playToHoldV1(single);
+    expect(rapportV1(single)).toBe(0);
+    await dispatchCommittedV1(
+      single,
+      resolveV1(singleHold.occurrenceId, { kind: "hold_tick", elapsedMs: 400 }),
+    );
+    expect(rapportV1(single)).toBe(2);
+    expect(pendingV1(single).kind).toBe("custom");
+
+    // Split delivery of the same 400ms: each crossing settles inside the
+    // partial commit that crosses it, and the sum matches the single shot.
+    const split = await createLabHarnessV1();
+    const splitHold = await playToHoldV1(split);
+    await dispatchCommittedV1(
+      split,
+      resolveV1(splitHold.occurrenceId, { kind: "hold_tick", elapsedMs: 100 }),
+    );
+    expect(rapportV1(split)).toBe(0);
+    await dispatchCommittedV1(
+      split,
+      resolveV1(splitHold.occurrenceId, { kind: "hold_tick", elapsedMs: 50 }),
+    );
+    // A multiple landing exactly on the consumed sum belongs to this tick.
+    expect(rapportV1(split)).toBe(1);
+    await dispatchCommittedV1(
+      split,
+      resolveV1(splitHold.occurrenceId, { kind: "hold_tick", elapsedMs: 149 }),
+    );
+    expect(rapportV1(split)).toBe(1);
+    await dispatchCommittedV1(
+      split,
+      resolveV1(splitHold.occurrenceId, { kind: "hold_tick", elapsedMs: 1 }),
+    );
+    expect(rapportV1(split)).toBe(2);
+    expect(pendingV1(split)).toMatchObject({ kind: "hold", remainingMs: 100 });
+    await dispatchCommittedV1(
+      split,
+      resolveV1(splitHold.occurrenceId, { kind: "hold_tick", elapsedMs: 100 }),
+    );
+    expect(rapportV1(split)).toBe(2);
+    expect(pendingV1(split).kind).toBe("custom");
+
+    await single.dispose();
+    await split.dispose();
+  });
+
   it("When Cancel loops the choice back under a fresh occurrence", async () => {
     const harness = await createLabHarnessV1();
     await dispatchCommittedV1(harness, beginV1);

@@ -836,6 +836,18 @@ const narrativeTargetFrameRecordsInternalV1 = new WeakMap<
   ManagedSurfaceStableAdmittedTargetInternalV1,
   NarrativeTargetFrameRecordInternalV1
 >();
+/**
+ * Milliseconds already dispatched as partial hold_ticks for a hold frame
+ * whose pending declares `tickQuantumMs`. Keyed by the admitted frame — the
+ * frame object stays identical across partial commits (the bridge accepts
+ * the decremented remainder as unchanged) and across dialogue player
+ * controller recreations, so the ledger survives both and resets naturally
+ * with the next admitted frame.
+ */
+const narrativeHoldDispatchLedgersInternalV1 = new WeakMap<
+  NarrativeStableAdmittedFrameInternalV1,
+  { dispatchedElapsedMs: number }
+>();
 const narrativeStablePublisherBridgeRecordsInternalV1 = new WeakMap<
   NarrativeStablePublisherBridgeInternalV1,
   NarrativeStablePublisherBridgeRecordInternalV1
@@ -2504,12 +2516,31 @@ export function createNarrativeStablePublisherBridgeInternalV1(
         current.kind === "target" &&
         current.record.frame.semanticOccurrenceId === pending.occurrenceId
       ) {
-        return bytesEqualInternalV1(
+        if (
+          bytesEqualInternalV1(
             current.record.canonicalPendingBytes,
             canonicalPendingBytes,
           )
-          ? stableUnchangedResultInternalV1
-          : stableReconcileFaultedResultInternalV1;
+        ) {
+          return stableUnchangedResultInternalV1;
+        }
+        // An authoritative partial hold_tick keeps the same occurrence and
+        // only decrements remainingMs. The admitted frame keeps presenting
+        // its entry remainder (the countdown is presentation-owned), so a
+        // strictly smaller remainder with every other byte identical is the
+        // same current frame, not a divergent publication.
+        const held = current.record.frame.pending;
+        if (
+          held.kind === "hold" && pending.kind === "hold" &&
+          pending.remainingMs < held.remainingMs &&
+          bytesEqualInternalV1(
+            canonicalJsonBytes({ ...held, remainingMs: pending.remainingMs }),
+            canonicalPendingBytes,
+          )
+        ) {
+          return stableUnchangedResultInternalV1;
+        }
+        return stableReconcileFaultedResultInternalV1;
       }
       if (!hasIssuanceCapacity(true)) return stableReconcileFaultedResultInternalV1;
 
@@ -6870,31 +6901,71 @@ function requestNarrativeStableDialoguePlayerTickInternalV1(
         record.holdExpiryController === null
       ) return;
       record.automaticRemainingMs = Math.max(0, record.automaticRemainingMs - elapsed);
-      if (record.automaticRemainingMs > 0) {
-        requestNarrativeStableDialoguePlayerTickInternalV1(record, generation);
-        return;
-      }
-      // The countdown started from the frame's authoritative remainingMs,
-      // so the expiry proposes exactly that remainder as one hold_tick.
+      const holdFrame = record.frame;
+      const holdPending = holdFrame.pending;
+      if (holdPending.kind !== "hold") return;
       const holdController = record.holdExpiryController;
-      const elapsedMs = record.frame.pending.remainingMs;
-      let attempt: NarrativeStableHoldExpiryControllerAttemptInternalV1 | null = null;
-      try {
-        attempt = Reflect.apply(
-          holdController.issueAttemptInternalV1,
-          holdController,
-          [],
-        ) as NarrativeStableHoldExpiryControllerAttemptInternalV1 | null;
-        if (attempt !== null) {
+      const entryRemainingMs = holdPending.remainingMs;
+      const dispatchHoldTick = (elapsedMs: number): "dispatched" | "withheld" => {
+        let attempt: NarrativeStableHoldExpiryControllerAttemptInternalV1 | null = null;
+        try {
+          attempt = Reflect.apply(
+            holdController.issueAttemptInternalV1,
+            holdController,
+            [],
+          ) as NarrativeStableHoldExpiryControllerAttemptInternalV1 | null;
+          if (attempt === null) return "withheld";
           const result = Reflect.apply(
             holdController.dispatchInternalV1,
             holdController,
             [attempt, elapsedMs],
           ) as NarrativeStableHoldExpiryDispatchResultInternalV1;
-          if (result.kind === "dispatched") void result.completion.catch(() => {});
+          if (result.kind !== "dispatched") return "withheld";
+          void result.completion.catch(() => {});
+          return "dispatched";
+        } catch {
+          faultNarrativeStableDialoguePlayerControllerInternalV1(record);
+          return "withheld";
         }
-      } catch {
-        faultNarrativeStableDialoguePlayerControllerInternalV1(record);
+      };
+      const tickQuantumMs = holdPending.tickQuantumMs;
+      if (tickQuantumMs !== undefined && record.automaticRemainingMs > 0) {
+        // The block declared an authoritative commit cadence: fold the
+        // presented elapsed into partial hold_ticks at whole-quantum
+        // boundaries so mid-hold autosaves keep at most one quantum of
+        // uncommitted progress. The ledger only advances on an actual
+        // dispatch, so a withheld attempt (an earlier completion still in
+        // flight) is caught up by a later crossing.
+        const presentedElapsedMs = entryRemainingMs - record.automaticRemainingMs;
+        const flushTargetMs = Math.floor(presentedElapsedMs / tickQuantumMs) * tickQuantumMs;
+        let ledger = narrativeHoldDispatchLedgersInternalV1.get(holdFrame);
+        if (ledger === undefined) {
+          ledger = { dispatchedElapsedMs: 0 };
+          narrativeHoldDispatchLedgersInternalV1.set(holdFrame, ledger);
+        }
+        if (
+          flushTargetMs > ledger.dispatchedElapsedMs &&
+          dispatchHoldTick(flushTargetMs - ledger.dispatchedElapsedMs) === "dispatched"
+        ) {
+          ledger.dispatchedElapsedMs = flushTargetMs;
+        }
+      }
+      if (record.automaticRemainingMs > 0) {
+        requestNarrativeStableDialoguePlayerTickInternalV1(record, generation);
+        return;
+      }
+      // The countdown started from the frame's authoritative remainingMs, so
+      // expiry proposes exactly the milliseconds no partial tick dispatched
+      // yet: the sum over the boundary always equals the entry remainder.
+      const dispatchedElapsedMs =
+        narrativeHoldDispatchLedgersInternalV1.get(holdFrame)?.dispatchedElapsedMs ?? 0;
+      const finalElapsedMs = entryRemainingMs - dispatchedElapsedMs;
+      if (finalElapsedMs < 1) return;
+      if (dispatchHoldTick(finalElapsedMs) === "withheld") {
+        // A partial commit is still settling; retry expiry on the next
+        // presentation tick instead of leaving the boundary parked. A fault
+        // or frame change already retired the record, so the request no-ops.
+        requestNarrativeStableDialoguePlayerTickInternalV1(record, generation);
       }
       return;
     }
@@ -8362,6 +8433,25 @@ export function createNarrativeStableHoldExpiryControllerInternalV1(
         } catch (error) {
           completion = Promise.reject(error);
         }
+        // The latch serializes dispatches, it does not end the controller:
+        // a partial hold_tick commits with the same admitted frame still
+        // current (the bridge reconciles the decremented remainder as
+        // unchanged), so once this completion has drained its reconcile the
+        // controller may dispatch the next tick. An expiry commit swaps the
+        // frame, which revokes here and via the state subscription.
+        const settleDispatchLatch = (): void => {
+          if (!active) return;
+          try {
+            if (generationStillCurrent()) {
+              semanticDispatchStarted = false;
+            } else {
+              revoke();
+            }
+          } catch {
+            revoke();
+          }
+        };
+        completion.then(settleDispatchLatch, settleDispatchLatch);
         return Object.freeze({ kind: "dispatched" as const, completion });
       } catch {
         return narrativeHoldExpiryStaleResultInternalV1;
@@ -9461,11 +9551,17 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         if (currentFrame.pending.kind !== "hold") {
           return narrativePhysicalActionStaleResultInternalV1;
         }
-        // A skippable hold folds its whole remainder in one authoritative
-        // tick commit; the fold never bypasses the pending boundary.
+        // A skippable hold folds its whole undispatched remainder in one
+        // authoritative tick commit; the fold never bypasses the pending
+        // boundary. Milliseconds already committed by declared-cadence
+        // partial ticks are subtracted so the elapsed sum stays exact, and
+        // a fold racing an in-flight partial clamps engine-side.
+        const foldedElapsedMs = currentFrame.pending.remainingMs -
+          (narrativeHoldDispatchLedgersInternalV1.get(currentFrame)?.dispatchedElapsedMs ?? 0);
+        if (foldedElapsedMs < 1) return narrativePhysicalActionStaleResultInternalV1;
         resolution = Object.freeze({
           kind: "hold_tick" as const,
-          elapsedMs: currentFrame.pending.remainingMs,
+          elapsedMs: foldedElapsedMs,
         });
       } else {
         resolution = Object.freeze({

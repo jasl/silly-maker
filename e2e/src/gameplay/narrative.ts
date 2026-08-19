@@ -11,6 +11,7 @@ import type {
 import {
   appendNarrativeHistoryV1,
   applyHoldTickV1,
+  countHoldTickCrossingsV1,
   emptyNarrativeHistoryV1,
   interactionOccurrenceIdV1,
   parsePendingInteractionV1,
@@ -121,6 +122,14 @@ export type LabNarrativeNodeV1 =
     readonly seenRevision: number;
     readonly durationMs: number;
     readonly skippable: boolean;
+    /**
+     * Optional authoritative tick effect settled by threshold crossings:
+     * every `everyMs` of consumed hold time deepens rapport by
+     * `rapportPerTick` inside the same hold_tick commit. The shared
+     * crossing arithmetic keeps the gain identical for any batch split of
+     * the same millisecond sum — the E2 conformance canary.
+     */
+    readonly tick?: { readonly everyMs: number; readonly rapportPerTick: number };
     readonly next: string;
   }
   | {
@@ -387,6 +396,9 @@ export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
     seenRevision: 1,
     durationMs: 400,
     skippable: true,
+    // Crossings at 150ms and 300ms: +2 rapport over the full hold, settled
+    // batch-invariantly inside whatever hold_tick commits deliver them.
+    tick: { everyMs: 150, rapportPerTick: 1 },
     next: "node.e2e.cal.dial",
   },
   {
@@ -656,8 +668,10 @@ export type LabNarrativeResolutionContinuationV1 =
  * Applies an accepted resolution to the pending node: moves the cursor to
  * the resolution's continuation and records custom outcomes. A hold tick
  * goes through the shared `applyHoldTickV1` arithmetic — only expiry
- * consumes the boundary. Validation already happened in the shared
- * evaluator.
+ * consumes the boundary — and settles the node's declared tick effect by
+ * threshold crossings inside the same commit, so partial and single-shot
+ * deliveries of the same millisecond sum produce identical rapport.
+ * Validation already happened in the shared evaluator.
  */
 export function labNarrativeAfterResolutionV1(
   narrative: LabNarrativeStateV1,
@@ -670,6 +684,7 @@ export function labNarrativeAfterResolutionV1(
   const node = requireNodeV1(narrative.cursor);
   let next: string;
   let calibration = narrative.calibration;
+  let rapport = narrative.rapport;
   let history = narrative.history;
   if (node.kind === "choice" && resolution.kind === "choose") {
     const option = node.options.find((candidate) => candidate.choiceId === resolution.choiceId);
@@ -705,10 +720,18 @@ export function labNarrativeAfterResolutionV1(
       throw new TypeError(`e2e.narrative_resolution_mismatch:${node.nodeId}`);
     }
     const outcome = applyHoldTickV1(pending, resolution.elapsedMs);
+    if (node.tick !== undefined) {
+      rapport += node.tick.rapportPerTick * countHoldTickCrossingsV1({
+        totalMs: pending.totalMs,
+        beforeRemainingMs: pending.remainingMs,
+        afterRemainingMs: outcome.kind === "holding" ? outcome.pending.remainingMs : 0,
+        everyMs: node.tick.everyMs,
+      });
+    }
     if (outcome.kind === "holding") {
       return Object.freeze({
         kind: "holding" as const,
-        narrative: Object.freeze({ ...narrative, pending: outcome.pending }),
+        narrative: Object.freeze({ ...narrative, pending: outcome.pending, rapport }),
       });
     }
     next = node.next;
@@ -725,7 +748,7 @@ export function labNarrativeAfterResolutionV1(
       pending: null,
       sequence: narrative.sequence,
       calibration,
-      rapport: narrative.rapport,
+      rapport,
       history,
     }),
   });

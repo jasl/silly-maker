@@ -187,7 +187,7 @@ describe("canary: relationship-conditioned narrative branch", () => {
     expect(secondRun).toContain("interaction.e2e.cal-beta-warm");
     expect(secondRun).not.toContain("interaction.e2e.cal-beta-note");
 
-    // Loading the save restores rapport = 1: a fresh run still warms up.
+    // Loading the save restores the raised rapport: a fresh run still warms up.
     await expect(harness.saves.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
     const reloadedRun = await playNarrativeToEndV1(harness);
     expect(reloadedRun).toContain("interaction.e2e.cal-beta-warm");

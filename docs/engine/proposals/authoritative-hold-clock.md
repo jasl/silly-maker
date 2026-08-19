@@ -1,10 +1,12 @@
 # Authoritative hold clock proposal（权威计时持有）
 
-状态：**2026-08-19 所有者接受**（含引擎侧代码授权，覆盖 template 与
-examples）。同日所有者先裁决 open questions 的 q2–q6（毫秒单位、无独立
-到期、不设无根据上限、首消费者无偏好且不加新 demo、不 bump revision），
-再对 q1/q7 提出正交性质询；本文按质询收敛——**归并删除 `pause`、取消
-`hold_abort` 动词**——随整案一并被接受。切片顺序与验收由
+状态：**2026-08-19 所有者接受，同日 M0–M3 交付**（含引擎侧代码授权，
+覆盖 template 与 examples）。同日所有者先裁决 open questions 的 q2–q6
+（毫秒单位、无独立到期、不设无根据上限、首消费者无偏好且不加新 demo、
+不 bump revision），再对 q1/q7 提出正交性质询；本文按质询收敛——**归
+并删除 `pause`、取消 `hold_abort` 动词**——随整案一并被接受。交付后
+唯一未领词汇是块声明条件改道（`when`），等第一条真实中止路径（交付记
+录与 flush 形态裁定见计划 §3 M3）。切片顺序与验收由
 [Authoritative Hold Clock V1 计划](../plans/2026-08-19-authoritative-hold-clock.md)
 拥有；[production-floor sequence](../plans/2026-07-30-production-floor-sequence.md)
 仍是唯一跨计划排序入口。
@@ -131,6 +133,11 @@ CommandLog 长度可因批切不同；**权威终态 / digest / replay 只依赖
 和**。带滴与换帧时同样成立——效果按阈值穿越结算（§5），不按 tick 次
 数。测试锁终态，不锁「必须 N 条 tick」。
 
+交付形态（M3 裁定）：持有中进度的持久化保底不走同步 flush 钩子，而由
+hold 块声明的 `tickQuantumMs` 承担——Host 按量子提交部分 tick，声明
+量子即声明持久化粒度（丢失上界一个量子），autosave 沿既有
+debounce/pagehide 策略持久化最近权威 commit。
+
 ### 4. 钟的分工（与 E4 / ambient / Timeline 的分界）
 
 | 钟                                   | 拥有                                                   | 不做             |
@@ -151,8 +158,11 @@ hold 块可选 tick 效果：同一次 `hold_tick` commit 里发一条 Story 注
 `(消耗前累计, 消耗后累计]` 区间里跨过的阈值数——与批切无关，天然保持
 毫秒和不变性。不写进 flipbook 帧，不发明并行解释器。
 
-V1 直线持有可以没有 tick 效果。CE285–288 / CE277 / CE299 等活路径在后
-切片接第一条穿越结算效果。
+V1 直线持有可以没有 tick 效果。已交付：base 穿越算术
+`countHoldTickCrossingsV1` 数 `(消耗前累计, 消耗后累计]` 跨过的阈值；
+Engine Lab `cal-hold` 滴 rapport 与实验仓口 H 每 5s 滴 V157（含 5s 阈
+值 `4-15→4-14` 换帧）是首两条活路径。CE285–288 / CE277 / CE299 其余
+路径仍是 Story 刀。
 
 ### 6. 与 stage / flipbook
 

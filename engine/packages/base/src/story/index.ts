@@ -109,6 +109,7 @@ export type {
 // ---------------------------------------------------------------------------
 export {
   applyHoldTickV1 as applyHoldTick,
+  countHoldTickCrossingsV1 as countHoldTickCrossings,
   evaluateInteractionResolutionV1 as evaluateInteractionResolution,
   interactionOccurrenceIdV1 as interactionOccurrenceId,
   parseInteractionOccurrenceIdV1 as parseInteractionOccurrenceId,

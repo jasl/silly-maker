@@ -2503,11 +2503,26 @@ describe("Narrative stable Managed Surface family", () => {
         ...(pendingV1("hold") as Record<string, unknown>),
         totalMs: 251,
       }],
-      // A partial-tick remaining decrement is same-occurrence drift today;
-      // the M3 tick machinery will admit it as an in-place frame refresh.
-      ["hold remaining", pendingV1("hold"), {
+      // Authoritative remaining only ever decreases; a same-occurrence
+      // increase is divergence, not a partial tick.
+      ["hold remaining regression", {
         ...(pendingV1("hold") as Record<string, unknown>),
         remainingMs: 100,
+      }, {
+        ...(pendingV1("hold") as Record<string, unknown>),
+        remainingMs: 200,
+      }],
+      // A remaining decrement only rides along when every other byte is
+      // identical; a decrement bundled with other drift still faults.
+      ["hold remaining decrement with skippable drift", pendingV1("hold"), {
+        ...(pendingV1("hold") as Record<string, unknown>),
+        remainingMs: 100,
+        skippable: false,
+      }],
+      ["hold remaining decrement with cadence drift", pendingV1("hold"), {
+        ...(pendingV1("hold") as Record<string, unknown>),
+        remainingMs: 100,
+        tickQuantumMs: 50,
       }],
       ["hold skippable", pendingV1("hold"), {
         ...(pendingV1("hold") as Record<string, unknown>),
@@ -2554,6 +2569,40 @@ describe("Narrative stable Managed Surface family", () => {
     expect(harness.kernel.getStateInternalV1()).toBe(before);
     expect(publisherSnapshotV1(harness)).toBe(snapshot);
     expect(harness.stateNotificationCount()).toBe(notifications);
+  });
+
+  it("accepts a same-occurrence hold remaining decrement as the unchanged current frame", () => {
+    const harness = harnessV1();
+    const cadenced = {
+      ...(pendingV1("hold") as Record<string, unknown>),
+      tickQuantumMs: 50,
+    };
+    expect(harness.bridge.reconcilePendingInternalV1(cadenced).kind).toBe("applied");
+    const before = harness.kernel.getStateInternalV1();
+    const snapshot = publisherSnapshotV1(harness);
+    const notifications = harness.stateNotificationCount();
+
+    // Each partial hold_tick republishes the same occurrence with a smaller
+    // remainder (every other byte identical, the declared cadence included):
+    // the admitted frame stays the current one with zero kernel or publisher
+    // traffic. The comparison runs against the admitted entry remainder, so
+    // successive decrements keep landing on the same frame.
+    for (const remainingMs of [200, 150, 40]) {
+      expectZeroResultV1(
+        harness.bridge.reconcilePendingInternalV1({ ...cadenced, remainingMs }),
+        "unchanged",
+        "surface.stable_publication_unchanged",
+      );
+    }
+    expect(harness.kernel.getStateInternalV1()).toBe(before);
+    expect(publisherSnapshotV1(harness)).toBe(snapshot);
+    expect(harness.stateNotificationCount()).toBe(notifications);
+
+    // Expiry consumes the boundary: the successor occurrence publishes a
+    // fresh frame through the normal admission path.
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say", 2)).kind).toBe(
+      "applied",
+    );
   });
 
   it("advances dedicated source and occurrence across replace, empty, and reopen", () => {

@@ -49,13 +49,15 @@ declared-vs-bare 碰撞零出现）；裁决 #3/#4 同日经所有者批复采�
 冻结为终值、lint 保守起点转正），**cue identity 线整体收口**，记录归
 [cue-identity 提案](../proposals/cue-identity.md)。
 
-当前 lane（2026-08-19 起草并**同日经所有者接受**）：
-[权威计时持有](../proposals/authoritative-hold-clock.md) 与
+最近一条 lane（2026-08-19 起草、**同日经所有者接受、同日 M0–M3 全部
+交付**）：[权威计时持有](../proposals/authoritative-hold-clock.md) 与
 [Authoritative Hold Clock V1](2026-08-19-authoritative-hold-clock.md)。
 证据：实验仓可绑该句的 STORY 已收完，剩余 1:1 卡在两句台词之间的
 WAIT / 换帧 / 滴权威（实验仓 `docs/fidelity-gaps.md` E1/E2）。切片
 M0（base 合同）→ M1（Host 提议 + `pause` 归并删除）→ M2（作者块 +
-实验仓消费者）→ M3（条件/换帧/滴）。Desktop persistence 仍是独立
+实验仓消费者）→ M3（`tickQuantumMs` 部分 commit + 阈值穿越滴/换帧，
+Lab 与实验仓口 H 双消费者）。唯一显式 defer：hold 块声明条件改道，等
+第一条真实中止路径（记录见该计划 §3）。Desktop persistence 仍是独立
 promotion gate。
 
 上一条 lane：[Authoring Architecture V1](2026-08-15-authoring-architecture.md)

@@ -159,6 +159,15 @@ export type PendingInteractionV1 =
     readonly totalMs: number;
     readonly remainingMs: number;
     readonly skippable: boolean;
+    /**
+     * Optional authoritative commit cadence declared by the Story block: a
+     * Host that owns the presentation clock commits accumulated elapsed time
+     * as partial `hold_tick`s every quantum instead of holding everything
+     * for one expiry commit. Absent means the hold settles as a single
+     * expiry tick. The terminal state never depends on the cadence — only
+     * mid-hold Save durability and same-commit tick effects observe it.
+     */
+    readonly tickQuantumMs?: number;
   })
   | (PendingInteractionBaseV1 & {
     readonly kind: "presentation_barrier";
@@ -268,9 +277,12 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
       });
     }
     case "hold": {
+      const declaresTickQuantum = Object.hasOwn(value, "tickQuantumMs");
       const record = readExactRecord(
         value,
-        [...interactionBaseKeysV1, "totalMs", "remainingMs", "skippable"],
+        declaresTickQuantum
+          ? [...interactionBaseKeysV1, "totalMs", "remainingMs", "skippable", "tickQuantumMs"]
+          : [...interactionBaseKeysV1, "totalMs", "remainingMs", "skippable"],
         path,
       );
       const totalMs = parsePositiveDurationMsV1(record.totalMs, `${path}/totalMs`);
@@ -281,12 +293,20 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
       if (remainingMs > totalMs) {
         return dataFailure(`${path}/remainingMs`, "hold_remaining_invalid");
       }
+      const base = parseInteractionBaseV1(record, path);
+      const skippable = parseBooleanV1(record.skippable, `${path}/skippable`);
+      // The canonical shape omits the member entirely when the block does
+      // not declare a cadence, keeping M1-era pendings byte-identical.
+      if (!declaresTickQuantum) {
+        return freezeInteractionDataInternalV1({ kind, ...base, totalMs, remainingMs, skippable });
+      }
       return freezeInteractionDataInternalV1({
         kind,
-        ...parseInteractionBaseV1(record, path),
+        ...base,
         totalMs,
         remainingMs,
-        skippable: parseBooleanV1(record.skippable, `${path}/skippable`),
+        skippable,
+        tickQuantumMs: parsePositiveDurationMsV1(record.tickQuantumMs, `${path}/tickQuantumMs`),
       });
     }
     case "presentation_barrier": {
@@ -496,4 +516,37 @@ export function applyHoldTickV1(
     kind: "holding",
     pending: freezeInteractionDataInternalV1({ ...pending, remainingMs }),
   });
+}
+
+/**
+ * Threshold-crossing settlement for hold tick effects: how many whole
+ * multiples of `everyMs` the consumed elapsed time crossed between the
+ * remainder before a `hold_tick` and the remainder after it (0 when the
+ * tick expired the hold). Story runners apply a declared per-period effect
+ * exactly this many times inside the same commit, so the authoritative
+ * outcome depends only on the millisecond sum — `{500,500,500}` and
+ * `{1500}` settle identically — never on how a Host batched the ticks.
+ * A multiple landing exactly on expiry belongs to the zero-reaching tick.
+ */
+export function countHoldTickCrossingsV1(input: {
+  readonly totalMs: number;
+  readonly beforeRemainingMs: number;
+  readonly afterRemainingMs: number;
+  readonly everyMs: number;
+}): number {
+  const { totalMs, beforeRemainingMs, afterRemainingMs, everyMs } = input;
+  if (!Number.isSafeInteger(totalMs) || totalMs < 1) {
+    throw new TypeError("hold crossing totalMs must be a positive integer");
+  }
+  if (!Number.isSafeInteger(everyMs) || everyMs < 1) {
+    throw new TypeError("hold crossing everyMs must be a positive integer");
+  }
+  if (
+    !Number.isSafeInteger(beforeRemainingMs) || !Number.isSafeInteger(afterRemainingMs) ||
+    afterRemainingMs < 0 || beforeRemainingMs > totalMs || afterRemainingMs > beforeRemainingMs
+  ) {
+    throw new TypeError("hold crossing remainders must satisfy 0 <= after <= before <= total");
+  }
+  return Math.floor((totalMs - afterRemainingMs) / everyMs) -
+    Math.floor((totalMs - beforeRemainingMs) / everyMs);
 }

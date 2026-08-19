@@ -81,6 +81,7 @@ export {
   resolveAudioManifestV1,
   silentAudioIntentV1,
   applyHoldTickV1,
+  countHoldTickCrossingsV1,
   evaluateInteractionResolutionV1,
   interactionOccurrenceIdV1,
   parseInteractionJsonObjectV1,
