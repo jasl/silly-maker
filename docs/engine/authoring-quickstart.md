@@ -30,7 +30,7 @@ Use the starter template (`template`, minimally playable) or the Engine Lab (`e2
 | Voice/BGM mapping                          | `src/gameplay/audio.ts`                                                                     |
 | Static annotations for the graph lint      | `mayShow` on stage nodes, `successors` on branch nodes                                      |
 
-Node kinds: `say` (speakerTextId/textId/next), `choice` (options: choiceId/textId/requiresSamples/consumesSamples/next), `stage` (`mutations(stage)` returns a StageMutation array; `mayShow` statically declares the contentIds it might show), `branch` (`choose(context)` is a pure function picking next, which must land inside `successors`), `pause`, `barrier`, `custom`, `end`. Every new say/choice needs a brand-new `definitionId` (`interaction.<story>.<name>`); never reuse one.
+Node kinds: `say` (speakerTextId/textId/next), `choice` (options: choiceId/textId/requiresSamples/consumesSamples/next), `stage` (`mutations(stage)` returns a StageMutation array; `mayShow` statically declares the contentIds it might show), `branch` (`choose(context)` is a pure function picking next, which must land inside `successors`), `hold` (durationMs/skippable; the screen holds for an authoritative duration and expiry advances to `next`), `barrier`, `custom`, `end`. Every new say/choice needs a brand-new `definitionId` (`interaction.<story>.<name>`); never reuse one.
 
 Verification loop after every edit (fast enough to run per change):
 

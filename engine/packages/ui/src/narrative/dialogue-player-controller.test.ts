@@ -206,13 +206,14 @@ function passivePendingV1(sequence = 1) {
   });
 }
 
-function pausePendingV1(sequence = 1, durationMs = 100) {
+function holdPendingV1(sequence = 1, durationMs = 100) {
   return Object.freeze({
-    kind: "pause" as const,
-    definitionId: "narrative.test.dialogue-player-pause",
+    kind: "hold" as const,
+    definitionId: "narrative.test.dialogue-player-hold",
     seenRevision: 1,
     occurrenceId: `interaction-occurrence.${String(20_000 + sequence)}`,
-    durationMs,
+    totalMs: durationMs,
+    remainingMs: durationMs,
     skippable: true,
   });
 }
@@ -342,12 +343,12 @@ function installSayCandidateV1(
   return currentTargetAndFrameV1(harness);
 }
 
-function installPauseCandidateV1(
+function installHoldCandidateV1(
   harness: DialoguePlayerHarnessV1,
   sequence = 1,
   durationMs = 100,
 ) {
-  expect(harness.bridge.reconcilePendingInternalV1(pausePendingV1(sequence, durationMs)))
+  expect(harness.bridge.reconcilePendingInternalV1(holdPendingV1(sequence, durationMs)))
     .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
   return currentTargetAndFrameV1(harness);
 }
@@ -864,8 +865,8 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     controller.disposeInternalV1();
   });
 
-  it("starts exact Pause expiry when first created after Pause is ready-active", () => {
-    const dispatchResolution = vi.fn(() => Promise.resolve("late-ready-pause-complete"));
+  it("starts exact Hold expiry when first created after Hold is ready-active", () => {
+    const dispatchResolution = vi.fn(() => Promise.resolve("late-ready-hold-complete"));
     const clock = manualDialogueClockV1({ initialNowMs: 1_000 });
     const harness = dialoguePlayerHarnessV1({
       clock,
@@ -873,7 +874,7 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
         dispatchResolutionInternalV1: dispatchResolution,
       }),
     });
-    const current = installPauseCandidateV1(harness, 1, 100);
+    const current = installHoldCandidateV1(harness, 1, 100);
     settleCurrentNarrativeReadyV1(harness);
 
     const controller = createControllerV1(harness, current.target, current.frame);
@@ -891,7 +892,7 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     expect(dispatchResolution).toHaveBeenCalledOnce();
     expect(dispatchResolution).toHaveBeenCalledWith({
       expectedOccurrenceId: "interaction-occurrence.20001",
-      resolution: { kind: "resume" },
+      resolution: { kind: "hold_tick", elapsedMs: 100 },
     });
 
     controller.disposeInternalV1();
@@ -1915,8 +1916,8 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     controller.disposeInternalV1();
   });
 
-  it("expires Pause only while ready-active and preserves remaining time across suspension", () => {
-    const directDispatch = vi.fn(() => Promise.resolve("direct-pause-complete"));
+  it("expires Hold only while ready-active and preserves remaining presentation time across suspension", () => {
+    const directDispatch = vi.fn(() => Promise.resolve("direct-hold-complete"));
     const directClock = manualDialogueClockV1({ initialNowMs: 1_000 });
     const direct = dialoguePlayerHarnessV1({
       clock: directClock,
@@ -1924,7 +1925,7 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
         dispatchResolutionInternalV1: directDispatch,
       }),
     });
-    const directCurrent = installPauseCandidateV1(direct, 1, 100);
+    const directCurrent = installHoldCandidateV1(direct, 1, 100);
     const directController = createControllerV1(
       direct,
       directCurrent.target,
@@ -1946,11 +1947,11 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     expect(directDispatch).toHaveBeenCalledOnce();
     expect(directDispatch).toHaveBeenCalledWith({
       expectedOccurrenceId: "interaction-occurrence.20001",
-      resolution: { kind: "resume" },
+      resolution: { kind: "hold_tick", elapsedMs: 100 },
     });
     directController.disposeInternalV1();
 
-    const resumedDispatch = vi.fn(() => Promise.resolve("resumed-pause-complete"));
+    const resumedDispatch = vi.fn(() => Promise.resolve("resumed-hold-complete"));
     const resumedClock = manualDialogueClockV1({ initialNowMs: 2_000 });
     const resumed = dialoguePlayerHarnessV1({
       clock: resumedClock,
@@ -1958,7 +1959,7 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
         dispatchResolutionInternalV1: resumedDispatch,
       }),
     });
-    const resumedCurrent = installPauseCandidateV1(resumed, 2, 100);
+    const resumedCurrent = installHoldCandidateV1(resumed, 2, 100);
     const resumedController = createControllerV1(
       resumed,
       resumedCurrent.target,
@@ -1989,7 +1990,7 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     expect(resumedDispatch).toHaveBeenCalledOnce();
     expect(resumedDispatch).toHaveBeenCalledWith({
       expectedOccurrenceId: "interaction-occurrence.20002",
-      resolution: { kind: "resume" },
+      resolution: { kind: "hold_tick", elapsedMs: 100 },
     });
     resumedController.disposeInternalV1();
   });

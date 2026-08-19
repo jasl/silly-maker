@@ -10,6 +10,7 @@ import type {
 } from "@sillymaker/base";
 import {
   appendNarrativeHistoryV1,
+  applyHoldTickV1,
   emptyNarrativeHistoryV1,
   interactionOccurrenceIdV1,
   parsePendingInteractionV1,
@@ -24,7 +25,7 @@ import { labStageContentIdsV1, labStageTagsV1 } from "../stage-ids.ts";
 /**
  * The Engine Lab calibration narrative: a small typed script whose runner
  * executes pure nodes (stage mutations) automatically and stops at every
- * PendingInteraction boundary — say, choice, pause, presentation barrier,
+ * PendingInteraction boundary — say, choice, hold, presentation barrier,
  * and one schema-registered custom surface. Interaction instances live in
  * authoritative State; the script itself is code, never saved.
  */
@@ -114,7 +115,7 @@ export type LabNarrativeNodeV1 =
     readonly options: readonly LabChoiceOptionV1[];
   }
   | {
-    readonly kind: "pause";
+    readonly kind: "hold";
     readonly nodeId: string;
     readonly definitionId: string;
     readonly seenRevision: number;
@@ -380,7 +381,7 @@ export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
     next: "node.e2e.cal.hold",
   },
   {
-    kind: "pause",
+    kind: "hold",
     nodeId: "node.e2e.cal.hold",
     definitionId: "interaction.e2e.cal-hold",
     seenRevision: 1,
@@ -532,13 +533,14 @@ function pendingForNodeV1(node: LabNarrativeNodeV1, sequence: number): PendingIn
         promptTextId: node.promptTextId,
         options: node.options.map(({ choiceId, textId }) => ({ choiceId, textId })),
       });
-    case "pause":
+    case "hold":
       return parsePendingInteractionV1({
-        kind: "pause",
+        kind: "hold",
         definitionId: node.definitionId,
         seenRevision: node.seenRevision,
         occurrenceId,
-        durationMs: node.durationMs,
+        totalMs: node.durationMs,
+        remainingMs: node.durationMs,
         skippable: node.skippable,
       });
     case "barrier":
@@ -640,15 +642,27 @@ export function runLabNarrativeUntilInteractionV1(
 }
 
 /**
+ * The continuation of an accepted resolution: `advanced` consumed the
+ * pending boundary (the caller runs the script from the new cursor);
+ * `holding` is a partial hold tick — the same occurrence stays pending
+ * with its authoritative `remainingMs` decremented, and the caller
+ * commits that state without running the script.
+ */
+export type LabNarrativeResolutionContinuationV1 =
+  | { readonly kind: "advanced"; readonly narrative: LabNarrativeStateV1 }
+  | { readonly kind: "holding"; readonly narrative: LabNarrativeStateV1 };
+
+/**
  * Applies an accepted resolution to the pending node: moves the cursor to
- * the resolution's continuation and records custom outcomes. The caller
- * runs the script afterwards; validation already happened in the shared
+ * the resolution's continuation and records custom outcomes. A hold tick
+ * goes through the shared `applyHoldTickV1` arithmetic — only expiry
+ * consumes the boundary. Validation already happened in the shared
  * evaluator.
  */
 export function labNarrativeAfterResolutionV1(
   narrative: LabNarrativeStateV1,
   resolution: InteractionResolutionV1,
-): LabNarrativeStateV1 {
+): LabNarrativeResolutionContinuationV1 {
   const pending = narrative.pending;
   if (pending === null || narrative.cursor === null) {
     throw new TypeError("e2e.narrative_nothing_pending");
@@ -686,19 +700,34 @@ export function labNarrativeAfterResolutionV1(
       textId: node.textId,
       voiceAssetId: labVoiceForSayV1(pending.definitionId)?.assetId ?? null,
     });
-  } else if (node.kind === "pause" || node.kind === "barrier") {
+  } else if (node.kind === "hold" && resolution.kind === "hold_tick") {
+    if (pending.kind !== "hold") {
+      throw new TypeError(`e2e.narrative_resolution_mismatch:${node.nodeId}`);
+    }
+    const outcome = applyHoldTickV1(pending, resolution.elapsedMs);
+    if (outcome.kind === "holding") {
+      return Object.freeze({
+        kind: "holding" as const,
+        narrative: Object.freeze({ ...narrative, pending: outcome.pending }),
+      });
+    }
+    next = node.next;
+  } else if (node.kind === "barrier") {
     next = node.next;
   } else {
     throw new TypeError(`e2e.narrative_resolution_mismatch:${node.nodeId}`);
   }
   return Object.freeze({
-    phase: "active" as const,
-    cursor: next,
-    pending: null,
-    sequence: narrative.sequence,
-    calibration,
-    rapport: narrative.rapport,
-    history,
+    kind: "advanced" as const,
+    narrative: Object.freeze({
+      phase: "active" as const,
+      cursor: next,
+      pending: null,
+      sequence: narrative.sequence,
+      calibration,
+      rapport: narrative.rapport,
+      history,
+    }),
   });
 }
 

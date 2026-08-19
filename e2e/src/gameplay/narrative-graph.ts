@@ -84,7 +84,7 @@ function graphNodeForV1(node: LabNarrativeNodeV1): unknown {
           stageContentIds: [],
         },
       };
-    case "pause":
+    case "hold":
     case "barrier":
     case "custom":
       return {

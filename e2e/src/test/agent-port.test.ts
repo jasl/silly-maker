@@ -67,8 +67,8 @@ async function playToCompletionV1(agent: LabAgentPortV1): Promise<number> {
           invocation = resolve({ kind: "choose", choiceId: enabled.choiceId });
           break;
         }
-        case "pause":
-          invocation = resolve({ kind: "resume" });
+        case "hold":
+          invocation = resolve({ kind: "hold_tick", elapsedMs: pending.remainingMs });
           break;
         case "presentation_barrier":
           invocation = resolve({

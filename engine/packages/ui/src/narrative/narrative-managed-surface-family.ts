@@ -377,10 +377,10 @@ export interface NarrativeStableChoiceActionAttemptInternalV1 {
   readonly [narrativeStableChoiceActionAttemptBrandInternalV1]: true;
 }
 
-declare const narrativeStablePauseResumeActionAttemptBrandInternalV1: unique symbol;
+declare const narrativeStableHoldSkipActionAttemptBrandInternalV1: unique symbol;
 
-export interface NarrativeStablePauseResumeActionAttemptInternalV1 {
-  readonly [narrativeStablePauseResumeActionAttemptBrandInternalV1]: true;
+export interface NarrativeStableHoldSkipActionAttemptInternalV1 {
+  readonly [narrativeStableHoldSkipActionAttemptBrandInternalV1]: true;
 }
 
 declare const narrativeStableCustomActionAttemptBrandInternalV1: unique symbol;
@@ -673,13 +673,13 @@ export interface NarrativeStableBarrierAcknowledgmentControllerInternalV1 {
   disposeInternalV1(): void;
 }
 
-declare const narrativeStablePauseExpiryControllerAttemptBrandInternalV1: unique symbol;
+declare const narrativeStableHoldExpiryControllerAttemptBrandInternalV1: unique symbol;
 
-export interface NarrativeStablePauseExpiryControllerAttemptInternalV1 {
-  readonly [narrativeStablePauseExpiryControllerAttemptBrandInternalV1]: true;
+export interface NarrativeStableHoldExpiryControllerAttemptInternalV1 {
+  readonly [narrativeStableHoldExpiryControllerAttemptBrandInternalV1]: true;
 }
 
-export type NarrativeStablePauseExpiryDispatchResultInternalV1 =
+export type NarrativeStableHoldExpiryDispatchResultInternalV1 =
   | Readonly<{
     readonly kind: "dispatched";
     readonly completion: Promise<unknown>;
@@ -693,11 +693,12 @@ export type NarrativeStablePauseExpiryDispatchResultInternalV1 =
     readonly completion: null;
   }>;
 
-export interface NarrativeStablePauseExpiryControllerInternalV1 {
-  issueAttemptInternalV1(): NarrativeStablePauseExpiryControllerAttemptInternalV1 | null;
+export interface NarrativeStableHoldExpiryControllerInternalV1 {
+  issueAttemptInternalV1(): NarrativeStableHoldExpiryControllerAttemptInternalV1 | null;
   dispatchInternalV1(
     attempt: unknown,
-  ): NarrativeStablePauseExpiryDispatchResultInternalV1;
+    elapsedMs: number,
+  ): NarrativeStableHoldExpiryDispatchResultInternalV1;
   disposeInternalV1(): void;
 }
 
@@ -741,7 +742,7 @@ export interface NarrativeStablePhysicalActionAdmissionInternalV1 {
   issueChoiceAttemptInternalV1(
     choiceId: unknown,
   ): NarrativeStableChoiceActionAttemptInternalV1 | null;
-  issuePauseResumeAttemptInternalV1(): NarrativeStablePauseResumeActionAttemptInternalV1 | null;
+  issueHoldSkipAttemptInternalV1(): NarrativeStableHoldSkipActionAttemptInternalV1 | null;
   issueCustomAttemptInternalV1(
     payload: unknown,
   ): NarrativeStableCustomActionAttemptInternalV1 | null;
@@ -807,7 +808,7 @@ interface NarrativeStablePublisherBridgeRecordInternalV1 {
   session: NarrativeStableSessionInternalV1 | null;
   currentModeState: NarrativeStablePlaybackModeStateInternalV1;
   physicalActionAdmissionClaim: object | null;
-  pauseExpiryControllerClaim: object | null;
+  holdExpiryControllerClaim: object | null;
   sayRevealControllerClaim: object | null;
   sayCallbackClaim: object | null;
   saySemanticInFlightClaim: object | null;
@@ -872,7 +873,7 @@ type NarrativeStablePhysicalActionAttemptRecordInternalV1 =
   | (
     & NarrativeStablePhysicalActionAttemptRecordBaseInternalV1
     & Readonly<{
-      readonly kind: "pause_resume";
+      readonly kind: "hold_skip";
     }>
   )
   | (
@@ -920,7 +921,7 @@ interface NarrativeStableDialoguePlayerControllerRecordInternalV1 {
     | null;
   seenCommitted: boolean;
   legacySayRevealController: NarrativeStableSayRevealControllerInternalV1 | null;
-  pauseExpiryController: NarrativeStablePauseExpiryControllerInternalV1 | null;
+  holdExpiryController: NarrativeStableHoldExpiryControllerInternalV1 | null;
   active: boolean;
   rawUnsubscribe: (() => void) | null;
   materialization: NarrativeStableDialoguePlayerMaterializationRecordInternalV1 | null;
@@ -989,7 +990,7 @@ const narrativeStableDialoguePlayerAutomaticAttemptRecordsInternalV1 = new WeakM
 const narrativeStableDialoguePlayerLateUnsubscribeInternalV1 = Object.freeze(() => {});
 const narrativeStablePhysicalActionAttemptRecordsInternalV1 = new WeakMap<
   | NarrativeStableChoiceActionAttemptInternalV1
-  | NarrativeStablePauseResumeActionAttemptInternalV1
+  | NarrativeStableHoldSkipActionAttemptInternalV1
   | NarrativeStableCustomActionAttemptInternalV1
   | NarrativeStableSayActivationAttemptInternalV1,
   NarrativeStablePhysicalActionAttemptRecordInternalV1
@@ -1575,8 +1576,8 @@ const narrativeStableBarrierAcknowledgmentControllerRecordsInternalV1 = new Weak
   NarrativeStableBarrierAcknowledgmentControllerRecordInternalV1
 >();
 
-interface NarrativeStablePauseExpiryControllerAttemptRecordInternalV1 {
-  readonly controller: NarrativeStablePauseExpiryControllerInternalV1;
+interface NarrativeStableHoldExpiryControllerAttemptRecordInternalV1 {
+  readonly controller: NarrativeStableHoldExpiryControllerInternalV1;
   readonly proof: ManagedSurfaceStableReadyActiveTargetProofInternalV1;
   readonly directTarget: ManagedSurfaceStableAdmittedTargetInternalV1;
   readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
@@ -1585,9 +1586,9 @@ interface NarrativeStablePauseExpiryControllerAttemptRecordInternalV1 {
   spent: boolean;
 }
 
-const narrativeStablePauseExpiryControllerAttemptRecordsInternalV1 = new WeakMap<
-  NarrativeStablePauseExpiryControllerAttemptInternalV1,
-  NarrativeStablePauseExpiryControllerAttemptRecordInternalV1
+const narrativeStableHoldExpiryControllerAttemptRecordsInternalV1 = new WeakMap<
+  NarrativeStableHoldExpiryControllerAttemptInternalV1,
+  NarrativeStableHoldExpiryControllerAttemptRecordInternalV1
 >();
 
 const stableZeroDeltaInternalV1 = Object.freeze({
@@ -1780,12 +1781,12 @@ const narrativePlaybackModeResetStaleResultInternalV1 = Object.freeze({
   completion: null,
 }) satisfies NarrativeStablePlaybackModeResetDispatchResultInternalV1;
 
-const narrativePauseExpiryStaleResultInternalV1 = Object.freeze({
+const narrativeHoldExpiryStaleResultInternalV1 = Object.freeze({
   kind: "stale" as const,
   completion: null,
 });
 
-const narrativePauseExpiryFaultedResultInternalV1 = Object.freeze({
+const narrativeHoldExpiryFaultedResultInternalV1 = Object.freeze({
   kind: "faulted" as const,
   completion: null,
 });
@@ -2689,7 +2690,7 @@ export function createNarrativeStablePublisherBridgeInternalV1(
     session: null,
     currentModeState: createNarrativePlaybackModeStateInternalV1("normal"),
     physicalActionAdmissionClaim: null,
-    pauseExpiryControllerClaim: null,
+    holdExpiryControllerClaim: null,
     sayRevealControllerClaim: null,
     sayCallbackClaim: null,
     saySemanticInFlightClaim: null,
@@ -2773,7 +2774,7 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
         readonly clockFault: boolean;
         cancelled: (() => void) | null;
         legacyToDispose: NarrativeStableSayRevealControllerInternalV1 | null;
-        pauseToDispose: NarrativeStablePauseExpiryControllerInternalV1 | null;
+        holdToDispose: NarrativeStableHoldExpiryControllerInternalV1 | null;
         rawUnsubscribeToCall: (() => void) | null;
         terminalObservationDelivery: (() => void) | null;
         committedGeneration: object | null;
@@ -2794,8 +2795,8 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
         const expectedLastTickMs = record.lastTickMs;
         let preparedNow: number | null = null;
         let clockFault = false;
-        const timedPause = record.snapshot.kind === "passive" &&
-          record.frame?.pending.kind === "pause";
+        const timedHold = record.snapshot.kind === "passive" &&
+          record.frame?.pending.kind === "hold";
         const timedSay = record.snapshot.kind === "say" &&
           (!record.snapshot.revealComplete || expectedModeState?.mode === "auto" ||
             expectedModeState?.mode === "skip" ||
@@ -2803,7 +2804,7 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
               record.frame.pending.advancePolicy === "auto"));
         if (
           (previousPhase === "active" || nextPhase === "active") &&
-          (timedPause || timedSay) &&
+          (timedHold || timedSay) &&
           record.clockBinding !== null
         ) {
           let nowValue: unknown;
@@ -2829,7 +2830,7 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
           clockFault,
           cancelled: null,
           legacyToDispose: null,
-          pauseToDispose: null,
+          holdToDispose: null,
           rawUnsubscribeToCall: null,
           terminalObservationDelivery: null,
           committedGeneration: null,
@@ -2932,10 +2933,10 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
             if (nextPhase === "active" && plan.preparedNow !== null) {
               record.lastTickMs = plan.preparedNow;
               if (
-                record.snapshot.kind === "passive" && record.frame?.pending.kind === "pause" &&
+                record.snapshot.kind === "passive" && record.frame?.pending.kind === "hold" &&
                 record.automaticRemainingMs === null
               ) {
-                record.automaticRemainingMs = record.frame.pending.durationMs;
+                record.automaticRemainingMs = record.frame.pending.remainingMs;
               } else if (record.snapshot.kind === "say") {
                 const mode = record.bridgeRecord?.currentModeState.mode;
                 if (mode === "skip" && record.automaticRemainingMs === null) {
@@ -2954,8 +2955,8 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
               retireNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(record);
               plan.legacyToDispose = record.legacySayRevealController;
               record.legacySayRevealController = null;
-              plan.pauseToDispose = record.pauseExpiryController;
-              record.pauseExpiryController = null;
+              plan.holdToDispose = record.holdExpiryController;
+              record.holdExpiryController = null;
             }
             record.phaseGeneration = Object.freeze({});
             plan.committedGeneration = record.phaseGeneration;
@@ -3044,17 +3045,17 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
                 // Logical suspension already fenced the legacy admission.
               }
             }
-            const pause = plan.pauseToDispose;
-            plan.pauseToDispose = null;
-            if (pause !== null) {
+            const hold = plan.holdToDispose;
+            plan.holdToDispose = null;
+            if (hold !== null) {
               try {
                 Reflect.apply(
-                  pause.disposeInternalV1,
-                  pause,
+                  hold.disposeInternalV1,
+                  hold,
                   [],
                 );
               } catch {
-                // Logical retirement already fenced Pause expiry.
+                // Logical retirement already fenced hold expiry.
               }
             }
             const rawUnsubscribe = plan.rawUnsubscribeToCall;
@@ -3091,7 +3092,7 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
             const nextPhase = plan.clockFault ? null : plan.nextPhase;
             if (nextPhase === "active") {
               ensureNarrativeStableDialoguePlayerLegacyControllerInternalV1(record);
-              ensureNarrativeStableDialoguePlayerPauseControllerInternalV1(record);
+              ensureNarrativeStableDialoguePlayerHoldControllerInternalV1(record);
               requestNarrativeStableDialoguePlayerTickInternalV1(
                 record,
                 record.phaseGeneration,
@@ -6708,7 +6709,7 @@ function shouldScheduleNarrativeStableDialoguePlayerTickInternalV1(
     record.clockBinding === null || record.bridgeRecord === null || record.frame === null
   ) return false;
   if (record.snapshot.kind === "passive") {
-    return record.frame.pending.kind === "pause" && record.automaticRemainingMs !== null;
+    return record.frame.pending.kind === "hold" && record.automaticRemainingMs !== null;
   }
   if (!record.snapshot.revealComplete) return true;
   if (record.bridgeRecord.currentModeState.mode === "auto") return true;
@@ -6865,28 +6866,31 @@ function requestNarrativeStableDialoguePlayerTickInternalV1(
     if (bridgeRecord === null) return;
     if (record.snapshot.kind === "passive") {
       if (
-        record.frame?.pending.kind !== "pause" || record.automaticRemainingMs === null ||
-        record.pauseExpiryController === null
+        record.frame?.pending.kind !== "hold" || record.automaticRemainingMs === null ||
+        record.holdExpiryController === null
       ) return;
       record.automaticRemainingMs = Math.max(0, record.automaticRemainingMs - elapsed);
       if (record.automaticRemainingMs > 0) {
         requestNarrativeStableDialoguePlayerTickInternalV1(record, generation);
         return;
       }
-      const pauseController = record.pauseExpiryController;
-      let attempt: NarrativeStablePauseExpiryControllerAttemptInternalV1 | null = null;
+      // The countdown started from the frame's authoritative remainingMs,
+      // so the expiry proposes exactly that remainder as one hold_tick.
+      const holdController = record.holdExpiryController;
+      const elapsedMs = record.frame.pending.remainingMs;
+      let attempt: NarrativeStableHoldExpiryControllerAttemptInternalV1 | null = null;
       try {
         attempt = Reflect.apply(
-          pauseController.issueAttemptInternalV1,
-          pauseController,
+          holdController.issueAttemptInternalV1,
+          holdController,
           [],
-        ) as NarrativeStablePauseExpiryControllerAttemptInternalV1 | null;
+        ) as NarrativeStableHoldExpiryControllerAttemptInternalV1 | null;
         if (attempt !== null) {
           const result = Reflect.apply(
-            pauseController.dispatchInternalV1,
-            pauseController,
-            [attempt],
-          ) as NarrativeStablePauseExpiryDispatchResultInternalV1;
+            holdController.dispatchInternalV1,
+            holdController,
+            [attempt, elapsedMs],
+          ) as NarrativeStableHoldExpiryDispatchResultInternalV1;
           if (result.kind === "dispatched") void result.completion.catch(() => {});
         }
       } catch {
@@ -7105,15 +7109,15 @@ function ensureNarrativeStableDialoguePlayerLegacyControllerInternalV1(
   }
 }
 
-function ensureNarrativeStableDialoguePlayerPauseControllerInternalV1(
+function ensureNarrativeStableDialoguePlayerHoldControllerInternalV1(
   record: NarrativeStableDialoguePlayerControllerRecordInternalV1,
 ): void {
   if (
-    !record.active || record.pauseExpiryController !== null || record.bridge === null ||
-    record.snapshot.phase !== "active" || record.frame?.pending.kind !== "pause"
+    !record.active || record.holdExpiryController !== null || record.bridge === null ||
+    record.snapshot.phase !== "active" || record.frame?.pending.kind !== "hold"
   ) return;
   try {
-    record.pauseExpiryController = createNarrativeStablePauseExpiryControllerInternalV1(
+    record.holdExpiryController = createNarrativeStableHoldExpiryControllerInternalV1(
       record.bridge,
     );
   } catch {
@@ -7173,8 +7177,8 @@ function disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(
   record.automaticRemainingMs = null;
   const legacySayRevealController = record.legacySayRevealController;
   record.legacySayRevealController = null;
-  const pauseExpiryController = record.pauseExpiryController;
-  record.pauseExpiryController = null;
+  const holdExpiryController = record.holdExpiryController;
+  record.holdExpiryController = null;
   const target = record.target;
   if (
     target !== null &&
@@ -7230,15 +7234,15 @@ function disposeNarrativeStableDialoguePlayerControllerRecordInternalV1(
       // Logical retirement remains complete when legacy cleanup is hostile.
     }
   }
-  if (pauseExpiryController !== null) {
+  if (holdExpiryController !== null) {
     try {
       Reflect.apply(
-        pauseExpiryController.disposeInternalV1,
-        pauseExpiryController,
+        holdExpiryController.disposeInternalV1,
+        holdExpiryController,
         [],
       );
     } catch {
-      // Logical retirement remains complete when Pause cleanup is hostile.
+      // Logical retirement remains complete when hold cleanup is hostile.
     }
   }
   if (terminalObservationDelivery !== null) {
@@ -7456,7 +7460,7 @@ export function createNarrativeStableDialoguePlayerControllerInternalV1(
     currentAutomaticAttempt: null,
     seenCommitted: false,
     legacySayRevealController: null,
-    pauseExpiryController: null,
+    holdExpiryController: null,
     active: true,
     rawUnsubscribe: null,
     materialization: null,
@@ -7551,8 +7555,8 @@ export function createNarrativeStableDialoguePlayerControllerInternalV1(
     }
   }
   if (phase === "active") {
-    if (record.snapshot.kind === "passive" && frame.pending.kind === "pause") {
-      record.automaticRemainingMs = frame.pending.durationMs;
+    if (record.snapshot.kind === "passive" && frame.pending.kind === "hold") {
+      record.automaticRemainingMs = frame.pending.remainingMs;
     } else if (record.snapshot.kind === "say") {
       const mode = bridgeRecord.currentModeState.mode;
       record.automaticRemainingMs = mode === "skip"
@@ -7586,7 +7590,7 @@ export function createNarrativeStableDialoguePlayerControllerInternalV1(
       record.lastTickMs = nowValue;
     }
     ensureNarrativeStableDialoguePlayerLegacyControllerInternalV1(record);
-    ensureNarrativeStableDialoguePlayerPauseControllerInternalV1(record);
+    ensureNarrativeStableDialoguePlayerHoldControllerInternalV1(record);
     if (
       !record.active || !isExactFactoryCurrent() ||
       narrativeStableDialoguePlayerControllersByTargetInternalV1.get(target) !== record
@@ -8123,12 +8127,12 @@ export function createNarrativeStableSayRevealControllerInternalV1(
   return controller;
 }
 
-export function createNarrativeStablePauseExpiryControllerInternalV1(
+export function createNarrativeStableHoldExpiryControllerInternalV1(
   bridge: NarrativeStablePublisherBridgeInternalV1,
-): NarrativeStablePauseExpiryControllerInternalV1 {
+): NarrativeStableHoldExpiryControllerInternalV1 {
   const bridgeRecord = narrativeStablePublisherBridgeRecordsInternalV1.get(bridge);
-  if (bridgeRecord === undefined || bridgeRecord.pauseExpiryControllerClaim !== null) {
-    throw new TypeError("ui.narrative_stable_pause_expiry_controller_invalid");
+  if (bridgeRecord === undefined || bridgeRecord.holdExpiryControllerClaim !== null) {
+    throw new TypeError("ui.narrative_stable_hold_expiry_controller_invalid");
   }
   const kernel = bridgeRecord.compositeRuntimeKernel;
   const stableActionAuthority = claimManagedSurfaceStableActionRouteAuthorityInternalV1(kernel);
@@ -8145,10 +8149,10 @@ export function createNarrativeStablePauseExpiryControllerInternalV1(
     captureReadyActiveTarget === null || isCurrentReadyActiveTarget === null ||
     subscribeState === null
   ) {
-    throw new TypeError("ui.narrative_stable_pause_expiry_controller_invalid");
+    throw new TypeError("ui.narrative_stable_hold_expiry_controller_invalid");
   }
 
-  const captureCurrentPause = ():
+  const captureCurrentHold = ():
     | Readonly<{
       readonly target: ManagedSurfaceStableAdmittedTargetInternalV1;
       readonly sourceRevision: ManagedSurfaceStableSourceRevisionInternalV1;
@@ -8158,7 +8162,7 @@ export function createNarrativeStablePauseExpiryControllerInternalV1(
     | null => {
     const current = bridgeRecord.captureCurrentTargetInternalV1();
     if (
-      current === null || current.frame.pending.kind !== "pause"
+      current === null || current.frame.pending.kind !== "hold"
     ) {
       return null;
     }
@@ -8180,23 +8184,23 @@ export function createNarrativeStablePauseExpiryControllerInternalV1(
 
   let initial;
   try {
-    initial = captureCurrentPause();
+    initial = captureCurrentHold();
   } catch (error) {
-    throw new TypeError("ui.narrative_stable_pause_expiry_controller_unavailable", {
+    throw new TypeError("ui.narrative_stable_hold_expiry_controller_unavailable", {
       cause: error,
     });
   }
   if (initial === null) {
-    throw new TypeError("ui.narrative_stable_pause_expiry_controller_unavailable");
+    throw new TypeError("ui.narrative_stable_hold_expiry_controller_unavailable");
   }
 
   let active = true;
   let semanticDispatchStarted = false;
-  let currentAttempt: NarrativeStablePauseExpiryControllerAttemptInternalV1 | null = null;
+  let currentAttempt: NarrativeStableHoldExpiryControllerAttemptInternalV1 | null = null;
   let unsubscribeState = (): void => {};
-  let controller!: NarrativeStablePauseExpiryControllerInternalV1;
+  let controller!: NarrativeStableHoldExpiryControllerInternalV1;
   const controllerClaim = Object.freeze({});
-  bridgeRecord.pauseExpiryControllerClaim = controllerClaim;
+  bridgeRecord.holdExpiryControllerClaim = controllerClaim;
 
   const revoke = (): void => {
     if (!active) return;
@@ -8207,13 +8211,13 @@ export function createNarrativeStablePauseExpiryControllerInternalV1(
     } catch {
       // Revocation remains fail closed even if a caller-provided diagnostic wrapper fails.
     }
-    if (bridgeRecord.pauseExpiryControllerClaim === controllerClaim) {
-      bridgeRecord.pauseExpiryControllerClaim = null;
+    if (bridgeRecord.holdExpiryControllerClaim === controllerClaim) {
+      bridgeRecord.holdExpiryControllerClaim = null;
     }
   };
 
   const generationStillCurrent = (): boolean => {
-    const current = captureCurrentPause();
+    const current = captureCurrentHold();
     return current !== null && current.target === initial.target &&
       current.sourceRevision === initial.sourceRevision && current.frame === initial.frame;
   };
@@ -8228,33 +8232,33 @@ export function createNarrativeStablePauseExpiryControllerInternalV1(
       }
     }]);
     if (typeof unsubscribe !== "function") {
-      throw new TypeError("ui.narrative_stable_pause_expiry_controller_invalid");
+      throw new TypeError("ui.narrative_stable_hold_expiry_controller_invalid");
     }
     unsubscribeState = unsubscribe as () => void;
     if (!generationStillCurrent()) {
-      throw new TypeError("ui.narrative_stable_pause_expiry_controller_unavailable");
+      throw new TypeError("ui.narrative_stable_hold_expiry_controller_unavailable");
     }
   } catch (error) {
     revoke();
     if (
       error instanceof TypeError &&
-      error.message === "ui.narrative_stable_pause_expiry_controller_unavailable"
+      error.message === "ui.narrative_stable_hold_expiry_controller_unavailable"
     ) {
       throw error;
     }
-    throw new TypeError("ui.narrative_stable_pause_expiry_controller_unavailable", {
+    throw new TypeError("ui.narrative_stable_hold_expiry_controller_unavailable", {
       cause: error,
     });
   }
 
   controller = Object.freeze({
     issueAttemptInternalV1(
-      this: NarrativeStablePauseExpiryControllerInternalV1,
-    ): NarrativeStablePauseExpiryControllerAttemptInternalV1 | null {
+      this: NarrativeStableHoldExpiryControllerInternalV1,
+    ): NarrativeStableHoldExpiryControllerAttemptInternalV1 | null {
       if (this !== controller || !active || semanticDispatchStarted) return null;
       try {
         if (currentAttempt !== null) {
-          const currentRecord = narrativeStablePauseExpiryControllerAttemptRecordsInternalV1.get(
+          const currentRecord = narrativeStableHoldExpiryControllerAttemptRecordsInternalV1.get(
             currentAttempt,
           );
           if (
@@ -8268,7 +8272,7 @@ export function createNarrativeStablePauseExpiryControllerInternalV1(
           currentRecord.spent = true;
           currentAttempt = null;
         }
-        const current = captureCurrentPause();
+        const current = captureCurrentHold();
         if (
           current === null || current.target !== initial.target ||
           current.sourceRevision !== initial.sourceRevision || current.frame !== initial.frame
@@ -8278,8 +8282,8 @@ export function createNarrativeStablePauseExpiryControllerInternalV1(
         }
         const attempt = Object.freeze(
           {},
-        ) as NarrativeStablePauseExpiryControllerAttemptInternalV1;
-        narrativeStablePauseExpiryControllerAttemptRecordsInternalV1.set(attempt, {
+        ) as NarrativeStableHoldExpiryControllerAttemptInternalV1;
+        narrativeStableHoldExpiryControllerAttemptRecordsInternalV1.set(attempt, {
           controller,
           proof: current.proof,
           directTarget: current.target,
@@ -8295,21 +8299,25 @@ export function createNarrativeStablePauseExpiryControllerInternalV1(
       }
     },
     dispatchInternalV1(
-      this: NarrativeStablePauseExpiryControllerInternalV1,
+      this: NarrativeStableHoldExpiryControllerInternalV1,
       attempt: unknown,
-    ): NarrativeStablePauseExpiryDispatchResultInternalV1 {
-      if (this !== controller || !active) return narrativePauseExpiryStaleResultInternalV1;
-      if ((typeof attempt !== "object" && typeof attempt !== "function") || attempt === null) {
-        return narrativePauseExpiryStaleResultInternalV1;
+      elapsedMs: number,
+    ): NarrativeStableHoldExpiryDispatchResultInternalV1 {
+      if (this !== controller || !active) return narrativeHoldExpiryStaleResultInternalV1;
+      if (!Number.isSafeInteger(elapsedMs) || elapsedMs < 1) {
+        return narrativeHoldExpiryFaultedResultInternalV1;
       }
-      const record = narrativeStablePauseExpiryControllerAttemptRecordsInternalV1.get(
-        attempt as NarrativeStablePauseExpiryControllerAttemptInternalV1,
+      if ((typeof attempt !== "object" && typeof attempt !== "function") || attempt === null) {
+        return narrativeHoldExpiryStaleResultInternalV1;
+      }
+      const record = narrativeStableHoldExpiryControllerAttemptRecordsInternalV1.get(
+        attempt as NarrativeStableHoldExpiryControllerAttemptInternalV1,
       );
       if (
         record === undefined || record.controller !== controller || record.spent ||
         currentAttempt !== attempt
       ) {
-        return narrativePauseExpiryStaleResultInternalV1;
+        return narrativeHoldExpiryStaleResultInternalV1;
       }
       record.spent = true;
       currentAttempt = null;
@@ -8318,21 +8326,24 @@ export function createNarrativeStablePauseExpiryControllerInternalV1(
         if (
           Reflect.apply(isCurrentReadyActiveTarget, stableActionAuthority, [record.proof]) !== true
         ) {
-          return narrativePauseExpiryStaleResultInternalV1;
+          return narrativeHoldExpiryStaleResultInternalV1;
         }
         const current = bridgeRecord.captureCurrentTargetInternalV1();
         if (
           current === null || current.target !== record.directTarget ||
           current.sourceRevision !== record.sourceRevision || current.frame !== record.frame ||
-          current.frame.pending.kind !== "pause" ||
+          current.frame.pending.kind !== "hold" ||
           current.frame.candidateSnapshot.semanticDispatchPort !== record.semanticDispatchPort ||
           current.frame.pending.occurrenceId !== record.frame.pending.occurrenceId
         ) {
-          return narrativePauseExpiryStaleResultInternalV1;
+          return narrativeHoldExpiryStaleResultInternalV1;
         }
         const portBinding = record.semanticDispatchPort;
-        if (portBinding === undefined) return narrativePauseExpiryFaultedResultInternalV1;
-        const resolution: InteractionResolutionV1 = Object.freeze({ kind: "resume" as const });
+        if (portBinding === undefined) return narrativeHoldExpiryFaultedResultInternalV1;
+        const resolution: InteractionResolutionV1 = Object.freeze({
+          kind: "hold_tick" as const,
+          elapsedMs,
+        });
         const request = Object.freeze({
           expectedOccurrenceId: current.frame.pending.occurrenceId,
           resolution,
@@ -8340,7 +8351,7 @@ export function createNarrativeStablePauseExpiryControllerInternalV1(
         if (
           Reflect.apply(isCurrentReadyActiveTarget, stableActionAuthority, [record.proof]) !== true
         ) {
-          return narrativePauseExpiryStaleResultInternalV1;
+          return narrativeHoldExpiryStaleResultInternalV1;
         }
         semanticDispatchStarted = true;
         let completion: Promise<unknown>;
@@ -8353,10 +8364,10 @@ export function createNarrativeStablePauseExpiryControllerInternalV1(
         }
         return Object.freeze({ kind: "dispatched" as const, completion });
       } catch {
-        return narrativePauseExpiryStaleResultInternalV1;
+        return narrativeHoldExpiryStaleResultInternalV1;
       }
     },
-    disposeInternalV1(this: NarrativeStablePauseExpiryControllerInternalV1): void {
+    disposeInternalV1(this: NarrativeStableHoldExpiryControllerInternalV1): void {
       if (this !== controller) return;
       revoke();
     },
@@ -8396,7 +8407,7 @@ function createNarrativeStableHostHistoryPhysicalActionAdmissionInternalV1(
     issueChoiceAttemptInternalV1(): null {
       return null;
     },
-    issuePauseResumeAttemptInternalV1(): null {
+    issueHoldSkipAttemptInternalV1(): null {
       return null;
     },
     issueCustomAttemptInternalV1(): null {
@@ -8549,7 +8560,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
   if (
     initialFrame === null ||
     (initialFrame.pending.kind !== "say" && initialFrame.pending.kind !== "choice" &&
-      initialFrame.pending.kind !== "pause" && initialFrame.pending.kind !== "custom" &&
+      initialFrame.pending.kind !== "hold" && initialFrame.pending.kind !== "custom" &&
       initialFrame.pending.kind !== "presentation_barrier")
   ) {
     throw new TypeError("ui.narrative_stable_action_admission_unavailable");
@@ -8592,7 +8603,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
       : actionId === narrativeChooseActionIdInternalV1
       ? "choice"
       : actionId === narrativeResumeActionIdInternalV1
-      ? "pause_resume"
+      ? "hold_skip"
       : actionId === narrativeCustomActionIdInternalV1
       ? "custom"
       : isSayAlias
@@ -8636,7 +8647,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
       const otherPhysicalRecord = narrativeStablePhysicalActionAttemptRecordsInternalV1.get(
         attempt as
           | NarrativeStableChoiceActionAttemptInternalV1
-          | NarrativeStablePauseResumeActionAttemptInternalV1
+          | NarrativeStableHoldSkipActionAttemptInternalV1
           | NarrativeStableCustomActionAttemptInternalV1
           | NarrativeStableSayActivationAttemptInternalV1,
       );
@@ -8747,7 +8758,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           }
           if (
             frame.pending.kind !== "say" && frame.pending.kind !== "choice" &&
-            frame.pending.kind !== "pause" && frame.pending.kind !== "custom" &&
+            frame.pending.kind !== "hold" && frame.pending.kind !== "custom" &&
             frame.pending.kind !== "presentation_barrier"
           ) {
             return "faulted";
@@ -8948,7 +8959,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         if (currentFrame !== record.frame) return "stale";
         if (currentFrame.pending.kind === "say") return "say";
         if (
-          currentFrame.pending.kind === "choice" || currentFrame.pending.kind === "pause" ||
+          currentFrame.pending.kind === "choice" || currentFrame.pending.kind === "hold" ||
           currentFrame.pending.kind === "custom" ||
           currentFrame.pending.kind === "presentation_barrier"
         ) {
@@ -9224,7 +9235,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
     const record = narrativeStablePhysicalActionAttemptRecordsInternalV1.get(
       attempt as
         | NarrativeStableChoiceActionAttemptInternalV1
-        | NarrativeStablePauseResumeActionAttemptInternalV1
+        | NarrativeStableHoldSkipActionAttemptInternalV1
         | NarrativeStableCustomActionAttemptInternalV1
         | NarrativeStableSayActivationAttemptInternalV1,
     );
@@ -9432,25 +9443,36 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         (record.kind === "choice"
           ? currentFrame.pending.kind !== "choice" ||
             !currentFrame.pending.options.some((option) => option.choiceId === record.choiceId)
-          : record.kind === "pause_resume"
-          ? currentFrame.pending.kind !== "pause" || !currentFrame.pending.skippable
+          : record.kind === "hold_skip"
+          ? currentFrame.pending.kind !== "hold" || !currentFrame.pending.skippable
           : currentFrame.pending.kind !== "custom")
       ) {
         return narrativePhysicalActionStaleResultInternalV1;
       }
       const portBinding = record.semanticDispatchPort;
       if (portBinding === undefined) return narrativePhysicalActionFaultedResultInternalV1;
-      const resolution: InteractionResolutionV1 = record.kind === "choice"
-        ? Object.freeze({
+      let resolution: InteractionResolutionV1;
+      if (record.kind === "choice") {
+        resolution = Object.freeze({
           kind: "choose" as const,
           choiceId: record.choiceId,
-        })
-        : record.kind === "pause_resume"
-        ? Object.freeze({ kind: "resume" as const })
-        : Object.freeze({
+        });
+      } else if (record.kind === "hold_skip") {
+        if (currentFrame.pending.kind !== "hold") {
+          return narrativePhysicalActionStaleResultInternalV1;
+        }
+        // A skippable hold folds its whole remainder in one authoritative
+        // tick commit; the fold never bypasses the pending boundary.
+        resolution = Object.freeze({
+          kind: "hold_tick" as const,
+          elapsedMs: currentFrame.pending.remainingMs,
+        });
+      } else {
+        resolution = Object.freeze({
           kind: "custom" as const,
           payload: record.payload,
         });
+      }
       const request = Object.freeze({
         expectedOccurrenceId: currentFrame.pending.occurrenceId,
         resolution,
@@ -9612,9 +9634,9 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         return null;
       }
     },
-    issuePauseResumeAttemptInternalV1(
+    issueHoldSkipAttemptInternalV1(
       this: NarrativeStablePhysicalActionAdmissionInternalV1,
-    ): NarrativeStablePauseResumeActionAttemptInternalV1 | null {
+    ): NarrativeStableHoldSkipActionAttemptInternalV1 | null {
       if (this !== authority || !active) return null;
       try {
         const current = Reflect.apply(
@@ -9639,15 +9661,15 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           current.directTarget,
         ]) as NarrativeStableAdmittedFrameInternalV1 | null;
         if (
-          frame === null || frame.pending.kind !== "pause" || !frame.pending.skippable
+          frame === null || frame.pending.kind !== "hold" || !frame.pending.skippable
         ) {
           return null;
         }
         const attempt = Object.freeze(
           {},
-        ) as NarrativeStablePauseResumeActionAttemptInternalV1;
+        ) as NarrativeStableHoldSkipActionAttemptInternalV1;
         narrativeStablePhysicalActionAttemptRecordsInternalV1.set(attempt, {
-          kind: "pause_resume",
+          kind: "hold_skip",
           authority,
           targetProof: current.targetProof,
           directTarget: current.directTarget,
@@ -9953,7 +9975,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         if (
           frame === null ||
           (frame.pending.kind !== "say" && frame.pending.kind !== "choice" &&
-            frame.pending.kind !== "pause" && frame.pending.kind !== "custom" &&
+            frame.pending.kind !== "hold" && frame.pending.kind !== "custom" &&
             frame.pending.kind !== "presentation_barrier") ||
           (frame.pending.kind !== "say" && issuanceModeState.mode !== "normal") ||
           !active || bridgeRecord.physicalActionAdmissionClaim !== admissionClaim ||
@@ -10033,7 +10055,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           readyActive.directTarget !== current.directTarget ||
           readyActive.sourceRevision !== current.sourceRevision ||
           (frame.pending.kind !== "say" && frame.pending.kind !== "choice" &&
-            frame.pending.kind !== "pause" && frame.pending.kind !== "custom" &&
+            frame.pending.kind !== "hold" && frame.pending.kind !== "custom" &&
             frame.pending.kind !== "presentation_barrier") ||
           !active || !bridgeRecord.isActiveInternalV1() ||
           bridgeRecord.physicalActionAdmissionClaim !== admissionClaim ||

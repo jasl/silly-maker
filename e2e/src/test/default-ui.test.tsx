@@ -230,7 +230,7 @@ describe("Engine Lab default UI", () => {
       await user.click(screen.getByRole("button", { name: "直接校准" }));
       await waitFor(
         () => {
-          expect(document.querySelector("[data-lab-interaction='pause']")).toBeInTheDocument();
+          expect(document.querySelector("[data-lab-interaction='hold']")).toBeInTheDocument();
         },
         { timeout: 4000 },
       );
@@ -281,7 +281,7 @@ describe("Engine Lab default UI", () => {
         // Let the live run finish normally all the way to completion.
         await waitFor(
           () => {
-            expect(document.querySelector("[data-lab-interaction='pause']")).toBeInTheDocument();
+            expect(document.querySelector("[data-lab-interaction='hold']")).toBeInTheDocument();
           },
           { timeout: 4000 },
         );
@@ -304,7 +304,7 @@ describe("Engine Lab default UI", () => {
         });
         await waitFor(
           () => {
-            expect(document.querySelector("[data-lab-interaction='pause']")).toBeInTheDocument();
+            expect(document.querySelector("[data-lab-interaction='hold']")).toBeInTheDocument();
           },
           { timeout: 4000 },
         );

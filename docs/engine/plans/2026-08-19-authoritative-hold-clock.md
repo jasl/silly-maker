@@ -63,9 +63,14 @@
 ### M1 — Host 提议 + `pause` 归并删除
 
 - Dialogue player / Narrative Host：pending 为 hold 时按 presentation
-  clock 积累毫秒、折批提议；冻结画面停提议；页面不可见沿用既有
-  suspend；skippable 输入与 `skipCutscenes` 折余量；autosave /
-  pagehide 前 flush 已积累流逝。
+  clock 积累毫秒；冻结画面停提议；页面不可见沿用既有 suspend；
+  skippable 输入折余量。`skipCutscenes` 一直是 Story 侧偏好（引擎从未
+  按它折过 pause）；任何按它折清的实现都必须走同一 hold_tick 折清纪
+  律，由 M2 kit 块承接，不在机械迁移内新增引擎行为。
+- M1 只提交两类 tick：折余量与到期（均消费边界、换新 occurrence）。
+  部分 tick 的**同 occurrence 帧刷新**是新的 reconcile 行为（现
+  reconcile 对同 occurrence 不同字节按 fault 处理），随 M3 滴机械一起
+  落；autosave / pagehide 前 flush 已积累流逝同步移入 M3。
 - `cal-hold` 从 `pause` 机械迁移为等价 hold；删除 `pause` kind、
   `resume` resolution 与 player 的 pause 处理；受影响测试显式迁移；四
   runtime parity 复跑。
@@ -78,11 +83,16 @@
   新节点种类；template 不强制消费。
 - 实验仓迁一条活路径：独浴 `006-01` 后 WAIT 30（500ms），或一本现有
   flipbook 改为 hold 到期开末帧。禁止 silent flash stage。
-- 验收：该路径持有中 Save/load 剩余保留；该段墙钟退出权威路径；
-  `story-authoring.md` 与实验仓 `fidelity-gaps.md` 回流。
+- 验收：该路径持有中 Save/load 落回 hold、剩余为最近一次权威 commit
+  的值（M2 无部分 tick 时即全额；部分流逝的持久化随 M3 flush）；该段
+  墙钟退出权威路径；`story-authoring.md` 与实验仓 `fidelity-gaps.md`
+  回流。
 
 ### M3 — 条件、换帧与 E2 滴（证据够再领）
 
+- 部分 tick 的同 occurrence 帧刷新（narrative reconcile 接受同
+  occurrence 下仅 `remainingMs` 递减的新帧）；autosave / pagehide 前
+  flush 已积累流逝，持有中存档保留部分进度。
 - hold 块可选：tick 效果（阈值穿越结算）、按经过毫秒的 stage 批、声明
   条件（复用 branch `when`）在 commit 内改道。
 - 六格条 / `icon04`％ 读 `remainingMs` 或同一 commit 写下的权威域。

@@ -201,7 +201,7 @@ describe("Engine Lab production Narrative player", () => {
         });
         await lab.clock.advance(500);
         await waitFor(() => {
-          expect(document.querySelector("[data-lab-interaction='pause']")).toBeInTheDocument();
+          expect(document.querySelector("[data-lab-interaction='hold']")).toBeInTheDocument();
         });
         await user.click(screen.getByRole("button", { name: "跳过等待" }));
         await waitFor(() => {

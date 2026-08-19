@@ -1541,10 +1541,10 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
         ) {
           attempt = admission.issueChoiceAttemptInternalV1(invokedChoiceId);
         } else if (
-          selection.pending.kind === "pause" &&
+          selection.pending.kind === "hold" && selection.pending.skippable &&
           (actionId === systemInputActionIdsV1.confirm || String(actionId) === "narrative.resume")
         ) {
-          attempt = admission.issuePauseResumeAttemptInternalV1();
+          attempt = admission.issueHoldSkipAttemptInternalV1();
         } else if (
           selection.pending.kind === "custom" && String(actionId) === "narrative.custom"
         ) {
@@ -1565,7 +1565,7 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
         const authenticatedActionId = actionId === systemInputActionIdsV1.confirm
           ? selection.pending.kind === "choice"
             ? "narrative.choose"
-            : selection.pending.kind === "pause"
+            : selection.pending.kind === "hold"
             ? "narrative.resume"
             : selection.pending.kind === "say"
             ? String(systemInputActionIdsV1.narrativeAdvance)

@@ -154,6 +154,7 @@ test.describe("engine conformance route parity", () => {
               kind: string;
               occurrenceId: string;
               expectedTransitionId?: string;
+              remainingMs?: number;
             }
             interface BridgeV1 {
               observe(): {
@@ -200,8 +201,9 @@ test.describe("engine conformance route parity", () => {
                     transitionId: pending.expectedTransitionId,
                   }),
                 );
-              } else if (pending.kind === "pause") await dispatch(resolve({ kind: "resume" }));
-              else await dispatch(resolve({ kind: "custom", payload: { value: 2 } }));
+              } else if (pending.kind === "hold") {
+                await dispatch(resolve({ kind: "hold_tick", elapsedMs: pending.remainingMs }));
+              } else await dispatch(resolve({ kind: "custom", payload: { value: 2 } }));
             }
             return observe().narrative.phase;
           },

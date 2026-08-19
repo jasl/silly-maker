@@ -61,7 +61,7 @@ async function playCalibrationV1(
       transitionId: "transition.e2e.bg-crossfade",
     }),
   );
-  await dispatch(resolveV1(pending().occurrenceId, { kind: "resume" }));
+  await dispatch(resolveV1(pending().occurrenceId, { kind: "hold_tick", elapsedMs: 400 }));
   await dispatch(resolveV1(pending().occurrenceId, { kind: "custom", payload: { value: 2 } }));
   await dispatch(resolveV1(pending().occurrenceId, { kind: "advance" }));
 }

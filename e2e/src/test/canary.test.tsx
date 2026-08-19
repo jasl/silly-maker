@@ -72,8 +72,8 @@ async function playNarrativeToEndV1(harness: LabHarnessV1): Promise<readonly str
       ? { kind: "choose", choiceId: "choice.e2e.cal.basic" }
       : pending.kind === "presentation_barrier"
       ? { kind: "barrier_completed", transitionId: pending.expectedTransitionId }
-      : pending.kind === "pause"
-      ? { kind: "resume" }
+      : pending.kind === "hold"
+      ? { kind: "hold_tick", elapsedMs: pending.remainingMs }
       : pending.kind === "custom"
       ? { kind: "custom", payload: { value: 2 } }
       : { kind: "advance" };

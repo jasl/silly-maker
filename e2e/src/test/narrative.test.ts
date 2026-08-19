@@ -68,7 +68,7 @@ async function playCalibrationV1(
   );
   await dispatchCommittedV1(
     harness,
-    resolveV1(pendingV1(harness).occurrenceId, { kind: "resume" }),
+    resolveV1(pendingV1(harness).occurrenceId, { kind: "hold_tick", elapsedMs: 400 }),
   );
   await dispatchCommittedV1(
     harness,
@@ -156,9 +156,32 @@ describe("Engine Lab pending interactions", () => {
       }),
     );
 
-    const pause = pendingV1(harness);
-    expect(pause).toMatchObject({ kind: "pause", durationMs: 400, skippable: true });
-    await dispatchCommittedV1(harness, resolveV1(pause.occurrenceId, { kind: "resume" }));
+    const hold = pendingV1(harness);
+    expect(hold).toMatchObject({
+      kind: "hold",
+      totalMs: 400,
+      remainingMs: 400,
+      skippable: true,
+    });
+
+    // Partial hold ticks decrement the authoritative remaining
+    // milliseconds without consuming the boundary: the occurrence stays
+    // stable, and only the tick that reaches zero advances the script.
+    await dispatchCommittedV1(
+      harness,
+      resolveV1(hold.occurrenceId, { kind: "hold_tick", elapsedMs: 150 }),
+    );
+    const stillHolding = pendingV1(harness);
+    expect(stillHolding).toMatchObject({
+      kind: "hold",
+      occurrenceId: hold.occurrenceId,
+      totalMs: 400,
+      remainingMs: 250,
+    });
+    await dispatchCommittedV1(
+      harness,
+      resolveV1(hold.occurrenceId, { kind: "hold_tick", elapsedMs: 250 }),
+    );
 
     const dial = pendingV1(harness);
     expect(dial).toMatchObject({ kind: "custom", surfaceId: "surface.e2e.calibration" });
@@ -288,8 +311,11 @@ describe("Engine Lab pending interactions", () => {
         transitionId: "transition.e2e.bg-crossfade",
       }),
     );
-    const pause = pendingV1(harness);
-    await dispatchCommittedV1(harness, resolveV1(pause.occurrenceId, { kind: "resume" }));
+    const hold = pendingV1(harness);
+    await dispatchCommittedV1(
+      harness,
+      resolveV1(hold.occurrenceId, { kind: "hold_tick", elapsedMs: 400 }),
+    );
     const dial = pendingV1(harness);
     expect(
       await harness.dispatch(
@@ -412,7 +438,7 @@ describe("Engine Lab pending interactions", () => {
         transitionId: "transition.e2e.bg-crossfade",
       }),
     );
-    expect(pendingV1(harness).kind).toBe("pause");
+    expect(pendingV1(harness).kind).toBe("hold");
     await harness.dispose();
   });
 

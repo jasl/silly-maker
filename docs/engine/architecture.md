@@ -601,7 +601,14 @@ aggregate configuration from separately supplied registry, authority, kernel,
 definition-sidecar, schema, or slot-descriptor values and then authenticate
 their pairing. The live families consume the composition-owned typed bundle
 directly; the historical exact aggregate records remain delivery evidence, not
-a current package-internal admission contract.
+a current package-internal admission contract. The authoritative hold clock
+lane (2026-08-19, M1) likewise supersedes the `pause` vocabulary below: the
+`pause` kind and `resume` resolution merged into `hold`/`hold_tick`, the
+pause-resume physical mapping became the hold-skip fold (same
+`narrative.resume` action id; the fold proposes the frame's authoritative
+`remainingMs` as one `hold_tick`), and the pause-expiry controller became the
+hold-expiry controller with the same binding, staleness, and dispatch
+discipline described below.
 
 A dormant, source-relative stable composite seam now reuses that same internal
 kernel. It binds admitted targets to exact registry/configuration provenance,

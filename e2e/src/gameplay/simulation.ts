@@ -745,8 +745,21 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
           if (outcome.kind === "rejected") {
             return transaction.reject({ code: outcome.code });
           }
+          const continuation = labNarrativeAfterResolutionV1(state.narrative, command.resolution);
+          if (continuation.kind === "holding") {
+            // A partial hold tick decrements the authoritative remaining
+            // milliseconds without consuming the pending boundary: the
+            // same occurrence stays pending and the script does not run.
+            transaction.propose(narrativeModuleV1, {
+              kind: "resolve",
+              expectedOccurrenceId: command.expectedOccurrenceId,
+              resolution: command.resolution,
+              next: continuation.narrative,
+            });
+            return transaction.complete();
+          }
           const run = runLabNarrativeUntilInteractionV1(
-            labNarrativeAfterResolutionV1(state.narrative, command.resolution),
+            continuation.narrative,
             state.stage,
           );
           transaction.propose(narrativeModuleV1, {

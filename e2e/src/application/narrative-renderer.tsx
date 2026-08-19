@@ -221,9 +221,9 @@ function LabPendingNarrativeV1(
     );
   }
 
-  if (pending.kind === "pause") {
+  if (pending.kind === "hold") {
     return (
-      <div data-lab-interaction="pause" data-lab-occurrence={pending.occurrenceId}>
+      <div data-lab-interaction="hold" data-lab-occurrence={pending.occurrenceId}>
         <p>{labUiTextV1("text.e2e.lab.narrative.cal.waiting")}</p>
         {pending.skippable
           ? (

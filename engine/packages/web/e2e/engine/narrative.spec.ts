@@ -65,7 +65,7 @@ test.describe("engine pending interactions", () => {
     await expect(page.getByRole("button", { name: "精密校准" })).toBeEnabled();
 
     // Choose; the acknowledged background crossfade confirms the barrier,
-    // and the pause auto-resumes into the custom surface. The test observes
+    // and the hold expires into the custom surface. The test observes
     // boundaries, never sleeps.
     await page.getByRole("button", { name: "直接校准" }).click();
     await expect(page.locator("[data-lab-interaction='custom']")).toBeVisible({

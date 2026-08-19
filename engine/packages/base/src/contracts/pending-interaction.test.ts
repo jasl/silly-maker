@@ -39,14 +39,6 @@ describe("PendingInteractionV1", () => {
         advancePolicy: "confirm",
       },
       {
-        kind: "pause",
-        definitionId: "interaction.test.legacy-pause",
-        seenRevision: 1,
-        occurrenceId: interactionOccurrenceIdV1(2),
-        durationMs: 400,
-        skippable: true,
-      },
-      {
         // A mid-hold Save shape: partial progress already committed.
         kind: "hold",
         definitionId: "interaction.test.hold",
@@ -399,13 +391,10 @@ describe("PendingInteractionV1", () => {
         parseInteractionResolutionV1({ kind: "hold_tick", elapsedMs: 500 }),
       ),
     ).toEqual({ kind: "rejected", code: "interaction.occurrence_mismatch" });
-    expect(
-      evaluateInteractionResolutionV1(
-        hold,
-        hold.occurrenceId,
-        parseInteractionResolutionV1({ kind: "resume" }),
-      ),
-    ).toEqual({ kind: "rejected", code: "interaction.kind_mismatch" });
+    // The deleted pause vocabulary stays deleted: `resume` no longer parses.
+    expect(() => parseInteractionResolutionV1({ kind: "resume" })).toThrow(
+      "resolution_kind_invalid",
+    );
     expect(
       evaluateInteractionResolutionV1(
         hold,

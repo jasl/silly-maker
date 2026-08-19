@@ -155,11 +155,6 @@ export type PendingInteractionV1 =
     readonly options: readonly InteractionChoiceOptionV1[];
   })
   | (PendingInteractionBaseV1 & {
-    readonly kind: "pause";
-    readonly durationMs: number;
-    readonly skippable: boolean;
-  })
-  | (PendingInteractionBaseV1 & {
     readonly kind: "hold";
     readonly totalMs: number;
     readonly remainingMs: number;
@@ -179,7 +174,6 @@ export type PendingInteractionV1 =
 export type InteractionResolutionV1 =
   | { readonly kind: "advance" }
   | { readonly kind: "choose"; readonly choiceId: string }
-  | { readonly kind: "resume" }
   | { readonly kind: "hold_tick"; readonly elapsedMs: number }
   | { readonly kind: "barrier_completed"; readonly transitionId: string }
   | { readonly kind: "custom"; readonly payload: StrictJsonObjectV1 };
@@ -273,19 +267,6 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
         options: freezeInteractionDataInternalV1(options),
       });
     }
-    case "pause": {
-      const record = readExactRecord(
-        value,
-        [...interactionBaseKeysV1, "durationMs", "skippable"],
-        path,
-      );
-      return freezeInteractionDataInternalV1({
-        kind,
-        ...parseInteractionBaseV1(record, path),
-        durationMs: parsePositiveDurationMsV1(record.durationMs, `${path}/durationMs`),
-        skippable: parseBooleanV1(record.skippable, `${path}/skippable`),
-      });
-    }
     case "hold": {
       const record = readExactRecord(
         value,
@@ -359,8 +340,7 @@ export function parseInteractionResolutionV1(
   }
   const kind = (value as { readonly kind?: unknown }).kind;
   switch (kind) {
-    case "advance":
-    case "resume": {
+    case "advance": {
       readExactRecord(value, ["kind"], path);
       return freezeInteractionDataInternalV1({ kind });
     }
@@ -436,7 +416,6 @@ const resolutionKindForInteractionV1: Readonly<
 > = freezeInteractionDataInternalV1({
   say: "advance",
   choice: "choose",
-  pause: "resume",
   hold: "hold_tick",
   presentation_barrier: "barrier_completed",
   custom: "custom",
