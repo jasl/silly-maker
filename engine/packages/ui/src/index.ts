@@ -279,6 +279,7 @@ export {
   createAnimationFramePresentationClockV1,
   createManualPresentationClockV1,
   createPresentationFreezePortV1,
+  createPresentationRatePortV1,
   createPresentationRunV1,
   easeInOutV1,
 } from "./presentation-run/index.ts";
@@ -288,6 +289,8 @@ export type {
   PresentationClockV1,
   PresentationFreezePortV1,
   PresentationFreezeStateV1,
+  PresentationRatePortV1,
+  PresentationRateStateV1,
   PresentationRunOutcomeV1,
   PresentationRunStatusV1,
   PresentationRunV1,

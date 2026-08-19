@@ -56,11 +56,12 @@ import type {
 import {
   createDevDockControlV1,
   createPresentationFreezePortV1,
+  createPresentationRatePortV1,
   DefaultGameRootV1,
   defaultGameRootLabelsV1,
   installNativeBehaviorResetV1,
 } from "@sillymaker/ui";
-import type { PresentationFreezePortV1 } from "@sillymaker/ui";
+import type { PresentationFreezePortV1, PresentationRatePortV1 } from "@sillymaker/ui";
 import {
   createHostedGameUiCompositionInternalV1,
   sealHostedGameUiCompositionTerminalInternalV1,
@@ -310,6 +311,15 @@ export interface WebGameApplicationV1<
      * Story's mounted `SemanticStageV1` so stage motion freezes too.
      */
     readonly presentationFreeze: PresentationFreezePortV1;
+    /**
+     * Presentation playback rate (time scaling): `setRate()` multiplies the
+     * shared presentation clock from this instant on. Presentation-only —
+     * the authoritative core consumes already-scaled reported milliseconds,
+     * so Saves, digests, and replay are untouched. Stories bind fast-forward
+     * (e.g. hold Ctrl → pin 2×) to this port; the engine debug dock renders
+     * a preset row from the same port.
+     */
+    readonly presentationRate: PresentationRatePortV1;
     /**
      * Core wipe: drain pending Auto Save, then clear every slot. A Story
      * debug dock must use this instead of looping `savePort.clear`.
@@ -775,10 +785,15 @@ export async function startWebGameApplicationV1<
     });
     instanceLease = instanceLeaseCoordinator;
     const devDockControl = createDevDockControlV1();
-    // One shared pausable presentation clock: narrative reveal and hosted
-    // surfaces consume it directly; Stories pass `presentationFreeze.clock`
-    // to their mounted stages so 冻结画面 holds every plane together.
-    const presentationFreeze = createPresentationFreezePortV1();
+    // One shared pausable, rate-scalable presentation clock: the rate port
+    // wraps the raw host clock (debug 倍速 / Story fast-forward), the freeze
+    // port wraps the rate port, and narrative reveal plus hosted surfaces
+    // consume the result directly; Stories pass `presentationFreeze.clock`
+    // to their mounted stages so 冻结画面 and 倍速 hold every plane together.
+    const presentationRate = createPresentationRatePortV1();
+    const presentationFreeze = createPresentationFreezePortV1({
+      inner: presentationRate.clock,
+    });
     const clearAllSaves = (): Promise<void> =>
       clearAllCoreApplicationSavesForMaintenanceInternalV1(instance);
     const reloadCurrentState = async (): Promise<void> => {
@@ -813,6 +828,7 @@ export async function startWebGameApplicationV1<
       capabilities,
       devDockControl,
       presentationFreeze,
+      presentationRate,
       clearAllSaves,
       reportFailure,
     });
@@ -1004,6 +1020,7 @@ export async function startWebGameApplicationV1<
           ...(uiDefinition.devDockChip === undefined ? {} : { chip: uiDefinition.devDockChip }),
           control: devDockControl,
           freeze: presentationFreeze,
+          rate: presentationRate,
           observeOpenState: (state: DevDockOpenStateV1) => {
             devDockOpenState = state;
           },
