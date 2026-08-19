@@ -104,6 +104,27 @@ Story 侧注册监视器定义：
 - 顺序确定性：监视器推进序 = 注册序（MV 事件 ID 序的等价物）；时间报
   告与输入 resolution 的交错由命令日志如实记录，回放同序。
 
+### 3a. 倍速与跳过（fast-forward / skip；推荐形态，未裁决）
+
+VN 惯例的加速（按住 Ctrl 二倍速）不是 Host 时间源的副作用，而是本合同
+刻意留出的自由度，拆成两个既有概念：
+
+- **倍速 = 时间缩放（timeScale）**：Host 报时前给真实流逝乘播放速率
+  （Unity `Time.timeScale` / HTML 媒体 `playbackRate` 同款）。真实 1s
+  报 2,000ms，命令日志记录的就是 2,000ms——回放逐毫秒一致，digest 与
+  速率无关；批切不变性保证「同样总毫秒，快报慢报终态相同」。滴与换帧
+  照常发生，只是真实世界里更快。速率与偏好存 Host profile（settings
+  namespace，同 auto/skip 偏好），不进 State、Save、digest。
+- **跳过 = 折叠（fold）**：skippable hold 的余量一次折清（既有
+  `narrative.resume` 词汇）；skip 模式即自动折叠连续的 skippable
+  hold，不需要新机制。
+- **公平性提示**：唯一的真问题是交互计时窗——决策 gauge 在 2x 下玩家
+  反应窗减半，这是游戏设计问题而非确定性问题。沿 `skippable` 先例给
+  hold/监视器加声明式节奏提示（工作名 `pace: cinematic | realtime`）：
+  cinematic 可缩放可折叠；realtime 窗 Host 不应用倍速、skip 至此停
+  （Ren'Py skip 在菜单前停下的同款惯例）。提示只约束 Host 行为，不进
+  权威算术。
+
 ### 4. 与 HUD / 表现
 
 投影读会话观察面的累积毫秒（与 hold 条读 pending 剩余同款），不开第二
@@ -205,7 +226,8 @@ durability 车道一起领——该车道本就拥有持久化编排与崩溃语
    互期滴各一条活路径在同一车道交付，不做逐型分期。
 
 剩余开放（随实现车道定，不阻塞接受）：唯一时间动词与事件家族的最终命
-名、admission 字段名、事件日志的诊断缓冲上界。
+名、admission 字段名、事件日志的诊断缓冲上界、`pace` 提示的字段形态
+（§3a，倍速/跳过策略）。
 
 ## 验收草案（随接受锁定）
 
