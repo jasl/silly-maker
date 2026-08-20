@@ -500,6 +500,7 @@ export type {
   TimeTickV1,
 } from "./time-tick.ts";
 export {
+  anyRealtimeMonitorActiveV1,
   parseMonitorAccumulatorV1,
   parseMonitorDeclarationsV1,
   settleMonitorsV1,
@@ -507,6 +508,7 @@ export {
 export type {
   MonitorAccumulatorV1,
   MonitorDeclarationV1,
+  MonitorPaceV1,
   MonitorRetentionV1,
   MonitorSettlementV1,
 } from "./authoritative-monitor.ts";

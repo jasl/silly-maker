@@ -435,6 +435,47 @@ describe("PendingInteractionV1", () => {
     expect(afterPartial.pending.remainingMs).toBe(1250);
   });
 
+  it("admits the optional pace hint and keeps it across partial ticks", () => {
+    const realtimeRawV1 = {
+      kind: "hold",
+      definitionId: "interaction.test.reaction-window",
+      seenRevision: 1,
+      occurrenceId: interactionOccurrenceIdV1(13),
+      totalMs: 900,
+      remainingMs: 900,
+      skippable: true,
+      pace: "realtime",
+    };
+    const realtime = parsePendingInteractionV1(realtimeRawV1);
+    if (realtime.kind !== "hold") throw new Error("expected hold");
+    expect(realtime.pace).toBe("realtime");
+    expect(
+      (() => {
+        const explicit = parsePendingInteractionV1({ ...realtimeRawV1, pace: "cinematic" });
+        return explicit.kind === "hold" ? explicit.pace : null;
+      })(),
+    ).toBe("cinematic");
+    // The canonical shape omits the member when the block does not declare
+    // a pace, so earlier holds stay byte-identical (cinematic by absence).
+    const { pace: _omitted, ...plainRawV1 } = realtimeRawV1;
+    const plain = parsePendingInteractionV1(plainRawV1);
+    if (plain.kind !== "hold") throw new Error("expected hold");
+    expect(Object.hasOwn(plain, "pace")).toBe(false);
+
+    for (const pace of ["fast", "", 1, null, true]) {
+      expect(() => parsePendingInteractionV1({ ...realtimeRawV1, pace })).toThrow(
+        "pace_invalid",
+      );
+    }
+
+    // The hint is Host vocabulary: hold arithmetic ignores it but carries
+    // it across partial ticks so mid-window Saves keep the declaration.
+    const afterPartial = applyElapsedToHoldV1(realtime, 300);
+    if (afterPartial.kind !== "holding") throw new Error("expected holding");
+    expect(afterPartial.pending.pace).toBe("realtime");
+    expect(afterPartial.pending.remainingMs).toBe(600);
+  });
+
   it("fences barriers by transition identity and customs by payload schema", () => {
     const barrier = parsePendingInteractionV1({
       kind: "presentation_barrier",

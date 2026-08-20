@@ -15,3 +15,5 @@ export type {
   PresentationRunStatusV1,
   PresentationRunV1,
 } from "./presentation-run.ts";
+export { createSessionTimeReporterV1 } from "./session-time-reporter.ts";
+export type { SessionTimeReporterV1 } from "./session-time-reporter.ts";

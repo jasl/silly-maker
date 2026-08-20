@@ -22,6 +22,9 @@ const invalidRevision3StateV1 = parseSaveStateMigrationReasonCodeV1(
 const invalidRevision4StateV1 = parseSaveStateMigrationReasonCodeV1(
   "migration.engine-lab.invalid-revision-4-state",
 );
+const invalidRevision5StateV1 = parseSaveStateMigrationReasonCodeV1(
+  "migration.engine-lab.invalid-revision-5-state",
+);
 
 export const labStateContractIdentityRevision3V1: SaveStateContractIdentityV1 = Object.freeze({
   stateContractRevision: parsePositiveSafeInteger(3),
@@ -37,10 +40,17 @@ export const labStateContractIdentityRevision4V1: SaveStateContractIdentityV1 = 
   ),
 });
 
-export const labCurrentStateContractIdentityV1: SaveStateContractIdentityV1 = Object.freeze({
+export const labStateContractIdentityRevision5V1: SaveStateContractIdentityV1 = Object.freeze({
   stateContractRevision: parsePositiveSafeInteger(5),
   stateContractDigest: parseDigest(
     "sha256:c6407d9e0b5bd4d93fbe6e54d61fc62f59d209892d71a663a70190a4970735e3",
+  ),
+});
+
+export const labCurrentStateContractIdentityV1: SaveStateContractIdentityV1 = Object.freeze({
+  stateContractRevision: parsePositiveSafeInteger(6),
+  stateContractDigest: parseDigest(
+    "sha256:2919caedc31ba996a3c48091b70d78d7ae002e2049f2dd3ddd1ccb8b5f16628a",
   ),
 });
 
@@ -131,6 +141,36 @@ export const migrateLabStateRevision4To5V1: SaveStateMigrationStepV1["migrate"] 
   });
 };
 
+export const migrateLabStateRevision5To6V1: SaveStateMigrationStepV1["migrate"] = (state) => {
+  const root = jsonObjectV1(state);
+  const simulation = jsonObjectV1(root?.simulation);
+  if (
+    root === null || simulation === null || !Object.hasOwn(simulation, "wallet") ||
+    Object.hasOwn(simulation, "monitors")
+  ) {
+    return rejectedV1(invalidRevision5StateV1);
+  }
+  // Revision 6 adds the lab.monitors slice: no monitor had existed, so the
+  // initial value (empty accumulator, zero counters, collector off) is the
+  // only faithful backfill.
+  return Object.freeze({
+    kind: "migrated" as const,
+    state: Object.freeze({
+      ...root,
+      simulation: Object.freeze({
+        ...simulation,
+        monitors: Object.freeze({
+          accumulator: Object.freeze({}),
+          gaugeLevel: 0,
+          ambientIgnitions: 0,
+          collectorEngaged: false,
+          collectorUnits: 0,
+        }),
+      }),
+    }),
+  });
+};
+
 const emptyReferenceChangesV1 = Object.freeze({
   renames: Object.freeze([]),
   deletions: Object.freeze([]),
@@ -153,9 +193,17 @@ export const labSaveStateMigrationRegistryV1 = defineSaveStateMigrationRegistryV
       migrationId: parseSaveStateMigrationIdV1("migration.engine-lab.revision-4-to-5"),
       namespace: namespaceV1,
       from: labStateContractIdentityRevision4V1,
-      to: labCurrentStateContractIdentityV1,
+      to: labStateContractIdentityRevision5V1,
       references: emptyReferenceChangesV1,
       migrate: migrateLabStateRevision4To5V1,
+    }),
+    Object.freeze({
+      migrationId: parseSaveStateMigrationIdV1("migration.engine-lab.revision-5-to-6"),
+      namespace: namespaceV1,
+      from: labStateContractIdentityRevision5V1,
+      to: labCurrentStateContractIdentityV1,
+      references: emptyReferenceChangesV1,
+      migrate: migrateLabStateRevision5To6V1,
     }),
   ]),
 });

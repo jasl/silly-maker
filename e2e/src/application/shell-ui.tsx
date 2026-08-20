@@ -28,6 +28,8 @@ const labActionTextIdsV1: Readonly<Record<LabActionIdV1, string>> = Object.freez
   "lab.advance_procedure": "text.e2e.lab.action.advance_procedure",
   "lab.run_experiment": "text.e2e.lab.action.run_experiment",
   "lab.begin_calibration": "text.e2e.lab.action.begin_calibration",
+  "lab.begin_drill": "text.e2e.lab.action.begin_drill",
+  "lab.toggle_collector": "text.e2e.lab.action.toggle_collector",
   "lab.sell_sample": "text.e2e.lab.action.sell_sample",
   "lab.buy_banner": "text.e2e.lab.action.buy_banner",
 });
@@ -124,12 +126,26 @@ export function LabHudV1(props: {
   readonly publication: DeepReadonly<LabUiPublicationV1>;
   readonly semantic: LabSemanticPortV1;
 }): ReactElement {
+  const monitors = props.publication.semantic.game.monitors;
   return (
     <div data-lab-hud="true">
       <p>
         {labUiTextV1("text.e2e.lab.hud.samples")}
         {String(props.publication.view.samplesCollected)} · {labUiTextV1("text.e2e.lab.hud.steps")}
         {String(props.publication.view.procedureSteps)}
+      </p>
+      <p
+        data-lab-monitors="true"
+        data-lab-gauge-level={String(monitors.gaugeLevel)}
+        data-lab-ambient-ignitions={String(monitors.ambientIgnitions)}
+        data-lab-collector-units={String(monitors.collectorUnits)}
+        data-lab-collector-engaged={monitors.collectorEngaged ? "true" : "false"}
+        data-lab-realtime-active={monitors.realtimeActive ? "true" : "false"}
+      >
+        {labUiTextV1("text.e2e.lab.monitors.gauge")}
+        {String(monitors.gaugeLevel)} · {labUiTextV1("text.e2e.lab.monitors.ambient")}
+        {String(monitors.ambientIgnitions)} · {labUiTextV1("text.e2e.lab.monitors.collector")}
+        {String(monitors.collectorUnits)}
       </p>
       <div role="group" aria-label="实验操作">
         {props.publication.semantic.actions.map((action) => (

@@ -135,6 +135,7 @@ export type {
 // Authoritative monitors (current generation: V1).
 // ---------------------------------------------------------------------------
 export {
+  anyRealtimeMonitorActiveV1 as anyRealtimeMonitorActive,
   parseMonitorAccumulatorV1 as parseMonitorAccumulator,
   parseMonitorDeclarationsV1 as parseMonitorDeclarations,
   settleMonitorsV1 as settleMonitors,
@@ -142,6 +143,7 @@ export {
 export type {
   MonitorAccumulatorV1 as MonitorAccumulator,
   MonitorDeclarationV1 as MonitorDeclaration,
+  MonitorPaceV1 as MonitorPace,
   MonitorRetentionV1 as MonitorRetention,
   MonitorSettlementV1 as MonitorSettlement,
 } from "../index.ts";

@@ -30,11 +30,14 @@ import {
   evaluateTimeTickV1,
   parseInteractionOccurrenceIdV1,
   parseInteractionResolutionV1,
+  parseMonitorAccumulatorV1,
   parseNonNegativeSafeInteger,
   parseStageMutationV1,
   parseTimeTickV1,
   reduceStageMutationsV1,
+  settleMonitorsV1,
 } from "@sillymaker/base";
+import type { MonitorAccumulatorV1 } from "@sillymaker/base";
 
 import type { LabGameStateV1, LabProcedureStateV1 } from "./state.ts";
 import {
@@ -47,14 +50,27 @@ import {
   labWalletStateSchemaV1,
 } from "./state.ts";
 import { projectLabAudioIntentV1 } from "./audio.ts";
+import type { LabMonitorsStateV1 } from "./monitors.ts";
+import {
+  createInitialLabMonitorsStateV1,
+  labGaugeMonitorIdV1,
+  labMonitorAccumulatorEqualV1,
+  labMonitorDeclarationsV1,
+  labMonitorRealtimeActiveV1,
+  labMonitorReportingActiveV1,
+  labMonitorsStateSchemaV1,
+} from "./monitors.ts";
 import type { LabNarrativeStateV1 } from "./narrative.ts";
 import {
   createInitialLabNarrativeStateV1,
   labChoiceOptionsForV1,
+  labDrillDecisionDefinitionIdV1,
+  labDrillReleaseChoiceIdV1,
   labInteractionContextV1,
   labNarrativeAfterResolutionV1,
   labNarrativeAfterTimeTickV1,
   labNarrativeAtBeginV1,
+  labNarrativeAtDrillBeginV1,
   runLabNarrativeUntilInteractionV1,
 } from "./narrative.ts";
 import {
@@ -72,6 +88,8 @@ export type LabCommandV1 =
   | { readonly kind: "lab.advance_procedure" }
   | { readonly kind: "lab.run_experiment" }
   | { readonly kind: "lab.begin_calibration" }
+  | { readonly kind: "lab.begin_drill" }
+  | { readonly kind: "lab.toggle_collector" }
   | { readonly kind: "lab.sell_sample" }
   | { readonly kind: "lab.buy_banner" }
   | {
@@ -83,10 +101,12 @@ export type LabCommandV1 =
     /**
      * The Lab's carrier for the session-level time verb: one commit
      * settles every authoritative time consumer. A hold-fenced tick folds
-     * the pending hold's remainder (stale fences reject the whole
-     * command); an unfenced tick settles only session-global consumers and
-     * never touches a hold — none are registered yet, so it commits as an
-     * observable no-op with an empty journal.
+     * the pending hold's remainder first (stale fences reject the whole
+     * command); every accepted tick then settles the declared monitors
+     * with the same reported milliseconds — parallel clocks measuring the
+     * same span, never a split. An unfenced tick with no active monitor
+     * still commits with an empty journal, the observable proof that a
+     * global tick never touches a pending hold.
      */
     readonly kind: "lab.time_tick";
     readonly tick: TimeTickV1;
@@ -114,6 +134,19 @@ export type LabEventV1 =
     readonly kind: "lab.interaction_resolved";
     readonly definitionId: string;
     readonly occurrenceId: string;
+  }
+  // Monitor crossings (declared payloads) and their bookkeeping: settlement
+  // emits one crossing event per threshold and one accumulator update per
+  // settling commit that changed it.
+  | { readonly kind: "lab.gauge_charged" }
+  | { readonly kind: "lab.ambient_ignited" }
+  | { readonly kind: "lab.collector_dripped" }
+  | { readonly kind: "lab.monitors_settled"; readonly accumulator: MonitorAccumulatorV1 }
+  | { readonly kind: "lab.collector_toggled"; readonly engaged: boolean }
+  | {
+    /** Closing the drill decision: `level` is what the release captured (0 on vent). */
+    readonly kind: "lab.gauge_captured";
+    readonly level: number;
   };
 
 export type LabRejectionCodeV1 =
@@ -148,6 +181,11 @@ export interface LabQueriesV1 {
   readonly procedureSteps: number;
   readonly stage: SemanticStageStateV1;
   readonly narrative: LabNarrativeStateV1;
+  readonly monitors: LabMonitorsStateV1;
+  /** Whether any declared monitor is accumulating (the Host reporting gate). */
+  readonly monitorReportingActive: boolean;
+  /** Whether a realtime-pace monitor is up (the Host rate-pin gate). */
+  readonly monitorRealtimeActive: boolean;
 }
 
 export interface LabNarrativeChoiceOptionViewV1 {
@@ -168,6 +206,18 @@ export interface LabNarrativeViewV1 {
   readonly history: NarrativeHistoryV1;
 }
 
+/** The monitor drill's published face: counters plus the two Host gates. */
+export interface LabMonitorsViewV1 {
+  readonly gaugeLevel: number;
+  readonly ambientIgnitions: number;
+  readonly collectorEngaged: boolean;
+  readonly collectorUnits: number;
+  /** Mirrors {@link LabQueriesV1.monitorReportingActive} for the composer. */
+  readonly reportingActive: boolean;
+  /** Mirrors {@link LabQueriesV1.monitorRealtimeActive} for the composer. */
+  readonly realtimeActive: boolean;
+}
+
 export interface LabGameViewV1 {
   readonly samplesCollected: number;
   readonly credits: number;
@@ -178,6 +228,7 @@ export interface LabGameViewV1 {
   readonly stage: SemanticStageStateV1;
   /** The continuous audio intent derived purely from saved State. */
   readonly audio: AudioIntentV1;
+  readonly monitors: LabMonitorsViewV1;
 }
 
 export interface LabBootstrapInputV1 {
@@ -259,6 +310,8 @@ const commandSchemaV1: RuntimeSchemaV1<LabCommandV1> = Object.freeze({
       kind !== "lab.advance_procedure" &&
       kind !== "lab.run_experiment" &&
       kind !== "lab.begin_calibration" &&
+      kind !== "lab.begin_drill" &&
+      kind !== "lab.toggle_collector" &&
       kind !== "lab.sell_sample" &&
       kind !== "lab.buy_banner"
     ) {
@@ -359,6 +412,33 @@ export const labEventSchemaV1: RuntimeSchemaV1<LabEventV1> = Object.freeze({
         definitionId: record.definitionId,
         occurrenceId: parseInteractionOccurrenceIdV1(record.occurrenceId),
       });
+    }
+    if (
+      kind === "lab.gauge_charged" ||
+      kind === "lab.ambient_ignited" ||
+      kind === "lab.collector_dripped"
+    ) {
+      if (keys !== "kind") throw new TypeError(`invalid lab ${kind} event`);
+      return Object.freeze({ kind });
+    }
+    if (kind === "lab.monitors_settled") {
+      if (keys !== "accumulator\0kind") {
+        throw new TypeError("invalid lab monitors_settled event");
+      }
+      return Object.freeze({
+        kind,
+        accumulator: parseMonitorAccumulatorV1(record.accumulator, "/accumulator"),
+      });
+    }
+    if (kind === "lab.collector_toggled") {
+      if (keys !== "engaged\0kind" || typeof record.engaged !== "boolean") {
+        throw new TypeError("invalid lab collector_toggled event");
+      }
+      return Object.freeze({ kind, engaged: record.engaged });
+    }
+    if (kind === "lab.gauge_captured") {
+      if (keys !== "kind\0level") throw new TypeError("invalid lab gauge_captured event");
+      return Object.freeze({ kind, level: parseNonNegativeSafeInteger(record.level) });
     }
     throw new TypeError("invalid lab event kind");
   },
@@ -475,6 +555,36 @@ const narrativeModuleV1 = kit.defineStatefulModule({
   },
 });
 
+const monitorsModuleV1 = kit.defineStatefulModule({
+  id: "lab.monitors",
+  contractRevision: 1,
+  state: {
+    slot: "simulation.monitors",
+    schema: labMonitorsStateSchemaV1,
+    initial: () => createInitialLabMonitorsStateV1(),
+  },
+  commandSchema: commandSchemaV1,
+  reducers: {
+    // Crossing events carry no payload by design: each one means "count one
+    // more crossing", so folding is pure increment and batch splits of the
+    // same elapsed sum produce identical counters.
+    "lab.gauge_charged": (state) => Object.freeze({ ...state, gaugeLevel: state.gaugeLevel + 1 }),
+    "lab.ambient_ignited": (state) =>
+      Object.freeze({ ...state, ambientIgnitions: state.ambientIgnitions + 1 }),
+    "lab.collector_dripped": (state) =>
+      Object.freeze({ ...state, collectorUnits: state.collectorUnits + 1 }),
+    // Settlement emits at most one accumulator update per commit; it carries
+    // the absolute post-settlement record computed from command-start state.
+    "lab.monitors_settled": (state, event) =>
+      Object.freeze({ ...state, accumulator: event.accumulator }),
+    "lab.collector_toggled": (state, event) =>
+      Object.freeze({ ...state, collectorEngaged: event.engaged }),
+    // The capture's `level` is journal evidence (what the release converted);
+    // the fold always resets the gauge for the next decision span.
+    "lab.gauge_captured": (state) => Object.freeze({ ...state, gaugeLevel: 0 }),
+  },
+});
+
 /** Shop economics: selling a sample earns credits, the banner costs them. */
 export const labSampleSalePriceV1 = 2;
 export const labBannerCostV1 = 3;
@@ -499,6 +609,7 @@ const labCompositionV1 = kit.composeModules([
   stageModuleV1,
   narrativeModuleV1,
   walletModuleV1,
+  monitorsModuleV1,
 ]);
 
 type LabModulesV1 = typeof labCompositionV1.modules;
@@ -553,6 +664,26 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
         return null;
       };
 
+      // Every accepted time tick settles the declared monitors with the full
+      // reported milliseconds — after the hold fold when one is pending.
+      // Predicates and the accumulator read command-start state, so the
+      // settlement depends only on the millisecond sum, never the batching.
+      const settleSessionTime = (
+        transaction: { emit(event: LabEventV1): void },
+        elapsedMs: number,
+      ) => {
+        const settlement = settleMonitorsV1({
+          declarations: labMonitorDeclarationsV1,
+          accumulator: state.monitors.accumulator,
+          elapsedMs,
+          state,
+        });
+        for (const event of settlement.events) transaction.emit(event);
+        if (!labMonitorAccumulatorEqualV1(settlement.accumulator, state.monitors.accumulator)) {
+          transaction.emit({ kind: "lab.monitors_settled", accumulator: settlement.accumulator });
+        }
+      };
+
       if (command.kind === "lab.collect_sample") {
         const sampleYield =
           rng.nextInt(Object.freeze({ purpose: "check:lab.sample_yield", exclusiveMax: 3 })) + 1;
@@ -568,18 +699,30 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
         });
       }
 
-      if (command.kind === "lab.begin_calibration") {
+      if (command.kind === "lab.begin_calibration" || command.kind === "lab.begin_drill") {
+        const entry = command.kind === "lab.begin_calibration"
+          ? labNarrativeAtBeginV1
+          : labNarrativeAtDrillBeginV1;
         return labTransactionRunnerV1.execute(snapshot, rng, (transaction) => {
           if (state.narrative.pending !== null) {
             return transaction.reject({ code: "lab.narrative_busy" });
           }
-          const run = runLabNarrativeUntilInteractionV1(
-            labNarrativeAtBeginV1(state.narrative),
-            state.stage,
-          );
+          const run = runLabNarrativeUntilInteractionV1(entry(state.narrative), state.stage);
           transaction.emit({ kind: "lab.narrative_advanced", next: run.narrative });
           const stageRejection = emitStage(transaction, run.stageMutations);
           if (stageRejection !== null) return transaction.reject({ code: stageRejection });
+          return transaction.complete();
+        });
+      }
+
+      if (command.kind === "lab.toggle_collector") {
+        // The pending-independent drip switch: legal at any time, even with
+        // an interaction pending — that independence is the archetype.
+        return labTransactionRunnerV1.execute(snapshot, rng, (transaction) => {
+          transaction.emit({
+            kind: "lab.collector_toggled",
+            engaged: !state.monitors.collectorEngaged,
+          });
           return transaction.complete();
         });
       }
@@ -594,10 +737,10 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
             return transaction.reject({ code: outcome.code });
           }
           if (outcome.hold === null) {
-            // An unfenced tick settles only session-global time consumers.
-            // None are registered yet, so it commits with an empty journal —
-            // an observable no-op that proves the scope rule: a global tick
-            // never touches a pending hold.
+            // An unfenced tick settles only session-global time consumers —
+            // it never touches a pending hold. With no active monitor it
+            // commits with an empty journal, the observable scope proof.
+            settleSessionTime(transaction, command.tick.elapsedMs);
             return transaction.complete();
           }
           const continuation = labNarrativeAfterTimeTickV1(state.narrative, command.tick);
@@ -606,6 +749,7 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
             // milliseconds without consuming the pending boundary: the
             // same occurrence stays pending and the script does not run.
             transaction.emit({ kind: "lab.narrative_advanced", next: continuation.narrative });
+            settleSessionTime(transaction, command.tick.elapsedMs);
             return transaction.complete();
           }
           // Expiry consumes the boundary: the script runs to the next
@@ -617,6 +761,7 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
           });
           const run = runLabNarrativeUntilInteractionV1(continuation.narrative, state.stage);
           transaction.emit({ kind: "lab.narrative_advanced", next: run.narrative });
+          settleSessionTime(transaction, command.tick.elapsedMs);
           const stageRejection = emitStage(transaction, run.stageMutations);
           if (stageRejection !== null) return transaction.reject({ code: stageRejection });
           return transaction.complete();
@@ -663,6 +808,40 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
             state.stage,
           );
           transaction.emit({ kind: "lab.narrative_advanced", next: run.narrative });
+          if (
+            pending.definitionId === labDrillDecisionDefinitionIdV1 &&
+            resolution.kind === "choose"
+          ) {
+            // Closing the drill decision converts the gauge atomically:
+            // release captures the charged level as credits, vent captures
+            // nothing; either way the gauge resets for the next span.
+            const captured = resolution.choiceId === labDrillReleaseChoiceIdV1
+              ? state.monitors.gaugeLevel
+              : 0;
+            transaction.emit({ kind: "lab.gauge_captured", level: captured });
+            // Drop the gauge's sub-threshold remainder in the same commit:
+            // `clear` retention only runs inside a time settlement, and the
+            // reporting gate may close with this resolution, so without the
+            // explicit drop a stale partial charge would leak into the next
+            // drill span (and into Saves taken between spans).
+            if (Object.hasOwn(state.monitors.accumulator, labGaugeMonitorIdV1)) {
+              const cleared: Record<string, number> = {};
+              for (const [id, ms] of Object.entries(state.monitors.accumulator)) {
+                if (id !== labGaugeMonitorIdV1) cleared[id] = ms;
+              }
+              transaction.emit({
+                kind: "lab.monitors_settled",
+                accumulator: Object.freeze(cleared),
+              });
+            }
+            if (captured > 0) {
+              transaction.emit({
+                kind: "lab.credits_changed",
+                delta: captured,
+                balance: state.wallet.credits + captured,
+              });
+            }
+          }
           if (consumesSamples > 0) {
             transaction.emit({
               kind: "lab.samples_consumed",
@@ -825,6 +1004,9 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
         procedureSteps: state.simulation.procedure.stepsTaken,
         stage: state.simulation.stage,
         narrative: state.simulation.narrative,
+        monitors: state.simulation.monitors,
+        monitorReportingActive: labMonitorReportingActiveV1(state.simulation),
+        monitorRealtimeActive: labMonitorRealtimeActiveV1(state.simulation),
       });
     },
     projectGameView(queries: LabQueriesV1) {
@@ -836,6 +1018,14 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
         procedureSteps: queries.procedureSteps,
         stage: queries.stage,
         audio: projectLabAudioIntentV1(queries),
+        monitors: Object.freeze({
+          gaugeLevel: queries.monitors.gaugeLevel,
+          ambientIgnitions: queries.monitors.ambientIgnitions,
+          collectorEngaged: queries.monitors.collectorEngaged,
+          collectorUnits: queries.monitors.collectorUnits,
+          reportingActive: queries.monitorReportingActive,
+          realtimeActive: queries.monitorRealtimeActive,
+        }),
       });
     },
   });

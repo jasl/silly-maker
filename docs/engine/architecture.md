@@ -301,6 +301,20 @@ payload that the handler emits through the ordinary `transaction.emit` writer
 — so monitors gain no second write path and batch splits cannot change the
 terminal Snapshot or digest.
 
+The Host half of that loop lives in the composer: a `WebGameUiDefinitionV1`
+may declare `timeReporting` (a report quantum, an `enabledWhen` predicate over
+the live publication, and a dispatch that sends the Story's unfenced time
+command) and `realtimeWindow` (a publication predicate for reaction spans).
+`startWebGameApplication` installs presentation pacing from those
+declarations: a session time reporter (`createSessionTimeReporterV1` in
+`@sillymaker/ui`) batches the composed presentation clock — rate-scaled,
+freeze-aware — into whole-millisecond unfenced ticks while the predicate
+holds, no hold is pending (holds report through the fenced expiry controller),
+and the document is visible; and the presentation rate port pins the effective
+rate to 1× (`pinRealtime`) while a `pace: "realtime"` hold or a declared
+realtime span is active. Wall-clock instants stay inside the Host; authority
+only ever consumes reported integer milliseconds.
+
 The authoritative runtime value is a `GameSnapshot`:
 
 ```text

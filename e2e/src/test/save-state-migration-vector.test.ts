@@ -33,18 +33,27 @@ describe("M2e Save State migration determinism vector", () => {
     }))).toEqual([
       {
         fixtureId: "engine-lab-state-3",
-        callbackCount: 2,
+        callbackCount: 3,
         migrationSteps: [
           "migration.engine-lab.revision-3-to-4",
           "migration.engine-lab.revision-4-to-5",
+          "migration.engine-lab.revision-5-to-6",
         ],
       },
       {
         fixtureId: "engine-lab-state-4",
-        callbackCount: 1,
-        migrationSteps: ["migration.engine-lab.revision-4-to-5"],
+        callbackCount: 2,
+        migrationSteps: [
+          "migration.engine-lab.revision-4-to-5",
+          "migration.engine-lab.revision-5-to-6",
+        ],
       },
-      { fixtureId: "engine-lab-state-5", callbackCount: 0, migrationSteps: [] },
+      {
+        fixtureId: "engine-lab-state-5",
+        callbackCount: 1,
+        migrationSteps: ["migration.engine-lab.revision-5-to-6"],
+      },
+      { fixtureId: "engine-lab-state-6", callbackCount: 0, migrationSteps: [] },
       { fixtureId: "cat-cafe-state-1", callbackCount: 0, migrationSteps: [] },
     ]);
   });

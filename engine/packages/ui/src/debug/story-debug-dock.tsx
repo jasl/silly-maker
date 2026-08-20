@@ -52,6 +52,7 @@ export interface StoryDebugDockLabelsV1 extends SessionMaintenanceLabelsV1 {
   readonly freezeNote: string;
   readonly resumeNote: string;
   readonly rateLabel: string;
+  readonly ratePinnedLabel: string;
   readonly toolOpenedNote: string;
   readonly wipeDialogTitle: string;
   readonly wipeDialogDescription: string;
@@ -83,6 +84,7 @@ export const defaultStoryDebugDockLabelsV1: StoryDebugDockLabelsV1 = Object.free
   freezeNote: "画面已冻结——动画与 gameplay 输入暂停，调试点击照常。",
   resumeNote: "画面已恢复。",
   rateLabel: "倍速",
+  ratePinnedLabel: "实时段 1×",
   toolOpenedNote: "已打开工具窗口（拖动标题栏可移动，Esc 关闭）。",
   exportStateLabel: "导出状态",
   importStateLabel: "导入状态",
@@ -416,6 +418,11 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
     props.presentationRate?.state.subscribe ?? (() => () => undefined),
     () => props.presentationRate?.state.getCurrent().rate ?? 1,
     () => props.presentationRate?.state.getCurrent().rate ?? 1,
+  );
+  const presentationRatePinned = useSyncExternalStore(
+    props.presentationRate?.state.subscribe ?? (() => () => undefined),
+    () => props.presentationRate?.state.getCurrent().pinned ?? false,
+    () => props.presentationRate?.state.getCurrent().pinned ?? false,
   );
   const registry = useSyncExternalStore(
     props.control.panels.subscribe,
@@ -797,6 +804,14 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
                                 </Button>
                               ))}
                             </div>
+                            {presentationRatePinned && (
+                              <span
+                                className={styles["story-debug-dock__rate-pinned"]}
+                                data-debug-dock-rate-pinned=""
+                              >
+                                {labels.ratePinnedLabel}
+                              </span>
+                            )}
                           </div>
                         )}
                       {sceneTools.slice(1).map((tool) => renderToolButtonV1(tool, false))}

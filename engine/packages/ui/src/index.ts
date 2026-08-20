@@ -287,6 +287,7 @@ export {
   createPresentationFreezePortV1,
   createPresentationRatePortV1,
   createPresentationRunV1,
+  createSessionTimeReporterV1,
   easeInOutV1,
 } from "./presentation-run/index.ts";
 export type {
@@ -300,6 +301,7 @@ export type {
   PresentationRunOutcomeV1,
   PresentationRunStatusV1,
   PresentationRunV1,
+  SessionTimeReporterV1,
 } from "./presentation-run/index.ts";
 export {
   InstanceLeaseBannerV1,

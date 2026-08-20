@@ -67,6 +67,7 @@ import {
 import type { PresentationFreezePortV1, PresentationRatePortV1 } from "@sillymaker/ui";
 import {
   createHostedGameUiCompositionInternalV1,
+  resolveOptionalGameUiManagedSurfaceCompositionInternalV1,
   sealHostedGameUiCompositionTerminalInternalV1,
 } from "@sillymaker/ui/internal";
 import type { GameUiPresentationAnchorEventInternalV1 } from "@sillymaker/ui/internal";
@@ -95,6 +96,7 @@ import { createWebApplicationTerminalSupervisorInternalV1 } from "./application-
 import { createCompositionBoundRestartLifecycleInternalV1 } from "./composition-bound-restart-lifecycle.ts";
 import { installDesktopCloseFlushV1 } from "./install-desktop-close-flush.ts";
 import { createManagedSurfaceApplicationEpochAllocatorInternalV1 } from "./managed-surface-application-epoch.ts";
+import { installPresentationPacingInternalV1 } from "./presentation-pacing.ts";
 import {
   createPresentationSuccessorAcknowledgmentBrokerInternalV1,
   type PresentationSuccessorAcknowledgmentBrokerInternalV1,
@@ -212,6 +214,31 @@ export interface WebGameUiDefinitionV1<
   readonly pointer?: boolean;
   /** Spatial interaction surface IDs the intent router accepts. */
   readonly interactionSurfaceIds?: readonly string[];
+  /**
+   * The Host metronome for unfenced session time: while `enabledWhen`
+   * holds over the live presentation publication, the host batches scaled
+   * presentation-clock elapsed into `quantumMs` reports and delivers each
+   * through `dispatch` (the Story's session time command, an unfenced
+   * `TimeTickV1`). Declare it when the Story runs authoritative monitors
+   * that must accumulate outside holds. The host closes the gate on its
+   * own while a hold is pending (hold time arrives through the narrative
+   * surface's fenced ticks — one elapsed span never enters authority
+   * twice) and while the document is hidden.
+   */
+  readonly timeReporting?: {
+    readonly quantumMs: number;
+    readonly enabledWhen: (publication: unknown) => boolean;
+    readonly dispatch: (elapsedMs: number) => Promise<unknown>;
+  };
+  /**
+   * Story-declared realtime reaction window over the live publication:
+   * while true, the host pins the presentation rate to exactly 1x so the
+   * presented duration matches wall time (`pace: "realtime"` monitors
+   * projected into the view — see `anyRealtimeMonitorActive`). Realtime
+   * holds pin automatically from the engine-typed pending; declare this
+   * only for Story-shaped windows the engine cannot see.
+   */
+  readonly realtimeWindow?: (publication: unknown) => boolean;
   /** Optional live stage label (current scene name) for the shell main region. */
   resolveStageAccessibleName?(publication: unknown): string;
   /**
@@ -688,6 +715,7 @@ export async function startWebGameApplicationV1<
   let removeDesktopCloseFlush: (() => void) | undefined;
   let instanceLease: WebInstanceLeasePortV1 | undefined;
   let unbindPresentationFreeze: (() => void) | undefined;
+  let presentationPacing: { dispose(): void } | undefined;
 
   const terminalSupervisor = createWebApplicationTerminalSupervisorInternalV1({
     fenceSteps: Object.freeze([
@@ -726,6 +754,10 @@ export async function startWebGameApplicationV1<
       Object.freeze({
         name: "held_input",
         run: () => heldKeyUninstall?.(),
+      }),
+      Object.freeze({
+        name: "presentation_pacing",
+        run: () => presentationPacing?.dispose(),
       }),
       Object.freeze({
         name: "presentation_freeze",
@@ -985,6 +1017,35 @@ export async function startWebGameApplicationV1<
       hostedSurfaceDefinitions,
     );
     unbindPresentationFreeze = presentationFreeze.bindInputRouterInternalV1(composition.input);
+    // Pacing installs whenever any of its duties can arise: declared time
+    // reporting, a declared realtime span, or a narrative runtime whose
+    // engine-typed `pace: "realtime"` holds must pin the rate even when the
+    // Story declares neither composer member.
+    const pacingNarrative =
+      resolveOptionalGameUiManagedSurfaceCompositionInternalV1(composition)?.narrative ?? null;
+    if (
+      uiDefinition.timeReporting !== undefined || uiDefinition.realtimeWindow !== undefined ||
+      pacingNarrative !== null
+    ) {
+      presentationPacing = installPresentationPacingInternalV1({
+        presentation: composition.presentation,
+        narrative: pacingNarrative,
+        rate: presentationRate,
+        // The freeze-wrapped clock: frozen presentation stops session time
+        // with everything else, and realtime pins reshape hold ticks too.
+        clock: presentationFreeze.clock,
+        timeReporting: uiDefinition.timeReporting ?? null,
+        realtimeWindow: uiDefinition.realtimeWindow ?? null,
+        visibility: Object.freeze({
+          isHidden: () => document.visibilityState === "hidden",
+          subscribe: (listener: () => void) => {
+            document.addEventListener("visibilitychange", listener);
+            return () => document.removeEventListener("visibilitychange", listener);
+          },
+        }),
+        reportFailure,
+      });
+    }
 
     automation = installBrowserAutomationBridgeV1({
       semantic: instance.semantic,

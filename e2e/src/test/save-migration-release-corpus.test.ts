@@ -333,7 +333,7 @@ afterEach(() => {
 });
 
 describe("Engine Lab maintained Save migration release corpus", () => {
-  it("admits exactly the supported revision 3, 4, and 5 fixture inventory", async () => {
+  it("admits exactly the supported revision 3 through 6 fixture inventory", async () => {
     const descriptors = saveMigrationReleaseCorpusV1.filter(({ productId }) =>
       productId === "engine-lab"
     );
@@ -345,11 +345,13 @@ describe("Engine Lab maintained Save migration release corpus", () => {
       { id: "engine-lab-state-3", storyId: "story.e2e.engine-lab", stateContractRevision: 3 },
       { id: "engine-lab-state-4", storyId: "story.e2e.engine-lab", stateContractRevision: 4 },
       { id: "engine-lab-state-5", storyId: "story.e2e.engine-lab", stateContractRevision: 5 },
+      { id: "engine-lab-state-6", storyId: "story.e2e.engine-lab", stateContractRevision: 6 },
     ]);
     expect((await readdir(fixtureRootV1)).sort()).toEqual([
       "engine-lab-state-3.save.json",
       "engine-lab-state-4.save.json",
       "engine-lab-state-5.save.json",
+      "engine-lab-state-6.save.json",
     ]);
 
     for (const descriptor of descriptors) {
@@ -362,9 +364,10 @@ describe("Engine Lab maintained Save migration release corpus", () => {
 
   it.each(
     [
-      ["engine-lab-state-3", "migration_required", 2],
-      ["engine-lab-state-4", "migration_required", 1],
-      ["engine-lab-state-5", "direct", 0],
+      ["engine-lab-state-3", "migration_required", 3],
+      ["engine-lab-state-4", "migration_required", 2],
+      ["engine-lab-state-5", "migration_required", 1],
+      ["engine-lab-state-6", "direct", 0],
     ] as const,
   )(
     "%s completes inspect, upgrade when required, current load, and fresh-save round-trip",
@@ -408,9 +411,9 @@ describe("Engine Lab maintained Save migration release corpus", () => {
         });
         const fresh = recordV1(await exportedQuickBytesV1(application));
         expect(resolvedV1(fresh)).toMatchObject({
-          stateContractRevision: 5,
+          stateContractRevision: 6,
           stateContractDigest:
-            "sha256:c6407d9e0b5bd4d93fbe6e54d61fc62f59d209892d71a663a70190a4970735e3",
+            "sha256:2919caedc31ba996a3c48091b70d78d7ae002e2049f2dd3ddd1ccb8b5f16628a",
         });
         expect(fresh.stateDigest).toBe(digestCanonical("sillymaker:state:v1", fresh.snapshot));
       } finally {
@@ -481,7 +484,7 @@ describe("Engine Lab maintained Save migration release corpus", () => {
   });
 
   it("distinguishes adoption and lineage 15/16, then rejects duplicate declarations before Host I/O", async () => {
-    const source = recordV1(await readAdmittedFixtureV1("engine-lab-state-5"));
+    const source = recordV1(await readAdmittedFixtureV1("engine-lab-state-6"));
     const declaration = adoptionDeclarationV1(source);
     resolvedV1(source).simulationDigest = digestBytes(
       new TextEncoder().encode("engine-lab-release-adoption-source"),

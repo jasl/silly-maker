@@ -169,6 +169,17 @@ export type PendingInteractionV1 =
      * effects observe it.
      */
     readonly tickQuantumMs?: number;
+    /**
+     * Optional pacing hint for the Host, the `skippable` idiom applied to
+     * time scaling: `realtime` declares a fairness-sensitive reaction
+     * period whose presented duration must match wall time — the Host pins
+     * its presentation-rate multiplier back to 1x while this hold is
+     * pending. Absent means `cinematic`: presented time may be scaled or
+     * the remainder folded. The hint never enters authoritative
+     * arithmetic — reported milliseconds settle identically either way —
+     * and fold-verb availability stays governed by `skippable` alone.
+     */
+    readonly pace?: "cinematic" | "realtime";
   })
   | (PendingInteractionBaseV1 & {
     readonly kind: "presentation_barrier";
@@ -284,11 +295,17 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
     }
     case "hold": {
       const declaresTickQuantum = Object.hasOwn(value, "tickQuantumMs");
+      const declaresPace = Object.hasOwn(value, "pace");
       const record = readExactRecord(
         value,
-        declaresTickQuantum
-          ? [...interactionBaseKeysV1, "totalMs", "remainingMs", "skippable", "tickQuantumMs"]
-          : [...interactionBaseKeysV1, "totalMs", "remainingMs", "skippable"],
+        [
+          ...interactionBaseKeysV1,
+          "totalMs",
+          "remainingMs",
+          "skippable",
+          ...(declaresTickQuantum ? ["tickQuantumMs"] : []),
+          ...(declaresPace ? ["pace"] : []),
+        ],
         path,
       );
       const totalMs = parsePositiveDurationMsV1(record.totalMs, `${path}/totalMs`);
@@ -299,20 +316,25 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
       if (remainingMs > totalMs) {
         return dataFailure(`${path}/remainingMs`, "hold_remaining_invalid");
       }
+      if (declaresPace && record.pace !== "cinematic" && record.pace !== "realtime") {
+        return dataFailure(`${path}/pace`, "pace_invalid");
+      }
       const base = parseInteractionBaseV1(record, path);
       const skippable = parseBooleanV1(record.skippable, `${path}/skippable`);
-      // The canonical shape omits the member entirely when the block does
-      // not declare a cadence, keeping M1-era pendings byte-identical.
-      if (!declaresTickQuantum) {
-        return freezeInteractionDataInternalV1({ kind, ...base, totalMs, remainingMs, skippable });
-      }
+      // The canonical shape omits the optional members entirely when the
+      // block does not declare them, keeping earlier pendings byte-identical.
       return freezeInteractionDataInternalV1({
         kind,
         ...base,
         totalMs,
         remainingMs,
         skippable,
-        tickQuantumMs: parsePositiveDurationMsV1(record.tickQuantumMs, `${path}/tickQuantumMs`),
+        ...(declaresTickQuantum
+          ? {
+            tickQuantumMs: parsePositiveDurationMsV1(record.tickQuantumMs, `${path}/tickQuantumMs`),
+          }
+          : {}),
+        ...(declaresPace ? { pace: record.pace as "cinematic" | "realtime" } : {}),
       });
     }
     case "presentation_barrier": {

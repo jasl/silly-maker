@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { createGameAuthoringKitV1 } from "../authoring/game-authoring-kit.ts";
 import {
+  anyRealtimeMonitorActiveV1,
   parseMonitorAccumulatorV1,
   parseMonitorDeclarationsV1,
   settleMonitorsV1,
@@ -81,11 +82,41 @@ describe("monitor declaration admission", () => {
     ["zero cadence", [{ ...validEntry, everyMs: 0 }], "monitor_cadence_invalid"],
     ["fractional cadence", [{ ...validEntry, everyMs: 1.5 }], "monitor_cadence_invalid"],
     ["unknown retention", [{ ...validEntry, retention: "sticky" }], "monitor_retention_invalid"],
+    ["unknown pace", [{ ...validEntry, pace: "fast" }], "monitor_pace_invalid"],
     ["non-function predicate", [{ ...validEntry, activeWhen: true }], "monitor_predicate_invalid"],
     ["kindless event payload", [{ ...validEntry, event: { count: 1 } }], "monitor_event_invalid"],
     ["null event payload", [{ ...validEntry, event: null }], "monitor_event_invalid"],
   ])("rejects %s", (_label, value, reason) => {
     expect(() => parseMonitorDeclarationsV1(value as never)).toThrowError(new RegExp(reason));
+  });
+
+  it("normalizes the pace hint and exposes the realtime-window predicate", () => {
+    const declarations = parseMonitorDeclarationsV1<
+      { readonly menuUp: boolean },
+      { readonly kind: string }
+    >([
+      {
+        id: "watch.gauge",
+        everyMs: 200,
+        retention: "clear",
+        pace: "realtime",
+        event: { kind: "watch.gauge_crossed" },
+        activeWhen: (state) => state.menuUp,
+      },
+      {
+        id: "watch.drip",
+        everyMs: 300,
+        retention: "retain",
+        event: { kind: "watch.drip_crossed" },
+        activeWhen: () => true,
+      },
+    ]);
+    // Absent pace normalizes to cinematic so Hosts always read a definite value.
+    expect(declarations.map((entry) => entry.pace)).toEqual(["realtime", "cinematic"]);
+    // The Host predicate follows the realtime declaration's own gate: the
+    // always-active cinematic drip never pins the rate.
+    expect(anyRealtimeMonitorActiveV1(declarations, { menuUp: true })).toBe(true);
+    expect(anyRealtimeMonitorActiveV1(declarations, { menuUp: false })).toBe(false);
   });
 
   it("parses an accumulator record and rejects non-integer accumulations", () => {

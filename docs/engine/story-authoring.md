@@ -201,6 +201,29 @@ terminal state, so Host tick batching can never change outcomes. Monitors
 have no script body and cannot route the narrative; anything that needs to
 change the pending interaction stays in narrative vocabulary.
 
+Session time reaches that handler through the composer, not a Story timer:
+declare `timeReporting` on the `WebGameUiDefinitionV1` — a `quantumMs` batch
+size, an `enabledWhen` predicate over the live publication (project a
+"reporting active" flag from your monitor predicates so the metronome only
+runs while some monitor is active), and a `dispatch` that sends your unfenced
+time command through the semantic port. Unfenced session time must be
+unconditionally admissible in your command handler — never gameplay-rejected
+— and if your dispatch wrapper can fail, surface the failure as a rejected
+promise (not a resolved rejection object) so the engine can latch reporting
+off with a diagnostic instead of spamming the command log. The engine gates
+the reporter off while a hold is pending (holds report through the fenced
+expiry controller) and while the document is hidden, so hidden-tab time
+never accumulates.
+Pace is the second declaration: mark a reaction window — a gauge charging
+under a live decision menu — with `pace: "realtime"` on the monitor (and on a
+hold that must run at wall parity), project an "realtime active" flag
+(`anyRealtimeMonitorActive`), and declare `realtimeWindow` with that
+predicate; while it holds, the engine pins the presentation rate to exactly
+1× and releases it when the window closes, so player fast-forward never
+compresses a reaction span. Cinematic pace (the default) means scaled time is
+fine. Keep both predicates cheap, deterministic reads of the publication — a
+throwing predicate latches its feature off with one diagnostic.
+
 A bounded stretch of commits whose intermediate states a Save should not
 re-enter — a presentation barrier in progress, an asset assembly, an external
 side-effect bracket — is an in-flight span, declared as application policy

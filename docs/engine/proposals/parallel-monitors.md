@@ -135,7 +135,14 @@ VN 惯例的加速（按住 Ctrl 二倍速）不是 Host 时间源的副作用�
   诊断能力提供；与 Ctrl 的合成关系是
   `有效倍率 = Ctrl 按住 ? 2 : 调试倍率`——调试倍率大于 2 时按 Ctrl 即
   「减速到 2x」。倍率是表现侧参数，不进 State、Save、digest。
-- `pace` 提示仍未裁决（试点内容全部为 cinematic，无 realtime 窗）。
+- `pace` 提示已随车道 M4 定案交付（2026-08-20）：hold 与监视器声明同
+  名可选字段 `pace: "cinematic" | "realtime"`，缺省归一为 cinematic；
+  realtime 段 Host 把**有效倍率**钉回 1×（`pinRealtime`，可叠可释，请
+  求倍率保留并在释放后自恢复），调试坞倍速行在钉住期间显示「实时段
+  1×」徽章。报时入口同步定案：composer 声明 `timeReporting`（quantum
+  - publication 谓词 + Story 时间命令派发）与 `realtimeWindow`（反应
+    段谓词），hold pending 与文档隐藏期间报时器自动闭闸——同一段流逝进
+    权威恰好一次。
 
 ### 4. 与 HUD / 表现
 
@@ -242,9 +249,10 @@ promotion gate 不变）。
 6. **监视器首消费者**：三型一步到位——决策 gauge、场景窗自燃、持续交
    互期滴各一条活路径在同一车道交付，不做逐型分期。
 
-剩余开放（随实现车道定，不阻塞接受）：唯一时间动词与事件家族的最终命
-名、admission 字段名、事件日志的诊断缓冲上界、`pace` 提示的字段形态
-（§3a，倍速/跳过策略）。
+剩余开放：已全部随车道定案——时间动词命名 `TimeTickV1`（M0）、事件家
+族 `transaction.emit` + Story `eventSchema`（M1，事件日志随 commit 信
+封落 CommandLog，未另设诊断环形缓冲，上界问题不存在）、`pace` 字段形
+态与 Host 报时/钉回入口（M4，见 §3a）。
 
 ## 验收草案（随接受锁定）
 

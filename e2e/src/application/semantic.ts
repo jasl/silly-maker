@@ -64,6 +64,8 @@ const labActionIdsV1: readonly LabActionIdV1[] = Object.freeze([
   "lab.advance_procedure",
   "lab.run_experiment",
   "lab.begin_calibration",
+  "lab.begin_drill",
+  "lab.toggle_collector",
   "lab.sell_sample",
   "lab.buy_banner",
 ]);
@@ -92,7 +94,10 @@ function blockedByV1(
       if (queries.samplesCollected < 1) return "lab.insufficient_samples";
       return null;
     case "lab.begin_calibration":
+    case "lab.begin_drill":
       return queries.narrative.pending === null ? null : "lab.narrative_busy";
+    case "lab.toggle_collector":
+      return null;
     case "lab.sell_sample":
       return queries.samplesCollected >= 1 ? null : "lab.insufficient_samples";
     case "lab.buy_banner":

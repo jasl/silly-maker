@@ -9,6 +9,7 @@ import { sillyMakerConfigV1 } from "../../project.config.ts";
 import {
   migrateLabStateRevision3To4V1,
   migrateLabStateRevision4To5V1,
+  migrateLabStateRevision5To6V1,
 } from "../../e2e/src/save-state-migrations.ts";
 import {
   collectAuthorityClosureV1,
@@ -547,10 +548,11 @@ describe("authoritative determinism authority map", () => {
         entry: "e2e/src/save-state-migrations.ts",
         exportName: "labSaveStateMigrationRegistryV1",
         classification: "save_state_migration",
-        callbackCount: 2,
+        callbackCount: 3,
         migrationIds: [
           "migration.engine-lab.revision-3-to-4",
           "migration.engine-lab.revision-4-to-5",
+          "migration.engine-lab.revision-5-to-6",
         ],
         appLocalPaths: expect.arrayContaining([
           "e2e/src/save-state-migrations.ts",
@@ -560,9 +562,11 @@ describe("authoritative determinism authority map", () => {
     expect(map.saveStateMigrations[0]?.callbacks).toEqual([
       migrateLabStateRevision3To4V1,
       migrateLabStateRevision4To5V1,
+      migrateLabStateRevision5To6V1,
     ]);
     expect(map.saveStateMigrations[0]?.callbacks[0]).toBe(migrateLabStateRevision3To4V1);
     expect(map.saveStateMigrations[0]?.callbacks[1]).toBe(migrateLabStateRevision4To5V1);
+    expect(map.saveStateMigrations[0]?.callbacks[2]).toBe(migrateLabStateRevision5To6V1);
     expect(map.authoritativePaths).toEqual(expect.arrayContaining([
       "e2e/src/gameplay/narrative.ts",
       "e2e/src/save-state-migrations.ts",
@@ -707,7 +711,7 @@ describe("authoritative determinism authority map", () => {
       applicationCount: sillyMakerConfigV1.appDirectories.length,
       saveProjectorCount: 0,
       saveStateMigrationCount: 1,
-      saveStateMigrationCallbackCount: 2,
+      saveStateMigrationCallbackCount: 3,
       additionalAuthorityCount: 1,
     });
     expect(map.diagnostics.authoritativePathCount).toBeGreaterThan(0);

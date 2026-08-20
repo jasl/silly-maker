@@ -642,10 +642,10 @@ import type { createNarrativeSurfaceCompositionRuntimeInternalV1 as ForbiddenInt
 import type { useNarrativeSurfaceCompositionBoundActionInternalV1 as ForbiddenPublicNarrativeSurfaceCompositionBoundActionHookV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose composition-owned Narrative bound-action hooks.
 import type { useNarrativeSurfaceCompositionBoundActionInternalV1 as ForbiddenInternalNarrativeSurfaceCompositionBoundActionHookV1 } from "./internal.ts";
-// @ts-expect-error Optional managed Narrative composition lookup remains source-relative.
+// @ts-expect-error Optional managed Narrative composition lookup stays off the Story-facing index.
 import type { resolveOptionalGameUiManagedSurfaceCompositionInternalV1 as ForbiddenPublicOptionalGameUiManagedSurfaceCompositionResolverV1 } from "./index.ts";
-// @ts-expect-error The Host-only internal barrel does not expose optional managed Narrative composition lookup.
-import type { resolveOptionalGameUiManagedSurfaceCompositionInternalV1 as ForbiddenInternalOptionalGameUiManagedSurfaceCompositionResolverV1 } from "./internal.ts";
+// The Host-only internal barrel exposes the optional lookup for host pacing wiring.
+import type { resolveOptionalGameUiManagedSurfaceCompositionInternalV1 as HostOnlyOptionalGameUiManagedSurfaceCompositionResolverV1 } from "./internal.ts";
 // @ts-expect-error Stage presentation-generation proofs remain source-relative.
 import type { StagePresentationGenerationProofInternalV1 as ForbiddenPublicStagePresentationGenerationProofV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Stage presentation-generation proofs.
@@ -1710,7 +1710,6 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "NarrativeSurfaceCompositionRuntimeInternalV1"
       | "createNarrativeSurfaceCompositionRuntimeInternalV1"
       | "useNarrativeSurfaceCompositionBoundActionInternalV1"
-      | "resolveOptionalGameUiManagedSurfaceCompositionInternalV1"
       | "StagePresentationGenerationProofInternalV1"
       | "StagePresentationGenerationCaptureResultInternalV1"
       | "StagePresentationGenerationRetargetResultInternalV1"
@@ -1827,6 +1826,13 @@ describe("@sillymaker/ui public managed System surface", () => {
     expect(internalUiV1).not.toHaveProperty(
       "createManagedSurfaceStableAdmissionAuthorityInternalV1",
     );
+    // The optional managed-composition lookup is a Host-only pacing seam: it
+    // stays off the Story-facing index but ships on the internal barrel.
+    expect(publicUiV1).not.toHaveProperty(
+      "resolveOptionalGameUiManagedSurfaceCompositionInternalV1",
+    );
+    expect(internalUiV1.resolveOptionalGameUiManagedSurfaceCompositionInternalV1)
+      .toBeTypeOf("function");
     for (
       const dormantContractExport of [
         "WholeCanvasManagedSurfaceCatalogRowInternalV1",
@@ -2127,7 +2133,6 @@ describe("@sillymaker/ui public managed System surface", () => {
         "NarrativeSurfaceCompositionRuntimeInternalV1",
         "createNarrativeSurfaceCompositionRuntimeInternalV1",
         "useNarrativeSurfaceCompositionBoundActionInternalV1",
-        "resolveOptionalGameUiManagedSurfaceCompositionInternalV1",
         "StagePresentationGenerationProofInternalV1",
         "StagePresentationGenerationCaptureResultInternalV1",
         "StagePresentationGenerationRetargetResultInternalV1",

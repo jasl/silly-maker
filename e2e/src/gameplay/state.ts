@@ -9,6 +9,8 @@ import {
 } from "@sillymaker/base";
 import { createRuntimeSchemaV1, fromStandardSchemaV1 } from "@sillymaker/base/authoring";
 
+import type { LabMonitorsStateV1 } from "./monitors.ts";
+import { createInitialLabMonitorsStateV1, labMonitorsStateSchemaV1 } from "./monitors.ts";
 import type { LabNarrativeStateV1 } from "./narrative.ts";
 import { createInitialLabNarrativeStateV1, labNarrativeNodeIdsV1 } from "./narrative.ts";
 import { createInitialLabStageStateV1 } from "./stage.ts";
@@ -35,6 +37,7 @@ export interface LabGameStateV1 {
     readonly stage: SemanticStageStateV1;
     readonly narrative: LabNarrativeStateV1;
     readonly wallet: LabWalletStateV1;
+    readonly monitors: LabMonitorsStateV1;
   };
 }
 
@@ -135,6 +138,7 @@ export const labGameStateSchemaV1: RuntimeSchemaV1<LabGameStateV1> = createRunti
           stage: z.unknown(),
           narrative: z.unknown(),
           wallet: z.unknown(),
+          monitors: z.unknown(),
         })
         .parse(root.simulation);
       return Object.freeze({
@@ -144,6 +148,7 @@ export const labGameStateSchemaV1: RuntimeSchemaV1<LabGameStateV1> = createRunti
           stage: labStageStateSchemaV1.parse(simulation.stage),
           narrative: labNarrativeStateSchemaV1.parse(simulation.narrative),
           wallet: labWalletStateSchemaV1.parse(simulation.wallet),
+          monitors: labMonitorsStateSchemaV1.parse(simulation.monitors),
         }),
       });
     },
@@ -159,6 +164,7 @@ export function createInitialLabGameStateV1(): LabGameStateV1 {
       stage: createInitialLabStageStateV1(),
       narrative: createInitialLabNarrativeStateV1(),
       wallet: Object.freeze({ credits: 0 }),
+      monitors: createInitialLabMonitorsStateV1(),
     }),
   });
 }

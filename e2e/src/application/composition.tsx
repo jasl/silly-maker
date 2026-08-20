@@ -202,6 +202,26 @@ export const labUiSlotsV1 = Object.freeze(labUiSlotsDefinitionV1);
 const selectLabAudioIntentV1 = (publication: unknown): AudioIntentV1 =>
   (publication as { readonly game: { readonly audio: AudioIntentV1 } }).game.audio;
 
+/**
+ * The Story-side halves of the two Host pacing gates, read from the live
+ * presentation publication (`{ revision, semantic, view, ... }`). Null-safe:
+ * a malformed publication reads as "no monitors", never as a throw — a
+ * throwing predicate would latch host pacing off.
+ */
+const labMonitorGatesV1 = (
+  publication: unknown,
+): DeepReadonly<LabGameViewV1["monitors"]> | null =>
+  publication === null || typeof publication !== "object" ? null : (publication as {
+    readonly semantic?: { readonly game?: DeepReadonly<LabGameViewV1> };
+  }).semantic?.game?.monitors ?? null;
+
+/**
+ * The Host metronome batch size for unfenced session time: half the
+ * fastest monitor cadence (gauge 200ms), so a crossing lands at most one
+ * report late while the command log stays at ten commits per second.
+ */
+export const labTimeReportingQuantumMsV1 = 100;
+
 const resolveLabEffectAssetV1 = (effect: TransientEffectV1): { readonly assetId: string } | null =>
   effect.effectId === "audio.sfx" && typeof effect.payload.assetId === "string"
     ? { assetId: effect.payload.assetId }
@@ -528,6 +548,23 @@ export function createLabGameUiDefinitionV1(
     }),
     labels: labRootLabelsV1,
     saveLabels: labSaveOverlayLabelsV1,
+    // The Host metronome: unfenced session time flows to the Story's time
+    // command while any monitor is accumulating; the composer itself closes
+    // the gate during holds and while the document is hidden.
+    timeReporting: Object.freeze({
+      quantumMs: labTimeReportingQuantumMsV1,
+      enabledWhen: (publication: unknown) =>
+        labMonitorGatesV1(publication)?.reportingActive === true,
+      dispatch: (elapsedMs: number) =>
+        input.instance.semantic.dispatch(Object.freeze({
+          kind: "time" as const,
+          tick: Object.freeze({ elapsedMs }),
+        })),
+    }),
+    // The decision gauge is a realtime reaction span: while it is up the
+    // host pins the presentation rate to exactly 1x.
+    realtimeWindow: (publication: unknown) =>
+      labMonitorGatesV1(publication)?.realtimeActive === true,
     input: Object.freeze({
       keyboard: wholeCanvasConformanceEnabled
         ? Object.freeze({ ...labKeyboardMapV1, ...labWholeCanvasKeyboardMapV1 })

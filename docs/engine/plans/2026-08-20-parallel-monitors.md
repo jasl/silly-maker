@@ -178,6 +178,43 @@ hold 交付了「两句台词之间的独占计时」；剩下一族真并行行
   刀序接真实玩法路径。
 - 验收：门控翻转启停、HUD 读同一累积、玩家中途点击拿到正确档位；
   realtime 窗下倍速被钉回、skip 停在窗前；e2e 浏览器证据。
+- **交付（2026-08-20）**：
+  - 合同（M4.1）：hold 与监视器声明同名可选 `pace: "cinematic" |
+    "realtime"`（缺省归一 cinematic，非法值拒绝；部分 tick 保留字
+    段），`anyRealtimeMonitorActiveV1`/facade 谓词判定活跃 realtime
+    段。
+  - 运行时（M4.2）：`PresentationRatePortV1` 增 `pinRealtime()`（有效
+    倍率钉 1×，可叠可释、释放幂等，请求倍率保留自恢复，缩放时间跨钉/
+    释连续）与 `{ rate, effectiveRate, pinned }` 状态；新
+    `createSessionTimeReporterV1` 会话报时器——组合表现钟（倍率缩放、
+    冻结感知）按 quantum 分批取整报告，闸关丢弃亚 quantum 尾、开闸重
+    锚，派发拒绝即闩死（无条件可受理的时间被拒 = 接线错误）单次上报。
+  - composer（M4.3）：`WebGameUiDefinitionV1` 新增 `timeReporting`
+    （quantum + publication 谓词 + Story 时间命令派发）与
+    `realtimeWindow` 声明；`installPresentationPacingInternalV1` 接
+    线——hold pending / 文档隐藏自动闭闸（hold 走栅栏到期控制器，同
+    一段流逝进权威恰好一次），`pace: "realtime"` hold 与 Story 声明
+    realtime 段叠加钉回；调试坞倍速行「实时段 1×」徽章。
+  - Lab（M4.4–M4.7）：`lab.monitors` 模块（rev5→6 迁移 + 夹具重钉 +
+    state-6 新夹具）承载三型各一条活路径——realtime 决策 gauge（演习
+    菜单下蓄力，释放换积分/放空清零）、场景窗自燃（chamber say 在场
+    滴）、`retain` 收集器（跨普通边界滴、关断保留余量）。headless 钉
+    批切不变计数、hold 栅栏内结算、中途存档续报；hosted UI 套件证明
+    metronome 走声明派发喂真实钟、gauge 菜单钉回并在决议后恢复请求倍
+    率；浏览器证据 `pacing.spec.ts`（chromium/webkit/touch，dev 与
+    prebuilt 双模式）——计数器仅靠会话时间上涨、realtime 段随菜单开
+    合、保留策略跨关断存续。声明可选 frames/投影通道在首个 HUD 消费者
+    处证实不需要（Lab 从普通版本化状态投影读数），不引入。
+  - skip 停窗：Lab 无 skip 面，realtime 下 skip 停窗语义由钉回 1× +
+    choice pending 天然覆盖（skip 本就停在 choice 前，hold 车道既有
+    语义），无新增合同面。
+  - review 发现项全部修复：pacing 安装条件补上纯 hold 故事（叙事运行
+    时存在即安装，引擎型 `pace:"realtime"` hold 无需 composer 声明也
+    钉回）；演习决议提交内显式丢弃 gauge 累积残量（`clear` 只在结算
+    内生效、决议后报时闸恰好关闭，残量本会泄入下一段与存档——二段新
+    鲜性测试锁定）；异步派发拒绝的故障闩单次上报（多份在途报告只报一
+    次，dispose 后到达的拒绝吞掉）；补决策中途 save/load 续报测试
+    （半节奏残量跨读档精确续穿越）。
 
 ### M5 — 收尾扫描（硬门）
 

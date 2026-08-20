@@ -176,6 +176,20 @@ export const labCalibrationEntryNodeIdV1 = "node.e2e.cal.enter-alpha";
  */
 export const labCancelChoiceIdV1 = "choice.e2e.cal.cancel";
 
+/**
+ * The monitor drill: a second entry point exercising all three declared
+ * monitor archetypes against real narrative shapes. The chamber say is the
+ * scene-scoped ambient span (self-ignition while the player reads), the
+ * decision choice is the realtime gauge span (charge rises under a live
+ * menu and converts to credits on release), and the collector drip runs
+ * pending-independently on its own toggle. The drill shares the cal
+ * script's runner, fences, and history rules.
+ */
+export const labDrillChamberNodeIdV1 = "node.e2e.drill.chamber";
+export const labDrillDecisionDefinitionIdV1 = "interaction.e2e.drill-decision";
+export const labDrillReleaseChoiceIdV1 = "choice.e2e.drill.release";
+export const labDrillVentChoiceIdV1 = "choice.e2e.drill.vent";
+
 export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
   {
     kind: "stage",
@@ -440,6 +454,48 @@ export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
     next: "node.e2e.cal.end",
   },
   { kind: "end", nodeId: "node.e2e.cal.end" },
+  {
+    kind: "say",
+    nodeId: labDrillChamberNodeIdV1,
+    definitionId: "interaction.e2e.drill-chamber",
+    seenRevision: 1,
+    speakerTextId: "text.e2e.lab.narrative.speaker.beta",
+    textId: "text.e2e.lab.narrative.drill.chamber",
+    next: "node.e2e.drill.decision",
+  },
+  {
+    kind: "choice",
+    nodeId: "node.e2e.drill.decision",
+    definitionId: labDrillDecisionDefinitionIdV1,
+    seenRevision: 1,
+    promptTextId: "text.e2e.lab.narrative.drill.decision",
+    options: [
+      {
+        choiceId: labDrillReleaseChoiceIdV1,
+        textId: "text.e2e.lab.narrative.drill.release",
+        requiresSamples: 0,
+        consumesSamples: 0,
+        next: "node.e2e.drill.result",
+      },
+      {
+        choiceId: labDrillVentChoiceIdV1,
+        textId: "text.e2e.lab.narrative.drill.vent",
+        requiresSamples: 0,
+        consumesSamples: 0,
+        next: "node.e2e.drill.result",
+      },
+    ],
+  },
+  {
+    kind: "say",
+    nodeId: "node.e2e.drill.result",
+    definitionId: "interaction.e2e.drill-result",
+    seenRevision: 1,
+    speakerTextId: "text.e2e.lab.narrative.speaker.alpha",
+    textId: "text.e2e.lab.narrative.drill.result",
+    next: "node.e2e.drill.end",
+  },
+  { kind: "end", nodeId: "node.e2e.drill.end" },
 ];
 
 const labNarrativeNodesByIdV1: ReadonlyMap<string, LabNarrativeNodeV1> = new Map(
@@ -781,6 +837,19 @@ export function labNarrativeAtBeginV1(narrative: LabNarrativeStateV1): LabNarrat
   return Object.freeze({
     phase: "active" as const,
     cursor: labCalibrationEntryNodeIdV1,
+    pending: null,
+    sequence: narrative.sequence,
+    calibration: narrative.calibration,
+    rapport: narrative.rapport,
+    history: narrative.history,
+  });
+}
+
+/** Enter the monitor drill; same re-entry semantics as the cal run. */
+export function labNarrativeAtDrillBeginV1(narrative: LabNarrativeStateV1): LabNarrativeStateV1 {
+  return Object.freeze({
+    phase: "active" as const,
+    cursor: labDrillChamberNodeIdV1,
     pending: null,
     sequence: narrative.sequence,
     calibration: narrative.calibration,

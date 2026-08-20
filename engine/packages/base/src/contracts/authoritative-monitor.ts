@@ -30,6 +30,17 @@ import { countThresholdCrossingsV1 } from "./time-tick.ts";
  */
 export type MonitorRetentionV1 = "clear" | "retain";
 
+/**
+ * Pacing hint for the Host, the hold `pace` idiom applied to monitors:
+ * `realtime` declares that the period this monitor times is a
+ * fairness-sensitive reaction span (a decision gauge under a live menu),
+ * so the Host pins its presentation-rate multiplier back to 1x while the
+ * monitor is active. `cinematic` (the default) lets the Host scale freely.
+ * The hint never enters settlement arithmetic — reported milliseconds
+ * settle identically either way.
+ */
+export type MonitorPaceV1 = "cinematic" | "realtime";
+
 export interface MonitorDeclarationV1<TState, TEvent> {
   /** Stable non-empty monitor id, unique within the declaration set. */
   readonly id: string;
@@ -42,6 +53,11 @@ export interface MonitorDeclarationV1<TState, TEvent> {
    * where it left off.
    */
   readonly retention: MonitorRetentionV1;
+  /**
+   * Host pacing hint; optional at declaration, normalized to `cinematic`
+   * by admission so consumers always read a definite value.
+   */
+  readonly pace?: MonitorPaceV1;
   /**
    * The declared domain-event payload, emitted once per threshold crossing
    * inside the settling commit. The Story `eventSchema` validates it again
@@ -100,9 +116,13 @@ export function parseMonitorDeclarationsV1<TState, TEvent>(
   const seen = new Set<string>();
   const declarations = entries.map((entry, index) => {
     const entryPath = `${path}/${index}`;
+    const declaresPace = entry !== null && typeof entry === "object" &&
+      Object.hasOwn(entry, "pace");
     const record = readExactRecord(
       entry,
-      ["activeWhen", "event", "everyMs", "id", "retention"],
+      declaresPace
+        ? ["activeWhen", "event", "everyMs", "id", "pace", "retention"]
+        : ["activeWhen", "event", "everyMs", "id", "retention"],
       entryPath,
     );
     if (
@@ -130,6 +150,9 @@ export function parseMonitorDeclarationsV1<TState, TEvent>(
     if (retention === null) {
       return dataFailure(`${entryPath}/retention`, "monitor_retention_invalid");
     }
+    if (declaresPace && record.pace !== "cinematic" && record.pace !== "realtime") {
+      return dataFailure(`${entryPath}/pace`, "monitor_pace_invalid");
+    }
     if (typeof record.activeWhen !== "function") {
       return dataFailure(`${entryPath}/activeWhen`, "monitor_predicate_invalid");
     }
@@ -143,6 +166,7 @@ export function parseMonitorDeclarationsV1<TState, TEvent>(
       id: record.id,
       everyMs: record.everyMs,
       retention,
+      pace: declaresPace ? record.pace as MonitorPaceV1 : "cinematic",
       // Frozen at admission: settlement emits this same reference once per
       // crossing, so a mutable payload would silently rewrite every future
       // emission (the Story eventSchema still re-validates at emit).
@@ -151,6 +175,22 @@ export function parseMonitorDeclarationsV1<TState, TEvent>(
     });
   });
   return freezeMonitorDataInternalV1(declarations);
+}
+
+/**
+ * The Host-side realtime gate: whether any admitted `realtime` monitor is
+ * currently active for the given authoritative state. Stories project
+ * this into their published view so the application shell can pin the
+ * presentation rate while the reaction span is up — the hint stays a Host
+ * concern and never reaches settlement arithmetic.
+ */
+export function anyRealtimeMonitorActiveV1<TState, TEvent>(
+  declarations: readonly MonitorDeclarationV1<TState, TEvent>[],
+  state: TState,
+): boolean {
+  return declarations.some(
+    (declaration) => declaration.pace === "realtime" && declaration.activeWhen(state),
+  );
 }
 
 /**
