@@ -286,6 +286,7 @@ export const bookshopSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
       unavailable: "存储不可用",
       empty_slot: "存档槽为空",
       conflict: "存档发生冲突",
+      in_flight: "正在过场，暂不可保存",
       invalid_record: "存档无效",
       invalid_note: "备注不合法",
       lineage_limit: "存档兼容链过长",

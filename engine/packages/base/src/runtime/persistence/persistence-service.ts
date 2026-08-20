@@ -29,6 +29,7 @@ import type {
   PatchSetIdentityV1,
 } from "../../contracts/hotfix.ts";
 import type { BuildProvenanceV1 } from "../../contracts/provenance.ts";
+import type { PersistenceSafepointClassificationV1 } from "../../contracts/persistence-safepoint.ts";
 import type { SaveStateMigrationRegistryV1 } from "../../contracts/save-state-migration.ts";
 import type { SaveStateMigrationReceiptV1 } from "../../contracts/save-state-migration.ts";
 import type {
@@ -372,6 +373,14 @@ export interface CreatePersistenceServiceOptionsV1<
    */
   summarizeSave?(state: DeepReadonly<TState>): readonly string[] | null;
   /**
+   * Optional persistence-safepoint gate over player-slot writes: when the
+   * live state classifies `in_flight`, `save()` rejects with `in_flight`
+   * instead of exporting a mid-span state. The caller owns the policy
+   * (bound accounting, classifier failure handling) and must hand the
+   * service a non-throwing classifier.
+   */
+  classifyWriteCandidate?(state: DeepReadonly<TState>): PersistenceSafepointClassificationV1;
+  /**
    * Diagnostic build stamp captured once for each service and attached to new
    * Snapshot captures. Annotation rewrites and Auto rotation preserve the
    * original stamp. Defaults to `readVersionStampV1`; malformed/all-null
@@ -411,6 +420,8 @@ export interface CreateStandardPersistenceServiceOptionsV1<
    * for a given state; a throwing projector fails the capture.
    */
   summarizeSave?(state: DeepReadonly<TState>): readonly string[] | null;
+  /** See CreatePersistenceServiceOptionsV1.classifyWriteCandidate. */
+  classifyWriteCandidate?(state: DeepReadonly<TState>): PersistenceSafepointClassificationV1;
   /** See CreatePersistenceServiceOptionsV1.collectVersionStamp. */
   collectVersionStamp?(): VersionStampV1;
 }
@@ -2123,6 +2134,16 @@ async function createPersistenceServiceWithDependenciesV1<
       if (runtime.status !== "ready" || foregroundWrites > 0) {
         return Promise.resolve(rejectedV1("busy"));
       }
+      // Persistence-safepoint gate: a player-slot write never exports a
+      // state its application declared mid-span; the next safepoint commit
+      // makes saving available again.
+      if (
+        options.classifyWriteCandidate?.(
+          (runtime.snapshot as { readonly state: DeepReadonly<TState> }).state,
+        ) === "in_flight"
+      ) {
+        return Promise.resolve(rejectedV1("in_flight"));
+      }
       const fence = options.lease.captureFence();
       if (fence === null) {
         rememberFailureV1("unavailable");
@@ -2925,6 +2946,9 @@ function createStandardPersistenceServiceInternalV1<
       ...(options.summarizeSave === undefined
         ? {}
         : { summarizeSave: options.summarizeSave.bind(options) }),
+      ...(options.classifyWriteCandidate === undefined
+        ? {}
+        : { classifyWriteCandidate: options.classifyWriteCandidate.bind(options) }),
       ...(options.collectVersionStamp === undefined
         ? {}
         : { collectVersionStamp: options.collectVersionStamp.bind(options) }),

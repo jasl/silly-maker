@@ -185,6 +185,7 @@ const hostedSaveLabelsV1 = Object.freeze({
       unavailable: "Unavailable",
       empty_slot: "Empty slot",
       conflict: "Conflict",
+      in_flight: "In flight",
       invalid_record: "Invalid record",
       invalid_note: "Invalid note",
       lineage_limit: "Lineage limit",

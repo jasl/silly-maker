@@ -201,6 +201,26 @@ terminal state, so Host tick batching can never change outcomes. Monitors
 have no script body and cannot route the narrative; anything that needs to
 change the pending interaction stays in narrative vocabulary.
 
+A bounded stretch of commits whose intermediate states a Save should not
+re-enter — a presentation barrier in progress, an asset assembly, an external
+side-effect bracket — is an in-flight span, declared as application policy
+rather than Story choreography: give `defineCoreGameApplicationV1` a
+`persistenceSafepoint` whose `classify(state)` derives `safepoint` |
+`in_flight` deterministically from committed authoritative state (prefer
+existing vocabulary — the Engine Lab classifies a pending
+`presentation_barrier` as in-flight — or an explicit span field your domain
+events set and clear) and whose `maxInFlightCommits` (1..256) bounds the
+span. While the span is open the engine defers autosave, falls back to the
+last safepoint Snapshot on flush, and rejects player-slot saves with
+`in_flight` (give the Save labels' `rejected.in_flight` entry a
+player-readable reason); the next safepoint commit restores ordinary
+granularity. Long-lived authoritative state — monitor accumulations, hold
+remainders — must stay saveable and never hides inside a span; a span that
+outlives its bound forfeits the inhibit with a diagnostic and keeps saving.
+Loads stay available mid-span, and a barrier's `loadRecovery` still owns what
+a restored barrier does. This is orchestration policy, not data safety: every
+commit remains complete, valid, and replayable.
+
 For a whole-canvas primary or exact-parent detail, freeze the seven-key input
 to `defineWholeCanvasSurfaceV1`: `catalog`, `source`, `resolveTarget`,
 `dispatchAction`, `renderer`, `prepareTarget`, and `resolveText`. Use a

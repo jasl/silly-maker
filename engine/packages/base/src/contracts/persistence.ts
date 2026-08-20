@@ -175,6 +175,9 @@ export type PersistenceOperationResultV1 =
       | "unavailable"
       | "empty_slot"
       | "conflict"
+      // The live state sits inside a declared in-flight span (persistence
+      // safepoint policy): player-slot writes resume at the next safepoint.
+      | "in_flight"
       | "invalid_record"
       | "invalid_note"
       | "lineage_limit"

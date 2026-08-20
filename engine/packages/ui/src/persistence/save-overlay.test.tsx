@@ -117,6 +117,7 @@ const labelsV1 = Object.freeze({
       unavailable: "本地存储不可用",
       empty_slot: "该槽位没有存档",
       conflict: "存档已被其他页面更新",
+      in_flight: "正在过场，暂不可保存",
       invalid_record: "存档记录无效",
       invalid_note: "备注不合法",
       lineage_limit: "存档兼容链超过限制",

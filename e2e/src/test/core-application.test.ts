@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import type { HostAtomicRecordStoreV1 } from "@sillymaker/base";
+import type { HostAtomicRecordStoreV1, InteractionResolutionV1 } from "@sillymaker/base";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 
+import type { LabApplicationInstanceV1 } from "../application/core-application.ts";
 import { createLabApplicationInstanceV1 } from "../application/core-application.ts";
+import type { LabInvocationV1 } from "../application/semantic.ts";
 
 const collectV1 = Object.freeze({
   kind: "invoke" as const,
@@ -14,6 +16,74 @@ const beginV1 = Object.freeze({
   kind: "invoke" as const,
   actionId: "lab.begin_procedure" as const,
 });
+const beginCalibrationV1 = Object.freeze({
+  kind: "invoke" as const,
+  actionId: "lab.begin_calibration" as const,
+});
+
+function resolveV1(
+  expectedOccurrenceId: string,
+  resolution: InteractionResolutionV1,
+): LabInvocationV1 {
+  return Object.freeze({ kind: "resolve" as const, expectedOccurrenceId, resolution });
+}
+
+/**
+ * Walks the calibration narrative to its presentation barrier: two says and
+ * the precise choice (the caller collected the samples). Returns the pending
+ * barrier interaction.
+ */
+async function advanceToBarrierV1(application: LabApplicationInstanceV1) {
+  for (let step = 0; step < 8; step += 1) {
+    const pending = application.semantic.observe().narrative.pending;
+    if (pending === null) throw new TypeError("expected a pending boundary");
+    if (pending.kind === "presentation_barrier") return pending;
+    const resolution: InteractionResolutionV1 = pending.kind === "say"
+      ? { kind: "advance" }
+      : { kind: "choose", choiceId: "choice.e2e.cal.precise" };
+    const result = await application.semantic.dispatch(
+      resolveV1(pending.occurrenceId, resolution),
+    );
+    expect(result).toMatchObject({ kind: "committed" });
+  }
+  throw new TypeError("presentation barrier not reached");
+}
+
+function autoCurrentSpyV1() {
+  const records = createMemoryHostRecordStoreV1();
+  const writes: string[] = [];
+  const spy: HostAtomicRecordStoreV1 = {
+    read: (namespace, key) => records.read(namespace, key),
+    list: (namespace) => records.list(namespace),
+    commit: (mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.kind === "put" && mutation.key.includes(":auto.current")) {
+          writes.push(mutation.key);
+        }
+      }
+      return records.commit(mutations);
+    },
+  };
+  return {
+    records: Object.freeze(spy),
+    writes,
+    readAutoCurrent: async () => {
+      const stored = await records.list("save");
+      const current = stored.find(({ key }) => key.includes(":auto.current"));
+      if (current === undefined) return null;
+      return JSON.parse(new TextDecoder().decode(current.bytes)) as {
+        readonly snapshot: {
+          readonly commandSequence: number;
+          readonly state: {
+            readonly simulation: {
+              readonly narrative: { readonly pending: { readonly kind: string } | null };
+            };
+          };
+        };
+      };
+    },
+  };
+}
 
 describe("Engine Lab core application", () => {
   it("composes the whole application from the definition without story-side wiring", async () => {
@@ -54,6 +124,54 @@ describe("Engine Lab core application", () => {
 
     expect(bound()).toEqual({ kind: "stale_epoch" });
     expect(observedByOldEpoch).toBe(0);
+    await application.dispose();
+  });
+
+  it("keeps every Save out of the presentation-barrier span and re-enters at the safepoint", async () => {
+    const spy = autoCurrentSpyV1();
+    const application = await createLabApplicationInstanceV1({ records: spy.records });
+
+    for (let i = 0; i < 3; i += 1) {
+      await application.semantic.dispatch(collectV1);
+    }
+    await application.semantic.dispatch(beginCalibrationV1);
+    const barrier = await advanceToBarrierV1(application);
+    await application.autoSaveIdle();
+
+    // The commit that opened the barrier deferred its autosave: the stored
+    // record still re-enters at the pre-span choice, not inside the barrier.
+    const preSpan = await spy.readAutoCurrent();
+    expect(preSpan?.snapshot.state.simulation.narrative.pending?.kind).toBe("choice");
+
+    // Player-slot saves inside the span reject without touching the slot.
+    await expect(application.persistence.save("manual.1")).resolves.toEqual({
+      kind: "rejected",
+      code: "in_flight",
+    });
+
+    // Completing the transition closes the span: autosave resumes with the
+    // post-barrier boundary and the player slot reopens.
+    const writesInSpan = spy.writes.length;
+    await application.semantic.dispatch(
+      resolveV1(barrier.occurrenceId, {
+        kind: "barrier_completed",
+        transitionId: barrier.expectedTransitionId,
+      }),
+    );
+    await application.autoSaveIdle();
+    expect(spy.writes.length).toBe(writesInSpan + 1);
+    const postSpan = await spy.readAutoCurrent();
+    expect(postSpan?.snapshot.state.simulation.narrative.pending?.kind).toBe("hold");
+    await expect(application.persistence.save("manual.1")).resolves.toEqual({
+      kind: "saved",
+      slotId: "manual.1",
+    });
+
+    // The deferred-write record is an ordinary loadable autosave.
+    await expect(application.persistence.load("auto.current")).resolves.toMatchObject({
+      kind: "loaded",
+    });
+    expect(application.semantic.observe().narrative.pending?.kind).toBe("hold");
     await application.dispose();
   });
 

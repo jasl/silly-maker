@@ -453,6 +453,23 @@ never receives raw record bytes, Host keys/revisions, stack traces, or lease
 fences. This atomicity is promoted for Memory and IndexedDB stores; the Desktop
 file channel remains a separate durability preview.
 
+Persistence safepoints are the application-declared re-entry policy on top of
+that orchestration: `defineCoreGameApplicationV1` may declare
+`persistenceSafepoint: { classify, maxInFlightCommits }`, admitted once by
+`parsePersistenceSafepointPolicyV1` (a deterministic classifier over committed
+authoritative state plus a 1..256 span bound; unbounded declarations fail
+resolution). A commit whose state classifies `in_flight` sits inside an
+in-flight span: the orchestrator defers its autosave, `flushAutoSave` falls
+back to the most recent safepoint Snapshot of the current anchor era (or
+writes nothing when the era has none), and player-slot saves reject with
+`in_flight` until the next safepoint commit. The bound keeps spans honest —
+exceeding it forfeits the inhibit with one diagnostic, and a throwing
+classifier fails open as a safepoint — so a span can defer the Save but never
+starve it. Anchor replacement (load/import/restart) resets span tracking. The
+classification lives outside authoritative state, Saves, digests, and replay:
+every commit remains complete and replayable; a span only expresses which
+committed states a Save should re-enter.
+
 Internal indexes, clients, closures, React values, and database handles must not
 enter a Save.
 

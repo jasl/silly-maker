@@ -484,6 +484,7 @@ const savePersistenceRejectionFieldsV1 = Object.freeze(
     unavailable: "string",
     empty_slot: "string",
     conflict: "string",
+    in_flight: "string",
     invalid_record: "string",
     invalid_note: "string",
     lineage_limit: "string",

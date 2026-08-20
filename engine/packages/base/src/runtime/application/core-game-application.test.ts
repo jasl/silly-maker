@@ -2018,6 +2018,69 @@ async function createInstanceV1(options?: {
   });
 }
 
+function resolvedSafepointApplicationV1(policy: {
+  readonly classify: (
+    state: SyntheticSimulationTypesV1["state"],
+  ) => "safepoint" | "in_flight";
+  readonly maxInFlightCommits: number;
+}) {
+  const result = resolveCoreGameApplicationV1(
+    defineCoreGameApplicationV1({
+      ...definitionV1,
+      persistenceSafepoint: Object.freeze({
+        classify: policy.classify,
+        maxInFlightCommits: policy.maxInFlightCommits,
+      }),
+    }),
+    { buildIdentityInput: deterministicBuildIdentityInputV1 },
+  );
+  if (result.kind !== "resolved") {
+    throw new TypeError("safepoint fixture must resolve");
+  }
+  return result.application;
+}
+
+async function createSafepointInstanceV1(options: {
+  classify: (state: SyntheticSimulationTypesV1["state"]) => "safepoint" | "in_flight";
+  maxInFlightCommits?: number;
+  records?: HostAtomicRecordStoreV1;
+  autosave?: CoreAutosavePolicyV1;
+  scheduler?: CoreSchedulerV1;
+}) {
+  return createCoreGameApplicationInstanceV1(
+    resolvedSafepointApplicationV1({
+      classify: options.classify,
+      maxInFlightCommits: options.maxInFlightCommits ?? 8,
+    }),
+    {
+      host: hostServicesV1(options.records ?? createMemoryHostRecordStoreV1()),
+      ...(options.autosave === undefined ? {} : { autosave: options.autosave }),
+      ...(options.scheduler === undefined ? {} : { scheduler: options.scheduler }),
+    },
+  );
+}
+
+/** Odd counts sit inside an in-flight span; even counts are safepoints. */
+function oddCountsInFlightV1(
+  state: SyntheticSimulationTypesV1["state"],
+): "safepoint" | "in_flight" {
+  return state.simulation.counter.count % 2 === 1 ? "in_flight" : "safepoint";
+}
+
+async function storedAutoCurrentV1(records: HostAtomicRecordStoreV1) {
+  const stored = await records.list("save");
+  const current = stored.find(({ key }) => key.includes(":auto.current"));
+  if (current === undefined) return null;
+  return JSON.parse(new TextDecoder().decode(current.bytes)) as {
+    readonly snapshot: {
+      readonly commandSequence: number;
+      readonly state: {
+        readonly simulation: { readonly counter: { readonly count: number } };
+      };
+    };
+  };
+}
+
 function resolvedApplicationWithDisposeV1(dispose: () => void) {
   const result = resolveCoreGameApplicationV1(
     defineCoreGameApplicationV1({
@@ -2121,6 +2184,54 @@ describe("resolveCoreGameApplicationV1", () => {
       failure: { code: "save_adoption_declarations.invalid" },
     });
     expect(defineCalls).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid persistence safepoint declaration before Story resolution", () => {
+    const defineCalls = vi.fn();
+    const raw = {
+      ...definitionV1,
+      entry: Object.freeze({
+        ...definitionV1.entry,
+        define: () => {
+          defineCalls();
+          return definitionV1.entry.define();
+        },
+      }),
+    };
+    const invalidDeclarations: readonly unknown[] = [
+      Object.freeze({ classify: () => "safepoint" as const, maxInFlightCommits: 0 }),
+      Object.freeze({ classify: () => "safepoint" as const, maxInFlightCommits: 257 }),
+      Object.freeze({ classify: () => "safepoint" as const, maxInFlightCommits: 1.5 }),
+      Object.freeze({ classify: null, maxInFlightCommits: 4 }),
+      Object.freeze({ maxInFlightCommits: 4 }),
+      Object.freeze({
+        classify: () => "safepoint" as const,
+        maxInFlightCommits: 4,
+        extra: true,
+      }),
+    ];
+    for (const persistenceSafepoint of invalidDeclarations) {
+      expect(
+        resolveCoreGameApplicationV1({ ...raw, persistenceSafepoint } as never),
+      ).toMatchObject({
+        kind: "failed",
+        failure: { code: "persistence_safepoint.invalid" },
+      });
+    }
+    expect(defineCalls).not.toHaveBeenCalled();
+
+    const valid = resolveCoreGameApplicationV1(
+      {
+        ...raw,
+        persistenceSafepoint: Object.freeze({
+          classify: () => "safepoint" as const,
+          maxInFlightCommits: 4,
+        }),
+      } as never,
+      { buildIdentityInput: deterministicBuildIdentityInputV1 },
+    );
+    expect(valid.kind).toBe("resolved");
+    expect(defineCalls).toHaveBeenCalled();
   });
 
   it("reports resolution failures structurally instead of throwing", () => {
@@ -5135,6 +5246,221 @@ describe("createCoreGameApplicationInstanceV1", () => {
         state: { simulation: { counter: { count: 0 } } },
       },
     });
+    await instance.dispose();
+  });
+
+  it("defers every-commit autosave across an in-flight span and resumes at the next safepoint", async () => {
+    const { counting, autoWrites } = countingRecordsV1();
+    const instance = await createSafepointInstanceV1({
+      classify: oddCountsInFlightV1,
+      records: counting,
+    });
+
+    await instance.semantic.dispatch(incrementV1); // count 1: in flight
+    await instance.autoSaveIdle();
+    expect(autoWrites()).toEqual([]);
+
+    await instance.semantic.dispatch(incrementV1); // count 2: safepoint
+    await instance.autoSaveIdle();
+    expect(autoWrites()).toHaveLength(1);
+    expect((await storedAutoCurrentV1(counting))?.snapshot.commandSequence).toBe(2);
+
+    await instance.semantic.dispatch(incrementV1); // count 3: a new span opens
+    await instance.autoSaveIdle();
+    expect(autoWrites()).toHaveLength(1);
+
+    await instance.semantic.dispatch(incrementV1); // count 4: span closes
+    await instance.autoSaveIdle();
+    expect(autoWrites()).toHaveLength(2);
+    expect((await storedAutoCurrentV1(counting))?.snapshot.commandSequence).toBe(4);
+    expect(instance.diagnostics.runtimeFailures()).toEqual([]);
+    await instance.dispose();
+  });
+
+  it("holds the last safepoint as debounce candidate, manual-save gate, and flush fallback mid-span", async () => {
+    const { counting, autoWrites } = countingRecordsV1();
+    const { scheduler, scheduled } = manualSchedulerV1();
+    const instance = await createSafepointInstanceV1({
+      classify: oddCountsInFlightV1,
+      records: counting,
+      autosave: { mode: "debounced", delayMs: 250 },
+      scheduler,
+    });
+
+    await instance.semantic.dispatch(incrementV1); // in flight: no candidate, no timer
+    expect(scheduled).toHaveLength(0);
+
+    await instance.semantic.dispatch(incrementV1); // safepoint: debounce arms
+    expect(scheduled).toHaveLength(1);
+
+    await instance.semantic.dispatch(incrementV1); // in flight: candidate/timer stay put
+    expect(scheduled).toHaveLength(1);
+    expect(scheduled[0]?.cancelled).toBe(false);
+
+    // Player-slot saves inside the span reject without touching the slot.
+    await expect(instance.persistence.save("quick")).resolves.toEqual({
+      kind: "rejected",
+      code: "in_flight",
+    });
+
+    // A pagehide-style flush mid-span writes the safepoint Snapshot, not the
+    // in-flight queue front.
+    await instance.flushAutoSave();
+    expect(autoWrites()).toHaveLength(1);
+    const stored = await storedAutoCurrentV1(counting);
+    expect(stored?.snapshot.commandSequence).toBe(2);
+    expect(stored?.snapshot.state.simulation.counter.count).toBe(2);
+
+    // The fallback record is an ordinary loadable autosave.
+    await expect(instance.persistence.load("auto.current")).resolves.toMatchObject({
+      kind: "loaded",
+    });
+    expect((instance.semantic.observe().game as { readonly count: number }).count).toBe(2);
+
+    // Outside the span the player-slot gate reopens.
+    await expect(instance.persistence.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    await instance.dispose();
+  });
+
+  it("lets an armed pre-span debounce fire mid-span with the retained safepoint candidate", async () => {
+    const { counting, autoWrites } = countingRecordsV1();
+    const { scheduler, runLast } = manualSchedulerV1();
+    const instance = await createSafepointInstanceV1({
+      classify: oddCountsInFlightV1,
+      records: counting,
+      autosave: { mode: "debounced", delayMs: 250 },
+      scheduler,
+    });
+
+    await instance.semantic.dispatch(incrementV1); // in flight
+    await instance.semantic.dispatch(incrementV1); // safepoint: candidate + timer
+    await instance.semantic.dispatch(incrementV1); // in flight: both stay put
+
+    // The timer firing inside the span still writes the pre-span safepoint.
+    runLast();
+    await instance.autoSaveIdle();
+    expect(autoWrites()).toHaveLength(1);
+    expect((await storedAutoCurrentV1(counting))?.snapshot.commandSequence).toBe(2);
+    await instance.dispose();
+  });
+
+  it("skips the flush when a span has no safepoint Snapshot in this anchor era", async () => {
+    const { counting, autoWrites } = countingRecordsV1();
+    const { scheduler } = manualSchedulerV1();
+    const instance = await createSafepointInstanceV1({
+      classify: (state) => state.simulation.counter.count >= 1 ? "in_flight" : "safepoint",
+      records: counting,
+      autosave: { mode: "debounced", delayMs: 800 },
+      scheduler,
+    });
+
+    // The queue-front bootstrap state classifies as a safepoint: flush writes it.
+    await instance.flushAutoSave();
+    expect(autoWrites()).toHaveLength(1);
+
+    // Inside the span, with no safepoint committed in this era, a flush has
+    // nothing safe to write and leaves the stored pre-span record alone.
+    await instance.semantic.dispatch(incrementV1);
+    await instance.flushAutoSave();
+    expect(autoWrites()).toHaveLength(1);
+    expect((await storedAutoCurrentV1(counting))?.snapshot.commandSequence).toBe(0);
+    await instance.dispose();
+  });
+
+  it("forfeits the inhibit with one diagnostic when a span exceeds its declared bound", async () => {
+    const { counting, autoWrites } = countingRecordsV1();
+    const instance = await createSafepointInstanceV1({
+      classify: (state) => state.simulation.counter.count >= 1 ? "in_flight" : "safepoint",
+      maxInFlightCommits: 2,
+      records: counting,
+    });
+    const overruns = () =>
+      instance.diagnostics.runtimeFailures().filter((failure) =>
+        failure.message === "persistence.safepoint_span_exceeded"
+      );
+
+    await instance.semantic.dispatch(incrementV1);
+    await instance.semantic.dispatch(incrementV1);
+    await instance.autoSaveIdle();
+    expect(autoWrites()).toEqual([]);
+    expect(overruns()).toHaveLength(0);
+
+    // The third consecutive in-flight commit crosses the bound: the inhibit
+    // forfeits, the overrun surfaces once, and autosave resumes.
+    await instance.semantic.dispatch(incrementV1);
+    await instance.autoSaveIdle();
+    expect(autoWrites()).toHaveLength(1);
+    expect(overruns()).toHaveLength(1);
+
+    await instance.semantic.dispatch(incrementV1);
+    await instance.autoSaveIdle();
+    expect(autoWrites()).toHaveLength(2);
+    expect(overruns()).toHaveLength(1);
+
+    // The player-slot gate honors the forfeit too.
+    await expect(instance.persistence.save("quick")).resolves.toEqual({
+      kind: "saved",
+      slotId: "quick",
+    });
+    await instance.dispose();
+  });
+
+  it("treats a throwing classifier as a safepoint and surfaces the malfunction", async () => {
+    const { counting, autoWrites } = countingRecordsV1();
+    const instance = await createSafepointInstanceV1({
+      classify: (state) => {
+        if (state.simulation.counter.count === 1) {
+          throw new Error("synthetic classifier bug");
+        }
+        return "safepoint";
+      },
+      records: counting,
+    });
+
+    await instance.semantic.dispatch(incrementV1);
+    await instance.autoSaveIdle();
+    // Fail open: a malfunctioning declaration cannot starve the autosave.
+    expect(autoWrites()).toHaveLength(1);
+    expect(
+      instance.diagnostics.runtimeFailures().filter((failure) =>
+        failure.message === "persistence.safepoint_classify_failed"
+      ),
+    ).toHaveLength(1);
+
+    await instance.semantic.dispatch(incrementV1);
+    await instance.autoSaveIdle();
+    expect(autoWrites()).toHaveLength(2);
+    await instance.dispose();
+  });
+
+  it("starts span tracking fresh after a load replaces the replay base", async () => {
+    const { counting, autoWrites } = countingRecordsV1();
+    const { scheduler } = manualSchedulerV1();
+    const instance = await createSafepointInstanceV1({
+      classify: oddCountsInFlightV1,
+      records: counting,
+      autosave: { mode: "debounced", delayMs: 800 },
+      scheduler,
+    });
+
+    await instance.semantic.dispatch(incrementV1);
+    await instance.semantic.dispatch(incrementV1); // safepoint: fallback candidate
+    await instance.flushAutoSave();
+    expect(autoWrites()).toHaveLength(1);
+
+    await instance.semantic.dispatch(incrementV1); // count 3: in flight
+    await expect(instance.persistence.load("auto.current")).resolves.toMatchObject({
+      kind: "loaded",
+    });
+
+    // The pre-load safepoint Snapshot belongs to the replaced replay base: a
+    // mid-span flush in the new era must not resurrect it.
+    await instance.semantic.dispatch(incrementV1); // count 3 again: in flight
+    await instance.flushAutoSave();
+    expect(autoWrites()).toHaveLength(1);
     await instance.dispose();
   });
 

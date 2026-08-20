@@ -510,6 +510,14 @@ export type {
   MonitorRetentionV1,
   MonitorSettlementV1,
 } from "./authoritative-monitor.ts";
+export {
+  maxPersistenceSafepointSpanCommitsV1,
+  parsePersistenceSafepointPolicyV1,
+} from "./persistence-safepoint.ts";
+export type {
+  PersistenceSafepointClassificationV1,
+  PersistenceSafepointPolicyV1,
+} from "./persistence-safepoint.ts";
 export { diffPlainDataV1 } from "./plain-data-diff.ts";
 export type { PlainDataDiffEntryV1 } from "./plain-data-diff.ts";
 export {

@@ -148,6 +148,25 @@ hold 交付了「两句台词之间的独占计时」；剩下一族真并行行
   利用；Desktop durability 车道后续直接消费该合同）。
 - 验收：在途段内触发 autosave 推迟或落回最近安全点并可正常 load；
   span 退出恢复正常粒度；无界 span 在 admission 被拒。
+- **交付（2026-08-20）**：`persistence-safepoint.ts` 合同——
+  `parsePersistenceSafepointPolicyV1` admission（精确键、函数分类器、
+  1..256 有界 commit 预算；界的形态定为 commit 数，与回滚环同量纲，无
+  第二墙钟入持久化策略）；resolve 期结构化失败
+  `persistence_safepoint.invalid`，早于任何 Session/持久化所有者。编排
+  落地 core application：在途 commit 永不成为 autosave 候选
+  （`every_commit` 直接跳过；`debounced` 保留上一安全点候选与其定时
+  器），flush 落回本锚纪元最近安全点快照（纪元内无安全点则不写，存量
+  记录即崩溃恢复目标），玩家槽存档在途拒绝 `in_flight`（默认 Save 覆
+  盖层渲染 `rejected.in_flight` 标签，五故事标签齐备），load/import/
+  restart 锚替换重置 span 追踪。越界 span 弃权抑制并单次上报
+  `persistence.safepoint_span_exceeded`；分类器抛错/回错上报
+  `persistence.safepoint_classify_failed` 并按安全点放行——声明故障永远
+  饿不死存档。分类不入权威状态/存档/digest/回放。Lab conformance：
+  `presentation_barrier` 天然在途（barrier 挂起时实时存档拒绝、
+  autosave 落回过场前边界、过场后恢复粒度并可正常 load）；barrier 的
+  `loadRecovery` 对确实携带 barrier 的存档（弃权/遗留/导入）仍是读档
+  权威——default-ui 用无策略孪生定义预置遗留中途档并证明 settle 读档
+  不回放转场。
 
 ### M4 — 三型消费者 + `pace` 提示
 
