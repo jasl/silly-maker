@@ -20,7 +20,19 @@ plan；目标合同见[统一创作架构设计](../design/authoring-architectur
 
 ## 1. Current and next
 
-当前：[Ambient Loop Motion V1](2026-08-15-ambient-loop-motion.md) 的 M0–M3 已
+当前：[并行监视器提案](../proposals/parallel-monitors.md)（2026-08-20
+所有者接受，含同日六项裁决与裁决 #5 修订）与
+[Parallel Monitors V1](2026-08-20-parallel-monitors.md)。切片 M0（唯一
+时间动词，`hold_tick` 归并删除）→ M1（领域事件 + reducer，注册效果命
+令家族全量迁移删除）→ M2（权威监视器 V1，`retain`/清零双策略）→ M3
+（持久化安全点与在途段 + autosave 抑制，引擎能力先行、暂无 Story 消费
+者）→ M4（三型消费者各一条活路径 + `pace` 提示）→ M5（收尾扫描）。车
+道纪律（所有者要求）：每完成一个里程碑做一次 review 再提交；收尾统一
+扫描死代码、过时文档、未迁移实现与正交性/单向数据流/依赖最佳实践。
+Desktop persistence 仍是独立 promotion gate（安全点合同先行不改变该
+门）。
+
+前一波：[Ambient Loop Motion V1](2026-08-15-ambient-loop-motion.md) 的 M0–M3 已
 于 2026-08-15 当日交付（表现侧循环运行时、Scene 文档 `ambient` admission、创作
 面、双消费者实证；交付记录见该计划）。高密度内容波已在外部实验仓完成
 （2026-08-15 开工，2026-08-17 收口：约 65 轮迭代、台词逐字覆盖 99.4%，残余全
@@ -49,7 +61,7 @@ declared-vs-bare 碰撞零出现）；裁决 #3/#4 同日经所有者批复采�
 冻结为终值、lint 保守起点转正），**cue identity 线整体收口**，记录归
 [cue-identity 提案](../proposals/cue-identity.md)。
 
-最近一条 lane（2026-08-19 起草、**同日经所有者接受、同日 M0–M3 全部
+上一条 lane（2026-08-19 起草、**同日经所有者接受、同日 M0–M3 全部
 交付**）：[权威计时持有](../proposals/authoritative-hold-clock.md) 与
 [Authoritative Hold Clock V1](2026-08-19-authoritative-hold-clock.md)。
 证据：实验仓可绑该句的 STORY 已收完，剩余 1:1 卡在两句台词之间的
@@ -60,7 +72,7 @@ Lab 与实验仓滴路径双消费者）。唯一显式 defer：hold 块声明�
 第一条真实中止路径（记录见该计划 §3）。Desktop persistence 仍是独立
 promotion gate。
 
-上一条 lane：[Authoring Architecture V1](2026-08-15-authoring-architecture.md)
+更早的 lane：[Authoring Architecture V1](2026-08-15-authoring-architecture.md)
 （Studio 作者信任加固 → 统一创作外壳与共享文档会话 → project authoring index →
 Story 包目录 locality → Scene Construction → Flow workspace；目标合同见
 [统一创作架构设计](../design/authoring-architecture.md)）。S0–S5 全部切片已于

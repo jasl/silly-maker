@@ -42,7 +42,15 @@ Read only the documents relevant to the change:
   merged into `hold` and deleted; `tickQuantumMs` partial commits and
   batch-invariant threshold-crossing tick effects/frame swaps). The only
   explicit defer is declared-condition rerouting on hold blocks, gated on a
-  first real aborting path. Desktop persistence remains an
+  first real aborting path. The currently active lane (accepted 2026-08-20)
+  is `docs/engine/plans/2026-08-20-parallel-monitors.md` with its contract in
+  `docs/engine/proposals/parallel-monitors.md`: a single session-level time
+  verb replacing `hold_tick`, domain events + reducers replacing the
+  registered-effect command family, authoritative monitors V1, persistence
+  safepoints / in-flight spans (engine capability first, no Story consumer
+  yet), three monitor consumer types plus the `pace` hint, and a closing
+  dead-code/docs/orthogonality sweep; every milestone is reviewed before it
+  is committed. Desktop persistence remains an
   independent promotion gate while the adapter is preview.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,
   `docs/engine/plans/2026-07-30-snapshot-commit-performance.md`,
