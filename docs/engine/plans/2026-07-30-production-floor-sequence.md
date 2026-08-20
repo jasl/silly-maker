@@ -20,17 +20,18 @@ plan；目标合同见[统一创作架构设计](../design/authoring-architectur
 
 ## 1. Current and next
 
-当前：[并行监视器提案](../proposals/parallel-monitors.md)（2026-08-20
-所有者接受，含同日六项裁决与裁决 #5 修订）与
-[Parallel Monitors V1](2026-08-20-parallel-monitors.md)。切片 M0（唯一
-时间动词，`hold_tick` 归并删除）→ M1（领域事件 + reducer，注册效果命
-令家族全量迁移删除）→ M2（权威监视器 V1，`retain`/清零双策略）→ M3
-（持久化安全点与在途段 + autosave 抑制，引擎能力先行、暂无 Story 消费
-者）→ M4（三型消费者各一条活路径 + `pace` 提示）→ M5（收尾扫描）。车
-道纪律（所有者要求）：每完成一个里程碑做一次 review 再提交；收尾统一
-扫描死代码、过时文档、未迁移实现与正交性/单向数据流/依赖最佳实践。
-Desktop persistence 仍是独立 promotion gate（安全点合同先行不改变该
-门）。
+当前：无活跃车道。上一条——[并行监视器提案](../proposals/parallel-monitors.md)
+（2026-08-20 所有者接受，含同日六项裁决与裁决 #5 修订）与
+[Parallel Monitors V1](2026-08-20-parallel-monitors.md)——**同日 M0–M5
+全部交付收口**：M0（唯一时间动词 `TimeTickV1`，`hold_tick` 归并删除）
+→ M1（领域事件 + reducer，注册效果命令家族全量迁移删除）→ M2（权威监
+视器 V1，`retain`/清零双策略）→ M3（持久化安全点与在途段 + autosave
+抑制，引擎能力先行、持久化编排器为内部消费者）→ M4（三型消费者各一条
+活路径 + `pace` 提示 + Host 报时/钉回环）→ M5（收尾扫描）。车道纪律按
+所有者要求执行：每个里程碑独立 review 后提交；收尾统一扫描死代码、过
+时文档、未迁移实现与正交性/单向数据流/依赖最佳实践（交付记录见该计
+划）。Desktop persistence 仍是独立 promotion gate（安全点合同先行不改
+变该门）。
 
 前一波：[Ambient Loop Motion V1](2026-08-15-ambient-loop-motion.md) 的 M0–M3 已
 于 2026-08-15 当日交付（表现侧循环运行时、Scene 文档 `ambient` admission、创作

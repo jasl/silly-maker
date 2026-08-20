@@ -1,6 +1,7 @@
 # Parallel Monitors V1（并行监视器、领域事件与持久化安全点）
 
-状态：2026-08-20 起草，同日所有者接受开工。合同、六项裁决（含裁决 #5
+状态：2026-08-20 起草，同日所有者接受开工，同日 M0–M5 全部交付收口
+（本文自此为完成执行记录）。合同、六项裁决（含裁决 #5
 同日修订：安全点随本车道实现）与正交性分界见
 [parallel-monitors 提案](../proposals/parallel-monitors.md)；本文只拥
 有实现切片顺序、admission 落地与验收。
@@ -225,6 +226,27 @@ hold 交付了「两句台词之间的独占计时」；剩下一族真并行行
   `vn-presentation-runtime.md` 与提案交付记录；production-floor §1 收
   口。
 - 两仓 `deno task check` + `deno task test:e2e` 全绿收口。
+- 交付（2026-08-20）：
+  - 未迁移实现：外部实验仓全量迁上新面——模块 owner/propose 换
+    reducers + fold 辅助、`ImoutoFactV1`→事件族（各模块 `*_set` + 信息
+    性事件）、命令处理器统一 emit、新增时间动词处理器与
+    `dispatchTime` 接线、44 处测试决议换 `TimeTickV1`；三处刀285/286
+    后未跟进的陈旧 e2e 断言修正（日计数入调试坞、figure 包裹背景、普
+    段着按日轮换）；vitest 658 / Playwright 7 全绿。
+  - 死代码：digest 重钉临时脚本清除；`hold_tick`/fact 家族源码零残留
+    （唯一保留是负向解析测试，证明退役动词不再受理）；公开出口无孤儿
+    别名；车道文件无 TODO 标记。
+  - 过时文档：roadmap 证据词汇 facts→events；feature-slices 状态头补
+    owner→reducers 时代注记；deterministic-simulation-boundary 的
+    「factSchema/rejectionSchema 尚未接入」失真句改为现状
+    （`eventSchema` 于 emit 接入、`rejectionSchema` 于 evidence
+    admission 接入、fault 仍无 schema）。历史提案与已完成计划按封存
+    证据保留当时词汇；网站无旧 API 记述。
+  - 正交性/单向数据流/依赖：base 新合同零 React/DOM/Host 依赖；ui 不
+    依赖 web；pacing 回路只经命令路径回权威（表现层不直写状态）；包
+    间消费走声明出口与 `workspace:*`，无 `src/**` 跨包引用。发现项清
+    零，无 defer 新增。
+  - 两仓 `deno task check` + `deno task test:e2e` 全绿。
 
 ## 4. Defer
 

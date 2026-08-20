@@ -827,8 +827,9 @@ receipt的跨 runtime equality仍须验证，以证明 migration结果和新 anc
   为 `0/0`；已经进入 projection traversal 的 canonical failure（含 nested
   symbol/accessor 或 numeric/value failure）为 `1/0`。
 
-当前 `factSchema` / `rejectionSchema` 存在但尚未接入 execution path，fault 没有对应
-simulation schema。DET2b 只允许使用 package-internal composition、engine-owned outer
+2026-08-20 起 Story `eventSchema`（原 `factSchema`，随域事件车道换名）在
+`emit` 时接入 execution path，`rejectionSchema` 在 evidence admission 接入；
+fault 仍没有对应 simulation schema。DET2b 只允许使用 package-internal composition、engine-owned outer
 shape/canonical gate 与现有 stable fault policy；不新增 public evidence hook/receipt、
 command result branch、`GameSimulation` revision、fault schema/envelope 或 universal
 application receipt，也不把 Surface envelope 扩张到所有 command。若实现不能保持

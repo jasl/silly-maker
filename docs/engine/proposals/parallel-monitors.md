@@ -1,7 +1,8 @@
 # Parallel monitors proposal（跨 pending 权威监视器）
 
-状态：**2026-08-20 所有者接受，活跃车道**
-[2026-08-20-parallel-monitors](../plans/2026-08-20-parallel-monitors.md)。
+状态：**2026-08-20 所有者接受，同日交付收口**——执行记录见
+[2026-08-20-parallel-monitors](../plans/2026-08-20-parallel-monitors.md)
+（M0–M5 全部交付；本文自此为已定合同与裁决档案）。
 同日所有者追加两个正交方向并裁决六个开放问题（见裁决记录；裁决 #5 同
 日修订为安全点随本车道实现）；概念按工业术语正名：**领域事件 / 事件日
 志**（原工作名 events / append-only 更新）与**持久化安全点 / 在途段**

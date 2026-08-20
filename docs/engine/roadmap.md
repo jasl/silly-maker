@@ -152,7 +152,7 @@ Surface pilot。
 - network、LLM、wall clock 与系统 entropy 只有先变成 validated canonical
   command/resource identity 才能影响规则，replay 不重新调用 oracle；
 - 修复 xorshift32 zero absorbing state，并在 executor/log 前封住 normalized
-  command、facts、rejections、stable fault/RNG evidence；
+  command、events、rejections、stable fault/RNG evidence；
 - 修复 Strict JSON 先转 binary64 导致数学小数可能舍入为 safe integer 的 token
   admission gap，同时保持 canonical output/digest 不变；
 - 将 Story-owned `createBootstrapInput` 限定为显式 entropy ingress adapter，并在
