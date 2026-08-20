@@ -56,7 +56,7 @@ type SyntheticDebugCommandV1 = {
   readonly amount: NonNegativeSafeInteger;
 };
 
-interface SyntheticFactV1 {
+interface SyntheticEventV1 {
   readonly kind: "value.changed";
   readonly before: NonNegativeSafeInteger;
   readonly after: NonNegativeSafeInteger;
@@ -81,7 +81,7 @@ type SyntheticLoggedCommandV1 =
 
 type SyntheticAttemptV1 = CommandExecutionAttemptEnvelopeV1<
   SyntheticSnapshotV1,
-  SyntheticFactV1,
+  SyntheticEventV1,
   SyntheticRejectionV1,
   SyntheticFaultV1,
   RngStateV1,
@@ -90,7 +90,7 @@ type SyntheticAttemptV1 = CommandExecutionAttemptEnvelopeV1<
 
 type SyntheticFinalizedAttemptV1 = FinalizedCommandAttemptV1<
   SyntheticSnapshotV1,
-  SyntheticFactV1,
+  SyntheticEventV1,
   SyntheticRejectionV1,
   SyntheticFaultV1,
   RngStateV1,
@@ -99,7 +99,7 @@ type SyntheticFinalizedAttemptV1 = FinalizedCommandAttemptV1<
 
 type SyntheticEntryV1 = ReplayCommandLogEntryV1<
   SyntheticLoggedCommandV1,
-  SyntheticFactV1,
+  SyntheticEventV1,
   SyntheticRejectionV1,
   SyntheticFaultV1,
   RngStateV1,
@@ -109,7 +109,7 @@ type SyntheticEntryV1 = ReplayCommandLogEntryV1<
 type SyntheticReplayInputV1 = ReplayInputV1<
   SyntheticSnapshotV1,
   SyntheticLoggedCommandV1,
-  SyntheticFactV1,
+  SyntheticEventV1,
   SyntheticRejectionV1,
   SyntheticFaultV1,
   RngStateV1,
@@ -272,7 +272,7 @@ function finalizedAttemptV1(
 
 function outcomeV1(
   attempt: SyntheticAttemptV1,
-): ReplayRecordedOutcomeV1<SyntheticFactV1, SyntheticRejectionV1, SyntheticFaultV1> {
+): ReplayRecordedOutcomeV1<SyntheticEventV1, SyntheticRejectionV1, SyntheticFaultV1> {
   if (attempt.result.kind === "committed") {
     return Object.freeze({ kind: "committed", events: attempt.result.events });
   }
@@ -356,7 +356,7 @@ function createDriverV1(
 ): ReplayDriverV1<
   SyntheticSnapshotV1,
   SyntheticLoggedCommandV1,
-  SyntheticFactV1,
+  SyntheticEventV1,
   SyntheticRejectionV1,
   SyntheticFaultV1,
   RngStateV1,

@@ -126,6 +126,7 @@ export type {
   InteractionResolutionContextV1 as InteractionResolutionContext,
   InteractionResolutionOutcomeV1 as InteractionResolutionOutcome,
   InteractionRejectionCodeV1 as InteractionRejectionCode,
+  PaceHintV1 as PaceHint,
   TimeTickOutcomeV1 as TimeTickOutcome,
   TimeTickRejectionCodeV1 as TimeTickRejectionCode,
   TimeTickV1 as TimeTick,
@@ -143,7 +144,6 @@ export {
 export type {
   MonitorAccumulatorV1 as MonitorAccumulator,
   MonitorDeclarationV1 as MonitorDeclaration,
-  MonitorPaceV1 as MonitorPace,
   MonitorRetentionV1 as MonitorRetention,
   MonitorSettlementV1 as MonitorSettlement,
 } from "../index.ts";

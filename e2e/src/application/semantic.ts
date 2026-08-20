@@ -243,7 +243,7 @@ export const labSemanticAdapterV1: CoreSemanticAdapterV1<
     const execution = result.execution;
     if (execution.kind === "committed") {
       // Committed domain events stay engine evidence; agents observe outcomes through
-      // the published game view, never through a raw fact stream.
+      // the published game view, never through the raw event journal.
       return Object.freeze({ kind: "committed" as const });
     }
     if (execution.kind === "rejected") {

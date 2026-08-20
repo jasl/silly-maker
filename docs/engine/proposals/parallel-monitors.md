@@ -140,10 +140,10 @@ VN 惯例的加速（按住 Ctrl 二倍速）不是 Host 时间源的副作用�
   名可选字段 `pace: "cinematic" | "realtime"`，缺省归一为 cinematic；
   realtime 段 Host 把**有效倍率**钉回 1×（`pinRealtime`，可叠可释，请
   求倍率保留并在释放后自恢复），调试坞倍速行在钉住期间显示「实时段
-  1×」徽章。报时入口同步定案：composer 声明 `timeReporting`（quantum
-  - publication 谓词 + Story 时间命令派发）与 `realtimeWindow`（反应
-    段谓词），hold pending 与文档隐藏期间报时器自动闭闸——同一段流逝进
-    权威恰好一次。
+  1×」徽章。报时入口同步定案：composer 声明 `timeReporting`（quantum、
+  publication 谓词与 Story 时间命令派发）与 `realtimeWindow`（反应段
+  谓词），hold pending 与文档隐藏期间报时器自动闭闸——同一段流逝进权
+  威恰好一次。
 
 ### 4. 与 HUD / 表现
 

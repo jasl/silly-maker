@@ -171,15 +171,12 @@ export type PendingInteractionV1 =
     readonly tickQuantumMs?: number;
     /**
      * Optional pacing hint for the Host, the `skippable` idiom applied to
-     * time scaling: `realtime` declares a fairness-sensitive reaction
-     * period whose presented duration must match wall time — the Host pins
-     * its presentation-rate multiplier back to 1x while this hold is
-     * pending. Absent means `cinematic`: presented time may be scaled or
-     * the remainder folded. The hint never enters authoritative
-     * arithmetic — reported milliseconds settle identically either way —
-     * and fold-verb availability stays governed by `skippable` alone.
+     * time scaling: absent means `cinematic` (presented time may be scaled
+     * or the remainder folded), `realtime` pins the rate while this hold
+     * is pending. Fold-verb availability stays governed by `skippable`
+     * alone. See {@link PaceHintV1}.
      */
-    readonly pace?: "cinematic" | "realtime";
+    readonly pace?: PaceHintV1;
   })
   | (PendingInteractionBaseV1 & {
     readonly kind: "presentation_barrier";
@@ -203,6 +200,23 @@ export type InteractionResolutionV1 =
   | { readonly kind: "choose"; readonly choiceId: string }
   | { readonly kind: "barrier_completed"; readonly transitionId: string }
   | { readonly kind: "custom"; readonly payload: StrictJsonObjectV1 };
+
+/**
+ * Host pacing hint vocabulary shared by hold blocks and authoritative
+ * monitor declarations (`contracts/authoritative-monitor.ts` reuses this
+ * type): `realtime` declares a fairness-sensitive reaction span whose
+ * presented duration must match wall time — the Host pins its
+ * presentation-rate multiplier back to 1x while the span is live.
+ * `cinematic` (the default) lets the Host scale freely. The hint never
+ * enters authoritative arithmetic — reported milliseconds settle
+ * identically either way.
+ */
+export type PaceHintV1 = "cinematic" | "realtime";
+
+/** Shared admission guard so a future pace value lands in one place. */
+export function isPaceHintV1(value: unknown): value is PaceHintV1 {
+  return value === "cinematic" || value === "realtime";
+}
 
 const interactionBaseKeysV1 = ["kind", "definitionId", "seenRevision", "occurrenceId"] as const;
 
@@ -316,7 +330,7 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
       if (remainingMs > totalMs) {
         return dataFailure(`${path}/remainingMs`, "hold_remaining_invalid");
       }
-      if (declaresPace && record.pace !== "cinematic" && record.pace !== "realtime") {
+      if (declaresPace && !isPaceHintV1(record.pace)) {
         return dataFailure(`${path}/pace`, "pace_invalid");
       }
       const base = parseInteractionBaseV1(record, path);
@@ -334,7 +348,7 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
             tickQuantumMs: parsePositiveDurationMsV1(record.tickQuantumMs, `${path}/tickQuantumMs`),
           }
           : {}),
-        ...(declaresPace ? { pace: record.pace as "cinematic" | "realtime" } : {}),
+        ...(declaresPace ? { pace: record.pace as PaceHintV1 } : {}),
       });
     }
     case "presentation_barrier": {

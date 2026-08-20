@@ -484,6 +484,7 @@ export type {
   InteractionResolutionContextV1,
   InteractionResolutionOutcomeV1,
   InteractionResolutionV1,
+  PaceHintV1,
   PendingInteractionBaseV1,
   PendingInteractionV1,
 } from "./pending-interaction.ts";
@@ -508,7 +509,6 @@ export {
 export type {
   MonitorAccumulatorV1,
   MonitorDeclarationV1,
-  MonitorPaceV1,
   MonitorRetentionV1,
   MonitorSettlementV1,
 } from "./authoritative-monitor.ts";

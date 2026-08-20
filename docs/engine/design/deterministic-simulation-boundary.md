@@ -814,7 +814,7 @@ receipt的跨 runtime equality仍须验证，以证明 migration结果和新 anc
   engine-owned value 暴露为这些 field。continuity failure 先于 metadata failure，任何
   metadata failure 都早于 ordinal/eviction/publication，log/replay base 保持不变；
 - 所有 public Session/CommandLog path 与 attempt-shaped direct Simulation result 都执行
-  无条件 canonical shape gate；标准 Core composition 另外执行 Story fact/rejection
+  无条件 canonical shape gate；标准 Core composition 另外执行 Story event/rejection
   schema normalization，test/bench 只能注入 observation/counter，不得替换或绕过
   gate；
 - 有效输入不改变 canonical algorithm、digest、Save bytes 或 PF1 的 Snapshot

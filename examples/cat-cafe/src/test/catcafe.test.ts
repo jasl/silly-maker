@@ -309,7 +309,7 @@ describe("catcafe endings", () => {
 });
 
 describe("catcafe transient effects", () => {
-  it("projects petting and contest facts into commit-only effects", () => {
+  it("projects petting and contest events into commit-only effects", () => {
     expect(
       projectCatcafeTransientEffectsV1([
         { kind: "cc.petted", zone: "tail", reactionId: "pet.tail.low", trustDelta: -3 },
@@ -336,7 +336,7 @@ describe("catcafe encounters (event pool)", () => {
   });
 
   it("draws deterministically during business and applies effects atomically", async () => {
-    // Same seed -> same encounter trail; facts carry the explanation.
+    // Same seed -> same encounter trail; events carry the explanation.
     async function trailV1(): Promise<readonly string[]> {
       const instance = await createCatcafeApplicationInstanceV1({ seeds: [424242] });
       const trail: string[] = [];

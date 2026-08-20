@@ -51,7 +51,7 @@ type FixtureLoggedCommandV1 =
     };
   };
 
-interface FixtureFactV1 {
+interface FixtureEventV1 {
   readonly kind: "fixture.committed";
   readonly value: number;
 }
@@ -66,7 +66,7 @@ interface FixtureFaultV1 {
 
 type FixtureAttemptV1 = FinalizedCommandAttemptV1<
   FixtureSnapshotV1,
-  FixtureFactV1,
+  FixtureEventV1,
   FixtureRejectionV1,
   FixtureFaultV1
 >;
@@ -188,7 +188,7 @@ function createFixtureLog(replayBase = snapshotAtSequence(0)) {
   return createCommandLogV1<
     FixtureSnapshotV1,
     FixtureLoggedCommandV1,
-    FixtureFactV1,
+    FixtureEventV1,
     FixtureRejectionV1,
     FixtureFaultV1
   >({ replayBase, limit: 200 });
@@ -249,7 +249,7 @@ function createMeasuredFixtureLog(replayBase: FixtureSnapshotV1) {
   const log = createCommandLogInternalV1<
     FixtureSnapshotV1,
     FixtureLoggedCommandV1,
-    FixtureFactV1,
+    FixtureEventV1,
     FixtureRejectionV1,
     FixtureFaultV1
   >(
@@ -361,7 +361,7 @@ describe("CommandLog", () => {
     const log = createCommandLogInternalV1<
       FixtureSnapshotV1,
       FixtureLoggedCommandV1,
-      FixtureFactV1,
+      FixtureEventV1,
       FixtureRejectionV1,
       FixtureFaultV1
     >(
@@ -401,7 +401,7 @@ describe("CommandLog", () => {
     const log = createCommandLogInternalV1<
       FixtureSnapshotV1,
       FixtureLoggedCommandV1,
-      FixtureFactV1,
+      FixtureEventV1,
       FixtureRejectionV1,
       FixtureFaultV1
     >(
@@ -463,7 +463,7 @@ describe("CommandLog", () => {
     const log = createCommandLogInternalV1<
       FixtureSnapshotV1,
       FixtureLoggedCommandV1,
-      FixtureFactV1,
+      FixtureEventV1,
       FixtureRejectionV1,
       FixtureFaultV1
     >(
@@ -838,7 +838,7 @@ describe("CommandLog", () => {
     const log = createCommandLogInternalV1<
       FixtureSnapshotV1,
       ExtendedLoggedCommandV1,
-      FixtureFactV1,
+      FixtureEventV1,
       FixtureRejectionV1,
       FixtureFaultV1
     >({
@@ -963,7 +963,7 @@ describe("CommandLog", () => {
     const log = createCommandLogInternalV1<
       FixtureSnapshotV1,
       ExtendedLoggedCommandV1,
-      FixtureFactV1,
+      FixtureEventV1,
       FixtureRejectionV1,
       FixtureFaultV1
     >({
@@ -1040,7 +1040,7 @@ describe("CommandLog", () => {
     const log = createCommandLogInternalV1<
       FixtureSnapshotV1,
       ExtendedLoggedCommandV1,
-      FixtureFactV1,
+      FixtureEventV1,
       FixtureRejectionV1,
       FixtureFaultV1
     >({
@@ -1101,7 +1101,7 @@ describe("CommandLog", () => {
     const log = createCommandLogV1<
       FixtureSnapshotV1,
       ExtendedLoggedCommandV1,
-      FixtureFactV1,
+      FixtureEventV1,
       FixtureRejectionV1,
       FixtureFaultV1
     >({ replayBase, limit: 200 });
@@ -1148,7 +1148,7 @@ describe("CommandLog", () => {
     const log = createCommandLogInternalV1<
       FixtureSnapshotV1,
       FixtureLoggedCommandV1,
-      FixtureFactV1,
+      FixtureEventV1,
       FixtureRejectionV1,
       FixtureFaultV1
     >({
@@ -1217,7 +1217,7 @@ describe("CommandLog", () => {
     const log = createCommandLogInternalV1<
       FixtureSnapshotV1,
       ExtendedLoggedCommandV1,
-      FixtureFactV1,
+      FixtureEventV1,
       FixtureRejectionV1,
       FixtureFaultV1
     >({
@@ -1272,7 +1272,7 @@ describe("CommandLog", () => {
       createCommandLogInternalV1<
         FixtureSnapshotV1,
         FixtureLoggedCommandV1,
-        FixtureFactV1,
+        FixtureEventV1,
         FixtureRejectionV1,
         FixtureFaultV1
       >({
@@ -1326,7 +1326,7 @@ describe("CommandLog", () => {
     const log = createCommandLogV1<
       FixtureSnapshotV1,
       FixtureLoggedCommandV1,
-      FixtureFactV1,
+      FixtureEventV1,
       FixtureRejectionV1,
       FixtureFaultV1
     >(inputWithInternalField);
