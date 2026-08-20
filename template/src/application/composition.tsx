@@ -333,10 +333,10 @@ export const templateGameApplicationV1: WebGameApplicationV1<
       slots: createTemplateUiSlotsV1(instance, presentationFreeze),
       labels: templateRootLabelsV1,
       saveLabels: templateSaveOverlayLabelsV1,
-      inputMaps: Object.freeze({ keyboard: templateKeyboardMapV1 }),
+      input: Object.freeze({ keyboard: templateKeyboardMapV1 }),
       // Game-shell feel is the engine default: no browser context menu, text
       // selection, or hover-cursor changes; editable controls and
       // data-native-menu / data-native-text subtrees stay native. Declare
-      // `nativeBehaviorReset: false` only for a browser-native page.
+      // `input: { nativeBehavior: false }` only for a browser-native page.
     }),
 });

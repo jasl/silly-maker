@@ -26,7 +26,8 @@ const nativeTypingScopeSelectorV1 =
   `${pointerInteractiveSelectorV1}, [data-native-text], [data-devdock-window], ` +
   "[data-debug-dock], [data-blocking-focus-scope]";
 
-function closestFromEventTargetV1(target: unknown, selector: string): Element | null {
+/** @internal Shared by the keyboard and held-key adapters. */
+export function closestFromEventTargetV1(target: unknown, selector: string): Element | null {
   const candidate = target as {
     closest?: (selectors: string) => Element | null;
     parentElement?: { closest?: (selectors: string) => Element | null } | null;

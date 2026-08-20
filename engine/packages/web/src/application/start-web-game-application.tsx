@@ -34,6 +34,8 @@ import type {
   GamepadActionMapV1,
   GameShellViewportOptionsV1,
   GameUiProjectorV1,
+  HeldInputPortV1,
+  HeldKeyMapV1,
   KeyboardActionMapV1,
   NativeBehaviorResetConfigV1,
   NarrativeSurfaceDefinitionV1,
@@ -55,6 +57,7 @@ import type {
 } from "@sillymaker/ui/debug";
 import {
   createDevDockControlV1,
+  createHeldKeyInputV1,
   createPresentationFreezePortV1,
   createPresentationRatePortV1,
   DefaultGameRootV1,
@@ -186,23 +189,27 @@ export interface WebGameUiDefinitionV1<
    * tool windows through `devDockControl` sets false.
    */
   readonly devDockChip?: boolean;
-  /** Optional keyboard/pointer/gamepad action maps installed by the root. */
-  readonly inputMaps?: {
+  /**
+   * The unified input surface: discrete keyboard/pointer/gamepad action
+   * maps (installed by the root, routed through the InputRouter with
+   * context priority), held-key bindings (modifier chords published as
+   * state through the ui-context `heldInput` port — never routed, never
+   * logged), and the game-shell native-behavior reset (suppress the
+   * browser context menu, text selection, and hover-cursor changes
+   * document-wide; editable controls and `data-native-menu` /
+   * `data-native-text` subtrees keep native behavior). The reset installs
+   * by default — a Player is a game shell, not a document; pass
+   * `nativeBehavior: false` for a browser-native page.
+   */
+  readonly input?: {
     readonly keyboard?: KeyboardActionMapV1;
+    readonly held?: HeldKeyMapV1;
     readonly pointer?: PointerActionMapV1;
     readonly gamepad?: GamepadActionMapV1;
+    readonly nativeBehavior?: NativeBehaviorResetConfigV1 | false;
   };
   /** Install the pointer adapter on the application root element. */
   readonly pointer?: boolean;
-  /**
-   * Game-shell native-behavior reset: suppress the browser context menu,
-   * text selection, and hover-cursor changes document-wide (editable
-   * controls and `data-native-menu` / `data-native-text` subtrees keep
-   * native behavior). Semantic right-click actions remain exclusively
-   * routed through the InputRouter. Installed by default — a Player is a
-   * game shell, not a document; pass `false` for a browser-native page.
-   */
-  readonly nativeBehaviorReset?: NativeBehaviorResetConfigV1 | false;
   /** Spatial interaction surface IDs the intent router accepts. */
   readonly interactionSurfaceIds?: readonly string[];
   /** Optional live stage label (current scene name) for the shell main region. */
@@ -320,6 +327,15 @@ export interface WebGameApplicationV1<
      * a preset row from the same port.
      */
     readonly presentationRate: PresentationRatePortV1;
+    /**
+     * Held-key input: the current set of held input actions declared
+     * through `input.held` (modifier chords such as hold-Ctrl). Pure
+     * presentation-side state — a Story subscribes and owns the policy
+     * (for example pin the presentation rate and enable auto while
+     * `player.fast_forward` is held); physical keys never enter the
+     * CommandLog.
+     */
+    readonly heldInput: HeldInputPortV1;
     /**
      * Core wipe: drain pending Auto Save, then clear every slot. A Story
      * debug dock must use this instead of looping `savePort.clear`.
@@ -648,6 +664,7 @@ export async function startWebGameApplicationV1<
   let mounted: MountedGameApplicationV1 | undefined;
   let pointer: { dispose(): void } | undefined;
   let nativeBehaviorReset: { dispose(): void } | undefined;
+  let heldKeyUninstall: (() => void) | undefined;
   let unbindUiContext: (() => void) | undefined;
   let uiDisposer: (() => void) | undefined;
   let successorAcknowledgments: PresentationSuccessorAcknowledgmentBrokerInternalV1 | undefined;
@@ -705,6 +722,10 @@ export async function startWebGameApplicationV1<
       Object.freeze({
         name: "native_behavior",
         run: () => nativeBehaviorReset?.dispose(),
+      }),
+      Object.freeze({
+        name: "held_input",
+        run: () => heldKeyUninstall?.(),
       }),
       Object.freeze({
         name: "presentation_freeze",
@@ -794,6 +815,10 @@ export async function startWebGameApplicationV1<
     const presentationFreeze = createPresentationFreezePortV1({
       inner: presentationRate.clock,
     });
+    // Held-key (modifier) input: the port exists before `ui()` so Story
+    // surfaces can subscribe; the adapter installs after mount when the
+    // definition declares `input.held`.
+    const heldKeyInput = createHeldKeyInputV1();
     const clearAllSaves = (): Promise<void> =>
       clearAllCoreApplicationSavesForMaintenanceInternalV1(instance);
     const reloadCurrentState = async (): Promise<void> => {
@@ -829,6 +854,7 @@ export async function startWebGameApplicationV1<
       devDockControl,
       presentationFreeze,
       presentationRate,
+      heldInput: heldKeyInput.port,
       clearAllSaves,
       reportFailure,
     });
@@ -968,6 +994,22 @@ export async function startWebGameApplicationV1<
     // DevDock open state feeds the diagnostics UI context without giving
     // the resident player DOM any debug vocabulary.
     let devDockOpenState: DevDockOpenStateV1 = Object.freeze({ open: false });
+    // The root installs only the router-coupled discrete adapters; held
+    // bindings and the native-behavior reset install below, composer-side.
+    const rootInputMaps = ((): {
+      readonly keyboard?: KeyboardActionMapV1;
+      readonly pointer?: PointerActionMapV1;
+      readonly gamepad?: GamepadActionMapV1;
+    } | undefined => {
+      const input = uiDefinition.input;
+      if (input === undefined) return undefined;
+      const maps = {
+        ...(input.keyboard === undefined ? {} : { keyboard: input.keyboard }),
+        ...(input.pointer === undefined ? {} : { pointer: input.pointer }),
+        ...(input.gamepad === undefined ? {} : { gamepad: input.gamepad }),
+      };
+      return Object.keys(maps).length === 0 ? undefined : maps;
+    })();
     const rootNode: ReactElement = (
       <DefaultGameRootV1
         composition={composition}
@@ -1025,7 +1067,7 @@ export async function startWebGameApplicationV1<
             devDockOpenState = state;
           },
         })}
-        {...(uiDefinition.inputMaps === undefined ? {} : { inputMaps: uiDefinition.inputMaps })}
+        {...(rootInputMaps === undefined ? {} : { inputMaps: rootInputMaps })}
       />
     );
     mounted = mountGameApplicationV1(rootElement, rootNode);
@@ -1038,9 +1080,12 @@ export async function startWebGameApplicationV1<
         document,
       });
     }
-    if (uiDefinition.nativeBehaviorReset !== false) {
+    if (uiDefinition.input?.held !== undefined) {
+      heldKeyUninstall = heldKeyInput.install({ map: uiDefinition.input.held });
+    }
+    if (uiDefinition.input?.nativeBehavior !== false) {
       nativeBehaviorReset = installNativeBehaviorResetV1(
-        uiDefinition.nativeBehaviorReset ?? {},
+        uiDefinition.input?.nativeBehavior ?? {},
       );
     }
     if (uiDefinition.debugUiContext !== undefined) {

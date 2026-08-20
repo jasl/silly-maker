@@ -368,6 +368,6 @@ export const bookshopGameApplicationV1: WebGameApplicationV1<
       slots: createBookshopUiSlotsV1(),
       labels: bookshopRootLabelsV1,
       saveLabels: bookshopSaveOverlayLabelsV1,
-      inputMaps: Object.freeze({ keyboard: bookshopKeyboardMapV1 }),
+      input: Object.freeze({ keyboard: bookshopKeyboardMapV1 }),
     }),
 });

@@ -527,7 +527,7 @@ export function createLabGameUiDefinitionV1(
     }),
     labels: labRootLabelsV1,
     saveLabels: labSaveOverlayLabelsV1,
-    inputMaps: Object.freeze({
+    input: Object.freeze({
       keyboard: wholeCanvasConformanceEnabled
         ? Object.freeze({ ...labKeyboardMapV1, ...labWholeCanvasKeyboardMapV1 })
         : labKeyboardMapV1,

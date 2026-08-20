@@ -60,6 +60,7 @@ export { createViewSourceV1, useReadonlyViewV1 } from "./runtime/create-view-bri
 export type { MutableViewSourceV1 } from "./runtime/create-view-bridge.ts";
 export {
   InputContextProviderV1,
+  createHeldKeyInputV1,
   createInputRouterV1,
   inputHandledV1,
   inputIgnoredV1,
@@ -73,6 +74,10 @@ export {
 export type {
   GamepadActionMapV1,
   GamepadLikeV1,
+  HeldInputPortV1,
+  HeldInputStateV1,
+  HeldKeyInputV1,
+  HeldKeyMapV1,
   InputActionIdV1,
   InputContextIdV1,
   InputContextProviderPropsV1,
@@ -82,6 +87,7 @@ export type {
   InputRouterV1,
   InstallGamepadAdapterOptionsV1,
   InstalledGamepadAdapterV1,
+  InstallHeldKeyAdapterOptionsV1,
   InstallKeyboardAdapterOptionsV1,
   KeyboardActionMapV1,
   PointerActionMapV1,

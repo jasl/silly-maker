@@ -32,3 +32,11 @@ export type {
   InstallGamepadAdapterOptionsV1,
   InstalledGamepadAdapterV1,
 } from "./gamepad-adapter.ts";
+export { createHeldKeyInputV1 } from "./held-key-adapter.ts";
+export type {
+  HeldInputPortV1,
+  HeldInputStateV1,
+  HeldKeyInputV1,
+  HeldKeyMapV1,
+  InstallHeldKeyAdapterOptionsV1,
+} from "./held-key-adapter.ts";
