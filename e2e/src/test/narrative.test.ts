@@ -29,6 +29,14 @@ function resolveV1(
   return Object.freeze({ kind: "resolve" as const, expectedOccurrenceId, resolution });
 }
 
+/** A hold-fenced time tick: the verb that folds the pending hold's remainder. */
+function timeV1(expectedHoldOccurrenceId: string, elapsedMs: number): LabInvocationV1 {
+  return Object.freeze({
+    kind: "time" as const,
+    tick: Object.freeze({ elapsedMs, expectedHoldOccurrenceId }),
+  });
+}
+
 function pendingV1(harness: LabHarnessV1): PendingInteractionV1 {
   const pending = harness.observe().narrative.pending;
   if (pending === null) throw new Error("expected a pending interaction");
@@ -68,7 +76,7 @@ async function playCalibrationV1(
   );
   await dispatchCommittedV1(
     harness,
-    resolveV1(pendingV1(harness).occurrenceId, { kind: "hold_tick", elapsedMs: 400 }),
+    timeV1(pendingV1(harness).occurrenceId, 400),
   );
   await dispatchCommittedV1(
     harness,
@@ -164,12 +172,12 @@ describe("Engine Lab pending interactions", () => {
       skippable: true,
     });
 
-    // Partial hold ticks decrement the authoritative remaining
+    // Partial hold-fenced time ticks decrement the authoritative remaining
     // milliseconds without consuming the boundary: the occurrence stays
     // stable, and only the tick that reaches zero advances the script.
     await dispatchCommittedV1(
       harness,
-      resolveV1(hold.occurrenceId, { kind: "hold_tick", elapsedMs: 150 }),
+      timeV1(hold.occurrenceId, 150),
     );
     const stillHolding = pendingV1(harness);
     expect(stillHolding).toMatchObject({
@@ -180,7 +188,7 @@ describe("Engine Lab pending interactions", () => {
     });
     await dispatchCommittedV1(
       harness,
-      resolveV1(hold.occurrenceId, { kind: "hold_tick", elapsedMs: 250 }),
+      timeV1(hold.occurrenceId, 250),
     );
 
     const dial = pendingV1(harness);
@@ -205,7 +213,7 @@ describe("Engine Lab pending interactions", () => {
     // cal-hold declares +1 rapport per 150ms of consumed hold time —
     // crossings at 150ms and 300ms inside the 400ms hold. The authoritative
     // gain must depend only on the millisecond sum, never on how a Host
-    // batched the hold_ticks (the E2 batch-invariance canary).
+    // batched the time ticks (the E2 batch-invariance canary).
     function rapportV1(harness: LabHarnessV1): number {
       const state = harness.admin.inspectForTest().snapshot.state as {
         simulation: { narrative: { rapport: number } };
@@ -247,7 +255,7 @@ describe("Engine Lab pending interactions", () => {
     expect(rapportV1(single)).toBe(0);
     await dispatchCommittedV1(
       single,
-      resolveV1(singleHold.occurrenceId, { kind: "hold_tick", elapsedMs: 400 }),
+      timeV1(singleHold.occurrenceId, 400),
     );
     expect(rapportV1(single)).toBe(2);
     expect(pendingV1(single).kind).toBe("custom");
@@ -258,35 +266,120 @@ describe("Engine Lab pending interactions", () => {
     const splitHold = await playToHoldV1(split);
     await dispatchCommittedV1(
       split,
-      resolveV1(splitHold.occurrenceId, { kind: "hold_tick", elapsedMs: 100 }),
+      timeV1(splitHold.occurrenceId, 100),
     );
     expect(rapportV1(split)).toBe(0);
     await dispatchCommittedV1(
       split,
-      resolveV1(splitHold.occurrenceId, { kind: "hold_tick", elapsedMs: 50 }),
+      timeV1(splitHold.occurrenceId, 50),
     );
     // A multiple landing exactly on the consumed sum belongs to this tick.
     expect(rapportV1(split)).toBe(1);
     await dispatchCommittedV1(
       split,
-      resolveV1(splitHold.occurrenceId, { kind: "hold_tick", elapsedMs: 149 }),
+      timeV1(splitHold.occurrenceId, 149),
     );
     expect(rapportV1(split)).toBe(1);
     await dispatchCommittedV1(
       split,
-      resolveV1(splitHold.occurrenceId, { kind: "hold_tick", elapsedMs: 1 }),
+      timeV1(splitHold.occurrenceId, 1),
     );
     expect(rapportV1(split)).toBe(2);
     expect(pendingV1(split)).toMatchObject({ kind: "hold", remainingMs: 100 });
     await dispatchCommittedV1(
       split,
-      resolveV1(splitHold.occurrenceId, { kind: "hold_tick", elapsedMs: 100 }),
+      timeV1(splitHold.occurrenceId, 100),
     );
     expect(rapportV1(split)).toBe(2);
     expect(pendingV1(split).kind).toBe("custom");
 
     await single.dispose();
     await split.dispose();
+  });
+
+  it("scopes the time verb: unfenced ticks never fold a hold, stale fences reject whole", async () => {
+    function rapportV1(harness: LabHarnessV1): number {
+      const state = harness.admin.inspectForTest().snapshot.state as {
+        simulation: { narrative: { rapport: number } };
+      };
+      return state.simulation.narrative.rapport;
+    }
+    const harness = await createLabHarnessV1();
+    await dispatchCommittedV1(harness, beginV1);
+    const firstSay = pendingV1(harness);
+    await dispatchCommittedV1(harness, resolveV1(firstSay.occurrenceId, { kind: "advance" }));
+    await dispatchCommittedV1(
+      harness,
+      resolveV1(pendingV1(harness).occurrenceId, { kind: "advance" }),
+    );
+    await dispatchCommittedV1(
+      harness,
+      resolveV1(pendingV1(harness).occurrenceId, {
+        kind: "choose",
+        choiceId: "choice.e2e.cal.basic",
+      }),
+    );
+    await dispatchCommittedV1(
+      harness,
+      resolveV1(pendingV1(harness).occurrenceId, {
+        kind: "barrier_completed",
+        transitionId: "transition.e2e.bg-crossfade",
+      }),
+    );
+    const hold = pendingV1(harness);
+    expect(hold).toMatchObject({ kind: "hold", remainingMs: 400 });
+
+    // An unfenced tick settles only session-global consumers: it commits
+    // while the hold is pending yet folds nothing — same occurrence, full
+    // remainder, no declared tick effect fired.
+    await dispatchCommittedV1(
+      harness,
+      Object.freeze({ kind: "time" as const, tick: Object.freeze({ elapsedMs: 999 }) }),
+    );
+    expect(pendingV1(harness)).toMatchObject({
+      kind: "hold",
+      occurrenceId: hold.occurrenceId,
+      remainingMs: 400,
+    });
+    expect(rapportV1(harness)).toBe(0);
+
+    // Holds are pure time-settlement boundaries: input resolutions reject.
+    expect(
+      await harness.dispatch(resolveV1(hold.occurrenceId, { kind: "advance" })),
+    ).toEqual({ kind: "rejected", codes: ["interaction.kind_mismatch"] });
+
+    // A fence naming any occurrence but the pending hold rejects the whole
+    // command — a queued stale report must not pre-fold this hold.
+    expect(
+      await harness.dispatch(timeV1(firstSay.occurrenceId, 400)),
+    ).toEqual({ kind: "rejected", codes: ["time.hold_occurrence_stale"] });
+    expect(pendingV1(harness)).toMatchObject({
+      kind: "hold",
+      occurrenceId: hold.occurrenceId,
+      remainingMs: 400,
+    });
+
+    // The correctly fenced fold still advances, and past the hold a fence
+    // naming the non-hold pending is stale while an unfenced tick stays an
+    // accepted no-op.
+    await dispatchCommittedV1(harness, timeV1(hold.occurrenceId, 400));
+    const dial = pendingV1(harness);
+    expect(dial.kind).toBe("custom");
+    expect(rapportV1(harness)).toBe(2);
+    expect(
+      await harness.dispatch(timeV1(dial.occurrenceId, 100)),
+    ).toEqual({ kind: "rejected", codes: ["time.hold_occurrence_stale"] });
+    await dispatchCommittedV1(
+      harness,
+      Object.freeze({ kind: "time" as const, tick: Object.freeze({ elapsedMs: 100 }) }),
+    );
+    expect(pendingV1(harness)).toMatchObject({
+      kind: "custom",
+      occurrenceId: dial.occurrenceId,
+    });
+    expect(rapportV1(harness)).toBe(2);
+
+    await harness.dispose();
   });
 
   it("When Cancel loops the choice back under a fresh occurrence", async () => {
@@ -402,7 +495,7 @@ describe("Engine Lab pending interactions", () => {
     const hold = pendingV1(harness);
     await dispatchCommittedV1(
       harness,
-      resolveV1(hold.occurrenceId, { kind: "hold_tick", elapsedMs: 400 }),
+      timeV1(hold.occurrenceId, 400),
     );
     const dial = pendingV1(harness);
     expect(

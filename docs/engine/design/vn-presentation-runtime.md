@@ -136,17 +136,19 @@ Narrative interpreter 在自动执行纯控制节点后，应停在一个明确�
 - `say`：speaker、text/line ID、voice intent、advance policy；
 - `choice`：stable choice IDs、visibility/availability、resolution schema；选项是非空列表，没有作者面数量上限；
 - `hold`：权威计时持有——`totalMs`/`remainingMs`（正整数毫秒）与
-  `skippable`；唯一推进 `hold_tick({ elapsedMs })`，按
-  `min(elapsedMs, remainingMs)` 结算（超量截断，不拒绝）；
-  `remaining > 0` 时同一 occurrence 保持（词汇中唯一「部分解决不消费
-  边界」的 resolution），减到 0 的那次 commit 同时到期走 successor，
-  无独立 hold_expire；终态只依赖毫秒和，与 Host 批切无关（共享算术
-  `applyHoldTickV1`）。可选 `tickQuantumMs` 声明 Host 部分 commit 的
-  节奏（持有中存档的进度保底）；持有期滴/换帧由 Story 在同一 commit
-  内按阈值穿越结算（`countHoldTickCrossingsV1` 数
-  `(消耗前累计, 消耗后累计]` 区间跨过的阈值，天然批切不变）。合同与
+  `skippable`；hold 是纯时间结算边界，任何 input resolution 对其一律
+  拒绝。推进走会话级时间动词 `TimeTickV1`（parallel-monitors 车道 M0，
+  2026-08-20 统一）：tick 携带 `elapsedMs` 与 `expectedHoldOccurrenceId`
+  围栏，按 `min(elapsedMs, remainingMs)` 结算（超量截断，不拒绝）；
+  `remaining > 0` 时同一 occurrence 保持，减到 0 的那次 commit 同时
+  到期走 successor，无独立 hold_expire；终态只依赖毫秒和，与 Host
+  批切无关（共享算术 `applyElapsedToHoldV1`）。可选 `tickQuantumMs`
+  声明 Host 部分 commit 的节奏（持有中存档的进度保底）；持有期滴/换帧
+  由 Story 在同一 commit 内按阈值穿越结算（`countThresholdCrossingsV1`
+  数 `(消耗前累计, 消耗后累计]` 区间跨过的阈值，天然批切不变）。合同与
   裁决见
-  [authoritative-hold-clock 提案](../proposals/authoritative-hold-clock.md)；
+  [authoritative-hold-clock 提案](../proposals/authoritative-hold-clock.md)
+  与 [parallel-monitors 提案](../proposals/parallel-monitors.md)；
 - （已删除）`pause`：其「过一段时间再续」语义已并入 `hold`，hold 车道
   M1 已完成显式迁移并从词汇中删除；
 - `presentationBarrier`：等待 stable cue/transition ID；

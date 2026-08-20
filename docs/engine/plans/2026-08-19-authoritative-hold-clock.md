@@ -12,7 +12,11 @@
   [authoritative-hold-clock 提案](../proposals/authoritative-hold-clock.md)。
   本文只拥有实现切片顺序、admission 落地与验收；
   [production-floor sequence](2026-07-30-production-floor-sequence.md)
-  仍是唯一跨计划排序入口。
+  仍是唯一跨计划排序入口。**2026-08-20 起本文为历史执行记录**：
+  [parallel-monitors 车道](2026-08-20-parallel-monitors.md) M0 已把
+  `hold_tick` 归并进会话级 `TimeTickV1` 时间动词（hold 拒绝一切 input
+  resolution；算术更名 `applyElapsedToHoldV1`/`countThresholdCrossingsV1`，
+  语义不变），下文动词名保留交付时原文。
 
 ## 1. Positioning
 

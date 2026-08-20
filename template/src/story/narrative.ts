@@ -7,10 +7,11 @@ import type {
   SemanticStageState,
   StageCueDispatch,
   StageMutation,
+  TimeTick,
 } from "@sillymaker/base/story";
 import {
   appendNarrativeHistory,
-  applyHoldTick,
+  applyElapsedToHold,
   interactionOccurrenceId,
   emptyNarrativeHistory,
   parsePendingInteraction,
@@ -450,27 +451,18 @@ function withFlagsV1(flags: readonly string[], added: readonly string[]): readon
 }
 
 /**
- * The continuation of an accepted resolution: `advanced` consumed the
- * pending boundary (the caller runs the script from the new cursor);
- * `holding` is a partial hold tick — the same occurrence stays pending
- * with its authoritative `remainingMs` decremented, and the caller
- * commits that state without running the script.
- */
-export type TemplateNarrativeResolutionContinuationV1 =
-  | { readonly kind: "advanced"; readonly narrative: TemplateNarrativeStateV1 }
-  | { readonly kind: "holding"; readonly narrative: TemplateNarrativeStateV1 };
-
-/**
- * Applies an accepted resolution to the pending node: moves the cursor to
- * the continuation, records flags, and appends the history entry. A hold
- * tick goes through the shared `applyHoldTick` arithmetic — only expiry
- * consumes the boundary. The caller runs the script after an `advanced`
- * continuation; validation already happened in the shared evaluator.
+ * Applies an accepted input resolution to the pending node: moves the
+ * cursor to the continuation, records flags, and appends the history
+ * entry. Always consumes the pending boundary — holds are pure
+ * time-settlement boundaries and never reach here (the shared evaluator
+ * rejects every input resolution against them). The caller runs the
+ * script from the returned cursor; validation already happened in that
+ * evaluator.
  */
 export function templateNarrativeAfterResolutionV1(
   narrative: TemplateNarrativeStateV1,
   resolution: InteractionResolution,
-): TemplateNarrativeResolutionContinuationV1 {
+): TemplateNarrativeStateV1 {
   const pending = narrative.pending;
   if (pending === null || narrative.cursor === null) {
     throw new TypeError("template.narrative_nothing_pending");
@@ -504,30 +496,60 @@ export function templateNarrativeAfterResolutionV1(
       textId: node.textId,
       voiceAssetId: null,
     });
-  } else if (node.kind === "hold" && resolution.kind === "hold_tick") {
-    if (pending.kind !== "hold") {
-      throw new TypeError(`template.narrative_resolution_mismatch:${node.nodeId}`);
-    }
-    const outcome = applyHoldTick(pending, resolution.elapsedMs);
-    if (outcome.kind === "holding") {
-      return Object.freeze({
-        kind: "holding" as const,
-        narrative: Object.freeze({ ...narrative, pending: outcome.pending }),
-      });
-    }
-    next = node.next;
   } else {
     throw new TypeError(`template.narrative_resolution_mismatch:${node.nodeId}`);
+  }
+  return Object.freeze({
+    phase: "active" as const,
+    cursor: next,
+    pending: null,
+    sequence: narrative.sequence,
+    flags,
+    history,
+  });
+}
+
+/**
+ * The continuation of an accepted hold-scoped time tick: `holding` is a
+ * partial settlement — the same occurrence stays pending with its
+ * authoritative `remainingMs` decremented and the caller commits that
+ * state without running the script; `advanced` means the hold expired and
+ * the caller runs the script from the node's successor. The tick goes
+ * through the shared `applyElapsedToHold` arithmetic; its hold fence was
+ * already checked by `evaluateTimeTick`.
+ */
+export type TemplateNarrativeTimeContinuationV1 =
+  | { readonly kind: "advanced"; readonly narrative: TemplateNarrativeStateV1 }
+  | { readonly kind: "holding"; readonly narrative: TemplateNarrativeStateV1 };
+
+export function templateNarrativeAfterTimeTickV1(
+  narrative: TemplateNarrativeStateV1,
+  tick: TimeTick,
+): TemplateNarrativeTimeContinuationV1 {
+  const pending = narrative.pending;
+  if (pending === null || pending.kind !== "hold" || narrative.cursor === null) {
+    throw new TypeError("template.narrative_no_hold_pending");
+  }
+  const node = requireNodeV1(narrative.cursor);
+  if (node.kind !== "hold") {
+    throw new TypeError(`template.narrative_resolution_mismatch:${node.nodeId}`);
+  }
+  const outcome = applyElapsedToHold(pending, tick.elapsedMs);
+  if (outcome.kind === "holding") {
+    return Object.freeze({
+      kind: "holding" as const,
+      narrative: Object.freeze({ ...narrative, pending: outcome.pending }),
+    });
   }
   return Object.freeze({
     kind: "advanced" as const,
     narrative: Object.freeze({
       phase: "active" as const,
-      cursor: next,
+      cursor: node.next,
       pending: null,
       sequence: narrative.sequence,
-      flags,
-      history,
+      flags: narrative.flags,
+      history: narrative.history,
     }),
   });
 }

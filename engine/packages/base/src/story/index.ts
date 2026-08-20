@@ -108,22 +108,27 @@ export type {
 // Pending interactions (current generation: V1).
 // ---------------------------------------------------------------------------
 export {
-  applyHoldTickV1 as applyHoldTick,
-  countHoldTickCrossingsV1 as countHoldTickCrossings,
+  applyElapsedToHoldV1 as applyElapsedToHold,
+  countThresholdCrossingsV1 as countThresholdCrossings,
   evaluateInteractionResolutionV1 as evaluateInteractionResolution,
+  evaluateTimeTickV1 as evaluateTimeTick,
   interactionOccurrenceIdV1 as interactionOccurrenceId,
   parseInteractionOccurrenceIdV1 as parseInteractionOccurrenceId,
   parseInteractionResolutionV1 as parseInteractionResolution,
   parsePendingInteractionV1 as parsePendingInteraction,
+  parseTimeTickV1 as parseTimeTick,
 } from "../index.ts";
 export type {
   PendingInteractionV1 as PendingInteraction,
   HoldPendingInteractionV1 as HoldPendingInteraction,
-  HoldTickOutcomeV1 as HoldTickOutcome,
+  HoldSettlementV1 as HoldSettlement,
   InteractionResolutionV1 as InteractionResolution,
   InteractionResolutionContextV1 as InteractionResolutionContext,
   InteractionResolutionOutcomeV1 as InteractionResolutionOutcome,
   InteractionRejectionCodeV1 as InteractionRejectionCode,
+  TimeTickOutcomeV1 as TimeTickOutcome,
+  TimeTickRejectionCodeV1 as TimeTickRejectionCode,
+  TimeTickV1 as TimeTick,
 } from "../index.ts";
 
 // ---------------------------------------------------------------------------

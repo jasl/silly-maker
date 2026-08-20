@@ -324,6 +324,13 @@ export const templateGameApplicationV1: WebGameApplicationV1<
                   resolution: request.resolution,
                 }) as never,
               ),
+            // The session-level time verb: hold cadence ticks, expiry, and
+            // skippable folds all arrive here as hold-fenced elapsed
+            // milliseconds and route to the Story's time command.
+            dispatchTime: (tick) =>
+              instance.semantic.dispatch(
+                Object.freeze({ kind: "time" as const, tick }) as never,
+              ),
             renderer: TemplateNarrativeRendererV1,
             resolveText: templateTextForLocaleV1,
             replayCurrentVoice: null,

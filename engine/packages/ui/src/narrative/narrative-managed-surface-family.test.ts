@@ -2582,7 +2582,7 @@ describe("Narrative stable Managed Surface family", () => {
     const snapshot = publisherSnapshotV1(harness);
     const notifications = harness.stateNotificationCount();
 
-    // Each partial hold_tick republishes the same occurrence with a smaller
+    // Each partial time tick republishes the same occurrence with a smaller
     // remainder (every other byte identical, the declared cadence included):
     // the admitted frame stays the current one with zero kernel or publisher
     // traffic. The comparison runs against the admitted entry remainder, so
@@ -3280,12 +3280,15 @@ describe("Narrative stable Managed Surface family", () => {
     const semanticReceipt = Object.freeze({ kind: "hold-resumed" as const });
     let capturedRequest: unknown = null;
     let semanticPort!: NarrativeStableSemanticResolutionPortInternalV1;
-    const dispatchResolution = vi.fn(function (this: unknown, request: unknown) {
+    const dispatchTime = vi.fn(function (this: unknown, request: unknown) {
       expect(this).toBe(semanticPort);
       capturedRequest = request;
       return Promise.resolve(semanticReceipt);
     });
-    semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+    semanticPort = Object.freeze({
+      dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+      dispatchTimeInternalV1: dispatchTime,
+    });
     const fixture = physicalHoldHarnessV1({ semanticDispatchPort: semanticPort });
     const state = fixture.harness.kernel.getStateInternalV1();
 
@@ -3314,15 +3317,12 @@ describe("Narrative stable Managed Surface family", () => {
       throw new Error("expected hold resume completion");
     }
     await expect(result.consumerResult.completion).resolves.toBe(semanticReceipt);
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(dispatchTime).toHaveBeenCalledOnce();
     expect(capturedRequest).toEqual({
-      expectedOccurrenceId: occurrenceV1(1),
-      resolution: { kind: "hold_tick", elapsedMs: 250 },
+      elapsedMs: 250,
+      expectedHoldOccurrenceId: occurrenceV1(1),
     });
     expect(Object.isFrozen(capturedRequest)).toBe(true);
-    expect(
-      Object.isFrozen((capturedRequest as { readonly resolution: object }).resolution),
-    ).toBe(true);
     expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
     expect(
       fixture.admission.routeInternalV1(
@@ -3333,7 +3333,7 @@ describe("Narrative stable Managed Surface family", () => {
         attempt,
       ).consumerResult,
     ).toEqual({ kind: "stale", completion: null });
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(dispatchTime).toHaveBeenCalledOnce();
   });
 
   it("constructs for a ready hold but issues manual resume only when skippable", () => {
@@ -3390,10 +3390,11 @@ describe("Narrative stable Managed Surface family", () => {
   });
 
   it("keeps wrong actions and foreign attempt kinds from consuming an authentic hold resume", async () => {
-    const dispatchResolution = vi.fn(() => Promise.resolve("hold-dispatched"));
+    const dispatchTime = vi.fn(() => Promise.resolve("hold-dispatched"));
     const fixture = physicalHoldHarnessV1({
       semanticDispatchPort: Object.freeze({
-        dispatchResolutionInternalV1: dispatchResolution,
+        dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+        dispatchTimeInternalV1: dispatchTime,
       }),
     });
     const attempt = fixture.admission.issueHoldSkipAttemptInternalV1();
@@ -3427,7 +3428,7 @@ describe("Narrative stable Managed Surface family", () => {
         ).consumerResult,
       ).toEqual({ kind: "unmapped", completion: null });
     }
-    expect(dispatchResolution).not.toHaveBeenCalled();
+    expect(dispatchTime).not.toHaveBeenCalled();
 
     expect(
       fixture.admission.routeInternalV1(
@@ -3479,7 +3480,7 @@ describe("Narrative stable Managed Surface family", () => {
       throw new Error("expected authentic hold resume after unmapped actions");
     }
     await expect(dispatched.consumerResult.completion).resolves.toBe("hold-dispatched");
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(dispatchTime).toHaveBeenCalledOnce();
 
     choiceFixture.admission.disposeInternalV1();
     foreignHold.admission.disposeInternalV1();
@@ -3487,11 +3488,13 @@ describe("Narrative stable Managed Surface family", () => {
 
   it("keeps stale gesture, source replacement, suspension, and dispose at zero hold dispatch", async () => {
     let gestureCurrent = false;
-    const dispatchResolution = vi.fn(() => Promise.resolve("hold-dispatched"));
+    const dispatchTime = vi.fn(() => Promise.resolve("hold-dispatched"));
+    const holdTimePortV1 = Object.freeze({
+      dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+      dispatchTimeInternalV1: dispatchTime,
+    });
     const fixture = physicalHoldHarnessV1({
-      semanticDispatchPort: Object.freeze({
-        dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      semanticDispatchPort: holdTimePortV1,
       isGestureCurrent: () => gestureCurrent,
     });
     const staleGestureAttempt = fixture.admission.issueHoldSkipAttemptInternalV1();
@@ -3518,7 +3521,7 @@ describe("Narrative stable Managed Surface family", () => {
       throw new Error("expected hold resume after stale gesture");
     }
     await expect(recovered.consumerResult.completion).resolves.toBe("hold-dispatched");
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(dispatchTime).toHaveBeenCalledOnce();
 
     const replacementAttempt = fixture.admission.issueHoldSkipAttemptInternalV1();
     expect(replacementAttempt).not.toBeNull();
@@ -3534,12 +3537,10 @@ describe("Narrative stable Managed Surface family", () => {
         replacementAttempt,
       ).consumerResult,
     ).toEqual({ kind: "stale", completion: null });
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(dispatchTime).toHaveBeenCalledOnce();
 
     const suspended = physicalHoldHarnessV1({
-      semanticDispatchPort: Object.freeze({
-        dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      semanticDispatchPort: holdTimePortV1,
     });
     const suspendedAttempt = suspended.admission.issueHoldSkipAttemptInternalV1();
     expect(suspendedAttempt).not.toBeNull();
@@ -3555,9 +3556,7 @@ describe("Narrative stable Managed Surface family", () => {
     ).toEqual({ kind: "stale", completion: null });
 
     const disposed = physicalHoldHarnessV1({
-      semanticDispatchPort: Object.freeze({
-        dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      semanticDispatchPort: holdTimePortV1,
     });
     const disposedAttempt = disposed.admission.issueHoldSkipAttemptInternalV1();
     expect(disposedAttempt).not.toBeNull();
@@ -3570,17 +3569,18 @@ describe("Narrative stable Managed Surface family", () => {
       route: { input: { code: "input.stale_publication" }, surface: null },
       consumerResult: null,
     });
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(dispatchTime).toHaveBeenCalledOnce();
   });
 
   it("normalizes a synchronous hold semantic-port throw without rolling back state", async () => {
     const sentinel = new Error("hold semantic dispatch failed");
-    const dispatchResolution = vi.fn(() => {
+    const dispatchTime = vi.fn(() => {
       throw sentinel;
     });
     const fixture = physicalHoldHarnessV1({
       semanticDispatchPort: Object.freeze({
-        dispatchResolutionInternalV1: dispatchResolution,
+        dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+        dispatchTimeInternalV1: dispatchTime,
       }),
     });
     const state = fixture.harness.kernel.getStateInternalV1();
@@ -3598,7 +3598,7 @@ describe("Narrative stable Managed Surface family", () => {
       throw new Error("expected rejected hold semantic completion");
     }
     await expect(result.consumerResult.completion).rejects.toBe(sentinel);
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(dispatchTime).toHaveBeenCalledOnce();
     expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
   });
 
@@ -4104,12 +4104,15 @@ describe("Narrative stable Managed Surface family", () => {
       const semanticReceipt = Object.freeze({ kind: "hold-expired" as const, skippable });
       let capturedRequest: unknown = null;
       let semanticPort!: NarrativeStableSemanticResolutionPortInternalV1;
-      const dispatchResolution = vi.fn(function (this: unknown, request: unknown) {
+      const dispatchTime = vi.fn(function (this: unknown, request: unknown) {
         expect(this).toBe(semanticPort);
         capturedRequest = request;
         return Promise.resolve(semanticReceipt);
       });
-      semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+      semanticPort = Object.freeze({
+        dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+        dispatchTimeInternalV1: dispatchTime,
+      });
       const fixture = automaticHoldHarnessV1({
         semanticDispatchPort: semanticPort,
         skippable,
@@ -4142,20 +4145,17 @@ describe("Narrative stable Managed Surface family", () => {
       if (result.kind !== "dispatched") throw new Error("expected automatic hold dispatch");
       expect(result.completion).toBeInstanceOf(Promise);
       await expect(result.completion).resolves.toBe(semanticReceipt);
-      expect(dispatchResolution).toHaveBeenCalledOnce();
+      expect(dispatchTime).toHaveBeenCalledOnce();
       expect(capturedRequest).toEqual({
-        expectedOccurrenceId: occurrenceV1(1),
-        resolution: { kind: "hold_tick", elapsedMs: 250 },
+        elapsedMs: 250,
+        expectedHoldOccurrenceId: occurrenceV1(1),
       });
       expect(Object.isFrozen(capturedRequest)).toBe(true);
-      expect(
-        Object.isFrozen((capturedRequest as { readonly resolution: object }).resolution),
-      ).toBe(true);
       expect(controller.dispatchInternalV1(attempt, 250)).toEqual({
         kind: "stale",
         completion: null,
       });
-      expect(dispatchResolution).toHaveBeenCalledOnce();
+      expect(dispatchTime).toHaveBeenCalledOnce();
       expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
       expect(fixture.harness.stateNotificationCount()).toBe(notifications);
       expect(now).not.toHaveBeenCalled();
@@ -4163,9 +4163,49 @@ describe("Narrative stable Managed Surface family", () => {
     }
   });
 
+  it("faults hold expiry and hold-skip dispatch when the captured port binds no time verb", () => {
+    // A hold frame admitted against a resolution-only port has no path to
+    // settle time: the dispatch itself must fault (never silently stale)
+    // so the Host retires the player instead of retrying forever.
+    const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
+    const timeless = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+
+    const automatic = automaticHoldHarnessV1({ semanticDispatchPort: timeless });
+    const attempt = automatic.controller.issueAttemptInternalV1();
+    expect(attempt).not.toBeNull();
+    expect(automatic.controller.dispatchInternalV1(attempt, 250)).toEqual({
+      kind: "faulted",
+      completion: null,
+    });
+    // The faulted attempt is spent; the controller itself stays alive.
+    expect(automatic.controller.dispatchInternalV1(attempt, 250)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(automatic.controller.issueAttemptInternalV1()).not.toBeNull();
+    automatic.controller.disposeInternalV1();
+
+    const skippable = physicalHoldHarnessV1({ semanticDispatchPort: timeless });
+    const skipAttempt = skippable.admission.issueHoldSkipAttemptInternalV1();
+    expect(skipAttempt).not.toBeNull();
+    const routed = skippable.admission.routeInternalV1(
+      skippable.admission.createEnvelopeInternalV1({
+        actionId: narrativeResumeActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.hold-timeless"),
+      }),
+      skipAttempt,
+    );
+    expect(routed.consumerResult).toEqual({ kind: "faulted", completion: null });
+    expect(dispatchResolution).not.toHaveBeenCalled();
+    skippable.admission.disposeInternalV1();
+  });
+
   it("keeps attempts generation-bound across clones, foreign controllers, and A-to-B replacement", async () => {
-    const dispatchResolution = vi.fn(() => Promise.resolve("automatic-resumed"));
-    const semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+    const dispatchTime = vi.fn(() => Promise.resolve("automatic-resumed"));
+    const semanticPort = Object.freeze({
+      dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+      dispatchTimeInternalV1: dispatchTime,
+    });
     const fixture = automaticHoldHarnessV1({ semanticDispatchPort: semanticPort });
     const controllerA = fixture.controller;
     const attemptA = controllerA.issueAttemptInternalV1();
@@ -4188,7 +4228,7 @@ describe("Narrative stable Managed Surface family", () => {
       kind: "stale",
       completion: null,
     });
-    expect(dispatchResolution).not.toHaveBeenCalled();
+    expect(dispatchTime).not.toHaveBeenCalled();
 
     expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("hold", 2)))
       .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
@@ -4198,7 +4238,7 @@ describe("Narrative stable Managed Surface family", () => {
     });
     expect(() => createNarrativeStableHoldExpiryControllerInternalV1(fixture.harness.bridge))
       .toThrowError("ui.narrative_stable_hold_expiry_controller_unavailable");
-    expect(dispatchResolution).not.toHaveBeenCalled();
+    expect(dispatchTime).not.toHaveBeenCalled();
     controllerA.disposeInternalV1();
     settleCurrentNarrativeReadyV1(fixture.harness);
 
@@ -4211,7 +4251,7 @@ describe("Narrative stable Managed Surface family", () => {
     expect(resultB).toMatchObject({ kind: "dispatched" });
     if (resultB.kind !== "dispatched") throw new Error("expected B generation dispatch");
     await expect(resultB.completion).resolves.toBe("automatic-resumed");
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(dispatchTime).toHaveBeenCalledOnce();
     expect(controllerB.dispatchInternalV1(attemptB, 250)).toEqual({
       kind: "stale",
       completion: null,
@@ -4222,8 +4262,11 @@ describe("Narrative stable Managed Surface family", () => {
   });
 
   it("stales the old topology attempt but admits a fresh controller under a higher nonblocking input owner", async () => {
-    const dispatchResolution = vi.fn(() => Promise.resolve("nonblocking-resumed"));
-    const semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+    const dispatchTime = vi.fn(() => Promise.resolve("nonblocking-resumed"));
+    const semanticPort = Object.freeze({
+      dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+      dispatchTimeInternalV1: dispatchTime,
+    });
     const { harness, nonBlockingDefinition } = nonBlockingNarrativeHarnessV1(semanticPort);
     expect(harness.bridge.reconcilePendingInternalV1(pendingV1("hold"))).toMatchObject({
       kind: "applied",
@@ -4263,7 +4306,7 @@ describe("Narrative stable Managed Surface family", () => {
     expect(result).toMatchObject({ kind: "dispatched" });
     if (result.kind !== "dispatched") throw new Error("expected nonblocking dispatch");
     await expect(result.completion).resolves.toBe("nonblocking-resumed");
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(dispatchTime).toHaveBeenCalledOnce();
     expect(harness.kernel.getStateInternalV1()).toBe(state);
     expect(harness.stateNotificationCount()).toBe(notifications);
     expect(state.transientState.publication.inputOwner?.surfaceInstanceId).not.toBe(
@@ -4275,8 +4318,11 @@ describe("Narrative stable Managed Surface family", () => {
   });
 
   it("reissues within the same generation after lower nonblocking topology changes without suspending Narrative", async () => {
-    const dispatchResolution = vi.fn(() => Promise.resolve("lower-nonblocking-resumed"));
-    const semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+    const dispatchTime = vi.fn(() => Promise.resolve("lower-nonblocking-resumed"));
+    const semanticPort = Object.freeze({
+      dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+      dispatchTimeInternalV1: dispatchTime,
+    });
     const { harness, nonBlockingDefinition } = nonBlockingNarrativeHarnessV1(
       semanticPort,
       10,
@@ -4295,7 +4341,7 @@ describe("Narrative stable Managed Surface family", () => {
       kind: "stale",
       completion: null,
     });
-    expect(dispatchResolution).not.toHaveBeenCalled();
+    expect(dispatchTime).not.toHaveBeenCalled();
 
     const state = harness.kernel.getStateInternalV1();
     const notifications = harness.stateNotificationCount();
@@ -4308,7 +4354,7 @@ describe("Narrative stable Managed Surface family", () => {
       throw new Error("expected same-generation lower-topology dispatch");
     }
     await expect(result.completion).resolves.toBe("lower-nonblocking-resumed");
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(dispatchTime).toHaveBeenCalledOnce();
     expect(harness.kernel.getStateInternalV1()).toBe(state);
     expect(harness.stateNotificationCount()).toBe(notifications);
     controller.disposeInternalV1();
@@ -4413,12 +4459,15 @@ describe("Narrative stable Managed Surface family", () => {
     let controller!: NarrativeStableHoldExpiryControllerInternalV1;
     let attempt!: NarrativeStableHoldExpiryControllerAttemptInternalV1;
     let reentrantResult: NarrativeStableHoldExpiryDispatchResultInternalV1 | null = null;
-    const dispatchResolution = vi.fn(() => {
+    const dispatchTime = vi.fn(() => {
       reentrantResult = controller.dispatchInternalV1(attempt, 250);
       throw sentinel;
     });
     const fixture = automaticHoldHarnessV1({
-      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+        dispatchTimeInternalV1: dispatchTime,
+      }),
     });
     controller = fixture.controller;
     expect(() => createNarrativeStableHoldExpiryControllerInternalV1(fixture.harness.bridge))
@@ -4433,7 +4482,7 @@ describe("Narrative stable Managed Surface family", () => {
     if (result.kind !== "dispatched") throw new Error("expected rejected completion");
     await expect(result.completion).rejects.toBe(sentinel);
     expect(reentrantResult).toEqual({ kind: "stale", completion: null });
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(dispatchTime).toHaveBeenCalledOnce();
     expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
     expect(fixture.harness.stateNotificationCount()).toBe(notifications);
 
@@ -4454,7 +4503,7 @@ describe("Narrative stable Managed Surface family", () => {
       let activeController: NarrativeStableHoldExpiryControllerInternalV1 | null = null;
       let activeAttempt: NarrativeStableHoldExpiryControllerAttemptInternalV1 | null = null;
       let reentrantResult: NarrativeStableHoldExpiryDispatchResultInternalV1 | null = null;
-      const dispatchResolution = vi.fn(() => {
+      const dispatchTime = vi.fn(() => {
         if (activeController === null || activeAttempt === null) {
           throw new Error("missing active automatic controller");
         }
@@ -4462,7 +4511,10 @@ describe("Narrative stable Managed Surface family", () => {
         return Promise.resolve("bounded-resume");
       });
       const fixture = automaticHoldHarnessV1({
-        semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+        semanticDispatchPort: Object.freeze({
+          dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+          dispatchTimeInternalV1: dispatchTime,
+        }),
       });
       const state = fixture.harness.kernel.getStateInternalV1();
       const notifications = fixture.harness.stateNotificationCount();
@@ -4491,7 +4543,7 @@ describe("Narrative stable Managed Surface family", () => {
       const result = activeController.dispatchInternalV1(activeAttempt, 250);
       expect(result).toMatchObject({ kind: "dispatched" });
       expect(reentrantResult).toEqual({ kind: "stale", completion: null });
-      expect(dispatchResolution).toHaveBeenCalledOnce();
+      expect(dispatchTime).toHaveBeenCalledOnce();
       expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
       expect(fixture.harness.stateNotificationCount()).toBe(notifications);
       expect(publisherSnapshotV1(fixture.harness)).toMatchObject({
@@ -7917,7 +7969,12 @@ describe("Narrative stable Managed Surface family", () => {
       .toMatchObject({ kind: "dispatched" });
     choice.admission.disposeInternalV1();
 
-    const hold = physicalHoldHarnessV1();
+    const hold = physicalHoldHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+        dispatchTimeInternalV1: () => Promise.resolve(undefined),
+      }),
+    });
     const holdAttempt = hold.admission.issueHoldSkipAttemptInternalV1();
     expect(holdAttempt).not.toBeNull();
     probeModeAction(hold.admission, holdAttempt, "hold");

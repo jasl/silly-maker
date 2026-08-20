@@ -1213,6 +1213,7 @@ describe("@sillymaker/ui public managed System surface", () => {
     expectTypeOf<keyof DefineNarrativeSurfaceInputV1<unknown>>().toEqualTypeOf<
       | "selectNarrative"
       | "dispatchResolution"
+      | "dispatchTime"
       | "renderer"
       | "resolveText"
       | "replayCurrentVoice"

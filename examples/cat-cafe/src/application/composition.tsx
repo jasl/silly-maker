@@ -457,6 +457,9 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
             renderer: CatcafeNarrativeRendererV1,
             resolveText: catcafeTextForLocaleV1,
             replayCurrentVoice: null,
+            // The cat-cafe narrative declares no hold, so it binds no time
+            // dispatcher.
+            dispatchTime: null,
           } satisfies DefineNarrativeSurfaceInputV1<CatcafeSemanticPublicationV1>,
         ),
       ),

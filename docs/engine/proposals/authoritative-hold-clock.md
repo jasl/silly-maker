@@ -11,6 +11,13 @@
 拥有；[production-floor sequence](../plans/2026-07-30-production-floor-sequence.md)
 仍是唯一跨计划排序入口。
 
+**2026-08-20 词汇 supersede**：[parallel-monitors 车道](parallel-monitors.md)
+M0 把本文交付的 `hold_tick` resolution 归并进会话级时间动词
+`TimeTickV1`（毫秒 + 可选 hold occurrence 围栏），hold 自此拒绝一切
+input resolution；算术更名 `applyElapsedToHoldV1` /
+`countThresholdCrossingsV1`，语义不变。本文其余段落为交付时的历史
+记录，当前词汇以 features/architecture/story-authoring 为准。
+
 本文修正 [VN presentation runtime](../design/vn-presentation-runtime.md)
 §5 PendingInteraction 词汇：新增 `hold`，并把 `pause` 归并进 `hold` 后
 删除（显式迁移，见正交性一节）。

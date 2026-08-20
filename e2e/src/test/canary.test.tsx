@@ -68,16 +68,25 @@ async function playNarrativeToEndV1(harness: LabHarnessV1): Promise<readonly str
     const pending = harness.observe().narrative.pending;
     if (pending === null) break;
     definitions.push(pending.definitionId);
-    const resolution: InteractionResolutionV1 = pending.kind === "choice"
-      ? { kind: "choose", choiceId: "choice.e2e.cal.basic" }
-      : pending.kind === "presentation_barrier"
-      ? { kind: "barrier_completed", transitionId: pending.expectedTransitionId }
-      : pending.kind === "hold"
-      ? { kind: "hold_tick", elapsedMs: pending.remainingMs }
-      : pending.kind === "custom"
-      ? { kind: "custom", payload: { value: 2 } }
-      : { kind: "advance" };
-    await dispatchCommittedV1(harness, resolveV1(pending.occurrenceId, resolution));
+    const invocation: LabInvocationV1 = pending.kind === "hold"
+      ? Object.freeze({
+        kind: "time" as const,
+        tick: Object.freeze({
+          elapsedMs: pending.remainingMs,
+          expectedHoldOccurrenceId: pending.occurrenceId,
+        }),
+      })
+      : resolveV1(
+        pending.occurrenceId,
+        pending.kind === "choice"
+          ? { kind: "choose", choiceId: "choice.e2e.cal.basic" }
+          : pending.kind === "presentation_barrier"
+          ? { kind: "barrier_completed", transitionId: pending.expectedTransitionId }
+          : pending.kind === "custom"
+          ? { kind: "custom", payload: { value: 2 } }
+          : { kind: "advance" },
+      );
+    await dispatchCommittedV1(harness, invocation);
   }
   return Object.freeze(definitions);
 }

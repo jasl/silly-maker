@@ -26,20 +26,40 @@ function compileDocV1(
   });
 }
 
-/** Resolves whatever is pending now — inserting script lines never renumbers tests. */
-function currentResolveV1(
+function currentOccurrenceIdV1(
   application: { readonly semantic: { observe(): unknown } },
-  resolution: Readonly<Record<string, unknown>>,
-) {
+): string {
   const publication = application.semantic.observe() as {
     readonly narrative: { readonly pending: { readonly occurrenceId: string } | null };
   };
   const pending = publication.narrative.pending;
   if (pending === null) throw new TypeError("test.no_pending_interaction");
+  return pending.occurrenceId;
+}
+
+/** Resolves whatever is pending now — inserting script lines never renumbers tests. */
+function currentResolveV1(
+  application: { readonly semantic: { observe(): unknown } },
+  resolution: Readonly<Record<string, unknown>>,
+) {
   return Object.freeze({
     kind: "resolve" as const,
-    expectedOccurrenceId: pending.occurrenceId,
+    expectedOccurrenceId: currentOccurrenceIdV1(application),
     resolution: Object.freeze(resolution),
+  });
+}
+
+/** A time tick fenced to whatever hold is pending now. */
+function currentTimeTickV1(
+  application: { readonly semantic: { observe(): unknown } },
+  elapsedMs: number,
+) {
+  return Object.freeze({
+    kind: "time" as const,
+    tick: Object.freeze({
+      elapsedMs,
+      expectedHoldOccurrenceId: currentOccurrenceIdV1(application),
+    }),
   });
 }
 
@@ -492,10 +512,11 @@ describe("template narrative playthrough", () => {
         ],
       });
 
-      // A partial hold tick decrements the authoritative remaining time
-      // without consuming the boundary: same occurrence, script not run.
+      // A partial hold-fenced time tick decrements the authoritative
+      // remaining time without consuming the boundary: same occurrence,
+      // script not run.
       const holdOccurrence = publication.narrative.pending?.occurrenceId;
-      await dispatch(currentResolveV1(application, { kind: "hold_tick", elapsedMs: 250 }));
+      await dispatch(currentTimeTickV1(application, 250));
       publication = application.semantic.observe();
       expect(publication.narrative.pending).toMatchObject({
         kind: "hold",
@@ -505,7 +526,7 @@ describe("template narrative playthrough", () => {
       });
 
       // The tick that reaches zero expires the hold; the narration plays.
-      await dispatch(currentResolveV1(application, { kind: "hold_tick", elapsedMs: 350 }));
+      await dispatch(currentTimeTickV1(application, 350));
       publication = application.semantic.observe();
       expect(publication.narrative.pending).toMatchObject({
         kind: "say",

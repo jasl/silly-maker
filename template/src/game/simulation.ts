@@ -6,14 +6,18 @@ import type {
   InteractionResolution,
   StageCueDispatch,
   StageMutation,
+  TimeTick,
 } from "@sillymaker/base/story";
 import {
+  applyElapsedToHold,
   defineGameSimulation,
   evaluateInteractionResolution,
+  evaluateTimeTick,
   parseInteractionOccurrenceId,
   parseInteractionResolution,
   parseStageCueDispatches,
   parseStageMutation,
+  parseTimeTick,
   reduceStageMutations,
 } from "@sillymaker/base/story";
 
@@ -47,6 +51,7 @@ import {
   templateChoiceOptionsForV1,
   templateInteractionContextV1,
   templateNarrativeAfterResolutionV1,
+  templateNarrativeAfterTimeTickV1,
   templateNarrativeAtBeginV1,
 } from "../story/narrative.ts";
 
@@ -97,6 +102,11 @@ type NarrativeOperationV1 =
     readonly kind: "resolve";
     readonly expectedOccurrenceId: string;
     readonly resolution: InteractionResolution;
+    readonly next: TemplateNarrativeStateV1;
+  }
+  | {
+    readonly kind: "time";
+    readonly tick: TimeTick;
     readonly next: TemplateNarrativeStateV1;
   };
 
@@ -163,6 +173,17 @@ const narrativeOperationSchemaV1: RuntimeSchemaV1<NarrativeOperationV1> = Object
         next: templateNarrativeStateSchemaV1.parse(record.next),
       });
     }
+    if (kind === "time") {
+      if (Object.keys(value).toSorted().join("\0") !== "kind\0next\0tick") {
+        throw new TypeError("invalid template narrative time operation");
+      }
+      const record = value as { readonly tick?: unknown; readonly next?: unknown };
+      return Object.freeze({
+        kind,
+        tick: parseTimeTick(record.tick, "/tick"),
+        next: templateNarrativeStateSchemaV1.parse(record.next),
+      });
+    }
     throw new TypeError("invalid template narrative operation kind");
   },
 });
@@ -201,6 +222,37 @@ const narrativeModuleV1 = kit.defineStatefulModule({
         return Object.freeze({
           kind: "proposed" as const,
           proposal: Object.freeze({ payload: operation, facts: Object.freeze([]) }),
+        });
+      }
+      if (operation.kind === "time") {
+        // The queue-front authority for the time verb: the fence re-check
+        // rejects a tick whose hold occurrence is no longer current, so a
+        // stale queued report can never pre-fold a successor hold.
+        const outcome = evaluateTimeTick(state.pending, operation.tick);
+        if (outcome.kind === "rejected") {
+          return Object.freeze({
+            kind: "rejected" as const,
+            rejection: Object.freeze({ code: outcome.code }),
+          });
+        }
+        // Only an expiring fold consumes the boundary; partial settlements
+        // and unfenced (session-global) ticks resolve no interaction.
+        const expired = outcome.hold !== null &&
+          applyElapsedToHold(outcome.hold, operation.tick.elapsedMs).kind === "expired";
+        return Object.freeze({
+          kind: "proposed" as const,
+          proposal: Object.freeze({
+            payload: operation,
+            facts: outcome.hold !== null && expired
+              ? Object.freeze([
+                Object.freeze({
+                  kind: "template.interaction_resolved" as const,
+                  definitionId: outcome.hold.definitionId,
+                  occurrenceId: outcome.hold.occurrenceId,
+                }),
+              ])
+              : Object.freeze([]),
+          }),
         });
       }
       // Queue-front authority: the same shared evaluator that served the
@@ -363,6 +415,49 @@ export function createTemplateGameSimulationV1(): TemplateGameSimulationV1 {
         });
       }
 
+      if (command.kind === "template.time_tick") {
+        return transactionRunnerV1.execute(snapshot, rng, (transaction) => {
+          // Pre-check with the same evaluator the narrative owner re-runs
+          // at propose time: a stale hold fence rejects the whole command.
+          const outcome = evaluateTimeTick(state.narrative.pending, command.tick);
+          if (outcome.kind === "rejected") {
+            return transaction.reject({ code: outcome.code });
+          }
+          if (outcome.hold === null) {
+            // An unfenced tick settles only session-global time consumers;
+            // none are registered yet, so the settled state is unchanged.
+            transaction.propose(narrativeModuleV1, {
+              kind: "time",
+              tick: command.tick,
+              next: state.narrative,
+            });
+            return transaction.complete();
+          }
+          const continuation = templateNarrativeAfterTimeTickV1(state.narrative, command.tick);
+          if (continuation.kind === "holding") {
+            // A partial settlement decrements the authoritative remaining
+            // milliseconds without consuming the pending boundary: the
+            // same occurrence stays pending and the script does not run.
+            transaction.propose(narrativeModuleV1, {
+              kind: "time",
+              tick: command.tick,
+              next: continuation.narrative,
+            });
+            return transaction.complete();
+          }
+          // Expiry consumes the boundary: the script runs to the next
+          // interaction inside the same commit.
+          const run = runTemplateNarrativeUntilInteractionV1(continuation.narrative, state.stage);
+          transaction.propose(narrativeModuleV1, {
+            kind: "time",
+            tick: command.tick,
+            next: run.narrative,
+          });
+          proposeStage(transaction, run.stageMutations, run.stageDispatches);
+          return transaction.complete();
+        });
+      }
+
       return transactionRunnerV1.execute(snapshot, rng, (transaction) => {
         // Pre-check with the exact evaluator the narrative owner re-runs at
         // propose time, so invalid resolutions reject before continuation
@@ -376,24 +471,8 @@ export function createTemplateGameSimulationV1(): TemplateGameSimulationV1 {
         if (outcome.kind === "rejected") {
           return transaction.reject({ code: outcome.code });
         }
-        const continuation = templateNarrativeAfterResolutionV1(
-          state.narrative,
-          command.resolution,
-        );
-        if (continuation.kind === "holding") {
-          // A partial hold tick decrements the authoritative remaining
-          // milliseconds without consuming the pending boundary: the
-          // same occurrence stays pending and the script does not run.
-          transaction.propose(narrativeModuleV1, {
-            kind: "resolve",
-            expectedOccurrenceId: command.expectedOccurrenceId,
-            resolution: command.resolution,
-            next: continuation.narrative,
-          });
-          return transaction.complete();
-        }
         const run = runTemplateNarrativeUntilInteractionV1(
-          continuation.narrative,
+          templateNarrativeAfterResolutionV1(state.narrative, command.resolution),
           state.stage,
         );
         transaction.propose(narrativeModuleV1, {

@@ -68,7 +68,13 @@ async function playToCompletionV1(agent: LabAgentPortV1): Promise<number> {
           break;
         }
         case "hold":
-          invocation = resolve({ kind: "hold_tick", elapsedMs: pending.remainingMs });
+          invocation = Object.freeze({
+            kind: "time" as const,
+            tick: Object.freeze({
+              elapsedMs: pending.remainingMs,
+              expectedHoldOccurrenceId: pending.occurrenceId,
+            }),
+          }) as LabInvocationV1;
           break;
         case "presentation_barrier":
           invocation = resolve({

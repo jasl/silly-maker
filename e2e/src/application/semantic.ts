@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
-import type { InteractionResolutionV1 } from "@sillymaker/base";
+import type { InteractionResolutionV1, TimeTickV1 } from "@sillymaker/base";
 import {
   evaluateInteractionResolutionV1,
+  evaluateTimeTickV1,
   parseInteractionOccurrenceIdV1,
   parseInteractionResolutionV1,
+  parseTimeTickV1,
 } from "@sillymaker/base";
 import type { CoreSemanticAdapterV1 } from "@sillymaker/base/runtime";
 
@@ -23,7 +25,10 @@ import {
   labInteractionContextV1,
 } from "../gameplay/narrative.ts";
 
-export type LabActionIdV1 = Exclude<LabCommandV1["kind"], "lab.narrative_resolve">;
+export type LabActionIdV1 = Exclude<
+  LabCommandV1["kind"],
+  "lab.narrative_resolve" | "lab.time_tick"
+>;
 
 export interface LabActionDescriptorV1 {
   readonly actionId: LabActionIdV1;
@@ -37,7 +42,8 @@ export type LabInvocationV1 =
     readonly kind: "resolve";
     readonly expectedOccurrenceId: string;
     readonly resolution: InteractionResolutionV1;
-  };
+  }
+  | { readonly kind: "time"; readonly tick: TimeTickV1 };
 
 export type LabPreviewV1 =
   | { readonly kind: "allowed" }
@@ -114,6 +120,15 @@ function resolutionBlockedByV1(
   return outcome.kind === "accepted" ? null : outcome.code;
 }
 
+/** The same time-tick evaluator used at queue-front dispatch, fed by queries. */
+function timeTickBlockedByV1(
+  queries: LabQueriesV1,
+  invocation: Extract<LabInvocationV1, { readonly kind: "time" }>,
+): LabRejectionV1["code"] | null {
+  const outcome = evaluateTimeTickV1(queries.narrative.pending, invocation.tick);
+  return outcome.kind === "accepted" ? null : outcome.code;
+}
+
 export function projectLabNarrativeViewV1(queries: LabQueriesV1): LabNarrativeViewV1 {
   const pending = queries.narrative.pending;
   return Object.freeze({
@@ -156,6 +171,15 @@ export function parseLabInvocationV1(value: unknown): LabInvocationV1 {
       resolution: parseInteractionResolutionV1(record.resolution),
     });
   }
+  if (kind === "time") {
+    if (Object.keys(value).toSorted().join("\0") !== "kind\0tick") {
+      throw new TypeError("invalid lab time invocation");
+    }
+    return Object.freeze({
+      kind: "time",
+      tick: parseTimeTickV1((value as { readonly tick?: unknown }).tick, "/tick"),
+    });
+  }
   if (kind !== "invoke" || Object.keys(value).toSorted().join("\0") !== "actionId\0kind") {
     throw new TypeError("invalid lab invocation");
   }
@@ -189,6 +213,8 @@ export const labSemanticAdapterV1: CoreSemanticAdapterV1<
   preview: (queries, invocation) => {
     const blockedBy = invocation.kind === "resolve"
       ? resolutionBlockedByV1(queries, invocation)
+      : invocation.kind === "time"
+      ? timeTickBlockedByV1(queries, invocation)
       : blockedByV1(queries, invocation.actionId);
     return blockedBy === null
       ? Object.freeze({ kind: "allowed" as const })
@@ -202,6 +228,8 @@ export const labSemanticAdapterV1: CoreSemanticAdapterV1<
         expectedOccurrenceId: invocation.expectedOccurrenceId,
         resolution: invocation.resolution,
       })
+      : invocation.kind === "time"
+      ? Object.freeze({ kind: "lab.time_tick" as const, tick: invocation.tick })
       : Object.freeze({ kind: invocation.actionId }),
   projectDispatchResult: (result) => {
     if (result.kind === "not_executed") {

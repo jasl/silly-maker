@@ -161,11 +161,12 @@ export type PendingInteractionV1 =
     readonly skippable: boolean;
     /**
      * Optional authoritative commit cadence declared by the Story block: a
-     * Host that owns the presentation clock commits accumulated elapsed time
-     * as partial `hold_tick`s every quantum instead of holding everything
-     * for one expiry commit. Absent means the hold settles as a single
-     * expiry tick. The terminal state never depends on the cadence — only
-     * mid-hold Save durability and same-commit tick effects observe it.
+     * Host that owns the presentation clock commits accumulated elapsed
+     * time as partial hold-scoped time ticks every quantum instead of
+     * holding everything for one expiry commit. Absent means the hold
+     * settles as a single expiry tick. The terminal state never depends on
+     * the cadence — only mid-hold Save durability and same-commit tick
+     * effects observe it.
      */
     readonly tickQuantumMs?: number;
   })
@@ -180,10 +181,15 @@ export type PendingInteractionV1 =
     readonly params: StrictJsonObjectV1;
   });
 
+/**
+ * Input resolutions for pending interactions. A `hold` pending has no
+ * resolution kind on purpose: holds are pure time-settlement boundaries
+ * fed by the session-level time verb (see `time-tick.ts`), so every input
+ * resolution against a hold rejects with `interaction.kind_mismatch`.
+ */
 export type InteractionResolutionV1 =
   | { readonly kind: "advance" }
   | { readonly kind: "choose"; readonly choiceId: string }
-  | { readonly kind: "hold_tick"; readonly elapsedMs: number }
   | { readonly kind: "barrier_completed"; readonly transitionId: string }
   | { readonly kind: "custom"; readonly payload: StrictJsonObjectV1 };
 
@@ -371,20 +377,6 @@ export function parseInteractionResolutionV1(
         choiceId: parseInteractionIdV1(record.choiceId, `${path}/choiceId`, "choice_id_invalid"),
       });
     }
-    case "hold_tick": {
-      const record = readExactRecord(value, ["kind", "elapsedMs"], path);
-      // Any positive integer is admissible: overshoot from a frame hitch or
-      // a skip fold clamps against the remaining milliseconds when applied,
-      // so no gameplay cap is invented here.
-      if (
-        typeof record.elapsedMs !== "number" ||
-        !Number.isSafeInteger(record.elapsedMs) ||
-        record.elapsedMs < 1
-      ) {
-        return dataFailure(`${path}/elapsedMs`, "hold_elapsed_invalid");
-      }
-      return freezeInteractionDataInternalV1({ kind, elapsedMs: record.elapsedMs });
-    }
     case "barrier_completed": {
       const record = readExactRecord(value, ["kind", "transitionId"], path);
       return freezeInteractionDataInternalV1({
@@ -432,11 +424,10 @@ export interface InteractionResolutionContextV1 {
 }
 
 const resolutionKindForInteractionV1: Readonly<
-  Record<PendingInteractionV1["kind"], InteractionResolutionV1["kind"]>
+  Record<Exclude<PendingInteractionV1["kind"], "hold">, InteractionResolutionV1["kind"]>
 > = freezeInteractionDataInternalV1({
   say: "advance",
   choice: "choose",
-  hold: "hold_tick",
   presentation_barrier: "barrier_completed",
   custom: "custom",
 });
@@ -458,6 +449,9 @@ export function evaluateInteractionResolutionV1(
   if (pending.occurrenceId !== expectedOccurrenceId) {
     return rejected("interaction.occurrence_mismatch");
   }
+  // Holds are time-settlement boundaries: no input resolution targets them.
+  // The session-level time verb (`time-tick.ts`) owns their folding.
+  if (pending.kind === "hold") return rejected("interaction.kind_mismatch");
   if (resolutionKindForInteractionV1[pending.kind] !== resolution.kind) {
     return rejected("interaction.kind_mismatch");
   }
@@ -487,66 +481,3 @@ export function evaluateInteractionResolutionV1(
 }
 
 export type HoldPendingInteractionV1 = Extract<PendingInteractionV1, { readonly kind: "hold" }>;
-
-export type HoldTickOutcomeV1 =
-  | { readonly kind: "holding"; readonly pending: HoldPendingInteractionV1 }
-  | { readonly kind: "expired" };
-
-/**
- * The shared hold arithmetic every Narrative runner applies after an
- * accepted `hold_tick`: consume `min(elapsedMs, remainingMs)` — overshoot
- * from a frame hitch or a skip fold clamps instead of rejecting — and
- * either keep the same boundary with the decremented remainder (the one
- * partial resolution in the vocabulary that does not consume its
- * interaction: the occurrence stays stable across ticks) or report expiry
- * so the runner advances to the node's successor in the same commit. The
- * terminal state depends only on the sum of elapsed milliseconds, never on
- * how a Host batched them.
- */
-export function applyHoldTickV1(
-  pending: HoldPendingInteractionV1,
-  elapsedMs: number,
-): HoldTickOutcomeV1 {
-  if (!Number.isSafeInteger(elapsedMs) || elapsedMs < 1) {
-    throw new TypeError("hold tick elapsedMs must be a positive integer");
-  }
-  const remainingMs = pending.remainingMs - Math.min(elapsedMs, pending.remainingMs);
-  if (remainingMs === 0) return freezeInteractionDataInternalV1({ kind: "expired" });
-  return freezeInteractionDataInternalV1({
-    kind: "holding",
-    pending: freezeInteractionDataInternalV1({ ...pending, remainingMs }),
-  });
-}
-
-/**
- * Threshold-crossing settlement for hold tick effects: how many whole
- * multiples of `everyMs` the consumed elapsed time crossed between the
- * remainder before a `hold_tick` and the remainder after it (0 when the
- * tick expired the hold). Story runners apply a declared per-period effect
- * exactly this many times inside the same commit, so the authoritative
- * outcome depends only on the millisecond sum — `{500,500,500}` and
- * `{1500}` settle identically — never on how a Host batched the ticks.
- * A multiple landing exactly on expiry belongs to the zero-reaching tick.
- */
-export function countHoldTickCrossingsV1(input: {
-  readonly totalMs: number;
-  readonly beforeRemainingMs: number;
-  readonly afterRemainingMs: number;
-  readonly everyMs: number;
-}): number {
-  const { totalMs, beforeRemainingMs, afterRemainingMs, everyMs } = input;
-  if (!Number.isSafeInteger(totalMs) || totalMs < 1) {
-    throw new TypeError("hold crossing totalMs must be a positive integer");
-  }
-  if (!Number.isSafeInteger(everyMs) || everyMs < 1) {
-    throw new TypeError("hold crossing everyMs must be a positive integer");
-  }
-  if (
-    !Number.isSafeInteger(beforeRemainingMs) || !Number.isSafeInteger(afterRemainingMs) ||
-    afterRemainingMs < 0 || beforeRemainingMs > totalMs || afterRemainingMs > beforeRemainingMs
-  ) {
-    throw new TypeError("hold crossing remainders must satisfy 0 <= after <= before <= total");
-  }
-  return Math.floor((totalMs - afterRemainingMs) / everyMs) -
-    Math.floor((totalMs - beforeRemainingMs) / everyMs);
-}

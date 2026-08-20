@@ -441,10 +441,11 @@ function deferredV1<T>() {
 }
 
 describe("Narrative Surface composition definition", () => {
-  it("mints the public five-key Story definition as a frozen opaque identity", () => {
+  it("mints the public six-key Story definition as a frozen opaque identity", () => {
     const valid = Object.freeze({
       selectNarrative: (publication: SemanticFixturePublicationV1) => publication.selection,
       dispatchResolution: async () => undefined,
+      dispatchTime: null,
       renderer: (_props: NarrativeSurfaceRendererPropsV1) => null,
       resolveText: (locale: string | null, textId: string) => `${locale ?? "default"}:${textId}`,
       replayCurrentVoice: null,
@@ -457,6 +458,7 @@ describe("Narrative Surface composition definition", () => {
       defineNarrativeSurfaceV1(Object.freeze({
         selectNarrative: (publication: SemanticFixturePublicationV1) => publication.selection,
         dispatchResolution: async () => undefined,
+        dispatchTime: null,
         renderer: (_props: NarrativeSurfaceRendererPropsV1) => null,
         resolveText: (_locale: string | null, textId: string) => textId,
         replayCurrentVoice: null,
@@ -467,6 +469,7 @@ describe("Narrative Surface composition definition", () => {
     const accessor = Object.freeze(Object.defineProperties({}, {
       selectNarrative: { enumerable: true, get: () => valid.selectNarrative },
       dispatchResolution: { enumerable: true, value: valid.dispatchResolution },
+      dispatchTime: { enumerable: true, value: null },
       renderer: { enumerable: true, value: valid.renderer },
       resolveText: { enumerable: true, value: valid.resolveText },
       replayCurrentVoice: { enumerable: true, value: null },

@@ -202,7 +202,13 @@ test.describe("engine conformance route parity", () => {
                   }),
                 );
               } else if (pending.kind === "hold") {
-                await dispatch(resolve({ kind: "hold_tick", elapsedMs: pending.remainingMs }));
+                await dispatch({
+                  kind: "time",
+                  tick: {
+                    elapsedMs: pending.remainingMs,
+                    expectedHoldOccurrenceId: pending.occurrenceId,
+                  },
+                });
               } else await dispatch(resolve({ kind: "custom", payload: { value: 2 } }));
             }
             return observe().narrative.phase;

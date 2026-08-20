@@ -36,6 +36,14 @@ function resolveV1(
   return Object.freeze({ kind: "resolve" as const, expectedOccurrenceId, resolution });
 }
 
+/** A hold-fenced time tick: the verb that folds the pending hold's remainder. */
+function timeV1(expectedHoldOccurrenceId: string, elapsedMs: number): LabInvocationV1 {
+  return Object.freeze({
+    kind: "time" as const,
+    tick: Object.freeze({ elapsedMs, expectedHoldOccurrenceId }),
+  });
+}
+
 interface RouteBoundaryV1 {
   readonly kind: string;
   readonly definitionId: string;
@@ -87,7 +95,7 @@ async function playCanonicalRouteV1(
         );
         break;
       case "hold":
-        await dispatch(resolveV1(pending.occurrenceId, { kind: "hold_tick", elapsedMs: 400 }));
+        await dispatch(timeV1(pending.occurrenceId, 400));
         break;
       default:
         await dispatch(resolveV1(pending.occurrenceId, { kind: "custom", payload: { value: 2 } }));
@@ -198,14 +206,17 @@ describe("Engine Conformance route", () => {
     for (let step = 0; step < 16; step += 1) {
       const pending = interrupted.observe().narrative.pending;
       if (pending === null) break;
-      const resolution: InteractionResolutionV1 = pending.kind === "presentation_barrier"
-        ? { kind: "barrier_completed", transitionId: pending.expectedTransitionId }
-        : pending.kind === "hold"
-        ? { kind: "hold_tick", elapsedMs: pending.remainingMs }
-        : pending.kind === "custom"
-        ? { kind: "custom", payload: { value: 2 } }
-        : { kind: "advance" };
-      const result = await interrupted.dispatch(resolveV1(pending.occurrenceId, resolution));
+      const invocation: LabInvocationV1 = pending.kind === "hold"
+        ? timeV1(pending.occurrenceId, pending.remainingMs)
+        : resolveV1(
+          pending.occurrenceId,
+          pending.kind === "presentation_barrier"
+            ? { kind: "barrier_completed", transitionId: pending.expectedTransitionId }
+            : pending.kind === "custom"
+            ? { kind: "custom", payload: { value: 2 } }
+            : { kind: "advance" },
+        );
+      const result = await interrupted.dispatch(invocation);
       expect(result).toMatchObject({ kind: "committed" });
     }
     const beginResult = await interrupted.dispatch(invokeV1("lab.begin_procedure"));

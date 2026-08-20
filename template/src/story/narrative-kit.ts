@@ -172,9 +172,9 @@ export interface TemplateBranchBlockV1 {
 /**
  * An authoritative timed hold between two beats (the engine `hold`
  * interaction): the screen holds for `durationMs`, the Narrative Host
- * proposes elapsed milliseconds as `hold_tick` commits, and expiry
- * advances to `next`. Remaining time lives in authoritative State, so a
- * mid-hold Save restores the wait instead of replaying a wall clock.
+ * reports elapsed milliseconds as hold-fenced time-tick commits, and
+ * expiry advances to `next`. Remaining time lives in authoritative State,
+ * so a mid-hold Save restores the wait instead of replaying a wall clock.
  * Ported MV `WAIT n` frame counts convert here: `round(n × 1000 / 60)`.
  */
 export interface TemplateHoldBlockV1 {

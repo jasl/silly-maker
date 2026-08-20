@@ -833,6 +833,7 @@ function renderCompositionOwnedNarrativeRootInternalV1(
         }
         throw new TypeError("unexpected Narrative completion fixture mode");
       },
+      dispatchTime: null,
       renderer: ChoiceRendererInternalV1,
       resolveText: (_locale: string | null, textId: string) => textId,
       replayCurrentVoice: null,

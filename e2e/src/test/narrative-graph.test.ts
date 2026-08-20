@@ -61,7 +61,10 @@ async function playCalibrationV1(
       transitionId: "transition.e2e.bg-crossfade",
     }),
   );
-  await dispatch(resolveV1(pending().occurrenceId, { kind: "hold_tick", elapsedMs: 400 }));
+  await dispatch(Object.freeze({
+    kind: "time" as const,
+    tick: Object.freeze({ elapsedMs: 400, expectedHoldOccurrenceId: pending().occurrenceId }),
+  }));
   await dispatch(resolveV1(pending().occurrenceId, { kind: "custom", payload: { value: 2 } }));
   await dispatch(resolveV1(pending().occurrenceId, { kind: "advance" }));
 }

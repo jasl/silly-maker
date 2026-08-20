@@ -211,6 +211,18 @@ export interface NarrativeStableSemanticResolutionRequestInternalV1 {
   readonly resolution: InteractionResolutionV1;
 }
 
+/**
+ * The hold-scoped flavor of the session-level time verb: partial cadence
+ * ticks, the expiry tick, and the skippable fold all report elapsed
+ * milliseconds fenced to the admitted hold occurrence. The unfenced
+ * (session-global) flavor has no UI dispatcher — reporting cadence outside
+ * holds belongs to the Story/Host layer.
+ */
+export interface NarrativeStableSemanticTimeRequestInternalV1 {
+  readonly elapsedMs: number;
+  readonly expectedHoldOccurrenceId: string;
+}
+
 export interface NarrativeStableSemanticResolutionPortInternalV1 {
   /**
    * The returned Promise settles only after the composition adapter has
@@ -219,6 +231,14 @@ export interface NarrativeStableSemanticResolutionPortInternalV1 {
    */
   readonly dispatchResolutionInternalV1: (
     request: NarrativeStableSemanticResolutionRequestInternalV1,
+  ) => Promise<unknown>;
+  /**
+   * The session-level time verb. Absent when the Story binds no time
+   * dispatcher; admitting a hold frame then faults its expiry controller
+   * instead of silently never expiring.
+   */
+  readonly dispatchTimeInternalV1?: (
+    request: NarrativeStableSemanticTimeRequestInternalV1,
   ) => Promise<unknown>;
 }
 
@@ -837,7 +857,7 @@ const narrativeTargetFrameRecordsInternalV1 = new WeakMap<
   NarrativeTargetFrameRecordInternalV1
 >();
 /**
- * Milliseconds already dispatched as partial hold_ticks for a hold frame
+ * Milliseconds already dispatched as partial hold-scoped time ticks for a hold frame
  * whose pending declares `tickQuantumMs`. Keyed by the admitted frame — the
  * frame object stays identical across partial commits (the bridge accepts
  * the decremented remainder as unchanged) and across dialogue player
@@ -1926,9 +1946,19 @@ function captureSemanticResolutionPortInternalV1(
   const receiver = value as NarrativeStableSemanticResolutionPortInternalV1;
   const dispatchResolution = receiver.dispatchResolutionInternalV1;
   if (typeof dispatchResolution !== "function") return null;
+  const dispatchTime = receiver.dispatchTimeInternalV1;
+  if (dispatchTime !== undefined && typeof dispatchTime !== "function") return null;
+  if (dispatchTime === undefined) {
+    return Object.freeze(
+      {
+        dispatchResolutionInternalV1: (request) => dispatchResolution.call(receiver, request),
+      } satisfies NarrativeStableSemanticResolutionPortInternalV1,
+    );
+  }
   return Object.freeze(
     {
       dispatchResolutionInternalV1: (request) => dispatchResolution.call(receiver, request),
+      dispatchTimeInternalV1: (request) => dispatchTime.call(receiver, request),
     } satisfies NarrativeStableSemanticResolutionPortInternalV1,
   );
 }
@@ -2524,7 +2554,7 @@ export function createNarrativeStablePublisherBridgeInternalV1(
         ) {
           return stableUnchangedResultInternalV1;
         }
-        // An authoritative partial hold_tick keeps the same occurrence and
+        // An authoritative partial hold time tick keeps the same occurrence and
         // only decrements remainingMs. The admitted frame keeps presenting
         // its entry remainder (the countdown is presentation-owned), so a
         // strictly smaller remainder with every other byte identical is the
@@ -6906,7 +6936,7 @@ function requestNarrativeStableDialoguePlayerTickInternalV1(
       if (holdPending.kind !== "hold") return;
       const holdController = record.holdExpiryController;
       const entryRemainingMs = holdPending.remainingMs;
-      const dispatchHoldTick = (elapsedMs: number): "dispatched" | "withheld" => {
+      const dispatchHoldTime = (elapsedMs: number): "dispatched" | "withheld" | "faulted" => {
         let attempt: NarrativeStableHoldExpiryControllerAttemptInternalV1 | null = null;
         try {
           attempt = Reflect.apply(
@@ -6920,18 +6950,26 @@ function requestNarrativeStableDialoguePlayerTickInternalV1(
             holdController,
             [attempt, elapsedMs],
           ) as NarrativeStableHoldExpiryDispatchResultInternalV1;
+          if (result.kind === "faulted") {
+            // The admitted hold frame cannot settle time — the Story bound
+            // no `dispatchTime` port. Fault the player instead of retrying:
+            // rescheduling would spin the presentation clock forever on a
+            // boundary that can never expire.
+            faultNarrativeStableDialoguePlayerControllerInternalV1(record);
+            return "faulted";
+          }
           if (result.kind !== "dispatched") return "withheld";
           void result.completion.catch(() => {});
           return "dispatched";
         } catch {
           faultNarrativeStableDialoguePlayerControllerInternalV1(record);
-          return "withheld";
+          return "faulted";
         }
       };
       const tickQuantumMs = holdPending.tickQuantumMs;
       if (tickQuantumMs !== undefined && record.automaticRemainingMs > 0) {
         // The block declared an authoritative commit cadence: fold the
-        // presented elapsed into partial hold_ticks at whole-quantum
+        // presented elapsed into partial hold-scoped time ticks at whole-quantum
         // boundaries so mid-hold autosaves keep at most one quantum of
         // uncommitted progress. The ledger only advances on an actual
         // dispatch, so a withheld attempt (an earlier completion still in
@@ -6943,11 +6981,10 @@ function requestNarrativeStableDialoguePlayerTickInternalV1(
           ledger = { dispatchedElapsedMs: 0 };
           narrativeHoldDispatchLedgersInternalV1.set(holdFrame, ledger);
         }
-        if (
-          flushTargetMs > ledger.dispatchedElapsedMs &&
-          dispatchHoldTick(flushTargetMs - ledger.dispatchedElapsedMs) === "dispatched"
-        ) {
-          ledger.dispatchedElapsedMs = flushTargetMs;
+        if (flushTargetMs > ledger.dispatchedElapsedMs) {
+          const partial = dispatchHoldTime(flushTargetMs - ledger.dispatchedElapsedMs);
+          if (partial === "faulted") return;
+          if (partial === "dispatched") ledger.dispatchedElapsedMs = flushTargetMs;
         }
       }
       if (record.automaticRemainingMs > 0) {
@@ -6961,10 +6998,11 @@ function requestNarrativeStableDialoguePlayerTickInternalV1(
         narrativeHoldDispatchLedgersInternalV1.get(holdFrame)?.dispatchedElapsedMs ?? 0;
       const finalElapsedMs = entryRemainingMs - dispatchedElapsedMs;
       if (finalElapsedMs < 1) return;
-      if (dispatchHoldTick(finalElapsedMs) === "withheld") {
+      if (dispatchHoldTime(finalElapsedMs) === "withheld") {
         // A partial commit is still settling; retry expiry on the next
-        // presentation tick instead of leaving the boundary parked. A fault
-        // or frame change already retired the record, so the request no-ops.
+        // presentation tick instead of leaving the boundary parked. A frame
+        // change already retired the record, so the request no-ops, and a
+        // faulted dispatch returned distinctly without scheduling.
         requestNarrativeStableDialoguePlayerTickInternalV1(record, generation);
       }
       return;
@@ -8410,15 +8448,14 @@ export function createNarrativeStableHoldExpiryControllerInternalV1(
           return narrativeHoldExpiryStaleResultInternalV1;
         }
         const portBinding = record.semanticDispatchPort;
-        if (portBinding === undefined) return narrativeHoldExpiryFaultedResultInternalV1;
-        const resolution: InteractionResolutionV1 = Object.freeze({
-          kind: "hold_tick" as const,
-          elapsedMs,
-        });
+        const dispatchTime = portBinding?.dispatchTimeInternalV1;
+        if (portBinding === undefined || dispatchTime === undefined) {
+          return narrativeHoldExpiryFaultedResultInternalV1;
+        }
         const request = Object.freeze({
-          expectedOccurrenceId: current.frame.pending.occurrenceId,
-          resolution,
-        }) satisfies NarrativeStableSemanticResolutionRequestInternalV1;
+          elapsedMs,
+          expectedHoldOccurrenceId: current.frame.pending.occurrenceId,
+        }) satisfies NarrativeStableSemanticTimeRequestInternalV1;
         if (
           Reflect.apply(isCurrentReadyActiveTarget, stableActionAuthority, [record.proof]) !== true
         ) {
@@ -8427,14 +8464,12 @@ export function createNarrativeStableHoldExpiryControllerInternalV1(
         semanticDispatchStarted = true;
         let completion: Promise<unknown>;
         try {
-          completion = Promise.resolve(
-            portBinding.dispatchResolutionInternalV1(request),
-          );
+          completion = Promise.resolve(dispatchTime(request));
         } catch (error) {
           completion = Promise.reject(error);
         }
         // The latch serializes dispatches, it does not end the controller:
-        // a partial hold_tick commits with the same admitted frame still
+        // a partial hold time tick commits with the same admitted frame still
         // current (the bridge reconciles the decremented remainder as
         // unchanged), so once this completion has drained its reconcile the
         // controller may dispatch the next tick. An expiry commit swaps the
@@ -9541,38 +9576,43 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
       }
       const portBinding = record.semanticDispatchPort;
       if (portBinding === undefined) return narrativePhysicalActionFaultedResultInternalV1;
-      let resolution: InteractionResolutionV1;
-      if (record.kind === "choice") {
-        resolution = Object.freeze({
-          kind: "choose" as const,
-          choiceId: record.choiceId,
-        });
-      } else if (record.kind === "hold_skip") {
+      let dispatch: () => Promise<unknown>;
+      if (record.kind === "hold_skip") {
         if (currentFrame.pending.kind !== "hold") {
           return narrativePhysicalActionStaleResultInternalV1;
         }
+        const dispatchTime = portBinding.dispatchTimeInternalV1;
+        if (dispatchTime === undefined) return narrativePhysicalActionFaultedResultInternalV1;
         // A skippable hold folds its whole undispatched remainder in one
-        // authoritative tick commit; the fold never bypasses the pending
-        // boundary. Milliseconds already committed by declared-cadence
-        // partial ticks are subtracted so the elapsed sum stays exact, and
-        // a fold racing an in-flight partial clamps engine-side.
+        // authoritative time-tick commit; the fold never bypasses the
+        // pending boundary. Milliseconds already committed by
+        // declared-cadence partial ticks are subtracted so the elapsed sum
+        // stays exact, and a fold racing an in-flight partial clamps
+        // engine-side (the fence rejects it once the occurrence expires).
         const foldedElapsedMs = currentFrame.pending.remainingMs -
           (narrativeHoldDispatchLedgersInternalV1.get(currentFrame)?.dispatchedElapsedMs ?? 0);
         if (foldedElapsedMs < 1) return narrativePhysicalActionStaleResultInternalV1;
-        resolution = Object.freeze({
-          kind: "hold_tick" as const,
+        const request = Object.freeze({
           elapsedMs: foldedElapsedMs,
-        });
+          expectedHoldOccurrenceId: currentFrame.pending.occurrenceId,
+        }) satisfies NarrativeStableSemanticTimeRequestInternalV1;
+        dispatch = () => dispatchTime(request);
       } else {
-        resolution = Object.freeze({
-          kind: "custom" as const,
-          payload: record.payload,
-        });
+        const resolution: InteractionResolutionV1 = record.kind === "choice"
+          ? Object.freeze({
+            kind: "choose" as const,
+            choiceId: record.choiceId,
+          })
+          : Object.freeze({
+            kind: "custom" as const,
+            payload: record.payload,
+          });
+        const request = Object.freeze({
+          expectedOccurrenceId: currentFrame.pending.occurrenceId,
+          resolution,
+        }) satisfies NarrativeStableSemanticResolutionRequestInternalV1;
+        dispatch = () => portBinding.dispatchResolutionInternalV1(request);
       }
-      const request = Object.freeze({
-        expectedOccurrenceId: currentFrame.pending.occurrenceId,
-        resolution,
-      }) satisfies NarrativeStableSemanticResolutionRequestInternalV1;
       if (
         Reflect.apply(isCurrentDirectTarget, stableActionAuthority, [record.targetProof]) !==
           true
@@ -9581,9 +9621,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
       }
       let completion: Promise<unknown>;
       try {
-        completion = Promise.resolve(
-          portBinding.dispatchResolutionInternalV1(request),
-        );
+        completion = Promise.resolve(dispatch());
       } catch (error) {
         completion = Promise.reject(error);
       }

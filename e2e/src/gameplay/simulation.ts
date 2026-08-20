@@ -19,16 +19,21 @@ import type {
   PendingInteractionV1,
   SemanticStageStateV1,
   StageMutationV1,
+  TimeTickRejectionCodeV1,
+  TimeTickV1,
 } from "@sillymaker/base";
 import {
+  applyElapsedToHoldV1,
   createGameAuthoringKitV1,
   createTransactionalRngV1,
   defineGameSimulation,
   evaluateInteractionResolutionV1,
+  evaluateTimeTickV1,
   parseInteractionOccurrenceIdV1,
   parseInteractionResolutionV1,
   parseNonNegativeSafeInteger,
   parseStageMutationV1,
+  parseTimeTickV1,
   reduceStageMutationsV1,
 } from "@sillymaker/base";
 
@@ -49,6 +54,7 @@ import {
   labChoiceOptionsForV1,
   labInteractionContextV1,
   labNarrativeAfterResolutionV1,
+  labNarrativeAfterTimeTickV1,
   labNarrativeAtBeginV1,
   runLabNarrativeUntilInteractionV1,
 } from "./narrative.ts";
@@ -73,6 +79,18 @@ export type LabCommandV1 =
     readonly kind: "lab.narrative_resolve";
     readonly expectedOccurrenceId: string;
     readonly resolution: InteractionResolutionV1;
+  }
+  | {
+    /**
+     * The Lab's carrier for the session-level time verb: one commit
+     * settles every authoritative time consumer. A hold-fenced tick folds
+     * the pending hold's remainder (stale fences reject the whole
+     * command); an unfenced tick settles only session-global consumers and
+     * never touches a hold — none are registered yet, so it commits as an
+     * observable no-op.
+     */
+    readonly kind: "lab.time_tick";
+    readonly tick: TimeTickV1;
   };
 
 export type LabFactV1 =
@@ -100,7 +118,8 @@ export type LabRejectionCodeV1 =
   | "lab.banner_already_owned"
   | "lab.stage_rejected"
   | "lab.narrative_busy"
-  | InteractionRejectionCodeV1;
+  | InteractionRejectionCodeV1
+  | TimeTickRejectionCodeV1;
 
 export interface LabRejectionV1 {
   readonly code: LabRejectionCodeV1;
@@ -213,6 +232,11 @@ type NarrativeOperationV1 =
     readonly expectedOccurrenceId: string;
     readonly resolution: InteractionResolutionV1;
     readonly next: LabNarrativeStateV1;
+  }
+  | {
+    readonly kind: "time";
+    readonly tick: TimeTickV1;
+    readonly next: LabNarrativeStateV1;
   };
 
 const commandSchemaV1: RuntimeSchemaV1<LabCommandV1> = Object.freeze({
@@ -233,6 +257,15 @@ const commandSchemaV1: RuntimeSchemaV1<LabCommandV1> = Object.freeze({
         kind,
         expectedOccurrenceId: parseInteractionOccurrenceIdV1(record.expectedOccurrenceId),
         resolution: parseInteractionResolutionV1(record.resolution),
+      });
+    }
+    if (kind === "lab.time_tick") {
+      if (Object.keys(value).toSorted().join("\0") !== "kind\0tick") {
+        throw new TypeError("invalid lab time tick command");
+      }
+      return Object.freeze({
+        kind,
+        tick: parseTimeTickV1((value as { readonly tick?: unknown }).tick, "/tick"),
       });
     }
     if (Object.keys(value).join("\0") !== "kind") {
@@ -318,6 +351,17 @@ const narrativeOperationSchemaV1: RuntimeSchemaV1<NarrativeOperationV1> = Object
         kind,
         expectedOccurrenceId: parseInteractionOccurrenceIdV1(record.expectedOccurrenceId),
         resolution: parseInteractionResolutionV1(record.resolution),
+        next: labNarrativeStateSchemaV1.parse(record.next),
+      });
+    }
+    if (kind === "time") {
+      if (Object.keys(value).toSorted().join("\0") !== "kind\0next\0tick") {
+        throw new TypeError("invalid lab narrative time operation");
+      }
+      const record = value as { readonly tick?: unknown; readonly next?: unknown };
+      return Object.freeze({
+        kind,
+        tick: parseTimeTickV1(record.tick, "/tick"),
         next: labNarrativeStateSchemaV1.parse(record.next),
       });
     }
@@ -542,6 +586,37 @@ const narrativeModuleV1 = kit.defineStatefulModule({
           proposal: Object.freeze({ payload: operation, facts: Object.freeze([]) }),
         });
       }
+      if (operation.kind === "time") {
+        // The queue-front authority for the time verb: the fence re-check
+        // rejects a tick whose hold occurrence is no longer current, so a
+        // stale queued report can never pre-fold a successor hold.
+        const outcome = evaluateTimeTickV1(state.pending, operation.tick);
+        if (outcome.kind === "rejected") {
+          return Object.freeze({
+            kind: "rejected" as const,
+            rejection: Object.freeze({ code: outcome.code }),
+          });
+        }
+        // Only an expiring fold consumes the boundary; partial settlements
+        // and unfenced (session-global) ticks resolve no interaction.
+        const expired = outcome.hold !== null &&
+          applyElapsedToHoldV1(outcome.hold, operation.tick.elapsedMs).kind === "expired";
+        return Object.freeze({
+          kind: "proposed" as const,
+          proposal: Object.freeze({
+            payload: operation,
+            facts: outcome.hold !== null && expired
+              ? Object.freeze([
+                Object.freeze({
+                  kind: "lab.interaction_resolved" as const,
+                  definitionId: outcome.hold.definitionId,
+                  occurrenceId: outcome.hold.occurrenceId,
+                }),
+              ])
+              : Object.freeze([]),
+          }),
+        });
+      }
       // The queue-front authority: the same shared evaluator that served the
       // action catalog and preview re-checks the expected occurrence, choice
       // availability, and custom payload schema at dispatch time.
@@ -731,6 +806,51 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
         });
       }
 
+      if (command.kind === "lab.time_tick") {
+        return labTransactionRunnerV1.execute(snapshot, rng, (transaction) => {
+          // Pre-check with the same evaluator the narrative owner re-runs at
+          // propose time: a stale hold fence rejects the whole command.
+          const outcome = evaluateTimeTickV1(state.narrative.pending, command.tick);
+          if (outcome.kind === "rejected") {
+            return transaction.reject({ code: outcome.code });
+          }
+          if (outcome.hold === null) {
+            // An unfenced tick settles only session-global time consumers.
+            // None are registered yet, so the settled state is unchanged —
+            // committed as-is to prove the scope rule: a global tick never
+            // touches a pending hold.
+            transaction.propose(narrativeModuleV1, {
+              kind: "time",
+              tick: command.tick,
+              next: state.narrative,
+            });
+            return transaction.complete();
+          }
+          const continuation = labNarrativeAfterTimeTickV1(state.narrative, command.tick);
+          if (continuation.kind === "holding") {
+            // A partial settlement decrements the authoritative remaining
+            // milliseconds without consuming the pending boundary: the
+            // same occurrence stays pending and the script does not run.
+            transaction.propose(narrativeModuleV1, {
+              kind: "time",
+              tick: command.tick,
+              next: continuation.narrative,
+            });
+            return transaction.complete();
+          }
+          // Expiry consumes the boundary: the script runs to the next
+          // interaction inside the same commit.
+          const run = runLabNarrativeUntilInteractionV1(continuation.narrative, state.stage);
+          transaction.propose(narrativeModuleV1, {
+            kind: "time",
+            tick: command.tick,
+            next: run.narrative,
+          });
+          proposeStage(transaction, run.stageMutations);
+          return transaction.complete();
+        });
+      }
+
       if (command.kind === "lab.narrative_resolve") {
         return labTransactionRunnerV1.execute(snapshot, rng, (transaction) => {
           // Pre-check with the exact same evaluator the narrative owner uses
@@ -745,21 +865,8 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
           if (outcome.kind === "rejected") {
             return transaction.reject({ code: outcome.code });
           }
-          const continuation = labNarrativeAfterResolutionV1(state.narrative, command.resolution);
-          if (continuation.kind === "holding") {
-            // A partial hold tick decrements the authoritative remaining
-            // milliseconds without consuming the pending boundary: the
-            // same occurrence stays pending and the script does not run.
-            transaction.propose(narrativeModuleV1, {
-              kind: "resolve",
-              expectedOccurrenceId: command.expectedOccurrenceId,
-              resolution: command.resolution,
-              next: continuation.narrative,
-            });
-            return transaction.complete();
-          }
           const run = runLabNarrativeUntilInteractionV1(
-            continuation.narrative,
+            labNarrativeAfterResolutionV1(state.narrative, command.resolution),
             state.stage,
           );
           transaction.propose(narrativeModuleV1, {

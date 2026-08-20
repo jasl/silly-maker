@@ -603,12 +603,18 @@ their pairing. The live families consume the composition-owned typed bundle
 directly; the historical exact aggregate records remain delivery evidence, not
 a current package-internal admission contract. The authoritative hold clock
 lane (2026-08-19, M1) likewise supersedes the `pause` vocabulary below: the
-`pause` kind and `resume` resolution merged into `hold`/`hold_tick`, the
-pause-resume physical mapping became the hold-skip fold (same
-`narrative.resume` action id; the fold proposes the frame's authoritative
-`remainingMs` as one `hold_tick`), and the pause-expiry controller became the
-hold-expiry controller with the same binding, staleness, and dispatch
-discipline described below.
+`pause` kind and `resume` resolution merged into `hold`, the pause-resume
+physical mapping became the hold-skip fold (same `narrative.resume` action
+id), and the pause-expiry controller became the hold-expiry controller with
+the same binding, staleness, and dispatch discipline described below. The
+parallel-monitors lane (2026-08-20, M0) then unified the time verb: holds are
+settled by session-level `TimeTickV1` commits, never by input resolutions. The
+Story's narrative surface binds a `dispatchTime` port next to
+`dispatchResolution` (nullable for hold-free stories), the hold-expiry
+controller and the hold-skip fold both dispatch hold-fenced time ticks
+(`elapsedMs` plus `expectedHoldOccurrenceId`) through it, and admitting a hold
+frame without a bound time port faults the dispatch instead of silently never
+expiring.
 
 A dormant, source-relative stable composite seam now reuses that same internal
 kernel. It binds admitted targets to exact registry/configuration provenance,

@@ -4,11 +4,13 @@ import {
   parseInteractionResolutionV1,
   parseNarrativeHistoryV1,
   parsePendingInteractionV1,
+  parseTimeTickV1,
   type DeepReadonly,
   type InteractionResolutionV1,
   type NarrativeHistoryV1,
   type PendingInteractionV1,
   type StrictJsonObjectV1,
+  type TimeTickV1,
 } from "@sillymaker/base";
 import type { PlayerProfileStoreV1, PlayerProfileV1 } from "@sillymaker/base/runtime";
 import {
@@ -65,6 +67,7 @@ import {
   type NarrativeStableHistoryRendererPropsInternalV1,
   type NarrativeStablePhysicalActionAdmissionInternalV1,
   type NarrativeStablePublisherBridgeInternalV1,
+  type NarrativeStableSemanticTimeRequestInternalV1,
 } from "./narrative-managed-surface-family.ts";
 import type { NarrativeStableSessionInternalV1 } from "./narrative-managed-surface-session.ts";
 import {
@@ -142,6 +145,15 @@ export interface DefineNarrativeSurfaceInputV1<TSemanticPublication> {
   readonly dispatchResolution: (
     request: NarrativeSurfaceResolutionRequestV1,
   ) => Promise<unknown>;
+  /**
+   * The session-level time verb: the hold machinery reports elapsed
+   * milliseconds (partial cadence ticks, expiry, skippable folds) as
+   * hold-fenced time ticks through this binding, which the Story routes to
+   * its time command. Stories whose narratives declare no hold may pass
+   * null; admitting a hold frame without a time dispatcher faults the
+   * frame instead of silently never expiring.
+   */
+  readonly dispatchTime: ((tick: DeepReadonly<TimeTickV1>) => Promise<unknown>) | null;
   readonly renderer: ComponentType<NarrativeSurfaceRendererPropsV1>;
   readonly resolveText: (locale: string | null, textId: string) => string;
   readonly replayCurrentVoice: (() => boolean) | null;
@@ -350,6 +362,7 @@ interface NarrativeSurfacePublicDefinitionBindingInternalV1 {
   readonly receiver: object;
   readonly selectNarrative: (publication: never) => NarrativeSurfaceSelectionV1;
   readonly dispatchResolution: (request: NarrativeSurfaceResolutionRequestV1) => Promise<unknown>;
+  readonly dispatchTime: ((tick: DeepReadonly<TimeTickV1>) => Promise<unknown>) | null;
   readonly renderer: ComponentType<NarrativeSurfaceRendererPropsV1>;
   readonly resolveText: (locale: string | null, textId: string) => string;
   readonly replayCurrentVoice: (() => boolean) | null;
@@ -373,6 +386,7 @@ const publicDefinitionKeysInternalV1 = Object.freeze(
   [
     "selectNarrative",
     "dispatchResolution",
+    "dispatchTime",
     "renderer",
     "resolveText",
     "replayCurrentVoice",
@@ -546,23 +560,38 @@ function createNarrativeSurfacePublicCandidateInternalV1(
   }
   const profile = Reflect.apply(environment.playerProfile.current, environment.playerProfile, []);
   const locale = profile.preferences.locale;
+  const dispatchResolutionInternalV1 = (request: NarrativeSurfaceResolutionRequestV1) => {
+    if (request.expectedOccurrenceId !== pending.occurrenceId) {
+      throw new TypeError("ui.narrative_surface_resolution_invalid");
+    }
+    const resolution = parseInteractionResolutionV1(request.resolution);
+    return Reflect.apply(binding.dispatchResolution, binding.receiver, [Object.freeze({
+      expectedOccurrenceId: pending.occurrenceId,
+      resolution,
+    })]);
+  };
+  const dispatchTime = binding.dispatchTime;
+  const semanticDispatchPort = Object.freeze(
+    dispatchTime === null ? { dispatchResolutionInternalV1 } : {
+      dispatchResolutionInternalV1,
+      dispatchTimeInternalV1: (request: NarrativeStableSemanticTimeRequestInternalV1) => {
+        if (request.expectedHoldOccurrenceId !== pending.occurrenceId) {
+          throw new TypeError("ui.narrative_surface_time_invalid");
+        }
+        const tick = parseTimeTickV1({
+          elapsedMs: request.elapsedMs,
+          expectedHoldOccurrenceId: request.expectedHoldOccurrenceId,
+        });
+        return Reflect.apply(dispatchTime, binding.receiver, [tick]);
+      },
+    },
+  );
   return Object.freeze({
     kind: "captured" as const,
     candidateSnapshot: Object.freeze({
       rendererComponent: binding.rendererComponent,
       visualConfig: Object.freeze({}),
-      semanticDispatchPort: Object.freeze({
-        dispatchResolutionInternalV1(request: NarrativeSurfaceResolutionRequestV1) {
-          if (request.expectedOccurrenceId !== pending.occurrenceId) {
-            throw new TypeError("ui.narrative_surface_resolution_invalid");
-          }
-          const resolution = parseInteractionResolutionV1(request.resolution);
-          return Reflect.apply(binding.dispatchResolution, binding.receiver, [Object.freeze({
-            expectedOccurrenceId: pending.occurrenceId,
-            resolution,
-          })]);
-        },
-      }),
+      semanticDispatchPort,
       historyObservationPort: Object.freeze({
         getSnapshotInternalV1: () =>
           observation?.getSelectionInternalV1()?.history ?? selection.history,
@@ -642,6 +671,8 @@ export function defineNarrativeSurfaceV1<TSemanticPublication>(
     captured === null ||
     !isCallableWithoutThenInternalV1(captured.selectNarrative) ||
     !isCallableWithoutThenInternalV1(captured.dispatchResolution) ||
+    (captured.dispatchTime !== null &&
+      !isCallableWithoutThenInternalV1(captured.dispatchTime)) ||
     !isCallableWithoutThenInternalV1(captured.renderer) ||
     !isCallableWithoutThenInternalV1(captured.resolveText) ||
     (captured.replayCurrentVoice !== null &&
@@ -664,6 +695,7 @@ export function defineNarrativeSurfaceV1<TSemanticPublication>(
     receiver: input,
     selectNarrative: captured.selectNarrative,
     dispatchResolution: captured.dispatchResolution,
+    dispatchTime: captured.dispatchTime,
     renderer: captured.renderer,
     resolveText: captured.resolveText,
     replayCurrentVoice: captured.replayCurrentVoice,

@@ -362,6 +362,9 @@ export const bookshopGameApplicationV1: WebGameApplicationV1<
             renderer: BookshopNarrativeRendererV1,
             resolveText: bookshopTextForLocaleV1,
             replayCurrentVoice: null,
+            // The bookshop narrative declares no hold, so it binds no time
+            // dispatcher.
+            dispatchTime: null,
           } satisfies DefineNarrativeSurfaceInputV1<BookshopSemanticPublicationV1>,
         ),
       ),

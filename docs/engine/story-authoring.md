@@ -153,19 +153,25 @@ definition and therefore mounts no Narrative surface.
 An authoritative screen-hold between two lines is authored as a `hold`
 interaction: positive integer `totalMs`/`remainingMs` plus the author's
 `skippable` flag (original frame counts convert to milliseconds at Story
-compile time). The single advancing resolution is `hold_tick({ elapsedMs })`;
-Story runners apply it with `applyHoldTick` from `@sillymaker/base/story` — a
-partial tick keeps the same boundary occurrence and decrements `remainingMs`,
-and the tick that reaches zero expires into the node's successor. The
-Narrative Host owns the presentation clock and proposes the commits: without
-a declared cadence it commits only skip-folds and expiry, while a hold that
-sets the optional `tickQuantumMs` gets partial commits per quantum, so a
-mid-hold Save restores the hold with the last committed remainder (loss
-bounded by one quantum) and wall clocks never enter State, Saves, digests,
-or replay. A hold that drips authority or swaps frames mid-hold settles
-those inside the same `hold_tick` commit by threshold crossing:
-`countHoldTickCrossings` from `@sillymaker/base/story` counts how many
-interval boundaries fall in `(elapsed before, elapsed after]`, so the
+compile time). A hold is a time-settlement boundary, not an input boundary:
+every input resolution against it rejects, and elapsed time arrives as the
+session-level time verb `TimeTick` (`parseTimeTick`/`evaluateTimeTick` from
+`@sillymaker/base/story`) — a tick carries `elapsedMs` plus the
+`expectedHoldOccurrenceId` fence naming the hold it settles, and a stale
+fence rejects without touching State. Story runners apply an accepted tick
+with `applyElapsedToHold` — a partial tick keeps the same boundary occurrence
+and decrements `remainingMs`, and the tick that reaches zero expires into the
+node's successor. The Story's narrative surface binds a `dispatchTime`
+handler next to `dispatchResolution` (pass `null` only when the Story has no
+holds); the Narrative Host owns the presentation clock and proposes the
+commits through it: without a declared cadence it commits only skip-folds and
+expiry, while a hold that sets the optional `tickQuantumMs` gets partial
+commits per quantum, so a mid-hold Save restores the hold with the last
+committed remainder (loss bounded by one quantum) and wall clocks never enter
+State, Saves, digests, or replay. A hold that drips authority or swaps frames
+mid-hold settles those inside the same time-tick commit by threshold
+crossing: `countThresholdCrossings` from `@sillymaker/base/story` counts how
+many interval boundaries fall in `(elapsed before, elapsed after]`, so the
 outcome depends only on the millisecond sum and never on how the Host
 batches ticks. Show the held picture by committing its stage node before
 the hold — the starter template's interaction-document kit does this with a

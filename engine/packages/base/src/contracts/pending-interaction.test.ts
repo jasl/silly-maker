@@ -4,14 +4,13 @@ import { describe, expect, it } from "vitest";
 import { canonicalJsonBytes } from "./canonical-json.ts";
 import { PresentationDataError } from "./presentation-data.ts";
 import {
-  applyHoldTickV1,
-  countHoldTickCrossingsV1,
   evaluateInteractionResolutionV1,
   interactionOccurrenceIdV1,
   parseInteractionResolutionV1,
   parsePendingInteractionV1,
 } from "./pending-interaction.ts";
-import type { HoldPendingInteractionV1, PendingInteractionV1 } from "./pending-interaction.ts";
+import type { PendingInteractionV1 } from "./pending-interaction.ts";
+import { applyElapsedToHoldV1 } from "./time-tick.ts";
 
 function choiceFixtureV1(): PendingInteractionV1 {
   return parsePendingInteractionV1({
@@ -347,7 +346,7 @@ describe("PendingInteractionV1", () => {
     ).toEqual({ kind: "rejected", code: "interaction.choice_disabled" });
   });
 
-  it("admits holds strictly and fences hold_tick by occurrence and kind", () => {
+  it("admits holds strictly and rejects every input resolution against a hold", () => {
     const holdRawV1 = {
       kind: "hold",
       definitionId: "interaction.test.commute-hold",
@@ -372,37 +371,33 @@ describe("PendingInteractionV1", () => {
       "duration_invalid",
     );
 
-    for (const elapsedMs of [0, -1, 0.5, Number.NaN, Number.MAX_SAFE_INTEGER + 2]) {
-      expect(() => parseInteractionResolutionV1({ kind: "hold_tick", elapsedMs })).toThrow(
-        "hold_elapsed_invalid",
-      );
-    }
-
-    expect(
-      evaluateInteractionResolutionV1(
-        hold,
-        hold.occurrenceId,
-        parseInteractionResolutionV1({ kind: "hold_tick", elapsedMs: 500 }),
-      ),
-    ).toEqual({ kind: "accepted" });
-    expect(
-      evaluateInteractionResolutionV1(
-        hold,
-        interactionOccurrenceIdV1(99),
-        parseInteractionResolutionV1({ kind: "hold_tick", elapsedMs: 500 }),
-      ),
-    ).toEqual({ kind: "rejected", code: "interaction.occurrence_mismatch" });
-    // The deleted pause vocabulary stays deleted: `resume` no longer parses.
+    // The merged verbs stay deleted from the resolution vocabulary: neither
+    // `resume` (pause era) nor `hold_tick` (pre-merge era) parses. Holds are
+    // settled by the session-level time verb, never by an input resolution.
     expect(() => parseInteractionResolutionV1({ kind: "resume" })).toThrow(
+      "resolution_kind_invalid",
+    );
+    expect(() => parseInteractionResolutionV1({ kind: "hold_tick", elapsedMs: 500 })).toThrow(
       "resolution_kind_invalid",
     );
     expect(
       evaluateInteractionResolutionV1(
         hold,
-        hold.occurrenceId,
+        interactionOccurrenceIdV1(99),
         parseInteractionResolutionV1({ kind: "advance" }),
       ),
-    ).toEqual({ kind: "rejected", code: "interaction.kind_mismatch" });
+    ).toEqual({ kind: "rejected", code: "interaction.occurrence_mismatch" });
+    for (
+      const resolution of [
+        parseInteractionResolutionV1({ kind: "advance" }),
+        parseInteractionResolutionV1({ kind: "choose", choiceId: "choice.test.basic" }),
+        parseInteractionResolutionV1({ kind: "custom", payload: { value: 1 } }),
+      ]
+    ) {
+      expect(
+        evaluateInteractionResolutionV1(hold, hold.occurrenceId, resolution),
+      ).toEqual({ kind: "rejected", code: "interaction.kind_mismatch" });
+    }
   });
 
   it("admits the optional block-declared tick cadence and keeps it across partial ticks", () => {
@@ -434,153 +429,10 @@ describe("PendingInteractionV1", () => {
 
     // The runner arithmetic ignores the cadence but preserves the member
     // across partial ticks, so a mid-hold Save keeps the block's rhythm.
-    const afterPartial = applyHoldTickV1(cadenced, 250);
+    const afterPartial = applyElapsedToHoldV1(cadenced, 250);
     if (afterPartial.kind !== "holding") throw new Error("expected holding");
     expect(afterPartial.pending.tickQuantumMs).toBe(250);
     expect(afterPartial.pending.remainingMs).toBe(1250);
-  });
-
-  it("settles tick-effect crossings identically for any batch split of the same sum", () => {
-    const totalMs = 1500;
-    const everyMs = 400;
-    const settle = (elapsedBatches: readonly number[]): number => {
-      let remainingMs = totalMs;
-      let crossings = 0;
-      for (const elapsedMs of elapsedBatches) {
-        const beforeRemainingMs = remainingMs;
-        remainingMs = Math.max(0, remainingMs - elapsedMs);
-        crossings += countHoldTickCrossingsV1({
-          totalMs,
-          beforeRemainingMs,
-          afterRemainingMs: remainingMs,
-          everyMs,
-        });
-      }
-      return crossings;
-    };
-
-    // {500,500,500} ≡ {1500} ≡ any other split: 400/800/1200 crossed 3 times.
-    expect(settle([1500])).toBe(3);
-    expect(settle([500, 500, 500])).toBe(3);
-    expect(settle([100, 299, 1, 700, 400])).toBe(3);
-    expect(settle([1499, 1])).toBe(3);
-
-    // A multiple landing exactly on expiry belongs to the zero-reaching
-    // tick: every 500 over 1500 settles 3 crossings, the last at expiry.
-    expect(
-      countHoldTickCrossingsV1({
-        totalMs: 1500,
-        beforeRemainingMs: 500,
-        afterRemainingMs: 0,
-        everyMs: 500,
-      }),
-    ).toBe(1);
-
-    // No progress, no crossing; sub-threshold progress, no crossing.
-    expect(
-      countHoldTickCrossingsV1({
-        totalMs: 1500,
-        beforeRemainingMs: 1500,
-        afterRemainingMs: 1101,
-        everyMs: 400,
-      }),
-    ).toBe(0);
-
-    expect(() =>
-      countHoldTickCrossingsV1({
-        totalMs: 1500,
-        beforeRemainingMs: 100,
-        afterRemainingMs: 200,
-        everyMs: 400,
-      })
-    ).toThrow(TypeError);
-    expect(() =>
-      countHoldTickCrossingsV1({
-        totalMs: 1500,
-        beforeRemainingMs: 1500,
-        afterRemainingMs: 1000,
-        everyMs: 0,
-      })
-    ).toThrow(TypeError);
-  });
-
-  it("keeps the boundary occurrence across partial ticks and expires on the zero-reaching tick", () => {
-    const hold = parsePendingInteractionV1({
-      kind: "hold",
-      definitionId: "interaction.test.commute-hold",
-      seenRevision: 1,
-      occurrenceId: interactionOccurrenceIdV1(12),
-      totalMs: 1500,
-      remainingMs: 1500,
-      skippable: false,
-    }) as HoldPendingInteractionV1;
-
-    const afterFirst = applyHoldTickV1(hold, 500);
-    if (afterFirst.kind !== "holding") throw new Error("expected holding");
-    expect(afterFirst.pending.remainingMs).toBe(1000);
-    expect(afterFirst.pending.totalMs).toBe(1500);
-    expect(afterFirst.pending.occurrenceId).toBe(hold.occurrenceId);
-    expect(afterFirst.pending.definitionId).toBe(hold.definitionId);
-    expect(Object.isFrozen(afterFirst.pending)).toBe(true);
-
-    const afterSecond = applyHoldTickV1(afterFirst.pending, 500);
-    if (afterSecond.kind !== "holding") throw new Error("expected holding");
-    expect(afterSecond.pending.remainingMs).toBe(500);
-    expect(afterSecond.pending.occurrenceId).toBe(hold.occurrenceId);
-
-    // The zero-reaching tick expires in the same application: there is no
-    // separate hold_expire step.
-    expect(applyHoldTickV1(afterSecond.pending, 500)).toEqual({ kind: "expired" });
-
-    // Overshoot clamps instead of rejecting (frame hitches, skip folds).
-    expect(applyHoldTickV1(afterSecond.pending, 900_000)).toEqual({ kind: "expired" });
-
-    expect(() => applyHoldTickV1(hold, 0)).toThrow(TypeError);
-    expect(() => applyHoldTickV1(hold, 16.7)).toThrow(TypeError);
-  });
-
-  it("reaches the same terminal state for any batch split with the same millisecond sum", () => {
-    const hold = parsePendingInteractionV1({
-      kind: "hold",
-      definitionId: "interaction.test.commute-hold",
-      seenRevision: 1,
-      occurrenceId: interactionOccurrenceIdV1(13),
-      totalMs: 1500,
-      remainingMs: 1500,
-      skippable: false,
-    }) as HoldPendingInteractionV1;
-
-    const runBatches = (batches: readonly number[]) => {
-      let pending: HoldPendingInteractionV1 | null = hold;
-      const trace: (number | "expired")[] = [];
-      for (const elapsedMs of batches) {
-        if (pending === null) throw new Error("ticked past expiry");
-        const outcome = applyHoldTickV1(pending, elapsedMs);
-        if (outcome.kind === "expired") {
-          pending = null;
-          trace.push("expired");
-        } else {
-          pending = outcome.pending;
-          trace.push(outcome.pending.remainingMs);
-        }
-      }
-      return { pending, trace };
-    };
-
-    const fine = runBatches([500, 500, 500]);
-    const coarse = runBatches([1500]);
-    const uneven = runBatches([1, 1498, 1]);
-    expect(fine.pending).toBeNull();
-    expect(coarse.pending).toBeNull();
-    expect(uneven.pending).toBeNull();
-    expect(fine.trace).toEqual([1000, 500, "expired"]);
-    expect(uneven.trace).toEqual([1499, 1, "expired"]);
-
-    // Equal prefix sums produce byte-identical pendings (Save shape).
-    const viaTwo = runBatches([300, 700]);
-    const viaOne = runBatches([1000]);
-    expect(viaTwo.pending).not.toBeNull();
-    expect(canonicalJsonBytes(viaTwo.pending)).toEqual(canonicalJsonBytes(viaOne.pending));
   });
 
   it("fences barriers by transition identity and customs by payload schema", () => {

@@ -18,11 +18,14 @@ import type {
   PendingInteraction,
   SemanticStageState,
   StageCueDispatch,
+  TimeTick,
+  TimeTickRejectionCode,
 } from "@sillymaker/base/story";
 import {
   createGameAuthoringKit,
   parseInteractionOccurrenceId,
   parseInteractionResolution,
+  parseTimeTick,
 } from "@sillymaker/base/story";
 
 import type { TemplateGameStateV1 } from "./state.ts";
@@ -35,6 +38,17 @@ export type TemplateCommandV1 =
     readonly kind: "template.narrative_resolve";
     readonly expectedOccurrenceId: string;
     readonly resolution: InteractionResolution;
+  }
+  | {
+    /**
+     * The starter's carrier for the session-level time verb: one commit
+     * settles every authoritative time consumer. A hold-fenced tick folds
+     * the pending hold's remainder (stale fences reject the whole
+     * command); an unfenced tick settles only session-global consumers —
+     * none are registered yet, so it commits as an observable no-op.
+     */
+    readonly kind: "template.time_tick";
+    readonly tick: TimeTick;
   };
 
 export type TemplateFactV1 =
@@ -60,7 +74,8 @@ export type TemplateRejectionCodeV1 =
   | "template.narrative_busy"
   | "template.insufficient_coins"
   | "template.stage_rejected"
-  | InteractionRejectionCode;
+  | InteractionRejectionCode
+  | TimeTickRejectionCode;
 
 export interface TemplateRejectionV1 {
   readonly code: TemplateRejectionCodeV1;
@@ -153,6 +168,15 @@ export const commandSchemaV1: RuntimeSchemaV1<TemplateCommandV1> = Object.freeze
         kind,
         expectedOccurrenceId: parseInteractionOccurrenceId(record.expectedOccurrenceId),
         resolution: parseInteractionResolution(record.resolution),
+      });
+    }
+    if (kind === "template.time_tick") {
+      if (Object.keys(value).toSorted().join("\0") !== "kind\0tick") {
+        throw new TypeError("invalid template time tick command");
+      }
+      return Object.freeze({
+        kind,
+        tick: parseTimeTick((value as { readonly tick?: unknown }).tick, "/tick"),
       });
     }
     if (Object.keys(value).join("\0") !== "kind") {

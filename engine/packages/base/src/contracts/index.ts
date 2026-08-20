@@ -470,8 +470,6 @@ export type {
   VoiceStopPolicyV1,
 } from "./media-audio.ts";
 export {
-  applyHoldTickV1,
-  countHoldTickCrossingsV1,
   evaluateInteractionResolutionV1,
   interactionOccurrenceIdV1,
   parseInteractionJsonObjectV1,
@@ -481,7 +479,6 @@ export {
 } from "./pending-interaction.ts";
 export type {
   HoldPendingInteractionV1,
-  HoldTickOutcomeV1,
   InteractionChoiceOptionV1,
   InteractionRejectionCodeV1,
   InteractionResolutionContextV1,
@@ -490,6 +487,18 @@ export type {
   PendingInteractionBaseV1,
   PendingInteractionV1,
 } from "./pending-interaction.ts";
+export {
+  applyElapsedToHoldV1,
+  countThresholdCrossingsV1,
+  evaluateTimeTickV1,
+  parseTimeTickV1,
+} from "./time-tick.ts";
+export type {
+  HoldSettlementV1,
+  TimeTickOutcomeV1,
+  TimeTickRejectionCodeV1,
+  TimeTickV1,
+} from "./time-tick.ts";
 export { diffPlainDataV1 } from "./plain-data-diff.ts";
 export type { PlainDataDiffEntryV1 } from "./plain-data-diff.ts";
 export {

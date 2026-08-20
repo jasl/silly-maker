@@ -50,12 +50,25 @@ hold 交付了「两句台词之间的独占计时」；剩下一族真并行行
   commit 内结算顺序固定：hold pending 先折余量（到期语义、部分 tick
   帧刷新、`tickQuantumMs` 量子纪律全部保留），M2 起再按注册序推监视
   器。
-- admission 裁定项（M0 内落锤并测试锁定）：
-  - 动词形态：会话级命令 vs pending resolution——推荐会话级、无
-    occurrence 栅栏（时间是全局事实，落在谁头上由 Host 在占用变更时清
-    零累积器保证；交错由命令日志如实记录，回放同序）。若分析发现真实
-    过折风险（如 skip 折清与在途报告竞态）需要栅栏，在 M0 内决且记录。
-  - `countHoldTickCrossingsV1` 等公开算术命名是否随动词归并换名。
+- admission 裁定（M0 已落锤，2026-08-20）：
+  - **会话级命令 + 可选 hold 栅栏**：`TimeTickV1 = { elapsedMs,
+    expectedHoldOccurrenceId? }`。分析确认真实过折风险存在——排队中的
+    陈旧报告或自动化投递可在 hold 交替后落到**后继 hold** 头上，预折玩
+    家从未观看的毫秒（MV 的 wait 计数也只吃自己帧）。因此：带栅栏的报
+    告才有资格折当前 hold（栅栏过期整条拒绝，代码
+    `time.hold_occurrence_stale`）；不带栅栏的报告只结算会话全局时间消
+    费者（M2 起的监视器），永不折 hold。一个动词、一个可选字段、两个结
+    算范围——不是双动词。
+  - hold 从 `InteractionResolutionV1` 移除后成为纯时间结算边界：任何
+    输入 resolution 对 hold pending 一律 `interaction.kind_mismatch`。
+  - 公开算术随归并换名：`applyHoldTickV1` → `applyElapsedToHoldV1`
+    （facade `applyElapsedToHold`），`countHoldTickCrossingsV1` → 泛化
+    为 `countThresholdCrossingsV1({ fromMs, toMs, everyMs })`（facade
+    `countThresholdCrossings`），后者同时服务 M2 监视器累积穿越。
+  - Story 侧以自有命令承载动词（如 `lab.time_tick`），沿
+    `narrative_resolve` 同款「invocation → command → reducer」路径；
+    UI 叙事面新增 `dispatchTime` 绑定（量子分批、skip 折清、到期共用一
+    个出口）。
 - Host：narrative host / dialogue player 的提议路径换新动词；折余量、
   到期、量子部分提交三类 commit 语义不变。
 - 迁移删除：`hold_tick` 全仓移除（admission、facade、测试、文档）；

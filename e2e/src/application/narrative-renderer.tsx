@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import type { ReactElement } from "react";
 
-import type { StrictJsonObjectV1 } from "@sillymaker/base";
+import type { DeepReadonly, StrictJsonObjectV1, TimeTickV1 } from "@sillymaker/base";
 import type {
   NarrativeSurfaceDefinitionV1,
   NarrativeSurfaceDialogueRendererPropsV1,
@@ -63,6 +63,12 @@ export function createLabNarrativeSurfaceDefinitionV1(
         kind: "resolve" as const,
         expectedOccurrenceId: request.expectedOccurrenceId,
         resolution: request.resolution,
+      }));
+    },
+    dispatchTime: async (tick: DeepReadonly<TimeTickV1>) => {
+      await input.semantic.dispatch(Object.freeze({
+        kind: "time" as const,
+        tick,
       }));
     },
     renderer: LabNarrativeRendererV1,
