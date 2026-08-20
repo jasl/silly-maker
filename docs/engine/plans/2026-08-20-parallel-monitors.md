@@ -75,6 +75,14 @@ hold 交付了「两句台词之间的独占计时」；剩下一族真并行行
   Lab `cal-hold`、实验仓滴路径双消费者复跑等价。
 - 验收：批切不变性与交错回放 headless 测试；持有中 Save/load 回归；
   迁移后全仓无 `hold_tick` 残留；`deno task check` 绿。
+- **交付（2026-08-20，review 后提交 `b2e041e1`）**：`TimeTickV1` 会话级
+  动词（`elapsedMs` + 可选 hold 栅栏，陈旧栅栏
+  `time.hold_occurrence_stale` 整条拒绝；无栅栏 tick 无条件接受、永不折
+  hold）；hold 移出 `InteractionResolutionV1`；算术换名
+  `applyElapsedToHoldV1` / `countThresholdCrossingsV1`；UI 叙事面新增可空
+  `dispatchTime` 绑定，hold 到期控制器与 skip 折清共用栅栏 tick 出口，
+  缺时间端口的 hold 帧直接 fault 玩家控制器（review 发现的无限重试修
+  复）。e2e/template 双故事迁移，`hold_tick` 全仓无残留。
 
 ### M1 — 领域事件 + reducer（全量迁移，删除旧路径）
 
@@ -88,6 +96,15 @@ hold 交付了「两句台词之间的独占计时」；剩下一族真并行行
   缓冲有界（上界 M1 内定）；不进 digest、默认不进 Save。
 - 验收：同一命令日志两次回放重导出的事件序列逐条相同；清空事件缓冲不
   影响权威终态与 digest；旧路径删除后无消费者残留。
+- **交付（2026-08-20，review 后提交 `4eb14116`）**：`transaction.emit`
+  取代 `propose`/`apply` 仪式（emit 时对 Story `eventSchema` 校验一次，
+  reject/complete 后闩死）；折叠序 = 发射序 + 事件内 UTF-16 模块 ID 序，
+  触碰切片折后再验；提交信封/CommandLog/回放携带 `events`；
+  `ModuleOwnerCapabilityV1` 与 operation/proposal schema 删除。五故事 +
+  testkit 工作负载 + 排序向量全迁移；save fixtures 重盖新 simulation
+  digest，故意变更的 golden 重钉。review 发现项全部修复：requires/
+  initializesAfter 恢复、绝对值 reducer 单发假设注释、结算后 emit 闩、
+  cat-cafe 日历死代码删除、文档折叠语义措辞修正。
 
 ### M2 — 权威监视器 V1
 
@@ -101,6 +118,21 @@ hold 交付了「两句台词之间的独占计时」；剩下一族真并行行
 - 验收：`{500,500,500}` ≡ `{1500}` 终态 digest 相同；gauge 中途存档
   load 后续报同出口；`retain` 与清零各有单测；时间报告与输入
   resolution 交错重放同序同终态。
+- **交付（2026-08-20）**：`authoritative-monitor.ts` 合同——
+  `parseMonitorDeclarationsV1` admission（唯一 id、正整数节奏、
+  `clear`|`retain`、带 `kind` 的事件载荷、`activeWhen` 谓词；声明序 =
+  结算序）、`parseMonitorAccumulatorV1`（`{ [monitorId]: accumulatedMs }`
+  普通版本化状态切片）、`settleMonitorsV1`（hold 折余之后按声明序推进，
+  穿越复用 `countThresholdCrossingsV1`，每次穿越产出一份声明载荷，经
+  `transaction.emit` 唯一写者发射；非活跃按声明清零/保留，未声明 id 不
+  存活）。验收由合同套件内的 kit 直驱合成故事锁定：批切 digest 等价、
+  声明序发射、清零/保留、中途存档续报同出口、交错重放钉定终态。可选
+  `frames`/投影通道按 hold 先例（帧节奏是 Story 词汇）defer 到 M4 首个
+  HUD 消费者定形。Lab/实验仓活路径归 M4。review 发现项全部修复：
+  `__proto__`/`prototype`/`constructor` id 双端 admission 拒绝 +
+  `Object.hasOwn` 自有读（消除 Deno 与浏览器 Annex-B 分歧）、累积器
+  admission 对齐兄弟解析器（访问器/符号键拒绝、指针转义）、事件载荷
+  admission 深冻结（同一引用逐穿越发射）、稀疏声明数组拒绝。
 
 ### M3 — 持久化安全点与在途段（引擎能力先行）
 

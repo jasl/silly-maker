@@ -499,6 +499,17 @@ export type {
   TimeTickRejectionCodeV1,
   TimeTickV1,
 } from "./time-tick.ts";
+export {
+  parseMonitorAccumulatorV1,
+  parseMonitorDeclarationsV1,
+  settleMonitorsV1,
+} from "./authoritative-monitor.ts";
+export type {
+  MonitorAccumulatorV1,
+  MonitorDeclarationV1,
+  MonitorRetentionV1,
+  MonitorSettlementV1,
+} from "./authoritative-monitor.ts";
 export { diffPlainDataV1 } from "./plain-data-diff.ts";
 export type { PlainDataDiffEntryV1 } from "./plain-data-diff.ts";
 export {

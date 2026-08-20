@@ -179,6 +179,28 @@ the hold — the starter template's interaction-document kit does this with a
 `hold` block whose inline `ops` compile to a preceding stage node — never by
 flashing a zero-duration stage during the wait.
 
+A timing accumulation that must run while the player can still act — a
+decision gauge rising under a live menu, a scene-scoped drip while the player
+reads, a held-interaction drip — is an authoritative monitor, not a hold.
+Declare monitors once with `parseMonitorDeclarations` (from
+`@sillymaker/base/story`): each entry is `{ id, everyMs, retention, event,
+activeWhen }`, where `activeWhen` is an authoritative-state predicate in the
+branch `when` vocabulary (effects write state, the flipping predicate starts
+and stops accumulation — there are no arm/disarm commands) and `event` is the
+domain-event payload emitted once per threshold crossing. Keep the
+accumulator in a module slice as plain `{ [monitorId]: accumulatedMs }` data
+admitted by `parseMonitorAccumulator`, so a mid-gauge Save simply keeps the
+milliseconds. Inside the Story's time-verb command handler, after folding a
+pending hold's remainder, call `settleMonitors` with the reported
+`elapsedMs`, the command-start state, and the current accumulator; emit the
+returned events plus an accumulator-set event through `transaction.emit` like
+any other domain events. Declaration order is settlement order, inactive
+monitors clear or retain their accumulation per declaration, and the
+arithmetic is batch invariant — `{500,500,500}` and `{1500}` produce the same
+terminal state, so Host tick batching can never change outcomes. Monitors
+have no script body and cannot route the narrative; anything that needs to
+change the pending interaction stays in narrative vocabulary.
+
 For a whole-canvas primary or exact-parent detail, freeze the seven-key input
 to `defineWholeCanvasSurfaceV1`: `catalog`, `source`, `resolveTarget`,
 `dispatchAction`, `renderer`, `prepareTarget`, and `resolveText`. Use a

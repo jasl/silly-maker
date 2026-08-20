@@ -132,6 +132,21 @@ export type {
 } from "../index.ts";
 
 // ---------------------------------------------------------------------------
+// Authoritative monitors (current generation: V1).
+// ---------------------------------------------------------------------------
+export {
+  parseMonitorAccumulatorV1 as parseMonitorAccumulator,
+  parseMonitorDeclarationsV1 as parseMonitorDeclarations,
+  settleMonitorsV1 as settleMonitors,
+} from "../index.ts";
+export type {
+  MonitorAccumulatorV1 as MonitorAccumulator,
+  MonitorDeclarationV1 as MonitorDeclaration,
+  MonitorRetentionV1 as MonitorRetention,
+  MonitorSettlementV1 as MonitorSettlement,
+} from "../index.ts";
+
+// ---------------------------------------------------------------------------
 // Narrative history, graph lint, and bounded prediction (current: V1).
 // ---------------------------------------------------------------------------
 export {

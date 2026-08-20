@@ -286,6 +286,21 @@ Authoritative replay runs the same executor/order. The comparator is
 package-internal and Host-locale-independent; it is not the Unicode code-point
 comparator used by canonical JSON keys.
 
+Authoritative monitors are the declared parallel-timing vocabulary on top of
+that pipeline: `parseMonitorDeclarationsV1` admits `{ id, everyMs, retention,
+event, activeWhen }` declarations once (unique ids, positive cadence, `clear` |
+`retain`, a `kind`-bearing domain-event payload, an authoritative-state
+predicate — no lifecycle verbs, no script body), `parseMonitorAccumulatorV1`
+admits the plain `{ [monitorId]: accumulatedMs }` slice that lives inside
+versioned Story State (Saves keep a mid-gauge accumulation; wall clocks never
+enter), and `settleMonitorsV1` is the shared handler arithmetic the Story's
+single time-verb command applies after folding the pending hold: declarations
+advance in declaration order, threshold crossings reuse
+`countThresholdCrossingsV1`, and each crossing yields one declared event
+payload that the handler emits through the ordinary `transaction.emit` writer
+— so monitors gain no second write path and batch splits cannot change the
+terminal Snapshot or digest.
+
 The authoritative runtime value is a `GameSnapshot`:
 
 ```text
