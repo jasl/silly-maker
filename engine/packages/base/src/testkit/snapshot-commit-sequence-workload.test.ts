@@ -70,9 +70,9 @@ describe("Snapshot sequence and replay workloads", () => {
     expect(measured.commandLog()).toHaveLength(1);
     expect(measured.commandLog().at(-1)?.outcome).toEqual({
       kind: "committed",
-      facts: [
-        { kind: "snapshot_workload.audit_recorded", count: 1 },
+      events: [
         { kind: "snapshot_workload.entity_updated", entityId: 50, value: 51 },
+        { kind: "snapshot_workload.audit_recorded", count: 1 },
       ],
     });
     expect(counter.snapshot()).toEqual({

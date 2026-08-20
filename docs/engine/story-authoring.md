@@ -11,7 +11,7 @@ A Story owns the game-specific parts of a playable application:
 - stable identity and state-contract description;
 - validated gameplay data and named deterministic rule providers;
 - the State shape and GameplayModules that own it;
-- commands, rejections, facts, debug commands, queries, and ViewModels;
+- commands, rejections, domain events, debug commands, queries, and ViewModels;
 - text, assets, scene graph, interactions, semantic actions, and renderer contributions;
 - Story-specific application composition and optional tooling.
 
@@ -27,7 +27,7 @@ Treat a revision as a compatibility statement. Change it when the corresponding 
 
 ### Define GameplayModules
 
-Each stateful module declares its owned State slot(s), schema, initial State, public read ports, owner-scoped proposals/apply behavior, and local invariants. Dependencies should name capabilities another module intentionally exposes.
+Each stateful module declares its owned State slot(s), schema, initial State, public read ports, domain-event reducers over its own slice, and local invariants. Dependencies should name capabilities another module intentionally exposes.
 
 Schemas can be hand-written parse functions or, preferably, built through `@sillymaker/base/authoring`: `createRuntimeSchemaV1` wraps a parse function and `fromStandardSchemaV1` adapts a Zod (or any Standard Schema V1) schema. Both enforce canonical-JSON output, deep-freeze the result, and report failures as stable `DiagnosticEnvelopeV1` values with JSON pointers instead of bare exceptions. `collectGamePackageDiagnosticsV1` aggregates definition/resolution failures for a whole package the same way.
 
@@ -55,7 +55,8 @@ properties rather than accessors; admission rejects an accessor as
 rely on a later Snapshot or Save encode to catch an invalid command.
 
 Likewise, finalization does not retain or itself freeze the upstream identities
-produced by Story fact/rejection/Debug-error normalizers; a schema helper may
+produced by Story domain-event/rejection/Debug-error normalizers; a schema
+helper may
 already have frozen its output. Evidence arrays use one captured own `length`
 data descriptor, so Proxy virtual length cannot alter their item vector.
 Finalization projects and freezes the Snapshot-free canonical data;
@@ -63,7 +64,7 @@ the returned attempt and CommandLog share that admitted projection. Snapshot
 objects themselves remain the authoritative identity and are not cloned by this
 evidence boundary.
 
-For module wiring, `createGameAuthoringKitV1` captures the Game type family once and provides `defineCapability` (typed tokens), `defineStatefulModule`/`defineStatelessModule` helpers (omit absent command/query surfaces; proposal schemas derive from operation schemas), `provides` factories that build narrow read-only ports from the owner's own State slice, `requires` declarations that surface as typed dependency ports in `owner.propose`, and `initializesAfter` for startup order. `composeModules` validates both the capability DAG and the lifecycle DAG with stable diagnostic codes and emits ordinary low-level bindings for `defineGameSimulation`, so kit and hand-written modules never form two authorities.
+For module wiring, `createGameAuthoringKitV1` captures the Game type family once and provides `defineCapability` (typed tokens), `defineStatefulModule`/`defineStatelessModule` helpers (omit absent command/query surfaces; a stateful module declares a `reducers` map from domain-event kinds to folds over its own slice), `provides` factories that build narrow read-only ports from the module's own State slice, `requires` declarations that feed the validated capability DAG and the module's serialized dependency vector (`transaction.read(token)` resolves any composed provider; the declaration documents and validates the dependency, it does not gate the read), and `initializesAfter` for startup order. `composeModules` validates both the capability DAG and the lifecycle DAG with stable diagnostic codes and emits ordinary low-level bindings for `defineGameSimulation`, so kit and hand-written modules never form two authorities.
 
 The aggregate State should align with the modules the Story actually composes. Avoid a universal object containing optional fields for every possible module. Stateless gameplay services can remain named pure capabilities rather than fake State.
 
@@ -72,15 +73,15 @@ The aggregate State should align with the modules the Story actually composes. A
 Use `defineGameSimulation` to bind:
 
 - the exact module tuple;
-- aggregate State, command, fact, rejection, and debug schemas;
+- aggregate State, command, domain-event, rejection, and debug schemas;
 - bootstrap and initial-State creation;
 - gameplay and debug command executors;
 - `createQueries(State)`;
 - immutable ViewModel projection.
 
-Cross-module commands remain Story-owned orchestration. They gather validated owner proposals and commit a complete candidate or reject without changing the current Snapshot. Deterministic rule code uses the supplied serializable RNG capabilities rather than ambient time or `Math.random()`.
+Cross-module commands remain Story-owned orchestration. The handler decides against the command-start Snapshot, emits domain events for every decided outcome, and commits a complete candidate or rejects without changing the current Snapshot. Deterministic rule code uses the supplied serializable RNG capabilities rather than ambient time or `Math.random()`.
 
-The kit composition's `createTransactionRunner` owns the mechanics of that orchestration: the Story handler reads capabilities against the command-start Snapshot, stages at most one proposal per owner, and returns `complete()` or `reject(...)`; proposal callbacks therefore run in the Story's explicit call order. After `complete()`, the engine sorts staged owner IDs by locale-independent UTF-16 code units, applies each proposal against its command-start owner slice, accumulates State replacements and facts in that exact order, validates the aggregate candidate, and produces the commit/reject/fault attempt envelope with full RNG and sequence rollback. The same order reaches the candidate Snapshot, CommandLog evidence, and authoritative replay; Host locale never chooses gameplay order. The transaction surface exists only inside command executors; UI and automation never receive it.
+The kit composition's `createTransactionRunner` owns the mechanics of that orchestration: the Story handler reads capabilities against the command-start Snapshot, performs every gameplay refusal via `reject(...)` before emitting, and journals decided outcomes with `emit(event)` (validated once against the Story `eventSchema` at emit time); `emit` never rejects — an event is a decided fact of the commit. After `complete()`, the engine folds the journal deterministically: events replay in emission order, and within one event the subscribed module reducers run in locale-independent UTF-16 code-unit module-ID order, each folding its own current slice forward (handlers read the command-start snapshot; reducers see the running fold, and touched slices re-validate against their module schemas before the aggregate candidate is checked). The engine validates the aggregate candidate and produces the commit/reject/fault attempt envelope (the committed envelope carries the event journal) with full RNG and sequence rollback. The same order reaches the candidate Snapshot, CommandLog evidence, and authoritative replay; Host locale never chooses gameplay order. Events with no subscribed reducer are journal-only broadcast evidence for UI projections and tests. The transaction surface exists only inside command executors; UI and automation never receive it.
 
 ### Design queries and semantic actions
 
@@ -163,8 +164,8 @@ with `applyElapsedToHold` — a partial tick keeps the same boundary occurrence
 and decrements `remainingMs`, and the tick that reaches zero expires into the
 node's successor. The Story's narrative surface binds a `dispatchTime`
 handler next to `dispatchResolution` (pass `null` only when the Story has no
-holds); the Narrative Host owns the presentation clock and proposes the
-commits through it: without a declared cadence it commits only skip-folds and
+holds); the Narrative Host owns the presentation clock and dispatches the
+tick commits through it: without a declared cadence it commits only skip-folds and
 expiry, while a hold that sets the optional `tickQuantumMs` gets partial
 commits per quantum, so a mid-hold Save restores the hold with the last
 committed remainder (loss bounded by one quantum) and wall clocks never enter

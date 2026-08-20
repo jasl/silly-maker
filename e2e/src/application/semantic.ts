@@ -237,7 +237,7 @@ export const labSemanticAdapterV1: CoreSemanticAdapterV1<
     }
     const execution = result.execution;
     if (execution.kind === "committed") {
-      // Committed facts stay engine evidence; agents observe outcomes through
+      // Committed domain events stay engine evidence; agents observe outcomes through
       // the published game view, never through a raw fact stream.
       return Object.freeze({ kind: "committed" as const });
     }
@@ -251,5 +251,5 @@ export const labSemanticAdapterV1: CoreSemanticAdapterV1<
   },
   invalidInvocationResult: () =>
     Object.freeze({ kind: "not_executed" as const, code: "validation_failed" as const }),
-  projectTransientEffects: (facts) => projectLabTransientEffectsV1(facts),
+  projectTransientEffects: (events) => projectLabTransientEffectsV1(events),
 };

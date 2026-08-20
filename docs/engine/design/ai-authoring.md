@@ -153,22 +153,26 @@ game.defineCommandCoordinator({
   execute(command, transaction) {
     const stock = transaction.read(inventoryRead);
     if (!stock.has(command.itemId)) return transaction.reject("out_of_stock");
-    transaction.propose(shop, recordSale(command.price));
-    transaction.propose(inventory, removeItem(command.itemId));
+    transaction.emit({ kind: "shop.sale_recorded", price: command.price });
+    transaction.emit({ kind: "inventory.item_removed", itemId: command.itemId });
     return transaction.complete();
   },
 });
 ```
 
 `complete()` 只交回完整 candidate；最终 validate/commit 仍由 Session
-拥有。引擎负责 owner slice replacement、schema、invariant、RNG checkpoint、fact
-collection、commit/reject/fault 和完整 rollback；Story 负责业务顺序和 rejection
-含义。Module 不能通过 coordinator 获得 foreign write capability。
+拥有。引擎负责 module slice replacement、schema、invariant、RNG checkpoint、
+domain-event journal collection、commit/reject/fault 和完整 rollback；Story
+负责业务顺序和 rejection 含义。Module 不能通过 coordinator 获得 foreign write
+capability。
 
-第一版 transaction 的所有 `read()` 都观察 command-start immutable
-Snapshot，不读取 staged proposal。每个 owner 最多接受一个 proposal；重复
-proposal 返回稳定 authoring/runtime diagnostic，而不是隐式 merge 或按调用顺序
-apply。这样 proposal 声明顺序不影响 candidate 结果。
+transaction 的所有 `read()` 都观察 command-start immutable Snapshot，不读取
+折叠中的 candidate。`emit(event)` 在发射点按 Story `eventSchema` 验证一次并
+按发射顺序记入 journal；`complete()` 后引擎按确定顺序折叠（事件按发射顺序
+重放，同一事件内订阅的 module reducer 按 UTF-16 code-unit module-ID 顺序各自
+折叠自己的 slice），因此声明顺序与 Host locale 都不影响 candidate 结果。
+（2026-08-20 parallel-monitors M1 起，此设计已按 events + reducers 形态落地于
+`createTransactionRunner`。）
 
 这项设计应由 E2E Story 的一个真实跨模块 command 驱动。若薄化现有 API
 已足够，就不为“V2”名义引入另一套长期并存模型。

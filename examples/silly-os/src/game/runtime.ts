@@ -5,7 +5,7 @@ import type { createTransactionalRngV1 } from "@sillymaker/base";
 import { osGameStateSchemaV1 } from "./state.ts";
 import type { OsGameStateV1 } from "./state.ts";
 import type { OsAttemptV1, OsCommandV1, OsSnapshotV1 } from "./kernel.ts";
-import { kit } from "./kernel.ts";
+import { kit, osEventSchemaV1 } from "./kernel.ts";
 import { desktopModuleV1 } from "./features/desktop/module.ts";
 import { filesystemModuleV1 } from "./features/filesystem/module.ts";
 import { minesweeperModuleV1 } from "./features/minesweeper/module.ts";
@@ -20,6 +20,7 @@ export type OsModulesV1 = typeof osModuleCompositionV1.modules;
 
 export const transactionRunnerV1 = osModuleCompositionV1.createTransactionRunner({
   stateSchema: osGameStateSchemaV1,
+  eventSchema: osEventSchemaV1,
   createFault: () => Object.freeze({ code: "os.executor_failed" as const }),
 });
 

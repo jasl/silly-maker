@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 import type { RngDrawTraceV1, RngStateV1, RuleRngV1 } from "./rng.ts";
 
-export type CommandExecutionResultEnvelopeV1<TSnapshot, TFact, TRejection, TFault> =
+export type CommandExecutionResultEnvelopeV1<TSnapshot, TEvent, TRejection, TFault> =
   | {
     readonly kind: "committed";
     readonly snapshot: TSnapshot;
-    readonly facts: readonly TFact[];
+    readonly events: readonly TEvent[];
   }
   | {
     readonly kind: "rejected";
@@ -27,13 +27,13 @@ export interface CommandExecutionDiagnosticsEnvelopeV1<TRngState, TRngDrawTrace>
 
 export interface CommandExecutionAttemptEnvelopeV1<
   TSnapshot,
-  TFact,
+  TEvent,
   TRejection,
   TFault,
   TRngState,
   TRngDrawTrace,
 > {
-  readonly result: CommandExecutionResultEnvelopeV1<TSnapshot, TFact, TRejection, TFault>;
+  readonly result: CommandExecutionResultEnvelopeV1<TSnapshot, TEvent, TRejection, TFault>;
   readonly diagnostics: CommandExecutionDiagnosticsEnvelopeV1<TRngState, TRngDrawTrace>;
 }
 
@@ -52,17 +52,17 @@ function diagnostics(
   });
 }
 
-export function commitAttemptV1<TSnapshot extends SnapshotWithRng, TFact>(
+export function commitAttemptV1<TSnapshot extends SnapshotWithRng, TEvent>(
   committedBefore: TSnapshot,
   committedAfter: TSnapshot,
   rng: RuleRngV1,
-  facts: readonly TFact[],
-): CommandExecutionAttemptEnvelopeV1<TSnapshot, TFact, never, never, RngStateV1, RngDrawTraceV1> {
+  events: readonly TEvent[],
+): CommandExecutionAttemptEnvelopeV1<TSnapshot, TEvent, never, never, RngStateV1, RngDrawTraceV1> {
   return Object.freeze({
     result: Object.freeze({
       kind: "committed",
       snapshot: committedAfter,
-      facts: Object.freeze([...facts]),
+      events: Object.freeze([...events]),
     }),
     diagnostics: diagnostics(committedBefore.rng, committedAfter.rng, rng),
   });

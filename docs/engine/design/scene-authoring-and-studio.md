@@ -142,7 +142,7 @@ typed accessors（形状由 A0 拥有）至少提供：
   `cut: true`，互斥）派生的 **per-cue** 绑定。解析 cue-first（2026-08-17 接受
   并交付的 [cue-identity 提案](../proposals/cue-identity.md)）：提交边携带的
   presentation edge context（`{sceneId, cueId}` / `{sceneId, open}` dispatch
-  列表，从已提交 facts 投影、与语义 revision 精确配对）指名哪个 cue 引发这条
+  列表，从已提交 domain events 投影、与语义 revision 精确配对）指名哪个 cue 引发这条
   边，各 cue 解析各自的声明——motion、压制外层的合成 cut、或裸 cue 的 null
   落回；同边分歧声明因此合法。无上下文的边走 edge-tuple 回落（仅"全部绑定
   一致"的边保留条目，与前上下文行为逐字节等位）；上下文存在时"本场景无

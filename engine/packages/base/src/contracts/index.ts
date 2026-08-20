@@ -72,6 +72,7 @@ export type {
 } from "./game-package.ts";
 export type {
   BootstrapEntropyV1,
+  DomainEventKindOfV1,
   GameBootstrapInputV1,
   GameCommandExecutorV1,
   GameDebugCommandExecutorV1,
@@ -83,11 +84,10 @@ export type {
   GameplayModuleDescriptorV1,
   GameplayModuleSurfaceV1,
   GameplayModuleTupleForSimulationV1,
+  ModuleEventReducerMapV1,
+  ModuleEventReducerV1,
   ModuleInvariantViolationV1,
   ModuleLocalInvariantV1,
-  ModuleOwnerCapabilityV1,
-  ModuleOwnerProposalEnvelopeV1,
-  ModuleProposalResultV1,
   ModuleQueryCapabilityV1,
   StatefulGameplayModuleBindingV1,
   StatelessGameplayModuleBindingV1,

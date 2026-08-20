@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Calendar slice · commands: slot advancement; day rollover chains tidiness decay, petting reset, and character-art growth.
 import type { CatcafeCommandHandlerMapV1 } from "../../runtime.ts";
-import { transactionRunnerV1 } from "../../runtime.ts";
+import { emitCatcafeStageV1, transactionRunnerV1 } from "../../runtime.ts";
 import { catcafeDailyPettingV1 } from "../../state.ts";
 import { clampV1 } from "../../kernel.ts";
-import { applyCalendarV1, calendarModuleV1 } from "./module.ts";
-import { catModuleV1 } from "../cat/module.ts";
+import { advanceCalendarV1 } from "./module.ts";
 import { catcafeGrowthMutationV1 } from "../cat/growth.ts";
-import { shopModuleV1 } from "../shop/module.ts";
-import { stageModuleV1 } from "../stage/module.ts";
 
 export const calendarCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.advance_slot"> = Object
   .freeze({
@@ -18,26 +15,31 @@ export const calendarCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.adv
         if (state.narrative.phase !== "completed") {
           return transaction.reject({ code: "cc.narrative_busy" });
         }
-        transaction.propose(calendarModuleV1, { kind: "advance" });
-        const next = applyCalendarV1(state.calendar, { kind: "advance" });
+        const next = advanceCalendarV1(state.calendar);
+        transaction.emit({ kind: "cc.calendar_set", next });
+        transaction.emit({
+          kind: "cc.slot_advanced",
+          week: next.week,
+          day: next.day,
+          slot: next.slot,
+        });
         // Day rollover: tidiness decays naturally, petting allowance resets, character art grows by week age.
         if (next.slot === 0) {
-          transaction.propose(shopModuleV1, {
-            kind: "apply",
-            reputation: state.shop.reputation,
-            tidiness: clampV1(state.shop.tidiness - 10, 0, 100),
-            money: state.shop.money,
-            trophies: state.shop.trophies,
+          transaction.emit({
+            kind: "cc.shop_set",
+            next: Object.freeze({
+              ...state.shop,
+              tidiness: clampV1(state.shop.tidiness - 10, 0, 100),
+            }),
           });
-          transaction.propose(catModuleV1, {
-            kind: "apply",
-            ...state.cat,
-            pettingLeft: catcafeDailyPettingV1,
+          transaction.emit({
+            kind: "cc.cat_set",
+            next: Object.freeze({ ...state.cat, pettingLeft: catcafeDailyPettingV1 }),
           });
-          transaction.propose(stageModuleV1, {
-            kind: "apply",
-            mutations: [catcafeGrowthMutationV1(next.week, "/advance/appearance")],
-          });
+          const blocked = emitCatcafeStageV1(transaction, state.stage, [
+            catcafeGrowthMutationV1(next.week, "/advance/appearance"),
+          ]);
+          if (blocked !== null) return transaction.reject({ code: blocked });
         }
         return transaction.complete();
       }),

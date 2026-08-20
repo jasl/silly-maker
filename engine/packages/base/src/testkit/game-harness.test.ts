@@ -69,7 +69,7 @@ const syntheticAdapterV1 = {
     readonly execution?: {
       readonly kind: string;
       readonly snapshot?: { readonly state?: unknown };
-      readonly facts?: readonly { readonly count: number }[];
+      readonly events?: readonly { readonly count: number }[];
     };
   }): SyntheticResultV1 {
     if (result.kind !== "executed" || result.execution === undefined) {
@@ -81,7 +81,7 @@ const syntheticAdapterV1 = {
     if (result.execution.kind === "committed") {
       return Object.freeze({
         kind: "committed" as const,
-        count: result.execution.facts?.[0]?.count ?? 0,
+        count: result.execution.events?.[0]?.count ?? 0,
       });
     }
     return result.execution.kind === "rejected"

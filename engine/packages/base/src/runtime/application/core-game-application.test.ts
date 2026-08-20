@@ -100,7 +100,7 @@ interface DebugCounterCommandV1 {
   readonly amount: number;
 }
 
-interface EvidenceFactV1 {
+interface EvidenceEventV1 {
   readonly kind: "synthetic.incremented";
   readonly count: number;
 }
@@ -214,27 +214,29 @@ function freezeStrictJsonValueV1(value: unknown): unknown {
 }
 
 // Derived by running this corpus against the S0-complete production source at
-// 96a0a93. Length + SHA-256 pins the exact canonical/physical bytes without
-// committing a second long-lived Save or Debug Bundle fixture.
+// 96a0a93, re-pinned for the M1 domain-event journal (committed outcomes carry
+// `events` instead of `facts`, and the simulation identity digest covers the
+// event schema). Length + SHA-256 pins the exact canonical/physical bytes
+// without committing a second long-lived Save or Debug Bundle fixture.
 const s0CompleteMixedGoldenV1 = {
   snapshot: {
     byteLength: 295,
     bytesDigest: "sha256:c4906e433f8ebf347134bffd58e6bde1fda5615afa2460d9bdf8594aef5a5917",
   },
   commandLog: {
-    byteLength: 2532,
-    bytesDigest: "sha256:03d02cbdd4e2a6b9c47ec85edbd8aa4a6193fd244bd96a061a7e273c5b3631e7",
+    byteLength: 2534,
+    bytesDigest: "sha256:3d77eed3450c84765e9e52b2bf822d4ffbe7df6ce317f6e877ded3e49a31727d",
   },
   debugBundle: {
-    byteLength: 4431,
-    bytesDigest: "sha256:5dc3b014d8e239eb5742499635aae15d5160b795335adcf815526f4ff8156fcf",
+    byteLength: 4433,
+    bytesDigest: "sha256:6fbccc51fb2e5562f2f8efa061632d82d2fd33f4fb9c2cb591352781ccc2557f",
   },
   firstCommitSaves: [
     {
       key: "save-record.v1:story.synthetic-counter:auto.current",
       revision: 1,
       byteLength: 1452,
-      bytesDigest: "sha256:2cc4b218afd2b5457e6daeabfd3ec6842e4d7a8a430c1925dc5f225a2296c881",
+      bytesDigest: "sha256:3239108c1b2cd97a69f40e6fbcdbf689285651c37f31a1486bb6127bdb7b7962",
     },
   ],
   debugCommitSaves: [
@@ -242,13 +244,13 @@ const s0CompleteMixedGoldenV1 = {
       key: "save-record.v1:story.synthetic-counter:auto.current",
       revision: 2,
       byteLength: 1524,
-      bytesDigest: "sha256:d1242efbeffdd25875e7514fb356ae7f3eb7a4006d3ff2393351de5aa940213c",
+      bytesDigest: "sha256:9b738083a7eabb46d5d85e30ac3909c5e155d549bac499abefaaa08965952785",
     },
     {
       key: "save-record.v1:story.synthetic-counter:auto.previous",
       revision: 1,
       byteLength: 1453,
-      bytesDigest: "sha256:5194b31757d0ebaafb678f3b4a8be115f7600aa03e607ae231a0ff34ca41ccfe",
+      bytesDigest: "sha256:dfb4e2b168ae7262a2e50f64402ef4f2a87b0e4b21beeb7149001d162e5048cf",
     },
   ],
   anchoredSnapshot: {
@@ -260,13 +262,13 @@ const s0CompleteMixedGoldenV1 = {
       key: "save-record.v1:story.synthetic-counter:auto.current",
       revision: 4,
       byteLength: 1568,
-      bytesDigest: "sha256:eee5fa57fe168cc51c7f2078571fb562862ea6084743a0558e38c008bb8e90e8",
+      bytesDigest: "sha256:1a768e929df5163f3a5edb40731ffdf8f05ca15d3d57503f9b669ae8909e2db5",
     },
     {
       key: "save-record.v1:story.synthetic-counter:auto.previous",
       revision: 3,
       byteLength: 1525,
-      bytesDigest: "sha256:2ae2e46bbaffc6f932d25959548698cec59457934a4e129f5b1dac05d3be5b21",
+      bytesDigest: "sha256:241ae02e7b27fb0fabc47175940718ddad766c662080558c0502c9856f6bdbc7",
     },
   ],
   postAnchorSnapshot: {
@@ -274,21 +276,21 @@ const s0CompleteMixedGoldenV1 = {
     bytesDigest: "sha256:ba77408f4ecc5adc7de9a9d8b6859bc29394fae1048d0e994500126ba61d4c29",
   },
   postAnchorCommandLog: {
-    byteLength: 641,
-    bytesDigest: "sha256:5b62e1311987668f68ab3035f4f334da30f8c53352e999f102acac66e6d5a057",
+    byteLength: 642,
+    bytesDigest: "sha256:10d6005d9333579f99861a917751542bb7cd16bcaec1096c626e950d3994d171",
   },
   postAnchorSaves: [
     {
       key: "save-record.v1:story.synthetic-counter:auto.current",
       revision: 5,
       byteLength: 1568,
-      bytesDigest: "sha256:499433a1c47ca4cff316c826b23bcd8963113293cba3ecd86d2039d329cb8faf",
+      bytesDigest: "sha256:3213a45c762708f3be392a16eeb251d21e56f18cc85f8d694b39305e93727895",
     },
     {
       key: "save-record.v1:story.synthetic-counter:auto.previous",
       revision: 4,
       byteLength: 1569,
-      bytesDigest: "sha256:dd881ff113bde1b9ace9825ffdb3117c543015e815a4c2dfaec42e20485d7229",
+      bytesDigest: "sha256:ff1f708352b47adb8f4515e5850bdbeb18f764714ae94aa7f30621c9aaa7319f",
     },
   ],
 } as const;
@@ -303,7 +305,7 @@ const s0CompleteRollbackGoldenV1 = {
       key: "save-record.v1:story.synthetic-counter:auto.current",
       revision: 1,
       byteLength: 1452,
-      bytesDigest: "sha256:2cc4b218afd2b5457e6daeabfd3ec6842e4d7a8a430c1925dc5f225a2296c881",
+      bytesDigest: "sha256:3239108c1b2cd97a69f40e6fbcdbf689285651c37f31a1486bb6127bdb7b7962",
     },
   ],
   firstResultSnapshot: {
@@ -311,21 +313,21 @@ const s0CompleteRollbackGoldenV1 = {
     bytesDigest: "sha256:4f37bc1680c5e5bdd0fba7e564abd290cd87906cd63a7ee93899599aa6447f74",
   },
   firstResultEntry: {
-    byteLength: 624,
-    bytesDigest: "sha256:59e634f42cdc180b744e95fc9c001cad9935c107e9a566f4bfe00f6624f47e40",
+    byteLength: 625,
+    bytesDigest: "sha256:7253031ec0a70b8278f9faf63bd6cb9dd6bae4e96ed96ab8da4f1a6ed705cdfc",
   },
   rollbackSaves: [
     {
       key: "save-record.v1:story.synthetic-counter:auto.current",
       revision: 3,
       byteLength: 1452,
-      bytesDigest: "sha256:455b583ecd58b3fa8e6efbcdba7f60d70b7a03a1335adfb3915f95a8d9929954",
+      bytesDigest: "sha256:b2e622ad361d4b3f9a6ecce00cd950c51796474202701e11577c241e774c4064",
     },
     {
       key: "save-record.v1:story.synthetic-counter:auto.previous",
       revision: 2,
       byteLength: 1453,
-      bytesDigest: "sha256:7ca855c40bbf060fb6de3748e85e9c76cebbff21649e77c0ae43ccd85f188e39",
+      bytesDigest: "sha256:510f10fefaa4e6768a33f6c2c1c0780f4e4eb25b7d14ab819eb3445764910a8f",
     },
   ],
   retrySaves: [
@@ -333,13 +335,13 @@ const s0CompleteRollbackGoldenV1 = {
       key: "save-record.v1:story.synthetic-counter:auto.current",
       revision: 4,
       byteLength: 1452,
-      bytesDigest: "sha256:761a85b306e2e09293652d8586290712cbe26e44bba6b68076ba6ec0d482e3d0",
+      bytesDigest: "sha256:b5657017d7a8c5712ea67f1a9b3b7a361a5c7c594ee36787ecab15f94f2ccd12",
     },
     {
       key: "save-record.v1:story.synthetic-counter:auto.previous",
       revision: 3,
       byteLength: 1453,
-      bytesDigest: "sha256:5ecfd11d71d29d03b522e33c5a639c892f9f8e66b32008b40c448ee864c7f8a5",
+      bytesDigest: "sha256:97b236e97651942454e0e6961eb3364d50890a43fd6fdd2f2dd3e111ffcf11a0",
     },
   ],
 } as const;
@@ -359,7 +361,7 @@ const preDet2dCanonicalBootstrapGoldenV1 = Object.freeze({
         key: "save-record.v1:story.synthetic-counter:quick",
         revision: 1,
         byteLength: 1446,
-        bytesDigest: "sha256:830ca8717f94430b384fb8a42c4521becdb3e935d1b23c07446c5f01f9986ac4",
+        bytesDigest: "sha256:01d17103dbd7a1f763096e5ce5aa0ffc732a7e69971efd39c1c0fb6eb2b4cd2f",
       }),
     ]),
   }),
@@ -374,7 +376,7 @@ const preDet2dCanonicalBootstrapGoldenV1 = Object.freeze({
         key: "save-record.v1:story.synthetic-counter:quick",
         revision: 1,
         byteLength: 1447,
-        bytesDigest: "sha256:14bd0f03e919398a146bf9a54b0f29af856a409cf4008fc16ad05578f1ca01a8",
+        bytesDigest: "sha256:8945389fc5a18720b91fcb31ff22365e5382977e906eadb94e3a47370b91eed4",
       }),
     ]),
   }),
@@ -479,7 +481,7 @@ const commandLogEntrySchemaV1: RuntimeSchemaV1<unknown> = Object.freeze({
       throw new TypeError("invalid synthetic CommandLog outcome");
     }
     if (
-      (outcome.kind === "committed" && !Array.isArray(outcome.facts)) ||
+      (outcome.kind === "committed" && !Array.isArray(outcome.events)) ||
       (outcome.kind === "rejected" && !Array.isArray(outcome.reasons)) ||
       (outcome.kind === "faulted" && (outcome.fault === null || typeof outcome.fault !== "object"))
     ) {
@@ -540,7 +542,7 @@ const adapterV1 = {
     readonly code?: string;
     readonly execution?: {
       readonly kind: string;
-      readonly facts?: readonly { readonly count: number }[];
+      readonly events?: readonly { readonly count: number }[];
     };
   }): SyntheticResultV1 {
     if (result.kind !== "executed" || result.execution === undefined) {
@@ -552,7 +554,7 @@ const adapterV1 = {
     if (result.execution.kind === "committed") {
       return Object.freeze({
         kind: "committed" as const,
-        count: result.execution.facts?.[0]?.count ?? 0,
+        count: result.execution.events?.[0]?.count ?? 0,
       });
     }
     return result.execution.kind === "rejected"
@@ -925,45 +927,45 @@ function debugDefinitionFixtureV1() {
 }
 
 function evidenceNormalizationFixtureV1(options?: {
-  readonly zeroRngWithMalformedFact?: boolean;
+  readonly zeroRngWithMalformedEvent?: boolean;
   readonly beforeGameAttemptReturns?: () => void;
   readonly beforeEvidenceSchemaReturns?: (
-    kind: "fact" | "rejection" | "debug_validation",
+    kind: "event" | "rejection" | "debug_validation",
   ) => void;
 }) {
   const baseEntry = createSyntheticCounterGamePackageV1();
   const baseStory = baseEntry.define();
-  const factSchemaInputs: unknown[] = [];
+  const eventSchemaInputs: unknown[] = [];
   const rejectionSchemaInputs: unknown[] = [];
   const debugValidationSchemaInputs: unknown[] = [];
-  const rawFacts: EvidenceFactV1[] = [];
+  const rawEvents: EvidenceEventV1[] = [];
   const rawRejections: EvidenceRejectionV1[] = [];
   const rawDebugValidationErrors: EvidenceDebugValidationErrorV1[] = [];
-  const normalizedFacts: EvidenceFactV1[] = [];
+  const normalizedEvents: EvidenceEventV1[] = [];
   const normalizedRejections: EvidenceRejectionV1[] = [];
   const normalizedDebugValidationErrors: EvidenceDebugValidationErrorV1[] = [];
-  const earlierFactFrozenDuringNormalization: boolean[] = [];
+  const earlierEventFrozenDuringNormalization: boolean[] = [];
   const earlierRejectionFrozenDuringNormalization: boolean[] = [];
-  let projectedFacts: readonly EvidenceFactV1[] | undefined;
+  let projectedEvents: readonly EvidenceEventV1[] | undefined;
   let projectedRejections: readonly EvidenceRejectionV1[] | undefined;
 
-  const factSchema: RuntimeSchemaV1<EvidenceFactV1> = Object.freeze({
-    parse(value: unknown): EvidenceFactV1 {
-      const earlier = normalizedFacts.at(-1);
+  const eventSchema: RuntimeSchemaV1<EvidenceEventV1> = Object.freeze({
+    parse(value: unknown): EvidenceEventV1 {
+      const earlier = normalizedEvents.at(-1);
       if (earlier !== undefined) {
-        earlierFactFrozenDuringNormalization.push(Object.isFrozen(earlier));
+        earlierEventFrozenDuringNormalization.push(Object.isFrozen(earlier));
       }
-      factSchemaInputs.push(value);
+      eventSchemaInputs.push(value);
       const record = recordSchemaV1.parse(value);
       if (record.kind !== "synthetic.incremented") {
-        throw new TypeError("invalid evidence-normalization fact kind");
+        throw new TypeError("invalid evidence-normalization event kind");
       }
       const normalized = {
         kind: "synthetic.incremented" as const,
         count: parseNonNegativeSafeInteger(record.count),
       };
-      normalizedFacts.push(normalized);
-      options?.beforeEvidenceSchemaReturns?.("fact");
+      normalizedEvents.push(normalized);
+      options?.beforeEvidenceSchemaReturns?.("event");
       return normalized;
     },
   });
@@ -1010,7 +1012,7 @@ function evidenceNormalizationFixtureV1(options?: {
         const gameSimulation = baseStory.simulation.createGameSimulation(program);
         return Object.freeze({
           ...gameSimulation,
-          factSchema,
+          eventSchema,
           rejectionSchema,
           debugValidationErrorSchema,
           commandExecutor: Object.freeze({
@@ -1027,33 +1029,33 @@ function evidenceNormalizationFixtureV1(options?: {
               );
               options?.beforeGameAttemptReturns?.();
               if (attempt.result.kind === "committed") {
-                const count = options?.zeroRngWithMalformedFact === true
+                const count = options?.zeroRngWithMalformedEvent === true
                   ? 0.5
-                  : attempt.result.facts[0]?.count ?? 0;
+                  : attempt.result.events[0]?.count ?? 0;
                 const first = {
                   kind: "synthetic.incremented" as const,
                   count,
-                  ignored: "first-raw-fact",
+                  ignored: "first-raw-event",
                 };
                 const second = {
                   kind: "synthetic.incremented" as const,
-                  count: (attempt.result.facts[0]?.count ?? 0) + 100,
-                  ignored: "second-raw-fact",
+                  count: (attempt.result.events[0]?.count ?? 0) + 100,
+                  ignored: "second-raw-event",
                 };
-                rawFacts.push(first, second);
-                const candidateRng = options?.zeroRngWithMalformedFact === true
+                rawEvents.push(first, second);
+                const candidateRng = options?.zeroRngWithMalformedEvent === true
                   ? Object.freeze({ ...attempt.result.snapshot.rng, cursor: 0 })
                   : attempt.result.snapshot.rng;
-                const candidateSnapshot = options?.zeroRngWithMalformedFact === true
+                const candidateSnapshot = options?.zeroRngWithMalformedEvent === true
                   ? Object.freeze({ ...attempt.result.snapshot, rng: candidateRng })
                   : attempt.result.snapshot;
                 return Object.freeze({
                   result: Object.freeze({
                     kind: "committed" as const,
                     snapshot: candidateSnapshot,
-                    facts: Object.freeze([first, second]),
+                    events: Object.freeze([first, second]),
                   }),
-                  diagnostics: options?.zeroRngWithMalformedFact === true
+                  diagnostics: options?.zeroRngWithMalformedEvent === true
                     ? Object.freeze({
                       ...attempt.diagnostics,
                       candidateRngAfter: candidateRng,
@@ -1110,12 +1112,12 @@ function evidenceNormalizationFixtureV1(options?: {
     projectDispatchResult(
       result: Parameters<typeof adapterV1.projectDispatchResult>[0] & {
         readonly execution?: {
-          readonly facts?: readonly EvidenceFactV1[];
+          readonly events?: readonly EvidenceEventV1[];
           readonly reasons?: readonly EvidenceRejectionV1[];
         };
       },
     ): SyntheticResultV1 {
-      projectedFacts = result.execution?.facts;
+      projectedEvents = result.execution?.events;
       projectedRejections = result.execution?.reasons;
       return adapterV1.projectDispatchResult(result);
     },
@@ -1142,18 +1144,18 @@ function evidenceNormalizationFixtureV1(options?: {
 
   return Object.freeze({
     application: resolved.application,
-    factSchemaInputs,
+    eventSchemaInputs,
     rejectionSchemaInputs,
     debugValidationSchemaInputs,
-    rawFacts,
+    rawEvents,
     rawRejections,
     rawDebugValidationErrors,
-    normalizedFacts,
+    normalizedEvents,
     normalizedRejections,
     normalizedDebugValidationErrors,
-    earlierFactFrozenDuringNormalization,
+    earlierEventFrozenDuringNormalization,
     earlierRejectionFrozenDuringNormalization,
-    projectedFacts: () => projectedFacts,
+    projectedEvents: () => projectedEvents,
     projectedRejections: () => projectedRejections,
   });
 }
@@ -1984,7 +1986,7 @@ const auto0PreAdmissionCheckpointGoldenV1 = [
     key: "save-record.v1:story.synthetic-counter:auto.current",
     revision: 1,
     byteLength: 1_452,
-    bytesDigest: "sha256:7104c4165695ce59705973f7f4cd865435ccaaf301f05b8415a5d4d0ff08e16f",
+    bytesDigest: "sha256:51686b9189842ee7f1b6265597cec3f8dfe2f1f3f8107cb6641ad22eee4683d3",
   },
 ] as const;
 
@@ -1993,13 +1995,13 @@ const auto0PreAdmissionSaveGoldenV1 = [
     key: "save-record.v1:story.synthetic-counter:auto.current",
     revision: 2,
     byteLength: 1_452,
-    bytesDigest: "sha256:68e1d817a66fe718bec5c6ff4a798517ec87c3218e07fe8b8cff3cce04655ce2",
+    bytesDigest: "sha256:6f2ee0bfda5f71a3921e21a30d8a86ff9eba9584e44535e3d2216033c728377f",
   },
   {
     key: "save-record.v1:story.synthetic-counter:auto.previous",
     revision: 1,
     byteLength: 1_453,
-    bytesDigest: "sha256:43138ffdc7749369104ae008b7a83350dea1519f42d7cd561f5cf63ded5d0104",
+    bytesDigest: "sha256:b9ec6cc8b610d6e1801f46d1f6fe5752742d1dfd9dce0ba35eccd02a752c098a",
   },
 ] as const;
 
@@ -3863,25 +3865,25 @@ describe("createCoreGameApplicationInstanceV1", () => {
         kind: "committed",
         count: 1,
       });
-      expect(fixture.factSchemaInputs).toHaveLength(2);
-      expect(fixture.factSchemaInputs[0]).toBe(fixture.rawFacts[0]);
-      expect(fixture.factSchemaInputs[1]).toBe(fixture.rawFacts[1]);
-      expect(fixture.earlierFactFrozenDuringNormalization).toEqual([false]);
-      const committedFacts = fixture.projectedFacts();
-      expect(committedFacts?.[0]).not.toBe(fixture.normalizedFacts[0]);
-      expect(committedFacts?.[1]).not.toBe(fixture.normalizedFacts[1]);
-      expect(committedFacts?.[0]).toEqual(fixture.normalizedFacts[0]);
-      expect(committedFacts?.[1]).toEqual(fixture.normalizedFacts[1]);
-      expect(Object.isFrozen(committedFacts)).toBe(true);
-      expect(fixture.normalizedFacts.every(Object.isFrozen)).toBe(false);
+      expect(fixture.eventSchemaInputs).toHaveLength(2);
+      expect(fixture.eventSchemaInputs[0]).toBe(fixture.rawEvents[0]);
+      expect(fixture.eventSchemaInputs[1]).toBe(fixture.rawEvents[1]);
+      expect(fixture.earlierEventFrozenDuringNormalization).toEqual([false]);
+      const committedEvents = fixture.projectedEvents();
+      expect(committedEvents?.[0]).not.toBe(fixture.normalizedEvents[0]);
+      expect(committedEvents?.[1]).not.toBe(fixture.normalizedEvents[1]);
+      expect(committedEvents?.[0]).toEqual(fixture.normalizedEvents[0]);
+      expect(committedEvents?.[1]).toEqual(fixture.normalizedEvents[1]);
+      expect(Object.isFrozen(committedEvents)).toBe(true);
+      expect(fixture.normalizedEvents.every(Object.isFrozen)).toBe(false);
       const committedEntry = instance.admin.commandLog()[0] as {
         readonly outcome: {
           readonly kind: "committed";
-          readonly facts: readonly EvidenceFactV1[];
+          readonly events: readonly EvidenceEventV1[];
         };
       };
-      expect(committedEntry.outcome.facts[0]).toBe(committedFacts?.[0]);
-      expect(committedEntry.outcome.facts[1]).toBe(committedFacts?.[1]);
+      expect(committedEntry.outcome.events[0]).toBe(committedEvents?.[0]);
+      expect(committedEntry.outcome.events[1]).toBe(committedEvents?.[1]);
 
       await expect(instance.semantic.dispatch(rejectV1)).resolves.toEqual({ kind: "rejected" });
       expect(fixture.rejectionSchemaInputs).toHaveLength(2);
@@ -3935,11 +3937,11 @@ describe("createCoreGameApplicationInstanceV1", () => {
         executedEntries: 2,
         mismatches: [],
       });
-      expect(fixture.factSchemaInputs).toHaveLength(4);
+      expect(fixture.eventSchemaInputs).toHaveLength(4);
       expect(fixture.rejectionSchemaInputs).toHaveLength(4);
       expect(canonicalJsonBytes(instance.admin.commandLog())).toEqual(commandLogBytesBeforeReplay);
-      expect((instance.admin.commandLog()[0] as typeof committedEntry).outcome.facts[0]).toBe(
-        committedFacts?.[0],
+      expect((instance.admin.commandLog()[0] as typeof committedEntry).outcome.events[0]).toBe(
+        committedEvents?.[0],
       );
       expect((instance.admin.commandLog()[1] as typeof rejectedEntry).outcome.reasons[0]).toBe(
         rejectedReasons?.[0],
@@ -3949,8 +3951,8 @@ describe("createCoreGameApplicationInstanceV1", () => {
     }
   });
 
-  it("keeps Core candidate RNG admission ahead of malformed fact finalization", async () => {
-    const fixture = evidenceNormalizationFixtureV1({ zeroRngWithMalformedFact: true });
+  it("keeps Core candidate RNG admission ahead of malformed event finalization", async () => {
+    const fixture = evidenceNormalizationFixtureV1({ zeroRngWithMalformedEvent: true });
     const counter = createPurposeTaggedSnapshotWorkCounterV1();
     const instance = await createCoreGameApplicationInstanceV1(
       fixture.application,
@@ -3969,10 +3971,10 @@ describe("createCoreGameApplicationInstanceV1", () => {
       await expect(instance.semantic.dispatch(incrementV1)).rejects.toMatchObject({
         code: "rng.invalid_state",
       });
-      expect(fixture.rawFacts).toHaveLength(2);
-      expect(fixture.factSchemaInputs).toEqual([]);
-      expect(fixture.normalizedFacts).toEqual([]);
-      expect(fixture.projectedFacts()).toBeUndefined();
+      expect(fixture.rawEvents).toHaveLength(2);
+      expect(fixture.eventSchemaInputs).toEqual([]);
+      expect(fixture.normalizedEvents).toEqual([]);
+      expect(fixture.projectedEvents()).toBeUndefined();
       expect(counter.snapshot()).toEqual({
         snapshotDigestTraversals: 0,
         snapshotFreezeTraversals: 0,
@@ -4000,7 +4002,7 @@ describe("createCoreGameApplicationInstanceV1", () => {
       | Awaited<ReturnType<typeof createCoreGameApplicationInstanceV1>>
       | undefined;
     const fixture = evidenceNormalizationFixtureV1({
-      zeroRngWithMalformedFact: true,
+      zeroRngWithMalformedEvent: true,
       beforeGameAttemptReturns: () => instance?.invalidateForHmr(),
     });
     const counter = createPurposeTaggedSnapshotWorkCounterV1();
@@ -4021,7 +4023,7 @@ describe("createCoreGameApplicationInstanceV1", () => {
         kind: "not_executed",
         code: "hmr_invalidated",
       });
-      expect(fixture.factSchemaInputs).toEqual([]);
+      expect(fixture.eventSchemaInputs).toEqual([]);
       expect(counter.snapshot()).toEqual({
         snapshotDigestTraversals: 0,
         snapshotFreezeTraversals: 0,
@@ -4044,7 +4046,7 @@ describe("createCoreGameApplicationInstanceV1", () => {
     }
   });
 
-  it.each(["fact", "rejection", "debug_validation"] as const)(
+  it.each(["event", "rejection", "debug_validation"] as const)(
     "drops a finalized %s candidate when its Story schema invalidates the Core instance",
     async (target) => {
       let instance:
@@ -4064,7 +4066,7 @@ describe("createCoreGameApplicationInstanceV1", () => {
       const commandLogBefore = instance.admin.commandLog();
 
       try {
-        const result = target === "fact"
+        const result = target === "event"
           ? await instance.semantic.dispatch(incrementV1)
           : target === "rejection"
           ? await instance.semantic.dispatch(rejectV1)
@@ -5643,13 +5645,13 @@ describe("stage cue dispatch batches", () => {
     let projection: "cue" | "open" | "invalid" | "throwing" = "cue";
     const adapter = Object.freeze({
       ...adapterV1,
-      projectStageCueDispatches: (facts: readonly { readonly count: number }[]) => {
+      projectStageCueDispatches: (events: readonly { readonly count: number }[]) => {
         if (projection === "throwing") throw new Error("synthetic dispatch projection failure");
         if (projection === "invalid") {
           return [{ sceneId: "not-a-scene-id", cueId: "cue.test.counter.tick" }];
         }
         if (projection === "open") return [{ sceneId: "scene.test.counter", open: true as const }];
-        return facts.map(() => ({
+        return events.map(() => ({
           sceneId: "scene.test.counter",
           cueId: "cue.test.counter.tick",
         }));
@@ -5735,8 +5737,8 @@ describe("stage cue dispatch batches", () => {
     // the dispatch promise resolves would present the commit context-free.
     const adapter = Object.freeze({
       ...adapterV1,
-      projectStageCueDispatches: (facts: readonly { readonly count: number }[]) =>
-        facts.map(() => ({ sceneId: "scene.test.counter", cueId: "cue.test.counter.tick" })),
+      projectStageCueDispatches: (events: readonly { readonly count: number }[]) =>
+        events.map(() => ({ sceneId: "scene.test.counter", cueId: "cue.test.counter.tick" })),
     });
     const definition = defineCoreGameApplicationV1({
       entry: createSyntheticCounterGamePackageV1(),

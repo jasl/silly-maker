@@ -114,9 +114,7 @@ function validateGameplayModuleV1(module: RuntimeRecord): void {
   if (module.bindingKind === "stateless") {
     if (
       slots.length !== 0 ||
-      module.owner !== null ||
-      module.ownerOperationSchema !== null ||
-      module.ownerProposalSchema !== null ||
+      module.reducers !== null ||
       !Object.hasOwn(module, "capabilities") ||
       Object.hasOwn(module, "services") ||
       Object.hasOwn(module, "stateSchema") ||
@@ -139,20 +137,20 @@ function validateGameplayModuleV1(module: RuntimeRecord): void {
   if (module.bindingKind !== "stateful") {
     throw new TypeError("invalid GameplayModule bindingKind");
   }
-  const owner = requireRecord(module.owner, "GameplayModule owner");
+  const reducers = requireRecord(module.reducers, "GameplayModule reducers");
   if (
     slots.length === 0 ||
     !Array.isArray(module.localInvariants) ||
-    typeof owner.propose !== "function" ||
-    typeof owner.apply !== "function" ||
     typeof module.createInitialState !== "function" ||
     typeof module.createReadPort !== "function"
   ) {
     throw new TypeError("stateful GameplayModule must declare complete ownership");
   }
+  for (const [kind, reducer] of Object.entries(reducers)) {
+    if (kind.length === 0) throw new TypeError("GameplayModule reducer kinds must be non-empty");
+    requireFunction(reducer, `GameplayModule reducer ${kind}`);
+  }
   requireSchema(module.stateSchema, "GameplayModule State Schema");
-  requireSchema(module.ownerOperationSchema, "GameplayModule owner operation Schema");
-  requireSchema(module.ownerProposalSchema, "GameplayModule owner proposal Schema");
   for (const invariant of module.localInvariants) {
     requireFunction(
       requireRecord(invariant, "GameplayModule local invariant").check,
@@ -332,7 +330,7 @@ function validateRuntimeSimulationV1(simulationValue: unknown): unknown {
     const [key, label] of [
       ["stateSchema", "State Schema"],
       ["commandSchema", "Command Schema"],
-      ["factSchema", "Fact Schema"],
+      ["eventSchema", "Event Schema"],
       ["rejectionSchema", "Rejection Schema"],
       ["debugCommandSchema", "DebugCommand Schema"],
       ["debugValidationErrorSchema", "Debug validation error Schema"],
@@ -391,7 +389,8 @@ function validateRuntimeSimulationV1(simulationValue: unknown): unknown {
           snapshot as never,
           candidate as never,
           {
-            parseFact: (value: unknown) => parseSchema(simulation.factSchema, value, "Fact Schema"),
+            parseEvent: (value: unknown) =>
+              parseSchema(simulation.eventSchema, value, "Event Schema"),
             parseRejection: (value: unknown) =>
               parseSchema(simulation.rejectionSchema, value, "Rejection Schema"),
           },
@@ -449,7 +448,8 @@ function validateRuntimeSimulationV1(simulationValue: unknown): unknown {
           snapshot as never,
           candidate as never,
           {
-            parseFact: (value: unknown) => parseSchema(simulation.factSchema, value, "Fact Schema"),
+            parseEvent: (value: unknown) =>
+              parseSchema(simulation.eventSchema, value, "Event Schema"),
             parseRejection: (value: unknown) =>
               parseSchema(simulation.rejectionSchema, value, "Rejection Schema"),
           },

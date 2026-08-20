@@ -39,20 +39,21 @@ const drawTraceV1 = Object.freeze({
 });
 
 // Derived by running this exact neutral Session transcript against the
-// S0-complete production source at 96a0a93. The expected bytes never call the
-// canonical helper under test.
+// S0-complete production source at 96a0a93, re-pinned for the M1 domain-event
+// journal (committed outcomes carry `events` instead of `facts`). The expected
+// bytes never call the canonical helper under test.
 const s0CompleteRngCommitGoldenV1 = Object.freeze({
   dispatchResult: Object.freeze({
-    byteLength: 351,
-    bytesDigest: "sha256:4af2e55854e0b159e52e15d9d0746fb9f386326672802c04e49a3a6a4b307632",
+    byteLength: 352,
+    bytesDigest: "sha256:e24dca152c0730f35abea94615e702d5d2491407ab55d22b8086804ee8d937b2",
   }),
   snapshot: Object.freeze({
     byteLength: 202,
     bytesDigest: "sha256:4dea43d8d13fc2c044a8c0e05dd2ba98ffb0f75506ca0e3d3b85cf02095e313a",
   }),
   commandLog: Object.freeze({
-    byteLength: 900,
-    bytesDigest: "sha256:d9d5f751b390c1b3ef5ec45b3ed0d1ffd2b7a54d4d03e9ced17b4d6a802100c5",
+    byteLength: 901,
+    bytesDigest: "sha256:bb2bc7e30a439e49c2fde16b6fdeeb16bfda4390900f5436b08a22b9853a7dbd",
   }),
 });
 
@@ -127,7 +128,7 @@ const commandExpectationsV1 = [
     committedRngAfter: initialRngV1,
     logOutcome: Object.freeze({
       kind: "committed",
-      facts: Object.freeze([
+      events: Object.freeze([
         Object.freeze({
           kind: "determinism.committed",
           commandClass: "no_draw_committed",
@@ -150,7 +151,7 @@ const commandExpectationsV1 = [
     committedRngAfter: drawnRngV1,
     logOutcome: Object.freeze({
       kind: "committed",
-      facts: Object.freeze([
+      events: Object.freeze([
         Object.freeze({
           kind: "determinism.committed",
           commandClass: "rng_committed",
@@ -458,7 +459,7 @@ describe("authoritative determinism evidence finalization", () => {
 
   it.each(
     [
-      ["fractional_fact", "/result/facts/0/value"],
+      ["fractional_event", "/result/events/0/value"],
       ["fractional_rejection", "/result/reasons/0/value"],
       ["fractional_fault", "/result/fault/value"],
       ["fractional_rng_draw", "/diagnostics/attemptedDraws/0/result"],
@@ -572,7 +573,7 @@ describe("authoritative determinism evidence finalization", () => {
     await expect(dispatch).rejects.toBeInstanceOf(CanonicalJsonError);
     expect(workload.normalizerCalls()).toBe(1);
     const [originalError] = workload.normalizerErrors();
-    expectCanonicalErrorV1(originalError, "/result/facts/0/value");
+    expectCanonicalErrorV1(originalError, "/result/events/0/value");
     expect(workload.status()).toBe("ready");
     expect(workload.snapshot()).toBe(workload.initialSnapshot);
     expect(workload.snapshot()).toMatchObject({

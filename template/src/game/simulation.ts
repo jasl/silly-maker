@@ -1,23 +1,11 @@
 // SPDX-License-Identifier: MIT
 import type { BootstrapEntropyV1, RuntimeSchemaV1 } from "@sillymaker/base";
 import { createTransactionalRngV1 } from "@sillymaker/base";
-import type {
-  GameSimulation,
-  InteractionResolution,
-  StageCueDispatch,
-  StageMutation,
-  TimeTick,
-} from "@sillymaker/base/story";
+import type { GameSimulation, StageCueDispatch, StageMutation } from "@sillymaker/base/story";
 import {
-  applyElapsedToHold,
   defineGameSimulation,
   evaluateInteractionResolution,
   evaluateTimeTick,
-  parseInteractionOccurrenceId,
-  parseInteractionResolution,
-  parseStageCueDispatches,
-  parseStageMutation,
-  parseTimeTick,
   reduceStageMutations,
 } from "@sillymaker/base/story";
 
@@ -33,18 +21,17 @@ import type {
   TemplateAttemptV1,
   TemplateCommandV1,
   TemplateDebugValidationErrorV1,
-  TemplateFactV1,
+  TemplateEventV1,
   TemplateQueriesV1,
   TemplateRejectionV1,
   TemplateSimulationTypesV1,
   TemplateSnapshotV1,
 } from "./kernel.ts";
-import { commandSchemaV1, kit } from "./kernel.ts";
+import { commandSchemaV1, kit, templateEventSchemaV1 } from "./kernel.ts";
 import {
   inventoryModuleV1,
   templateInventoryReadCapabilityV1,
 } from "./features/inventory/module.ts";
-import type { TemplateNarrativeStateV1 } from "../story/narrative.ts";
 import {
   createInitialTemplateNarrativeStateV1,
   runTemplateNarrativeUntilInteractionV1,
@@ -62,8 +49,10 @@ import {
  * - `template.narrative` owns the script cursor and pending interaction.
  * - `template.stage`     owns the semantic stage state.
  *
- * A command either commits a complete valid result across every touched
- * module or leaves authoritative state unchanged.
+ * Command handlers decide and emit domain events; each module's reducers
+ * fold the admitted events atomically. A command either commits a complete
+ * valid result across every touched module or leaves authoritative state
+ * unchanged.
  */
 
 // ---- Public contract re-exports: consumers face this facade only.
@@ -73,7 +62,7 @@ export type {
   TemplateChoiceOptionViewV1,
   TemplateCommandV1,
   TemplateDebugValidationErrorV1,
-  TemplateFactV1,
+  TemplateEventV1,
   TemplateFaultV1,
   TemplateGameViewV1,
   TemplateNarrativeViewV1,
@@ -83,110 +72,8 @@ export type {
   TemplateSimulationTypesV1,
   TemplateSnapshotV1,
 } from "./kernel.ts";
-export type {
-  TemplateInventoryReadPortV1,
-  InventoryOperationV1,
-} from "./features/inventory/module.ts";
+export type { TemplateInventoryReadPortV1 } from "./features/inventory/module.ts";
 export { templateInventoryReadCapabilityV1 } from "./features/inventory/module.ts";
-
-type StageOperationV1 = {
-  readonly kind: "apply";
-  readonly mutations: readonly StageMutation[];
-  /** Scene dispatches behind these mutations; surfaces as fact context. */
-  readonly dispatches?: readonly StageCueDispatch[];
-};
-
-type NarrativeOperationV1 =
-  | { readonly kind: "begin"; readonly next: TemplateNarrativeStateV1 }
-  | {
-    readonly kind: "resolve";
-    readonly expectedOccurrenceId: string;
-    readonly resolution: InteractionResolution;
-    readonly next: TemplateNarrativeStateV1;
-  }
-  | {
-    readonly kind: "time";
-    readonly tick: TimeTick;
-    readonly next: TemplateNarrativeStateV1;
-  };
-
-const stageOperationSchemaV1: RuntimeSchemaV1<StageOperationV1> = Object.freeze({
-  parse(value: unknown): StageOperationV1 {
-    if (value === null || typeof value !== "object" || Array.isArray(value)) {
-      throw new TypeError("invalid template stage operation");
-    }
-    const keys = Object.keys(value).toSorted().join("\0");
-    const hasDispatches = keys === "dispatches\0kind\0mutations";
-    if (!hasDispatches && keys !== "kind\0mutations") {
-      throw new TypeError("invalid template stage operation");
-    }
-    const record = value as {
-      readonly kind?: unknown;
-      readonly mutations?: unknown;
-      readonly dispatches?: unknown;
-    };
-    if (record.kind !== "apply" || !Array.isArray(record.mutations)) {
-      throw new TypeError("invalid template stage operation kind");
-    }
-    return Object.freeze({
-      kind: "apply" as const,
-      mutations: Object.freeze(
-        record.mutations.map((mutation, index) =>
-          parseStageMutation(mutation, `/mutations/${String(index)}`)
-        ),
-      ),
-      ...(hasDispatches ? { dispatches: parseStageCueDispatches(record.dispatches) } : {}),
-    });
-  },
-});
-
-const narrativeOperationSchemaV1: RuntimeSchemaV1<NarrativeOperationV1> = Object.freeze({
-  parse(value: unknown): NarrativeOperationV1 {
-    if (value === null || typeof value !== "object" || Array.isArray(value)) {
-      throw new TypeError("invalid template narrative operation");
-    }
-    const kind = (value as { readonly kind?: unknown }).kind;
-    if (kind === "begin") {
-      if (Object.keys(value).toSorted().join("\0") !== "kind\0next") {
-        throw new TypeError("invalid template narrative begin operation");
-      }
-      return Object.freeze({
-        kind,
-        next: templateNarrativeStateSchemaV1.parse((value as { readonly next?: unknown }).next),
-      });
-    }
-    if (kind === "resolve") {
-      if (
-        Object.keys(value).toSorted().join("\0") !== "expectedOccurrenceId\0kind\0next\0resolution"
-      ) {
-        throw new TypeError("invalid template narrative resolve operation");
-      }
-      const record = value as {
-        readonly expectedOccurrenceId?: unknown;
-        readonly resolution?: unknown;
-        readonly next?: unknown;
-      };
-      return Object.freeze({
-        kind,
-        expectedOccurrenceId: parseInteractionOccurrenceId(record.expectedOccurrenceId),
-        resolution: parseInteractionResolution(record.resolution),
-        next: templateNarrativeStateSchemaV1.parse(record.next),
-      });
-    }
-    if (kind === "time") {
-      if (Object.keys(value).toSorted().join("\0") !== "kind\0next\0tick") {
-        throw new TypeError("invalid template narrative time operation");
-      }
-      const record = value as { readonly tick?: unknown; readonly next?: unknown };
-      return Object.freeze({
-        kind,
-        tick: parseTimeTick(record.tick, "/tick"),
-        next: templateNarrativeStateSchemaV1.parse(record.next),
-      });
-    }
-    throw new TypeError("invalid template narrative operation kind");
-  },
-});
 
 function passthroughSchemaV1<T>(): RuntimeSchemaV1<T> {
   return Object.freeze({ parse: (value: unknown) => value as T });
@@ -207,88 +94,11 @@ const narrativeModuleV1 = kit.defineStatefulModule({
     initial: () => createInitialTemplateNarrativeStateV1(),
   },
   commandSchema: commandSchemaV1,
+  // Coin-costing choices gate on the wallet balance.
   requires: { inventory: templateInventoryReadCapabilityV1 },
   initializesAfter: ["template.inventory"],
-  owner: {
-    operationSchema: narrativeOperationSchemaV1,
-    propose(state, operation, dependencies) {
-      if (operation.kind === "begin") {
-        if (state.pending !== null) {
-          return Object.freeze({
-            kind: "rejected" as const,
-            rejection: Object.freeze({ code: "template.narrative_busy" as const }),
-          });
-        }
-        return Object.freeze({
-          kind: "proposed" as const,
-          proposal: Object.freeze({ payload: operation, facts: Object.freeze([]) }),
-        });
-      }
-      if (operation.kind === "time") {
-        // The queue-front authority for the time verb: the fence re-check
-        // rejects a tick whose hold occurrence is no longer current, so a
-        // stale queued report can never pre-fold a successor hold.
-        const outcome = evaluateTimeTick(state.pending, operation.tick);
-        if (outcome.kind === "rejected") {
-          return Object.freeze({
-            kind: "rejected" as const,
-            rejection: Object.freeze({ code: outcome.code }),
-          });
-        }
-        // Only an expiring fold consumes the boundary; partial settlements
-        // and unfenced (session-global) ticks resolve no interaction.
-        const expired = outcome.hold !== null &&
-          applyElapsedToHold(outcome.hold, operation.tick.elapsedMs).kind === "expired";
-        return Object.freeze({
-          kind: "proposed" as const,
-          proposal: Object.freeze({
-            payload: operation,
-            facts: outcome.hold !== null && expired
-              ? Object.freeze([
-                Object.freeze({
-                  kind: "template.interaction_resolved" as const,
-                  definitionId: outcome.hold.definitionId,
-                  occurrenceId: outcome.hold.occurrenceId,
-                }),
-              ])
-              : Object.freeze([]),
-          }),
-        });
-      }
-      // Queue-front authority: the same shared evaluator that served the
-      // action catalog and preview re-checks the expected occurrence and
-      // choice availability at dispatch time.
-      const outcome = evaluateInteractionResolution(
-        state.pending,
-        operation.expectedOccurrenceId,
-        operation.resolution,
-        templateInteractionContextV1(state.pending, dependencies.inventory.coinBalance()),
-      );
-      if (outcome.kind === "rejected") {
-        return Object.freeze({
-          kind: "rejected" as const,
-          rejection: Object.freeze({ code: outcome.code }),
-        });
-      }
-      const pending = state.pending;
-      if (pending === null) throw new TypeError("accepted resolution without pending");
-      return Object.freeze({
-        kind: "proposed" as const,
-        proposal: Object.freeze({
-          payload: operation,
-          facts: Object.freeze([
-            Object.freeze({
-              kind: "template.interaction_resolved" as const,
-              definitionId: pending.definitionId,
-              occurrenceId: pending.occurrenceId,
-            }),
-          ]),
-        }),
-      });
-    },
-    apply(_state, proposal) {
-      return proposal.payload.next;
-    },
+  reducers: {
+    "template.narrative_advanced": (_state, event) => event.next,
   },
 });
 
@@ -301,34 +111,11 @@ const stageModuleV1 = kit.defineStatefulModule({
     initial: () => createInitialTemplateStageStateV1(),
   },
   commandSchema: commandSchemaV1,
-  owner: {
-    operationSchema: stageOperationSchemaV1,
-    propose(state, operation) {
-      const outcome = reduceStageMutations(state, operation.mutations);
-      if (outcome.kind === "rejected") {
-        return Object.freeze({
-          kind: "rejected" as const,
-          rejection: Object.freeze({ code: "template.stage_rejected" as const }),
-        });
-      }
-      return Object.freeze({
-        kind: "proposed" as const,
-        proposal: Object.freeze({
-          payload: operation,
-          facts: Object.freeze([
-            Object.freeze({
-              kind: "template.stage_changed" as const,
-              mutations: operation.mutations.length,
-              ...(operation.dispatches === undefined || operation.dispatches.length === 0
-                ? {}
-                : { dispatches: operation.dispatches }),
-            }),
-          ]),
-        }),
-      });
-    },
-    apply(state, proposal) {
-      const outcome = reduceStageMutations(state, proposal.payload.mutations);
+  reducers: {
+    "template.stage_changed": (state, event) => {
+      // Handlers validate applicability before emitting, so a rejected fold
+      // here is a programming fault, not a player-visible rejection.
+      const outcome = reduceStageMutations(state, event.mutations);
       if (outcome.kind !== "applied") {
         throw new TypeError("validated template stage mutations must apply");
       }
@@ -370,6 +157,7 @@ export type TemplateGameSimulationV1 = GameSimulation<
 
 const transactionRunnerV1 = compositionV1.createTransactionRunner({
   stateSchema: templateGameStateSchemaV1,
+  eventSchema: templateEventSchemaV1,
   createFault: () => Object.freeze({ code: "template.executor_failed" as const }),
 });
 
@@ -379,23 +167,31 @@ export function createTemplateGameSimulationV1(): TemplateGameSimulationV1 {
       const rng = createTransactionalRngV1(snapshot.rng);
       const state = snapshot.state.simulation;
 
-      const proposeStage = (
-        transaction: { propose(module: typeof stageModuleV1, operation: StageOperationV1): void },
+      const emitStage = (
+        transaction: { emit(event: TemplateEventV1): void },
         mutations: readonly StageMutation[],
         dispatches: readonly StageCueDispatch[],
       ) => {
-        if (mutations.length > 0) {
-          transaction.propose(stageModuleV1, {
-            kind: "apply",
-            mutations,
-            ...(dispatches.length === 0 ? {} : { dispatches }),
-          });
-        }
+        if (mutations.length === 0) return null;
+        // Validate applicability at the decision point so an unappliable
+        // mutation rejects the command instead of faulting the fold.
+        const outcome = reduceStageMutations(state.stage, mutations);
+        if (outcome.kind === "rejected") return "template.stage_rejected" as const;
+        transaction.emit({
+          kind: "template.stage_changed",
+          mutations,
+          ...(dispatches.length === 0 ? {} : { dispatches }),
+        });
+        return null;
       };
 
       if (command.kind === "template.earn_coin") {
         return transactionRunnerV1.execute(snapshot, rng, (transaction) => {
-          transaction.propose(inventoryModuleV1, { kind: "earn", amount: 1 });
+          transaction.emit({
+            kind: "template.coins_changed",
+            delta: 1,
+            balance: state.inventory.coins + 1,
+          });
           return transaction.complete();
         });
       }
@@ -409,28 +205,25 @@ export function createTemplateGameSimulationV1(): TemplateGameSimulationV1 {
             templateNarrativeAtBeginV1(state.narrative),
             state.stage,
           );
-          transaction.propose(narrativeModuleV1, { kind: "begin", next: run.narrative });
-          proposeStage(transaction, run.stageMutations, run.stageDispatches);
+          transaction.emit({ kind: "template.narrative_advanced", next: run.narrative });
+          const blocked = emitStage(transaction, run.stageMutations, run.stageDispatches);
+          if (blocked !== null) return transaction.reject({ code: blocked });
           return transaction.complete();
         });
       }
 
       if (command.kind === "template.time_tick") {
         return transactionRunnerV1.execute(snapshot, rng, (transaction) => {
-          // Pre-check with the same evaluator the narrative owner re-runs
-          // at propose time: a stale hold fence rejects the whole command.
+          // The queue-front authority for the time verb: a stale hold fence
+          // rejects the whole command, so a stale queued report can never
+          // pre-fold a successor hold.
           const outcome = evaluateTimeTick(state.narrative.pending, command.tick);
           if (outcome.kind === "rejected") {
             return transaction.reject({ code: outcome.code });
           }
           if (outcome.hold === null) {
             // An unfenced tick settles only session-global time consumers;
-            // none are registered yet, so the settled state is unchanged.
-            transaction.propose(narrativeModuleV1, {
-              kind: "time",
-              tick: command.tick,
-              next: state.narrative,
-            });
+            // none are registered yet, so it commits with an empty journal.
             return transaction.complete();
           }
           const continuation = templateNarrativeAfterTimeTickV1(state.narrative, command.tick);
@@ -438,9 +231,8 @@ export function createTemplateGameSimulationV1(): TemplateGameSimulationV1 {
             // A partial settlement decrements the authoritative remaining
             // milliseconds without consuming the pending boundary: the
             // same occurrence stays pending and the script does not run.
-            transaction.propose(narrativeModuleV1, {
-              kind: "time",
-              tick: command.tick,
+            transaction.emit({
+              kind: "template.narrative_advanced",
               next: continuation.narrative,
             });
             return transaction.complete();
@@ -448,54 +240,65 @@ export function createTemplateGameSimulationV1(): TemplateGameSimulationV1 {
           // Expiry consumes the boundary: the script runs to the next
           // interaction inside the same commit.
           const run = runTemplateNarrativeUntilInteractionV1(continuation.narrative, state.stage);
-          transaction.propose(narrativeModuleV1, {
-            kind: "time",
-            tick: command.tick,
-            next: run.narrative,
+          transaction.emit({
+            kind: "template.interaction_resolved",
+            definitionId: outcome.hold.definitionId,
+            occurrenceId: outcome.hold.occurrenceId,
           });
-          proposeStage(transaction, run.stageMutations, run.stageDispatches);
+          transaction.emit({ kind: "template.narrative_advanced", next: run.narrative });
+          const blocked = emitStage(transaction, run.stageMutations, run.stageDispatches);
+          if (blocked !== null) return transaction.reject({ code: blocked });
           return transaction.complete();
         });
       }
 
       return transactionRunnerV1.execute(snapshot, rng, (transaction) => {
-        // Pre-check with the exact evaluator the narrative owner re-runs at
-        // propose time, so invalid resolutions reject before continuation
-        // work happens.
+        // The same shared evaluator that served the action catalog and
+        // preview re-checks the expected occurrence and choice availability
+        // at dispatch time; the read capability prices choices against the
+        // command-start snapshot.
+        const coins = transaction.read(templateInventoryReadCapabilityV1).coinBalance();
+        const pending = state.narrative.pending;
         const outcome = evaluateInteractionResolution(
-          state.narrative.pending,
+          pending,
           command.expectedOccurrenceId,
           command.resolution,
-          templateInteractionContextV1(state.narrative.pending, state.inventory.coins),
+          templateInteractionContextV1(pending, coins),
         );
         if (outcome.kind === "rejected") {
           return transaction.reject({ code: outcome.code });
         }
+        if (pending === null) throw new TypeError("accepted resolution without pending");
         const run = runTemplateNarrativeUntilInteractionV1(
           templateNarrativeAfterResolutionV1(state.narrative, command.resolution),
           state.stage,
         );
-        transaction.propose(narrativeModuleV1, {
-          kind: "resolve",
-          expectedOccurrenceId: command.expectedOccurrenceId,
-          resolution: command.resolution,
-          next: run.narrative,
+        transaction.emit({
+          kind: "template.interaction_resolved",
+          definitionId: pending.definitionId,
+          occurrenceId: pending.occurrenceId,
         });
+        transaction.emit({ kind: "template.narrative_advanced", next: run.narrative });
         // A choice may carry a declared coin cost: the narrative
         // continuation and the spend commit in one atomic command.
         const resolution = command.resolution;
-        if (resolution.kind === "choose" && state.narrative.pending !== null) {
-          const option = templateChoiceOptionsForV1(state.narrative.pending.definitionId).find(
+        if (resolution.kind === "choose") {
+          const option = templateChoiceOptionsForV1(pending.definitionId).find(
             (candidate) => candidate.choiceId === resolution.choiceId,
           );
           if (option !== undefined && option.consumesCoins > 0) {
-            transaction.propose(inventoryModuleV1, {
-              kind: "spend",
-              amount: option.consumesCoins,
+            if (coins < option.consumesCoins) {
+              return transaction.reject({ code: "template.insufficient_coins" });
+            }
+            transaction.emit({
+              kind: "template.coins_changed",
+              delta: -option.consumesCoins,
+              balance: coins - option.consumesCoins,
             });
           }
         }
-        proposeStage(transaction, run.stageMutations, run.stageDispatches);
+        const blocked = emitStage(transaction, run.stageMutations, run.stageDispatches);
+        if (blocked !== null) return transaction.reject({ code: blocked });
         return transaction.complete();
       });
     },
@@ -520,7 +323,7 @@ export function createTemplateGameSimulationV1(): TemplateGameSimulationV1 {
     modules: compositionV1.modules,
     stateSchema: templateGameStateSchemaV1,
     commandSchema: commandSchemaV1,
-    factSchema: passthroughSchemaV1<TemplateFactV1>(),
+    eventSchema: templateEventSchemaV1,
     rejectionSchema: passthroughSchemaV1<TemplateRejectionV1>(),
     debugCommandSchema: debugCommandSchemaV1,
     debugValidationErrorSchema: passthroughSchemaV1<TemplateDebugValidationErrorV1>(),

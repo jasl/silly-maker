@@ -20,13 +20,12 @@ import type {
   CatcafeAttemptV1,
   CatcafeCommandV1,
   CatcafeDebugValidationErrorV1,
-  CatcafeFactV1,
   CatcafeQueriesV1,
   CatcafeRejectionV1,
   CatcafeSimulationTypesV1,
   CatcafeSnapshotV1,
 } from "./kernel.ts";
-import { commandSchemaV1, passthroughSchemaV1 } from "./kernel.ts";
+import { catcafeEventSchemaV1, commandSchemaV1, passthroughSchemaV1 } from "./kernel.ts";
 import type {
   CatcafeCommandHandlerMapV1,
   CatcafeHandlerInputV1,
@@ -52,7 +51,7 @@ export type {
   CatcafeCommandV1,
   CatcafeDebugCommandV1,
   CatcafeDebugValidationErrorV1,
-  CatcafeFactV1,
+  CatcafeEventV1,
   CatcafeFaultV1,
   CatcafeGameViewV1,
   CatcafeNarrativeViewV1,
@@ -112,7 +111,7 @@ export function createCatcafeGameSimulationV1(): CatcafeGameSimulationV1 {
     modules: catcafeModuleCompositionV1.modules,
     stateSchema: catcafeGameStateSchemaV1,
     commandSchema: commandSchemaV1,
-    factSchema: passthroughSchemaV1<CatcafeFactV1>(),
+    eventSchema: catcafeEventSchemaV1,
     rejectionSchema: passthroughSchemaV1<CatcafeRejectionV1>(),
     debugCommandSchema: catcafeDebugCommandSchemaV1,
     debugValidationErrorSchema: passthroughSchemaV1<CatcafeDebugValidationErrorV1>(),

@@ -72,8 +72,8 @@ export type { GameSnapshotEnvelopeV1 as ForbiddenSnapshotV1 } from "@sillymaker/
 export type { GameSessionV1 as ForbiddenGameSessionV1 } from "@sillymaker/ui/diagnostics";
 // @ts-expect-error DebugTools authority is not part of the player-safe diagnostics subpath
 export type { DebugToolsPortV1 as ForbiddenDebugToolsV1 } from "@sillymaker/ui/diagnostics";
-// @ts-expect-error owner capabilities are not part of the player-safe diagnostics subpath
-export type { ModuleOwnerCapabilityV1 as ForbiddenOwnerV1 } from "@sillymaker/ui/diagnostics";
+// @ts-expect-error module event reducers are not part of the player-safe diagnostics subpath
+export type { ModuleEventReducerMapV1 as ForbiddenReducersV1 } from "@sillymaker/ui/diagnostics";
 // @ts-expect-error DOM nodes are not part of the player-safe diagnostics subpath
 export type { HTMLElement as ForbiddenDomNodeV1 } from "@sillymaker/ui/diagnostics";
 // @ts-expect-error renderer instances are not part of the player-safe diagnostics subpath

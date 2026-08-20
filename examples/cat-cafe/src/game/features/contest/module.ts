@@ -1,15 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Contest slice · module: the in-progress contest turn state (null = not started).
-import type { CatcafeContestStateV1 } from "../../state.ts";
 import { catcafeContestStateSchemaV1 } from "../../state.ts";
-import type { CatcafeFactV1 } from "../../kernel.ts";
-import { commandSchemaV1, kit, operationSchemaV1 } from "../../kernel.ts";
-
-export type ContestOperationV1 = {
-  readonly kind: "set";
-  readonly next: CatcafeContestStateV1 | null;
-  readonly facts?: readonly CatcafeFactV1[];
-};
+import { commandSchemaV1, kit } from "../../kernel.ts";
 
 export const contestModuleV1 = kit.defineStatefulModule({
   id: "catcafe.contest",
@@ -20,16 +12,7 @@ export const contestModuleV1 = kit.defineStatefulModule({
     initial: () => null,
   },
   commandSchema: commandSchemaV1,
-  owner: {
-    operationSchema: operationSchemaV1<ContestOperationV1>("contest"),
-    propose: (_state, operation) =>
-      Object.freeze({
-        kind: "proposed" as const,
-        proposal: Object.freeze({
-          payload: operation,
-          facts: Object.freeze([...(operation.facts ?? [])]),
-        }),
-      }),
-    apply: (_state, proposal) => proposal.payload.next,
+  reducers: {
+    "cc.contest_set": (_state, event) => event.next,
   },
 });

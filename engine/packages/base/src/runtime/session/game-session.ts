@@ -350,7 +350,7 @@ export interface GameSessionV1<TTypes extends GameSimulationTypeMapV1> {
     SessionDispatchOperationResultV1<
       CommandExecutionResultEnvelopeV1<
         TTypes["snapshot"],
-        TTypes["fact"],
+        TTypes["event"],
         TTypes["rejection"],
         TTypes["fault"]
       >
@@ -391,7 +391,7 @@ export interface GameSessionRuntimeControlV1<TSnapshot> {
 
 type AttemptFor<TTypes extends GameSimulationTypeMapV1> = CommandExecutionAttemptEnvelopeV1<
   TTypes["snapshot"],
-  TTypes["fact"],
+  TTypes["event"],
   TTypes["rejection"],
   TTypes["fault"],
   TTypes["rngState"],
@@ -400,7 +400,7 @@ type AttemptFor<TTypes extends GameSimulationTypeMapV1> = CommandExecutionAttemp
 
 type FinalizedAttemptFor<TTypes extends GameSimulationTypeMapV1> = FinalizedCommandAttemptV1<
   TTypes["snapshot"],
-  TTypes["fact"],
+  TTypes["event"],
   TTypes["rejection"],
   TTypes["fault"],
   TTypes["rngState"],
@@ -408,7 +408,7 @@ type FinalizedAttemptFor<TTypes extends GameSimulationTypeMapV1> = FinalizedComm
 >;
 
 type EvidencePolicyFor<TTypes extends GameSimulationTypeMapV1> = FinalizedEvidencePolicyInternalV1<
-  TTypes["fact"],
+  TTypes["event"],
   TTypes["rejection"],
   TTypes["rngState"],
   TTypes["rngDrawTrace"],
@@ -437,7 +437,7 @@ type LoggedCommandFor<TTypes extends GameSimulationTypeMapV1> =
 type CommandLogFor<TTypes extends GameSimulationTypeMapV1> = CommandLogV1<
   TTypes["snapshot"],
   LoggedCommandFor<TTypes>,
-  TTypes["fact"],
+  TTypes["event"],
   TTypes["rejection"],
   TTypes["fault"],
   TTypes["rngState"],
@@ -595,7 +595,7 @@ function finalizeCommandAttemptV1<TTypes extends GameSimulationTypeMapV1>(
     ? Object.freeze({
       kind: "committed" as const,
       snapshot: postSnapshot,
-      facts: admittedCandidate.result.facts,
+      events: admittedCandidate.result.events,
     })
     : admittedCandidate.result.kind === "rejected"
     ? Object.freeze({
@@ -748,7 +748,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
   const commandLog = createCommandLogInternalV1<
     TTypes["snapshot"],
     LoggedCommandFor<TTypes>,
-    TTypes["fact"],
+    TTypes["event"],
     TTypes["rejection"],
     TTypes["fault"],
     TTypes["rngState"],

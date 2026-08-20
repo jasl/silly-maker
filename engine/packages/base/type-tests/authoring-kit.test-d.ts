@@ -15,6 +15,10 @@ interface KitWitnessStateV1 {
   };
 }
 
+type KitWitnessEventV1 =
+  | { readonly kind: "witness.item_stored"; readonly items: number }
+  | { readonly kind: "witness.sale_closed"; readonly sales: number };
+
 interface KitWitnessTypesV1 extends
   GameSimulationTypeMapV1<
     GameBootstrapInputV1,
@@ -22,7 +26,7 @@ interface KitWitnessTypesV1 extends
     { readonly cursor: number }
   > {
   readonly command: { readonly kind: "witness.kit" };
-  readonly fact: { readonly kind: "witness.fact" };
+  readonly event: KitWitnessEventV1;
   readonly rejection: { readonly code: string };
 }
 
@@ -32,7 +36,6 @@ interface StorageReadPortV1 {
 
 declare const storageStateSchemaV1: RuntimeSchemaV1<{ readonly items: number }>;
 declare const shopStateSchemaV1: RuntimeSchemaV1<{ readonly sales: number }>;
-declare const operationSchemaV1: RuntimeSchemaV1<{ readonly kind: "noop" }>;
 
 const kit = createGameAuthoringKitV1<KitWitnessTypesV1>();
 const storageRead = kit.defineCapability<StorageReadPortV1>("capability.storage.read");
@@ -51,13 +54,9 @@ export const storageModuleV1 = kit.defineStatefulModule({
       itemCount: () => readOwnState().items,
     })),
   ],
-  owner: {
-    operationSchema: operationSchemaV1,
-    propose: (_state, _operation, _dependencies) => ({
-      kind: "proposed" as const,
-      proposal: { payload: { kind: "noop" as const }, facts: [] },
-    }),
-    apply: (state) => ({ items: state.items }),
+  reducers: {
+    // state is the module's own slice; event narrows to the keyed kind.
+    "witness.item_stored": (state, event) => ({ items: state.items + event.items }),
   },
 });
 
@@ -70,18 +69,8 @@ export const shopModuleV1 = kit.defineStatefulModule({
     initial: () => ({ sales: 0 }),
   },
   requires: { storage: storageRead },
-  owner: {
-    operationSchema: operationSchemaV1,
-    propose: (_state, _operation, dependencies) => {
-      // The dependency port is inferred from the requires declaration.
-      const observed: number = dependencies.storage.itemCount();
-      return {
-        kind: "proposed" as const,
-        proposal: { payload: { kind: "noop" as const }, facts: [] },
-        observedWitness: observed,
-      };
-    },
-    apply: (state) => ({ sales: state.sales }),
+  reducers: {
+    "witness.sale_closed": (_state, event) => ({ sales: event.sales }),
   },
 });
 
@@ -114,14 +103,7 @@ export const wrongPortShapeV1 = kit.defineStatefulModule({
     // @ts-expect-error the provider factory must return the token's port type
     provide(storageRead, () => ({ wrongShape: true })),
   ],
-  owner: {
-    operationSchema: operationSchemaV1,
-    propose: () => ({
-      kind: "proposed" as const,
-      proposal: { payload: { kind: "noop" as const }, facts: [] },
-    }),
-    apply: (state) => ({ items: state.items }),
-  },
+  reducers: {},
 });
 
 export const wrongRequiresV1 = kit.defineStatefulModule({
@@ -134,12 +116,33 @@ export const wrongRequiresV1 = kit.defineStatefulModule({
   },
   // @ts-expect-error requires entries must be capability tokens
   requires: { storage: "capability.storage.read" },
-  owner: {
-    operationSchema: operationSchemaV1,
-    propose: () => ({
-      kind: "proposed" as const,
-      proposal: { payload: { kind: "noop" as const }, facts: [] },
-    }),
-    apply: (state) => ({ sales: state.sales }),
+  reducers: {},
+});
+
+export const wrongReducerKindV1 = kit.defineStatefulModule({
+  id: "kit.broken-reducer-kind",
+  contractRevision: 1,
+  state: {
+    slot: "simulation.storage",
+    schema: storageStateSchemaV1,
+    initial: () => ({ items: 0 }),
+  },
+  reducers: {
+    // @ts-expect-error reducer keys must be declared domain-event kinds
+    "witness.unknown_kind": (state: { readonly items: number }) => state,
+  },
+});
+
+export const wrongReducerReturnV1 = kit.defineStatefulModule({
+  id: "kit.broken-reducer-return",
+  contractRevision: 1,
+  state: {
+    slot: "simulation.storage",
+    schema: storageStateSchemaV1,
+    initial: () => ({ items: 0 }),
+  },
+  reducers: {
+    // @ts-expect-error a reducer must return the module's own slice shape
+    "witness.item_stored": () => ({ sales: 0 }),
   },
 });

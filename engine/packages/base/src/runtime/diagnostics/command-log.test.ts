@@ -139,7 +139,7 @@ function finalizedAttempt(before: FixtureSnapshotV1, ordinal: number): FixtureAt
       result: Object.freeze({
         kind: "committed",
         snapshot,
-        facts: Object.freeze([
+        events: Object.freeze([
           Object.freeze({ kind: "fixture.committed", value: snapshot.state.value }),
         ]),
       }),
@@ -268,8 +268,8 @@ function createMeasuredFixtureLog(replayBase: FixtureSnapshotV1) {
 
 const fractionalEvidenceCasesV1 = [
   {
-    name: "fact",
-    path: "/result/facts/0/value",
+    name: "event",
+    path: "/result/events/0/value",
     createAttempt(before: FixtureSnapshotV1): FixtureAttemptV1 {
       const after = snapshotAtSequence(before.commandSequence + 1, before.state.value + 1);
       return {
@@ -277,7 +277,7 @@ const fractionalEvidenceCasesV1 = [
         result: {
           kind: "committed",
           snapshot: after,
-          facts: [{ kind: "fixture.committed", value: 0.25 }],
+          events: [{ kind: "fixture.committed", value: 0.25 }],
         },
         diagnostics: diagnostics(after),
       } as unknown as FixtureAttemptV1;
@@ -630,11 +630,11 @@ describe("CommandLog", () => {
     const replayBase = snapshotAtSequence(0);
     const measured = createMeasuredFixtureLog(replayBase);
     const after = snapshotAtSequence(1, 1);
-    const fact = { kind: "fixture.committed" as const, value: 1 };
+    const event = { kind: "fixture.committed" as const, value: 1 };
     const draw = { kind: "fixture.draw", raw: 0.25 };
     const invalidAttempt = {
       ...finalizationEvidence(replayBase, after),
-      result: { kind: "committed", snapshot: after, facts: [fact] },
+      result: { kind: "committed", snapshot: after, events: [event] },
       diagnostics: {
         committedRngBefore: replayBase.rng,
         attemptedDraws: [draw],
@@ -645,7 +645,7 @@ describe("CommandLog", () => {
     expect(() => measured.log.append(parsedCommand(1), invalidAttempt)).toThrow(
       CanonicalJsonError,
     );
-    expect(Object.isFrozen(fact)).toBe(false);
+    expect(Object.isFrozen(event)).toBe(false);
     expect(Object.isFrozen(draw)).toBe(false);
     expect(measured.log.entries()).toEqual([]);
     expect(measured.counter.snapshot()).toMatchObject({
@@ -657,7 +657,7 @@ describe("CommandLog", () => {
   it("records finalized evidence projections without retaining raw identities", () => {
     const replayBase = snapshotAtSequence(0);
     const log = createFixtureLog(replayBase);
-    const fact = { kind: "fixture.committed" as const, value: 1 };
+    const event = { kind: "fixture.committed" as const, value: 1 };
     const committedRngBefore = {
       algorithm: "xorshift32-v1" as const,
       cursor: 17,
@@ -683,7 +683,7 @@ describe("CommandLog", () => {
     }) as FixtureSnapshotV1;
     const attempt = {
       ...finalizationEvidence(replayBase, after),
-      result: { kind: "committed", snapshot: after, facts: [fact] },
+      result: { kind: "committed", snapshot: after, events: [event] },
       diagnostics: {
         committedRngBefore,
         attemptedDraws: [draw],
@@ -696,8 +696,8 @@ describe("CommandLog", () => {
 
     expect(entry.outcome.kind).toBe("committed");
     if (entry.outcome.kind !== "committed") throw new TypeError("Expected committed outcome");
-    expect(entry.outcome.facts[0]).not.toBe(fact);
-    expect(entry.outcome.facts[0]).toEqual(fact);
+    expect(entry.outcome.events[0]).not.toBe(event);
+    expect(entry.outcome.events[0]).toEqual(event);
     expect(entry.attemptedDraws[0]).not.toBe(draw);
     expect(entry.attemptedDraws[0]).toEqual(draw);
     expect(entry.committedRngBefore).not.toBe(committedRngBefore);
@@ -711,7 +711,7 @@ describe("CommandLog", () => {
     expect(entry.candidateRngAfter).not.toBe(entry.committedRngAfter);
     for (
       const evidence of [
-        entry.outcome.facts[0],
+        entry.outcome.events[0],
         entry.attemptedDraws[0],
         entry.committedRngBefore,
         entry.candidateRngAfter,
@@ -720,7 +720,7 @@ describe("CommandLog", () => {
     ) {
       expect(Object.isFrozen(evidence)).toBe(true);
     }
-    for (const raw of [fact, draw, committedRngBefore, candidateRngAfter, committedRngAfter]) {
+    for (const raw of [event, draw, committedRngBefore, candidateRngAfter, committedRngAfter]) {
       expect(Object.isFrozen(raw)).toBe(false);
     }
   });
@@ -749,7 +749,7 @@ describe("CommandLog", () => {
     if (admitted.result.kind !== "committed" || entry.outcome.kind !== "committed") {
       throw new TypeError("Expected committed evidence");
     }
-    expect(entry.outcome.facts[0]).toBe(admitted.result.facts[0]);
+    expect(entry.outcome.events[0]).toBe(admitted.result.events[0]);
     expect(entry.attemptedDraws[0]).toBe(admitted.diagnostics.attemptedDraws[0]);
     expect(entry.committedRngBefore).toBe(admitted.diagnostics.committedRngBefore);
     expect(entry.candidateRngAfter).toBe(admitted.diagnostics.candidateRngAfter);

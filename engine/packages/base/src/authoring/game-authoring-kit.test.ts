@@ -24,7 +24,7 @@ interface KitTestTypesV1 extends
     { readonly cursor: number }
   > {
   readonly command: { readonly kind: "kit.test" };
-  readonly fact: { readonly kind: "kit.fact" };
+  readonly event: { readonly kind: "kit.event" };
   readonly rejection: { readonly code: string };
 }
 
@@ -43,18 +43,6 @@ function numberStateSchemaV1<TState>(keys: readonly string[]): RuntimeSchemaV1<T
     },
   });
 }
-
-const noopOwnerV1 = {
-  operationSchema: Object.freeze({
-    parse: (value: unknown) => Object.freeze({ ...(value as object) }),
-  }),
-  propose: () =>
-    Object.freeze({
-      kind: "proposed" as const,
-      proposal: Object.freeze({ payload: Object.freeze({}), facts: Object.freeze([]) }),
-    }),
-  apply: (state: never) => state,
-};
 
 function diagnosticsOfV1(run: () => unknown) {
   try {
@@ -88,7 +76,7 @@ function createFixtureV1() {
         itemCount: () => readOwnState().items,
       })),
     ],
-    owner: noopOwnerV1,
+    reducers: {},
   });
   const shop = kit.defineStatefulModule({
     id: "kit.shop",
@@ -100,7 +88,7 @@ function createFixtureV1() {
     },
     requires: { storage: storageRead },
     initializesAfter: ["kit.storage"],
-    owner: noopOwnerV1,
+    reducers: {},
   });
   return { kit, storageRead, storage, shop };
 }
@@ -124,15 +112,36 @@ describe("createGameAuthoringKitV1", () => {
     expect(ports.storage.itemCount()).toBe(5);
   });
 
-  it("derives a proposal schema from the operation schema when omitted", () => {
+  it("mints stateful bindings that expose the declared reducer map", () => {
     const { kit, storage, shop } = createFixtureV1();
     const composition = kit.composeModules([storage, shop]);
     const binding = composition.modules[0];
     expect(binding.bindingKind).toBe("stateful");
     if (binding.bindingKind !== "stateful") return;
-    const proposal = binding.ownerProposalSchema.parse({ payload: {}, facts: [] });
-    expect(proposal).toMatchObject({ facts: [] });
-    expect(() => binding.ownerProposalSchema.parse({ payload: {} })).toThrowError(TypeError);
+    expect(binding.reducers).toEqual({});
+  });
+
+  it("rejects a non-function reducer at module definition with a stable code", () => {
+    const kit = createGameAuthoringKitV1<KitTestTypesV1>();
+    expect(
+      diagnosticsOfV1(() =>
+        kit.defineStatefulModule({
+          id: "kit.storage",
+          contractRevision: 1,
+          state: {
+            slot: "simulation.storage",
+            schema: numberStateSchemaV1<{ readonly items: number }>(["items"]),
+            initial: () => Object.freeze({ items: 0 }),
+          },
+          reducers: { "kit.event": "not-a-function" } as never,
+        })
+      ),
+    ).toMatchObject([
+      {
+        code: "authoring.module.invalid_reducers",
+        subject: { kind: "module", id: "kit.storage" },
+      },
+    ]);
   });
 
   it("fails composition with a stable code for a missing provider", () => {
@@ -147,7 +156,7 @@ describe("createGameAuthoringKitV1", () => {
         initial: () => Object.freeze({ sales: 0 }),
       },
       requires: { storage: orphaned },
-      owner: noopOwnerV1,
+      reducers: {},
     });
     expect(diagnosticsOfV1(() => kit.composeModules([shop]))).toMatchObject([
       {
@@ -173,7 +182,7 @@ describe("createGameAuthoringKitV1", () => {
         provides: (provide) => [
           provide(token, ({ readOwnState }) => ({ itemCount: () => readOwnState().items })),
         ],
-        owner: noopOwnerV1,
+        reducers: {},
       });
     expect(
       diagnosticsOfV1(() =>
@@ -201,7 +210,7 @@ describe("createGameAuthoringKitV1", () => {
       provides: (provide) => [
         provide(storageRead, ({ readOwnState }) => ({ itemCount: () => readOwnState().items })),
       ],
-      owner: noopOwnerV1,
+      reducers: {},
     });
     const shop = kit.defineStatefulModule({
       id: "kit.shop",
@@ -215,7 +224,7 @@ describe("createGameAuthoringKitV1", () => {
       provides: (provide) => [
         provide(shopRead, ({ readOwnState }) => ({ itemCount: () => readOwnState().sales })),
       ],
-      owner: noopOwnerV1,
+      reducers: {},
     });
     const codes = diagnosticsOfV1(() => kit.composeModules([storage, shop])).map(
       (diagnostic) => diagnostic.code,
@@ -236,7 +245,7 @@ describe("createGameAuthoringKitV1", () => {
           initial: () => Object.freeze({ items: 0 }),
         },
         initializesAfter: [after],
-        owner: noopOwnerV1,
+        reducers: {},
       });
     const codes = diagnosticsOfV1(() =>
       kit.composeModules([
@@ -260,7 +269,7 @@ describe("createGameAuthoringKitV1", () => {
           initial: () => Object.freeze({ items: 0 }),
         },
         initializesAfter: [after],
-        owner: noopOwnerV1,
+        reducers: {},
       });
     const storage = moduleWith("kit.storage", "simulation.storage", "kit.shop");
     const shop = moduleWith("kit.shop", "simulation.shop", "kit.storage");
@@ -303,7 +312,7 @@ describe("createGameAuthoringKitV1", () => {
         provides: (provide) => [
           provide(token, ({ readOwnState }) => ({ itemCount: () => readOwnState().items })),
         ],
-        owner: noopOwnerV1,
+        reducers: {},
       });
     const dash = provider("kit.a-1", "simulation.storage", dashRead);
     const underscore = provider("kit.a_1", "simulation.shop", underscoreRead);
@@ -316,7 +325,7 @@ describe("createGameAuthoringKitV1", () => {
         initial: () => Object.freeze({ items: 0 }),
       },
       requires: { dash: dashRead, underscore: underscoreRead },
-      owner: noopOwnerV1,
+      reducers: {},
     });
     const spy = installRejectingLocaleCompareV1();
 
@@ -367,7 +376,7 @@ describe("createGameAuthoringKitV1", () => {
         initial: () => Object.freeze({ items: 0 }),
       },
       initializesAfter: ["kit.absent"],
-      owner: noopOwnerV1,
+      reducers: {},
     });
     expect(diagnosticsOfV1(() => kit.composeModules([lonely]))).toMatchObject([
       { code: "authoring.lifecycle.unknown_module" },
@@ -386,7 +395,7 @@ describe("createGameAuthoringKitV1", () => {
         initial: () => Object.freeze({ items: 0 }),
       },
       provides: (provide) => [provide(token, (context) => Object.keys(context))],
-      owner: noopOwnerV1,
+      reducers: {},
     });
     const shop = kit.defineStatefulModule({
       id: "kit.shop",
@@ -397,7 +406,7 @@ describe("createGameAuthoringKitV1", () => {
         initial: () => Object.freeze({ sales: 0 }),
       },
       requires: { keys: token },
-      owner: noopOwnerV1,
+      reducers: {},
     });
     const composition = kit.composeModules([storage, shop]);
     expect(composition.createDependencyPortsFor(shop, kitTestStateV1).keys).toEqual([

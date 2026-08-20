@@ -115,7 +115,7 @@ interface SyntheticTypesV1 extends
   > {
   readonly snapshot: SyntheticSnapshotV1;
   readonly command: SyntheticCommandV1;
-  readonly fact: { readonly count: NonNegativeSafeInteger };
+  readonly event: { readonly count: NonNegativeSafeInteger };
   readonly rejection: { readonly code: string };
   readonly fault: { readonly code: string };
   readonly rngState: SyntheticRngV1;
@@ -428,7 +428,7 @@ function executeAttemptV1(current: DeepReadonly<SyntheticSnapshotV1>): Synthetic
     result: Object.freeze({
       kind: "committed" as const,
       snapshot: next,
-      facts: Object.freeze([{ count: next.state.count }]),
+      events: Object.freeze([{ count: next.state.count }]),
     }),
     diagnostics: Object.freeze({
       committedRngBefore: current.rng,

@@ -1,19 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Shop slice · module: reputation/tidiness/money/trophies/confirmed ending.
+// The cc.shop_set reducer clamps percentages; overdraft rejection happens at
+// the handler decision point before the event is emitted.
 import { catcafeShopStateSchemaV1 } from "../../state.ts";
-import type { CatcafeFactV1 } from "../../kernel.ts";
-import { clampV1, commandSchemaV1, kit, operationSchemaV1 } from "../../kernel.ts";
-
-export type ShopOperationV1 = {
-  readonly kind: "apply";
-  readonly reputation: number;
-  readonly tidiness: number;
-  readonly money: number;
-  readonly trophies: number;
-  /** Unchanged by default; enter_postgame uses it to write the confirmed ending. */
-  readonly epilogue?: string | null;
-  readonly facts?: readonly CatcafeFactV1[];
-};
+import { clampV1, commandSchemaV1, kit } from "../../kernel.ts";
 
 export const shopModuleV1 = kit.defineStatefulModule({
   id: "catcafe.shop",
@@ -25,32 +15,17 @@ export const shopModuleV1 = kit.defineStatefulModule({
       Object.freeze({ reputation: 10, tidiness: 60, money: 50, trophies: 0, epilogue: null }),
   },
   commandSchema: commandSchemaV1,
-  owner: {
-    operationSchema: operationSchemaV1<ShopOperationV1>("shop"),
-    propose(state, operation) {
-      if (operation.money < 0) {
-        return Object.freeze({
-          kind: "rejected" as const,
-          rejection: Object.freeze({ code: "cc.money_short" as const }),
-        });
-      }
-      return Object.freeze({
-        kind: "proposed" as const,
-        proposal: Object.freeze({
-          payload: operation,
-          facts: Object.freeze([...(operation.facts ?? [])]),
-        }),
-      });
-    },
-    apply: (state, proposal) => {
-      const next = proposal.payload;
-      return Object.freeze({
-        reputation: clampV1(next.reputation, 0, 100),
-        tidiness: clampV1(next.tidiness, 0, 100),
-        money: next.money,
-        trophies: Math.max(0, next.trophies),
-        epilogue: next.epilogue === undefined ? state.epilogue : next.epilogue,
-      });
-    },
+  // cc.shop_set carries the absolute post-command draft computed by the
+  // handler from the command-start snapshot: emit at most one per command
+  // (a second would clobber the first, not compose with it).
+  reducers: {
+    "cc.shop_set": (_state, event) =>
+      Object.freeze({
+        reputation: clampV1(event.next.reputation, 0, 100),
+        tidiness: clampV1(event.next.tidiness, 0, 100),
+        money: event.next.money,
+        trophies: Math.max(0, event.next.trophies),
+        epilogue: event.next.epilogue,
+      }),
   },
 });

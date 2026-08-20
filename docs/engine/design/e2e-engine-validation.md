@@ -143,7 +143,7 @@ port。它保留 DET0/DET3b tripwire driver 的窄 authority closure，在外层
 Chromium、Firefox 与 WebKit 的中性逐 command 比较：
 
 - normalized command 与 outcome kind；
-- facts/reasons/fault；
+- events/reasons/fault；
 - RNG before/after、attempted draws 与 command sequence；
 - pre/post Snapshot digest；
 - finalized CommandLog/replay evidence。

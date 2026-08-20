@@ -3,9 +3,7 @@
 import { evaluateInteractionResolution } from "@sillymaker/base/story";
 
 import type { CatcafeCommandHandlerMapV1 } from "../../runtime.ts";
-import { transactionRunnerV1 } from "../../runtime.ts";
-import { narrativeModuleV1 } from "./module.ts";
-import { stageModuleV1 } from "../stage/module.ts";
+import { emitCatcafeStageV1, transactionRunnerV1 } from "../../runtime.ts";
 import {
   catcafeInteractionContextV1,
   catcafeNarrativeAfterResolutionV1,
@@ -26,35 +24,35 @@ export const dialogueCommandHandlersV1: Pick<
         catcafeNarrativeAtBeginV1(state.narrative),
         state.stage,
       );
-      transaction.propose(narrativeModuleV1, { kind: "begin", next: run.narrative });
-      if (run.stageMutations.length > 0) {
-        transaction.propose(stageModuleV1, { kind: "apply", mutations: run.stageMutations });
-      }
+      transaction.emit({ kind: "cc.narrative_advanced", next: run.narrative });
+      const blocked = emitCatcafeStageV1(transaction, state.stage, run.stageMutations);
+      if (blocked !== null) return transaction.reject({ code: blocked });
       return transaction.complete();
     }),
 
   "cc.narrative_resolve": ({ snapshot, rng, state, command }) =>
     transactionRunnerV1.execute(snapshot, rng, (transaction) => {
+      const pending = state.narrative.pending;
       const outcome = evaluateInteractionResolution(
-        state.narrative.pending,
+        pending,
         command.expectedOccurrenceId,
         command.resolution,
-        catcafeInteractionContextV1(state.narrative.pending, state.shop.money),
+        catcafeInteractionContextV1(pending, state.shop.money),
       );
       if (outcome.kind === "rejected") return transaction.reject({ code: outcome.code });
+      if (pending === null) throw new TypeError("accepted resolution without pending");
       const run = runCatcafeNarrativeUntilInteractionV1(
         catcafeNarrativeAfterResolutionV1(state.narrative, command.resolution),
         state.stage,
       );
-      transaction.propose(narrativeModuleV1, {
-        kind: "resolve",
-        expectedOccurrenceId: command.expectedOccurrenceId,
-        resolution: command.resolution,
-        next: run.narrative,
+      transaction.emit({
+        kind: "cc.interaction_resolved",
+        definitionId: pending.definitionId,
+        occurrenceId: pending.occurrenceId,
       });
-      if (run.stageMutations.length > 0) {
-        transaction.propose(stageModuleV1, { kind: "apply", mutations: run.stageMutations });
-      }
+      transaction.emit({ kind: "cc.narrative_advanced", next: run.narrative });
+      const blocked = emitCatcafeStageV1(transaction, state.stage, run.stageMutations);
+      if (blocked !== null) return transaction.reject({ code: blocked });
       return transaction.complete();
     }),
 });

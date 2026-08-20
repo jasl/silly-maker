@@ -50,7 +50,7 @@ Edits move occurrence numbers (each interaction boundary is numbered in order): 
 A new module = four wiring points, all inside the Story package:
 
 1. `src/game/state.ts` (Engine Lab: `src/gameplay/state.ts`): state interface + zod schema + initial value, mounted into the aggregate state.
-2. `src/game/simulation.ts` or `src/game/features/<name>/module.ts` (Engine Lab: `src/gameplay/simulation.ts`): `kit.defineStatefulModule` (the owner's propose/apply); commands into the Story command/fact/rejection unions; open a transaction in the executor (cross-module writes via `transaction.propose(otherModule, …)`, atomically committed with the same command).
+2. `src/game/simulation.ts` or `src/game/features/<name>/module.ts` (Engine Lab: `src/gameplay/simulation.ts`): `kit.defineStatefulModule` (the module's `reducers` map folds its own slice per domain-event kind); commands into the Story command/domain-event/rejection unions; open a transaction in the executor (decide against the command-start snapshot, `reject(...)` before emitting, then `transaction.emit(event)` — every subscribed module folds the same event atomically within the same command).
 3. `src/application/semantic.ts`: action id into the catalog + the `blockedBy` availability rule (catalog/preview/dispatch share this one function).
 4. `src/game/simulation-definition.ts` (Engine Lab: `src/simulation-definition.ts`): add the module entry to the state-contract manifest (**module ids in lexicographic order**) and sync its contract revisions; then bump the package identity in `src/story.ts` as required by the table below.
 

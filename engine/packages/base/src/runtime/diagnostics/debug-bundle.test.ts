@@ -484,13 +484,13 @@ describe("Debug Bundle codec", () => {
     [
       [
         "command",
-        { command: { amount: 0.25 }, outcome: { kind: "committed", facts: [] } },
+        { command: { amount: 0.25 }, outcome: { kind: "committed", events: [] } },
         "/commandLog/0/command/amount",
       ],
       [
-        "committed fact",
-        { command: { amount: 1 }, outcome: { kind: "committed", facts: [{ value: 0.5 }] } },
-        "/commandLog/0/outcome/facts/0/value",
+        "committed event",
+        { command: { amount: 1 }, outcome: { kind: "committed", events: [{ value: 0.5 }] } },
+        "/commandLog/0/outcome/events/0/value",
       ],
       [
         "rejection",

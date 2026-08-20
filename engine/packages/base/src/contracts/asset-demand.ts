@@ -75,7 +75,7 @@ export function createAssetDemandPlanV1(input: CreateAssetDemandPlanInputV1): As
 
 /**
  * One commit-only transient presentation effect. Effects are produced by
- * the Story adapter from committed command facts, stamped with a monotonic
+ * the Story adapter from committed domain events, stamped with a monotonic
  * per-instance sequence and the presentation epoch at commit time. They are
  * never stored in State or Saves, load/bootstrap publications carry no
  * history, and consumers keep an instance-local consumed watermark so

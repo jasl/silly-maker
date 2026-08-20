@@ -102,7 +102,7 @@ describe("canary: currency and shop module", () => {
     expect(after.samplesCollected).toBe(before.samplesCollected - 1);
     expect(after.credits).toBe(before.credits + 2);
 
-    // One committed log entry carries both owners' facts.
+    // One committed log entry journals both modules' domain events.
     const entry = harness.admin.commandLog().at(-1);
     const serialized = JSON.stringify(entry?.outcome);
     expect(serialized).toContain("lab.samples_consumed");

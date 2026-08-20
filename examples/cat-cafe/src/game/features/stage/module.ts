@@ -1,15 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Stage slice · module: semantic stage state; mutations parse/reduce then apply atomically.
-import type { StageMutation } from "@sillymaker/base/story";
-import { parseStageMutation, reduceStageMutations } from "@sillymaker/base/story";
+// Stage slice · module: semantic stage state; cc.stage_changed folds parsed
+// mutations. Handlers pre-validate reducibility so unappliable mutations
+// reject at the decision point instead of faulting in the reducer.
+import { reduceStageMutations } from "@sillymaker/base/story";
 
 import { catcafeStageStateSchemaV1, createInitialCatcafeStageStateV1 } from "../../state.ts";
-import { commandSchemaV1, kit, operationSchemaV1 } from "../../kernel.ts";
-
-export type StageOperationV1 = {
-  readonly kind: "apply";
-  readonly mutations: readonly StageMutation[];
-};
+import { commandSchemaV1, kit } from "../../kernel.ts";
 
 export const stageModuleV1 = kit.defineStatefulModule({
   id: "catcafe.stage",
@@ -20,32 +16,12 @@ export const stageModuleV1 = kit.defineStatefulModule({
     initial: () => createInitialCatcafeStageStateV1(),
   },
   commandSchema: commandSchemaV1,
-  owner: {
-    operationSchema: operationSchemaV1<StageOperationV1>("stage"),
-    propose(state, operation) {
-      const mutations = operation.mutations.map((mutation, index) =>
-        parseStageMutation(mutation, `/mutations/${String(index)}`)
-      );
-      const outcome = reduceStageMutations(state, mutations);
-      if (outcome.kind === "rejected") {
-        return Object.freeze({
-          kind: "rejected" as const,
-          rejection: Object.freeze({ code: "cc.stage_rejected" as const }),
-        });
+  reducers: {
+    "cc.stage_changed": (state, event) => {
+      const outcome = reduceStageMutations(state, event.mutations);
+      if (outcome.kind !== "applied") {
+        throw new TypeError("emitted catcafe stage mutations must apply");
       }
-      return Object.freeze({
-        kind: "proposed" as const,
-        proposal: Object.freeze({
-          payload: operation,
-          facts: Object.freeze([
-            Object.freeze({ kind: "cc.stage_changed" as const, mutations: mutations.length }),
-          ]),
-        }),
-      });
-    },
-    apply: (state, proposal) => {
-      const outcome = reduceStageMutations(state, proposal.payload.mutations);
-      if (outcome.kind !== "applied") throw new TypeError("validated catcafe stage must apply");
       return outcome.state;
     },
   },

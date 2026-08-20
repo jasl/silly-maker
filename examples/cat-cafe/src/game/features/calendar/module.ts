@@ -1,15 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Calendar slice · module: week/day/slot/stamina advancement and day-rollover rules.
+// Calendar slice · module: week/day/slot/stamina state; handlers compute the
+// next calendar (advance rule below) and fold it via cc.calendar_set.
 
-import type { CatcafeCalendarStateV1, CatcafeGameStateV1 } from "../../state.ts";
+import type { CatcafeGameStateV1 } from "../../state.ts";
 import { catcafeCalendarStateSchemaV1, catcafeDailyStaminaV1 } from "../../state.ts";
 import { catcafeSlotsV1 } from "../../content.ts";
-import { clampV1, commandSchemaV1, kit, operationSchemaV1 } from "../../kernel.ts";
-
-export type CalendarOperationV1 =
-  | { readonly kind: "advance" }
-  | { readonly kind: "spend"; readonly stamina: number }
-  | { readonly kind: "set"; readonly next: CatcafeCalendarStateV1 };
+import { clampV1, commandSchemaV1, kit } from "../../kernel.ts";
 
 export const calendarModuleV1 = kit.defineStatefulModule({
   id: "catcafe.calendar",
@@ -20,45 +16,15 @@ export const calendarModuleV1 = kit.defineStatefulModule({
     initial: () => Object.freeze({ week: 1, day: 0, slot: 0, stamina: catcafeDailyStaminaV1 }),
   },
   commandSchema: commandSchemaV1,
-  owner: {
-    operationSchema: operationSchemaV1<CalendarOperationV1>("calendar"),
-    propose(state, operation) {
-      if (operation.kind === "spend" && state.stamina < operation.stamina) {
-        return Object.freeze({
-          kind: "rejected" as const,
-          rejection: Object.freeze({ code: "cc.stamina_exhausted" as const }),
-        });
-      }
-      const next = applyCalendarV1(state, operation);
-      return Object.freeze({
-        kind: "proposed" as const,
-        proposal: Object.freeze({
-          payload: operation,
-          facts: operation.kind === "advance"
-            ? Object.freeze([
-              Object.freeze({
-                kind: "cc.slot_advanced" as const,
-                week: next.week,
-                day: next.day,
-                slot: next.slot,
-              }),
-            ])
-            : Object.freeze([]),
-        }),
-      });
-    },
-    apply: (state, proposal) => applyCalendarV1(state, proposal.payload),
+  reducers: {
+    "cc.calendar_set": (_state, event) => event.next,
   },
 });
 
-export function applyCalendarV1(
+/** The one calendar rule: advance a slot, rolling day/week and refilling stamina. */
+export function advanceCalendarV1(
   state: CatcafeGameStateV1["simulation"]["calendar"],
-  operation: CalendarOperationV1,
 ): CatcafeGameStateV1["simulation"]["calendar"] {
-  if (operation.kind === "set") return operation.next;
-  if (operation.kind === "spend") {
-    return Object.freeze({ ...state, stamina: state.stamina - operation.stamina });
-  }
   const nextSlot = state.slot + 1;
   if (nextSlot < catcafeSlotsV1.length) return Object.freeze({ ...state, slot: nextSlot });
   const nextDay = state.day + 1;

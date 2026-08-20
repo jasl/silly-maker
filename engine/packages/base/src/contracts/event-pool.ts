@@ -8,7 +8,7 @@ import type { RuleRngV1 } from "./rng.ts";
  * expressions — so tables can validate them at parse time; draws consume
  * the transactional RNG so replay and rollback reproduce them; every
  * draw returns JSON-safe explanation data (candidates, eligibility,
- * weights, roll, winner) for facts and DevDock; a debug force picks a
+ * weights, roll, winner) for domain events and DevDock; a debug force picks a
  * specific eligible candidate without spending a draw.
  *
  * Event content (text, effects, narrative entries) stays outside this
@@ -235,7 +235,7 @@ export interface EventPoolCandidateV1 {
   readonly condition: EventConditionV1 | null;
 }
 
-/** JSON-safe draw explanation for facts, diagnostics, and DevDock. */
+/** JSON-safe draw explanation for domain events, diagnostics, and DevDock. */
 export interface EventPoolDrawExplanationV1 {
   readonly considered: number;
   readonly eligible: readonly { readonly eventId: string; readonly weight: number }[];

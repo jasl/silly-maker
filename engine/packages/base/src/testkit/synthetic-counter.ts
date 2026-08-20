@@ -18,7 +18,6 @@ import type {
   BootstrapEntropyV1,
   GameSimulationTypeMapV1,
   GameSimulationV1,
-  ModuleOwnerProposalEnvelopeV1,
 } from "../contracts/gameplay-module.ts";
 import { createTransactionalRngV1, rngStateV1Schema } from "../contracts/rng.ts";
 import type { RngDrawTraceV1, RngStateV1 } from "../contracts/rng.ts";
@@ -47,7 +46,7 @@ export type SyntheticCounterCommandV1 =
   | { readonly kind: "synthetic.reject" }
   | { readonly kind: "synthetic.fault" };
 
-interface SyntheticCounterFactV1 {
+interface SyntheticCounterEventV1 {
   readonly kind: "synthetic.incremented";
   readonly count: number;
 }
@@ -73,7 +72,7 @@ export interface SyntheticSimulationTypesV1 extends
   readonly snapshot: GameSnapshotEnvelopeV1<SyntheticGameStateV1, RngStateV1>;
   readonly rngDrawTrace: RngDrawTraceV1;
   readonly command: SyntheticCounterCommandV1;
-  readonly fact: SyntheticCounterFactV1;
+  readonly event: SyntheticCounterEventV1;
   readonly rejection: SyntheticCounterRejectionV1;
   readonly fault: SyntheticCounterFaultV1;
   readonly debugCommand: never;
@@ -86,22 +85,12 @@ export interface SyntheticSimulationTypesV1 extends
 type SyntheticSnapshotV1 = SyntheticSimulationTypesV1["snapshot"];
 type SyntheticAttemptV1 = CommandExecutionAttemptEnvelopeV1<
   SyntheticSnapshotV1,
-  SyntheticCounterFactV1,
+  SyntheticCounterEventV1,
   SyntheticCounterRejectionV1,
   SyntheticCounterFaultV1,
   RngStateV1,
   RngDrawTraceV1
 >;
-
-interface CounterOperationV1 {
-  readonly count: number;
-}
-
-interface CounterProposalV1 extends
-  ModuleOwnerProposalEnvelopeV1<
-    CounterOperationV1,
-    SyntheticCounterFactV1
-  > {}
 
 export const syntheticCounterStateSchemaV1: RuntimeSchemaV1<SyntheticCounterStateV1> = Object
   .freeze({
@@ -185,33 +174,19 @@ const debugCommandSchema: RuntimeSchemaV1<never> = Object.freeze({
   },
 });
 
-const operationSchema: RuntimeSchemaV1<CounterOperationV1> = Object.freeze({
-  parse(value: unknown): CounterOperationV1 {
+const syntheticEventSchemaV1: RuntimeSchemaV1<SyntheticCounterEventV1> = Object.freeze({
+  parse(value: unknown): SyntheticCounterEventV1 {
     if (
       value === null ||
       typeof value !== "object" ||
       Array.isArray(value) ||
-      Object.keys(value).join("\0") !== "count"
+      (value as { readonly kind?: unknown }).kind !== "synthetic.incremented"
     ) {
-      throw new TypeError("invalid synthetic counter operation");
+      throw new TypeError("invalid synthetic domain event");
     }
     return Object.freeze({
+      kind: "synthetic.incremented" as const,
       count: parseNonNegativeSafeInteger((value as { readonly count?: unknown }).count),
-    });
-  },
-});
-
-const proposalSchema: RuntimeSchemaV1<CounterProposalV1> = Object.freeze({
-  parse(value: unknown): CounterProposalV1 {
-    if (value === null || typeof value !== "object" || Array.isArray(value)) {
-      throw new TypeError("invalid synthetic counter proposal");
-    }
-    const payload = operationSchema.parse(Reflect.get(value, "payload"));
-    const facts = Reflect.get(value, "facts");
-    if (!Array.isArray(facts)) throw new TypeError("invalid synthetic counter proposal facts");
-    return Object.freeze({
-      payload,
-      facts: Object.freeze([...facts]) as readonly SyntheticCounterFactV1[],
     });
   },
 });
@@ -229,27 +204,9 @@ function createModules() {
     querySchema: null,
     queryResultSchema: null,
     stateSchema: syntheticCounterStateSchemaV1,
-    ownerOperationSchema: operationSchema,
-    ownerProposalSchema: proposalSchema,
     localInvariants: [],
-    owner: {
-      propose(state, operation) {
-        return Object.freeze({
-          kind: "proposed" as const,
-          proposal: Object.freeze({
-            payload: operation,
-            facts: Object.freeze([
-              Object.freeze({
-                kind: "synthetic.incremented" as const,
-                count: state.count + 1,
-              }),
-            ]),
-          }),
-        });
-      },
-      apply(_state, proposal) {
-        return Object.freeze({ count: proposal.payload.count });
-      },
+    reducers: {
+      "synthetic.incremented": (_state, event) => Object.freeze({ count: event.count }),
     },
     queries: null,
     createInitialState: () => Object.freeze({ count: 0 }),
@@ -266,9 +223,7 @@ function createModules() {
     commandSchema: null,
     querySchema: null,
     queryResultSchema: null,
-    ownerOperationSchema: null,
-    ownerProposalSchema: null,
-    owner: null,
+    reducers: null,
     capabilities: Object.freeze({
       resolveParity(value: number): "even" | "odd" {
         return value % 2 === 0 ? "even" : "odd";
@@ -318,18 +273,14 @@ function createGameSimulation(): SyntheticGameSimulationV1 {
       if (command.kind === "synthetic.fault") {
         return faultAttemptV1(snapshot, rng, Object.freeze({ code: "synthetic.fault" }));
       }
-      const operation = operationSchema.parse({
+      const event = syntheticEventSchemaV1.parse({
+        kind: "synthetic.incremented",
         count: snapshot.state.simulation.counter.count + 1,
       });
-      const proposed = counter.owner.propose(
-        snapshot.state.simulation.counter,
-        operation,
-        Object.freeze({}),
-      );
-      if (proposed.kind !== "proposed") throw new TypeError("counter proposal rejected");
-      const proposal = proposalSchema.parse(proposed.proposal);
+      const reduce = counter.reducers["synthetic.incremented"];
+      if (reduce === undefined) throw new TypeError("counter reducer missing");
       const nextCounter = syntheticCounterStateSchemaV1.parse(
-        counter.owner.apply(snapshot.state.simulation.counter, proposal),
+        reduce(snapshot.state.simulation.counter, event),
       );
       const next = Object.freeze({
         state: Object.freeze({ simulation: Object.freeze({ counter: nextCounter }) }),
@@ -337,7 +288,7 @@ function createGameSimulation(): SyntheticGameSimulationV1 {
         commandSequence: parseNonNegativeSafeInteger(snapshot.commandSequence + 1),
         integrity: snapshot.integrity,
       });
-      return commitAttemptV1(snapshot, next, rng, proposal.facts);
+      return commitAttemptV1(snapshot, next, rng, [event]);
     },
   });
   const debugCommandExecutor: SyntheticDebugCommandExecutorV1 = Object.freeze({
@@ -358,7 +309,7 @@ function createGameSimulation(): SyntheticGameSimulationV1 {
     modules,
     stateSchema: syntheticGameStateSchemaV1,
     commandSchema,
-    factSchema: passthroughSchema<SyntheticCounterFactV1>(),
+    eventSchema: syntheticEventSchemaV1,
     rejectionSchema: passthroughSchema<SyntheticCounterRejectionV1>(),
     debugCommandSchema,
     debugValidationErrorSchema: passthroughSchema<SyntheticDebugValidationErrorV1>(),

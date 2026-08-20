@@ -59,10 +59,10 @@ API、静态检查、运行时边界、测试探针和跨引擎证据，但不�
 - `createBootstrapInput` 输出经过 Core canonical admission 和 deep-freeze 后，
   `createInitialState` 实际接收的 plain input；
 - GameCommand / DebugCommand 的规范化结果；
-- command executor、module `propose/apply`、invariant 与 authoritative Narrative
-  reducer；
+- command executor、module domain-event reducers、invariant 与 authoritative
+  Narrative reducer；
 - Snapshot state、RNG、command sequence 与 run integrity；
-- facts、rejections、stable fault evidence、RNG draw evidence；
+- domain events、rejections、stable fault evidence、RNG draw evidence；
 - Save migration；
 - 影响 replay 判断或 authoritative receipt 的字段。
 
@@ -747,7 +747,7 @@ receipt的跨 runtime equality仍须验证，以证明 migration结果和新 anc
   `committedRngBefore`、`attemptedDraws`、可选 `candidateRngAfter`、
   `committedRngAfter` 与已有 engine receipt fields。Standard Core 还对 Debug
   validation errors 按 index 使用既有 schema；low-level generic path 仍执行无条件
-  exact-shape + Strict Canonical Data gate。`facts`、`reasons`、`attemptedDraws` 与 Debug
+  exact-shape + Strict Canonical Data gate。`events`、`reasons`、`attemptedDraws` 与 Debug
   errors 各自只 capture 一次 own `length` data descriptor，并以该固定 length 做 extra-key /
   index validation；不得读取 Proxy virtual `get("length")`。所有准备完成后，对不含 Snapshot 的完整
   evidence candidate 做一次 `evidence_admission` canonical projection traversal；成功才
@@ -897,7 +897,7 @@ exactly-once terminate；realm 内不 restore 部分安装的 global。
 test-only driver 执行。每个 command 比较：
 
 - normalized input identity；
-- outcome kind 与 facts/reasons/fault；
+- outcome kind 与 events/reasons/fault；
 - committed RNG before/after、attempted draws 与 sequence；
 - pre/post Snapshot digest；
 - finalized CommandLog/replay evidence。
@@ -947,7 +947,7 @@ Snapshot、RNG 或 CommandLog。
 4. 通过 Deno/Chromium/Firefox/WebKit golden/parity evidence；
 5. Story 不直接 import library；由唯一 engine/tooling-owned adapter 封装。
 
-首选落点是 content compiler/authoring normalization。Snapshot、command、facts 与
+首选落点是 content compiler/authoring normalization。Snapshot、command、domain events 与
 Save 中不保存 Decimal instance；若未来 runtime 真需 Decimal，也必须先转换为已
 版本化的 plain canonical wire representation。
 

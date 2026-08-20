@@ -1086,7 +1086,7 @@ export const saveStateMigrationVectorExpectedV1: SaveStateMigrationDeterminismVe
           stateContractRevision: 3,
           stateContractDigest: expectedRevision3V1.stateContractDigest,
           bytesDigest: parseDigest(
-            "sha256:f40396978f6c721e147834546809770d368548efc604d8c446c0332df6bba795",
+            "sha256:40501b972311e8017c848b5b35c41a35f5477ebd86349eba860afae048c72441",
           ),
           stateDigest: parseDigest(
             "sha256:1679d8854ae96eb70009a1de3c8ff7106e67a1e93a29b7278beb4c3e034bca0b",
@@ -1115,7 +1115,7 @@ export const saveStateMigrationVectorExpectedV1: SaveStateMigrationDeterminismVe
           stateContractRevision: 4,
           stateContractDigest: expectedRevision4V1.stateContractDigest,
           bytesDigest: parseDigest(
-            "sha256:42573be3dca88e2e5262c9be7d38356056cba662211e7ff17b117563f6565534",
+            "sha256:5102ea13437a52339d560992bb5a69f110b3c980d53676cfae044c7130b66ee0",
           ),
           stateDigest: parseDigest(
             "sha256:6639e7ea42cb4aede04e423a7db75e5a95fc3fc113be005e3dd14a0284bc46a4",
@@ -1141,7 +1141,7 @@ export const saveStateMigrationVectorExpectedV1: SaveStateMigrationDeterminismVe
           stateContractRevision: 5,
           stateContractDigest: expectedRevision5V1.stateContractDigest,
           bytesDigest: parseDigest(
-            "sha256:e19a79e7c340349b75b89e1fe27d1ce3bfdff5fa72ded9df52260fa771e2f01d",
+            "sha256:0777542fbe7cf777a4ae81e5edc5e70cdd3ebe2425dfc85578cb4ffadb7ecccf",
           ),
           stateDigest: parseDigest(
             "sha256:db57e8ec50a820ac5edd2461b7867bbc175ca0d71ba6a8d92cc00da1e2b9b01e",
@@ -1169,7 +1169,7 @@ export const saveStateMigrationVectorExpectedV1: SaveStateMigrationDeterminismVe
             "sha256:a0f26c983c47fa89b599141ae3d2b8e7653a8cd32533152d17e440bcafc8dd26",
           ),
           bytesDigest: parseDigest(
-            "sha256:48630fdae6e7edcd69ce4384c9f8aa33ede0f624acf172eb674a01863d5c478a",
+            "sha256:5c5eb77ae42a964cb4a8925450e174399d2d70db761e17b865e9c03bcaa3e479",
           ),
           stateDigest: parseDigest(
             "sha256:d0a093896429c55e88c447ff90116af9d0362932d23710aace06c541faec41a3",

@@ -149,7 +149,7 @@ interface SnapshotTransactionCommandV1 {
   readonly kind: SnapshotTransactionSequenceCommandClassV1;
 }
 
-type SnapshotTransactionFactV1 =
+type SnapshotTransactionEventV1 =
   | {
     readonly kind: "snapshot_workload.audit_recorded";
     readonly count: number;
@@ -176,7 +176,7 @@ interface SnapshotTransactionTypesV1 extends
   > {
   readonly snapshot: SnapshotTransactionSnapshotV1;
   readonly command: SnapshotTransactionCommandV1;
-  readonly fact: SnapshotTransactionFactV1;
+  readonly event: SnapshotTransactionEventV1;
   readonly rejection: SnapshotTransactionRejectionV1;
   readonly fault: SnapshotTransactionFaultV1;
   readonly debugCommand: never;
@@ -188,7 +188,7 @@ interface SnapshotTransactionTypesV1 extends
 
 type SnapshotTransactionAttemptV1 = CommandExecutionAttemptEnvelopeV1<
   SnapshotTransactionSnapshotV1,
-  SnapshotTransactionFactV1,
+  SnapshotTransactionEventV1,
   SnapshotTransactionRejectionV1,
   SnapshotTransactionFaultV1,
   RngStateV1,
@@ -295,9 +295,10 @@ function targetEntityV1(
   return entity;
 }
 
-function updateEntityV1(
+function writeEntityValueV1(
   slice: DeepReadonly<SnapshotTransactionEntitySliceV1>,
   entityId: number,
+  value: number,
 ): SnapshotTransactionEntitySliceV1 {
   const chunkIndex = Math.floor(entityId / 1_000);
   const entityIndex = entityId % 1_000;
@@ -309,12 +310,35 @@ function updateEntityV1(
   const nextChunk = [...sourceChunk];
   nextChunk[entityIndex] = Object.freeze({
     entityId: sourceEntity.entityId,
-    value: parseNonNegativeSafeInteger(sourceEntity.value + 1),
+    value: parseNonNegativeSafeInteger(value),
   });
   const chunks = [...slice.chunks];
   chunks[chunkIndex] = Object.freeze(nextChunk);
   return Object.freeze({ chunks: Object.freeze(chunks) });
 }
+
+const snapshotTransactionEventSchemaV1: RuntimeSchemaV1<SnapshotTransactionEventV1> = Object
+  .freeze({
+    parse(value: unknown): SnapshotTransactionEventV1 {
+      if (!isPlainRecordV1(value)) {
+        throw new TypeError("invalid Snapshot transaction workload event");
+      }
+      if (value.kind === "snapshot_workload.audit_recorded") {
+        return Object.freeze({
+          kind: "snapshot_workload.audit_recorded" as const,
+          count: parseNonNegativeSafeInteger(value.count),
+        });
+      }
+      if (value.kind === "snapshot_workload.entity_updated") {
+        return Object.freeze({
+          kind: "snapshot_workload.entity_updated" as const,
+          entityId: parseNonNegativeSafeInteger(value.entityId),
+          value: parseNonNegativeSafeInteger(value.value),
+        });
+      }
+      throw new TypeError("invalid Snapshot transaction workload event kind");
+    },
+  });
 
 const kitV1 = createGameAuthoringKitV1<SnapshotTransactionTypesV1>();
 
@@ -326,35 +350,11 @@ const auditModuleV1 = kitV1.defineStatefulModule({
     schema: auditSliceSchemaV1,
     initial: () => Object.freeze({ crossOwnerCommitCount: 0 }),
   },
-  owner: {
-    operationSchema: Object.freeze({
-      parse(value: unknown) {
-        if (!isPlainRecordV1(value) || value.kind !== "record") {
-          throw new TypeError("invalid Snapshot transaction audit operation");
-        }
-        return Object.freeze({ kind: "record" as const });
-      },
-    }),
-    propose(state) {
-      const count = parseNonNegativeSafeInteger(state.crossOwnerCommitCount + 1);
-      return Object.freeze({
-        kind: "proposed" as const,
-        proposal: Object.freeze({
-          payload: Object.freeze({ kind: "record" as const }),
-          facts: Object.freeze([
-            Object.freeze({
-              kind: "snapshot_workload.audit_recorded" as const,
-              count,
-            }),
-          ]),
-        }),
-      });
-    },
-    apply(state) {
-      return Object.freeze({
-        crossOwnerCommitCount: parseNonNegativeSafeInteger(state.crossOwnerCommitCount + 1),
-      });
-    },
+  reducers: {
+    "snapshot_workload.audit_recorded": (_state, event) =>
+      Object.freeze({
+        crossOwnerCommitCount: parseNonNegativeSafeInteger(event.count),
+      }),
   },
 });
 
@@ -366,45 +366,16 @@ const entitiesModuleV1 = kitV1.defineStatefulModule({
     schema: entitySliceSchemaV1,
     initial: () => Object.freeze({ chunks: Object.freeze([]) }),
   },
-  owner: {
-    operationSchema: Object.freeze({
-      parse(value: unknown) {
-        if (!isPlainRecordV1(value)) {
-          throw new TypeError("invalid Snapshot transaction entity operation");
-        }
-        return Object.freeze({
-          entityId: parseNonNegativeSafeInteger(value.entityId),
-        });
-      },
-    }),
-    propose(state, operation) {
-      const entity = state.chunks[Math.floor(operation.entityId / 1_000)]
-        ?.[operation.entityId % 1_000];
-      if (entity === undefined) throw new TypeError("Snapshot transaction entity is missing");
-      const value = parseNonNegativeSafeInteger(entity.value + 1);
-      return Object.freeze({
-        kind: "proposed" as const,
-        proposal: Object.freeze({
-          payload: operation,
-          facts: Object.freeze([
-            Object.freeze({
-              kind: "snapshot_workload.entity_updated" as const,
-              entityId: entity.entityId,
-              value,
-            }),
-          ]),
-        }),
-      });
-    },
-    apply(state, proposal) {
-      return updateEntityV1(state, proposal.payload.entityId);
-    },
+  reducers: {
+    "snapshot_workload.entity_updated": (state, event) =>
+      writeEntityValueV1(state, event.entityId, event.value),
   },
 });
 
 const transactionCompositionV1 = kitV1.composeModules([entitiesModuleV1, auditModuleV1]);
 const transactionRunnerV1 = transactionCompositionV1.createTransactionRunner({
   stateSchema: stateSchemaV1,
+  eventSchema: snapshotTransactionEventSchemaV1,
   createFault: () => Object.freeze({ code: "snapshot_workload.faulted" as const }),
 });
 
@@ -449,7 +420,11 @@ function singleFieldAttemptV1(
 ): SnapshotTransactionAttemptV1 {
   const rng = createTransactionalRngV1(current.rng);
   const target = targetEntityV1(current.state.simulation.entities);
-  const entities = updateEntityV1(current.state.simulation.entities, target.entityId);
+  const entities = writeEntityValueV1(
+    current.state.simulation.entities,
+    target.entityId,
+    target.value + 1,
+  );
   const value = entities.chunks[Math.floor(target.entityId / 1_000)]?.[target.entityId % 1_000]
     ?.value;
   if (value === undefined) throw new TypeError("Snapshot transaction update disappeared");
@@ -493,10 +468,17 @@ function attemptV1(
   }
   const target = targetEntityV1(current.state.simulation.entities);
   return transactionRunnerV1.execute(current, rng, (transaction) => {
-    transaction.propose(entitiesModuleV1, {
+    transaction.emit({
+      kind: "snapshot_workload.entity_updated",
       entityId: parseNonNegativeSafeInteger(target.entityId),
+      value: parseNonNegativeSafeInteger(target.value + 1),
     });
-    transaction.propose(auditModuleV1, { kind: "record" });
+    transaction.emit({
+      kind: "snapshot_workload.audit_recorded",
+      count: parseNonNegativeSafeInteger(
+        current.state.simulation.audit.crossOwnerCommitCount + 1,
+      ),
+    });
     return transaction.complete();
   }) as SnapshotTransactionAttemptV1;
 }

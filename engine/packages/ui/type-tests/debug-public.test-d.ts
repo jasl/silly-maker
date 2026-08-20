@@ -87,8 +87,8 @@ export { StoryDebugDockV1 as ForbiddenRootStoryDebugDockV1 } from "@sillymaker/u
 export type { GameSnapshotEnvelopeV1 as ForbiddenSnapshotV1 } from "@sillymaker/ui/debug";
 // @ts-expect-error GameSession authority is not part of the neutral debug UI subpath
 export type { GameSessionV1 as ForbiddenGameSessionV1 } from "@sillymaker/ui/debug";
-// @ts-expect-error owner capabilities are not part of the neutral debug UI subpath
-export type { ModuleOwnerCapabilityV1 as ForbiddenOwnerV1 } from "@sillymaker/ui/debug";
+// @ts-expect-error module event reducers are not part of the neutral debug UI subpath
+export type { ModuleEventReducerMapV1 as ForbiddenReducersV1 } from "@sillymaker/ui/debug";
 // @ts-expect-error concrete Story commands never enter the neutral debug UI subpath
 export type { PocDebugCommandV1 as ForbiddenPocCommandV1 } from "@sillymaker/ui/debug";
 // @ts-expect-error concrete E2E state never enters the neutral debug UI subpath

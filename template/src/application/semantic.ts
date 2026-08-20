@@ -230,10 +230,12 @@ export const templateSemanticAdapterV1: CoreSemanticAdapterV1<
   invalidInvocationResult: () =>
     Object.freeze({ kind: "not_executed" as const, code: "validation_failed" as const }),
   // Presentation edge context (cue identity, accepted 2026-08-17): the
-  // stage facts carry the scene dispatches behind each commit's mutations;
+  // stage events carry the scene dispatches behind each commit's mutations;
   // the instance stamps them with the commit's revision/epoch and the
   // stage forwards them so per-cue bindings (motions, explicit cuts)
   // resolve by dispatching cue instead of edge tuple alone.
-  projectStageCueDispatches: (facts) =>
-    facts.flatMap((fact) => fact.kind === "template.stage_changed" ? fact.dispatches ?? [] : []),
+  projectStageCueDispatches: (events) =>
+    events.flatMap((event) =>
+      event.kind === "template.stage_changed" ? event.dispatches ?? [] : []
+    ),
 };

@@ -11,14 +11,14 @@ interface SnapshotWithCommandEvidenceV1 {
 }
 
 export interface FinalizedEvidencePolicyInternalV1<
-  TFact,
+  TEvent,
   TRejection,
   TRngState,
   TRngDrawTrace,
   TDebugValidationError,
 > {
   readonly validateCandidateSnapshot?: (value: unknown) => void;
-  readonly parseFact?: (value: unknown) => TFact;
+  readonly parseEvent?: (value: unknown) => TEvent;
   readonly parseRejection?: (value: unknown) => TRejection;
   readonly parseRngState?: (value: unknown) => TRngState;
   readonly parseRngDrawTrace?: (value: unknown) => TRngDrawTrace;
@@ -88,10 +88,10 @@ export function consumeSimulationEvidenceDeferralInternalV1(
   return true;
 }
 
-type AttemptV1<TSnapshot, TFact, TRejection, TFault, TRngState, TRngDrawTrace> =
+type AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace> =
   CommandExecutionAttemptEnvelopeV1<
     TSnapshot,
-    TFact,
+    TEvent,
     TRejection,
     TFault,
     TRngState,
@@ -100,12 +100,12 @@ type AttemptV1<TSnapshot, TFact, TRejection, TFault, TRngState, TRngDrawTrace> =
 
 type FinalizedAttemptV1<
   TSnapshot extends SnapshotWithCommandEvidenceV1,
-  TFact,
+  TEvent,
   TRejection,
   TFault,
   TRngState,
   TRngDrawTrace,
-> = DeepReadonly<AttemptV1<TSnapshot, TFact, TRejection, TFault, TRngState, TRngDrawTrace>> & {
+> = DeepReadonly<AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>> & {
   readonly preSnapshot: DeepReadonly<TSnapshot>;
   readonly preStateDigest: Digest;
   readonly postStateDigest: Digest;
@@ -267,7 +267,7 @@ function readAttemptPartsV1(candidate: unknown): {
 
 function prepareAttemptEvidenceV1<
   TSnapshot extends SnapshotWithCommandEvidenceV1,
-  TFact,
+  TEvent,
   TRejection,
   TFault,
   TRngState,
@@ -275,9 +275,9 @@ function prepareAttemptEvidenceV1<
   TDebugValidationError,
 >(
   before: DeepReadonly<TSnapshot>,
-  candidate: AttemptV1<TSnapshot, TFact, TRejection, TFault, TRngState, TRngDrawTrace>,
+  candidate: AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>,
   policy: FinalizedEvidencePolicyInternalV1<
-    TFact,
+    TEvent,
     TRejection,
     TRngState,
     TRngDrawTrace,
@@ -286,7 +286,7 @@ function prepareAttemptEvidenceV1<
   instrumentation?: SnapshotWorkInstrumentationV1,
   receipt?: Readonly<{ readonly preStateDigest: Digest; readonly postStateDigest: Digest }>,
   resultConstraint?: FinalizedEvidenceResultConstraintInternalV1,
-): DeepReadonly<AttemptV1<TSnapshot, TFact, TRejection, TFault, TRngState, TRngDrawTrace>> {
+): DeepReadonly<AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>> {
   const attempt = readAttemptPartsV1(candidate);
   const resultBase = captureExactRecordV1(
     attempt.result,
@@ -295,7 +295,7 @@ function prepareAttemptEvidenceV1<
       "kind",
       "snapshot",
     ],
-    ["facts", "reasons", "fault"],
+    ["events", "reasons", "fault"],
     "/result",
   );
   const kind = resultBase.kind?.value;
@@ -317,21 +317,21 @@ function prepareAttemptEvidenceV1<
   }
 
   let evidenceResult: Readonly<Record<string, unknown>>;
-  let result: AttemptV1<TSnapshot, TFact, TRejection, TFault, TRngState, TRngDrawTrace>["result"];
+  let result: AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>["result"];
   if (kind === "committed") {
     captureExactRecordV1(
       attempt.result,
       "Committed command result",
-      ["kind", "snapshot", "facts"],
+      ["kind", "snapshot", "events"],
       [],
       "/result",
     );
-    const facts = normalizeItemsV1<TFact>(
-      captureDenseArrayV1(resultBase.facts?.value, "/result/facts"),
-      policy.parseFact,
+    const events = normalizeItemsV1<TEvent>(
+      captureDenseArrayV1(resultBase.events?.value, "/result/events"),
+      policy.parseEvent,
     );
-    evidenceResult = { kind, facts };
-    result = { kind, snapshot, facts };
+    evidenceResult = { kind, events };
+    result = { kind, snapshot, events };
   } else if (kind === "rejected") {
     captureExactRecordV1(
       attempt.result,
@@ -409,7 +409,7 @@ function prepareAttemptEvidenceV1<
     result = {
       kind,
       snapshot,
-      facts: admittedEvidence.result.facts as readonly TFact[],
+      events: admittedEvidence.result.events as readonly TEvent[],
     };
   } else if (kind === "rejected") {
     result = {
@@ -428,13 +428,13 @@ function prepareAttemptEvidenceV1<
   return Object.freeze({
     result: Object.freeze(result),
     diagnostics: admittedEvidence.diagnostics,
-  }) as DeepReadonly<AttemptV1<TSnapshot, TFact, TRejection, TFault, TRngState, TRngDrawTrace>>;
+  }) as DeepReadonly<AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>>;
 }
 
 /** @internal Session/Simulation candidate admission; intentionally absent from package barrels. */
 export function admitCommandAttemptEvidenceInternalV1<
   TSnapshot extends SnapshotWithCommandEvidenceV1,
-  TFact,
+  TEvent,
   TRejection,
   TFault,
   TRngState,
@@ -442,9 +442,9 @@ export function admitCommandAttemptEvidenceInternalV1<
   TDebugValidationError = unknown,
 >(
   before: DeepReadonly<TSnapshot>,
-  candidate: AttemptV1<TSnapshot, TFact, TRejection, TFault, TRngState, TRngDrawTrace>,
+  candidate: AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>,
   policy: FinalizedEvidencePolicyInternalV1<
-    TFact,
+    TEvent,
     TRejection,
     TRngState,
     TRngDrawTrace,
@@ -452,7 +452,7 @@ export function admitCommandAttemptEvidenceInternalV1<
   > = {},
   instrumentation?: SnapshotWorkInstrumentationV1,
   resultConstraint?: FinalizedEvidenceResultConstraintInternalV1,
-): DeepReadonly<AttemptV1<TSnapshot, TFact, TRejection, TFault, TRngState, TRngDrawTrace>> {
+): DeepReadonly<AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>> {
   return prepareAttemptEvidenceV1(
     before,
     candidate,
@@ -544,7 +544,7 @@ export function captureFinalizedCommandAttemptResultKindInternalV1(
     descriptors.result?.value,
     "Finalized command result",
     ["kind", "snapshot"],
-    ["facts", "reasons", "fault"],
+    ["events", "reasons", "fault"],
     "/result",
   );
   return result.kind?.value;
@@ -574,7 +574,7 @@ export function withFinalizedEvidenceHandoffInternalV1<TResult>(
 /** @internal CommandLog admission with exact admitted-attempt one-shot Session reuse. */
 export function admitFinalizedCommandAttemptEvidenceInternalV1<
   TSnapshot extends SnapshotWithCommandEvidenceV1,
-  TFact,
+  TEvent,
   TRejection,
   TFault,
   TRngState,
@@ -582,14 +582,14 @@ export function admitFinalizedCommandAttemptEvidenceInternalV1<
 >(
   finalizedAttempt: FinalizedAttemptV1<
     TSnapshot,
-    TFact,
+    TEvent,
     TRejection,
     TFault,
     TRngState,
     TRngDrawTrace
   >,
   instrumentation?: SnapshotWorkInstrumentationV1,
-): FinalizedAttemptV1<TSnapshot, TFact, TRejection, TFault, TRngState, TRngDrawTrace> {
+): FinalizedAttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace> {
   const handoff = activeFinalizedEvidenceHandoffsV1.at(-1);
   if (handoff !== undefined && !handoff.consumed && handoff.attempt === finalizedAttempt) {
     handoff.consumed = true;
@@ -611,7 +611,7 @@ export function admitFinalizedCommandAttemptEvidenceInternalV1<
     {
       result: descriptors.result?.value,
       diagnostics: descriptors.diagnostics?.value,
-    } as AttemptV1<TSnapshot, TFact, TRejection, TFault, TRngState, TRngDrawTrace>,
+    } as AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>,
     {},
     instrumentation,
     Object.freeze({ preStateDigest, postStateDigest }),
@@ -621,5 +621,5 @@ export function admitFinalizedCommandAttemptEvidenceInternalV1<
     preSnapshot,
     preStateDigest,
     postStateDigest,
-  }) as FinalizedAttemptV1<TSnapshot, TFact, TRejection, TFault, TRngState, TRngDrawTrace>;
+  }) as FinalizedAttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>;
 }

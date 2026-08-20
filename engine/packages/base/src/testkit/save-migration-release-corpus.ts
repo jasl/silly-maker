@@ -63,7 +63,7 @@ export const saveMigrationReleaseCorpusV1: readonly SaveMigrationReleaseFixtureD
       stateContractDigest:
         "sha256:15b2ba494428229ab0354ed2e3668b56046a6c3f340569872d07f78db7193f64",
       byteLength: 2_163,
-      bytesDigest: "sha256:f40396978f6c721e147834546809770d368548efc604d8c446c0332df6bba795",
+      bytesDigest: "sha256:40501b972311e8017c848b5b35c41a35f5477ebd86349eba860afae048c72441",
     }),
     descriptorV1({
       id: "engine-lab-state-4",
@@ -73,7 +73,7 @@ export const saveMigrationReleaseCorpusV1: readonly SaveMigrationReleaseFixtureD
       stateContractDigest:
         "sha256:42d426e6fb95566cf38787ee1de8c32f853b1e3eb4a16003c05fbfb109408667",
       byteLength: 2_188,
-      bytesDigest: "sha256:42573be3dca88e2e5262c9be7d38356056cba662211e7ff17b117563f6565534",
+      bytesDigest: "sha256:5102ea13437a52339d560992bb5a69f110b3c980d53676cfae044c7130b66ee0",
     }),
     descriptorV1({
       id: "engine-lab-state-5",
@@ -83,7 +83,7 @@ export const saveMigrationReleaseCorpusV1: readonly SaveMigrationReleaseFixtureD
       stateContractDigest:
         "sha256:c6407d9e0b5bd4d93fbe6e54d61fc62f59d209892d71a663a70190a4970735e3",
       byteLength: 2_246,
-      bytesDigest: "sha256:e19a79e7c340349b75b89e1fe27d1ce3bfdff5fa72ded9df52260fa771e2f01d",
+      bytesDigest: "sha256:0777542fbe7cf777a4ae81e5edc5e70cdd3ebe2425dfc85578cb4ffadb7ecccf",
     }),
     descriptorV1({
       id: "cat-cafe-state-1",
@@ -93,7 +93,7 @@ export const saveMigrationReleaseCorpusV1: readonly SaveMigrationReleaseFixtureD
       stateContractDigest:
         "sha256:a0f26c983c47fa89b599141ae3d2b8e7653a8cd32533152d17e440bcafc8dd26",
       byteLength: 2_092,
-      bytesDigest: "sha256:48630fdae6e7edcd69ce4384c9f8aa33ede0f624acf172eb674a01863d5c478a",
+      bytesDigest: "sha256:5c5eb77ae42a964cb4a8925450e174399d2d70db761e17b865e9c03bcaa3e479",
     }),
   ]);
 

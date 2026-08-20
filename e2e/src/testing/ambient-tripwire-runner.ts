@@ -188,15 +188,15 @@ function validOutcomeV1(value: unknown, commandClass: string): boolean {
   if (!isRecordV1(value)) return false;
   if (commandClass === "no_draw_committed" || commandClass === "rng_committed") {
     if (
-      !hasExactKeysV1(value, ["kind", "facts"]) || value.kind !== "committed" ||
-      !Array.isArray(value.facts) || value.facts.length !== 1
+      !hasExactKeysV1(value, ["kind", "events"]) || value.kind !== "committed" ||
+      !Array.isArray(value.events) || value.events.length !== 1
     ) return false;
-    const fact = value.facts[0];
-    return hasExactKeysV1(fact, ["kind", "commandClass", "result"]) &&
-      fact.kind === "determinism.committed" && fact.commandClass === commandClass &&
+    const event = value.events[0];
+    return hasExactKeysV1(event, ["kind", "commandClass", "result"]) &&
+      event.kind === "determinism.committed" && event.commandClass === commandClass &&
       (commandClass === "no_draw_committed"
-        ? fact.result === null
-        : isNonnegativeSafeIntegerV1(fact.result));
+        ? event.result === null
+        : isNonnegativeSafeIntegerV1(event.result));
   }
   if (commandClass === "rejected") {
     return hasExactKeysV1(value, ["kind", "reasons"]) && value.kind === "rejected" &&

@@ -182,7 +182,7 @@ actual runtime identity.
 
 A `GameplayModuleDescriptorV1` declares a stable module ID, revision, owned
 State slots, and dependencies. Stateful modules provide schema, initial State,
-local queries, owner-scoped proposals/apply operations, and invariants.
+local queries, domain-event reducers over their own slice, and invariants.
 Stateless modules may provide named pure capabilities.
 
 `defineGameSimulation` combines the selected module tuple with aggregate schemas
@@ -241,7 +241,8 @@ behavior.
 Finalized attempt evidence has a separate package-internal admission boundary.
 After an executor returns, Standard Core captures the attempt envelope without
 invoking accessors, validates the candidate Snapshot RNG, then normalizes Story
-facts/rejections and Debug validation errors through their declared schemas.
+domain events/rejections and Debug validation errors through their declared
+schemas.
 Evidence collections capture their own array `length` data descriptor once and
 validate every represented index against that fixed length; a Proxy's virtual
 `get("length")` cannot truncate or expand the admitted vector.
@@ -273,14 +274,17 @@ The current validator checks unique State ownership and an acyclic module
 dependency graph. A Story's aggregate State should reflect the modules it
 actually composes; unused modules should not force placeholder State.
 
-The Game Authoring Kit transaction runner keeps proposal construction in the
-Story's explicit call order, then applies the completed staged owner vector by
-UTF-16 code-unit module-ID order. Each owner apply reads its command-start slice;
-the engine accumulates replacements and facts in that fixed order, validates the
-aggregate candidate, finalizes evidence, appends CommandLog, and only then
-installs/publishes a committed Snapshot. Authoritative replay runs the same
-executor/order. The comparator is package-internal and Host-locale-independent;
-it is not the Unicode code-point comparator used by canonical JSON keys.
+The Game Authoring Kit transaction runner journals `transaction.emit(event)`
+calls in the Story's explicit emission order (each event validated once against
+the Story's `eventSchema` at emit time). After `complete()`, the engine folds
+the journal: events replay in emission order, and within one event the
+subscribed module reducers run in UTF-16 code-unit module-ID order, each
+folding its own slice. The engine validates the aggregate candidate, finalizes
+evidence (the committed envelope carries the event journal), appends
+CommandLog, and only then installs/publishes a committed Snapshot.
+Authoritative replay runs the same executor/order. The comparator is
+package-internal and Host-locale-independent; it is not the Unicode code-point
+comparator used by canonical JSON keys.
 
 The authoritative runtime value is a `GameSnapshot`:
 
@@ -291,8 +295,8 @@ GameSnapshot = Gameplay State + serializable RNG state
 
 Gameplay State remains plain, versioned, schema-validated data. RNG is
 serializable and transaction-local so a rejected or faulted attempt cannot
-silently consume randomness. Command logs and emitted facts are diagnostic
-evidence, not a second source of State.
+silently consume randomness. Command logs and the emitted domain-event journal
+are diagnostic evidence, not a second source of State.
 
 The standard Core composition treats `xorshift32-v1` cursor zero as an invalid
 runtime state: numeric bootstrap seeds and restored Snapshot candidates are

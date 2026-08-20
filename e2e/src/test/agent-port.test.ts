@@ -150,7 +150,9 @@ describe("Engine Lab agent port", () => {
       committed,
       actions: agent.describeActions(),
     });
-    for (const forbidden of ["snapshot", "rng", "integrity", "commandSequence", "debug", "facts"]) {
+    for (
+      const forbidden of ["snapshot", "rng", "integrity", "commandSequence", "debug", "events"]
+    ) {
       expect(serialized).not.toContain(forbidden);
     }
     expect("inspectForTest" in agent).toBe(false);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Simulation kernel: shared command/fact/verdict types, schema helpers, and effect-row rules.
+// Simulation kernel: shared command/event/verdict types, schema helpers, and effect-row rules.
 // Feature slices (features/*) take shared shapes from here; aggregation in simulation.ts.
 import type {
   CommandExecutionAttemptEnvelopeV1,
@@ -18,14 +18,27 @@ import type {
   NarrativeHistory,
   PendingInteraction,
   SemanticStageState,
+  StageMutation,
 } from "@sillymaker/base/story";
 import {
   createGameAuthoringKit,
   parseInteractionOccurrenceId,
   parseInteractionResolution,
+  parseStageMutation,
 } from "@sillymaker/base/story";
 
-import type { CatcafeContestStateV1, CatcafeGameStateV1 } from "./state.ts";
+import type {
+  CatcafeCalendarStateV1,
+  CatcafeCatStateV1,
+  CatcafeContestStateV1,
+  CatcafeGameStateV1,
+  CatcafeShopStateV1,
+} from "./state.ts";
+import {
+  catcafeCalendarStateSchemaV1,
+  catcafeContestStateSchemaV1,
+  catcafeNarrativeStateSchemaV1,
+} from "./state.ts";
 import type { CatcafeNarrativeStateV1 } from "./features/dialogue/script.ts";
 
 export type CatcafeCommandV1 =
@@ -42,14 +55,28 @@ export type CatcafeCommandV1 =
     readonly resolution: InteractionResolution;
   };
 
-export type CatcafeFactV1 =
+/**
+ * The cafe's domain-event union: the only internal authoritative update
+ * channel. The `*_set` / `advanced` / `stage_changed` events fold module
+ * state; the broadcast events (slot/petted/contest/postgame/encounter/
+ * interaction) are journal-only evidence for UI/tests — no module reduces
+ * them.
+ */
+export type CatcafeEventV1 =
+  // ---- State-folding events (exactly one per stateful slice).
+  | { readonly kind: "cc.calendar_set"; readonly next: CatcafeCalendarStateV1 }
+  | { readonly kind: "cc.cat_set"; readonly next: CatcafeCatStateV1 }
+  | { readonly kind: "cc.shop_set"; readonly next: CatcafeShopStateV1 }
+  | { readonly kind: "cc.contest_set"; readonly next: CatcafeContestStateV1 | null }
+  | { readonly kind: "cc.narrative_advanced"; readonly next: CatcafeNarrativeStateV1 }
+  | { readonly kind: "cc.stage_changed"; readonly mutations: readonly StageMutation[] }
+  // ---- Journal-only broadcast events.
   | {
     readonly kind: "cc.slot_advanced";
     readonly week: number;
     readonly day: number;
     readonly slot: number;
   }
-  | { readonly kind: "cc.activity_done"; readonly activityId: string }
   | {
     readonly kind: "cc.petted";
     readonly zone: string;
@@ -73,7 +100,6 @@ export type CatcafeFactV1 =
     readonly textId: string | null;
     readonly explanation: EventPoolDrawExplanationV1;
   }
-  | { readonly kind: "cc.stage_changed"; readonly mutations: number }
   | {
     readonly kind: "cc.interaction_resolved";
     readonly definitionId: string;
@@ -174,7 +200,7 @@ export interface CatcafeSimulationTypesV1 extends
   readonly snapshot: GameSnapshotEnvelopeV1<CatcafeGameStateV1, RngStateV1>;
   readonly rngDrawTrace: RngDrawTraceV1;
   readonly command: CatcafeCommandV1;
-  readonly fact: CatcafeFactV1;
+  readonly event: CatcafeEventV1;
   readonly rejection: CatcafeRejectionV1;
   readonly fault: CatcafeFaultV1;
   readonly debugCommand: CatcafeDebugCommandV1;
@@ -187,7 +213,7 @@ export interface CatcafeSimulationTypesV1 extends
 export type CatcafeSnapshotV1 = CatcafeSimulationTypesV1["snapshot"];
 export type CatcafeAttemptV1 = CommandExecutionAttemptEnvelopeV1<
   CatcafeSnapshotV1,
-  CatcafeFactV1,
+  CatcafeEventV1,
   CatcafeRejectionV1,
   CatcafeFaultV1,
   RngStateV1,
@@ -199,20 +225,223 @@ export const kit = createGameAuthoringKit<CatcafeSimulationTypesV1>();
 export const clampV1 = (value: number, min: number, max: number): number =>
   Math.max(min, Math.min(max, value));
 
-export function operationSchemaV1<T>(label: string): RuntimeSchemaV1<T> {
-  return Object.freeze({
-    parse(value: unknown): T {
-      if (value === null || typeof value !== "object") {
-        throw new TypeError(`invalid catcafe ${label} operation`);
-      }
-      return value as T;
-    },
-  });
-}
-
 export function passthroughSchemaV1<T>(): RuntimeSchemaV1<T> {
   return Object.freeze({ parse: (value: unknown) => value as T });
 }
+
+function keysV1(record: Record<string, unknown>): string {
+  return Object.keys(record).toSorted().join("\u0000");
+}
+
+function parseIntegerV1(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value)) {
+    throw new TypeError(`invalid catcafe event: ${label} must be a safe integer`);
+  }
+  return value;
+}
+
+/**
+ * Runtime admission for the domain-event journal. Folding events with
+ * pre-clamp payloads (cat/shop) check field shape only — the reducers clamp;
+ * folding events that carry already-valid state (calendar/contest/narrative)
+ * reuse the slice schemas.
+ */
+export const catcafeEventSchemaV1: RuntimeSchemaV1<CatcafeEventV1> = Object.freeze({
+  parse(value: unknown): CatcafeEventV1 {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      throw new TypeError("invalid catcafe event");
+    }
+    const record = value as Record<string, unknown>;
+    switch (record.kind) {
+      case "cc.calendar_set": {
+        if (keysV1(record) !== "kind\u0000next") throw new TypeError("invalid cc.calendar_set");
+        return Object.freeze({
+          kind: record.kind,
+          next: catcafeCalendarStateSchemaV1.parse(record.next),
+        });
+      }
+      case "cc.cat_set": {
+        if (
+          keysV1(record) !== "kind\u0000next" || record.next === null ||
+          typeof record.next !== "object"
+        ) {
+          throw new TypeError("invalid cc.cat_set");
+        }
+        const next = record.next as Record<string, unknown>;
+        return Object.freeze({
+          kind: record.kind,
+          next: Object.freeze({
+            trust: parseIntegerV1(next.trust, "cat.trust"),
+            vigor: parseIntegerV1(next.vigor, "cat.vigor"),
+            skill: parseIntegerV1(next.skill, "cat.skill"),
+            fishBuff: parseIntegerV1(next.fishBuff, "cat.fishBuff"),
+            pettingLeft: parseIntegerV1(next.pettingLeft, "cat.pettingLeft"),
+          }),
+        });
+      }
+      case "cc.shop_set": {
+        if (
+          keysV1(record) !== "kind\u0000next" || record.next === null ||
+          typeof record.next !== "object"
+        ) {
+          throw new TypeError("invalid cc.shop_set");
+        }
+        const next = record.next as Record<string, unknown>;
+        if (next.epilogue !== null && typeof next.epilogue !== "string") {
+          throw new TypeError("invalid cc.shop_set epilogue");
+        }
+        return Object.freeze({
+          kind: record.kind,
+          next: Object.freeze({
+            reputation: parseIntegerV1(next.reputation, "shop.reputation"),
+            tidiness: parseIntegerV1(next.tidiness, "shop.tidiness"),
+            money: parseIntegerV1(next.money, "shop.money"),
+            trophies: parseIntegerV1(next.trophies, "shop.trophies"),
+            epilogue: next.epilogue,
+          }),
+        });
+      }
+      case "cc.contest_set": {
+        if (keysV1(record) !== "kind\u0000next") throw new TypeError("invalid cc.contest_set");
+        return Object.freeze({
+          kind: record.kind,
+          next: catcafeContestStateSchemaV1.parse(record.next),
+        });
+      }
+      case "cc.narrative_advanced": {
+        if (keysV1(record) !== "kind\u0000next") {
+          throw new TypeError("invalid cc.narrative_advanced");
+        }
+        return Object.freeze({
+          kind: record.kind,
+          next: catcafeNarrativeStateSchemaV1.parse(record.next),
+        });
+      }
+      case "cc.stage_changed": {
+        if (keysV1(record) !== "kind\u0000mutations" || !Array.isArray(record.mutations)) {
+          throw new TypeError("invalid cc.stage_changed");
+        }
+        return Object.freeze({
+          kind: record.kind,
+          mutations: Object.freeze(
+            record.mutations.map((mutation, index) =>
+              parseStageMutation(mutation, `/mutations/${String(index)}`)
+            ),
+          ),
+        });
+      }
+      case "cc.slot_advanced": {
+        if (keysV1(record) !== "day\u0000kind\u0000slot\u0000week") {
+          throw new TypeError("invalid cc.slot_advanced");
+        }
+        return Object.freeze({
+          kind: record.kind,
+          week: parseIntegerV1(record.week, "week"),
+          day: parseIntegerV1(record.day, "day"),
+          slot: parseIntegerV1(record.slot, "slot"),
+        });
+      }
+      case "cc.petted": {
+        if (
+          keysV1(record) !== "kind\u0000reactionId\u0000trustDelta\u0000zone" ||
+          typeof record.zone !== "string" || typeof record.reactionId !== "string"
+        ) {
+          throw new TypeError("invalid cc.petted");
+        }
+        return Object.freeze({
+          kind: record.kind,
+          zone: record.zone,
+          reactionId: record.reactionId,
+          trustDelta: parseIntegerV1(record.trustDelta, "trustDelta"),
+        });
+      }
+      case "cc.contest_started": {
+        if (keysV1(record) !== "kind\u0000rivalId" || typeof record.rivalId !== "string") {
+          throw new TypeError("invalid cc.contest_started");
+        }
+        return Object.freeze({ kind: record.kind, rivalId: record.rivalId });
+      }
+      case "cc.contest_resolved": {
+        if (
+          keysV1(record) !== "kind\u0000morale\u0000moveId\u0000rivalMorale" ||
+          typeof record.moveId !== "string"
+        ) {
+          throw new TypeError("invalid cc.contest_resolved");
+        }
+        return Object.freeze({
+          kind: record.kind,
+          moveId: record.moveId,
+          rivalMorale: parseIntegerV1(record.rivalMorale, "rivalMorale"),
+          morale: parseIntegerV1(record.morale, "morale"),
+        });
+      }
+      case "cc.contest_won": {
+        if (
+          keysV1(record) !== "albumId\u0000kind\u0000rivalId" ||
+          typeof record.rivalId !== "string" || typeof record.albumId !== "string"
+        ) {
+          throw new TypeError("invalid cc.contest_won");
+        }
+        return Object.freeze({
+          kind: record.kind,
+          rivalId: record.rivalId,
+          albumId: record.albumId,
+        });
+      }
+      case "cc.contest_lost": {
+        if (keysV1(record) !== "kind\u0000rivalId" || typeof record.rivalId !== "string") {
+          throw new TypeError("invalid cc.contest_lost");
+        }
+        return Object.freeze({ kind: record.kind, rivalId: record.rivalId });
+      }
+      case "cc.album_unlocked": {
+        if (keysV1(record) !== "albumId\u0000kind" || typeof record.albumId !== "string") {
+          throw new TypeError("invalid cc.album_unlocked");
+        }
+        return Object.freeze({ kind: record.kind, albumId: record.albumId });
+      }
+      case "cc.postgame_entered": {
+        if (keysV1(record) !== "ending\u0000kind" || typeof record.ending !== "string") {
+          throw new TypeError("invalid cc.postgame_entered");
+        }
+        return Object.freeze({ kind: record.kind, ending: record.ending });
+      }
+      case "cc.encounter": {
+        if (
+          keysV1(record) !== "encounterId\u0000explanation\u0000kind\u0000textId" ||
+          typeof record.encounterId !== "string" ||
+          (record.textId !== null && typeof record.textId !== "string") ||
+          record.explanation === null || typeof record.explanation !== "object"
+        ) {
+          throw new TypeError("invalid cc.encounter");
+        }
+        // The explanation is produced by the engine's own event-pool draw in
+        // the same commit; a structural check is sufficient at this boundary.
+        return Object.freeze({
+          kind: record.kind,
+          encounterId: record.encounterId,
+          textId: record.textId,
+          explanation: record.explanation as EventPoolDrawExplanationV1,
+        });
+      }
+      case "cc.interaction_resolved": {
+        if (
+          keysV1(record) !== "definitionId\u0000kind\u0000occurrenceId" ||
+          typeof record.definitionId !== "string" || typeof record.occurrenceId !== "string"
+        ) {
+          throw new TypeError("invalid cc.interaction_resolved");
+        }
+        return Object.freeze({
+          kind: record.kind,
+          definitionId: record.definitionId,
+          occurrenceId: record.occurrenceId,
+        });
+      }
+      default:
+        throw new TypeError("invalid catcafe event kind");
+    }
+  },
+});
 
 /** Apply content-table effect rows onto the cat/shop drafts; the activity path enables the fresh-fish special case. */
 export function applyStatEffectsV1(

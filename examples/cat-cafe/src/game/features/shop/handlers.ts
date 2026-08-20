@@ -3,11 +3,8 @@
 import type { CatcafeCommandHandlerMapV1 } from "../../runtime.ts";
 import { transactionRunnerV1 } from "../../runtime.ts";
 import { catcafeActivitiesV1, catcafeSlotsV1, catcafeStageForWeekV1 } from "../../content.ts";
-import type { CatcafeFactV1 } from "../../kernel.ts";
+import type { CatcafeEventV1 } from "../../kernel.ts";
 import { applyStatEffectsV1 } from "../../kernel.ts";
-import { shopModuleV1 } from "./module.ts";
-import { calendarModuleV1 } from "../calendar/module.ts";
-import { catModuleV1 } from "../cat/module.ts";
 import { drawCatcafeEncounterV1 } from "../encounters/draw.ts";
 
 export const shopCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.do_activity"> = Object
@@ -18,7 +15,7 @@ export const shopCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.do_acti
         if (state.narrative.phase !== "completed") {
           return transaction.reject({ code: "cc.narrative_busy" });
         }
-        // Rules read the content tables; effects write module state.
+        // Rules read the content tables; effects fold into module state via events.
         const activity = catcafeActivitiesV1.byId(command.activityId);
         if (activity === null) return transaction.reject({ code: "cc.activity_unknown" });
         const slotName = catcafeSlotsV1[state.calendar.slot];
@@ -37,17 +34,24 @@ export const shopCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.do_acti
         const shop = { ...state.shop };
         // Fresh-fish bonus: the next trust gain doubles and is consumed (activity path only).
         applyStatEffectsV1(cat, shop, activity.effects, { fishBuffDoublesTrust: true });
-        let encounterFacts: readonly CatcafeFactV1[] = Object.freeze([]);
+        let encounterEvents: readonly CatcafeEventV1[] = Object.freeze([]);
         if (activity.income === "business") {
           shop.money += 10 + Math.floor(state.shop.reputation / 10) +
             Math.floor(state.shop.tidiness / 20);
-          encounterFacts = drawCatcafeEncounterV1({ state, rng, cat, shop });
+          encounterEvents = drawCatcafeEncounterV1({ state, rng, cat, shop });
         }
         if (shop.money < 0) return transaction.reject({ code: "cc.money_short" });
 
-        transaction.propose(calendarModuleV1, { kind: "spend", stamina: activity.stamina });
-        transaction.propose(catModuleV1, { kind: "apply", ...cat, facts: encounterFacts });
-        transaction.propose(shopModuleV1, { kind: "apply", ...shop });
+        transaction.emit({
+          kind: "cc.calendar_set",
+          next: Object.freeze({
+            ...state.calendar,
+            stamina: state.calendar.stamina - activity.stamina,
+          }),
+        });
+        transaction.emit({ kind: "cc.cat_set", next: Object.freeze(cat) });
+        transaction.emit({ kind: "cc.shop_set", next: Object.freeze(shop) });
+        for (const event of encounterEvents) transaction.emit(event);
         return transaction.complete();
       }),
   });

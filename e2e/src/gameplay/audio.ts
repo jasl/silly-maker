@@ -2,7 +2,7 @@
 import type { AudioIntentV1, TransientEffectRequestV1 } from "@sillymaker/base";
 import { parseAudioIntentV1 } from "@sillymaker/base";
 
-import type { LabFactV1, LabQueriesV1 } from "./simulation.ts";
+import type { LabEventV1, LabQueriesV1 } from "./simulation.ts";
 import { labStageContentIdsV1, labStageTagsV1 } from "../stage-ids.ts";
 
 /**
@@ -77,13 +77,13 @@ export function projectLabAudioIntentV1(queries: LabQueriesV1): AudioIntentV1 {
   });
 }
 
-/** Commit-only SFX derived from committed facts; never stored anywhere. */
+/** Commit-only SFX derived from committed domain events; never stored anywhere. */
 export function projectLabTransientEffectsV1(
-  facts: readonly LabFactV1[],
+  events: readonly LabEventV1[],
 ): readonly TransientEffectRequestV1[] {
   const requests: TransientEffectRequestV1[] = [];
-  for (const fact of facts) {
-    if (fact.kind === "lab.sample_collected") {
+  for (const event of events) {
+    if (event.kind === "lab.sample_collected") {
       requests.push(
         Object.freeze({
           effectId: "audio.sfx",
@@ -91,7 +91,7 @@ export function projectLabTransientEffectsV1(
         }),
       );
     }
-    if (fact.kind === "lab.procedure_advanced" && fact.phase === "complete") {
+    if (event.kind === "lab.procedure_advanced" && event.phase === "complete") {
       requests.push(
         Object.freeze({
           effectId: "audio.sfx",
