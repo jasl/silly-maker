@@ -90,8 +90,17 @@ Read only the documents relevant to the change:
   rect-intersect-silhouette refinement is a recorded native improvement).
   The explicit defer is the multi-region activation payload for overlapping
   regions (topmost-wins is the V1 contract), gated on an audited real
-  consumer. There is no active lane (hold `when` closed 2026-08-21;
-  awaiting the owner's next order).
+  consumer. The active lane is mid-hold input writes (accepted 2026-08-22):
+  `docs/engine/proposals/mid-hold-input.md` and
+  `docs/engine/plans/2026-08-22-mid-hold-input.md` — claiming hold `when`'s
+  input-axis defer with zero new engine primitives (the session never gated
+  ordinary commands while a hold is pending; the lane pins the composition:
+  hit-region activation routes to an `expectedHoldOccurrenceId`-fenced
+  ordinary write command, and the hold's own `when` arms read the write at
+  the next fenced settlement's t=0). M0 is the Engine Lab input-granularity
+  conformance + docs; M1 is the experiment repo's CE18 mid-bar body-zone
+  live path. Regions never gain routing power; input commands never settle
+  time.
   Desktop persistence remains an independent promotion gate while the
   adapter is preview.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,

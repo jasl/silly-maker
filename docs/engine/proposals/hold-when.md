@@ -21,8 +21,9 @@ starter 脚本 hurry 演示。Engine Lab 锁两种粒度：vigil（自身 tick �
 触摸条三段 bar 挂 `shinyaException >= 2` 臂；`touch-tick` 格间效果与
 左手监视器折叠写夜域时同 commit 重算例外缓存，左手越格把睡眠深度压
 过觉醒线时该结算 t=0 切断，右手当格数字不落（实验仓刀 #325，全库
-720 例全绿）。q1（hold 中热区，输入轴）与第二条真中止路径（警戒抓
-包）仍 defer。
+720 例全绿）。第二条真中止路径（警戒抓包）仍 defer；q1（hold 中热
+区，输入轴）已由 [mid-hold-input](mid-hold-input.md) 车道认领
+（2026-08-22 所有者接受）。
 
 本文兑现 [authoritative-hold-clock](authoritative-hold-clock.md) q7：
 `hold_abort` 不是被 defer 的功能，而是**取消的动词**。中止不是 Host

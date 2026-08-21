@@ -20,8 +20,15 @@ plan；目标合同见[统一创作架构设计](../design/authoring-architectur
 
 ## 1. Current and next
 
-当前：无 active 车道（Hold When V1 于 2026-08-21 交付收口；等所有
-者下一道命令）。Desktop 持久化仍是独立晋级门。
+当前：[Mid-hold Input V1](2026-08-22-mid-hold-input.md)（提案
+[mid-hold-input](../proposals/mid-hold-input.md)，2026-08-22 所有者
+裁决接受，q1–q3 全按建议：组合而非原语、围栏留 Story 惯例、清除留
+Story 纪律）——认领 hold `when` 唯一输入轴 defer。零新引擎原语：
+勘探证实基座 dispatch 无 pending 门，输入轴 = 已交付合同的声明式组
+合（热区激活 → 应用路由 → `expectedHoldOccurrenceId` 围栏的普通写
+命令 → 该 hold 自身 `when` 臂下一围栏结算 t=0 读到并改道）。M0
+Engine Lab 输入粒度 conformance + 文档；M1 实验仓 CE18 条中途点身
+体活路径 + 收口。Desktop 持久化仍是独立晋级门。
 
 前一条：[Hold When V1](2026-08-21-hold-when.md)（提案
 [hold-when](../proposals/hold-when.md)，2026-08-21 所有者下令开启）
