@@ -649,6 +649,14 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
       const rng = createTransactionalRngV1(snapshot.rng);
       const state = snapshot.state.simulation;
 
+      // The command-start session counters hold `when` arms may read.
+      // Monitor crossings land as domain events after this command, so
+      // arms watching them surface at the next settlement's t=0 — the
+      // same granularity `activeWhen` has.
+      const holdSessionRead = Object.freeze({
+        collectorUnits: state.monitors.collectorUnits,
+      });
+
       const emitStage = (
         transaction: { emit(event: LabEventV1): void },
         mutations: readonly StageMutationV1[],
@@ -707,7 +715,11 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
           if (state.narrative.pending !== null) {
             return transaction.reject({ code: "lab.narrative_busy" });
           }
-          const run = runLabNarrativeUntilInteractionV1(entry(state.narrative), state.stage);
+          const run = runLabNarrativeUntilInteractionV1(
+            entry(state.narrative),
+            state.stage,
+            holdSessionRead,
+          );
           transaction.emit({ kind: "lab.narrative_advanced", next: run.narrative });
           const stageRejection = emitStage(transaction, run.stageMutations);
           if (stageRejection !== null) return transaction.reject({ code: stageRejection });
@@ -743,7 +755,11 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
             settleSessionTime(transaction, command.tick.elapsedMs);
             return transaction.complete();
           }
-          const continuation = labNarrativeAfterTimeTickV1(state.narrative, command.tick);
+          const continuation = labNarrativeAfterTimeTickV1(
+            state.narrative,
+            command.tick,
+            holdSessionRead,
+          );
           if (continuation.kind === "holding") {
             // A partial settlement decrements the authoritative remaining
             // milliseconds without consuming the pending boundary: the
@@ -752,14 +768,19 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
             settleSessionTime(transaction, command.tick.elapsedMs);
             return transaction.complete();
           }
-          // Expiry consumes the boundary: the script runs to the next
+          // Expiry — or a `when` arm cutting the hold at its matching
+          // instant — consumes the boundary: the script runs to the next
           // interaction inside the same commit.
           transaction.emit({
             kind: "lab.interaction_resolved",
             definitionId: outcome.hold.definitionId,
             occurrenceId: outcome.hold.occurrenceId,
           });
-          const run = runLabNarrativeUntilInteractionV1(continuation.narrative, state.stage);
+          const run = runLabNarrativeUntilInteractionV1(
+            continuation.narrative,
+            state.stage,
+            holdSessionRead,
+          );
           transaction.emit({ kind: "lab.narrative_advanced", next: run.narrative });
           settleSessionTime(transaction, command.tick.elapsedMs);
           const stageRejection = emitStage(transaction, run.stageMutations);
@@ -806,6 +827,7 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
           const run = runLabNarrativeUntilInteractionV1(
             labNarrativeAfterResolutionV1(state.narrative, command.resolution),
             state.stage,
+            holdSessionRead,
           );
           transaction.emit({ kind: "lab.narrative_advanced", next: run.narrative });
           if (

@@ -11,13 +11,12 @@ import type {
 } from "@sillymaker/base";
 import {
   appendNarrativeHistoryV1,
-  applyElapsedToHoldV1,
-  countThresholdCrossingsV1,
   emptyNarrativeHistoryV1,
   interactionOccurrenceIdV1,
   parsePendingInteractionV1,
   parseStageMutationV1,
   reduceStageMutationsV1,
+  settleHoldTimelineV1,
 } from "@sillymaker/base";
 
 import { labVoiceForSayV1 } from "./audio.ts";
@@ -78,6 +77,33 @@ export interface LabChoiceOptionV1 {
   readonly next: string;
 }
 
+/**
+ * What a hold `when` arm reads: the working narrative rapport (updated by
+ * the hold's own tick crossings inside the walk, so tick-driven arms cut
+ * at the exact crossing instant) plus the command-start session counters
+ * (monitor crossings land as domain events after the command, so
+ * monitor-driven arms surface at the next settlement's t=0 — the same
+ * granularity seam `activeWhen` already has).
+ */
+export interface LabHoldWhenContextV1 {
+  readonly rapport: number;
+  readonly collectorUnits: number;
+}
+
+export interface LabHoldWhenArmV1 {
+  /** Pure working-state predicate; first match wins in declared order. */
+  readonly matches: (context: LabHoldWhenContextV1) => boolean;
+  readonly next: string;
+}
+
+/**
+ * The command-start session counters a hold `when` arm may read, captured
+ * once per command by the simulation executor.
+ */
+export interface LabHoldSessionReadV1 {
+  readonly collectorUnits: number;
+}
+
 export type LabNarrativeNodeV1 =
   | {
     readonly kind: "say";
@@ -131,6 +157,15 @@ export type LabNarrativeNodeV1 =
      * the same millisecond sum — the E2 conformance canary.
      */
     readonly tick?: { readonly everyMs: number; readonly rapportPerTick: number };
+    /**
+     * Declared-condition reroute arms, evaluated on the hold's own
+     * occurrence timeline: at t=0 of every fenced settlement and again
+     * after each applied crossing. The first match truncates the hold at
+     * that instant — remaining milliseconds are discarded, never folded
+     * into a successor. At node entry a matching arm reroutes before the
+     * hold ever opens (no occurrence is spent).
+     */
+    readonly when?: readonly LabHoldWhenArmV1[];
     readonly next: string;
   }
   | {
@@ -189,6 +224,28 @@ export const labDrillChamberNodeIdV1 = "node.e2e.drill.chamber";
 export const labDrillDecisionDefinitionIdV1 = "interaction.e2e.drill-decision";
 export const labDrillReleaseChoiceIdV1 = "choice.e2e.drill.release";
 export const labDrillVentChoiceIdV1 = "choice.e2e.drill.vent";
+
+/**
+ * The hold `when` consumers: two drill paths locking the two declared
+ * predicate granularities.
+ *
+ * - The **vigil** hold's own tick effect raises rapport; its arm cuts at
+ *   the exact crossing instant that lifts rapport across the threshold —
+ *   the same-instant granularity. With enough rapport at entry the hold
+ *   never opens at all.
+ * - The **stakeout** hold watches the collector drip — session state a
+ *   monitor writes. Drips land as domain events after the settling
+ *   command, so the arm sees them at the next fenced settlement's t=0 —
+ *   the next-settlement granularity.
+ */
+export const labDrillVigilChoiceIdV1 = "choice.e2e.drill.vigil";
+export const labDrillStakeoutChoiceIdV1 = "choice.e2e.drill.stakeout";
+export const labDrillVigilNodeIdV1 = "node.e2e.drill.vigil";
+export const labDrillStakeoutNodeIdV1 = "node.e2e.drill.stakeout";
+export const labDrillVigilTickEveryMsV1 = 300;
+export const labDrillVigilDurationMsV1 = 800;
+export const labDrillVigilRapportThresholdV1 = 2;
+export const labDrillStakeoutDurationMsV1 = 1_500;
 
 export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
   {
@@ -484,7 +541,75 @@ export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
         consumesSamples: 0,
         next: "node.e2e.drill.result",
       },
+      {
+        choiceId: labDrillVigilChoiceIdV1,
+        textId: "text.e2e.lab.narrative.drill.vigil",
+        requiresSamples: 0,
+        consumesSamples: 0,
+        next: labDrillVigilNodeIdV1,
+      },
+      {
+        choiceId: labDrillStakeoutChoiceIdV1,
+        textId: "text.e2e.lab.narrative.drill.stakeout",
+        requiresSamples: 0,
+        consumesSamples: 0,
+        next: labDrillStakeoutNodeIdV1,
+      },
     ],
+  },
+  {
+    kind: "hold",
+    nodeId: labDrillVigilNodeIdV1,
+    definitionId: "interaction.e2e.drill-vigil",
+    seenRevision: 1,
+    durationMs: labDrillVigilDurationMsV1,
+    skippable: true,
+    // Crossings at 300ms and 600ms inside the 800ms watch, +1 rapport
+    // each. The arm reads the working rapport, so from a fresh session
+    // the second crossing reaches the threshold and cuts the hold at
+    // exactly 600ms (the last 200ms are discarded) — and a skip's
+    // remaining-milliseconds settlement walks through the same cut.
+    tick: { everyMs: labDrillVigilTickEveryMsV1, rapportPerTick: 1 },
+    when: [
+      {
+        matches: ({ rapport }) => rapport >= labDrillVigilRapportThresholdV1,
+        next: "node.e2e.drill.catch",
+      },
+    ],
+    next: "node.e2e.drill.quiet",
+  },
+  {
+    kind: "hold",
+    nodeId: labDrillStakeoutNodeIdV1,
+    definitionId: "interaction.e2e.drill-stakeout",
+    seenRevision: 1,
+    durationMs: labDrillStakeoutDurationMsV1,
+    skippable: false,
+    // No tick effect of its own: the arm watches the collector monitor's
+    // lifetime drip counter, which only moves between commands — the
+    // declared next-settlement granularity.
+    when: [
+      { matches: ({ collectorUnits }) => collectorUnits >= 1, next: "node.e2e.drill.catch" },
+    ],
+    next: "node.e2e.drill.quiet",
+  },
+  {
+    kind: "say",
+    nodeId: "node.e2e.drill.catch",
+    definitionId: "interaction.e2e.drill-catch",
+    seenRevision: 1,
+    speakerTextId: "text.e2e.lab.narrative.speaker.beta",
+    textId: "text.e2e.lab.narrative.drill.catch",
+    next: "node.e2e.drill.result",
+  },
+  {
+    kind: "say",
+    nodeId: "node.e2e.drill.quiet",
+    definitionId: "interaction.e2e.drill-quiet",
+    seenRevision: 1,
+    speakerTextId: "text.e2e.lab.narrative.speaker.alpha",
+    textId: "text.e2e.lab.narrative.drill.quiet",
+    next: "node.e2e.drill.result",
   },
   {
     kind: "say",
@@ -639,11 +764,14 @@ function pendingForNodeV1(node: LabNarrativeNodeV1, sequence: number): PendingIn
  * Executes pure nodes from the cursor until the next PendingInteraction or
  * the end of the script. Stage mutations are collected for the stage owner
  * and simultaneously applied to a local view so later nodes observe them.
- * Deterministic: same narrative state and stage produce the same result.
+ * A hold node whose `when` arm already matches at entry reroutes without
+ * opening the hold (no occurrence is spent). Deterministic: same
+ * narrative state, stage, and session read produce the same result.
  */
 export function runLabNarrativeUntilInteractionV1(
   narrative: LabNarrativeStateV1,
   stage: SemanticStageStateV1,
+  session: LabHoldSessionReadV1,
 ): LabNarrativeRunResultV1 {
   if (narrative.cursor === null) {
     throw new TypeError("e2e.narrative_cursor_missing");
@@ -676,6 +804,18 @@ export function runLabNarrativeUntilInteractionV1(
       }
       cursor = node.next;
       continue;
+    }
+    if (node.kind === "hold" && node.when !== undefined) {
+      const arm = node.when.find((candidate) =>
+        candidate.matches({
+          rapport: narrative.rapport,
+          collectorUnits: session.collectorUnits,
+        })
+      );
+      if (arm !== undefined) {
+        cursor = arm.next;
+        continue;
+      }
     }
     if (node.kind === "end") {
       return Object.freeze({
@@ -779,13 +919,18 @@ export function labNarrativeAfterResolutionV1(
  * The continuation of an accepted hold-scoped time tick: `holding` is a
  * partial settlement — the same occurrence stays pending with its
  * authoritative `remainingMs` decremented and the caller commits that
- * state without running the script; `advanced` means the hold expired and
- * the caller runs the script from the node's successor. The tick goes
- * through the shared `applyElapsedToHoldV1` arithmetic and settles the
- * node's declared tick effect by threshold crossings inside the same
- * commit, so partial and single-shot deliveries of the same millisecond
- * sum produce identical rapport. The tick's hold fence was already
- * checked by `evaluateTimeTickV1`.
+ * state without running the script; `advanced` means the boundary was
+ * consumed — by expiry, or by a `when` arm truncating the hold at its
+ * matching instant — and the caller runs the script from the
+ * continuation's cursor. The settlement walks the shared occurrence
+ * timeline: crossings apply in walk order (each one settles the node's
+ * declared tick effect), arms re-evaluate at t=0 and after every
+ * crossing, and the first match cuts the hold there — later
+ * crossings inside the same report never run and the discarded remainder
+ * is never folded anywhere. Partial and single-shot deliveries of the
+ * same millisecond sum produce identical rapport, cut instants, and
+ * terminal states. The tick's hold fence was already checked by
+ * `evaluateTimeTickV1`.
  */
 export type LabNarrativeTimeContinuationV1 =
   | { readonly kind: "advanced"; readonly narrative: LabNarrativeStateV1 }
@@ -794,6 +939,7 @@ export type LabNarrativeTimeContinuationV1 =
 export function labNarrativeAfterTimeTickV1(
   narrative: LabNarrativeStateV1,
   tick: TimeTickV1,
+  session: LabHoldSessionReadV1,
 ): LabNarrativeTimeContinuationV1 {
   const pending = narrative.pending;
   if (pending === null || pending.kind !== "hold" || narrative.cursor === null) {
@@ -803,27 +949,34 @@ export function labNarrativeAfterTimeTickV1(
   if (node.kind !== "hold") {
     throw new TypeError(`e2e.narrative_resolution_mismatch:${node.nodeId}`);
   }
-  const outcome = applyElapsedToHoldV1(pending, tick.elapsedMs);
   let rapport = narrative.rapport;
-  if (node.tick !== undefined) {
-    const afterRemainingMs = outcome.kind === "holding" ? outcome.pending.remainingMs : 0;
-    rapport += node.tick.rapportPerTick * countThresholdCrossingsV1({
-      fromMs: pending.totalMs - pending.remainingMs,
-      toMs: pending.totalMs - afterRemainingMs,
-      everyMs: node.tick.everyMs,
-    });
-  }
-  if (outcome.kind === "holding") {
+  const arms = node.when ?? [];
+  const settlement = settleHoldTimelineV1({
+    pending,
+    elapsedMs: tick.elapsedMs,
+    ...(node.tick !== undefined ? { tickEveryMs: node.tick.everyMs } : {}),
+    arms: arms.map((arm) => () => arm.matches({ rapport, collectorUnits: session.collectorUnits })),
+    onCrossing: (crossing) => {
+      if (crossing.kind === "tick" && node.tick !== undefined) {
+        rapport += node.tick.rapportPerTick;
+      }
+    },
+  });
+  if (settlement.kind === "holding") {
     return Object.freeze({
       kind: "holding" as const,
-      narrative: Object.freeze({ ...narrative, pending: outcome.pending, rapport }),
+      narrative: Object.freeze({ ...narrative, pending: settlement.pending, rapport }),
     });
+  }
+  const cursor = settlement.kind === "rerouted" ? arms[settlement.armIndex]?.next : node.next;
+  if (cursor === undefined) {
+    throw new TypeError(`e2e.narrative_hold_arm_missing:${node.nodeId}`);
   }
   return Object.freeze({
     kind: "advanced" as const,
     narrative: Object.freeze({
       phase: "active" as const,
-      cursor: node.next,
+      cursor,
       pending: null,
       sequence: narrative.sequence,
       calibration: narrative.calibration,

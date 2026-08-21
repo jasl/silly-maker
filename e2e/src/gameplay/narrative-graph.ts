@@ -89,6 +89,15 @@ function graphNodeForV1(node: LabNarrativeNodeV1): unknown {
         },
       };
     case "hold":
+      return {
+        ...base,
+        kind: "interaction",
+        // `when` arm targets first (declared evaluation order), then the
+        // expiry successor — the same order the runner cuts in.
+        successors: [...(node.when ?? []).map((arm) => arm.next), node.next],
+        interaction: { definitionId: node.definitionId, seenRevision: node.seenRevision },
+        dependencies: { textIds: [], assetIds: [], stageContentIds: [] },
+      };
     case "barrier":
     case "custom":
       return {
