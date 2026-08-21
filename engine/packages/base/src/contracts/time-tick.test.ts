@@ -4,21 +4,24 @@ import { describe, expect, it } from "vitest";
 import { canonicalJsonBytes } from "./canonical-json.ts";
 import { interactionOccurrenceIdV1, parsePendingInteractionV1 } from "./pending-interaction.ts";
 import type { HoldPendingInteractionV1 } from "./pending-interaction.ts";
+import type { HoldTimelineCrossingV1 } from "./time-tick.ts";
 import {
   applyElapsedToHoldV1,
   countThresholdCrossingsV1,
   evaluateTimeTickV1,
+  firstMatchingHoldArmV1,
   parseTimeTickV1,
+  settleHoldTimelineV1,
 } from "./time-tick.ts";
 
-function holdFixtureV1(sequence: number): HoldPendingInteractionV1 {
+function holdFixtureV1(sequence: number, totalMs = 1500): HoldPendingInteractionV1 {
   const pending = parsePendingInteractionV1({
     kind: "hold",
     definitionId: "interaction.test.commute-hold",
     seenRevision: 1,
     occurrenceId: interactionOccurrenceIdV1(sequence),
-    totalMs: 1500,
-    remainingMs: 1500,
+    totalMs,
+    remainingMs: totalMs,
     skippable: false,
   });
   if (pending.kind !== "hold") throw new Error("expected hold");
@@ -207,6 +210,210 @@ describe("TimeTickV1", () => {
       TypeError,
     );
     expect(() => countThresholdCrossingsV1({ fromMs: 0, toMs: 0.5, everyMs: 400 })).toThrow(
+      TypeError,
+    );
+  });
+});
+
+describe("settleHoldTimelineV1", () => {
+  /**
+   * The drip harness: a hold whose own tick effect increments a working
+   * counter, with one arm matching at a threshold — the alert-catch shape.
+   * Feeds the same hold through arbitrary batch splits and records every
+   * applied crossing instant plus the settlement trace.
+   */
+  function runDripBatches(input: {
+    readonly totalMs: number;
+    readonly everyMs: number;
+    readonly threshold: number;
+    readonly batches: readonly number[];
+  }) {
+    let pending: HoldPendingInteractionV1 | null = holdFixtureV1(21, input.totalMs);
+    let drip = 0;
+    let totalConsumedMs = 0;
+    const appliedAtMs: number[] = [];
+    const trace: string[] = [];
+    for (const elapsedMs of input.batches) {
+      if (pending === null) throw new Error("ticked past a terminal settlement");
+      const outcome = settleHoldTimelineV1({
+        pending,
+        elapsedMs,
+        tickEveryMs: input.everyMs,
+        arms: [() => drip >= input.threshold],
+        onCrossing: (crossing) => {
+          if (crossing.kind !== "tick") throw new Error("unexpected frame crossing");
+          drip += 1;
+          appliedAtMs.push(crossing.atMs);
+        },
+      });
+      totalConsumedMs += outcome.consumedMs;
+      if (outcome.kind === "holding") {
+        pending = outcome.pending;
+        trace.push(`holding:${String(outcome.pending.remainingMs)}`);
+      } else {
+        pending = null;
+        trace.push(
+          outcome.kind === "rerouted" ? `rerouted:${String(outcome.armIndex)}` : "expired",
+        );
+      }
+    }
+    return { drip, totalConsumedMs, appliedAtMs, trace, pending };
+  }
+
+  it("cuts at the crossing that flips the arm, for any batch split of the same sum", () => {
+    // The night-room shape: an 8000ms bar dripping every 1000ms, aborting
+    // once the counter reaches 2. The reroute instant, the applied
+    // crossings, and the terminal counter must not depend on batching.
+    const coarse = runDripBatches({ totalMs: 8000, everyMs: 1000, threshold: 2, batches: [8000] });
+    const paced = runDripBatches({
+      totalMs: 8000,
+      everyMs: 1000,
+      threshold: 2,
+      batches: [1000, 1000],
+    });
+    const uneven = runDripBatches({
+      totalMs: 8000,
+      everyMs: 1000,
+      threshold: 2,
+      batches: [1500, 6500],
+    });
+    for (const run of [coarse, paced, uneven]) {
+      expect(run.drip).toBe(2);
+      expect(run.totalConsumedMs).toBe(2000);
+      expect(run.appliedAtMs).toEqual([1000, 2000]);
+      expect(run.trace.at(-1)).toBe("rerouted:0");
+      expect(run.pending).toBeNull();
+    }
+    // Crossings past the cut never applied: 8000ms of timeline held 8
+    // potential drips, the cut kept exactly 2.
+    expect(coarse.drip).toBe(2);
+  });
+
+  it("keeps a skip fold from walking past the catch", () => {
+    // A skip is elapsedMs = remainingMs through the same rule: the fold
+    // reroutes at the true instant instead of applying every drip first.
+    const skip = runDripBatches({ totalMs: 8000, everyMs: 1000, threshold: 2, batches: [8000] });
+    expect(skip.trace).toEqual(["rerouted:0"]);
+    expect(skip.drip).toBe(2);
+    expect(skip.totalConsumedMs).toBe(2000);
+  });
+
+  it("reroutes at t=0 with zero consumption when an arm already matches", () => {
+    const pending = holdFixtureV1(22, 5000);
+    let crossings = 0;
+    const outcome = settleHoldTimelineV1({
+      pending,
+      elapsedMs: 5000,
+      tickEveryMs: 1000,
+      arms: [() => false, () => true],
+      onCrossing: () => {
+        crossings += 1;
+      },
+    });
+    expect(outcome).toEqual({ kind: "rerouted", armIndex: 1, consumedMs: 0 });
+    expect(crossings).toBe(0);
+  });
+
+  it("lets an arm matching on the final crossing win over expiry", () => {
+    // Expiry is "ran out of timeline unmatched": the crossing landing
+    // exactly on the expiry instant applies first and its match reroutes.
+    const run = runDripBatches({ totalMs: 3000, everyMs: 1000, threshold: 3, batches: [3000] });
+    expect(run.trace).toEqual(["rerouted:0"]);
+    expect(run.drip).toBe(3);
+    expect(run.totalConsumedMs).toBe(3000);
+  });
+
+  it("matches the plain fold and crossing arithmetic when no arm ever fires", () => {
+    const pending = holdFixtureV1(23);
+    const applied: number[] = [];
+    const partial = settleHoldTimelineV1({
+      pending,
+      elapsedMs: 500,
+      tickEveryMs: 400,
+      arms: [() => false],
+      onCrossing: (crossing) => {
+        applied.push(crossing.atMs);
+      },
+    });
+    if (partial.kind !== "holding") throw new Error("expected holding");
+    expect(partial.consumedMs).toBe(500);
+    expect(applied).toEqual([400]);
+    // Byte-identical pending to the plain fold: declaring arms that never
+    // match changes nothing about the Save shape.
+    const plain = applyElapsedToHoldV1(pending, 500);
+    if (plain.kind !== "holding") throw new Error("expected holding");
+    expect(canonicalJsonBytes(partial.pending)).toEqual(canonicalJsonBytes(plain.pending));
+    expect(partial.pending.occurrenceId).toBe(pending.occurrenceId);
+
+    // Overshoot clamps to the remainder and expires, like the plain fold.
+    const overshoot = settleHoldTimelineV1({
+      pending: partial.pending,
+      elapsedMs: 900_000,
+      tickEveryMs: 400,
+      onCrossing: (crossing) => {
+        applied.push(crossing.atMs);
+      },
+    });
+    expect(overshoot).toEqual({ kind: "expired", consumedMs: 1000 });
+    expect(applied).toEqual([400, 800, 1200]);
+    expect(
+      countThresholdCrossingsV1({ fromMs: 0, toMs: 1500, everyMs: 400 }),
+    ).toBe(applied.length);
+  });
+
+  it("walks tick and frame crossings in time order with tick-first ties", () => {
+    const pending = holdFixtureV1(24, 1000);
+    const walk: HoldTimelineCrossingV1[] = [];
+    const outcome = settleHoldTimelineV1({
+      pending,
+      elapsedMs: 1000,
+      tickEveryMs: 500,
+      // Declaration order differs from time order; a tie at 500 applies the
+      // tick effect first, then the frames in declaration order.
+      frameAtMs: [500, 250, 500],
+      onCrossing: (crossing) => {
+        walk.push(crossing);
+      },
+    });
+    expect(outcome).toEqual({ kind: "expired", consumedMs: 1000 });
+    expect(walk).toEqual([
+      { kind: "frame", atMs: 250, index: 1 },
+      { kind: "tick", atMs: 500 },
+      { kind: "frame", atMs: 500, index: 0 },
+      { kind: "frame", atMs: 500, index: 2 },
+      { kind: "tick", atMs: 1000 },
+    ]);
+
+    // A frame swap is a crossing like any other: an arm flipped by it cuts
+    // the walk at that instant.
+    let sawFrame = false;
+    const cut = settleHoldTimelineV1({
+      pending: holdFixtureV1(25, 1000),
+      elapsedMs: 1000,
+      tickEveryMs: 500,
+      frameAtMs: [500, 250, 500],
+      arms: [() => sawFrame],
+      onCrossing: (crossing) => {
+        if (crossing.kind === "frame" && crossing.index === 0) sawFrame = true;
+      },
+    });
+    expect(cut).toEqual({ kind: "rerouted", armIndex: 0, consumedMs: 500 });
+  });
+
+  it("shares the declaration-order first-match rule with entry checks", () => {
+    expect(firstMatchingHoldArmV1([])).toBeNull();
+    expect(firstMatchingHoldArmV1([() => false, () => false])).toBeNull();
+    expect(firstMatchingHoldArmV1([() => false, () => true, () => true])).toBe(1);
+  });
+
+  it("rejects invalid milliseconds and crossing declarations", () => {
+    const pending = holdFixtureV1(26);
+    expect(() => settleHoldTimelineV1({ pending, elapsedMs: 0 })).toThrow(TypeError);
+    expect(() => settleHoldTimelineV1({ pending, elapsedMs: 16.7 })).toThrow(TypeError);
+    expect(() => settleHoldTimelineV1({ pending, elapsedMs: 100, tickEveryMs: 0 })).toThrow(
+      TypeError,
+    );
+    expect(() => settleHoldTimelineV1({ pending, elapsedMs: 100, frameAtMs: [0] })).toThrow(
       TypeError,
     );
   });

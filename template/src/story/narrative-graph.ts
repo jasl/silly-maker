@@ -59,7 +59,8 @@ function graphNodeForV1(node: TemplateNarrativeNodeV1): unknown {
       return {
         ...base,
         kind: "interaction",
-        successors: [node.next],
+        // Reroute arms first (evaluation priority), then the expiry path.
+        successors: [...node.when.map((arm) => arm.next), node.next],
         interaction: { definitionId: node.definitionId, seenRevision: node.seenRevision },
         dependencies: { textIds: [], assetIds: [], stageContentIds: [] },
       };

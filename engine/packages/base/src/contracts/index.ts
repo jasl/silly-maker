@@ -496,10 +496,14 @@ export {
   applyElapsedToHoldV1,
   countThresholdCrossingsV1,
   evaluateTimeTickV1,
+  firstMatchingHoldArmV1,
   parseTimeTickV1,
+  settleHoldTimelineV1,
 } from "./time-tick.ts";
 export type {
   HoldSettlementV1,
+  HoldTimelineCrossingV1,
+  HoldTimelineSettlementV1,
   TimeTickOutcomeV1,
   TimeTickRejectionCodeV1,
   TimeTickV1,

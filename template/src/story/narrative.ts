@@ -11,11 +11,11 @@ import type {
 } from "@sillymaker/base/story";
 import {
   appendNarrativeHistory,
-  applyElapsedToHold,
   interactionOccurrenceId,
   emptyNarrativeHistory,
   parsePendingInteraction,
   reduceStageMutations,
+  settleHoldTimeline,
 } from "@sillymaker/base/story";
 
 import type {
@@ -43,7 +43,10 @@ export type { TemplateChoiceOptionV1, TemplateNarrativeNodeV1 } from "./narrativ
  * - `branch`  declarative flag routing; the last case may be the else arm.
  * - `hold`    holds the screen for an authoritative duration; expiry (or a
  *             skippable hold's fold) advances. Optional `ops` open a stage
- *             batch before the wait. Remaining time is authoritative State.
+ *             batch before the wait; optional `when` arms abort the wait
+ *             the instant a declared flag condition holds (evaluated at
+ *             open and at every hold-fenced settlement, first match wins).
+ *             Remaining time is authoritative State.
  * - `end`     finishes the narrative run.
  *
  * The Engine Lab (`e2e`) additionally demonstrates `barrier`
@@ -94,6 +97,8 @@ export const templateContentIdsV1 = Object.freeze({
 
 export const templateEntryNodeIdV1 = "node.template.opening";
 export const templateCatFlagV1 = "flag.template.cat_found";
+/** Set by the hurried option; the fetch hold's `when` arm reroutes on it. */
+export const templateHurriedFlagV1 = "flag.template.hurried";
 
 /** Scene short names the document's stage ops resolve against. */
 const templateSceneRegistryV1: Readonly<Record<string, TemplateSceneBindingV1>> = Object.freeze({
@@ -165,6 +170,15 @@ const templateOpeningDocV1: TemplateInteractionDocV1 = {
           setFlags: [templateCatFlagV1],
           next: "cat-line",
         },
+        {
+          // The hurried path proves the hold `when` arm: the flag set here
+          // reroutes the fetch hold at entry, so the off-frame wait never
+          // opens and the close-up line plays instead.
+          name: "hurry",
+          text: "小跑过去看个究竟",
+          setFlags: [templateCatFlagV1, templateHurriedFlagV1],
+          next: "cat-line",
+        },
         { name: "inside", text: "先回屋里", next: "inside-line" },
       ],
     },
@@ -204,8 +218,15 @@ const templateOpeningDocV1: TemplateInteractionDocV1 = {
       // the screen holds for an authoritative 600ms while she is off-frame;
       // remaining time is saveable State, so a mid-hold load resumes the
       // beat instead of replaying a wall clock.
+      //
+      // The `when` arm is the declared-condition abort: a player who
+      // hurried over is already at the eaves, so the wait reroutes to the
+      // close-up line the instant the condition holds — here at hold open,
+      // because the flag was set before the hold; a flag written mid-hold
+      // would cut the timeline at that instant instead.
       ops: [{ scene: "opening", cue: "meiFetches" }],
       durationMs: 600,
+      when: [{ when: { flag: templateHurriedFlagV1 }, next: "hurry-line" }],
       next: "fetch-line",
     },
     {
@@ -213,6 +234,13 @@ const templateOpeningDocV1: TemplateInteractionDocV1 = {
       name: "fetch-line",
       speaker: null,
       text: "她提起裙角小跑过去，屋檐的影子里传来一阵轻响。",
+      next: "mei-returns",
+    },
+    {
+      kind: "say",
+      name: "hurry-line",
+      speaker: null,
+      text: "你几乎和她同时到了檐下，正看见她把小猫从影子里捧出来。",
       next: "mei-returns",
     },
     {
@@ -428,6 +456,17 @@ export function runTemplateNarrativeUntilInteractionV1(
         stageDispatches: Object.freeze(collectedDispatches),
       });
     }
+    if (node.kind === "hold") {
+      // The entry check of the declared-condition arms: a predicate already
+      // true when the hold opens reroutes immediately against the
+      // in-transaction working state — the empty bar never opens.
+      // Declaration-order first match, the same rule the timeline walk uses.
+      const arm = node.when.find((candidate) => narrative.flags.includes(candidate.flag));
+      if (arm !== undefined) {
+        cursor = arm.next;
+        continue;
+      }
+    }
     sequence += 1;
     return Object.freeze({
       narrative: Object.freeze({
@@ -513,9 +552,11 @@ export function templateNarrativeAfterResolutionV1(
  * The continuation of an accepted hold-scoped time tick: `holding` is a
  * partial settlement — the same occurrence stays pending with its
  * authoritative `remainingMs` decremented and the caller commits that
- * state without running the script; `advanced` means the hold expired and
- * the caller runs the script from the node's successor. The tick goes
- * through the shared `applyElapsedToHold` arithmetic; its hold fence was
+ * state without running the script; `advanced` means the occurrence ended
+ * — expiry continues from the node's `next`, a matched `when` arm from
+ * that arm's `next` — and the caller runs the script from there. The tick
+ * goes through the shared `settleHoldTimeline` walk (a skip fold obeys
+ * the same rule and cannot step past a matching arm); its hold fence was
  * already checked by `evaluateTimeTick`.
  */
 export type TemplateNarrativeTimeContinuationV1 =
@@ -534,18 +575,33 @@ export function templateNarrativeAfterTimeTickV1(
   if (node.kind !== "hold") {
     throw new TypeError(`template.narrative_resolution_mismatch:${node.nodeId}`);
   }
-  const outcome = applyElapsedToHold(pending, tick.elapsedMs);
+  // Template holds declare no own tick effects or frame swaps, so the walk
+  // has no crossings: the arms are checked at t=0 (catching flags written
+  // since the previous settlement) and the remainder folds or expires.
+  const outcome = settleHoldTimeline({
+    pending,
+    elapsedMs: tick.elapsedMs,
+    arms: node.when.map((arm) => () => narrative.flags.includes(arm.flag)),
+  });
   if (outcome.kind === "holding") {
     return Object.freeze({
       kind: "holding" as const,
       narrative: Object.freeze({ ...narrative, pending: outcome.pending }),
     });
   }
+  let cursor = node.next;
+  if (outcome.kind === "rerouted") {
+    const arm = node.when[outcome.armIndex];
+    if (arm === undefined) {
+      throw new TypeError(`template.narrative_hold_arm_missing:${node.nodeId}`);
+    }
+    cursor = arm.next;
+  }
   return Object.freeze({
     kind: "advanced" as const,
     narrative: Object.freeze({
       phase: "active" as const,
-      cursor: node.next,
+      cursor,
       pending: null,
       sequence: narrative.sequence,
       flags: narrative.flags,

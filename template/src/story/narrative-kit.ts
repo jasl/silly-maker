@@ -93,6 +93,15 @@ export type TemplateNarrativeNodeV1 =
     readonly durationMs: number;
     /** Player input may fold the remaining wait into one tick. */
     readonly skippable: boolean;
+    /**
+     * Declared-condition reroute arms (the branch `when` vocabulary on the
+     * hold timeline): evaluated when the hold opens and at every
+     * hold-fenced time settlement, declaration-order first match wins. A
+     * match ends the occurrence at that instant and the runner continues
+     * from the arm's `next` in the same commit; no match keeps holding
+     * until expiry advances to `next`.
+     */
+    readonly when: readonly { readonly flag: string; readonly next: string }[];
     readonly next: string;
   }
   | { readonly kind: "end"; readonly nodeId: string };
@@ -169,6 +178,13 @@ export interface TemplateBranchBlockV1 {
   readonly cases: readonly TemplateBranchCaseV1[];
 }
 
+/** One declared-condition reroute arm on a hold block. */
+export interface TemplateHoldWhenArmV1 {
+  /** Same predicate vocabulary as a branch case; required (no else arm). */
+  readonly when: { readonly flag: string };
+  readonly next: string;
+}
+
 /**
  * An authoritative timed hold between two beats (the engine `hold`
  * interaction): the screen holds for `durationMs`, the Narrative Host
@@ -176,6 +192,11 @@ export interface TemplateBranchBlockV1 {
  * expiry advances to `next`. Remaining time lives in authoritative State,
  * so a mid-hold Save restores the wait instead of replaying a wall clock.
  * Ported MV `WAIT n` frame counts convert here: `round(n × 1000 / 60)`.
+ *
+ * Optional `when` arms abort the wait on a declared condition: the branch
+ * `when` vocabulary evaluated on the hold's occurrence timeline (at open
+ * and at every hold-fenced settlement), first match wins, no implicit
+ * else — else is "keep holding / expire to `next`".
  */
 export interface TemplateHoldBlockV1 {
   readonly kind: "hold";
@@ -190,6 +211,8 @@ export interface TemplateHoldBlockV1 {
    * silent flash). Jumps to this block land on the stage node.
    */
   readonly ops?: readonly TemplateStageOpV1[];
+  /** Declared-condition reroute arms; non-empty when present. */
+  readonly when?: readonly TemplateHoldWhenArmV1[];
   /** Override the derived `interaction.<prefix>.<name>`. */
   readonly definitionId?: string;
   readonly seenRevision?: number;
@@ -590,6 +613,16 @@ export function compileTemplateInteractionDocV1(
         if (!Number.isSafeInteger(block.durationMs) || block.durationMs < 1) {
           failV1(doc, block.name, "hold_duration_invalid");
         }
+        if (block.when !== undefined && block.when.length === 0) {
+          failV1(doc, block.name, "hold_when_empty");
+        }
+        const whenArms = (block.when ?? []).map((arm, index) => {
+          const at = `${block.name}/when-${String(index)}`;
+          if (typeof arm.when.flag !== "string" || arm.when.flag.length === 0) {
+            failV1(doc, at, "hold_when_flag_invalid");
+          }
+          return Object.freeze({ flag: arm.when.flag, next: resolveNext(at, arm.next) });
+        });
         if (holdOpsBlocks.has(block.name)) {
           const stageName = `${block.name}-stage`;
           const stageId = nodeId(stageName);
@@ -626,6 +659,7 @@ export function compileTemplateInteractionDocV1(
           seenRevision: block.seenRevision ?? 1,
           durationMs: block.durationMs,
           skippable: block.skippable ?? false,
+          when: Object.freeze(whenArms),
           next: resolveNext(block.name, block.next),
         }));
         graphNodes.push(Object.freeze({
@@ -638,6 +672,16 @@ export function compileTemplateInteractionDocV1(
           }`,
           source,
         }));
+        // Reroute edges first (declaration order is evaluation priority),
+        // then the expiry edge.
+        for (const [index, arm] of (block.when ?? []).entries()) {
+          edge(
+            `${block.name}/when-${String(index)}`,
+            id,
+            arm.next,
+            Object.freeze({ kind: "branch" as const, condition: `when ${arm.when.flag}` }),
+          );
+        }
         edge(block.name, id, block.next, Object.freeze({ kind: "next" as const }));
         break;
       }
