@@ -20,7 +20,14 @@ plan；目标合同见[统一创作架构设计](../design/authoring-architectur
 
 ## 1. Current and next
 
-当前：无 active 车道；下一条由所有者排序。
+当前：[Hold When V1](2026-08-21-hold-when.md)（提案
+[hold-when](../proposals/hold-when.md)，2026-08-21 所有者下令开启）
+——认领权威持有钟 M3 唯一显式 defer：hold 块声明条件改道。Host 仍
+只报 `TimeTickV1`；围栏 tick 在折 remaining + tick/`frames` 穿越 +
+监视器 settle 之后评 branch 词汇 `when`，命中则本 commit 结束
+occurrence 并改道。入场也评一次。hold 中热区（输入轴）显式 defer。
+第一活路径：Engine Lab 穿越改道 + 实验仓警戒抓包或深夜房条中途觉
+醒/厌恶。
 
 前一条：[命中区形状车道](2026-08-21-shaped-hit-regions.md)（提案
 [shaped-hit-regions](../proposals/shaped-hit-regions.md) 2026-08-21 所有

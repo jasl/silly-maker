@@ -5,8 +5,9 @@
 （毫秒单位、无独立到期、不设无根据上限、首消费者无偏好且不加新 demo、
 不 bump revision），再对 q1/q7 提出正交性质询；本文按质询收敛——**归
 并删除 `pause`、取消 `hold_abort` 动词**——随整案一并被接受。交付后
-唯一未领词汇是块声明条件改道（`when`），等第一条真实中止路径（交付记
-录与 flush 形态裁定见计划 §3 M3）。切片顺序与验收由
+唯一未领词汇曾是块声明条件改道（`when`），等第一条真实中止路径。
+2026-08-21 该 defer 由 [hold-when 车道](hold-when.md) 认领（计划
+[2026-08-21-hold-when](../plans/2026-08-21-hold-when.md)）。切片顺序与验收由
 [Authoritative Hold Clock V1 计划](../plans/2026-08-19-authoritative-hold-clock.md)
 拥有；[production-floor sequence](../plans/2026-07-30-production-floor-sequence.md)
 仍是唯一跨计划排序入口。

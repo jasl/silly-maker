@@ -156,8 +156,8 @@ VN 惯例的加速（按住 Ctrl 二倍速）不是 Host 时间源的副作用�
 - `Date.now()` / rAF 进 State、Save、digest。
 - 逐帧命令成为推荐用法（quantum 分批纪律沿用）。
 - 把 ambient 装饰循环或热区输入迁到监视器上。
-- 监视器路由叙事（改写 pending / 跳段）。中止改道仍是 hold `when` 的
-  defer 词汇，等第一条真实路径。
+- 监视器路由叙事（改写 pending / 跳段）。中止改道是 hold `when` 的词
+  汇，2026-08-21 由 [hold-when](hold-when.md) 认领。
 
 ## 追加方向 A：领域事件与事件日志（2026-08-20 所有者）
 

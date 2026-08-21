@@ -41,9 +41,13 @@ Read only the documents relevant to the change:
   pending interaction driven by elapsed milliseconds — originally the
   `hold_tick` verb, since unified into `TimeTickV1`; `pause`/`resume`
   merged into `hold` and deleted; `tickQuantumMs` partial commits and
-  batch-invariant threshold-crossing tick effects/frame swaps). The only
-  explicit defer is declared-condition rerouting on hold blocks, gated on a
-  first real aborting path. The parallel-monitors lane (accepted and
+  batch-invariant threshold-crossing tick effects/frame swaps). The
+  declared-condition reroute defer is now the active lane:
+  `docs/engine/proposals/hold-when.md` and
+  `docs/engine/plans/2026-08-21-hold-when.md` (owner-ordered 2026-08-21
+  after the experiment repo finished the zero-contract STORY leftovers;
+  first live abort paths are the alert catch and the night-room mid-bar
+  wake/disgust). The parallel-monitors lane (accepted and
   delivered 2026-08-20) completed M0–M5 the same day:
   `docs/engine/plans/2026-08-20-parallel-monitors.md` with its contract in
   `docs/engine/proposals/parallel-monitors.md` — the single session-level
@@ -79,7 +83,8 @@ Read only the documents relevant to the change:
   rect-intersect-silhouette refinement is a recorded native improvement).
   The explicit defer is the multi-region activation payload for overlapping
   regions (topmost-wins is the V1 contract), gated on an audited real
-  consumer. No lane is currently open; the owner orders the next one.
+  consumer. The active lane is hold `when`
+  (`docs/engine/plans/2026-08-21-hold-when.md`).
   Desktop persistence remains an independent promotion gate while the
   adapter is preview.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,

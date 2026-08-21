@@ -7,7 +7,8 @@
   `soak-wait` 活路径与持有中 Save/load 测试）、M3（部分 tick 帧刷
   新、`tickQuantumMs` 量子提交、阈值穿越滴与换帧，Lab + 实验仓滴路径双
   消费者）均已交付；唯一显式 defer 是 hold 块声明条件改道（复用 branch
-  `when`），等第一条真实需要中止/改道的活路径再领（见 §3 M3 记录）。案
+  `when`），已于 2026-08-21 由
+  [hold-when 车道](2026-08-21-hold-when.md) 认领（见 §3 M3 记录）。案
   文、正交性收敛（归并删除 `pause`、无 `hold_abort` 动词）与裁决记录见
   [authoritative-hold-clock 提案](../proposals/authoritative-hold-clock.md)。
   本文只拥有实现切片顺序、admission 落地与验收；
@@ -122,9 +123,9 @@
   debounce/pagehide 策略持久化最近权威 commit。声明量子即声明持久化粒
   度，避免在 pagehide 里塞一条与命令队列竞争的同步权威提交。
 - **声明条件改道 defer**：两个已领消费者（Lab 滴、实验仓滴+换帧）都
-  不需要中止/改道，按「证据够再领」不预铺 `when` 词汇；第一条真实需要
-  条件中止的活路径（如警戒抓包改道）出现时按提案 q7 的推导式中止落
-  地。
+  不需要中止/改道，按「证据够再领」不预铺 `when` 词汇。2026-08-21 第
+  一条真实中止路径已出现（实验仓警戒抓包 / 深夜房条中途觉醒），由
+  [hold-when 车道](2026-08-21-hold-when.md) 按提案 q7 落地。
 - **消费者证据**：Lab `cal-hold` 声明每 500ms +1 rapport，
   `{500,500,500}` ≡ `{1500}` 终态单测锁定；实验仓滴活路径 15s 持有、
   `tickQuantumMs` 5000、每 5s 权威 +1、5s 阈值换帧与滴同 commit、亚阈
