@@ -64,6 +64,52 @@ describe("createSessionTimeReporterV1", () => {
     expect(dispatch.mock.calls).toEqual([[250]]);
   });
 
+  it("drops a stalled span and re-anchors instead of delivering one giant tick", () => {
+    const clock = createManualPresentationClockV1();
+    const dispatch = vi.fn(() => true);
+    const reporter = createSessionTimeReporterV1({ clock, quantumMs: 100, dispatch });
+    reporter.setEnabled(true);
+
+    // Just below the default threshold (max(5000, 4×quantum)) still reports.
+    clock.advance(4_999);
+    expect(dispatch.mock.calls).toEqual([[4999]]);
+
+    // An at-threshold span means the clock was suspended (occluded window,
+    // OS sleep, main-thread stall): dropped entirely, anchor moves to now.
+    clock.advance(5_000);
+    expect(dispatch.mock.calls).toEqual([[4999]]);
+
+    // Reporting resumes at the normal cadence from the new anchor.
+    clock.advance(100);
+    expect(dispatch.mock.calls).toEqual([[4999], [100]]);
+    reporter.dispose();
+  });
+
+  it("honors an explicit stall threshold and validates it against the quantum", () => {
+    const clock = createManualPresentationClockV1();
+    const dispatch = vi.fn(() => true);
+    for (const bad of [50, 100, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() =>
+        createSessionTimeReporterV1({ clock, quantumMs: 100, stallThresholdMs: bad, dispatch })
+      ).toThrow(TypeError);
+    }
+
+    const reporter = createSessionTimeReporterV1({
+      clock,
+      quantumMs: 100,
+      stallThresholdMs: 1_000,
+      dispatch,
+    });
+    reporter.setEnabled(true);
+    clock.advance(999);
+    expect(dispatch.mock.calls).toEqual([[999]]);
+    clock.advance(1_000);
+    expect(dispatch.mock.calls).toEqual([[999]]);
+    clock.advance(100);
+    expect(dispatch.mock.calls).toEqual([[999], [100]]);
+    reporter.dispose();
+  });
+
   it("ignores a redundant enable instead of re-anchoring", () => {
     const clock = createManualPresentationClockV1();
     const dispatch = vi.fn(() => true);

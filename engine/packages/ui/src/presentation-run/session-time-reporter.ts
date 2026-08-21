@@ -20,6 +20,13 @@ import type { PresentationClockV1 } from "./presentation-clock.ts";
  * passes while reporting is off (gate closed, document hidden) is never
  * reported.
  *
+ * A span that reaches the stall threshold gets the same treatment: the
+ * clock was effectively suspended over it (an occluded window whose
+ * animation frames stopped without a visibility change, OS sleep, a long
+ * main-thread block), so the reporter drops the span and re-anchors instead
+ * of delivering one giant tick that would fan out into thousands of monitor
+ * threshold crossings inside a single commit.
+ *
  * A rejected dispatch latches the reporter faulted: session time is
  * unconditionally admissible, so a rejection means the story's time command
  * is miswired, and re-reporting every quantum would only spam the command
@@ -46,6 +53,14 @@ export function createSessionTimeReporterV1(input: {
    */
   readonly quantumMs: number;
   /**
+   * Suspension bound in scaled milliseconds: a span that accumulates to at
+   * least this much between ticks was not observed at reporting cadence, so
+   * it is dropped and the reporter re-anchors at the current instant — the
+   * same semantics as the gate closing over that span. Must be a finite
+   * number greater than quantumMs; defaults to max(5000, 4 × quantumMs).
+   */
+  readonly stallThresholdMs?: number;
+  /**
    * Deliver one unfenced session time report. Returns whether the dispatch
    * was accepted; `false` latches the reporter faulted.
    */
@@ -56,7 +71,16 @@ export function createSessionTimeReporterV1(input: {
   if (!Number.isFinite(input.quantumMs) || input.quantumMs < 1) {
     throw new TypeError("session time reporter quantumMs must be a finite number >= 1");
   }
+  if (
+    input.stallThresholdMs !== undefined &&
+    (!Number.isFinite(input.stallThresholdMs) || input.stallThresholdMs <= input.quantumMs)
+  ) {
+    throw new TypeError(
+      "session time reporter stallThresholdMs must be a finite number greater than quantumMs",
+    );
+  }
   const { clock, quantumMs, dispatch } = input;
+  const stallThresholdMs = input.stallThresholdMs ?? Math.max(5_000, quantumMs * 4);
   let enabled = false;
   let faulted = false;
   let disposed = false;
@@ -74,6 +98,13 @@ export function createSessionTimeReporterV1(input: {
     cancelTick = null;
     if (!enabled || faulted || disposed) return;
     const elapsed = now - anchor;
+    if (elapsed >= stallThresholdMs) {
+      // Suspension: this span was never observed at reporting cadence, so
+      // it never enters authority — mirror the gate-close semantics.
+      anchor = now;
+      cancelTick = clock.requestTick(step);
+      return;
+    }
     if (elapsed >= quantumMs) {
       const wholeMs = Math.floor(elapsed);
       // Advance the anchor by exactly the reported amount so fractional
