@@ -203,6 +203,52 @@ describe("Engine Lab hold `when` arms", () => {
     await harness.dispose();
   });
 
+  it("keeps vigil tick progress across save/load mid-hold and cuts at the same instant", async () => {
+    const harness = await createLabHarnessV1();
+    await chooseDrillPathV1(harness, labDrillVigilChoiceIdV1);
+    const hold = pendingV1(harness);
+    expect(hold.kind).toBe("hold");
+
+    // One applied crossing: rapport 1 at 300ms, 500ms of bar left.
+    await committed(harness, fencedTimeV1(hold.occurrenceId, 300));
+    expect(rapportV1(harness)).toBe(1);
+    expect(pendingV1(harness)).toMatchObject({ kind: "hold", remainingMs: 500 });
+
+    // Save mid-bar, then let the live run diverge through the cut.
+    await expect(harness.saves.save("quick")).resolves.toMatchObject({ kind: "saved" });
+    await committed(harness, fencedTimeV1(hold.occurrenceId, 500));
+    expect(pendingV1(harness)).toMatchObject({
+      kind: "say",
+      definitionId: "interaction.e2e.drill-catch",
+    });
+    expect(rapportV1(harness)).toBe(2);
+    const divergedState = harness.admin.inspectForTest().snapshot.state;
+
+    // Load restores the mid-flight bar as plain state — one applied
+    // crossing, 500ms remaining, no wall clock replayed.
+    await expect(harness.saves.load("quick")).resolves.toMatchObject({ kind: "loaded" });
+    expect(pendingV1(harness)).toMatchObject({
+      kind: "hold",
+      occurrenceId: hold.occurrenceId,
+      remainingMs: 500,
+    });
+    expect(rapportV1(harness)).toBe(1);
+
+    // The loaded timeline continues from the restored instant: the next
+    // crossing lands 300ms in (600ms on the hold's own timeline), the arm
+    // matches there, and the cut discards the rest — converging on the
+    // exact state the uninterrupted run reached.
+    await committed(harness, fencedTimeV1(hold.occurrenceId, 500));
+    expect(pendingV1(harness)).toMatchObject({
+      kind: "say",
+      definitionId: "interaction.e2e.drill-catch",
+    });
+    expect(rapportV1(harness)).toBe(2);
+    expect(harness.admin.inspectForTest().snapshot.state).toEqual(divergedState);
+
+    await harness.dispose();
+  });
+
   it("expires the stakeout to the quiet line when the arm never matches", async () => {
     const harness = await createLabHarnessV1();
     await chooseDrillPathV1(harness, labDrillStakeoutChoiceIdV1);

@@ -175,6 +175,60 @@ describe("Engine Lab core application", () => {
     await application.dispose();
   });
 
+  it("counts monitor time commits toward the span bound and re-enters with their progress", async () => {
+    const spy = autoCurrentSpyV1();
+    const application = await createLabApplicationInstanceV1({ records: spy.records });
+
+    // Engage the collector: its activeWhen is pending-independent, so the
+    // reporting gate stays open while the presentation barrier is pending.
+    await application.semantic.dispatch(
+      Object.freeze({ kind: "invoke" as const, actionId: "lab.toggle_collector" as const }),
+    );
+    for (let i = 0; i < 3; i += 1) {
+      await application.semantic.dispatch(collectV1);
+    }
+    await application.semantic.dispatch(beginCalibrationV1);
+    const barrier = await advanceToBarrierV1(application);
+    await application.autoSaveIdle();
+    const writesBeforeTicks = spy.writes.length;
+
+    // The real pacing inside the 400ms crossfade: four 100ms unfenced
+    // reporter ticks. Every one commits inside the in-flight span (well
+    // under the declared 8-commit bound, so the inhibit never forfeits),
+    // the collector crosses its 250ms cadence once, and autosave stays
+    // deferred at the pre-span record the whole time.
+    for (let i = 0; i < 4; i += 1) {
+      await expect(
+        application.semantic.dispatch(
+          Object.freeze({ kind: "time" as const, tick: Object.freeze({ elapsedMs: 100 }) }),
+        ),
+      ).resolves.toMatchObject({ kind: "committed" });
+    }
+    await application.autoSaveIdle();
+    expect(application.semantic.observe().game.monitors.collectorUnits).toBe(1);
+    expect(spy.writes.length).toBe(writesBeforeTicks);
+    const preSpan = await spy.readAutoCurrent();
+    expect(preSpan?.snapshot.state.simulation.narrative.pending?.kind).toBe("choice");
+
+    // Completing the transition closes the span: the resumed autosave
+    // carries the monitor progress that committed inside it.
+    await application.semantic.dispatch(
+      resolveV1(barrier.occurrenceId, {
+        kind: "barrier_completed",
+        transitionId: barrier.expectedTransitionId,
+      }),
+    );
+    await application.autoSaveIdle();
+    expect(spy.writes.length).toBe(writesBeforeTicks + 1);
+    const postSpan = await spy.readAutoCurrent();
+    expect(postSpan?.snapshot.state.simulation.narrative.pending?.kind).toBe("hold");
+    await expect(application.persistence.load("auto.current")).resolves.toMatchObject({
+      kind: "loaded",
+    });
+    expect(application.semantic.observe().game.monitors.collectorUnits).toBe(1);
+    await application.dispose();
+  });
+
   it("supports a deterministic debounced autosave policy end to end", async () => {
     const flushes: (() => void)[] = [];
     const records = createMemoryHostRecordStoreV1();
