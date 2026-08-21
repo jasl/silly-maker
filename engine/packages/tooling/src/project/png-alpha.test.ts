@@ -74,13 +74,26 @@ interface EncodePngInputV1 {
   readonly height: number;
   readonly colorType: number;
   readonly bitDepth?: number;
-  /** Raw sample bytes, row-major, already in channel layout. */
+  /**
+   * Raw sample bytes, row-major, already in channel layout. For sub-byte
+   * palettes this is one index per pixel; the encoder packs the bits.
+   */
   readonly pixels: Uint8Array;
   readonly transparency?: readonly number[];
   readonly filters?: readonly number[];
   readonly interlace?: number;
   /** Splits the compressed stream across this many IDAT chunks. */
   readonly idatParts?: number;
+}
+
+/** Packs one row of palette indices into `bitDepth`-bit big-endian groups. */
+function packIndicesV1(indices: Uint8Array, bitDepth: number): Uint8Array {
+  const packed = new Uint8Array(Math.ceil((indices.length * bitDepth) / 8));
+  indices.forEach((index, pixel) => {
+    const bitOffset = pixel * bitDepth;
+    packed[bitOffset >> 3] |= index << (8 - bitDepth - (bitOffset & 7));
+  });
+  return packed;
 }
 
 async function encodePngV1(input: EncodePngInputV1): Promise<Uint8Array> {
@@ -92,13 +105,17 @@ async function encodePngV1(input: EncodePngInputV1): Promise<Uint8Array> {
     : input.colorType === 2
     ? 3
     : 1;
+  const packedPalette = input.colorType === 3 && bitDepth < 8;
   const bytesPerPixel = channels * (bitDepth === 16 ? 2 : 1);
-  const rowBytes = input.width * bytesPerPixel;
+  const sourceRowBytes = packedPalette ? input.width : input.width * bytesPerPixel;
   const filtered: number[] = [];
   let previous: Uint8Array | null = null;
   for (let row = 0; row < input.height; row += 1) {
-    const line = input.pixels.subarray(row * rowBytes, (row + 1) * rowBytes);
-    filtered.push(...filterRowV1(input.filters?.[row] ?? 0, line, previous, bytesPerPixel));
+    const source = input.pixels.subarray(row * sourceRowBytes, (row + 1) * sourceRowBytes);
+    const line = packedPalette ? packIndicesV1(source, bitDepth) : source;
+    filtered.push(
+      ...filterRowV1(input.filters?.[row] ?? 0, line, previous, packedPalette ? 1 : bytesPerPixel),
+    );
     previous = line;
   }
   const compressed = await deflateV1(new Uint8Array(filtered));
@@ -204,9 +221,45 @@ describe("decodePngAlphaV1", () => {
     expect([...(await decodePngAlphaV1(png)).alpha]).toEqual([0, 130, 255]);
   });
 
+  it("unpacks 4-bit palette indices across filtered rows and padding nibbles", async () => {
+    // Width 3 leaves a padding nibble per row; filters 1/2 run on the packed
+    // bytes with a one-byte step (the spec's bpp for sub-byte depths).
+    const indices = [0, 1, 2, 2, 0, 1];
+    const png = await encodePngV1({
+      width: 3,
+      height: 2,
+      colorType: 3,
+      bitDepth: 4,
+      pixels: new Uint8Array(indices),
+      transparency: [10, 20, 30],
+      filters: [1, 2],
+    });
+    expect([...(await decodePngAlphaV1(png)).alpha]).toEqual([10, 20, 30, 30, 10, 20]);
+  });
+
+  it("unpacks 1-bit palette indices past a byte boundary (legacy judgment art)", async () => {
+    const indices = [0, 1, 0, 1, 1, 0, 1, 0, 1, 1];
+    const png = await encodePngV1({
+      width: 10,
+      height: 1,
+      colorType: 3,
+      bitDepth: 1,
+      pixels: new Uint8Array(indices),
+      transparency: [0, 255],
+    });
+    expect([...(await decodePngAlphaV1(png)).alpha]).toEqual(
+      indices.map((index) => index === 0 ? 0 : 255),
+    );
+  });
+
   it.each(
     [
       ["palette without tRNS", { colorType: 3, pixels: new Uint8Array([0]) }, "alpha_missing"],
+      [
+        "a 16-bit palette",
+        { colorType: 3, bitDepth: 16, pixels: new Uint8Array([0, 0]) },
+        "palette_depth_unsupported",
+      ],
       [
         "opaque truecolor",
         { colorType: 2, pixels: new Uint8Array([1, 2, 3]) },

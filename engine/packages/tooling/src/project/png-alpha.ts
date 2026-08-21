@@ -9,8 +9,9 @@ import { AuthoringDiagnosticErrorV1, createDiagnosticV1 } from "@sillymaker/base
  * structured diagnostic on every rejection. Color channels are ignored.
  *
  * Supported: 8/16-bit RGBA (color type 6), 8/16-bit gray+alpha (4), and
- * 8-bit palette (3) with a tRNS alpha table. Everything else — interlaced
- * images, alpha-less color types, sub-byte palettes — fails fast with a
+ * 1/2/4/8-bit palette (3) with a tRNS alpha table (legacy judgment art is
+ * canonically tiny-palette, so sub-byte indices are first-class). Everything
+ * else — interlaced images, alpha-less color types — fails fast with a
  * reason; converting the source image is the author's one-time fix.
  */
 
@@ -83,10 +84,10 @@ function parseHeaderV1(data: Uint8Array): PngHeaderV1 {
       pngFailureV1("bit_depth_unsupported", `PNG bit depth ${String(bitDepth)} is not supported`);
     }
   } else if (colorType === 3) {
-    if (bitDepth !== 8) {
+    if (bitDepth !== 1 && bitDepth !== 2 && bitDepth !== 4 && bitDepth !== 8) {
       pngFailureV1(
         "palette_depth_unsupported",
-        "only 8-bit palette PNGs are supported; re-export with 8-bit indices",
+        `PNG palette bit depth ${String(bitDepth)} is not supported (expected 1, 2, 4, or 8)`,
       );
     }
   } else {
@@ -182,14 +183,17 @@ function paethV1(a: number, b: number, c: number): number {
   return pb <= pc ? b : c;
 }
 
-/** Reverses PNG scanline filters in place; returns rows without filter bytes. */
+/**
+ * Reverses PNG scanline filters; returns rows without filter bytes.
+ * `filterStep` is the spec's bpp — bytes per complete pixel rounded up to
+ * one, so sub-byte palette rows filter with a one-byte left reference.
+ */
 function unfilterV1(
   raw: Uint8Array,
-  width: number,
+  rowBytes: number,
   height: number,
-  bytesPerPixel: number,
+  filterStep: number,
 ): Uint8Array {
-  const rowBytes = width * bytesPerPixel;
   const out = new Uint8Array(rowBytes * height);
   for (let row = 0; row < height; row += 1) {
     const filter = raw[row * (rowBytes + 1)]!;
@@ -198,11 +202,9 @@ function unfilterV1(
     const previous = target - rowBytes;
     if (filter > 4) pngFailureV1("filter_invalid", `PNG scanline filter ${String(filter)} invalid`);
     for (let column = 0; column < rowBytes; column += 1) {
-      const left = column >= bytesPerPixel ? out[target + column - bytesPerPixel]! : 0;
+      const left = column >= filterStep ? out[target + column - filterStep]! : 0;
       const up = row > 0 ? out[previous + column]! : 0;
-      const upLeft = row > 0 && column >= bytesPerPixel
-        ? out[previous + column - bytesPerPixel]!
-        : 0;
+      const upLeft = row > 0 && column >= filterStep ? out[previous + column - filterStep]! : 0;
       const value = source[column]!;
       out[target + column] = filter === 0
         ? value
@@ -228,8 +230,11 @@ export async function decodePngAlphaV1(bytes: Uint8Array): Promise<PngAlphaImage
   const { width, height, bitDepth, colorType } = header;
   const channels = colorType === 6 ? 4 : colorType === 4 ? 2 : 1;
   const bytesPerPixel = channels * (bitDepth === 16 ? 2 : 1);
-  const raw = await inflateV1(idat, height * (1 + width * bytesPerPixel));
-  const pixels = unfilterV1(raw, width, height, bytesPerPixel);
+  // Palette rows pack `bitDepth`-bit indices and pad to a byte boundary;
+  // the other color types stay whole bytes per pixel.
+  const rowBytes = colorType === 3 ? Math.ceil((width * bitDepth) / 8) : width * bytesPerPixel;
+  const raw = await inflateV1(idat, height * (1 + rowBytes));
+  const pixels = unfilterV1(raw, rowBytes, height, colorType === 3 ? 1 : bytesPerPixel);
   const alpha = new Uint8Array(width * height);
   if (colorType === 3) {
     if (transparency === null) {
@@ -238,9 +243,17 @@ export async function decodePngAlphaV1(bytes: Uint8Array): Promise<PngAlphaImage
         "palette PNG has no tRNS chunk; a silhouette trace needs per-pixel alpha",
       );
     }
-    for (let index = 0; index < alpha.length; index += 1) {
-      const paletteIndex = pixels[index]!;
-      alpha[index] = paletteIndex < transparency.length ? transparency[paletteIndex]! : 255;
+    const indexMask = (1 << bitDepth) - 1;
+    for (let row = 0; row < height; row += 1) {
+      for (let column = 0; column < width; column += 1) {
+        const bitOffset = column * bitDepth;
+        const byte = pixels[row * rowBytes + (bitOffset >> 3)]!;
+        // Leftmost pixel sits in the high bits (PNG packs big-endian).
+        const paletteIndex = (byte >> (8 - bitDepth - (bitOffset & 7))) & indexMask;
+        alpha[row * width + column] = paletteIndex < transparency.length
+          ? transparency[paletteIndex]!
+          : 255;
+      }
     }
   } else {
     // Alpha is the last channel; for 16-bit samples the high byte suffices.
