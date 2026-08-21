@@ -38,6 +38,15 @@ import { useOptionalGameViewportV1 } from "../viewport/game-viewport.tsx";
 export interface SemanticStageEntryRendererInputV1 {
   readonly layerId: StageLayerIdV1;
   readonly entry: StageRenderEntryV1;
+  /**
+   * The sampled `frame` channel (authorable-frame-set, accepted
+   * 2026-08-21): an index into `entry.frameAssetIds`, already clamped by
+   * the host; null when no motion/ambient frame track drives this entry or
+   * the content declares no frame set. Presentation data only — renderers
+   * showing `frameAssetIds[frameIndex]` must fall back to their default
+   * art on null.
+   */
+  readonly frameIndex: number | null;
 }
 
 export type SemanticStageEntryRendererV1 = (input: SemanticStageEntryRendererInputV1) => ReactNode;
@@ -166,12 +175,20 @@ function layerStyleV1(layer: StageFrameLayerV1): CSSProperties {
   };
 }
 
+/** The in-flight one-shot motion sample of an entry; undefined otherwise. */
+function motionSampleV1(frameEntry: StageFrameEntryV1): MotionSampleV1 | undefined {
+  const { transitionKind, progress, motion } = frameEntry;
+  if (transitionKind !== "motion" || motion === null) return undefined;
+  return sampleMotionAtV1(motion, progress * motionTotalDurationMsV1(motion));
+}
+
 function entryStyleV1(
   frameEntry: StageFrameEntryV1,
   channels: ReadonlyMap<TimelinePropertyV1, number> | undefined,
   ambientSample: MotionSampleV1 | undefined,
+  motionSample: MotionSampleV1 | undefined,
 ): CSSProperties {
-  const { entry, phase, transitionKind, progress, slide, fromPlacement, motion } = frameEntry;
+  const { entry, phase, transitionKind, progress, slide, fromPlacement } = frameEntry;
   let x = entry.placement.x;
   let y = entry.placement.y;
   let scale = permilleV1(entry.placement.scalePermille);
@@ -193,16 +210,15 @@ function entryStyleV1(
       y += slide.y * displacement;
       opacity *= phase === "exiting" ? 1 - progress : progress;
     }
-  } else if (transitionKind === "motion" && motion !== null) {
+  } else if (motionSample !== undefined) {
     // Motion keyframes own the whole envelope (including exit fades): the
     // run progress is linear, per-segment easing lives in the asset, and
     // the sampled values compose over the settled placement exactly like a
     // timeline overlay — offsets add, permille channels multiply.
-    const sample = sampleMotionAtV1(motion, progress * motionTotalDurationMsV1(motion));
-    x += sample.offsetX;
-    y += sample.offsetY;
-    scale *= permilleV1(sample.scalePermille);
-    opacity *= permilleV1(sample.opacityPermille);
+    x += motionSample.offsetX;
+    y += motionSample.offsetY;
+    scale *= permilleV1(motionSample.scalePermille);
+    opacity *= permilleV1(motionSample.opacityPermille);
   } else if (phase === "exiting") {
     opacity *= 1 - progress;
   }
@@ -267,14 +283,27 @@ function StageEntryV1(props: {
   const { entry, phase } = frameEntry;
   const exiting = phase === "exiting";
   const ambientLooping = props.ambientSample !== undefined && phase === "settled";
+  const motionSample = motionSampleV1(frameEntry);
+  // The frame channel: an in-flight one-shot motion owns the entry's frame
+  // override; a settled entry reads its ambient loop. The host clamps to
+  // the declared frame set so renderers can trust the index.
+  const rawFrameIndex = motionSample !== undefined
+    ? motionSample.frameIndex
+    : ambientLooping
+    ? (props.ambientSample?.frameIndex ?? null)
+    : null;
+  const frameIndex = rawFrameIndex === null || entry.frameAssetIds.length === 0
+    ? null
+    : Math.min(rawFrameIndex, entry.frameAssetIds.length - 1);
   return (
     <div
       className={styles.entry}
-      style={entryStyleV1(frameEntry, props.overlayChannels, props.ambientSample)}
+      style={entryStyleV1(frameEntry, props.overlayChannels, props.ambientSample, motionSample)}
       role={exiting ? undefined : "img"}
       aria-label={exiting ? undefined : entry.accessibleName}
       aria-hidden={exiting ? true : undefined}
       data-stage-phase={phase}
+      data-stage-frame={frameIndex === null ? undefined : String(frameIndex)}
       data-stage-ambient={ambientLooping ? "true" : undefined}
       {...(exiting
         ? { "data-stage-exiting": "true", "data-stage-exiting-key": entry.key }
@@ -286,7 +315,7 @@ function StageEntryV1(props: {
       {(() => {
         const content = renderer === undefined
           ? <div className={styles.fallback}>{entry.accessibleName}</div>
-          : renderer({ layerId, entry });
+          : renderer({ layerId, entry, frameIndex });
         return entry.geometry === undefined
           ? content
           : (

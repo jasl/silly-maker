@@ -10,9 +10,11 @@ import { dataFailure, readArray, readExactRecord } from "./presentation-data.ts"
  * Motions are presentation-only. They animate integer overlay channels
  * relative to the settled placement (the layout authority): offsets add to
  * the placement position, permille channels multiply the placement scale and
- * opacity, and when the owning run finishes the overlay clears back to the
- * settled rendering. Motion data never enters authoritative gameplay State,
- * Saves, digests, CommandLog, or replay.
+ * opacity, the stepped `frame` channel selects an index into the content's
+ * declared frame set (authorable-frame-set proposal, accepted 2026-08-21),
+ * and when the owning run finishes the overlay clears back to the settled
+ * rendering. Motion data never enters authoritative gameplay State, Saves,
+ * digests, CommandLog, or replay.
  *
  * Two layers share one validated shape:
  * - `MotionDocumentV1` is the file format: it adds format/version/label and
@@ -22,7 +24,12 @@ import { dataFailure, readArray, readExactRecord } from "./presentation-data.ts"
  *   stage transition definition; authoring metadata never reaches runtime.
  */
 
-export type MotionChannelV1 = "offsetX" | "offsetY" | "scalePermille" | "opacityPermille";
+export type MotionChannelV1 =
+  | "offsetX"
+  | "offsetY"
+  | "scalePermille"
+  | "opacityPermille"
+  | "frame";
 
 export type MotionNamedEasingV1 =
   | "linear"
@@ -54,12 +61,14 @@ export interface MotionKeyframeV1 {
   /**
    * Channel-specific integer value: `offsetX`/`offsetY` in logical canvas
    * pixels relative to the settled placement, `scalePermille` and
-   * `opacityPermille` as multipliers over the placement (baseline 1000).
+   * `opacityPermille` as multipliers over the placement (baseline 1000),
+   * `frame` as a 0-based index into the content's declared frame set.
    */
   readonly value: number;
   /**
    * Easing of the segment that starts at this keyframe; defaults to
-   * "linear". Not allowed on the last keyframe (no segment follows it).
+   * "linear". Not allowed on the last keyframe (no segment follows it)
+   * and never allowed on `frame` keyframes (frames sample stepwise).
    */
   readonly easing?: MotionEasingV1;
 }
@@ -103,12 +112,18 @@ export interface MotionDocumentV1 {
   readonly authoring?: MotionAuthoringV1;
 }
 
-/** One sampled overlay frame; absent tracks report their channel baseline. */
+/**
+ * One sampled overlay frame; absent tracks report their channel baseline.
+ * The `frame` channel has no numeric baseline: a definition without a
+ * frame track samples `frameIndex: null`, meaning "no frame override" —
+ * the renderer keeps its default art.
+ */
 export interface MotionSampleV1 {
   readonly offsetX: number;
   readonly offsetY: number;
   readonly scalePermille: number;
   readonly opacityPermille: number;
+  readonly frameIndex: number | null;
 }
 
 export const motionDocumentFormatV1 = "sillymaker.motion";
@@ -127,7 +142,11 @@ const motionChannelsV1: readonly MotionChannelV1[] = Object.freeze([
   "offsetY",
   "scalePermille",
   "opacityPermille",
+  "frame",
 ]);
+
+/** Editor-facing frame index cap; the runtime clamps to the content's frame set anyway. */
+const motionMaxFrameIndexV1 = 255;
 
 const motionNamedEasingsV1: readonly MotionNamedEasingV1[] = Object.freeze([
   "linear",
@@ -139,6 +158,11 @@ const motionNamedEasingsV1: readonly MotionNamedEasingV1[] = Object.freeze([
   "ease_out_back",
 ]);
 
+/**
+ * The numeric editor baseline for a channel (a new track starts here). The
+ * sampled baseline for `frame` is `null` (no override); 0 is only the
+ * editor's starting index.
+ */
 export function motionChannelBaselineV1(channel: MotionChannelV1): number {
   return channel === "scalePermille" || channel === "opacityPermille" ? 1000 : 0;
 }
@@ -167,6 +191,8 @@ function motionChannelValueBoundsV1(
       return { min: 0, max: 100_000 };
     case "opacityPermille":
       return { min: 0, max: 1000 };
+    case "frame":
+      return { min: 0, max: motionMaxFrameIndexV1 };
     default: {
       const exhaustive: never = channel;
       throw new TypeError(`unknown motion channel ${String(exhaustive)}`);
@@ -235,6 +261,9 @@ function parseMotionKeyframeV1(
     hasEasing ? ["atPermille", "value", "easing"] : ["atPermille", "value"],
     path,
   );
+  if (hasEasing && channel === "frame") {
+    return dataFailure(`${path}/easing`, "motion_frame_easing_forbidden");
+  }
   if (hasEasing && isLast) {
     return dataFailure(`${path}/easing`, "motion_easing_on_last_keyframe");
   }
@@ -566,6 +595,21 @@ function sampleMotionTrackV1(track: MotionTrackV1, normalizedPermille: number): 
 }
 
 /**
+ * Stepped sampling for the `frame` channel: the value of the last keyframe
+ * at or before the normalized time, held until the next keyframe. No
+ * interpolation, no easing — a frame index is content identity, not a
+ * quantity.
+ */
+function sampleMotionTrackStepV1(track: MotionTrackV1, normalizedPermille: number): number {
+  let value = track.keyframes[0]?.value ?? 0;
+  for (const keyframe of track.keyframes) {
+    if (keyframe.atPermille > normalizedPermille) break;
+    value = keyframe.value;
+  }
+  return value;
+}
+
+/**
  * Pure sampling: the same definition and elapsed time always produce the
  * same overlay values, so players, editors, and tests share one math. Time
  * before the delay holds each track's first keyframe; time at or beyond
@@ -583,7 +627,12 @@ export function sampleMotionAtV1(
   let offsetY = 0;
   let scalePermille = 1000;
   let opacityPermille = 1000;
+  let frameIndex: number | null = null;
   for (const track of definition.tracks) {
+    if (track.channel === "frame") {
+      frameIndex = sampleMotionTrackStepV1(track, normalizedPermille);
+      continue;
+    }
     const value = sampleMotionTrackV1(track, normalizedPermille);
     switch (track.channel) {
       case "offsetX":
@@ -604,5 +653,5 @@ export function sampleMotionAtV1(
       }
     }
   }
-  return Object.freeze({ offsetX, offsetY, scalePermille, opacityPermille });
+  return Object.freeze({ offsetX, offsetY, scalePermille, opacityPermille, frameIndex });
 }

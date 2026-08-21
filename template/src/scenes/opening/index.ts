@@ -15,6 +15,9 @@ import type {
 } from "@sillymaker/base/story";
 
 import openingSceneDocumentV1 from "./opening.scene.json" with { type: "json" };
+import meiBlinkMotionDocumentV1 from "./motions/mei-blink.motion.json" with {
+  type: "json",
+};
 import meiEntranceMotionDocumentV1 from "./motions/mei-entrance.motion.json" with {
   type: "json",
 };
@@ -45,11 +48,13 @@ export const templateOpeningTransitionBindingsV1: SceneStageTransitionBindings =
 /**
  * Presence-bound ambient loops declared by the scene document: the mist
  * band drifts one texture period per cycle (a sawtooth loop over tileable
- * content, so the wrap is visually seamless). Purely presentational — the
- * stage samples it on the presentation clock; Saves/digest/replay are
- * untouched.
+ * content, so the wrap is visually seamless), and Mei blinks every cycle
+ * through her declared frame set (authorable frame set: the motion's
+ * `frame` track steps her `frameAssetIds` — no renderer CSS animation).
+ * Purely presentational — the stage samples both on the presentation
+ * clock; Saves/digest/replay are untouched.
  */
 export const templateOpeningAmbientCatalogV1: StageAmbientCatalog = sceneAmbientCatalog(
   templateOpeningSceneV1,
-  { motions: [mistDriftMotionDocumentV1] },
+  { motions: [mistDriftMotionDocumentV1, meiBlinkMotionDocumentV1] },
 );

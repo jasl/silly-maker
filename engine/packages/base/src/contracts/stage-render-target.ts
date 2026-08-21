@@ -67,6 +67,14 @@ export interface StageContentResolutionV1 {
   readonly hitRegions?: readonly StageHitRegionV1[];
   /** Optional content box + anchor; omitted content keeps renderer CSS. */
   readonly geometry?: StageContentGeometryV1;
+  /**
+   * Optional ordered frame set (authorable-frame-set, accepted 2026-08-21):
+   * the assets a motion `frame` track indexes into, sharing the entry's
+   * geometry box. The sampled index reaches the renderer as presentation
+   * data; omitted content ignores frame tracks. All frames join the
+   * required-asset preload so a swap never flashes.
+   */
+  readonly frameAssetIds?: readonly AssetId[];
 }
 
 export interface StageContentCatalogV1 {
@@ -93,6 +101,8 @@ export interface StageRenderEntryV1 {
   readonly props: StrictJsonObjectV1;
   readonly fallback: boolean;
   readonly hitRegions: readonly StageHitRegionV1[];
+  /** The validated frame set; empty when the content declares none. */
+  readonly frameAssetIds: readonly AssetId[];
   readonly geometry?: StageContentGeometryV1;
 }
 
@@ -137,6 +147,30 @@ function contentDiagnosticV1(code: string, message: string, pointer: string): Di
  */
 /** Per-entry hit-region budget. Picture-dense SLGs need headroom beyond early VN pets. */
 const maxHitRegionsV1 = 64;
+
+/** Per-entry frame-set budget (authorable-frame-set, accepted 2026-08-21). */
+const maxFrameAssetsV1 = 64;
+
+function validateFrameAssetIdsV1(
+  frameAssetIds: readonly AssetId[] | undefined,
+  pointer: string,
+  diagnostics: DiagnosticEnvelopeV1[],
+): readonly AssetId[] {
+  if (frameAssetIds === undefined || frameAssetIds.length === 0) return Object.freeze([]);
+  const ok = frameAssetIds.length <= maxFrameAssetsV1 &&
+    frameAssetIds.every((assetId) => typeof assetId === "string" && assetId.length > 0);
+  if (!ok) {
+    diagnostics.push(
+      contentDiagnosticV1(
+        "stage.frame_assets_invalid",
+        "invalid stage content frame set",
+        `${pointer}/frameAssetIds`,
+      ),
+    );
+    return Object.freeze([]);
+  }
+  return Object.freeze([...frameAssetIds]);
+}
 
 const maxGeometrySideV1 = 1_000_000;
 
@@ -244,6 +278,7 @@ export function projectStageRenderTargetV1(
           props: {},
           fallback: true,
           hitRegions: [] as readonly StageHitRegionV1[],
+          frameAssetIds: [] as readonly AssetId[],
         };
       }
       if (resolution.rendererId.length === 0) {
@@ -265,6 +300,8 @@ export function projectStageRenderTargetV1(
         );
       }
       for (const assetId of resolution.assetIds) requiredAssetIds.add(assetId);
+      const frameAssetIds = validateFrameAssetIdsV1(resolution.frameAssetIds, pointer, diagnostics);
+      for (const assetId of frameAssetIds) requiredAssetIds.add(assetId);
       const geometry = validateGeometryV1(resolution.geometry, pointer, diagnostics);
       return {
         key: `${layer.layerId}:${entry.tag}`,
@@ -283,6 +320,7 @@ export function projectStageRenderTargetV1(
         props: resolution.props,
         fallback: resolution.rendererId.length === 0,
         hitRegions: validateHitRegionsV1(resolution.hitRegions, pointer, diagnostics),
+        frameAssetIds,
         ...(geometry === undefined ? {} : { geometry }),
       };
     });

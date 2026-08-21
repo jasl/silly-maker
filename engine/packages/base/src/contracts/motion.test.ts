@@ -256,12 +256,19 @@ describe("motion sampling", () => {
       offsetY: 0,
       scalePermille: 1000,
       opacityPermille: 0,
+      frameIndex: null,
     });
     expect(sampleMotionAtV1(definition, 99)).toEqual(sampleMotionAtV1(definition, 0));
   });
 
   it("holds the final keyframe values at and beyond the total duration", () => {
-    const final = { offsetX: 0, offsetY: 0, scalePermille: 1000, opacityPermille: 1000 };
+    const final = {
+      offsetX: 0,
+      offsetY: 0,
+      scalePermille: 1000,
+      opacityPermille: 1000,
+      frameIndex: null,
+    };
     expect(sampleMotionAtV1(definition, 500)).toEqual(final);
     expect(sampleMotionAtV1(definition, 10_000)).toEqual(final);
   });
@@ -337,5 +344,106 @@ describe("motion sampling", () => {
     expect(motionChannelBaselineV1("offsetY")).toBe(0);
     expect(motionChannelBaselineV1("scalePermille")).toBe(1000);
     expect(motionChannelBaselineV1("opacityPermille")).toBe(1000);
+    expect(motionChannelBaselineV1("frame")).toBe(0);
+  });
+});
+
+describe("frame channel (authorable frame set)", () => {
+  function blinkDocumentV1(): Record<string, unknown> {
+    return {
+      format: "sillymaker.motion",
+      version: 1,
+      motionId: "motion.test.blink",
+      label: "眨眼循环",
+      durationMs: 4000,
+      delayMs: 0,
+      tracks: [
+        {
+          channel: "frame",
+          keyframes: [
+            { atPermille: 0, value: 0 },
+            { atPermille: 900, value: 1 },
+            { atPermille: 950, value: 0 },
+            { atPermille: 1000, value: 0 },
+          ],
+        },
+      ],
+    };
+  }
+
+  it("samples stepwise: hold each frame until the next keyframe", () => {
+    const definition = motionDefinitionFromDocumentV1(
+      parseMotionDocumentV1(blinkDocumentV1()),
+    );
+    expect(sampleMotionAtV1(definition, 0).frameIndex).toBe(0);
+    // Midway between keyframes there is no interpolation: still frame 0.
+    expect(sampleMotionAtV1(definition, 1800).frameIndex).toBe(0);
+    expect(sampleMotionAtV1(definition, 3599).frameIndex).toBe(0);
+    // At the 900‰ stop the closed-eye frame appears and holds.
+    expect(sampleMotionAtV1(definition, 3600).frameIndex).toBe(1);
+    expect(sampleMotionAtV1(definition, 3799).frameIndex).toBe(1);
+    // Back to open eyes at 950‰ and at/beyond the end.
+    expect(sampleMotionAtV1(definition, 3800).frameIndex).toBe(0);
+    expect(sampleMotionAtV1(definition, 10_000).frameIndex).toBe(0);
+  });
+
+  it("holds the first frame through the delay", () => {
+    const raw = { ...blinkDocumentV1(), delayMs: 500 };
+    const definition = motionDefinitionFromDocumentV1(parseMotionDocumentV1(raw));
+    expect(sampleMotionAtV1(definition, 250).frameIndex).toBe(0);
+  });
+
+  it("composes with continuous channels in one document", () => {
+    const raw = blinkDocumentV1();
+    (raw.tracks as unknown[]).push({
+      channel: "opacityPermille",
+      keyframes: [
+        { atPermille: 0, value: 0 },
+        { atPermille: 1000, value: 1000 },
+      ],
+    });
+    const definition = motionDefinitionFromDocumentV1(parseMotionDocumentV1(raw));
+    const sample = sampleMotionAtV1(definition, 2000);
+    expect(sample.frameIndex).toBe(0);
+    expect(sample.opacityPermille).toBe(500);
+  });
+
+  it.each([
+    [
+      "easing on a frame keyframe",
+      [
+        { atPermille: 0, value: 0, easing: "linear" },
+        { atPermille: 1000, value: 1 },
+      ],
+      /motion_frame_easing_forbidden/,
+    ],
+    [
+      "negative frame index",
+      [
+        { atPermille: 0, value: -1 },
+        { atPermille: 1000, value: 0 },
+      ],
+      /motion_keyframe_value_invalid/,
+    ],
+    [
+      "frame index beyond the cap",
+      [
+        { atPermille: 0, value: 256 },
+        { atPermille: 1000, value: 0 },
+      ],
+      /motion_keyframe_value_invalid/,
+    ],
+  ])("rejects %s", (_label, keyframes, expected) => {
+    const raw = { ...blinkDocumentV1(), tracks: [{ channel: "frame", keyframes }] };
+    expect(() => parseMotionDocumentV1(raw)).toThrowError(expected);
+  });
+
+  it("rejects a duplicate frame track (at most one per document)", () => {
+    const track = {
+      channel: "frame",
+      keyframes: [{ atPermille: 0, value: 0 }, { atPermille: 1000, value: 1 }],
+    };
+    const raw = { ...blinkDocumentV1(), tracks: [track, { ...track }] };
+    expect(() => parseMotionDocumentV1(raw)).toThrowError(/motion_channel_duplicate/);
   });
 });

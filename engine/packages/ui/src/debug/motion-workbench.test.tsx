@@ -365,6 +365,95 @@ describe("MotionWorkbenchV1", () => {
     expect(container.querySelector("[data-workbench-reload]")).not.toBeNull();
   });
 
+  it("edits a frame track as stepped keyframes and previews the swap on the canvas", () => {
+    const blinkJsonV1 = {
+      format: "sillymaker.motion",
+      version: 1,
+      motionId: "motion.test.blink",
+      label: "眨眼",
+      durationMs: 400,
+      delayMs: 0,
+      tracks: [
+        {
+          channel: "frame",
+          keyframes: [
+            { atPermille: 0, value: 0 },
+            { atPermille: 500, value: 1 },
+            { atPermille: 1000, value: 1 },
+          ],
+        },
+      ],
+    } as const;
+    const frameCatalogV1: StageContentCatalogV1 = {
+      resolveContent: () =>
+        Object.freeze({
+          rendererId: "renderer.test.box",
+          assetIds: Object.freeze([] as readonly AssetId[]),
+          accessibleName: "角色",
+          props: Object.freeze({}),
+          frameAssetIds: Object.freeze([
+            "asset.test.eyes-open" as AssetId,
+            "asset.test.eyes-closed" as AssetId,
+          ]),
+        }),
+    };
+    const empty = createSemanticStageStateV1({
+      stageId: "stage.test.workbench",
+      layerIds: ["layer.test.chars"],
+    });
+    const outcome = reduceStageMutationsV1(empty, [
+      {
+        kind: "show",
+        layerId: "layer.test.chars",
+        tag: "tag.test.actor",
+        contentId: "content.test.actor",
+      },
+    ]);
+    if (outcome.kind !== "applied") throw new Error("workbench fixture stage must apply");
+    const target = projectStageRenderTargetV1(outcome.state, frameCatalogV1).target;
+    const index = createMotionSourceIndexV1(
+      { "./motions/blink.motion.json": blinkJsonV1 },
+      { sourceRoot: "src" },
+    );
+    const source = index.get("motion.test.blink");
+    if (source === null) throw new Error("fixture source missing");
+    const { container } = render(
+      <MotionWorkbenchV1
+        source={source}
+        preview={{
+          target,
+          renderers: { "renderer.test.box": rendererV1 },
+          entryKey: "layer.test.chars:tag.test.actor",
+          canvas: { width: 960, height: 540 },
+        }}
+      />,
+    );
+
+    // The frame track renders with stepped keyframes and no easing control.
+    const frameTrack = container.querySelector('[data-workbench-track="frame"]');
+    expect(frameTrack).not.toBeNull();
+    const frameRow = container.querySelector('[data-workbench-keyframe="frame:0"]');
+    if (frameRow === null) throw new Error("frame keyframe row missing");
+    expect(frameRow.querySelector("[data-workbench-kf-easing]")).toBeNull();
+    expect(frameRow.querySelector("[data-workbench-kf-stepped]")).not.toBeNull();
+
+    // Scrubbing across the 500‰ stop swaps the previewed frame index.
+    const scrub = container.querySelector("[data-workbench-scrub]");
+    if (!(scrub instanceof HTMLElement)) throw new Error("scrubber missing");
+    fireEvent.change(scrub, { target: { value: "100" } });
+    expect(mainEntryV1(container).dataset.stageFrame).toBe("0");
+    fireEvent.change(scrub, { target: { value: "250" } });
+    expect(mainEntryV1(container).dataset.stageFrame).toBe("1");
+
+    // Editing a frame value stays a valid stepped draft.
+    const valueInput = frameRow.querySelector("[data-workbench-kf-value]");
+    if (!(valueInput instanceof HTMLInputElement)) throw new Error("value input missing");
+    fireEvent.change(valueInput, { target: { value: "1" } });
+    expect(container.querySelector("[data-workbench-invalid]")).toBeNull();
+    const status = container.querySelector("[data-workbench-status]");
+    expect(status?.textContent).toBe("有未保存修改");
+  });
+
   it("blocks saving while the draft is invalid", async () => {
     const fake = fakeIoV1();
     const { container } = fixtureV1(fake.io);

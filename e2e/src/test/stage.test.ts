@@ -183,7 +183,13 @@ describe("Engine Lab semantic stage", () => {
       accessibleName: "研究员甲",
       props: { pose: "standing", expression: "neutral" },
     });
-    expect(first.target.requiredAssetIds).toEqual([]);
+    // Alpha's declared frame set joins asset demand (preload keeps frame
+    // swaps flash-free); beta declares none, and the storeroom background
+    // carries no runtime asset.
+    expect(first.target.requiredAssetIds).toEqual([
+      "asset.e2e.lab.char-stand",
+      "asset.e2e.lab.char-step",
+    ]);
 
     // The lab background carries the runtime asset; the storeroom does not.
     const openingProjection = projectStageRenderTargetV1(

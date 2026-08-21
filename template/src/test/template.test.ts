@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { lintNarrativeGraph } from "@sillymaker/base/story";
+import { lintNarrativeGraph, sampleMotionAt } from "@sillymaker/base/story";
 import { createGameHarnessV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
 
 import type { StageTargetChange } from "@sillymaker/base/story";
@@ -12,9 +12,11 @@ import { compileTemplateInteractionDocV1 } from "../story/narrative-kit.ts";
 import { projectTemplateNarrativeGraphV1 } from "../story/narrative-graph.ts";
 import { templateFlowGraphV1, templateScriptV1 } from "../story/narrative.ts";
 import {
+  templateStageContentCatalogV1,
   templateStageTransitionCatalogV1,
   templateTextCatalogsV1,
 } from "../content/presentation.ts";
+import { templateOpeningAmbientCatalogV1 } from "../scenes/opening/index.ts";
 import { templateSemanticAdapterV1 } from "../application/semantic.ts";
 import { templateStoryEntryV1 } from "../story.ts";
 
@@ -444,6 +446,42 @@ describe("template presentation edge context", () => {
       node.kind === "stage" && node.nodeId === "node.template.mei-smiles"
     );
     expect(smiles).toMatchObject({ dispatches: [] });
+  });
+});
+
+describe("template opening ambient (authorable frame set)", () => {
+  it("declares Mei's blink as a scene-document frame loop over her frame set", () => {
+    // The content side owns the ordered frame table the track indexes.
+    const mei = templateStageContentCatalogV1.resolveContent(
+      "content.template.character.mei" as Parameters<
+        typeof templateStageContentCatalogV1.resolveContent
+      >[0],
+      {},
+    );
+    expect(mei?.frameAssetIds).toEqual([
+      "asset.template.mei-eyes-open",
+      "asset.template.mei-eyes-closed",
+    ]);
+
+    // The scene document binds the blink loop to Mei's settled presence —
+    // same declared route as the mist drift, no renderer CSS animation.
+    const binding = templateOpeningAmbientCatalogV1.resolveAmbient(
+      "layer.template.characters" as Parameters<
+        typeof templateOpeningAmbientCatalogV1.resolveAmbient
+      >[0],
+      {
+        key: "layer.template.characters:tag.mei",
+        contentId: "content.template.character.mei",
+      } as Parameters<typeof templateOpeningAmbientCatalogV1.resolveAmbient>[1],
+    );
+    expect(binding).not.toBeNull();
+
+    // Stepped frame semantics over one 4s cycle: eyes open, a 200ms blink
+    // near the end (3600–3800ms), open again — no interpolation.
+    expect(sampleMotionAt(binding!.motion, 0).frameIndex).toBe(0);
+    expect(sampleMotionAt(binding!.motion, 3500).frameIndex).toBe(0);
+    expect(sampleMotionAt(binding!.motion, 3700).frameIndex).toBe(1);
+    expect(sampleMotionAt(binding!.motion, 3900).frameIndex).toBe(0);
   });
 });
 

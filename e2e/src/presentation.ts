@@ -2,25 +2,31 @@
 import type {
   AssetId,
   ResolvedAudioManifestV1,
+  StageAmbientCatalogV1,
   StageContentCatalogV1,
   StageContentResolutionV1,
   StageTargetChangeV1,
   StageTransitionCatalogV1,
   StageTransitionDefinitionV1,
   TextCatalogSetV1,
+  TimelineCatalogV1,
+  TimelineDefinitionV1,
 } from "@sillymaker/base";
 import {
   definePresentationPatchSurface,
+  motionDefinitionFromDocumentV1,
   motionStageTransitionV1,
+  parseMotionDocumentV1,
   parsePositiveSafeInteger,
   parseStageTransitionDefinitionV1,
   parseTextCatalogSetV1,
   resolveAudioManifestV1,
+  timelineV1,
 } from "@sillymaker/base";
 
-import type { TimelineCatalogV1, TimelineDefinitionV1 } from "@sillymaker/base";
-import { timelineV1 } from "@sillymaker/base";
-
+import labBeaconFramesMotionJsonV1 from "./motions/beacon-frames.motion.json" with {
+  type: "json",
+};
 import labCharEnterMotionDocumentV1 from "./motions/char-enter.motion.json" with { type: "json" };
 import { labStageContentIdsV1 } from "./stage-ids.ts";
 
@@ -192,6 +198,15 @@ export const labStageContentCatalogV1: StageContentCatalogV1 = {
               : "neutral",
           }),
           geometry: labCharacterGeometryV1,
+          // Authorable-frame-set drill (one-shot): the entrance motion's
+          // frame track steps through these while the edge is in flight.
+          // Beta declares no frame set on purpose — its identical entrance
+          // must deliver a null frame index (conformance for the no-frame
+          // path).
+          frameAssetIds: Object.freeze([
+            "asset.e2e.lab.char-stand" as AssetId,
+            "asset.e2e.lab.char-step" as AssetId,
+          ]),
         });
       case labStageContentIdsV1.characterBeta:
         return Object.freeze({
@@ -237,6 +252,12 @@ export const labStageContentCatalogV1: StageContentCatalogV1 = {
             mode: typeof appearance.mode === "string" ? appearance.mode : "idle",
           }),
           geometry: labSmallPropGeometryV1,
+          // Authorable-frame-set drill (loop): the ambient binding below
+          // cycles dim/lit through these two frames.
+          frameAssetIds: Object.freeze([
+            "asset.e2e.lab.beacon-dim" as AssetId,
+            "asset.e2e.lab.beacon-lit" as AssetId,
+          ]),
         });
       default:
         return null;
@@ -328,6 +349,24 @@ export const labStageTransitionCatalogV1: StageTransitionCatalogV1 = {
   },
   resolveTransitionById(transitionId: string): StageTransitionDefinitionV1 | null {
     return labTransitionByIdV1.get(transitionId) ?? null;
+  },
+};
+
+const labBeaconFramesMotionV1 = motionDefinitionFromDocumentV1(
+  parseMotionDocumentV1(labBeaconFramesMotionJsonV1, "/motions/beacon-frames"),
+);
+
+/**
+ * The Engine Lab ambient catalog (authorable-frame-set drill, loop
+ * archetype): the settled beacon cycles its dim/lit frame set on the
+ * presentation clock. Purely decorative — no commands, no authoritative
+ * state, no Save/digest/replay bytes.
+ */
+export const labStageAmbientCatalogV1: StageAmbientCatalogV1 = {
+  resolveAmbient(_layerId, entry) {
+    return (entry.contentId as string) === labStageContentIdsV1.propBeacon
+      ? Object.freeze({ motion: labBeaconFramesMotionV1, phaseMs: 0 })
+      : null;
   },
 };
 

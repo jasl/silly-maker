@@ -30,6 +30,7 @@
       "tag": "tag.mei",
       "contentId": "content.template.character.mei",
       "zOrder": 10,
+      "ambient": { "motionId": "motion.template.mei-blink" },
       "placement": {
         "x": 1180,
         "y": 880,

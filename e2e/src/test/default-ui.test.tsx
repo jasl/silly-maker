@@ -218,7 +218,9 @@ describe("Engine Lab default UI", () => {
     ).toBeInTheDocument();
 
     // Replacing the background retargets demand exactly: the storeroom has
-    // no runtime asset, so the superseded background asset is released.
+    // no runtime asset, so the superseded background asset is released;
+    // what remains is the entering character's declared frame set (frame
+    // assets preload with the entry).
     await userEvent.setup().click(screen.getByRole("button", { name: "开始流程" }));
     await waitFor(() => {
       expect(
@@ -227,7 +229,10 @@ describe("Engine Lab default UI", () => {
           ?.getAttribute("data-stage-content"),
       ).toBe("content.e2e.bg.storeroom");
     });
-    expect(composition.presentation.getSnapshot().requiredAssetIds).toEqual([]);
+    expect(composition.presentation.getSnapshot().requiredAssetIds).toEqual([
+      "asset.e2e.lab.char-stand",
+      "asset.e2e.lab.char-step",
+    ]);
     expect(
       document.querySelectorAll('[data-stage-key="layer.e2e.characters:tag.e2e.alpha"]'),
     ).toHaveLength(1);

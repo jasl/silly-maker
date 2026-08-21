@@ -1,0 +1,23 @@
+{
+  "format": "sillymaker.motion",
+  "version": 1,
+  "motionId": "motion.template.mei-blink",
+  "label": "小梅眨眼",
+  "durationMs": 4000,
+  "delayMs": 0,
+  "tracks": [
+    {
+      "channel": "frame",
+      "keyframes": [
+        { "atPermille": 0, "value": 0 },
+        { "atPermille": 900, "value": 1 },
+        { "atPermille": 950, "value": 0 },
+        { "atPermille": 1000, "value": 0 }
+      ]
+    }
+  ],
+  "authoring": {
+    "status": "human_tuned",
+    "notes": "帧集循环（authorable frame set）：每 4 秒闭眼 200ms。帧 0 = 睁眼（默认姿态），帧 1 = 闭眼；阶梯采样，无插值。"
+  }
+}

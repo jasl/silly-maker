@@ -20,7 +20,23 @@ plan；目标合同见[统一创作架构设计](../design/authoring-architectur
 
 ## 1. Current and next
 
-当前：无活跃车道。上一条——[并行监视器提案](../proposals/parallel-monitors.md)
+当前：无活跃车道。上一条——[帧集提案](../proposals/authorable-frame-set.md)
+（2026-08-21 所有者接受；帧集先行、命中区形状第二的车道顺序随裁决确
+定）与 [Authorable Frame Set V1](2026-08-21-authorable-frame-set.md)——
+**同日 M0–M3 全部交付收口**：M0（motion 文档 `frame` 通道：阶梯采样、
+easing 入院拒绝、`MotionSampleV1.frameIndex`）→ M1（内容侧
+`frameAssetIds` 帧表 + 预载并入 + 舞台 host 每帧下发 `frameIndex`，一
+次性/ambient 双路径与钳制）→ M2（Workbench 帧轨道编辑，缓动下拉换阶梯
+标签）→ M3（消费者：Engine Lab 信标两帧循环 + 入场步伐一次性、
+template 用 opening 场景文档声明 Mei 眨眼、外部实验仓把 CE240 眨眼从
+renderer CSS 换成 ambient 帧轨道并把 5 条 SHOW_PIC→WAIT 帧串换成一次
+性 motion 文档）。唯一显式 defer：跨文档「帧下标不超帧表」story
+lint，等内容声明数据化的真实车道（运行时钳制 + Workbench 预览兜底）。
+下一条按所有者排序为
+[命中区形状提案](../proposals/shaped-hit-regions.md)（草案；车道开启时
+按届时证据做最终 admission 裁决）。
+
+前一条：[并行监视器提案](../proposals/parallel-monitors.md)
 （2026-08-20 所有者接受，含同日六项裁决与裁决 #5 修订）与
 [Parallel Monitors V1](2026-08-20-parallel-monitors.md)——**同日 M0–M5
 全部交付收口**：M0（唯一时间动词 `TimeTickV1`，`hold_tick` 归并删除）

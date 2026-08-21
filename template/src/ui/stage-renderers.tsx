@@ -38,12 +38,18 @@ export const templateStageRenderersV1: Readonly<Record<string, SemanticStageEntr
         }}
       />
     ),
-    "renderer.template.character": ({ entry }) => (
+    "renderer.template.character": ({ entry, frameIndex }) => (
       // The catalog geometry owns the content box and anchor; the figure
-      // just fills it.
+      // just fills it. `frameIndex` steps through the content's declared
+      // `frameAssetIds` (0 = eyes open, 1 = eyes closed) — the blink is a
+      // `frame` motion track, not a renderer CSS animation. An image-backed
+      // game would swap textures here instead of redrawing the eyes.
       <figure
         data-template-character={entry.contentId}
         data-template-expression={String(entry.props.expression)}
+        data-template-frame-asset={frameIndex === null
+          ? undefined
+          : String(entry.frameAssetIds[frameIndex])}
         style={{
           margin: 0,
           width: "100%",
@@ -53,8 +59,24 @@ export const templateStageRenderersV1: Readonly<Record<string, SemanticStageEntr
           display: "flex",
           alignItems: "flex-end",
           justifyContent: "center",
+          position: "relative",
         }}
       >
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            insetBlockStart: "84px",
+            insetInlineStart: 0,
+            width: "100%",
+            textAlign: "center",
+            fontSize: "24px",
+            letterSpacing: "12px",
+            color: "#33302a",
+          }}
+        >
+          {frameIndex === 1 ? "˘ ˘" : "• •"}
+        </span>
         <figcaption style={{ paddingBlockEnd: "1rem", color: "#33302a" }}>
           {entry.accessibleName} · {String(entry.props.expression)}
         </figcaption>

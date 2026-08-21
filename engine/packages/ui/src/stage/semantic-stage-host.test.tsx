@@ -3,9 +3,10 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { StageContentCatalogV1 } from "@sillymaker/base";
+import type { AssetId, MotionSampleV1, StageContentCatalogV1 } from "@sillymaker/base";
 import {
   createSemanticStageStateV1,
+  parseMotionDefinitionV1,
   projectStageRenderTargetV1,
   reduceStageMutationsV1,
 } from "@sillymaker/base";
@@ -296,5 +297,147 @@ describe("SemanticStageHostV1", () => {
     const after = container.querySelector('[data-stage-key="layer.test.front:tag.test.alpha"]');
     expect(after).toBe(before);
     expect(after?.getAttribute("data-stage-content")).toBe("content.test.beta");
+  });
+});
+
+describe("frame channel delivery (authorable frame set)", () => {
+  const frameCatalogV1: StageContentCatalogV1 = {
+    resolveContent: (contentId) =>
+      Object.freeze({
+        rendererId: "renderer.test.box",
+        assetIds: Object.freeze([] as readonly AssetId[]),
+        accessibleName: `内容 ${contentId}`,
+        props: Object.freeze({}),
+        ...(contentId === "content.test.plain" ? {} : {
+          frameAssetIds: Object.freeze([
+            "asset.test.frame-0" as AssetId,
+            "asset.test.frame-1" as AssetId,
+          ]),
+        }),
+      }),
+  };
+
+  function frameTargetV1(contentId: string) {
+    const empty = createSemanticStageStateV1({
+      stageId: "stage.test.frames",
+      layerIds: ["layer.test.front"],
+    });
+    const outcome = reduceStageMutationsV1(empty, [
+      { kind: "show", layerId: "layer.test.front", tag: "tag.test.actor", contentId },
+    ]);
+    if (outcome.kind !== "applied") throw new Error("frame fixture stage must apply");
+    return projectStageRenderTargetV1(outcome.state, frameCatalogV1).target;
+  }
+
+  const frameRendererV1: SemanticStageEntryRendererV1 = ({ frameIndex }) => (
+    <span data-test-frame={frameIndex === null ? "none" : String(frameIndex)} />
+  );
+  const frameRenderersV1 = { "renderer.test.box": frameRendererV1 };
+
+  function ambientSampleV1(frameIndex: number | null): MotionSampleV1 {
+    return Object.freeze({
+      offsetX: 0,
+      offsetY: 0,
+      scalePermille: 1000,
+      opacityPermille: 1000,
+      frameIndex,
+    });
+  }
+
+  it("delivers the ambient frame index to the renderer and the entry attribute", () => {
+    const target = frameTargetV1("content.test.actor");
+    const { container } = render(
+      <SemanticStageHostV1
+        frame={settledStageFrameV1(target)}
+        renderers={frameRenderersV1}
+        accessibleName="测试舞台"
+        ambient={new Map([["layer.test.front:tag.test.actor", ambientSampleV1(1)]])}
+      />,
+    );
+    const entry = container.querySelector('[data-stage-key="layer.test.front:tag.test.actor"]');
+    expect(entry?.getAttribute("data-stage-frame")).toBe("1");
+    expect(entry?.querySelector("[data-test-frame]")?.getAttribute("data-test-frame")).toBe("1");
+  });
+
+  it("clamps a sampled index beyond the declared frame set", () => {
+    const target = frameTargetV1("content.test.actor");
+    const { container } = render(
+      <SemanticStageHostV1
+        frame={settledStageFrameV1(target)}
+        renderers={frameRenderersV1}
+        accessibleName="测试舞台"
+        ambient={new Map([["layer.test.front:tag.test.actor", ambientSampleV1(9)]])}
+      />,
+    );
+    const entry = container.querySelector('[data-stage-key="layer.test.front:tag.test.actor"]');
+    expect(entry?.getAttribute("data-stage-frame")).toBe("1");
+  });
+
+  it("reports null when the content declares no frame set", () => {
+    const target = frameTargetV1("content.test.plain");
+    const { container } = render(
+      <SemanticStageHostV1
+        frame={settledStageFrameV1(target)}
+        renderers={frameRenderersV1}
+        accessibleName="测试舞台"
+        ambient={new Map([["layer.test.front:tag.test.actor", ambientSampleV1(1)]])}
+      />,
+    );
+    const entry = container.querySelector('[data-stage-key="layer.test.front:tag.test.actor"]');
+    expect(entry?.getAttribute("data-stage-frame")).toBeNull();
+    expect(entry?.querySelector("[data-test-frame]")?.getAttribute("data-test-frame")).toBe(
+      "none",
+    );
+  });
+
+  it("delivers the in-flight one-shot motion frame", () => {
+    // A word-float style one-shot: frame 0 until 500‰, then frame 1.
+    const oneShot = parseMotionDefinitionV1({
+      motionId: "motion.test.one-shot-frames",
+      durationMs: 1000,
+      delayMs: 0,
+      tracks: [
+        {
+          channel: "frame",
+          keyframes: [
+            { atPermille: 0, value: 0 },
+            { atPermille: 500, value: 1 },
+            { atPermille: 1000, value: 1 },
+          ],
+        },
+      ],
+    });
+    const target = frameTargetV1("content.test.actor");
+    const settled = settledStageFrameV1(target);
+    const inFlight = Object.freeze({
+      ...settled,
+      layers: settled.layers.map((layer) =>
+        Object.freeze({
+          ...layer,
+          entries: Object.freeze(
+            layer.entries.map((frameEntry) =>
+              Object.freeze({
+                ...frameEntry,
+                phase: "entering" as const,
+                transitionKind: "motion" as const,
+                transitionId: null,
+                progress: 0.75,
+                motion: oneShot,
+              })
+            ),
+          ),
+        })
+      ),
+    });
+    const { container } = render(
+      <SemanticStageHostV1
+        frame={inFlight}
+        renderers={frameRenderersV1}
+        accessibleName="测试舞台"
+      />,
+    );
+    const entry = container.querySelector('[data-stage-key="layer.test.front:tag.test.actor"]');
+    expect(entry?.getAttribute("data-stage-frame")).toBe("1");
+    expect(entry?.querySelector("[data-test-frame]")?.getAttribute("data-test-frame")).toBe("1");
   });
 });

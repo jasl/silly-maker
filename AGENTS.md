@@ -54,7 +54,19 @@ Read only the documents relevant to the change:
   persistence orchestrator is the internal consumer), and the monitor pacing
   loop (`pace` hints, session time reporter, realtime rate pin) with the
   Engine Lab drill consuming all three monitor archetypes. Every milestone
-  was independently reviewed before commit. Desktop persistence remains an
+  was independently reviewed before commit. The authorable-frame-set lane
+  (accepted and delivered 2026-08-21) completed M0–M3 the same day:
+  `docs/engine/plans/2026-08-21-authorable-frame-set.md` with its contract
+  in `docs/engine/proposals/authorable-frame-set.md` — the stepped `frame`
+  motion channel (no easing, sampled `frameIndex`), content-declared
+  `frameAssetIds` frame tables delivered by the stage host to entry
+  renderers over the existing one-shot and ambient bindings, Workbench
+  frame-track editing, and consumers in the Engine Lab, the starter
+  template (scene-document-declared blink), and the external experiment
+  repo. The only explicit defer is the cross-document frame-index-vs-table
+  story lint, gated on content declarations becoming data. The next lane by
+  owner ordering is `docs/engine/proposals/shaped-hit-regions.md` (draft;
+  final admission when the lane opens). Desktop persistence remains an
   independent promotion gate while the adapter is preview.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,
   `docs/engine/plans/2026-07-30-snapshot-commit-performance.md`,

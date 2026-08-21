@@ -16,6 +16,7 @@ import type { LabUiOverlayIdV1, LabUiPublicationV1 } from "./composition.tsx";
 import { labUiTextV1 } from "./ui-text.ts";
 import {
   labBeaconPulseCueIdV1,
+  labStageAmbientCatalogV1,
   labStageTransitionCatalogV1,
   labTimelineCatalogV1,
 } from "../presentation.ts";
@@ -55,17 +56,22 @@ export const labStageRenderersV1: Readonly<Record<string, SemanticStageEntryRend
     ),
     // The catalog geometry owns each content box and anchor; renderers
     // fill the engine-provided box without their own translate.
-    "renderer.e2e.lab.stage-character": ({ entry }) => (
+    "renderer.e2e.lab.stage-character": ({ entry, frameIndex }) => (
       <figure
         data-lab-character={entry.contentId}
         data-lab-pose={String(entry.props.pose)}
         data-lab-expression={String(entry.props.expression)}
+        data-lab-frame-asset={frameIndex === null
+          ? undefined
+          : (entry.frameAssetIds[frameIndex] as string)}
         style={{
           margin: 0,
           width: "100%",
           height: "100%",
           borderRadius: "110px 110px 12px 12px",
-          background: "rgba(214, 205, 189, 0.85)",
+          // frame 1 is the mid-entrance step pose; the tint swap is the
+          // one-shot frame-set drill made visible.
+          background: frameIndex === 1 ? "rgba(189, 205, 214, 0.85)" : "rgba(214, 205, 189, 0.85)",
         }}
       >
         <figcaption style={{ paddingBlockStart: "1rem", textAlign: "center", color: "#20242c" }}>
@@ -73,9 +79,12 @@ export const labStageRenderersV1: Readonly<Record<string, SemanticStageEntryRend
         </figcaption>
       </figure>
     ),
-    "renderer.e2e.lab.stage-prop": ({ entry }) => (
+    "renderer.e2e.lab.stage-prop": ({ entry, frameIndex }) => (
       <div
         data-lab-prop={entry.contentId}
+        data-lab-frame-asset={frameIndex === null
+          ? undefined
+          : (entry.frameAssetIds[frameIndex] as string)}
         style={entry.props.variant === "banner"
           ? {
             width: "100%",
@@ -89,7 +98,8 @@ export const labStageRenderersV1: Readonly<Record<string, SemanticStageEntryRend
             height: "100%",
             boxSizing: "border-box",
             border: "3px solid #9c8a63",
-            background: "#6f6146",
+            // frame 1 is the beacon's lit frame from the ambient loop drill.
+            background: frameIndex === 1 ? "#b8a15a" : "#6f6146",
           }}
       />
     ),
@@ -213,6 +223,7 @@ export function LabStageV1(props: {
         catalog={labStageTransitionCatalogV1}
         renderers={labStageRenderersV1}
         accessibleName={context.publication.view.stageName}
+        ambient={labStageAmbientCatalogV1}
         timelines={labTimelineCatalogV1}
         cues={context.cues}
         onTimelineEvent={(eventId) => setLastCueEvent(eventId)}

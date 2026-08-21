@@ -137,6 +137,46 @@ describe("projectStageRenderTargetV1", () => {
     }
   });
 
+  it("passes a valid frame set into the entry and the preload set, drops invalid ones", () => {
+    const frameCatalog = (frameAssetIds: unknown): StageContentCatalogV1 =>
+      Object.freeze({
+        resolveContent: () =>
+          Object.freeze({
+            rendererId: "renderer.test.character",
+            assetIds: Object.freeze(["asset.test.base" as AssetId]),
+            accessibleName: "角色",
+            props: Object.freeze({}),
+            frameAssetIds: frameAssetIds as never,
+          }),
+      });
+
+    const valid = projectStageRenderTargetV1(
+      stageWithContentV1(),
+      frameCatalog(["asset.test.eyes-open", "asset.test.eyes-closed"]),
+    );
+    expect(valid.diagnostics).toEqual([]);
+    expect(valid.target.layers[0]?.entries[0]?.frameAssetIds).toEqual([
+      "asset.test.eyes-open",
+      "asset.test.eyes-closed",
+    ]);
+    // Frames join the preload set so a swap never flashes.
+    expect(valid.target.requiredAssetIds).toContain("asset.test.eyes-open");
+    expect(valid.target.requiredAssetIds).toContain("asset.test.eyes-closed");
+
+    for (
+      const broken of [
+        ["asset.test.eyes-open", ""],
+        Array.from({ length: 65 }, (_ignored, index) => `asset.test.frame-${String(index)}`),
+      ]
+    ) {
+      const projection = projectStageRenderTargetV1(stageWithContentV1(), frameCatalog(broken));
+      expect(projection.diagnostics.map((diagnostic) => diagnostic.code)).toContain(
+        "stage.frame_assets_invalid",
+      );
+      expect(projection.target.layers[0]?.entries[0]?.frameAssetIds).toEqual([]);
+    }
+  });
+
   it("reports resolutions that omit renderers or accessible names", () => {
     const sparseCatalog: StageContentCatalogV1 = Object.freeze({
       resolveContent: () =>

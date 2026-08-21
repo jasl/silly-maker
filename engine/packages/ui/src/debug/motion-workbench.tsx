@@ -737,28 +737,36 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
                       }
                     }, `field:${track.channel}:${String(keyframeIndex)}:value`)}
                 />
-                <select
-                  aria-label="缓动"
-                  data-workbench-kf-easing="true"
-                  value={easingValue}
-                  disabled={isLast || easingValue === "custom"}
-                  onChange={(event) =>
-                    editor.update((next) => {
-                      const target = next.tracks[trackIndex]?.keyframes[keyframeIndex];
-                      if (target === undefined) return;
-                      if (event.target.value === "default") {
-                        delete target.easing;
-                      } else target.easing = event.target.value;
-                    })}
-                >
-                  <option value="default">默认(linear)</option>
-                  {workbenchEasingsV1.map((easing) => (
-                    <option key={easing} value={easing}>
-                      {easing}
-                    </option>
-                  ))}
-                  {easingValue === "custom" ? <option value="custom">custom bezier</option> : null}
-                </select>
+                {track.channel === "frame"
+                  // Frames sample stepwise; admission rejects easing on
+                  // frame keyframes, so the editor never offers it.
+                  ? <span data-workbench-kf-stepped="true">阶梯</span>
+                  : (
+                    <select
+                      aria-label="缓动"
+                      data-workbench-kf-easing="true"
+                      value={easingValue}
+                      disabled={isLast || easingValue === "custom"}
+                      onChange={(event) =>
+                        editor.update((next) => {
+                          const target = next.tracks[trackIndex]?.keyframes[keyframeIndex];
+                          if (target === undefined) return;
+                          if (event.target.value === "default") {
+                            delete target.easing;
+                          } else target.easing = event.target.value;
+                        })}
+                    >
+                      <option value="default">默认(linear)</option>
+                      {workbenchEasingsV1.map((easing) => (
+                        <option key={easing} value={easing}>
+                          {easing}
+                        </option>
+                      ))}
+                      {easingValue === "custom"
+                        ? <option value="custom">custom bezier</option>
+                        : null}
+                    </select>
+                  )}
                 <button
                   type="button"
                   data-workbench-add-kf="true"

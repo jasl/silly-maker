@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { TextCatalogSetV1 } from "@sillymaker/base";
+import type { AssetId, TextCatalogSetV1 } from "@sillymaker/base";
 import { definePresentationPatchSurface, parseTextCatalogSetV1 } from "@sillymaker/base";
 import type {
   StageContentCatalog,
@@ -128,6 +128,14 @@ export const templateStageContentCatalogV1: StageContentCatalog = {
             anchorXPermille: 500,
             anchorYPermille: 1000,
           }),
+          // The ordered frame set the blink ambient's `frame` track indexes
+          // (0 = eyes open, the default pose; 1 = eyes closed). A real game
+          // points these at image assets; the placeholder renderer draws
+          // the swap procedurally.
+          frameAssetIds: Object.freeze([
+            "asset.template.mei-eyes-open" as AssetId,
+            "asset.template.mei-eyes-closed" as AssetId,
+          ]),
         });
       default:
         return null;
