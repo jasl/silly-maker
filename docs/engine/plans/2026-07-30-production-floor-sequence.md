@@ -20,7 +20,24 @@ plan；目标合同见[统一创作架构设计](../design/authoring-architectur
 
 ## 1. Current and next
 
-当前：无活跃车道。上一条——[帧集提案](../proposals/authorable-frame-set.md)
+当前：[命中区形状车道](2026-08-21-shaped-hit-regions.md)（提案
+[shaped-hit-regions](../proposals/shaped-hit-regions.md) 2026-08-21 所有
+者接受）。M0–M4 与 M5 仓内消费者已当日交付：M0（`polygonPoints` +
+`hoverAssetId` 合同与共享判定，投影降级诊断）→ M1（host clip-path 命
+中 + 兄弟焦点环 + hover/focus 显示层走 `assets` 口）→ M2
+（`sillymaker.regions` 第三文档族：严格入院、authoring index、story
+check lint、dev-server CAS 端口）→ M3（Studio Regions 工作区：真实
+host 渲染当画布，框/顶点/矩形⇄多边形编辑走共享文档会话）→ M4
+（`story regions trace` 位图剪影→多边形文档 devtool，严格最小 PNG
+alpha 解码器 + marching-squares + 预算内 Douglas–Peucker）→ M5 仓内
+消费者（Engine Lab 样本箱八边形采集口：regions 文档 + hover 辉光 +
+激活派发普通语义采集）。**车道未收口**：剩 M5 外部实验仓身体热区
+（判定图 trace 成文档 + 按压/悬停剪影反馈 + 区域激活接语义），完成后
+写交付记录。唯一显式 defer：「一次点击同时激活多重叠区域」的激活载荷
+形态，等被审计的真实消费者（V1 合同为最上层独占命中）。下一条待该车
+道收口后由所有者排序。
+
+前一条：[帧集提案](../proposals/authorable-frame-set.md)
 （2026-08-21 所有者接受；帧集先行、命中区形状第二的车道顺序随裁决确
 定）与 [Authorable Frame Set V1](2026-08-21-authorable-frame-set.md)——
 **同日 M0–M3 全部交付收口**：M0（motion 文档 `frame` 通道：阶梯采样、
@@ -32,11 +49,8 @@ template 用 opening 场景文档声明 Mei 眨眼、外部实验仓把 CE240 �
 renderer CSS 换成 ambient 帧轨道并把 5 条 SHOW_PIC→WAIT 帧串换成一次
 性 motion 文档）。唯一显式 defer：跨文档「帧下标不超帧表」story
 lint，等内容声明数据化的真实车道（运行时钳制 + Workbench 预览兜底）。
-下一条按所有者排序为
-[命中区形状提案](../proposals/shaped-hit-regions.md)（草案；车道开启时
-按届时证据做最终 admission 裁决）。
 
-前一条：[并行监视器提案](../proposals/parallel-monitors.md)
+再前一条：[并行监视器提案](../proposals/parallel-monitors.md)
 （2026-08-20 所有者接受，含同日六项裁决与裁决 #5 修订）与
 [Parallel Monitors V1](2026-08-20-parallel-monitors.md)——**同日 M0–M5
 全部交付收口**：M0（唯一时间动词 `TimeTickV1`，`hold_tick` 归并删除）

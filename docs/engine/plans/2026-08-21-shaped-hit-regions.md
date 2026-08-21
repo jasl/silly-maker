@@ -48,6 +48,22 @@
   story-authoring / authoring-quickstart / production-floor / AGENTS
   更新。
 
+## 交付记录（2026-08-21，M5 仓内消费者 + 文档）
+
+- **M5（仓内半）**：Engine Lab 样本箱采集口走通完整链路——
+  `e2e/src/regions/crate-zones.regions.json`（八边形 + `hoverAssetId`，
+  `human_tuned`）经 `parseRegionsDocumentV1` 绑进 `resolveContent`
+  （`assetIds` 刻意留空：hover 资产只经引擎区域路径并入
+  `requiredAssetIds`）；shell 侧静态 `AssetUrlRegistryV1` 把辉光解析为
+  内联 SVG data URI（conformance Story 不带媒体文件），
+  `onHitRegionActivate` 对 `zone.crate.collect` 派发与 HUD 按钮同一条
+  `lab.collect_sample` 语义调用——舞台不碰 State。jsdom 集成测试断言
+  clip-path 形状、兄弟焦点元素、悬停揭示显隐且 semantic revision 不
+  动、激活后样本数上升（采集产出为工程随机 1–3，断言用增量）。文档收
+  口：features / story-authoring / authoring-quickstart /
+  production-floor / AGENTS 同步（顺带把 M2 记录的 lint「五码」纠为四
+  码）。**车道保持未收口**：剩外部实验仓身体热区消费者。
+
 ## 交付记录（2026-08-21，M4）
 
 - **M4**：`story regions trace <image.png> --out <file.regions.json>`
@@ -103,7 +119,7 @@
 - **M2**：`sillymaker.regions` 格式 + `parseRegionsDocumentV1` 严格入院
   （base `contracts/stage-regions.ts`；regionId 唯一、顶点/外接框规则
   与投影同源）；授权索引第三家族 `.regions.json`（列表 + 结构化 skip）；
-  `story check` 源 lint（`regions.*` 五码，与 motion lint 同构）；
+  `story check` 源 lint（`regions.*` 四码，与 motion lint 同构）；
   dev-server list/read/write/create CAS 端口
   （`/__sillymaker/dev-sources/regions-document[s]`，与 motion 端口同
   构）。顺带修复全量套件下的既有测试竞态：closure CLI 测试的子 deno
