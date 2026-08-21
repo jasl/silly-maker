@@ -18,6 +18,7 @@ import {
   motionStageTransitionV1,
   parseMotionDocumentV1,
   parsePositiveSafeInteger,
+  parseRegionsDocumentV1,
   parseStageTransitionDefinitionV1,
   parseTextCatalogSetV1,
   resolveAudioManifestV1,
@@ -28,6 +29,7 @@ import labBeaconFramesMotionJsonV1 from "./motions/beacon-frames.motion.json" wi
   type: "json",
 };
 import labCharEnterMotionDocumentV1 from "./motions/char-enter.motion.json" with { type: "json" };
+import labCrateZonesRegionsJsonV1 from "./regions/crate-zones.regions.json" with { type: "json" };
 import { labStageContentIdsV1 } from "./stage-ids.ts";
 
 export const labTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
@@ -165,6 +167,18 @@ const labSmallPropGeometryV1 = Object.freeze({
 });
 
 /**
+ * Shaped-hit-regions drill: the crate's collection port is a beveled
+ * octagon with a hover-reveal glow, authored as a `sillymaker.regions`
+ * Document and bound here — the Document-to-`resolveContent` path the
+ * lane's contract describes (binding stays in Story code, like motion
+ * documents binding cues).
+ */
+const labCrateZonesRegionsV1 = parseRegionsDocumentV1(
+  labCrateZonesRegionsJsonV1,
+  "/regions/crate-zones",
+);
+
+/**
  * Deterministic Story catalog resolving semantic stage content into renderer
  * bindings. Only this projection layer knows renderer IDs, asset IDs, and
  * accessible names; authoritative stage state never carries them.
@@ -228,6 +242,7 @@ export const labStageContentCatalogV1: StageContentCatalogV1 = {
           accessibleName: "样本箱",
           props: Object.freeze({}),
           geometry: labSmallPropGeometryV1,
+          hitRegions: labCrateZonesRegionsV1.regions,
         });
       case labStageContentIdsV1.propBanner:
         return Object.freeze({

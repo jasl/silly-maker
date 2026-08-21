@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // SPDX-License-Identifier: MIT
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -220,7 +220,7 @@ describe("Engine Lab default UI", () => {
     // Replacing the background retargets demand exactly: the storeroom has
     // no runtime asset, so the superseded background asset is released;
     // what remains is the entering character's declared frame set (frame
-    // assets preload with the entry).
+    // assets preload with the entry) plus the crate region's hover reveal.
     await userEvent.setup().click(screen.getByRole("button", { name: "开始流程" }));
     await waitFor(() => {
       expect(
@@ -232,6 +232,7 @@ describe("Engine Lab default UI", () => {
     expect(composition.presentation.getSnapshot().requiredAssetIds).toEqual([
       "asset.e2e.lab.char-stand",
       "asset.e2e.lab.char-step",
+      "asset.e2e.lab.crate-glow",
     ]);
     expect(
       document.querySelectorAll('[data-stage-key="layer.e2e.characters:tag.e2e.alpha"]'),
@@ -247,6 +248,55 @@ describe("Engine Lab default UI", () => {
       ).toBe("true");
     });
     expect(instance.semantic.observe().revision).toBe(revisionDuringPlay);
+
+    composition.dispose();
+    await instance.dispose();
+  });
+
+  it("drives the crate's shaped hit region: clip, hover reveal, activation", async () => {
+    const labUi = await composeLabUiV1();
+    const { instance, composition } = labUi;
+    renderLabRootV1(labUi);
+
+    // The crate (with its authored regions Document) enters on first collect.
+    await userEvent.setup().click(screen.getByRole("button", { name: "采集样本" }));
+    const zone = await screen.findByRole("button", { name: "样本箱采集口" });
+
+    // The polygon narrows pointer hits natively via clip-path; keyboard
+    // focus keeps the bounding-box indicator sibling.
+    expect(zone).toHaveAttribute("data-stage-hit-region-shape", "polygon");
+    expect(zone.style.clipPath).toContain("polygon(");
+    expect(
+      document.querySelector('[data-stage-hit-region-focus="zone.crate.collect"]'),
+    ).toBeInTheDocument();
+
+    // Hovering reveals the authored glow through the Story's asset port and
+    // leaving hides it — pure feedback, no semantic revision moves.
+    const revisionBeforeHover = instance.semantic.observe().revision;
+    fireEvent.pointerEnter(zone);
+    const reveal = document.querySelector('[data-stage-hover-reveal="zone.crate.collect"]');
+    expect(reveal).not.toBeNull();
+    expect(reveal?.getAttribute("src")).toContain("data:image/svg+xml");
+    fireEvent.pointerLeave(zone);
+    expect(document.querySelector("[data-stage-hover-reveal]")).toBeNull();
+    expect(instance.semantic.observe().revision).toBe(revisionBeforeHover);
+
+    // Activating the region dispatches the same semantic invocation as the
+    // HUD button (collect yields a project-random 1–3 samples per commit);
+    // the stage itself never mutates State.
+    const samplesBeforeActivation = composition.presentation.getSnapshot().view.samplesCollected;
+    await userEvent.setup().click(zone);
+    await waitFor(() => {
+      expect(
+        composition.presentation.getSnapshot().view.samplesCollected,
+      ).toBeGreaterThan(samplesBeforeActivation);
+    });
+
+    // The region's hover asset is part of settled asset demand.
+    expect(composition.presentation.getSnapshot().requiredAssetIds).toEqual([
+      "asset.e2e.lab.background",
+      "asset.e2e.lab.crate-glow",
+    ]);
 
     composition.dispose();
     await instance.dispose();
