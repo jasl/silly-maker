@@ -341,6 +341,13 @@ conversation/task/artifact storage、permission UI、Mutation gateway 或 Effect
 本 gate 不提升 Deno Desktop persistence、packaging、signing、auto-update 或三个 OS 的
 production claim；这些继续由独立 Desktop lane 拥有。
 
+[Deno Desktop `--hmr`](https://docs.deno.com/runtime/desktop/hmr/) 只作为开发期候选 Module
+Update Source。当前 SillyMaker static staging/packaging command 不传入也未集成该模式，AR0 的
+Desktop baseline 仍只有 R3。AR5 若能在不扩张切片的前提下以真实 native dev launch 证明
+build-known candidate/generation、R1/R2 publication/handoff 与 failure/rollback，可以一并领取；
+否则 AR6 只记录 defer，由 owner 另行接受 Deno Desktop Module Update Source 专项计划。平台 flag、
+plain-app live patch 或 framework Fast Refresh 的存在本身都不能升格为 SillyMaker R1/R2 合同。
+
 ### AR6 — Closure and owner checkpoint
 
 - 删除被替代的 lifecycle backend、monolithic shell glue 和重复 adapter；standalone route 若仍
