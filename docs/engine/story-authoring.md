@@ -140,7 +140,7 @@ Reuse the engine pattern, not the Tavern-specific ten-module partition, names, n
 
 ### Compose a Host application
 
-A Story ships one `WebGameApplicationV1` declaration (core definition with the semantic adapter, validators, and optional Story extensions; projector; optional Narrative and WholeCanvas definitions; UI slots; Workspace Overlay definitions; labels; input maps) and boots it with `startWebGameApplicationV1`. The composers own the Session, persistence, capability session, diagnostics construction, input adapters, automation, and the dev HMR boundary — an entry never assembles engine services by hand. The Engine Lab follows this path.
+A Story ships one `WebGameApplicationV1` declaration (core definition with the semantic adapter, validators, and optional Story extensions; projector; optional Narrative and WholeCanvas definitions; UI slots; Workspace Overlay definitions; labels; input maps) and boots it with `startWebGameApplicationV1`. The composers own the Session, persistence, capability session, startup/runtime diagnostics, input adapters, automation, and disposal — an entry never assembles engine services by hand. Maintained runtime entries do not currently install a SillyMaker HMR accept boundary. Eligible component-only presentation modules may receive Vite React Fast Refresh; application declaration, core/domain, config, ineligible, and unclassified changes fall back to full-page reload. `installWebGameApplicationHmrV1` is an opt-in successor/persistence-handoff helper with conformance coverage, not the live default entry path. The Engine Lab follows this declaration path.
 
 When a Story has Narrative, create one frozen five-key input with
 `selectNarrative`, `dispatchResolution`, `renderer`, `resolveText`, and
@@ -352,13 +352,24 @@ finalizer that could target the successor.
 
 `startWebGameApplicationV1` then:
 
-1. creates neutral `ApplicationHostCapabilitiesV1` (IndexedDB records, files,
-   metadata clock, and logging) and admits Game bootstrap entropy separately;
+1. for the default document entry, admits the exact frozen runtime Browser/Desktop
+   bootstrap receipt, cross-checks the Desktop Host marker, and attaches to the
+   static startup shell; it then creates neutral `ApplicationHostCapabilitiesV1`
+   (records, files, metadata clock, and logging) and admits Game bootstrap entropy
+   separately;
 2. builds the persisted capability session (Host records overlaid by the page query);
 3. resolves the Story and creates the core application instance (Session, semantic port, persistence lease, autosave, Story extensions);
 4. composes the UI (presentation store, input router, intent router, one shared Workspace Overlay/System/Narrative/WholeCanvas Managed Surface authority, plus the interaction session) and mounts the default GameRoot with the Story's ordinary slots and, when declared, the composition-owned Narrative and WholeCanvas Hosts;
 5. installs the automation bridge and optional pointer adapter, binds the DebugBundle UI context, and registers page-lifecycle teardown;
-6. owns disposal and — through `installWebGameApplicationHmrV1` — the dev HMR rebootstrap with persistence handoff.
+6. publishes required-domain readiness independently of the first real React layout
+   commit, acknowledges a lazy optional contribution only after its active consumer
+   accepts it, restores a generic actionable shell on terminal failure, and owns
+   disposal.
+
+The startup receipt and DOM signals are Host evidence only. They never enter
+State, Save, digest, replay, RNG, or CommandLog. An application that deliberately
+uses `installWebGameApplicationHmrV1` must install and own that separate opt-in
+boundary; the maintained Story entries do not.
 
 The composer is the composition root. Base, UI, and Web must not import a concrete Story to make this happen.
 

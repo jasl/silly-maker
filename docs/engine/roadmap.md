@@ -117,7 +117,10 @@ locality、Scene Construction 与只读 Flow workspace，目标合同见
 事件 + reducer、权威监视器 V1、持久化安全点、监视器节奏环）、可创作帧集/命中区
 形状/hold `when`（均 2026-08-21）、持有中输入（2026-08-22，零新引擎原语）。
 上述补缺 lane 至 2026-08-22 全部交付关闭；合并后当前默认/core lane 回到本文后述的
-Application Runtime AR0–AR6，唯一 next task 是 AR0。排序与交付记录以
+Application Runtime AR0–AR6。AR0 已于 2026-08-22 交付中性 Host、admitted/frozen GUI
+bootstrap、runtime/author startup 与 recovery signals、final-output dependency attribution 和
+当前 R0–R3 平台边界；它没有提升 native Desktop launch、persistence/signing 或 RPC readiness。
+唯一 next task 是 AR1。排序与交付记录以
 [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md) §1
 为准，live capability 以 [features](features.md) 为准。
 
@@ -142,10 +145,10 @@ journal/reducer transaction；早期 proposal/fact shape 只保留为历史 chec
 
 2026-08-18 所有者以新的产品方向证据接受
 [Application Runtime and Embedded Authoring V1](plans/2026-08-18-application-runtime-embedded-authoring.md)
-为当前默认/core lane：先建立 Browser/Deno Desktop startup/dependency floor；AR1 用中立合同
-比较 direct 与 Cordis-core-derived private lifecycle 并只保留一条；随后交付 structured
-authoring operations、stable-sibling embeddable Authoring Host 与最窄 typed RPC/experimental
-Agent Host/UiArtifact seam，再做双 GUI Host build/performance promotion。目标合同见
+为当前默认/core lane：AR0 已建立 Browser/Deno Desktop startup/dependency floor；当前 AR1 用
+中立合同比较 direct 与 Cordis-core-derived private lifecycle 并只保留一条；随后交付
+structured authoring operations、stable-sibling embeddable Authoring Host 与最窄 typed
+RPC/experimental Agent Host/UiArtifact seam，再做双 GUI Host build/performance promotion。目标合同见
 [Application Runtime and Embedded Authoring](design/application-runtime-and-embedded-authoring.md)。
 本轮只交付引擎基础设施；AR6 后的作品、examples 或产品由所有者另行讨论和立案，不预设名称或
 顺序。未写入 active plan 的候选不是默认 backlog。已接受但未完成的 Desktop promotion 保持

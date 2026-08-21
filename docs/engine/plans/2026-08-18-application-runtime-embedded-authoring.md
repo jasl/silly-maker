@@ -1,9 +1,9 @@
 # Application Runtime and Embedded Authoring V1
 
 状态：2026-08-18 由所有者接受为下一条默认/core implementation lane，并在同日以补充 owner
-evidence 收紧产品与平台边界。当前只完成计划与目标合同，AR0–AR6 尚未启动。引擎能力扩展全部
-前置；本计划完成后的作品、examples 或产品验证由所有者另行选择和立案，不是本轮切片或完成
-blocker。
+evidence 收紧产品与平台边界。AR0 已于 2026-08-22 交付关闭，AR1 是唯一下一项；AR2–AR6
+尚未启动。引擎能力扩展全部前置；本计划完成后的作品、examples 或产品验证由所有者另行选择和
+立案，不是本轮切片或完成 blocker。
 
 目标合同由
 [Application Runtime and Embedded Authoring](../design/application-runtime-and-embedded-authoring.md)
@@ -46,8 +46,8 @@ live baseline 同时说明缺口位于 Host、activation 和 lifecycle，而不�
   workspaces，产品形态仍是 dev-only 独立页面；
 - `AuthoringDocumentSessionV1` 统一了文档会话，却只公开整文档 `replaceDraft`；Scene UI
   仍以 clone callback 表达编辑，未来 Agent/RPC caller 无法复用同一 typed operation；
-- build benchmark 已报告 entry/preload/lazy/all JS/CSS/assets，尚缺稳定的 shell-visible、
-  recovery-actionable、first-actionable、required-ready 与 optional-ready 信号；
+- AR0 启动前的 build benchmark 已报告 entry/preload/lazy/all JS/CSS/assets，但尚缺稳定的
+  shell-visible、recovery-actionable、first-actionable、required-ready 与 optional-ready 信号；
 - 现有 `AgentGamePortV1` 是 player-safe gameplay semantic automation，不是 LLM/后台 RPC、
   authoring 或 Artifact port，不能扩成万能接口。
 
@@ -81,13 +81,13 @@ Runtime 和 SillyMaker publication/authority 必须分层。Cordis 的 release �
 
 先补可比较观测和平台合同，不引入 loader/plugin/runtime 框架。
 
-| Surface             | 本轮角色                                                                       |
-| ------------------- | ------------------------------------------------------------------------------ |
-| Browser             | 正式 GUI target；记录 build、Vite module update、startup 与恢复行为            |
-| Deno Desktop        | 正式 GUI target；记录 Host startup、CLI config、module update/restart 行为     |
-| Auxiliary headless  | 只跑 dev/test/conformance；不形成第三种产品 entry 或 public API owner          |
-| Electron / Node     | 不进入实现或验收矩阵                                                           |
-| External dependency | 只记录 required-service readiness/failure 行为；不定义 RPC client 或 transport |
+| Surface                  | 本轮角色                                                                                 |
+| ------------------------ | ---------------------------------------------------------------------------------------- |
+| Browser                  | 正式 GUI target；记录 build、Vite module update、startup 与恢复行为                      |
+| Deno Desktop             | 正式 GUI target；记录 Host startup、CLI config、module update/restart 行为               |
+| Auxiliary headless       | 只跑 dev/test/conformance；不形成第三种产品 entry 或 public API owner                    |
+| Electron / Node          | 不进入实现或验收矩阵                                                                     |
+| Required Host capability | 记录 required records/Host-domain readiness/failure；外部 service/RPC readiness 留给 AR4 |
 
 - 定义 `runtime` 与 `author` GUI entry/dependency policy；headless harness 只作为辅助消费者；
   不新增或复用名为 `profile` 的公共概念，也不改变 `--profile release|debug` 构建语义；
@@ -103,22 +103,58 @@ Runtime 和 SillyMaker publication/authority 必须分层。Cordis 的 release �
 - characterise 两平台当前 module-update source、full restart 与 application handoff 行为，并用
   R0 data、R1 presentation/workspace、R2 authoritative Application Domain、R3 Host restart 分类
   现有路径；游戏 fixture 继续以 Game/Session successor 证明 R2；
-- 为 shell visible、recovery/configuration actionable、first product action、required
-  service/domain ready、optional capability ready 建立稳定 Host/test 信号；
+- 为 shell visible、recovery actionable、first product action、required
+  Host-capability/domain ready、optional capability ready 建立稳定 Host/test 信号；
 - 扩展现有 bundle report，使 entry/preload/lazy 归属能点名 contribution；报告继续写 OS
   temp/artifact，不含机器身份，不成为跨机器 CI timing gate；
 - characterization 当前 Player、独立 Studio route、DevDock lazy activation、HMR dirty-draft、
   author-code-absence 与 ordinary no-extension/no-RPC-client graph；
-- 用可控永不 resolve 的 optional loader 和最小 Host-level required-service failure stimulus 证明：
-  optional loader 不阻塞核心产品；外部服务失败不谎报依赖 domain ready，但 GUI 仍提供配置、
-  诊断和 retry。AR0 不定义 required domain/local binding composition、RPC client、transport 或 fake
-  API，这些分别由 AR1 与 AR4 拥有。
+- 用可控永不 resolve 的 optional loader 和最小 required Host records failure stimulus 证明：
+  optional loader 不阻塞核心产品；required Host capability 失败不谎报依赖 domain ready，但 GUI
+  仍提供诊断和 retry。AR0 不验证外部 service readiness，也不定义 required domain/local binding
+  composition、RPC client、transport、fake API 或 service configuration UI；这些分别由 AR1、AR4
+  与 AR5 拥有。
 
 验收：信号不进入 State/Save；现有 Story digest/Save/replay 不变；明确选择 no-RPC、
 no-extension 的静态 game baseline 中 Studio/dev-source/dynamic-extension/RPC implementation 为
 零，其他产品只要求未选择或 unrelated implementation 为零；Browser 与 Deno Desktop 的实际差异
 被记录，不用一个抽象词掩盖。Deno Desktop persistence/package/signing 的 production promotion
 仍归独立 lane。
+
+**AR0 closure（2026-08-22）：**
+
+- public `GameHostV1` 已删除；中性 `ApplicationHostCapabilitiesV1` 只聚合 records、files、
+  metadata clock 与 logging。Game bootstrap entropy 留在 Game Domain admission，不成为所有 GUI
+  Host 的通用能力，也没有复制第二个 Host owner；
+- Base 以 exact `{ revision, entry, target }` admission 产生新的 frozen
+  `ApplicationBootstrapConfigV1`。Browser runtime 使用 `runtime/browser`，独立 Studio 使用
+  `author/browser`，Desktop shell 使用 `runtime/deno_desktop`；Desktop `author` 仍明确不支持。
+  Desktop argv 只在启动边界严格解析，不成为运行期配置总线；
+- runtime Vite entry 和独立 Studio route 都先提供 dependency-free、可访问的静态 boot shell 与
+  inert config，且诊断 shell 与产品 React root 分离。Host/test 信号区分真实 React layout-ack 后的
+  first product commit、当前 entry 的 aggregate required-domain ready、optional capability ready 和
+  terminal recovery；失败只展示 bounded diagnostic code 与 Retry，不泄漏原始异常。一个永不
+  resolve 的 DevDock loader 不阻塞核心产品，required Host records 失败不谎报 ready。这里没有定义
+  或验证 RPC client/service readiness；
+- 真实 Template Vite build 证明 final Browser HTML 恰有一个 runtime/browser config 与一个静态
+  shell；同一 final HTML 经 Desktop response boundary 后恰有一个 runtime/deno_desktop config，
+  Browser target 文本被替换，Web reader 得到 frozen receipt。这是 build/HTML integration evidence，
+  不是一次 native Desktop package launch；
+- bundle measurement 现在从 final Vite chunk/asset graph 归因每个 output 的 application/
+  contribution owners 与 `contributionIds`，包括 CSS-only dynamic entry；private receipt 和默认报告
+  只写 OS temp，不修改 Player。Template 静态 release 的 engine-owned authoring、dev-source、
+  dynamic-extension 与 RPC implementation facets 均为零；
+- 当前 reload 边界已如实分类：Browser Studio 的 admitted document/CAS refresh 是 R0，binding/
+  workspace candidate 的 detached-layout publication 是 SillyMaker-owned R1；符合组件边界的纯
+  Player presentation module 还可走 Vite React Fast Refresh，但没有 SillyMaker atomic-publication/
+  handoff 保证。Web 的 Game/Session R2 只有 helper 与 conformance evidence，任何 maintained runtime
+  entry 都尚未安装该 Vite accept boundary；application declaration、core/domain、config、Fast
+  Refresh-ineligible 与其他未分类变化走 R3 full-page reload。Deno Desktop 当前打包静态 Player，
+  没有 R0–R2 module-update source；代码/config 变化需要 rebuild/process restart，按 R3 记录，不
+  伪装成 local successor；
+- 本切片没有改变 State、Snapshot、digest、Save、CommandLog 或 replay 语义。Deno Desktop
+  persistence/durability、native packaging launch、signing、auto-update、Desktop author/source-write
+  与真实 RPC readiness 仍未 promotion，也不包含在 AR0 的完成声明中。
 
 ### AR1 — Progressive activation and extension-runtime selection
 
@@ -375,8 +411,9 @@ AR6 后由 owner 单独讨论候选作品或产品。外部 workload 先保留 p
 明确且 focused behavior/build/performance evidence 成立后，才成为 engine candidate。整件作品、
 商业内容、资产和 fixture 不进入本仓 conformance。
 
-AR1 已经关闭 private extension backend 的首次选择；后续作品只验证选择是否继续成立，不自动
-激活 public Mod。public Mod 仍必须满足 roadmap 的独立 activation gates 和新的 active plan。
+AR1 关闭并完成 private extension backend 的首次选择后，后续作品只验证选择是否继续成立，
+不自动激活 public Mod。public Mod 仍必须满足 roadmap 的独立 activation gates 和新的 active
+plan。
 
 ## 5. Validation entrypoints
 

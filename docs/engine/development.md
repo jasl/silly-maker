@@ -136,6 +136,50 @@ React before disposing the provider scope. Do not use the return from
 This is not connected-browser geometry evidence; activate a stronger HMR
 contract only with a real layout-sensitive renderer and browser acceptance.
 
+### GUI startup and module-update baseline
+
+Every maintained runtime Vite entry receives a dependency-free accessible boot
+shell and one inert serialized `runtime`/`browser` bootstrap config before its
+module executes. The Web reader later parses and admits a fresh frozen receipt.
+The Desktop HTML response replaces the exact serialized config with
+`runtime`/`deno_desktop`; Web admission rejects a target that disagrees with the
+Desktop Host marker. The dev-only Studio page owns the corresponding
+`author`/`browser` config/read receipt and a separate React mount root. Desktop
+author entry is intentionally unsupported.
+
+The private `@sillymaker/web/internal/application-startup` seam publishes one DOM
+event, `sillymaker:application-startup-signal`, with independent
+`required_domain_ready`, `optional_capability_ready`,
+`first_product_commit`, `terminal_startup_failure`, and `recovery_requested`
+details. The first product signal follows a real React layout commit; a lazy
+DevDock contribution becomes optional-ready only after the active consumer has
+validated and published its registry. Terminal failures restore the static shell
+with a bounded `SM-STARTUP-*` code and Retry, never the raw error. These are
+Host/test signals, not State or persistence data.
+
+Current R0–R3 characterization:
+
+| Class | Browser                                                                                                                                                                                                                                   | Deno Desktop                                                                                                                                                         |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R0    | Studio Scene/Motion/Regions refresh uses the existing schema/CAS document session. Player source data has no independent R0 update source.                                                                                                | The static Player shell has no author/source update path.                                                                                                            |
+| R1    | Studio binding/workspace HMR has SillyMaker-owned candidate/layout acknowledgement. Eligible component-only Player presentation modules may also use Vite React Fast Refresh, without a SillyMaker atomic-publication guarantee.          | Not wired.                                                                                                                                                           |
+| R2    | `installWebGameApplicationHmrV1` and Game/Session persistence handoff have helper/conformance coverage, but maintained runtime entries do not install a Vite accept boundary.                                                             | Not wired.                                                                                                                                                           |
+| R3    | Application declaration, core/domain, config, Fast Refresh-ineligible, and otherwise unclassified changes use Vite full-page reload. Ordinary persisted Save recovery is available; in-process Session/UI/draft identity is not promised. | Built `dist/` changes require rebuild and Host relaunch. Preview records may recover Save; durable draft, author entry, and production persistence are not promised. |
+
+[Deno Desktop supports a platform `--hmr` development flag](https://docs.deno.com/runtime/reference/cli/desktop/),
+but SillyMaker's current static staging/packaging command does not pass or
+integrate it. Do not report the platform flag as a live SillyMaker R1/R2 path.
+
+Focused startup checks are:
+
+```sh
+deno run -A npm:vitest run e2e/src/test/application-startup.test.tsx
+deno run -A npm:vitest run engine/packages/web/src/application/application-startup-diagnostics.test.ts
+deno run -A npm:vitest run engine/packages/tooling/src/vite/application-entry-bootstrap.test.ts
+deno run -A npm:vitest run engine/packages/tooling/src/vite/studio.test.ts
+deno task story build template --profile release
+```
+
 While iterating on this package, run the focused runtime test plus the repository
 typecheck so its consumer type test is included:
 
@@ -171,7 +215,7 @@ deno task typecheck
 | `deno task bench:composition-state:memory`       | Sample one explicitly selected neutral Composition/State GC cell in an isolated process.                                                                   |
 | `deno task bench:surfaces`                       | Record the 30-row Stable publication lifecycle matrix as a trend-only temporary JSON report.                                                               |
 | `deno task bench:player`                         | Build Engine Lab, then record three Chromium interaction/heap/allocation trend samples in the OS temp directory.                                           |
-| `deno task bench:player:bundle`                  | Fresh-build Engine Lab release output and report entry/preload/lazy plus aggregate raw/gzip bytes to OS temp.                                              |
+| `deno task bench:player:bundle`                  | Fresh-build a release Player; report final graph, contribution IDs, grouped bytes, and Template negative facets to OS temp.                                |
 | `deno task test:e2e:engine`                      | Engine browser suite against the Engine Lab Story.                                                                                                         |
 | `deno task test:e2e`                             | Run the engine and example browser suites.                                                                                                                 |
 | `deno task build:web` (in an app directory)      | Canonical web build → `<app>/dist-web` (`build` is its alias; `preview` serves it over HTTP).                                                              |

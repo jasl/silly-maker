@@ -25,10 +25,14 @@ active authority；完成里程碑摘要在
 当前：2026-08-19 至 2026-08-22 的六条 engine-gap lane 全部交付关闭后，恢复
 2026-08-18 所有者以新产品方向证据接受的
 [Application Runtime and Embedded Authoring V1](2026-08-18-application-runtime-embedded-authoring.md)
-为当前默认/core lane。引擎能力全部前置，按 AR0 startup/dependency baseline → AR1
-progressive activation 与 private extension-runtime selection → AR2 structured Scene operations →
-AR3 embeddable Authoring Host/stable sibling → AR4 experimental Agent RPC/UiArtifact seam → AR5
-Browser/Deno Desktop GUI/build/performance promotion → AR6 closure 顺序执行。目标合同见
+为当前默认/core lane。AR0 startup/dependency baseline 已于 2026-08-22 交付关闭：中性 Host、
+admitted/frozen GUI bootstrap、runtime/author 静态 shell 与 readiness/recovery signals、final
+output contribution attribution，以及 Browser/Deno Desktop 当前 R0–R3 差异均已有 bounded
+evidence；它没有宣称 native Desktop launch、Desktop persistence/signing promotion 或 RPC
+readiness。引擎能力继续全部前置，按 AR1 progressive activation 与 private extension-runtime
+selection → AR2 structured Scene operations → AR3 embeddable Authoring Host/stable sibling → AR4
+experimental Agent RPC/UiArtifact seam → AR5 Browser/Deno Desktop GUI/build/performance promotion →
+AR6 closure 顺序执行。目标合同见
 [Application Runtime and Embedded Authoring](../design/application-runtime-and-embedded-authoring.md)。
 Browser 与 Deno Desktop 是当前 GUI product targets；CLI 只提供 Desktop startup config，
 headless 只作开发/测试辅助，外部后台与 LLM 统一经 RPC。AR1 用同一中立 suite 比较 direct 与
@@ -36,7 +40,7 @@ Cordis-core-derived private backend，关闭时只保留一条；这不激活 pu
 runtime code installation、State Format V2、Effect Broker、具体 OpenUI/A2UI adapter 或
 production Story State migration。普通静态游戏 release 仍不得包含 author/source-write、未选
 extension runtime 或 RPC implementation。AR6 后的作品/examples/产品由所有者另行选择和立案，
-不在本计划预先排序。下一项可领取任务只有 AR0。
+不在本计划预先排序。下一项可领取任务只有 AR1。
 
 前一条：[Mid-hold Input V1](2026-08-22-mid-hold-input.md)（提案
 [mid-hold-input](../proposals/mid-hold-input.md)，2026-08-22 所有者
@@ -461,7 +465,7 @@ one-shot setter 与 constructor factory 选择、formatter delta 或历史计划
 - Story-local gameplay/content；
 - 外部商业克隆补齐内容与只读对比证据；它不改变本仓 active contract，也不把商业内容带回；
 - 不改 authority 的文档和示例；
-- 当前 AR0/AR5 所需的只读 startup/bundle measurement；
+- 当前 AR5 所需的只读 startup/bundle measurement；
 - 独立 Desktop evidence；
 - 与当前 AR0–AR6 文件无重叠的 bug fix。
 

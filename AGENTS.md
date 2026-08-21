@@ -54,11 +54,15 @@ Read only the documents relevant to the change:
   Browser/Deno Desktop startup evidence, build-known progressive activation, an
   orchestration-neutral domain lifecycle with a bounded direct/Cordis-core A/B,
   structured authoring operations, an embeddable Authoring Host, and a typed RPC
-  plus experimental Agent/UiArtifact seam. AR1 chooses exactly one private
-  lifecycle backend; AR3 keeps Authoring stable across application-domain
-  successors, with Game/Session as the first conformance path. AR0 is the only
-  next task. Engine capabilities land before any separately accepted follow-on
-  product or work.
+  plus experimental Agent/UiArtifact seam. AR0 delivered 2026-08-22: neutral
+  Application Host capabilities, admitted/frozen runtime and author bootstrap,
+  static GUI startup/readiness/recovery evidence, final-output dependency
+  attribution, and a truthful Browser/Deno Desktop R0–R3 baseline. It did not
+  promote native Desktop launch, persistence/signing, or RPC readiness. AR1 is
+  the only next task and chooses exactly one private lifecycle backend; AR3
+  keeps Authoring stable across application-domain successors, with Game/Session
+  as the first conformance path. Engine capabilities land before any separately
+  accepted follow-on product or work.
   Desktop persistence remains an accepted, unfinished, conditional promotion
   lane while the adapter is preview.
 - `docs/engine/design/application-runtime-and-embedded-authoring.md` — accepted
@@ -224,9 +228,13 @@ accepted.
 - `@sillymaker/ui` owns reusable React presentation, input, interaction,
   overlays, diagnostics UI, assets, characters, stages, and semantic-publication
   bridges.
-- `@sillymaker/web` owns browser hosting, IndexedDB persistence adapters,
-  mounting, routing, capabilities, automation, pointer input, and development
-  rebootstrap.
+- `@sillymaker/web` owns browser hosting, Browser/Deno Desktop admitted GUI
+  bootstrap and startup readiness, IndexedDB persistence adapters, mounting,
+  routing, capabilities, automation, pointer input, and the optional development
+  rebootstrap helper. Maintained runtime entries do not install that helper as a
+  live HMR boundary. Vite React Fast Refresh may update boundary-safe
+  presentation-only modules; application/domain changes fall back to full-page
+  reload.
 - Story packages at the repository top level own game-specific state, rules,
   content, projections, application composition, and Story tooling: `e2e/` (the
   neutral Engine Lab conformance Story), `template/` (the minimal starter), and
