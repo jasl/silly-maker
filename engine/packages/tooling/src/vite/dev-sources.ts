@@ -147,6 +147,40 @@ export function resolveDevSourceCreatePathV1(
 
 export const devSourcesOpenUrlV1 = "/__sillymaker/dev-sources/open";
 
+export const devSourcesUrlPrefixV1 = "/__sillymaker/dev-sources/";
+
+/**
+ * Same-origin gate in front of every dev-sources endpoint. The dev server
+ * binds to localhost, but any web page open in the developer's browser can
+ * still fire requests at it (the classic CSRF shape): without this gate a
+ * malicious page could pop the developer's editor or, knowing a digest,
+ * write schema-valid scene/motion/regions documents into the project tree.
+ * Browsers attach `Sec-Fetch-Site` to every fetch they originate, so
+ * anything that is not our own origin (or a direct user navigation) is
+ * rejected whole. Requests without the header — curl, scripts, tests,
+ * non-browser tooling — pass: the boundary defended here is the browser.
+ */
+export function createDevSourcesOriginGuardV1(): (
+  request: IncomingMessage,
+  response: ServerResponse,
+  next: () => void,
+) => void {
+  return (request, response, next) => {
+    const [pathname = ""] = (request.url ?? "").split("?", 2);
+    if (!pathname.startsWith(devSourcesUrlPrefixV1)) {
+      next();
+      return;
+    }
+    const site = request.headers["sec-fetch-site"];
+    if (site === undefined || site === "same-origin" || site === "none") {
+      next();
+      return;
+    }
+    response.statusCode = 403;
+    response.end("cross-origin request rejected");
+  };
+}
+
 export interface CreateDevSourcesMiddlewareInputV1 {
   readonly appRoot: string;
   /** Injectable editor launcher; defaults to `launch-editor`. */
@@ -184,12 +218,16 @@ export function createDevSourcesMiddlewareV1(
   };
 }
 
-/** The `vite dev`-only plugin registering the dev-sources, motion, and scene ports. */
+/**
+ * The `vite dev`-only plugin registering the origin guard ahead of the
+ * dev-sources open, motion, regions, and scene ports.
+ */
 export function devSourcesPluginV1(appRoot: string): Plugin {
   return {
     name: "sillymaker:dev-sources",
     apply: "serve",
     configureServer(server) {
+      server.middlewares.use(createDevSourcesOriginGuardV1());
       server.middlewares.use(createDevSourcesMiddlewareV1({ appRoot }));
       server.middlewares.use(createMotionPortMiddlewareV1({ appRoot }));
       server.middlewares.use(createRegionsPortMiddlewareV1({ appRoot }));
