@@ -1,13 +1,24 @@
 # Mid-hold input writes 提案（hold 中输入写入）
 
-状态：**2026-08-22 所有者裁决接受**（open questions q1–q3 全部按建议
-采纳：组合而非原语、围栏谓词留 Story 惯例、清除责任留 Story 纪律）。
-兑现 [hold-when](hold-when.md) open question q1 的显式 defer（「hold
+状态：**2026-08-22 所有者裁决接受，同日 M0–M1 全部交付（关闭）**
+（open questions q1–q3 全部按建议采纳：组合而非原语、围栏谓词留
+Story 惯例、清除责任留 Story 纪律）。兑现
+[hold-when](hold-when.md) open question q1 的显式 defer（「hold
 中热区是输入轴，缺第二条 admission」）。本文只定合同；切片顺序与
 admission 由
-[Mid-hold input V1 计划](../plans/2026-08-22-mid-hold-input.md) 拥有；
+[Mid-hold input V1 计划](../plans/2026-08-22-mid-hold-input.md) 拥有
+（交付记录也在该计划）；
 [production-floor sequence](../plans/2026-07-30-production-floor-sequence.md)
 仍是唯一跨计划排序入口。
+
+关闭记录（2026-08-22）：零 base 代码改动，合同全部以消费者证据钉
+死。Lab conformance（主仓 `ffef9d0c`）：`lab.engage_collector` 围栏
+写 + 绊线臂，五条测试锁（写不动 hold、下一结算 t=0 切、批切不变、
+stale 整拒、save/load 存活）。实验仓活路径（克隆刀 #326）：CE18 条
+中途嘴区——解码证实原作热区点击是并发状态写入者、改道权全在 CE20 看
+门狗，与本合同逐条同构；`imouto.zone_press` 围栏写复用既有
+`inspect-kiss` 效果对，+5 分钟推过 2:00 由 bar 自己的 `when` 臂下次
+结算超时切断。其余身体热区是逐区内容刀，不再经引擎车道。
 
 一句话：**不需要新引擎原语。** 勘探证实「hold 挂起期间会话拒收一切输
 入」是错觉——基座从未挡过普通命令。输入轴是已交付合同的一次声明式组

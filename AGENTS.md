@@ -52,8 +52,9 @@ Read only the documents relevant to the change:
   base `settleHoldTimelineV1` stepping helper, with template-kit arms,
   both Engine Lab granularities (tick-driven same-instant, monitor-driven
   next-settlement t=0), and the experiment repo's night-room mid-bar
-  wake/disgust cut as the first live abort path. Explicit defers: mid-hold
-  hit regions (input axis) and the second abort path (alert catch). The
+  wake/disgust cut as the first live abort path. Explicit defers: the
+  second abort path (alert catch); the input-axis defer was claimed and
+  closed by the mid-hold-input lane. The
   parallel-monitors lane (accepted and
   delivered 2026-08-20) completed M0–M5 the same day:
   `docs/engine/plans/2026-08-20-parallel-monitors.md` with its contract in
@@ -90,17 +91,24 @@ Read only the documents relevant to the change:
   rect-intersect-silhouette refinement is a recorded native improvement).
   The explicit defer is the multi-region activation payload for overlapping
   regions (topmost-wins is the V1 contract), gated on an audited real
-  consumer. The active lane is mid-hold input writes (accepted 2026-08-22):
-  `docs/engine/proposals/mid-hold-input.md` and
+  consumer. The mid-hold-input lane (accepted and delivered 2026-08-22)
+  completed M0–M1 the same day:
+  `docs/engine/proposals/mid-hold-input.md` (with the closure record) and
   `docs/engine/plans/2026-08-22-mid-hold-input.md` — claiming hold `when`'s
   input-axis defer with zero new engine primitives (the session never gated
-  ordinary commands while a hold is pending; the lane pins the composition:
-  hit-region activation routes to an `expectedHoldOccurrenceId`-fenced
-  ordinary write command, and the hold's own `when` arms read the write at
-  the next fenced settlement's t=0). M0 is the Engine Lab input-granularity
-  conformance + docs; M1 is the experiment repo's CE18 mid-bar body-zone
-  live path. Regions never gain routing power; input commands never settle
-  time.
+  ordinary commands while a hold is pending; the lane pinned the
+  composition: hit-region activation routes to an
+  `expectedHoldOccurrenceId`-fenced ordinary write command, and the hold's
+  own `when` arms read the write at the next fenced settlement's t=0), with
+  the Engine Lab input-granularity conformance (fenced write command +
+  tripwire arm; batch-invariance, stale-fence whole rejection, and mid-hold
+  save/load locks) and the experiment repo's CE18 mid-bar kiss zone as the
+  live path (decode-verified: original zone clicks are concurrent state
+  writers and the reroute authority stays with the CE20 watchdog arms).
+  Regions never gain routing power; input commands never settle time;
+  remaining body zones are per-zone content knives, not engine work. There
+  is no active lane (mid-hold input closed 2026-08-22; awaiting the owner's
+  next order).
   Desktop persistence remains an independent promotion gate while the
   adapter is preview.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,
