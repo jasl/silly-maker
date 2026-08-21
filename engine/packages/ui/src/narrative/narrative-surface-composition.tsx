@@ -142,6 +142,15 @@ export interface DefineNarrativeSurfaceInputV1<TSemanticPublication> {
   readonly selectNarrative: (
     publication: DeepReadonly<TSemanticPublication>,
   ) => NarrativeSurfaceSelectionV1;
+  /**
+   * Routes one interaction resolution to the Story's semantic command. A
+   * committed resolution must publish its new selection before the returned
+   * promise settles. A resolution the Story rejects on game rules (session
+   * unchanged, nothing published) must resolve rather than throw: the
+   * Surface treats a completion whose pending interaction never changed as
+   * that ordinary rejected no-op and keeps the dialogue interactive. A
+   * rejected promise is a wiring fault and terminal-seals the composition.
+   */
   readonly dispatchResolution: (
     request: NarrativeSurfaceResolutionRequestV1,
   ) => Promise<unknown>;
@@ -1140,15 +1149,34 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
     }
   };
 
+  /**
+   * Tracks a dispatched semantic completion against the exact frame it was
+   * issued from. Committed resolutions and Barrier acknowledgments consume
+   * their pending interaction, so a completion that settles while the fence
+   * is still current proves the command did not commit — an ordinary
+   * Story-side rejection (game rules refusing the resolution and leaving the
+   * session unchanged), which must stay a no-op rather than seal the
+   * composition. The remaining Surface hazard is a commit whose publication
+   * this composition never observed: the direct source re-read below
+   * diverging from the reconciled selection while the fence still claims
+   * currentness.
+   */
   const trackCurrentCompletion = (
     generation: NarrativeSurfaceCompositionGenerationInternalV1,
     fence: NarrativeSurfaceCompletionFenceInternalV1,
     completion: Promise<unknown>,
-    requireSynchronousPublication: boolean,
   ): void => {
     void completion.then(
       () => {
-        if (requireSynchronousPublication && completionFenceIsCurrent(generation, fence)) {
+        if (!completionFenceIsCurrent(generation, fence)) return;
+        let freshPendingOccurrenceId: string | null;
+        try {
+          freshPendingOccurrenceId = readSelection()?.pending?.occurrenceId ?? null;
+        } catch (error) {
+          failComposition(error);
+          return;
+        }
+        if (freshPendingOccurrenceId !== fence.semanticOccurrenceId) {
           failComposition(
             new TypeError("ui.narrative_surface_completion_without_publication"),
           );
@@ -1186,7 +1214,7 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
       if (fence === null) {
         void result.completion.catch(() => undefined);
         failComposition(new TypeError("ui.narrative_surface_barrier_completion_unfenced"));
-      } else trackCurrentCompletion(generation, fence, result.completion, true);
+      } else trackCurrentCompletion(generation, fence, result.completion);
     }
   };
 
@@ -1207,7 +1235,7 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
           void result.completion.catch(() => undefined);
           throw new TypeError("ui.narrative_surface_barrier_completion_unfenced");
         }
-        trackCurrentCompletion(generation, fence, result.completion, true);
+        trackCurrentCompletion(generation, fence, result.completion);
       }
     }
     const replayUnsupported = controller.readReplayRecoveryUnsupportedInternalV1();
@@ -1626,7 +1654,6 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
             generation,
             completionFence,
             consumerResult.completion,
-            true,
           );
           return true;
         }

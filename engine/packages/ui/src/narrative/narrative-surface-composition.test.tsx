@@ -139,6 +139,10 @@ function semanticSourceV1(initial: NarrativeSurfaceSelectionInternalV1) {
       current = Object.freeze({ selection });
       for (const listener of [...listeners]) listener();
     },
+    /** Models a lost publication: the snapshot advances, listeners never fire. */
+    publishSilently(selection: NarrativeSurfaceSelectionInternalV1): void {
+      current = Object.freeze({ selection });
+    },
     listenerCount: () => listeners.size,
   });
 }
@@ -1105,15 +1109,12 @@ describe("Narrative Surface stable composite runtime", () => {
     harness.composition.disposeInternalV1();
   });
 
-  it.each([
-    ["rejects", () => Promise.reject(new Error("fixture.current-rejection"))],
-    ["resolves without publication", () => Promise.resolve("fixture.early-resolution")],
-  ])("terminal-fences a current Barrier completion that %s", async (_label, complete) => {
+  it("terminal-fences a current Barrier completion that rejects", async () => {
     const sealCompositionOnFailure = vi.fn();
     const harness = runtimeHarnessV1({
       sealCompositionOnFailure,
       definition: definitionWithDispatchV1(Object.freeze({
-        dispatchResolutionInternalV1: complete,
+        dispatchResolutionInternalV1: () => Promise.reject(new Error("fixture.current-rejection")),
       })),
     });
     harness.open();
@@ -1133,6 +1134,93 @@ describe("Narrative Surface stable composite runtime", () => {
 
     await Promise.resolve();
     await Promise.resolve();
+    expect(sealCompositionOnFailure).toHaveBeenCalledOnce();
+    expect(harness.composition.getCurrentSessionInternalV1()).toBeNull();
+    expect(stage.driver.isCurrentInternalV1()).toBe(false);
+  });
+
+  it("keeps a Story-rejected current Barrier acknowledgment as an unpublished no-op", async () => {
+    const reportFailure = vi.fn();
+    const sealCompositionOnFailure = vi.fn();
+    const harness = runtimeHarnessV1({
+      reportFailure,
+      sealCompositionOnFailure,
+      definition: definitionWithDispatchV1(Object.freeze({
+        // The Story refuses the acknowledgment and leaves the session
+        // unchanged: nothing publishes, the resolved completion is a no-op.
+        dispatchResolutionInternalV1: () => Promise.resolve("fixture.story-rejection"),
+      })),
+    });
+    harness.open();
+    const stage = bindBarrierStageV1(harness);
+    stage.driver.retargetInternalV1(Object.freeze({
+      target: stage.initialTarget,
+      revision: 1,
+      epoch: parseNonNegativeSafeInteger(7),
+    }));
+    harness.semantic.publish(selectionV1({ pending: barrierPendingV1(1) }));
+    settleCurrentNarrativeReadyV1(harness);
+    stage.driver.retargetInternalV1(Object.freeze({
+      target: stage.nextTarget,
+      revision: 2,
+      epoch: parseNonNegativeSafeInteger(7),
+    }));
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(reportFailure).not.toHaveBeenCalled();
+    expect(sealCompositionOnFailure).not.toHaveBeenCalled();
+    expect(harness.composition.getCurrentSessionInternalV1()).not.toBeNull();
+    expect(harness.composition.getCurrentSelectionInternalV1()?.pending?.occurrenceId).toBe(
+      barrierPendingV1(1).occurrenceId,
+    );
+    stage.release();
+    harness.composition.disposeInternalV1();
+  });
+
+  it("terminal-fences a current completion whose publication never reached the composition", async () => {
+    const reportFailure = vi.fn();
+    const sealCompositionOnFailure = vi.fn();
+    let semantic!: ReturnType<typeof semanticSourceV1>;
+    const dispatchResolution = vi.fn(() => {
+      // The command commits and the source snapshot advances, but the
+      // change notification is lost before it reaches this composition.
+      semantic.publishSilently(selectionV1());
+      return Promise.resolve("fixture.swallowed-publication");
+    });
+    const harness = runtimeHarnessV1({
+      reportFailure,
+      sealCompositionOnFailure,
+      createDefinition: (source) => {
+        semantic = source;
+        return definitionWithDispatchV1(Object.freeze({
+          dispatchResolutionInternalV1: dispatchResolution,
+        }));
+      },
+    });
+    harness.open();
+    const stage = bindBarrierStageV1(harness);
+    stage.driver.retargetInternalV1(Object.freeze({
+      target: stage.initialTarget,
+      revision: 1,
+      epoch: parseNonNegativeSafeInteger(7),
+    }));
+    harness.semantic.publish(selectionV1({ pending: barrierPendingV1(1) }));
+    settleCurrentNarrativeReadyV1(harness);
+    stage.driver.retargetInternalV1(Object.freeze({
+      target: stage.nextTarget,
+      revision: 2,
+      epoch: parseNonNegativeSafeInteger(7),
+    }));
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(reportFailure).toHaveBeenCalledOnce();
+    expect(
+      reportFailure.mock.calls[0]?.[0] instanceof TypeError &&
+        (reportFailure.mock.calls[0][0] as TypeError).message,
+    ).toBe("ui.narrative_surface_completion_without_publication");
     expect(sealCompositionOnFailure).toHaveBeenCalledOnce();
     expect(harness.composition.getCurrentSessionInternalV1()).toBeNull();
     expect(stage.driver.isCurrentInternalV1()).toBe(false);
