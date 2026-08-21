@@ -2,7 +2,7 @@
 
 > 想交给 AI 做？[用 AI 快速开始](/zh/guide/getting-started)介绍同一流程的代理驱动版。
 
-`template/` 包是一个由 CI 保活的最小可玩、scene-first 游戏。新游戏从复制它开始。动 TypeScript 之前可以先走可视化闭环：`deno task dev` 启动，设置里打开开发者工具，进 **调试 → 场景 → Studio**，直接拖动角色——保存只改 `src/scenes/opening/opening.scene.json`，运行中的游戏热更新。场景文档拥有站位与 cue→motion 绑定；剧本只引用 cue。
+`template/` 包是一个由 CI 保活的最小可玩、scene-first 游戏。新游戏从复制它开始。动 TypeScript 之前可以先走可视化闭环：`deno task dev` 启动，设置里打开开发者工具，进 **调试 → 工具 → Studio**，直接拖动角色——保存只改 `src/scenes/opening/opening.scene.json`，运行中的游戏热更新。场景文档拥有站位与 cue→motion 绑定；剧本只引用 cue。
 
 ## 复制并改名
 

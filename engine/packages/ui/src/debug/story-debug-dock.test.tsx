@@ -13,6 +13,7 @@ import type { RuntimeCapabilityPortV1 } from "@sillymaker/base";
 
 import { createManualPresentationClockV1 } from "../presentation-run/presentation-clock.ts";
 import { createPresentationFreezePortV1 } from "../presentation-run/presentation-freeze.ts";
+import { createPresentationRatePortV1 } from "../presentation-run/presentation-rate.ts";
 import type { SaveOverlayPortV1 } from "../persistence/save-overlay.tsx";
 import { createDevDockControlV1 } from "./dev-dock-control.ts";
 import {
@@ -109,6 +110,11 @@ describe("StoryDebugDockV1", () => {
     });
     const user = userEvent.setup();
     await user.click(screen.getByText("调试"));
+    expect(
+      within(screen.getByRole("group", { name: "工具" })).getByRole("button", {
+        name: "Motion 工坊",
+      }),
+    ).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Motion 工坊" }));
     expect(setEnabled).toHaveBeenCalledWith("debug_tools", true);
     expect(setEnabled).toHaveBeenCalledWith("cheats", true);
@@ -285,7 +291,7 @@ describe("StoryDebugDockV1", () => {
     expect(control.openPanelIds.getCurrent()).toEqual([]);
   });
 
-  it("groups state, scene, and story-cheat actions", async () => {
+  it("groups state, scene, rate, tools, and story-cheat actions", async () => {
     const control = createDevDockControlV1();
     control.publishPanelsInternalV1(Object.freeze([
       Object.freeze({
@@ -304,6 +310,11 @@ describe("StoryDebugDockV1", () => {
         authority: "read_only" as const,
       }),
       Object.freeze({
+        id: "panel.story.workbench",
+        title: "Motion 工坊",
+        authority: "read_only" as const,
+      }),
+      Object.freeze({
         id: "panel.tune",
         title: "作弊",
         authority: "cheat" as const,
@@ -315,6 +326,9 @@ describe("StoryDebugDockV1", () => {
       capabilities: fakeCapabilitiesV1({ debugTools: true, cheats: false }),
       grantCapabilitiesOnOpen: false,
       studioHref: "/__sillymaker/studio/",
+      presentationRate: createPresentationRatePortV1({
+        inner: createManualPresentationClockV1(),
+      }),
     });
     await userEvent.setup().click(screen.getByText("调试"));
     const state = screen.getByRole("group", { name: "状态" });
@@ -341,7 +355,13 @@ describe("StoryDebugDockV1", () => {
     const scene = screen.getByRole("group", { name: "场景" });
     expect(within(scene).getByRole("button", { name: "冻结画面" })).toBeVisible();
     expect(within(scene).getByRole("button", { name: "叙事图" })).toBeVisible();
-    expect(within(scene).getByRole("link", { name: "Studio" })).toBeVisible();
+    expect(within(scene).queryByRole("button", { name: "Motion 工坊" })).not.toBeInTheDocument();
+    expect(within(scene).queryByRole("button", { name: "1×" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "倍速" })).getByRole("button", { name: "1×" }))
+      .toBeVisible();
+    const tools = screen.getByRole("group", { name: "工具" });
+    expect(within(tools).getByRole("button", { name: "Motion 工坊" })).toBeVisible();
+    expect(within(tools).getByRole("link", { name: "Studio" })).toBeVisible();
     expect(
       within(screen.getByRole("group", { name: "作弊" })).getByRole("button", { name: "作弊" }),
     ).toBeDisabled();
@@ -355,7 +375,7 @@ describe("StoryDebugDockV1", () => {
   it("opens Studio in a new tab when the page is advertised", async () => {
     renderDockV1({ studioHref: "/__sillymaker/studio/" });
     await userEvent.setup().click(screen.getByText("调试"));
-    const studio = within(screen.getByRole("group", { name: "场景" })).getByRole("link", {
+    const studio = within(screen.getByRole("group", { name: "工具" })).getByRole("link", {
       name: "Studio",
     });
     expect(studio).toHaveAttribute("href", "/__sillymaker/studio/");

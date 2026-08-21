@@ -280,7 +280,7 @@ scene-managed 消费者。
 
 以 cat-cafe opening 为准的十步闭环（由所有者本人实测）：
 
-1. `deno task author`（或 `dev`）启动游戏后，调试坞 → 场景 → Studio；
+1. `deno task author`（或 `dev`）启动游戏后，调试坞 → 工具 → Studio；
 2. navigator 选"雨后的咖啡店门口"；
 3. 画布点击小雨；
 4. 拖动小雨向左；
