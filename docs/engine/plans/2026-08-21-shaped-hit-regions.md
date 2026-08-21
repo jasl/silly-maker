@@ -1,6 +1,7 @@
 # Shaped hit regions（E3）实施计划
 
-状态：进行中（2026-08-21 开启）。合同：
+状态：**已完成**（2026-08-21 接受、同日 M0–M5 全部交付；唯一显式
+defer 是重叠区域的多区域激活载荷，见验收下方）。合同：
 `docs/engine/proposals/shaped-hit-regions.md`（已接受）。
 
 ## Admission 裁决（车道开启时固化）
@@ -48,6 +49,34 @@
   story-authoring / authoring-quickstart / production-floor / AGENTS
   更新。
 
+## 交付记录（2026-08-21，M5 外部半 —— 车道收口）
+
+- **M5（外部实验仓身体热区）**：三姿势夜床身体图接形状热区，全链路
+  （trace → 生成器 → 严格入院 → geometry/hitRegions 发布 → 悬停显形
+  → 激活接语义）走通。判定素材证据：原作全部 `atarihantei_*.png` 判
+  定图是 1-bit 调色板、单色、无 tRNS——完全不透明矩形，其「像素级」
+  点击测试在矩形内恒真，原作热区**就是**摆放矩形。因此矩形坐标保持
+  权威，每格再用姿势身体图的 alpha 剪影（`story regions trace`，
+  540×540 立绘 31–48 顶点）经 Sutherland–Hodgman 对矩形四半平面裁边
+  ——命中跟身体不吃同矩形里的枕头，是引擎表达的原生改良（实验仓
+  fidelity 记录明示不是 1:1）；床上胖次堆不裁。仓本地生成器产出三份
+  `sillymaker.regions` 文档并复跑 `parseRegionsDocumentV1` 入院。内
+  容侧发布 1024×576 左上锚 geometry（区域锚点空间 = 原作屏幕坐标逐
+  字）+ 按姿势/胖次门选区；热区激活决议武装 touch-menu 上的隐藏
+  `choice.imouto.zone.*` 选项（同一 occurrence——合法性/门/重放全在
+  叙事引擎），检视子菜单删除、观察分支回身体点击；悬停/聚焦显形为
+  SVG 剪影 data URI 走静态 `AssetUrlRegistryV1` 端口；zone 武装时选
+  单右贴边、无幕布、点透舞台。实验仓门禁全绿（fmt + 43 文件 690
+  测试，含新增 zone 套件：文档入院/姿势与胖次门/选项与辉光映射/发布
+  geometry/武装窗）。 **车道收口**。顺带交付：trace 解码器把 1/2/4
+  位调色板 PNG 收为一等（遗留判定图 canonically tiny-palette，打包行
+  按规范 1 字节步长 unfilter、下标大端解包，测试盖跨滤波 4 位行、跨
+  字节 1 位行与 16 位调色板拒绝）；node_modules 符号链接竞态根因收口
+  ——实测每个 vitest fork worker 都是 `deno run` 子进程、auto 模式每
+  次启动重连符号链接（watcher 抓到运行中 600ms 内五次重连），根
+  `deno.json` 改 `"nodeModulesDir": "manual"`（只有 `deno install`
+  写 node_modules），修前独立全量三连红、修后四连绿 + 全门禁绿。
+
 ## 交付记录（2026-08-21，M5 仓内消费者 + 文档）
 
 - **M5（仓内半）**：Engine Lab 样本箱采集口走通完整链路——
@@ -62,7 +91,7 @@
   动、激活后样本数上升（采集产出为工程随机 1–3，断言用增量）。文档收
   口：features / story-authoring / authoring-quickstart /
   production-floor / AGENTS 同步（顺带把 M2 记录的 lint「五码」纠为四
-  码）。**车道保持未收口**：剩外部实验仓身体热区消费者。
+  码）。当时剩外部实验仓身体热区消费者；已由上方收口记录交付。
 
 ## 交付记录（2026-08-21，M4）
 

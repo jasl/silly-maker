@@ -64,21 +64,24 @@ Read only the documents relevant to the change:
   frame-track editing, and consumers in the Engine Lab, the starter
   template (scene-document-declared blink), and the external experiment
   repo. The only explicit defer is the cross-document frame-index-vs-table
-  story lint, gated on content declarations becoming data. The current lane
-  is shaped hit regions (accepted 2026-08-21):
+  story lint, gated on content declarations becoming data. The shaped-hit-regions lane
+  (accepted and delivered 2026-08-21) completed M0–M5 the same day:
   `docs/engine/plans/2026-08-21-shaped-hit-regions.md` with its contract in
-  `docs/engine/proposals/shaped-hit-regions.md` — M0–M4 plus the in-repo M5
-  consumer delivered the same day (`polygonPoints` + `hoverAssetId` on hit
-  regions with clip-path hits and hover/focus reveal through the stage
-  `assets` port, the `sillymaker.regions` document family with story-check
-  lints and dev-server CAS ports, the Studio Regions workspace editing
-  against the real host rendering, the `story regions trace` bitmap-to-
-  polygon devtool, and the Engine Lab crate collection port). The lane stays
-  open on one remaining cut — the external experiment repo's body zones —
-  after which the delivery record closes it. The explicit defer is the
-  multi-region activation payload for overlapping regions (topmost-wins is
-  the V1 contract), gated on an audited real consumer. Desktop persistence
-  remains an independent promotion gate while the adapter is preview.
+  `docs/engine/proposals/shaped-hit-regions.md` — `polygonPoints` +
+  `hoverAssetId` on hit regions with clip-path hits and hover/focus reveal
+  through the stage `assets` port, the `sillymaker.regions` document family
+  with story-check lints and dev-server CAS ports, the Studio Regions
+  workspace editing against the real host rendering, the `story regions
+  trace` bitmap-to-polygon devtool (sub-byte palette PNGs first-class), and
+  both consumers (the Engine Lab crate collection port in-repo; the external
+  experiment repo's three-pose night-bed body zones, where the vendor
+  judgment art proved to be fully opaque 1-bit rectangles and the
+  rect-intersect-silhouette refinement is a recorded native improvement).
+  The explicit defer is the multi-region activation payload for overlapping
+  regions (topmost-wins is the V1 contract), gated on an audited real
+  consumer. No lane is currently open; the owner orders the next one.
+  Desktop persistence remains an independent promotion gate while the
+  adapter is preview.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,
   `docs/engine/plans/2026-07-30-snapshot-commit-performance.md`,
   `docs/engine/plans/2026-07-30-save-migration.md`,

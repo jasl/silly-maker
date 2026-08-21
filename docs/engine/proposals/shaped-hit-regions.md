@@ -1,7 +1,8 @@
 # Shaped hit regions proposal（命中区形状、悬停揭示与区域文档）
 
-状态：已接受（2026-08-21，帧集车道交付后开启）。最终 admission 裁决
-随实施计划固化：`docs/engine/plans/2026-08-21-shaped-hit-regions.md`。
+状态：**已接受并交付**（2026-08-21 所有者接受，同日 M0–M5 全部交付，
+含双消费者）。admission 裁决与交付记录见
+[Shaped hit regions 计划](../plans/2026-08-21-shaped-hit-regions.md)。
 
 创作者需求：「在立绘/物件上画**跟着美术走的**可点区域，不是矩形」「指
 针悬停时这块区域亮起来给反馈」「区域要能在 Studio 里对着图拉顶点，不
