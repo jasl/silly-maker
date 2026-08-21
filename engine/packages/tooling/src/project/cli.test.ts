@@ -259,8 +259,12 @@ function desktopShellFilesV1(): Record<string, string> {
   return {
     [fileURLToPath(new URL("../desktop/shell-main.ts", import.meta.url))]:
       'const appIdentifierV1 = "__SILLYMAKER_APP_IDENTIFIER__";\nconst distDirNameV1 = "__SILLYMAKER_DIST_DIR__";\n',
+    [fileURLToPath(new URL("../desktop/application-bootstrap-html.mts", import.meta.url))]:
+      "export const applicationBootstrapHtmlV1 = 1;\n",
     [fileURLToPath(new URL("../desktop/desktop-html.mts", import.meta.url))]:
       "export const desktopHtmlV1 = 1;\n",
+    [fileURLToPath(new URL("../desktop/desktop-shell-arguments.mts", import.meta.url))]:
+      "export const desktopShellArgumentsV1 = 1;\n",
     [fileURLToPath(new URL("../desktop/file-download-handler.mts", import.meta.url))]:
       "export const fileDownloadHandlerV1 = 1;\n",
     [fileURLToPath(new URL("../desktop/shell-http-admission.mts", import.meta.url))]:
@@ -499,7 +503,11 @@ describe("runProjectCliV1", () => {
     const written = fake.log.writes.map((entry) => entry.path);
     expect(written).toContain("/repo/test/dist-desktop/staging/deno.json");
     expect(written).toContain("/repo/test/dist-desktop/staging/main.ts");
+    expect(written).toContain(
+      "/repo/test/dist-desktop/staging/application-bootstrap-html.mts",
+    );
     expect(written).toContain("/repo/test/dist-desktop/staging/desktop-html.mts");
+    expect(written).toContain("/repo/test/dist-desktop/staging/desktop-shell-arguments.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/record-file-store.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/file-download-handler.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/shell-http-admission.mts");

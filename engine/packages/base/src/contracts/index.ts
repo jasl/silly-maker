@@ -54,6 +54,12 @@ export type {
   SessionLeasePortV1,
   SessionLifecyclePortV1,
 } from "./application.ts";
+export { admitApplicationBootstrapConfigV1 } from "./application-bootstrap.ts";
+export type {
+  ApplicationBootstrapConfigV1,
+  ApplicationBootstrapEntryV1,
+  ApplicationBootstrapTargetV1,
+} from "./application-bootstrap.ts";
 export type {
   GamePackageV1,
   PatchSurfaceValueMapWitnessV1,

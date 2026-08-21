@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import type {
+  ApplicationBootstrapConfigV1,
   ApplicationHostCapabilitiesV1,
   BootstrapEntropyV1,
   GameApplicationPortV1,
@@ -54,6 +55,7 @@ import type {
   TextCatalogSetV1,
 } from "@sillymaker/base";
 import {
+  admitApplicationBootstrapConfigV1,
   createGameSnapshotEnvelopeSchemaV1,
   createPristineRunIntegrityV1,
   createSaveRecordEnvelopeSchemaV1,
@@ -168,6 +170,7 @@ import type {
 } from "@sillymaker/base/testkit";
 
 export type BaseConsumerTypesV1 = {
+  applicationBootstrap: ApplicationBootstrapConfigV1;
   applicationHostCapabilities: ApplicationHostCapabilitiesV1;
   application: GameApplicationPortV1<unknown, unknown, unknown, unknown, unknown, unknown>;
   entropy: BootstrapEntropyV1;
@@ -285,6 +288,7 @@ publicSessionCompositionV1.runtimeControl.setCurrentStateDigest;
 publicSessionCompositionV1.runtimeControl.lookupInstalledSnapshotDigest;
 
 export type BaseConsumerValuesV1 = {
+  admitApplicationBootstrapConfig: typeof admitApplicationBootstrapConfigV1;
   createCoreGameApplicationInstance: typeof createCoreGameApplicationInstanceV1;
   createGameSession: typeof createGameSessionV1;
   createGameHarness: typeof createGameHarnessV1;

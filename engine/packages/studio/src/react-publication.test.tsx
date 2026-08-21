@@ -66,6 +66,32 @@ describe("Studio React layout publication", () => {
     expect(container.querySelector("[data-sillymaker-studio-epoch=current]")).not.toBeNull();
   });
 
+  it("keeps the static boot shell until the initial layout commits, then retires it", async () => {
+    const container = containerV1();
+    const bootShell = document.createElement("div");
+    bootShell.dataset.sillymakerBootShell = "pending";
+    bootShell.setAttribute("role", "status");
+    bootShell.setAttribute("aria-busy", "true");
+    bootShell.textContent = "Studio is starting";
+    container.append(bootShell);
+    const publication = createReactLayoutPublicationV1<TestPlanV1>({
+      container,
+      render(plan) {
+        return <LayoutProbeV1 plan={plan} events={[]} />;
+      },
+    });
+    mountedPublications.push(publication);
+
+    const mount = publication.mount({ label: "initial" });
+    expect(container.firstElementChild).toBe(bootShell);
+    expect(bootShell).toHaveAttribute("aria-busy", "true");
+
+    await mount;
+    expect(container.contains(bootShell)).toBe(false);
+    expect(container.textContent).toBe("initial");
+    expect(container.querySelector("[data-sillymaker-studio-epoch=current]")).not.toBeNull();
+  });
+
   it("leaves the container empty and cleans the detached root after initial layout failure", async () => {
     const container = containerV1();
     const events: string[] = [];
@@ -84,6 +110,29 @@ describe("Studio React layout publication", () => {
     expect(container.childElementCount).toBe(0);
     expect(events).toEqual(["layout:ready", "cleanup:ready"]);
     expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  it("preserves the static boot shell when the initial publication fails", async () => {
+    const container = containerV1();
+    const bootShell = document.createElement("div");
+    bootShell.dataset.sillymakerBootShell = "pending";
+    bootShell.textContent = "Studio is starting";
+    container.append(bootShell);
+    const publication = createReactLayoutPublicationV1<TestPlanV1>({
+      container,
+      render() {
+        throw new Error("initial render failed");
+      },
+    });
+    mountedPublications.push(publication);
+
+    await expect(publication.mount({ label: "initial" })).rejects.toThrow(
+      "initial render failed",
+    );
+
+    expect(container.childElementCount).toBe(1);
+    expect(container.firstElementChild).toBe(bootShell);
+    expect(container.textContent).toBe("Studio is starting");
   });
 
   it("keeps the exact old host and rendered node when detached candidate rendering fails", async () => {

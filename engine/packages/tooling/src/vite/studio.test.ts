@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 
 import type { HtmlTagDescriptor, Plugin } from "vite";
 
-import { studioPageMetaNameV1, studioPageUrlV1, studioPluginV1 } from "./studio.ts";
+import {
+  createStudioPageHtmlInternalV1,
+  studioPageMetaNameV1,
+  studioPageUrlV1,
+  studioPluginV1,
+} from "./studio.ts";
 
 const studioBindingV1 = Object.freeze({
   module: "src/application/studio.ts",
@@ -40,6 +45,23 @@ function studioEntrySourceFromPluginV1(plugin: Plugin): string {
 }
 
 describe("studioPluginV1", () => {
+  it("generates a static accessible Author/Browser boot shell", () => {
+    const html = createStudioPageHtmlInternalV1();
+
+    expect(html).toContain('<div id="sillymaker-studio-root">');
+    expect(html).toContain(
+      'role="status" aria-live="polite" aria-busy="true" aria-label="SillyMaker Studio 启动状态"',
+    );
+    expect(html).toContain("SillyMaker Studio 正在启动…");
+    expect(html).toContain(
+      '{"revision":1,"entry":"author","target":"browser"}',
+    );
+    expect(html).toContain('type="application/json" data-sillymaker-bootstrap-config="v1"');
+    expect(html.indexOf('data-sillymaker-boot-shell="pending"')).toBeLessThan(
+      html.indexOf('src="/__sillymaker/studio-entry.tsx"'),
+    );
+  });
+
   it("advertises the Studio page on the game HTML", () => {
     const transform = studioHtmlTransformV1(studioPluginV1(studioBindingV1));
     const transformed = transform("<!doctype html><html><head></head><body></body></html>");

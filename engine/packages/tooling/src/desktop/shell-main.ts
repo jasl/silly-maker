@@ -4,6 +4,7 @@ import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createDesktopHtmlResponseInternalV1 } from "./desktop-html.mts";
+import { parseDesktopShellArgumentsV1 } from "./desktop-shell-arguments.mts";
 import { createFileDownloadRequestCoordinatorInternalV1 } from "./file-download-handler.mts";
 import { createRecordFileStoreV1 } from "./record-file-store.mts";
 import { handleRecordHttpRequestV1 } from "./record-http-handler.mts";
@@ -38,7 +39,7 @@ interface ShellHttpServerV1 extends ShellServerLikeV1 {
  *
  * Staged copies replace the two placeholders below; running the file
  * directly from the source tree also works for local verification:
- *   deno run -A engine/packages/tooling/src/desktop/shell-main.ts --dist <app>/dist-web --id dev.local.app
+ *   deno run -A engine/packages/tooling/src/desktop/shell-main.ts --entry runtime --dist <app>/dist-web --id dev.local.app
  */
 
 declare const Deno: {
@@ -62,19 +63,20 @@ if (typeof moduleUrlV1 !== "string") {
 }
 const moduleDirV1 = fileURLToPath(new URL(".", moduleUrlV1));
 
-function argValueV1(name: string, fallback: string): string {
-  const index = Deno.args.indexOf(`--${name}`);
-  const value = index >= 0 ? Deno.args[index + 1] : undefined;
-  return value === undefined ? fallback : value;
+const identifierIsPlaceholderV1 = appIdentifierV1.startsWith("__SILLYMAKER_");
+const distIsPlaceholderV1 = distDirNameV1.startsWith("__SILLYMAKER_");
+if (identifierIsPlaceholderV1 !== distIsPlaceholderV1) {
+  throw new TypeError("Desktop shell staging placeholders are inconsistent");
 }
-
-const identifier = appIdentifierV1.startsWith("__SILLYMAKER_")
-  ? argValueV1("id", "dev.sillymaker.shell")
+const sourceTreeRunV1 = identifierIsPlaceholderV1;
+const shellArgumentsV1 = parseDesktopShellArgumentsV1(Deno.args, {
+  allowSourceOverrides: sourceTreeRunV1,
+});
+const identifier = sourceTreeRunV1
+  ? shellArgumentsV1.identifierOverride ?? "dev.sillymaker.shell"
   : appIdentifierV1;
 const distDir = normalize(
-  distDirNameV1.startsWith("__SILLYMAKER_")
-    ? argValueV1("dist", "dist")
-    : join(moduleDirV1, distDirNameV1),
+  sourceTreeRunV1 ? shellArgumentsV1.distOverride ?? "dist" : join(moduleDirV1, distDirNameV1),
 );
 
 function userDataDirV1(): string {
@@ -156,6 +158,7 @@ async function handleStaticV1(request: Request, pathname: string): Promise<Respo
       return createDesktopHtmlResponseInternalV1(
         new TextDecoder().decode(bytes),
         shellCapabilityV1,
+        shellArgumentsV1.bootstrap,
         request.method === "HEAD",
       );
     }

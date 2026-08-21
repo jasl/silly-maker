@@ -2,6 +2,7 @@
 import type { Plugin, ViteDevServer } from "vite";
 
 import type { ProjectModuleRefV1 } from "../project/config-types.ts";
+import { accessibleApplicationBootShellHtmlV1 } from "../desktop/application-bootstrap-html.mts";
 
 /**
  * The dev-only SillyMaker Studio page: `/__sillymaker/studio/` serves an
@@ -19,7 +20,8 @@ export const studioPageMetaNameV1 = "sillymaker-studio";
 
 const studioEntryIdV1 = "/__sillymaker/studio-entry.tsx";
 
-function studioHtmlV1(): string {
+/** @internal Generated dev-only Author entry document. */
+export function createStudioPageHtmlInternalV1(): string {
   return [
     "<!doctype html>",
     '<html lang="zh-CN">',
@@ -29,7 +31,12 @@ function studioHtmlV1(): string {
     "<title>SillyMaker Studio</title>",
     "</head>",
     "<body>",
-    '<div id="sillymaker-studio-root"></div>',
+    accessibleApplicationBootShellHtmlV1({
+      containerId: "sillymaker-studio-root",
+      accessibleName: "SillyMaker Studio 启动状态",
+      statusText: "SillyMaker Studio 正在启动…",
+      bootstrap: Object.freeze({ revision: 1, entry: "author", target: "browser" }),
+    }),
     `<script type="module" src="${studioEntryIdV1}"></script>`,
     "</body>",
     "</html>",
@@ -157,7 +164,7 @@ export function studioPluginV1(studio: ProjectModuleRefV1): Plugin {
           return;
         }
         void server
-          .transformIndexHtml(studioPageUrlV1, studioHtmlV1())
+          .transformIndexHtml(studioPageUrlV1, createStudioPageHtmlInternalV1())
           .then((html) => {
             response.statusCode = 200;
             response.setHeader("content-type", "text/html; charset=utf-8");

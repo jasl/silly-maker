@@ -177,7 +177,11 @@ export function createReactLayoutPublicationV1<TPlan>(
         }
         initial.host.dataset.sillymakerStudioEpoch = "current";
         try {
-          input.container.append(initial.host);
+          // The static Author boot shell remains visible while the detached
+          // candidate prepares. Retire it only after the first real layout
+          // commit has acknowledged, at the same cutover that installs the
+          // live Studio owner.
+          input.container.replaceChildren(initial.host);
         } catch (error) {
           disposeEpoch(initial);
           throw error;

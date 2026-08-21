@@ -835,7 +835,9 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
   // Every module shell-main.ts imports must ship into the staging directory,
   // or the `deno desktop` type-check fails on a missing local specifier.
   const shellModuleNames = [
+    "application-bootstrap-html.mts",
     "desktop-html.mts",
+    "desktop-shell-arguments.mts",
     "file-download-handler.mts",
     "shell-http-admission.mts",
     "record-file-store.mts",

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 export {
+  admitApplicationBootstrapConfigV1,
   canonicalPresentationJsonBytesV1,
   canonicalJsonBytes,
   CanonicalJsonError,
@@ -438,6 +439,9 @@ export type {
   GameCommandExecutorV1,
   GameDebugCommandExecutorV1,
   GameDebugCommandValidationResultV1,
+  ApplicationBootstrapConfigV1,
+  ApplicationBootstrapEntryV1,
+  ApplicationBootstrapTargetV1,
   ApplicationHostCapabilitiesV1,
   GamePackageResolutionFailureCodeV1,
   GamePackageResolutionFailureV1,
