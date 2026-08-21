@@ -10,16 +10,20 @@ describe("Web Host", () => {
     vi.unstubAllGlobals();
   });
 
-  it("provides fixed entropy with an explicitly injected record store", async () => {
+  it("provides only neutral Application Host capabilities", async () => {
     const records = createMemoryHostRecordStoreV1();
     const host = createWebHostV1({
       records,
-      seeds: [7],
-      uuids: ["00000000-0000-4000-8000-000000000001"],
+      now: () => "2026-08-22T00:00:00.000Z",
     });
-    expect(host.bootstrapEntropy.nextNonZeroUint32()).toBe(7);
-    expect(host.bootstrapEntropy.nextUuidV4()).toBe("00000000-0000-4000-8000-000000000001");
+    expect(Object.keys(host).toSorted()).toEqual([
+      "files",
+      "log",
+      "metadataClock",
+      "records",
+    ]);
     expect(host.records).toBe(records);
+    expect(host.metadataClock.now()).toBe("2026-08-22T00:00:00.000Z");
     for (const key of ["b", "a"]) {
       await host.records.commit([
         {

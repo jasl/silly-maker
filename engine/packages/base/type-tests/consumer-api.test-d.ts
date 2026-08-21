@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import type {
+  ApplicationHostCapabilitiesV1,
   BootstrapEntropyV1,
   GameApplicationPortV1,
   GameBootstrapInputV1,
@@ -167,6 +168,7 @@ import type {
 } from "@sillymaker/base/testkit";
 
 export type BaseConsumerTypesV1 = {
+  applicationHostCapabilities: ApplicationHostCapabilitiesV1;
   application: GameApplicationPortV1<unknown, unknown, unknown, unknown, unknown, unknown>;
   entropy: BootstrapEntropyV1;
   bootstrap: GameBootstrapInputV1;
@@ -428,6 +430,8 @@ export { parseNonZeroUint32V1 } from "@sillymaker/base";
 export { parseStateSlotIdV1 } from "@sillymaker/base";
 // @ts-expect-error internal compatibility decoder is not public
 export type OldProfile = import("@sillymaker/base").GameProfileV1;
+// @ts-expect-error GameHostV1 was replaced by neutral Application Host capabilities
+export type OldGameHost = import("@sillymaker/base").GameHostV1;
 // @ts-expect-error internal compatibility decoder is not public
 export { defineGameProfile } from "@sillymaker/base";
 // @ts-expect-error internal compatibility decoder is not public

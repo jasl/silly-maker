@@ -541,11 +541,14 @@ authoritative in-memory Snapshot
 ```
 
 `HostAtomicRecordStoreV1` is a revisioned byte-record interface used for saves,
-leases, and settings. `createWebHostV1` supplies its IndexedDB implementation
-plus browser entropy, file, clock, navigation, and logging ports. Tests or other
-Hosts can inject a different record store without moving browser concerns into
-Base. The current desktop channel exercises that seam through a loopback HTTP
-adapter backed by local files. Its file backend remains a durability preview
+leases, and settings. `ApplicationHostCapabilitiesV1` is the neutral capability
+aggregate for records, files, metadata clock, and logging;
+`createWebHostV1` supplies the browser implementation. Game bootstrap entropy is
+admitted separately by the Game Domain and is not an Application Host
+capability. Tests or other Hosts can inject a different record store without
+moving browser concerns into Base. The current desktop channel exercises that
+seam through a loopback HTTP adapter backed by local files. Its file backend
+remains a durability preview
 until it proves crash-atomic multi-record commits, cross-process revisions, and
 old-record migration/recovery. Desktop packaging is a separate preview axis
 until each named platform proves a real package build, launch, write, exit, and

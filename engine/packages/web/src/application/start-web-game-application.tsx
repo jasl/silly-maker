@@ -2,9 +2,11 @@
 import type { ReactElement } from "react";
 
 import type {
+  ApplicationHostCapabilitiesV1,
+  BootstrapEntropyV1,
   BuildProvenanceV1,
   DeepReadonly,
-  GameHostV1,
+  HostFilePortV1,
   RuntimeCapabilityPortV1,
 } from "@sillymaker/base";
 import { digestCanonical, engineDebugPatchStateKindV1 } from "@sillymaker/base";
@@ -94,6 +96,7 @@ import type { WebInstanceLeasePortV1, WebInstancePolicyV1 } from "./instance-lea
 import { createPlayerSaveSurfacesV1 } from "./create-player-save-surfaces.ts";
 import { createWebApplicationTerminalSupervisorInternalV1 } from "./application-terminal-supervisor.ts";
 import { createCompositionBoundRestartLifecycleInternalV1 } from "./composition-bound-restart-lifecycle.ts";
+import { createWebGameBootstrapEntropyInternalV1 } from "./create-web-game-bootstrap-entropy.ts";
 import { installDesktopCloseFlushV1 } from "./install-desktop-close-flush.ts";
 import { createManagedSurfaceApplicationEpochAllocatorInternalV1 } from "./managed-surface-application-epoch.ts";
 import { installPresentationPacingInternalV1 } from "./presentation-pacing.ts";
@@ -327,7 +330,7 @@ export interface WebGameApplicationV1<
      * outside every Game Save. */
     readonly playerProfile: PlayerProfileStoreV1;
     /** Host file/download port for Story-facing export surfaces. */
-    readonly files: GameHostV1["files"];
+    readonly files: HostFilePortV1;
     /** The live capability session (persisted overlay + page request). */
     readonly capabilities: RuntimeCapabilitySessionOverlayV1;
     /** Multi-instance lease role for banners and manual takeover. */
@@ -390,7 +393,9 @@ export interface WebGameApplicationV1<
 
 export interface StartWebGameApplicationOptionsV1 {
   readonly rootElement?: HTMLElement;
-  readonly host?: GameHostV1;
+  readonly host?: ApplicationHostCapabilitiesV1;
+  /** Game Domain bootstrap entropy; defaults to the Web crypto adapter. */
+  readonly gameBootstrapEntropy?: BootstrapEntropyV1;
   /** Injectable for tests; defaults to the browser image loader. */
   readonly assetLoader?: RuntimeAssetLoaderV1;
   readonly databaseName?: string;
@@ -417,7 +422,7 @@ export const defaultWebAutosavePolicyV1: CoreAutosavePolicyV1 = Object.freeze({
 export interface StartedWebGameApplicationV1 {
   readonly applicationId: string;
   /** The Host this application runs on; HMR successors reuse it. */
-  readonly host: GameHostV1;
+  readonly host: ApplicationHostCapabilitiesV1;
   /** Full build provenance for HMR identity comparison. */
   readonly provenance: DeepReadonly<BuildProvenanceV1>;
   readonly capabilitySearch: string;
@@ -628,6 +633,9 @@ export async function startWebGameApplicationV1<
       : createWebHostV1({
         databaseName: options.databaseName ?? `sillymaker.${application.applicationId}`,
       }));
+  const gameBootstrapEntropy = options.gameBootstrapEntropy ??
+    createWebGameBootstrapEntropyInternalV1();
+  const nextApplicationUuidV4 = (): string => globalThis.crypto.randomUUID();
   const reportFailure = (code: string, error: unknown): void => {
     try {
       host.log.write("warn", code, {
@@ -665,17 +673,17 @@ export async function startWebGameApplicationV1<
   // One lease identity per started instance: multi-tab/-window mutual
   // exclusion (and the instancePolicy roles) requires distinct owners.
   const leaseOwnerId =
-    `owner.sillymaker.web.${application.applicationId}.${host.bootstrapEntropy.nextUuidV4()}`;
+    `owner.sillymaker.web.${application.applicationId}.${nextApplicationUuidV4()}`;
   const instance = await createCoreGameApplicationInstanceV1(
     resolved.application,
     {
       host: Object.freeze({
-        entropy: host.bootstrapEntropy,
+        entropy: gameBootstrapEntropy,
         records: host.records,
         now: () => host.metadataClock.now(),
         ownerId: leaseOwnerId as never,
         nextHandoffRequestId: () =>
-          `handoff.${application.applicationId}.${host.bootstrapEntropy.nextUuidV4()}`,
+          `handoff.${application.applicationId}.${nextApplicationUuidV4()}`,
       }),
       capabilities: { debugTools: capabilities.state.getCurrent().debugTools },
       capabilityState: capabilities.state,

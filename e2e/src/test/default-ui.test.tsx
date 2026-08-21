@@ -90,9 +90,8 @@ async function startHostedLabUiV1(options: {
     rootElement: root,
     host: createWebHostV1({
       records,
-      seeds: [20260812],
-      uuids: ["bd4018a2-2fea-4359-95c6-96c634b7de8a"],
     }),
+    gameBootstrapEntropy: createFixedBootstrapEntropyV1({ seeds: [20260812], uuids: [] }),
     capabilitySearch: "",
     registerPageLifecycle: false,
   });

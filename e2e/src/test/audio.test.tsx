@@ -7,7 +7,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { TransientEffectV1 } from "@sillymaker/base";
 import { createPlayerProfileStoreV1 } from "@sillymaker/base/runtime";
-import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
+import {
+  createFixedBootstrapEntropyV1,
+  createMemoryHostRecordStoreV1,
+} from "@sillymaker/base/testkit";
 import {
   DefaultGameRootV1,
   createFakeAudioHostV1,
@@ -87,9 +90,8 @@ async function startHostedAudioLabV1() {
     rootElement: root,
     host: createWebHostV1({
       records,
-      seeds: [20260812],
-      uuids: ["4bfcba6f-d25c-4aca-8ca4-a6bbad298cf9"],
     }),
+    gameBootstrapEntropy: createFixedBootstrapEntropyV1({ seeds: [20260812], uuids: [] }),
     capabilitySearch: "",
     registerPageLifecycle: false,
   });

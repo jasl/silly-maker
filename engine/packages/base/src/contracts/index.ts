@@ -112,7 +112,7 @@ export type {
 } from "./hotfix.ts";
 export type { BuildProvenanceV1 } from "./provenance.ts";
 export type {
-  GameHostV1,
+  ApplicationHostCapabilitiesV1,
   HostAtomicCommitResultV1,
   HostAtomicRecordStoreV1,
   HostFilePortV1,

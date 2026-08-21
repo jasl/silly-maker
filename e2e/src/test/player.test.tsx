@@ -7,7 +7,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import { createPlayerProfileStoreV1 } from "@sillymaker/base/runtime";
-import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
+import {
+  createFixedBootstrapEntropyV1,
+  createMemoryHostRecordStoreV1,
+} from "@sillymaker/base/testkit";
 import { createFakeAudioHostV1 } from "@sillymaker/ui";
 import { createWebHostV1, startWebGameApplicationV1 } from "@sillymaker/web";
 
@@ -84,9 +87,8 @@ async function startPlayerLabV1(input: Readonly<{
     rootElement: root,
     host: createWebHostV1({
       records,
-      seeds: [20260812],
-      uuids: ["557821ce-3a9f-4d22-92b1-4ebc2ac48000"],
     }),
+    gameBootstrapEntropy: createFixedBootstrapEntropyV1({ seeds: [20260812], uuids: [] }),
     capabilitySearch: "",
     registerPageLifecycle: false,
   });

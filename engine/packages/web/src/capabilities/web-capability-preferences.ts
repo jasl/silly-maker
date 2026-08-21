@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 import { canonicalJsonBytes, parseStrictJson, parseStrictJsonLimitsV1 } from "@sillymaker/base";
 import type {
+  ApplicationHostCapabilitiesV1,
   DeepReadonly,
-  GameHostV1,
   HostAtomicRecordStoreV1,
   HostStoredRecordV1,
   RuntimeCapabilitiesV1,
@@ -57,7 +57,10 @@ function decodeCapabilityStateV1(
   });
 }
 
-function warnInvalidPreferenceV1(host: GameHostV1, record: HostStoredRecordV1): void {
+function warnInvalidPreferenceV1(
+  host: ApplicationHostCapabilitiesV1,
+  record: HostStoredRecordV1,
+): void {
   try {
     host.log.write("warn", "runtime_capabilities.invalid_preference", {
       namespace: "settings",
@@ -71,7 +74,7 @@ function warnInvalidPreferenceV1(host: GameHostV1, record: HostStoredRecordV1): 
 }
 
 function readCapabilityStateV1(
-  host: GameHostV1,
+  host: ApplicationHostCapabilitiesV1,
   record: HostStoredRecordV1 | null,
 ): DeepReadonly<RuntimeCapabilitiesV1> {
   if (record === null) return allDisabledV1;
@@ -82,7 +85,7 @@ function readCapabilityStateV1(
 }
 
 export async function createWebCapabilityPreferencesV1(
-  host: GameHostV1,
+  host: ApplicationHostCapabilitiesV1,
 ): Promise<RuntimeCapabilityPortV1> {
   let revision: HostStoredRecordV1["revision"] | null = null;
   let initialState = allDisabledV1;
@@ -100,7 +103,9 @@ export async function createWebCapabilityPreferencesV1(
     initialState,
     async persist(_previous, next) {
       if (!initialized) return Object.freeze({ kind: "unavailable" as const });
-      let committed: Awaited<ReturnType<GameHostV1["records"]["commit"]>>;
+      let committed: Awaited<
+        ReturnType<ApplicationHostCapabilitiesV1["records"]["commit"]>
+      >;
       try {
         committed = await host.records.commit([
           Object.freeze({

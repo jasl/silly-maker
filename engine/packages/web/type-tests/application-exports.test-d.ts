@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import type {
+  ApplicationHostCapabilitiesV1,
   ContentPreferencePortV1,
   HostAtomicRecordStoreV1,
   RuntimeCapabilityIdV1,
@@ -99,8 +100,20 @@ const invalidWebWholeCanvasDefinitionV1: WebWholeCanvasDefinitionV1 = Object.fre
 void invalidWebWholeCanvasDefinitionV1;
 
 const injectedRecordsV1 = createMemoryHostRecordStoreV1();
-createWebHostV1({ databaseName: "sillymaker.type-test.runtime" });
+const publicWebHostV1: ApplicationHostCapabilitiesV1 = createWebHostV1({
+  databaseName: "sillymaker.type-test.runtime",
+});
 createWebHostV1({ records: injectedRecordsV1 });
+publicWebHostV1.records;
+publicWebHostV1.files;
+publicWebHostV1.metadataClock;
+publicWebHostV1.log;
+// @ts-expect-error platform identity is not a neutral Host capability
+publicWebHostV1.platform;
+// @ts-expect-error Game bootstrap entropy belongs to Game Domain admission
+publicWebHostV1.bootstrapEntropy;
+// @ts-expect-error unproven reload/exit behavior is not a neutral Host capability
+publicWebHostV1.navigation;
 
 // @ts-expect-error persistence composition requires databaseName or records
 createWebHostV1({});
@@ -109,6 +122,12 @@ createWebHostV1({
   databaseName: "sillymaker.type-test.runtime",
   records: injectedRecordsV1,
 });
+// @ts-expect-error Game bootstrap seeds are no longer Web Host options
+createWebHostV1({ records: injectedRecordsV1, seeds: [1] });
+// @ts-expect-error Game bootstrap UUIDs are no longer Web Host options
+createWebHostV1({ records: injectedRecordsV1, uuids: [] });
+// @ts-expect-error ambient crypto belongs to the private Game bootstrap adapter
+createWebHostV1({ records: injectedRecordsV1, crypto: globalThis.crypto });
 
 declare const preferenceInputV1: Parameters<typeof createWebContentPreferencePortV1>[0];
 const preferenceRecordsV1: HostAtomicRecordStoreV1 = preferenceInputV1.records;

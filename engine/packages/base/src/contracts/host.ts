@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-import type { BootstrapEntropyV1 } from "./gameplay-module.ts";
 import type { Brand, NonNegativeSafeInteger, PositiveSafeInteger } from "./values.ts";
 import type { StrictJsonObjectV1 } from "./strict-json.ts";
 import { parseNonNegativeSafeInteger } from "./values.ts";
@@ -65,13 +64,10 @@ export interface HostFilePortV1 {
   }): Promise<void>;
 }
 
-export interface GameHostV1 {
-  readonly platform: "web" | "electron";
-  readonly bootstrapEntropy: BootstrapEntropyV1;
+export interface ApplicationHostCapabilitiesV1 {
   readonly records: HostAtomicRecordStoreV1;
   readonly files: HostFilePortV1;
   readonly metadataClock: { now(): IsoUtcInstant };
-  readonly navigation: { reloadApplication(): void; requestExit(): void };
   readonly log: {
     write(
       level: "debug" | "info" | "warn" | "error",

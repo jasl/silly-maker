@@ -6,7 +6,10 @@ import { afterEach, expect, it, vi } from "vitest";
 
 import type { DeepReadonly } from "@sillymaker/base";
 import { createPlayerProfileStoreV1 } from "@sillymaker/base/runtime";
-import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
+import {
+  createFixedBootstrapEntropyV1,
+  createMemoryHostRecordStoreV1,
+} from "@sillymaker/base/testkit";
 import type { WholeCanvasSurfaceRendererPropsV1 } from "@sillymaker/ui";
 import { createWebHostV1, startWebGameApplicationV1 } from "@sillymaker/web";
 
@@ -34,8 +37,10 @@ it("boots and disposes the package-owned Splash and Title WholeCanvas Host", asy
     rootElement: root,
     host: createWebHostV1({
       records: createMemoryHostRecordStoreV1(),
-      seeds: [20260812],
-      uuids: ["0c36c727-b97c-42ff-a3b8-4846a4e44dce"],
+    }),
+    gameBootstrapEntropy: createFixedBootstrapEntropyV1({
+      seeds: [20260812, 20260812],
+      uuids: [],
     }),
     capabilitySearch: "",
     registerPageLifecycle: false,

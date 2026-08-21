@@ -5,7 +5,10 @@ import { cleanup, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createPlayerProfileStoreV1 } from "@sillymaker/base/runtime";
-import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
+import {
+  createFixedBootstrapEntropyV1,
+  createMemoryHostRecordStoreV1,
+} from "@sillymaker/base/testkit";
 import { createFakeAudioHostV1 } from "@sillymaker/ui";
 import type { PresentationRatePortV1 } from "@sillymaker/ui";
 import { createWebHostV1, startWebGameApplicationV1 } from "@sillymaker/web";
@@ -59,9 +62,8 @@ async function startPacedLabUiV1() {
     rootElement: root,
     host: createWebHostV1({
       records,
-      seeds: [20260812],
-      uuids: ["bd4018a2-2fea-4359-95c6-96c634b7de8a"],
     }),
+    gameBootstrapEntropy: createFixedBootstrapEntropyV1({ seeds: [20260812], uuids: [] }),
     capabilitySearch: "",
     registerPageLifecycle: false,
   });

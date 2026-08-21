@@ -6,7 +6,10 @@ import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createPlayerProfileStoreV1 } from "@sillymaker/base/runtime";
-import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
+import {
+  createFixedBootstrapEntropyV1,
+  createMemoryHostRecordStoreV1,
+} from "@sillymaker/base/testkit";
 import { createFakeAudioHostV1 } from "@sillymaker/ui";
 import { createWebHostV1, startWebGameApplicationV1 } from "@sillymaker/web";
 
@@ -45,9 +48,8 @@ async function startInputLabV1() {
     rootElement: root,
     host: createWebHostV1({
       records,
-      seeds: [20260812],
-      uuids: ["1ea7f17f-daa5-4ec5-bc70-621697394778"],
     }),
+    gameBootstrapEntropy: createFixedBootstrapEntropyV1({ seeds: [20260812], uuids: [] }),
     capabilitySearch: "",
     registerPageLifecycle: false,
   });

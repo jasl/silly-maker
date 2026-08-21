@@ -4,7 +4,10 @@ import { screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, expect, it } from "vitest";
 
-import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
+import {
+  createFixedBootstrapEntropyV1,
+  createMemoryHostRecordStoreV1,
+} from "@sillymaker/base/testkit";
 import { createWebHostV1, startWebGameApplicationV1 } from "@sillymaker/web";
 
 import { labGameApplicationV1 } from "../application/composition.tsx";
@@ -25,9 +28,8 @@ it("the HUD rollback control follows ring changes through the real web start pat
     rootElement: root,
     host: createWebHostV1({
       records: createMemoryHostRecordStoreV1(),
-      seeds: [20260720],
-      uuids: ["3f5a1c22-9d47-4b7e-8a10-6c2e4d9b1f30"],
     }),
+    gameBootstrapEntropy: createFixedBootstrapEntropyV1({ seeds: [20260720], uuids: [] }),
     capabilitySearch: "",
     registerPageLifecycle: false,
   });

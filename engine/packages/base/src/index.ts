@@ -438,7 +438,7 @@ export type {
   GameCommandExecutorV1,
   GameDebugCommandExecutorV1,
   GameDebugCommandValidationResultV1,
-  GameHostV1,
+  ApplicationHostCapabilitiesV1,
   GamePackageResolutionFailureCodeV1,
   GamePackageResolutionFailureV1,
   GamePackageResolutionResultV1,

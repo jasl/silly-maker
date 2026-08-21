@@ -6,7 +6,10 @@ import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { HostAtomicRecordStoreV1 } from "@sillymaker/base";
-import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
+import {
+  createFixedBootstrapEntropyV1,
+  createMemoryHostRecordStoreV1,
+} from "@sillymaker/base/testkit";
 import { createWebHostV1, startWebGameApplicationV1 } from "@sillymaker/web";
 import type {
   StartedWebGameApplicationV1,
@@ -57,8 +60,10 @@ function startLabV1(
     rootElement: createTestRootV1(),
     host: createWebHostV1({
       records: createMemoryHostRecordStoreV1(),
-      seeds: [20260720],
-      uuids: ["3f5a1c22-9d47-4b7e-8a10-6c2e4d9b1f30"],
+    }),
+    gameBootstrapEntropy: createFixedBootstrapEntropyV1({
+      seeds: [20260720, 20260720],
+      uuids: [],
     }),
     capabilitySearch,
     registerPageLifecycle: false,
@@ -93,9 +98,8 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
         rootElement: createTestRootV1(),
         host: createWebHostV1({
           records: createMemoryHostRecordStoreV1(),
-          seeds: [20260731],
-          uuids: ["9c8cc628-fd86-42f4-b479-120466b439ea"],
         }),
+        gameBootstrapEntropy: createFixedBootstrapEntropyV1({ seeds: [20260731], uuids: [] }),
         registerPageLifecycle: false,
       }),
     ).rejects.toThrow("web.system_saves_ambiguous");
@@ -240,14 +244,13 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
   it("keeps Managed Surface epochs monotonic across HMR-like Web start successors", async () => {
     const host = createWebHostV1({
       records: createMemoryHostRecordStoreV1(),
-      seeds: [20260801, 20260802],
-      uuids: [
-        "61667dfa-3c5e-4f6f-a30e-8637127f8d2a",
-        "e0caac0b-bc7d-496e-89da-9fa41ccb755e",
-        "f89adf64-9882-480a-84b4-aa2fce9e37e2",
-      ],
     });
-    const predecessor = await startLabV1("", { host });
+    const gameBootstrapEntropy = createFixedBootstrapEntropyV1({
+      seeds: [20260801, 20260802],
+      // Application lease and handoff identities must not consume Game entropy.
+      uuids: [],
+    });
+    const predecessor = await startLabV1("", { host, gameBootstrapEntropy });
     let successor: StartedWebGameApplicationV1 | undefined;
     try {
       await waitFor(() => expect(screen.getByTestId("overlay-host")).toBeInTheDocument());
@@ -259,6 +262,7 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
       const disposition = await predecessor.disposeForRebootstrap();
       successor = await startLabV1("", {
         host,
+        gameBootstrapEntropy,
         rebootstrapDisposition: disposition,
       });
       await waitFor(() => expect(screen.getByTestId("overlay-host")).toBeInTheDocument());
@@ -336,9 +340,8 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
       rootElement: createTestRootV1(),
       host: createWebHostV1({
         records: createMemoryHostRecordStoreV1(),
-        seeds: [20260809],
-        uuids: ["f19bb6cb-7995-4598-9c05-160114017848"],
       }),
+      gameBootstrapEntropy: createFixedBootstrapEntropyV1({ seeds: [20260809], uuids: [] }),
       registerPageLifecycle: false,
     });
 
@@ -369,9 +372,8 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
     const started = await startLabV1("?capability=automation_bridge", {
       host: createWebHostV1({
         records: counter.records,
-        seeds: [20260721],
-        uuids: ["4a6b2d33-ae58-4c8f-9b21-7d3f5e0c2a41"],
       }),
+      gameBootstrapEntropy: createFixedBootstrapEntropyV1({ seeds: [20260721], uuids: [] }),
       registerPageLifecycle: true,
       // A long quiet period: committed Snapshots stay saveable, but nothing
       // hits the record store while the player keeps clicking.
@@ -435,9 +437,8 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
     const started = await startLabV1("?capability=automation_bridge", {
       host: createWebHostV1({
         records: counter.records,
-        seeds: [20260731],
-        uuids: ["bf668891-5e0f-424c-8d86-25df14789173"],
       }),
+      gameBootstrapEntropy: createFixedBootstrapEntropyV1({ seeds: [20260731], uuids: [] }),
       autosave: { mode: "debounced", delayMs: 60_000 },
     });
     try {

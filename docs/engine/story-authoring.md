@@ -352,7 +352,8 @@ finalizer that could target the successor.
 
 `startWebGameApplicationV1` then:
 
-1. creates a `GameHostV1` (IndexedDB, files, clock, navigation, logging, entropy);
+1. creates neutral `ApplicationHostCapabilitiesV1` (IndexedDB records, files,
+   metadata clock, and logging) and admits Game bootstrap entropy separately;
 2. builds the persisted capability session (Host records overlaid by the page query);
 3. resolves the Story and creates the core application instance (Session, semantic port, persistence lease, autosave, Story extensions);
 4. composes the UI (presentation store, input router, intent router, one shared Workspace Overlay/System/Narrative/WholeCanvas Managed Surface authority, plus the interaction session) and mounts the default GameRoot with the Story's ordinary slots and, when declared, the composition-owned Narrative and WholeCanvas Hosts;

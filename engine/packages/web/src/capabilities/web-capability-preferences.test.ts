@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 import { canonicalJsonBytes } from "@sillymaker/base";
-import type { GameHostV1, HostAtomicRecordStoreV1, RuntimeCapabilitiesV1 } from "@sillymaker/base";
+import type {
+  ApplicationHostCapabilitiesV1,
+  HostAtomicRecordStoreV1,
+  RuntimeCapabilitiesV1,
+} from "@sillymaker/base";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 import { describe, expect, it, vi } from "vitest";
 
@@ -16,8 +20,8 @@ const allDisabledV1 = Object.freeze({
 
 function createHostFixtureV1(records?: HostAtomicRecordStoreV1) {
   const source = createWebHostV1({ records: createMemoryHostRecordStoreV1() });
-  const write = vi.fn<GameHostV1["log"]["write"]>();
-  const host: GameHostV1 = Object.freeze({
+  const write = vi.fn<ApplicationHostCapabilitiesV1["log"]["write"]>();
+  const host: ApplicationHostCapabilitiesV1 = Object.freeze({
     ...source,
     records: records ?? source.records,
     log: Object.freeze({ write }),
@@ -25,7 +29,10 @@ function createHostFixtureV1(records?: HostAtomicRecordStoreV1) {
   return Object.freeze({ host, write });
 }
 
-async function seedPreferenceV1(host: GameHostV1, bytes: Uint8Array): Promise<void> {
+async function seedPreferenceV1(
+  host: ApplicationHostCapabilitiesV1,
+  bytes: Uint8Array,
+): Promise<void> {
   const result = await host.records.commit([
     Object.freeze({
       kind: "put" as const,
