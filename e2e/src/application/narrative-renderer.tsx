@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import type { ReactElement } from "react";
 
-import type { StrictJsonObjectV1 } from "@sillymaker/base";
+import type { DeepReadonly, StrictJsonObjectV1, TimeTickV1 } from "@sillymaker/base";
 import type {
   NarrativeSurfaceDefinitionV1,
   NarrativeSurfaceDialogueRendererPropsV1,
@@ -63,6 +63,12 @@ export function createLabNarrativeSurfaceDefinitionV1(
         kind: "resolve" as const,
         expectedOccurrenceId: request.expectedOccurrenceId,
         resolution: request.resolution,
+      }));
+    },
+    dispatchTime: async (tick: DeepReadonly<TimeTickV1>) => {
+      await input.semantic.dispatch(Object.freeze({
+        kind: "time" as const,
+        tick,
       }));
     },
     renderer: LabNarrativeRendererV1,
@@ -221,9 +227,9 @@ function LabPendingNarrativeV1(
     );
   }
 
-  if (pending.kind === "pause") {
+  if (pending.kind === "hold") {
     return (
-      <div data-lab-interaction="pause" data-lab-occurrence={pending.occurrenceId}>
+      <div data-lab-interaction="hold" data-lab-occurrence={pending.occurrenceId}>
         <p>{labUiTextV1("text.e2e.lab.narrative.cal.waiting")}</p>
         {pending.skippable
           ? (

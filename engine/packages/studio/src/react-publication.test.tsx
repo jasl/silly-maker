@@ -6,13 +6,14 @@ import type { ReactElement } from "react";
 import { act, fireEvent, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { parseSceneDocumentV1 } from "@sillymaker/base";
-import type { SceneDocumentV1, StageContentCatalogV1 } from "@sillymaker/base";
+import { parseRegionsDocumentV1, parseSceneDocumentV1 } from "@sillymaker/base";
+import type { RegionsDocumentV1, SceneDocumentV1, StageContentCatalogV1 } from "@sillymaker/base";
 import type { SemanticStageEntryRendererV1 } from "@sillymaker/ui";
 import type { MotionSourceIoV1 } from "@sillymaker/ui/debug";
 
 import type { StudioToolingPlanV1 } from "./composition.ts";
 import type { StudioBindingV1 } from "./core/binding.ts";
+import type { RegionsSourceIoV1 } from "./core/regions-io.ts";
 import type { SceneSourceIoV1 } from "./core/scene-io.ts";
 import {
   createReactLayoutPublicationV1,
@@ -354,6 +355,67 @@ describe("Studio React layout publication", () => {
     await waitFor(() => expect(sceneIo.writes).toHaveLength(1));
     expect(sceneIo.writes[0]?.sceneDocument.entries[0]?.placement?.x).toBe(640);
   });
+
+  it("keeps the Regions IO owner and dirty session across rejected and accepted successors", async () => {
+    const container = containerV1();
+    const sceneIo = fakeStudioSceneIoV1();
+    const motionIo = fakeStudioMotionIoV1();
+    const regionsIo = fakeStudioRegionsIoV1();
+    const replacementRegionsIo = fakeStudioRegionsIoV1();
+    const publication = createStudioToolingReactPublicationV1({ container });
+    mountedPublications.push(publication);
+    await publication.mount(
+      studioPlanV1(sceneIo, motionIo, studioBindingV1(), regionsIo),
+    );
+
+    const regionRow = await waitFor(() => {
+      const row = container.querySelector('[data-studio-region-row="0"]');
+      expect(row).not.toBeNull();
+      return row as HTMLElement;
+    });
+    fireEvent.click(regionRow);
+    const xInput = container.querySelector(
+      '[data-studio-region-field="x"]',
+    ) as HTMLInputElement;
+    fireEvent.change(xInput, { target: { value: "25" } });
+    await waitFor(() => {
+      expect(xInput).toHaveValue(25);
+      expect(container.querySelector("[data-studio-regions-save]")).toBeEnabled();
+    });
+    const oldHost = container.firstElementChild;
+
+    await expect(publication.publish(
+      studioPlanV1(sceneIo, motionIo, studioBindingV1(), replacementRegionsIo),
+      new AbortController().signal,
+    )).rejects.toThrow("cannot replace its regions IO owner");
+
+    expect(container.firstElementChild).toBe(oldHost);
+    expect(container.querySelector('[data-studio-region-field="x"]')).toBe(xInput);
+    expect(xInput).toHaveValue(25);
+
+    await expect(publication.publish(
+      studioPlanV1(sceneIo, motionIo, studioBindingV1(), regionsIo),
+      new AbortController().signal,
+    )).resolves.toBeUndefined();
+
+    expect(container.firstElementChild).not.toBe(oldHost);
+    const successorRow = await waitFor(() => {
+      const row = container.querySelector('[data-studio-region-row="0"]');
+      expect(row).not.toBeNull();
+      return row as HTMLElement;
+    });
+    fireEvent.click(successorRow);
+    const successorXInput = container.querySelector(
+      '[data-studio-region-field="x"]',
+    ) as HTMLInputElement;
+    expect(successorXInput).toHaveValue(25);
+    const save = container.querySelector("[data-studio-regions-save]") as HTMLButtonElement;
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+    await waitFor(() => expect(regionsIo.writes).toHaveLength(1));
+    expect(regionsIo.writes[0]?.regionsDocument.regions[0]?.x).toBe(25);
+    expect(replacementRegionsIo.writes).toHaveLength(0);
+  });
 });
 
 function LayoutProbeV1(props: {
@@ -448,6 +510,7 @@ function DraftStudioV1(props: {
 }
 
 const studioScenePathV1 = "src/scenes/publication/publication.scene.json";
+const studioRegionsPathV1 = "src/regions/publication.regions.json";
 
 interface FakeStudioSceneIoV1 extends SceneSourceIoV1 {
   readonly writes: Array<{
@@ -518,6 +581,68 @@ function fakeStudioSceneIoV1(): FakeStudioSceneIoV1 {
   };
 }
 
+interface FakeStudioRegionsIoV1 extends RegionsSourceIoV1 {
+  readonly writes: Array<{
+    readonly path: string;
+    readonly expectedDigest: string;
+    readonly regionsDocument: RegionsDocumentV1;
+  }>;
+}
+
+function studioRegionsDocumentV1(): RegionsDocumentV1 {
+  return parseRegionsDocumentV1({
+    format: "sillymaker.regions",
+    version: 1,
+    regionsId: "regions.test.publication",
+    label: "Publication regions",
+    regions: [{
+      regionId: "zone.hero",
+      accessibleNameText: "Hero",
+      x: 0,
+      y: -300,
+      width: 100,
+      height: 80,
+    }],
+  });
+}
+
+function fakeStudioRegionsIoV1(): FakeStudioRegionsIoV1 {
+  let saved = studioRegionsDocumentV1();
+  let digestRevision = 1;
+  const writes: FakeStudioRegionsIoV1["writes"] = [];
+  return {
+    writes,
+    list: () =>
+      Promise.resolve({
+        kind: "ok" as const,
+        regionsDocuments: [{
+          path: studioRegionsPathV1,
+          regionsId: saved.regionsId,
+          label: saved.label,
+        }],
+        skipped: [],
+      }),
+    read: (path) =>
+      path === studioRegionsPathV1
+        ? Promise.resolve({
+          kind: "ok" as const,
+          digest: `sha256:${String(digestRevision)}`,
+          regionsDocument: saved,
+        })
+        : Promise.resolve({ kind: "error" as const, code: "not_found" as const }),
+    write(input) {
+      writes.push(input);
+      saved = input.regionsDocument;
+      digestRevision += 1;
+      return Promise.resolve({
+        kind: "ok" as const,
+        digest: `sha256:${String(digestRevision)}`,
+      });
+    },
+    create: () => Promise.resolve({ kind: "error" as const, code: "unavailable" as const }),
+  };
+}
+
 function fakeStudioMotionIoV1(): MotionSourceIoV1 {
   return {
     list: () => Promise.resolve({ kind: "ok", motions: [], skipped: [] }),
@@ -555,6 +680,12 @@ function studioPlanV1(
   sceneIo: SceneSourceIoV1,
   motionIo: MotionSourceIoV1,
   binding: StudioBindingV1,
+  regionsIo?: RegionsSourceIoV1,
 ): StudioToolingPlanV1 {
-  return Object.freeze({ binding, sceneIo, motionIo });
+  return Object.freeze({
+    binding,
+    sceneIo,
+    motionIo,
+    ...(regionsIo === undefined ? {} : { regionsIo }),
+  });
 }

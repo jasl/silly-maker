@@ -2,6 +2,7 @@
 /** Host-only composition seam. This subpath is not a Story authoring API. */
 export {
   createHostedGameUiCompositionInternalV1,
+  resolveOptionalGameUiManagedSurfaceCompositionInternalV1,
   sealHostedGameUiCompositionTerminalInternalV1,
 } from "./composer/create-game-ui-composition.ts";
 export type {

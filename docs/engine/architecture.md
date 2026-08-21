@@ -1,6 +1,6 @@
 # SillyMaker architecture
 
-状态：持续维护的现状文档。最后结构性复核：2026-08-18。
+状态：持续维护的现状文档。最后结构性复核：2026-08-22。
 
 本文描述当前实现的主要边界和数据流。它不是冻结 ABI；修改包职责、权威状态、Story
 组合、持久化格式或公开入口时，应同时更新本文、相应类型和行为测试。
@@ -148,20 +148,23 @@ neutral State root.
 X5 adds neutral `StateModule`, capability, `StateTransaction`, and
 `StateWorkflow` contracts. Their adapter creates one Base authoring kit and
 delegates composition and execution to its existing transaction runner; it does
-not keep another proposal map, candidate State, RNG, queue, or commit path. The
+not keep another event journal, candidate State, RNG, queue, or commit path. The
 admitted module exposes an immutable `contractRevision`; a non-enumerable
 package-private carrier references the same Base authoring module only on the
 cold composition path, and object-spread/prototype aliases without their own
 carrier fail rather than split neutral and physical metadata. Module initializers
 in V1 are deliberately bootstrap-independent, while aggregate candidate
-validation remains the only neutral invariant hook. A transaction reads the
-command-start State without read-your-writes, accepts at most one proposal per
-owner, and applies proposals/facts in UTF-16 module-ID order with atomic
-Snapshot/RNG rollback on rejection or fault. The
-original `calendar`/`inventory`/`actor`/`evening` pilot proves four-owner atomic
-commit, owner rejection rollback, and candidate-validation fault rollback. It
-is an engine fixture, not commercial game content. There is still no
-module-keyed State Format V2 or migrated production Story composition.
+validation remains the only neutral invariant hook. Each module declares pure
+reducers keyed by domain-event kind. A transaction reads the command-start State
+without read-your-writes; the workflow rejects before emission or emits events
+that are admitted by its `eventSchema`. Base folds events in emission order and,
+within one event, subscribed reducers in UTF-16 module-ID order; events without
+a reducer remain journal-only evidence. Rejection or fault atomically preserves
+the command-start Snapshot and RNG. The original
+`calendar`/`inventory`/`actor`/`evening` pilot proves a cross-module event commit,
+workflow rejection rollback, and candidate-validation fault rollback. It is an
+engine fixture, not commercial game content. There is still no module-keyed State
+Format V2 or migrated production Story composition.
 
 The repository's neutral Composition/State benchmark composes 16 generated
 modules through these same public seams. Its 3x3 Save-size/touched-owner matrix,
@@ -309,7 +312,7 @@ actual runtime identity.
 
 A `GameplayModuleDescriptorV1` declares a stable module ID, revision, owned
 State slots, and dependencies. Stateful modules provide schema, initial State,
-local queries, owner-scoped proposals/apply operations, and invariants.
+local queries, domain-event reducers over their own slice, and invariants.
 Stateless modules may provide named pure capabilities.
 
 `defineGameSimulation` combines the selected module tuple with aggregate schemas
@@ -368,7 +371,8 @@ behavior.
 Finalized attempt evidence has a separate package-internal admission boundary.
 After an executor returns, Standard Core captures the attempt envelope without
 invoking accessors, validates the candidate Snapshot RNG, then normalizes Story
-facts/rejections and Debug validation errors through their declared schemas.
+domain events/rejections and Debug validation errors through their declared
+schemas.
 Evidence collections capture their own array `length` data descriptor once and
 validate every represented index against that fixed length; a Proxy's virtual
 `get("length")` cannot truncate or expand the admitted vector.
@@ -400,14 +404,46 @@ The current validator checks unique State ownership and an acyclic module
 dependency graph. A Story's aggregate State should reflect the modules it
 actually composes; unused modules should not force placeholder State.
 
-The Game Authoring Kit transaction runner keeps proposal construction in the
-Story's explicit call order, then applies the completed staged owner vector by
-UTF-16 code-unit module-ID order. Each owner apply reads its command-start slice;
-the engine accumulates replacements and facts in that fixed order, validates the
-aggregate candidate, finalizes evidence, appends CommandLog, and only then
-installs/publishes a committed Snapshot. Authoritative replay runs the same
-executor/order. The comparator is package-internal and Host-locale-independent;
-it is not the Unicode code-point comparator used by canonical JSON keys.
+The Game Authoring Kit transaction runner journals `transaction.emit(event)`
+calls in the Story's explicit emission order (each event validated once against
+the Story's `eventSchema` at emit time). After `complete()`, the engine folds
+the journal: events replay in emission order, and within one event the
+subscribed module reducers run in UTF-16 code-unit module-ID order, each
+folding its own slice. The engine validates the aggregate candidate, finalizes
+evidence (the committed envelope carries the event journal), appends
+CommandLog, and only then installs/publishes a committed Snapshot.
+Authoritative replay runs the same executor/order. The comparator is
+package-internal and Host-locale-independent; it is not the Unicode code-point
+comparator used by canonical JSON keys.
+
+Authoritative monitors are the declared parallel-timing vocabulary on top of
+that pipeline: `parseMonitorDeclarationsV1` admits `{ id, everyMs, retention,
+event, activeWhen }` declarations once (unique ids, positive cadence, `clear` |
+`retain`, a `kind`-bearing domain-event payload, an authoritative-state
+predicate — no lifecycle verbs, no script body), `parseMonitorAccumulatorV1`
+admits the plain `{ [monitorId]: accumulatedMs }` slice that lives inside
+versioned Story State (Saves keep a mid-gauge accumulation; wall clocks never
+enter), and `settleMonitorsV1` is the shared handler arithmetic the Story's
+single time-verb command applies after folding the pending hold: declarations
+advance in declaration order, threshold crossings reuse
+`countThresholdCrossingsV1`, and each crossing yields one declared event
+payload that the handler emits through the ordinary `transaction.emit` writer
+— so monitors gain no second write path and batch splits cannot change the
+terminal Snapshot or digest.
+
+The Host half of that loop lives in the composer: a `WebGameUiDefinitionV1`
+may declare `timeReporting` (a report quantum, an `enabledWhen` predicate over
+the live publication, and a dispatch that sends the Story's unfenced time
+command) and `realtimeWindow` (a publication predicate for reaction spans).
+`startWebGameApplication` installs presentation pacing from those
+declarations: a session time reporter (`createSessionTimeReporterV1` in
+`@sillymaker/ui`) batches the composed presentation clock — rate-scaled,
+freeze-aware — into whole-millisecond unfenced ticks while the predicate
+holds, no hold is pending (holds report through the fenced expiry controller),
+and the document is visible; and the presentation rate port pins the effective
+rate to 1× (`pinRealtime`) while a `pace: "realtime"` hold or a declared
+realtime span is active. Wall-clock instants stay inside the Host; authority
+only ever consumes reported integer milliseconds.
 
 The authoritative runtime value is a `GameSnapshot`:
 
@@ -418,8 +454,8 @@ GameSnapshot = Gameplay State + serializable RNG state
 
 Gameplay State remains plain, versioned, schema-validated data. RNG is
 serializable and transaction-local so a rejected or faulted attempt cannot
-silently consume randomness. Command logs and emitted facts are diagnostic
-evidence, not a second source of State.
+silently consume randomness. Command logs and the emitted domain-event journal
+are diagnostic evidence, not a second source of State.
 
 The standard Core composition treats `xorshift32-v1` cursor zero as an invalid
 runtime state: numeric bootstrap seeds and restored Snapshot candidates are
@@ -560,6 +596,23 @@ The managed Saves UI maps these results to bounded player-readable actions and
 never receives raw record bytes, Host keys/revisions, stack traces, or lease
 fences. This atomicity is promoted for Memory and IndexedDB stores; the Desktop
 file channel remains a separate durability preview.
+
+Persistence safepoints are the application-declared re-entry policy on top of
+that orchestration: `defineCoreGameApplicationV1` may declare
+`persistenceSafepoint: { classify, maxInFlightCommits }`, admitted once by
+`parsePersistenceSafepointPolicyV1` (a deterministic classifier over committed
+authoritative state plus a 1..256 span bound; unbounded declarations fail
+resolution). A commit whose state classifies `in_flight` sits inside an
+in-flight span: the orchestrator defers its autosave, `flushAutoSave` falls
+back to the most recent safepoint Snapshot of the current anchor era (or
+writes nothing when the era has none), and player-slot saves reject with
+`in_flight` until the next safepoint commit. The bound keeps spans honest —
+exceeding it forfeits the inhibit with one diagnostic, and a throwing
+classifier fails open as a safepoint — so a span can defer the Save but never
+starve it. Anchor replacement (load/import/restart) resets span tracking. The
+classification lives outside authoritative state, Saves, digests, and replay:
+every commit remains complete and replayable; a span only expresses which
+committed states a Save should re-enter.
 
 Internal indexes, clients, closures, React values, and database handles must not
 enter a Save.
@@ -728,7 +781,20 @@ aggregate configuration from separately supplied registry, authority, kernel,
 definition-sidecar, schema, or slot-descriptor values and then authenticate
 their pairing. The live families consume the composition-owned typed bundle
 directly; the historical exact aggregate records remain delivery evidence, not
-a current package-internal admission contract.
+a current package-internal admission contract. The authoritative hold clock
+lane (2026-08-19, M1) likewise supersedes the `pause` vocabulary below: the
+`pause` kind and `resume` resolution merged into `hold`, the pause-resume
+physical mapping became the hold-skip fold (same `narrative.resume` action
+id), and the pause-expiry controller became the hold-expiry controller with
+the same binding, staleness, and dispatch discipline described below. The
+parallel-monitors lane (2026-08-20, M0) then unified the time verb: holds are
+settled by session-level `TimeTickV1` commits, never by input resolutions. The
+Story's narrative surface binds a `dispatchTime` port next to
+`dispatchResolution` (nullable for hold-free stories), the hold-expiry
+controller and the hold-skip fold both dispatch hold-fenced time ticks
+(`elapsedMs` plus `expectedHoldOccurrenceId`) through it, and admitting a hold
+frame without a bound time port faults the dispatch instead of silently never
+expiring.
 
 A dormant, source-relative stable composite seam now reuses that same internal
 kernel. It binds admitted targets to exact registry/configuration provenance,

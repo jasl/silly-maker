@@ -12,6 +12,7 @@ import type {
   PointerActionMapV1,
   WholeCanvasSurfaceDefinitionV1,
 } from "@sillymaker/ui";
+import { playerInputActionIdsV1 } from "@sillymaker/ui";
 import {
   createRuntimeCapabilitySessionOverlayV1,
   createWebContentPreferencePortV1,
@@ -26,11 +27,15 @@ import type {
 } from "@sillymaker/web";
 
 declare const pointerActionMapV1: PointerActionMapV1;
-type WebInputMapsV1 = NonNullable<
-  WebGameUiDefinitionV1<unknown, unknown, unknown, unknown, unknown, string, unknown>["inputMaps"]
+type WebInputDeclarationV1 = NonNullable<
+  WebGameUiDefinitionV1<unknown, unknown, unknown, unknown, unknown, string, unknown>["input"]
 >;
-const webInputMapsV1: WebInputMapsV1 = { pointer: pointerActionMapV1 };
-const publicPointerActionMapV1: PointerActionMapV1 | undefined = webInputMapsV1.pointer;
+const webInputDeclarationV1: WebInputDeclarationV1 = {
+  pointer: pointerActionMapV1,
+  held: { Control: playerInputActionIdsV1.fastForward },
+  nativeBehavior: false,
+};
+const publicPointerActionMapV1: PointerActionMapV1 | undefined = webInputDeclarationV1.pointer;
 void publicPointerActionMapV1;
 
 declare const narrativeSurfaceDefinitionV1: NarrativeSurfaceDefinitionV1<unknown>;

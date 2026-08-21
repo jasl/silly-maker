@@ -76,7 +76,7 @@ function narrativeParametersSchemaInternalV1(): RuntimeSchemaV1<unknown> {
       }
       const kind = value.kind;
       if (
-        kind !== "say" && kind !== "choice" && kind !== "pause" &&
+        kind !== "say" && kind !== "choice" && kind !== "hold" &&
         kind !== "presentation_barrier" && kind !== "custom"
       ) {
         throw new TypeError("ui.narrative_stable_parameters_invalid");

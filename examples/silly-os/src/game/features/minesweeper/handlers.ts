@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Minesweeper slice · commands: new game / reveal / flag. First reveal places mines via the
-// transaction RNG (first click safe, replay-consistent); mine hits and wins broadcast as facts (for UI performance; authority is already in state).
+// transaction RNG (first click safe, replay-consistent); mine hits and wins broadcast as
+// journal-only events (for UI performance; authority is already in the folded board).
 import type { OsCommandHandlerMapV1 } from "../../runtime.ts";
 import { transactionRunnerV1 } from "../../runtime.ts";
-import type { OsFactV1 } from "../../kernel.ts";
 import { osCellFlaggedV1, osCellMineV1, osCellRevealedV1 } from "../../state.ts";
-import { minesweeperModuleV1 } from "./module.ts";
 import {
   osBoardConfigValidV1,
   osBoardWonV1,
@@ -23,16 +22,14 @@ export const minesweeperCommandHandlersV1: Pick<
       if (!osBoardConfigValidV1(command.width, command.height, command.mines)) {
         return transaction.reject({ code: "os.mine.invalid_config" });
       }
-      transaction.propose(minesweeperModuleV1, {
-        kind: "set",
-        next: osCreateBoardV1(command.width, command.height, command.mines),
-        facts: [
-          Object.freeze({
-            kind: "os.mine.started" as const,
-            width: command.width,
-            height: command.height,
-          }),
-        ],
+      transaction.emit({
+        kind: "os.mine.board_set",
+        board: osCreateBoardV1(command.width, command.height, command.mines),
+      });
+      transaction.emit({
+        kind: "os.mine.started",
+        width: command.width,
+        height: command.height,
       });
       return transaction.complete();
     }),
@@ -65,7 +62,7 @@ export const minesweeperCommandHandlersV1: Pick<
         );
       }
 
-      const facts: OsFactV1[] = [];
+      let broadcast: "exploded" | "won" | null = null;
       if (((working.cells[index] as number) & osCellMineV1) !== 0) {
         // Mine hit: the board is terminal; reveal this cell (full mine reveal is released by the publication projection after the game ends).
         const cells = [...working.cells];
@@ -75,17 +72,20 @@ export const minesweeperCommandHandlersV1: Pick<
           status: "lost" as const,
           cells: Object.freeze(cells),
         });
-        facts.push(
-          Object.freeze({ kind: "os.mine.exploded" as const, x: command.x, y: command.y }),
-        );
+        broadcast = "exploded";
       } else {
         working = osRevealFloodV1(working, index);
         if (osBoardWonV1(working)) {
           working = Object.freeze({ ...working, status: "won" as const });
-          facts.push(Object.freeze({ kind: "os.mine.won" as const }));
+          broadcast = "won";
         }
       }
-      transaction.propose(minesweeperModuleV1, { kind: "set", next: working, facts });
+      transaction.emit({ kind: "os.mine.board_set", board: working });
+      if (broadcast === "exploded") {
+        transaction.emit({ kind: "os.mine.exploded", x: command.x, y: command.y });
+      } else if (broadcast === "won") {
+        transaction.emit({ kind: "os.mine.won" });
+      }
       return transaction.complete();
     }),
 
@@ -104,10 +104,9 @@ export const minesweeperCommandHandlersV1: Pick<
       }
       const cells = [...board.cells];
       cells[index] = cell ^ osCellFlaggedV1;
-      transaction.propose(minesweeperModuleV1, {
-        kind: "set",
-        next: Object.freeze({ ...board, cells: Object.freeze(cells) }),
-        facts: [],
+      transaction.emit({
+        kind: "os.mine.board_set",
+        board: Object.freeze({ ...board, cells: Object.freeze(cells) }),
       });
       return transaction.complete();
     }),

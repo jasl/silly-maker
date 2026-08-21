@@ -72,6 +72,7 @@ function createFakeRunnerV1(input: {
   readonly hostPlatform?: "darwin" | "windows" | "linux";
   readonly pages?: Readonly<Record<string, string>>;
   readonly files?: Readonly<Record<string, string>>;
+  readonly binaryFiles?: Readonly<Record<string, Uint8Array>>;
   readonly nonRegularFiles?: readonly string[];
 }): { readonly runner: ProjectCommandRunnerV1; readonly log: FakeRunnerLogV1 } {
   const log: FakeRunnerLogV1 = {
@@ -113,6 +114,11 @@ function createFakeRunnerV1(input: {
       if (body === undefined) return Promise.reject(new Error("missing file"));
       return Promise.resolve(body);
     },
+    readFileBytes: (path) => {
+      const body = input.binaryFiles?.[path];
+      if (body === undefined) return Promise.reject(new Error("missing file"));
+      return Promise.resolve(body);
+    },
     fileSize: (path) => {
       log.fileSizeChecks.push(path);
       return Promise.resolve(
@@ -144,6 +150,50 @@ function createFakeRunnerV1(input: {
     },
   };
   return { runner: Object.freeze(runner), log };
+}
+
+/** Minimal RGBA-PNG encoder (filter 0) for the regions trace verb tests. */
+async function encodeRgbaPngV1(
+  width: number,
+  height: number,
+  alpha: readonly number[],
+): Promise<Uint8Array> {
+  const u32 = (value: number): number[] => [
+    (value >>> 24) & 0xff,
+    (value >>> 16) & 0xff,
+    (value >>> 8) & 0xff,
+    value & 0xff,
+  ];
+  const chunk = (type: string, data: readonly number[]): number[] => [
+    ...u32(data.length),
+    ...type.split("").map((char) => char.charCodeAt(0)),
+    ...data,
+    0,
+    0,
+    0,
+    0,
+  ];
+  const raw: number[] = [];
+  for (let y = 0; y < height; y += 1) {
+    raw.push(0);
+    for (let x = 0; x < width; x += 1) raw.push(0, 0, 0, alpha[y * width + x]!);
+  }
+  const stream = new Blob([new Uint8Array(raw) as BlobPart]).stream()
+    .pipeThrough(new CompressionStream("deflate"));
+  const compressed = new Uint8Array(await new Response(stream).arrayBuffer());
+  return new Uint8Array([
+    0x89,
+    0x50,
+    0x4e,
+    0x47,
+    0x0d,
+    0x0a,
+    0x1a,
+    0x0a,
+    ...chunk("IHDR", [...u32(width), ...u32(height), 8, 6, 0, 0, 0]),
+    ...chunk("IDAT", [...compressed]),
+    ...chunk("IEND", []),
+  ]);
 }
 
 const syntheticInvocationV1 = Object.freeze({ kind: "count" });
@@ -882,6 +932,173 @@ describe("runProjectCliV1", () => {
     expect(desktopArtifactStemInternalV1("App", stampV1("///", null))).toBe("App");
     expect(desktopArtifactStemInternalV1("App", stampV1("x".repeat(65), null))).toBe("App");
     expect(desktopArtifactStemInternalV1("App", stampV1(null, null))).toBe("App");
+  });
+
+  it("regions trace writes a traced regions document and reports it", async () => {
+    // 4x4 RGBA PNG with an opaque 2x2 square at (1,1); default bottom-center
+    // anchor subtracts (2, 4) from every traced coordinate.
+    const alpha = [0, 0, 0, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 0, 0, 0];
+    const fake = createFakeRunnerV1({
+      binaryFiles: { "/art/zone-a.png": await encodeRgbaPngV1(4, 4, alpha) },
+    });
+    const result = await runV1(
+      ["regions", "trace", "/art/zone-a.png", "--out", "/story/zone-a.regions.json"],
+      fake.runner,
+    );
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.out.join("\n"))).toMatchObject({
+      kind: "traced",
+      image: "/art/zone-a.png",
+      out: "/story/zone-a.regions.json",
+      regionsId: "regions.zone-a",
+      regionId: "region-1",
+      imageWidth: 4,
+      imageHeight: 4,
+      contourVertexCount: 4,
+      vertexCount: 4,
+      box: { x: -1, y: -3, width: 2, height: 2 },
+    });
+    const write = fake.log.writes[0]!;
+    expect(write.path).toBe("/story/zone-a.regions.json");
+    const written = JSON.parse(write.contents) as {
+      regions: readonly { polygonPoints: readonly unknown[] }[];
+    };
+    expect(written).toMatchObject({
+      format: "sillymaker.regions",
+      version: 1,
+      regionsId: "regions.zone-a",
+      label: "zone-a",
+      authoring: { status: "generated" },
+    });
+    expect(written.regions[0]!.polygonPoints).toEqual([
+      { x: -1, y: -3 },
+      { x: 1, y: -3 },
+      { x: 1, y: -1 },
+      { x: -1, y: -1 },
+    ]);
+  });
+
+  it("regions trace honors explicit ids, names, and anchors", async () => {
+    const fake = createFakeRunnerV1({
+      binaryFiles: { "/art/pose.png": await encodeRgbaPngV1(2, 2, [255, 255, 255, 255]) },
+    });
+    const result = await runV1(
+      [
+        "regions",
+        "trace",
+        "/art/pose.png",
+        "--out",
+        "/story/pose.regions.json",
+        "--regions-id",
+        "regions.app.pose",
+        "--label",
+        "Pose zones",
+        "--region-id",
+        "zone.body",
+        "--region-name",
+        "Body",
+        "--anchor-x",
+        "0",
+        "--anchor-y",
+        "0",
+        "--alpha-threshold",
+        "200",
+        "--max-vertices",
+        "16",
+      ],
+      fake.runner,
+    );
+    expect(result.code).toBe(0);
+    expect(JSON.parse(fake.log.writes[0]!.contents)).toMatchObject({
+      regionsId: "regions.app.pose",
+      label: "Pose zones",
+      regions: [
+        {
+          regionId: "zone.body",
+          accessibleNameText: "Body",
+          x: 0,
+          y: 0,
+          width: 2,
+          height: 2,
+        },
+      ],
+    });
+  });
+
+  it("regions trace refuses to overwrite unless --force is passed", async () => {
+    const png = await encodeRgbaPngV1(1, 1, [255]);
+    const argv = ["regions", "trace", "/art/dot.png", "--out", "/story/dot.regions.json"];
+    const fake = createFakeRunnerV1({
+      binaryFiles: { "/art/dot.png": png },
+      files: { "/story/dot.regions.json": "{}" },
+    });
+    const refused = await runV1(argv, fake.runner);
+    expect(refused.code).toBe(1);
+    expect(JSON.parse(refused.out.join("\n"))).toMatchObject({
+      kind: "error",
+      diagnostics: [{ code: "regions.trace_output_exists" }],
+    });
+    expect(fake.log.writes).toEqual([]);
+
+    const forced = await runV1([...argv, "--force"], fake.runner);
+    expect(forced.code).toBe(0);
+    expect(fake.log.writes).toHaveLength(1);
+  });
+
+  it("regions trace surfaces image and flag problems distinctly", async () => {
+    const fake = createFakeRunnerV1({
+      binaryFiles: { "/art/not-png.bin": new Uint8Array([1, 2, 3]) },
+    });
+    const notPng = await runV1(
+      ["regions", "trace", "/art/not-png.bin", "--out", "/story/x.regions.json"],
+      fake.runner,
+    );
+    expect(notPng.code).toBe(1);
+    expect(JSON.parse(notPng.out.join("\n"))).toMatchObject({
+      diagnostics: [{
+        code: "regions.trace_image_invalid",
+        details: { reason: "signature_invalid" },
+      }],
+    });
+
+    const missing = await runV1(
+      ["regions", "trace", "/art/absent.png", "--out", "/story/x.regions.json"],
+      fake.runner,
+    );
+    expect(missing.code).toBe(1);
+    expect(missing.err[0]).toContain('could not read "/art/absent.png"');
+
+    const noOut = await runV1(["regions", "trace", "/art/not-png.bin"], fake.runner);
+    expect(noOut.code).toBe(2);
+    expect(noOut.err[0]).toContain("usage: story regions trace");
+
+    const badThreshold = await runV1(
+      [
+        "regions",
+        "trace",
+        "/art/not-png.bin",
+        "--out",
+        "/story/x.regions.json",
+        "--alpha-threshold",
+        "0",
+      ],
+      fake.runner,
+    );
+    expect(badThreshold.code).toBe(2);
+
+    const badSuffix = await runV1(
+      ["regions", "trace", "/art/not-png.bin", "--out", "/story/x.json"],
+      fake.runner,
+    );
+    expect(badSuffix.code).toBe(2);
+    expect(badSuffix.err[0]).toContain(".regions.json");
+
+    const badStem = await runV1(
+      ["regions", "trace", "/art/not-png.bin", "--out", "/story/Zone A.regions.json"],
+      fake.runner,
+    );
+    expect(badStem.code).toBe(2);
+    expect(badStem.err[0]).toContain("lowercase");
   });
 
   it("answers usage errors on stderr with exit code 2", async () => {

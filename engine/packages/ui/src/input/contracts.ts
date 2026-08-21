@@ -40,6 +40,8 @@ export const playerInputActionIdsV1 = Object.freeze({
   toggleHistory: parseInputActionIdV1("player.toggle_history"),
   toggleUi: parseInputActionIdV1("player.toggle_ui"),
   replayVoice: parseInputActionIdV1("player.replay_voice"),
+  /** Held-key fast-forward (for example hold Ctrl → pin the presentation rate). */
+  fastForward: parseInputActionIdV1("player.fast_forward"),
 });
 
 export interface ViewportPointV1 {

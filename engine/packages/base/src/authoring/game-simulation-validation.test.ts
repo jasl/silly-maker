@@ -48,7 +48,7 @@ interface SyntheticSimulationTypesV1 extends
   readonly snapshot: GameSnapshotEnvelopeV1<SyntheticStateV1, SyntheticRngStateV1>;
   readonly rngDrawTrace: never;
   readonly command: { readonly kind: "synthetic.increment" };
-  readonly fact: { readonly kind: "synthetic.changed" };
+  readonly event: { readonly kind: "synthetic.changed" };
   readonly rejection: { readonly code: "synthetic.rejected" };
   readonly fault: { readonly code: "synthetic.fault" };
   readonly debugCommand: { readonly kind: "debug.synthetic.increment" };
@@ -90,19 +90,8 @@ function statefulWithSlots(
     querySchema: null,
     queryResultSchema: null,
     stateSchema,
-    ownerOperationSchema: passthroughSchema<unknown>(),
-    ownerProposalSchema: passthroughSchema<{
-      readonly payload: null;
-      readonly facts: readonly SyntheticSimulationTypesV1["fact"][];
-    }>(),
     localInvariants: [],
-    owner: {
-      propose: () => ({
-        kind: "proposed" as const,
-        proposal: { payload: null, facts: [] },
-      }),
-      apply: (current: unknown) => current,
-    },
+    reducers: {},
     queries: null,
     createInitialState: () => initialState,
     createReadPort: (current: unknown) => current,
@@ -126,9 +115,7 @@ function stateless(id: string, dependencies: readonly string[] = []) {
     commandSchema: null,
     querySchema: null,
     queryResultSchema: null,
-    ownerOperationSchema: null,
-    ownerProposalSchema: null,
-    owner: null,
+    reducers: null,
     capabilities: Object.freeze({
       resolveParity(value: number): "even" | "odd" {
         return value % 2 === 0 ? "even" : "odd";
@@ -161,7 +148,7 @@ function simulation(modules: readonly GameplayModuleBindingV1<SyntheticSimulatio
     modules,
     stateSchema: passthroughSchema<SyntheticStateV1>(),
     commandSchema: passthroughSchema<SyntheticSimulationTypesV1["command"]>(),
-    factSchema: passthroughSchema<SyntheticSimulationTypesV1["fact"]>(),
+    eventSchema: passthroughSchema<SyntheticSimulationTypesV1["event"]>(),
     rejectionSchema: passthroughSchema<SyntheticSimulationTypesV1["rejection"]>(),
     debugCommandSchema: passthroughSchema<SyntheticSimulationTypesV1["debugCommand"]>(),
     debugValidationErrorSchema: passthroughSchema<
@@ -661,13 +648,13 @@ describe("GameSimulation invariants", () => {
   it("normalizes and freezes synchronous game and Debug attempt evidence exactly once", () => {
     const seed = defineSyntheticSimulation();
     const snapshot = syntheticSnapshot();
-    const rawFact = { kind: "synthetic.changed" as const, transient: "remove" };
+    const rawEvent = { kind: "synthetic.changed" as const, transient: "remove" };
     const rawReason = { code: "synthetic.rejected" as const, transient: "remove" };
     const rawGameAttempt = {
       result: {
         kind: "committed" as const,
         snapshot,
-        facts: [rawFact],
+        events: [rawEvent],
       },
       diagnostics: {
         committedRngBefore: snapshot.rng,
@@ -689,16 +676,16 @@ describe("GameSimulation invariants", () => {
         committedRngAfter: snapshot.rng,
       },
     };
-    const normalizedFact = Object.freeze({ kind: "synthetic.changed" as const });
+    const normalizedEvent = Object.freeze({ kind: "synthetic.changed" as const });
     const normalizedReason = Object.freeze({ code: "synthetic.rejected" as const });
-    let factParseCalls = 0;
+    let eventParseCalls = 0;
     let rejectionParseCalls = 0;
     let executeGameCalls = 0;
     let executeDebugCalls = 0;
-    const parseFact = (value: unknown): SyntheticSimulationTypesV1["fact"] => {
-      factParseCalls += 1;
-      expect(value).toBe(rawFact);
-      return normalizedFact;
+    const parseEvent = (value: unknown): SyntheticSimulationTypesV1["event"] => {
+      eventParseCalls += 1;
+      expect(value).toBe(rawEvent);
+      return normalizedEvent;
     };
     const parseRejection = (value: unknown): SyntheticSimulationTypesV1["rejection"] => {
       rejectionParseCalls += 1;
@@ -723,7 +710,7 @@ describe("GameSimulation invariants", () => {
     };
     const resolved = defineGameSimulation<SyntheticSimulationTypesV1>()({
       ...seed,
-      factSchema: Object.freeze({ parse: parseFact }),
+      eventSchema: Object.freeze({ parse: parseEvent }),
       rejectionSchema: Object.freeze({ parse: parseRejection }),
       commandExecutor: { executeAttempt: executeGame },
       debugCommandExecutor: {
@@ -745,12 +732,12 @@ describe("GameSimulation invariants", () => {
 
     expect(executeGameCalls).toBe(1);
     expect(executeDebugCalls).toBe(1);
-    expect(factParseCalls).toBe(1);
+    expect(eventParseCalls).toBe(1);
     expect(rejectionParseCalls).toBe(1);
     expect(gameAttempt).not.toBe(rawGameAttempt);
     expect(debugAttempt).not.toBe(rawDebugAttempt);
     expect(gameAttempt).toMatchObject({
-      result: { kind: "committed", snapshot, facts: [normalizedFact] },
+      result: { kind: "committed", snapshot, events: [normalizedEvent] },
     });
     expect(debugAttempt).toMatchObject({
       result: { kind: "rejected", snapshot, reasons: [normalizedReason] },
@@ -761,7 +748,7 @@ describe("GameSimulation invariants", () => {
     expect(Object.isFrozen(debugAttempt)).toBe(true);
     expect(Object.isFrozen(debugAttempt.result)).toBe(true);
     expect(Object.isFrozen(debugAttempt.diagnostics)).toBe(true);
-    expect(Object.isFrozen(rawFact)).toBe(false);
+    expect(Object.isFrozen(rawEvent)).toBe(false);
     expect(Object.isFrozen(rawReason)).toBe(false);
   });
 
@@ -847,12 +834,12 @@ describe("GameSimulation invariants", () => {
     (surface, target) => {
       const seed = defineSyntheticSimulation();
       const snapshot = syntheticSnapshot();
-      const rawFact = { kind: "synthetic.changed" as const, value: 0.5 };
+      const rawEvent = { kind: "synthetic.changed" as const, value: 0.5 };
       const candidate = {
         result: {
           kind: "committed" as const,
           snapshot,
-          facts: [rawFact],
+          events: [rawEvent],
         },
         diagnostics: {
           committedRngBefore: snapshot.rng,
@@ -861,10 +848,10 @@ describe("GameSimulation invariants", () => {
           committedRngAfter: snapshot.rng,
         },
       };
-      let factParseCalls = 0;
+      let eventParseCalls = 0;
       let executeCalls = 0;
-      const parseFact = (_value: unknown): SyntheticSimulationTypesV1["fact"] => {
-        factParseCalls += 1;
+      const parseEvent = (_value: unknown): SyntheticSimulationTypesV1["event"] => {
+        eventParseCalls += 1;
         throw new TypeError("evidence schema ran before the Core RNG gate");
       };
       const executeAttempt = (
@@ -879,7 +866,7 @@ describe("GameSimulation invariants", () => {
       };
       const resolved = defineGameSimulation<SyntheticSimulationTypesV1>()({
         ...seed,
-        factSchema: Object.freeze({ parse: parseFact }),
+        eventSchema: Object.freeze({ parse: parseEvent }),
         commandExecutor: { executeAttempt },
         debugCommandExecutor: {
           ...seed.debugCommandExecutor,
@@ -905,9 +892,9 @@ describe("GameSimulation invariants", () => {
 
       expect(returned).toBe(candidate);
       expect(executeCalls).toBe(1);
-      expect(factParseCalls).toBe(0);
+      expect(eventParseCalls).toBe(0);
       expect(Object.isFrozen(candidate)).toBe(false);
-      expect(Object.isFrozen(rawFact)).toBe(false);
+      expect(Object.isFrozen(rawEvent)).toBe(false);
     },
   );
 
@@ -933,7 +920,7 @@ describe("GameSimulation invariants", () => {
     }
   });
 
-  it("allows stateless capabilities but no state or owner surface", () => {
+  it("allows stateless capabilities but no state or reducer surface", () => {
     const resolver = stateless("synthetic.resolver");
     expect(resolver.bindingKind).toBe("stateless");
     expect(resolver.capabilities).toHaveProperty("resolveParity");
@@ -941,18 +928,18 @@ describe("GameSimulation invariants", () => {
     expect(resolver).not.toHaveProperty("stateSchema");
   });
 
-  it("validates real multi-slot State paths without parsing each leaf as an owner aggregate", () => {
-    let ownerSchemaParseCalls = 0;
-    const ownerAggregateSchema: RuntimeSchemaV1<unknown> = Object.freeze({
+  it("validates real multi-slot State paths without parsing each leaf as a module aggregate", () => {
+    let moduleSchemaParseCalls = 0;
+    const moduleAggregateSchema: RuntimeSchemaV1<unknown> = Object.freeze({
       parse(value: unknown) {
-        ownerSchemaParseCalls += 1;
+        moduleSchemaParseCalls += 1;
         if (
           value === null ||
           typeof value !== "object" ||
           !Object.hasOwn(value, "counter") ||
           !Object.hasOwn(value, "marker")
         ) {
-          throw new TypeError("invalid owner aggregate");
+          throw new TypeError("invalid module aggregate");
         }
         return value;
       },
@@ -962,7 +949,7 @@ describe("GameSimulation invariants", () => {
         "synthetic.aggregate",
         ["simulation.counter", "simulation.marker"],
         [],
-        ownerAggregateSchema,
+        moduleAggregateSchema,
         Object.freeze({
           counter: Object.freeze({ count: 0 }),
           marker: Object.freeze({ enabled: false }),
@@ -971,7 +958,7 @@ describe("GameSimulation invariants", () => {
     ]);
     expect(() => resolved.createInitialState(Object.freeze({ rngSeed: parseNonZeroUint32(1) }))).not
       .toThrow();
-    expect(ownerSchemaParseCalls).toBe(2);
+    expect(moduleSchemaParseCalls).toBe(2);
   });
 
   it("deep-freezes both the authoring input and the validated simulation", () => {

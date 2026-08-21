@@ -5,8 +5,9 @@ import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 
 import type { StudioToolingPlanV1 } from "./composition.ts";
+import { createRegionsDocumentSessionV1 } from "./core/regions-session.ts";
 import { createSceneDocumentSessionV1 } from "./core/scene-session.ts";
-import { StudioAppWithSceneSessionV1 } from "./studio-app.tsx";
+import { StudioAppWithAuthoringSessionsV1 } from "./studio-app.tsx";
 
 interface LayoutCommitV1Props {
   readonly children: ReactNode;
@@ -237,15 +238,19 @@ export interface CreateStudioToolingReactPublicationInputV1 {
 }
 
 /**
- * Owns the dev Studio's epoch roots and one scene document session. Staging
- * and visible epochs receive that exact session, so an accepted HMR epoch may
- * remount non-authoritative UI state without discarding the unsaved draft.
+ * Owns the dev Studio's epoch roots and its authoring document sessions.
+ * Staging and visible epochs receive those exact sessions, so an accepted HMR
+ * epoch may remount non-authoritative UI state without discarding unsaved
+ * Scene or Regions drafts.
  */
 export function createStudioToolingReactPublicationV1(
   input: CreateStudioToolingReactPublicationInputV1,
 ): StudioToolingReactPublicationV1 {
   let sceneIo: StudioToolingPlanV1["sceneIo"] | null = null;
   let sceneSession: ReturnType<typeof createSceneDocumentSessionV1> | null = null;
+  let regionsIoInitialized = false;
+  let regionsIo: StudioToolingPlanV1["regionsIo"];
+  let regionsSession: ReturnType<typeof createRegionsDocumentSessionV1> | null = null;
   const publication = createReactLayoutPublicationV1<StudioToolingPlanV1>({
     container: input.container,
     ...(input.reportFailure === undefined ? {} : { reportFailure: input.reportFailure }),
@@ -256,12 +261,23 @@ export function createStudioToolingReactPublicationV1(
       } else if (plan.sceneIo !== sceneIo) {
         throw new TypeError("Studio live publication cannot replace its scene IO owner");
       }
+      if (!regionsIoInitialized) {
+        regionsIoInitialized = true;
+        regionsIo = plan.regionsIo;
+        regionsSession = plan.regionsIo === undefined
+          ? null
+          : createRegionsDocumentSessionV1(plan.regionsIo);
+      } else if (plan.regionsIo !== regionsIo) {
+        throw new TypeError("Studio live publication cannot replace its regions IO owner");
+      }
       return (
-        <StudioAppWithSceneSessionV1
+        <StudioAppWithAuthoringSessionsV1
           binding={plan.binding}
           io={plan.sceneIo}
           motionIo={plan.motionIo}
+          {...(plan.regionsIo === undefined ? {} : { regionsIo: plan.regionsIo })}
           sceneSession={sceneSession!}
+          regionsSession={regionsSession}
         />
       );
     },

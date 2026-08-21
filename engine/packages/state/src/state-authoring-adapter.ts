@@ -35,7 +35,7 @@ import type { LegacyStateRuntimeTypeMapV1 } from "./legacy-adapter.ts";
 type LegacyTypesForV1<TTypes extends StateWorkflowTypeMapV1> = LegacyStateRuntimeTypeMapV1<TTypes>;
 
 // Package-local cold-path bridge to the one Base module used by composition;
-// it carries no State, proposal, or Session authority.
+// it carries no State, event journal, or Session authority.
 const legacyStateModuleCarrierV1: unique symbol = Symbol("sillymaker.state.legacy-module");
 
 function legacyStateModuleV1(module: StateAnyModuleV1): AuthoringKitAnyStatefulModuleV1 {
@@ -65,18 +65,16 @@ export function createStateAuthoringBridgeInternalV1<
 
   const defineModule = <
     TStateSlice,
-    TOwnerOperation,
     TRequires extends StateCapabilityRequirementsV1,
   >(
-    definition: StateModuleDefinitionV1<TTypes, TStateSlice, TOwnerOperation, TRequires>,
-  ): StateModuleV1<TTypes, TStateSlice, TOwnerOperation, TRequires> => {
+    definition: StateModuleDefinitionV1<TTypes, TStateSlice, TRequires>,
+  ): StateModuleV1<TTypes, TStateSlice, TRequires> => {
     const contractRevision = parsePositiveSafeInteger(
       definition.contractRevision,
     );
     const admittedDefinition: StateModuleDefinitionV1<
       TTypes,
       TStateSlice,
-      TOwnerOperation,
       TRequires
     > = Object.freeze({
       id: definition.id,
@@ -87,12 +85,11 @@ export function createStateAuthoringBridgeInternalV1<
       ...(definition.initializesAfter === undefined
         ? {}
         : { initializesAfter: definition.initializesAfter }),
-      owner: definition.owner,
+      reducers: definition.reducers,
     });
     const legacyConfig: AuthoringKitStatefulModuleConfigV1<
       TLegacyTypes,
       TStateSlice,
-      TOwnerOperation,
       never,
       TRequires
     > = {
@@ -114,29 +111,13 @@ export function createStateAuthoringBridgeInternalV1<
       ...(admittedDefinition.initializesAfter === undefined
         ? {}
         : { initializesAfter: admittedDefinition.initializesAfter }),
-      owner: {
-        operationSchema: admittedDefinition.owner.operationSchema,
-        ...(admittedDefinition.owner.proposalSchema === undefined
-          ? {}
-          : { proposalSchema: admittedDefinition.owner.proposalSchema }),
-        propose(state, operation, dependencies) {
-          return admittedDefinition.owner.propose(
-            state,
-            operation,
-            dependencies as StateDependencyPortsOfV1<TRequires>,
-          );
-        },
-        apply(state, proposal) {
-          return admittedDefinition.owner.apply(state, proposal);
-        },
-      },
+      reducers: admittedDefinition.reducers,
     };
     Object.freeze(legacyConfig);
     const legacyModule = legacyKit.defineStatefulModule(legacyConfig);
     const module: StateModuleV1<
       TTypes,
       TStateSlice,
-      TOwnerOperation,
       TRequires
     > = {
       id: legacyModule.id,
@@ -197,6 +178,7 @@ export function createStateAuthoringBridgeInternalV1<
         const validateCandidate = definition.validateCandidate;
         const runnerConfig: KitTransactionRunnerConfigV1<TLegacyTypes> = {
           stateSchema: definition.stateSchema,
+          eventSchema: definition.eventSchema,
           createFault(cause) {
             return definition.createFault(cause);
           },

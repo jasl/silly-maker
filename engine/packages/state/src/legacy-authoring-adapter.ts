@@ -3,7 +3,6 @@ import type {
   GameSimulationTypeMapV1,
   GameplayModuleBindingV1,
   GameplayModuleDescriptorV1,
-  ModuleOwnerProposalEnvelopeV1,
   RuntimeSchemaV1,
   StatefulGameplayModuleBindingV1,
   StatelessGameplayModuleBindingV1,
@@ -23,8 +22,6 @@ type ErasedStatefulGameplayModuleBindingV1 = StatefulGameplayModuleBindingV1<
   unknown,
   unknown,
   unknown,
-  unknown,
-  ModuleOwnerProposalEnvelopeV1<unknown, unknown>,
   unknown,
   unknown
 >;
@@ -103,10 +100,8 @@ function rebuildBindingV1(
       querySchema: source.querySchema,
       queryResultSchema: source.queryResultSchema,
       stateSchema: source.stateSchema,
-      ownerOperationSchema: source.ownerOperationSchema,
-      ownerProposalSchema: source.ownerProposalSchema,
       localInvariants: [...source.localInvariants],
-      owner: source.owner,
+      reducers: source.reducers,
       queries: source.queries,
       createInitialState: source.createInitialState,
       createReadPort: source.createReadPort,
@@ -118,9 +113,7 @@ function rebuildBindingV1(
     commandSchema,
     querySchema: source.querySchema,
     queryResultSchema: source.queryResultSchema,
-    ownerOperationSchema: null,
-    ownerProposalSchema: null,
-    owner: null,
+    reducers: null,
     capabilities: source.capabilities,
   });
 }

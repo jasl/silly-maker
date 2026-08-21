@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Encounters slice · rules: drawing from the regulars event pool. Conditions check current
-// state, the draw uses the snapshot RNG (replay-consistent), effects merge into the caller's draft, and explanation data lands in the log with the fact.
+// state, the draw uses the snapshot RNG (replay-consistent), effects merge into the caller's draft, and explanation data lands in the journal with the event.
 import { drawFromEventPoolV1 } from "@sillymaker/base";
 
 import type { CatcafeGameStateV1 } from "../../state.ts";
@@ -9,11 +9,11 @@ import {
   catcafeEncountersV1,
   catcafeSlotsV1,
 } from "../../content.ts";
-import type { CatcafeFactV1 } from "../../kernel.ts";
+import type { CatcafeEventV1 } from "../../kernel.ts";
 import { applyStatEffectsV1 } from "../../kernel.ts";
 import type { CatcafeTransactionalRngV1 } from "../../runtime.ts";
 
-/** Draw one regular encounter; on a hit, merge effects into the draft and return encounter facts. */
+/** Draw one regular encounter; on a hit, merge effects into the draft and return encounter events. */
 export function drawCatcafeEncounterV1(input: {
   readonly state: CatcafeGameStateV1["simulation"];
   readonly rng: CatcafeTransactionalRngV1;
@@ -25,7 +25,7 @@ export function drawCatcafeEncounterV1(input: {
     pettingLeft: number;
   };
   readonly shop: { reputation: number; tidiness: number; money: number; trophies: number };
-}): readonly CatcafeFactV1[] {
+}): readonly CatcafeEventV1[] {
   const { state, rng } = input;
   const draw = drawFromEventPoolV1({
     candidates: catcafeEncountersV1.rows().map((row) => ({

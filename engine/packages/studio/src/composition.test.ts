@@ -11,6 +11,7 @@ import type { CompositionSnapshotV1 } from "@sillymaker/composition";
 import type { MotionSourceIoV1 } from "@sillymaker/ui/debug";
 
 import type { StudioBindingV1 } from "./core/binding.ts";
+import type { RegionsSourceIoV1 } from "./core/regions-io.ts";
 import type { SceneSourceIoV1 } from "./core/scene-io.ts";
 import {
   createStudioToolingHmrCoordinatorV1,
@@ -23,6 +24,7 @@ import type {
 
 const sceneIoV1 = Object.freeze({}) as SceneSourceIoV1;
 const motionIoV1 = Object.freeze({}) as MotionSourceIoV1;
+const regionsIoV1 = Object.freeze({}) as RegionsSourceIoV1;
 
 function bindingV1(label: string): StudioBindingV1 {
   return Object.freeze({ label }) as unknown as StudioBindingV1;
@@ -32,7 +34,13 @@ function rootInputV1(
   revision: number,
   binding: StudioBindingV1,
 ): StudioToolingLiveRootInputV1 {
-  return Object.freeze({ revision, binding, sceneIo: sceneIoV1, motionIo: motionIoV1 });
+  return Object.freeze({
+    revision,
+    binding,
+    sceneIo: sceneIoV1,
+    motionIo: motionIoV1,
+    regionsIo: regionsIoV1,
+  });
 }
 
 const unsupportedEffectsInputV1 = {
@@ -84,6 +92,7 @@ describe("Studio tooling live composition", () => {
     expect(newPlan.binding).toBe(newBinding);
     expect(newPlan.sceneIo).toBe(sceneIoV1);
     expect(newPlan.motionIo).toBe(motionIoV1);
+    expect(newPlan.regionsIo).toBe(regionsIoV1);
     expect(live.getSnapshot()).not.toBe(oldLiveSnapshot);
     expect(authoritativeKernel.getSnapshot()).toBe(authoritativeSnapshot);
     expect(authoritativePlan).toBe(authority);

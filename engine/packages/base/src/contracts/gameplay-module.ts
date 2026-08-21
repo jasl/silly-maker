@@ -37,7 +37,7 @@ export interface GameSimulationTypeMapV1<
   readonly snapshot: GameSnapshotEnvelopeV1<TState, TRngState>;
   readonly rngDrawTrace: unknown;
   readonly command: unknown;
-  readonly fact: unknown;
+  readonly event: unknown;
   readonly rejection: unknown;
   readonly fault: unknown;
   readonly debugCommand: unknown;
@@ -65,29 +65,38 @@ export interface ModuleLocalInvariantV1<TStateSlice, TReadPort> {
   ): readonly ModuleInvariantViolationV1[];
 }
 
-export type ModuleProposalResultV1<TProposal, TRejection> =
-  | { readonly kind: "proposed"; readonly proposal: TProposal }
-  | { readonly kind: "rejected"; readonly rejection: TRejection };
+/**
+ * The kind key union of a Story's domain-event union. Domain events are the
+ * only internal authoritative update channel: producers (command handlers,
+ * engine monitors) emit them inside a commit, reducers fold them into state
+ * atomically, and the committed sequence is the read-side event journal.
+ */
+export type DomainEventKindOfV1<TEvent> = TEvent extends
+  { readonly kind: infer TKind extends string } ? TKind : never;
 
-export interface ModuleOwnerProposalEnvelopeV1<TPayload, TFact> {
-  readonly payload: TPayload;
-  readonly facts: readonly TFact[];
-}
+/**
+ * One module's pure fold step for one admitted domain event: next slice =
+ * reduce(current slice, event). Reducers are total for admitted events — a
+ * throw faults the whole commit and leaves authoritative state unchanged.
+ * They never reject, draw randomness, or read other modules' slices; every
+ * decision (validation, RNG, cross-module reads) happens in the command
+ * handler before the event is emitted.
+ */
+export type ModuleEventReducerV1<TStateSlice, TEvent> = (
+  state: DeepReadonly<TStateSlice>,
+  event: DeepReadonly<TEvent>,
+) => TStateSlice;
 
-export interface ModuleOwnerCapabilityV1<
-  TStateSlice,
-  TOwnerOperation,
-  TOwnerProposal,
-  TRejection,
-  TDependencyPorts,
-> {
-  propose(
-    state: DeepReadonly<TStateSlice>,
-    operation: DeepReadonly<TOwnerOperation>,
-    dependencies: TDependencyPorts,
-  ): ModuleProposalResultV1<TOwnerProposal, TRejection>;
-  apply(state: DeepReadonly<TStateSlice>, proposal: DeepReadonly<TOwnerProposal>): TStateSlice;
-}
+/**
+ * A module's declared reducers, keyed by domain-event kind. Kinds absent
+ * from every module's map are journal-only events (evidence without state).
+ */
+export type ModuleEventReducerMapV1<TStateSlice, TEvent> = {
+  readonly [TKind in DomainEventKindOfV1<TEvent>]?: ModuleEventReducerV1<
+    TStateSlice,
+    Extract<TEvent, { readonly kind: TKind }>
+  >;
+};
 
 export interface ModuleQueryCapabilityV1<
   TStateSlice,
@@ -120,23 +129,13 @@ export interface StatefulGameplayModuleBindingV1<
   TModuleCommand,
   TModuleQuery,
   TModuleQueryResult,
-  TOwnerOperation,
-  TOwnerProposal extends ModuleOwnerProposalEnvelopeV1<unknown, TTypes["fact"]>,
   TReadPort,
   TDependencyPorts,
 > extends GameplayModuleSurfaceV1<TTypes, TModuleCommand, TModuleQuery, TModuleQueryResult> {
   readonly bindingKind: "stateful";
   readonly stateSchema: RuntimeSchemaV1<TStateSlice>;
-  readonly ownerOperationSchema: RuntimeSchemaV1<TOwnerOperation>;
-  readonly ownerProposalSchema: RuntimeSchemaV1<TOwnerProposal>;
   readonly localInvariants: readonly ModuleLocalInvariantV1<TStateSlice, TReadPort>[];
-  readonly owner: ModuleOwnerCapabilityV1<
-    TStateSlice,
-    TOwnerOperation,
-    TOwnerProposal,
-    TTypes["rejection"],
-    TDependencyPorts
-  >;
+  readonly reducers: ModuleEventReducerMapV1<TStateSlice, TTypes["event"]>;
   readonly queries:
     | ModuleQueryCapabilityV1<
       TStateSlice,
@@ -157,9 +156,7 @@ export interface StatelessGameplayModuleBindingV1<
   TCapabilities,
 > extends GameplayModuleSurfaceV1<TTypes, TModuleCommand, TModuleQuery, TModuleQueryResult> {
   readonly bindingKind: "stateless";
-  readonly ownerOperationSchema: null;
-  readonly ownerProposalSchema: null;
-  readonly owner: null;
+  readonly reducers: null;
   readonly capabilities: TCapabilities;
 }
 
@@ -169,9 +166,6 @@ export type GameplayModuleBindingV1<
   TModuleCommand = unknown,
   TModuleQuery = unknown,
   TModuleQueryResult = unknown,
-  TOwnerOperation = unknown,
-  TOwnerProposal extends ModuleOwnerProposalEnvelopeV1<unknown, TTypes["fact"]> =
-    ModuleOwnerProposalEnvelopeV1<unknown, TTypes["fact"]>,
   TReadPort = unknown,
   TDependencyPorts = unknown,
 > =
@@ -181,8 +175,6 @@ export type GameplayModuleBindingV1<
     TModuleCommand,
     TModuleQuery,
     TModuleQueryResult,
-    TOwnerOperation,
-    TOwnerProposal,
     TReadPort,
     TDependencyPorts
   >
@@ -204,8 +196,6 @@ export type GameplayModuleTupleForSimulationV1<
     infer _TModuleCommand,
     infer _TModuleQuery,
     infer _TModuleQueryResult,
-    infer _TOwnerOperation,
-    infer _TOwnerProposal,
     infer _TReadPort,
     infer _TDependencyPorts
   > ? TModules[TIndex]
@@ -267,7 +257,7 @@ export interface GameSimulationV1<
   readonly modules: GameplayModuleTupleForSimulationV1<TTypes, TModules>;
   readonly stateSchema: RuntimeSchemaV1<TTypes["state"]>;
   readonly commandSchema: RuntimeSchemaV1<TTypes["command"]>;
-  readonly factSchema: RuntimeSchemaV1<TTypes["fact"]>;
+  readonly eventSchema: RuntimeSchemaV1<TTypes["event"]>;
   readonly rejectionSchema: RuntimeSchemaV1<TTypes["rejection"]>;
   readonly debugCommandSchema: RuntimeSchemaV1<TTypes["debugCommand"]>;
   readonly debugValidationErrorSchema: RuntimeSchemaV1<TTypes["debugValidationError"]>;

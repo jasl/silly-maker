@@ -47,9 +47,9 @@ interface OrderingCommandV1 {
   readonly kind: "ordering.commit";
 }
 
-interface OrderingFactV1 {
+interface OrderingEventV1 {
   readonly kind: "ordering.value_applied";
-  readonly owner: "order.a-1" | "order.a_1";
+  readonly module: "order.a-1" | "order.a_1";
   readonly value: number;
 }
 
@@ -65,7 +65,7 @@ interface OrderingTypesV1
   extends GameSimulationTypeMapV1<GameBootstrapInputV1, OrderingStateV1, RngStateV1> {
   readonly snapshot: GameSnapshotEnvelopeV1<OrderingStateV1, RngStateV1>;
   readonly command: OrderingCommandV1;
-  readonly fact: OrderingFactV1;
+  readonly event: OrderingEventV1;
   readonly rejection: OrderingRejectionV1;
   readonly fault: OrderingFaultV1;
   readonly debugCommand: never;
@@ -78,7 +78,7 @@ interface OrderingTypesV1
 type OrderingSnapshotV1 = OrderingTypesV1["snapshot"];
 type OrderingAttemptV1 = CommandExecutionAttemptEnvelopeV1<
   OrderingSnapshotV1,
-  OrderingFactV1,
+  OrderingEventV1,
   OrderingRejectionV1,
   OrderingFaultV1,
   RngStateV1,
@@ -86,8 +86,8 @@ type OrderingAttemptV1 = CommandExecutionAttemptEnvelopeV1<
 >;
 
 interface OrderingTraceV1 {
-  readonly proposalOrder: string[];
-  readonly applyOrder: string[];
+  /** Per-event reducer fan-out: every subscribed module in UTF-16 id order. */
+  readonly foldOrder: string[];
 }
 
 function isRecordV1(value: unknown): value is Readonly<Record<string, unknown>> {
@@ -259,8 +259,28 @@ const orderingCommandSchemaV1: RuntimeSchemaV1<OrderingCommandV1> = Object.freez
   },
 });
 
+const orderingEventSchemaV1: RuntimeSchemaV1<OrderingEventV1> = Object.freeze({
+  parse(value: unknown): OrderingEventV1 {
+    if (
+      !isRecordV1(value) ||
+      value.kind !== "ordering.value_applied" ||
+      (value.module !== "order.a-1" && value.module !== "order.a_1")
+    ) {
+      throw new TypeError("invalid authoritative ordering event");
+    }
+    return Object.freeze({
+      kind: "ordering.value_applied" as const,
+      module: value.module,
+      value: parseNonNegativeSafeInteger(value.value),
+    });
+  },
+});
+
 function createOrderingTransactionRunnerV1(trace?: OrderingTraceV1) {
   const kit = createGameAuthoringKitV1<OrderingTypesV1>();
+  // Both modules subscribe to the same event kind: the fold trace witnesses
+  // the engine's per-event fan-out order (UTF-16 module-id order) while each
+  // reducer only folds its own targeted values.
   const dash = kit.defineStatefulModule({
     id: "order.a-1",
     contractRevision: 1,
@@ -269,35 +289,11 @@ function createOrderingTransactionRunnerV1(trace?: OrderingTraceV1) {
       schema: orderingSliceSchemaV1("dash"),
       initial: () => Object.freeze({ value: 1 }),
     },
-    owner: {
-      operationSchema: Object.freeze({
-        parse(value: unknown) {
-          if (!isRecordV1(value)) throw new TypeError("invalid dash ordering operation");
-          return Object.freeze({ delta: parseNonNegativeSafeInteger(value.delta) });
-        },
-      }),
-      propose(state, operation) {
-        trace?.proposalOrder.push("order.a-1");
-        const value = parseNonNegativeSafeInteger(state.value + operation.delta);
-        return Object.freeze({
-          kind: "proposed" as const,
-          proposal: Object.freeze({
-            payload: operation,
-            facts: Object.freeze([
-              Object.freeze({
-                kind: "ordering.value_applied" as const,
-                owner: "order.a-1" as const,
-                value,
-              }),
-            ]),
-          }),
-        });
-      },
-      apply(state, proposal) {
-        trace?.applyOrder.push("order.a-1");
-        return Object.freeze({
-          value: parseNonNegativeSafeInteger(state.value + proposal.payload.delta),
-        });
+    reducers: {
+      "ordering.value_applied": (state, event) => {
+        trace?.foldOrder.push("order.a-1");
+        if (event.module !== "order.a-1") return state as OrderingSliceV1;
+        return Object.freeze({ value: parseNonNegativeSafeInteger(event.value) });
       },
     },
   });
@@ -309,53 +305,38 @@ function createOrderingTransactionRunnerV1(trace?: OrderingTraceV1) {
       schema: orderingSliceSchemaV1("underscore"),
       initial: () => Object.freeze({ value: 10 }),
     },
-    owner: {
-      operationSchema: Object.freeze({
-        parse(value: unknown) {
-          if (!isRecordV1(value)) throw new TypeError("invalid underscore ordering operation");
-          return Object.freeze({ delta: parseNonNegativeSafeInteger(value.delta) });
-        },
-      }),
-      propose(state, operation) {
-        trace?.proposalOrder.push("order.a_1");
-        const value = parseNonNegativeSafeInteger(state.value + operation.delta);
-        return Object.freeze({
-          kind: "proposed" as const,
-          proposal: Object.freeze({
-            payload: operation,
-            facts: Object.freeze([
-              Object.freeze({
-                kind: "ordering.value_applied" as const,
-                owner: "order.a_1" as const,
-                value,
-              }),
-            ]),
-          }),
-        });
-      },
-      apply(state, proposal) {
-        trace?.applyOrder.push("order.a_1");
-        return Object.freeze({
-          value: parseNonNegativeSafeInteger(state.value + proposal.payload.delta),
-        });
+    reducers: {
+      "ordering.value_applied": (state, event) => {
+        trace?.foldOrder.push("order.a_1");
+        if (event.module !== "order.a_1") return state as OrderingSliceV1;
+        return Object.freeze({ value: parseNonNegativeSafeInteger(event.value) });
       },
     },
   });
   const runner = kit.composeModules([underscore, dash]).createTransactionRunner({
     stateSchema: orderingStateSchemaV1,
+    eventSchema: orderingEventSchemaV1,
     createFault: () => Object.freeze({ code: "ordering.faulted" as const }),
   });
-  return Object.freeze({ dash, underscore, runner });
+  return Object.freeze({ runner });
 }
 
 function executeOrderingAttemptV1(
   snapshot: DeepReadonly<OrderingSnapshotV1>,
   trace?: OrderingTraceV1,
 ): OrderingAttemptV1 {
-  const { dash, underscore, runner } = createOrderingTransactionRunnerV1(trace);
+  const { runner } = createOrderingTransactionRunnerV1(trace);
   return runner.execute(snapshot, createTransactionalRngV1(snapshot.rng), (transaction) => {
-    transaction.propose(underscore, { delta: parseNonNegativeSafeInteger(3) });
-    transaction.propose(dash, { delta: parseNonNegativeSafeInteger(2) });
+    transaction.emit({
+      kind: "ordering.value_applied",
+      module: "order.a_1",
+      value: parseNonNegativeSafeInteger(snapshot.state.simulation.underscore.value + 3),
+    });
+    transaction.emit({
+      kind: "ordering.value_applied",
+      module: "order.a-1",
+      value: parseNonNegativeSafeInteger(snapshot.state.simulation.dash.value + 2),
+    });
     return transaction.complete();
   }) as OrderingAttemptV1;
 }
@@ -402,8 +383,8 @@ const orderingProvenanceV1: BuildProvenanceV1 = Object.freeze({
 });
 
 async function runTransactionVectorV1() {
-  const trace: OrderingTraceV1 = { proposalOrder: [], applyOrder: [] };
-  const replayTrace: OrderingTraceV1 = { proposalOrder: [], applyOrder: [] };
+  const trace: OrderingTraceV1 = { foldOrder: [] };
+  const replayTrace: OrderingTraceV1 = { foldOrder: [] };
   const created = createGameSessionV1<OrderingTypesV1>({
     initialSnapshot: initialOrderingSnapshotV1(),
     commandSchema: orderingCommandSchemaV1,
@@ -440,11 +421,9 @@ async function runTransactionVectorV1() {
     },
   });
   return Object.freeze({
-    proposalOrder: Object.freeze([...trace.proposalOrder]),
-    applyOrder: Object.freeze([...trace.applyOrder]),
-    replayProposalOrder: Object.freeze([...replayTrace.proposalOrder]),
-    replayApplyOrder: Object.freeze([...replayTrace.applyOrder]),
-    facts: dispatch.execution.facts,
+    foldOrder: Object.freeze([...trace.foldOrder]),
+    replayFoldOrder: Object.freeze([...replayTrace.foldOrder]),
+    events: dispatch.execution.events,
     candidateSnapshot: dispatch.execution.snapshot,
     commandLog,
     replay,

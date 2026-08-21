@@ -29,6 +29,7 @@ import { StoryDebugDockV1 } from "../debug/story-debug-dock.tsx";
 import type { StateTunerPortV1 } from "../debug/state-tuner.ts";
 import { mergeEngineStateTunerPanelsV1 } from "../debug/state-tuner-contributions.tsx";
 import type { PresentationFreezePortV1 } from "../presentation-run/presentation-freeze.ts";
+import type { PresentationRatePortV1 } from "../presentation-run/presentation-rate.ts";
 import type { InputRouterV1 } from "../input/contracts.ts";
 import type { GamepadActionMapV1 } from "../input/gamepad-adapter.ts";
 import { installGamepadAdapterV1 } from "../input/gamepad-adapter.ts";
@@ -271,6 +272,7 @@ export interface DefaultGameRootPropsV1<
     readonly chip?: boolean;
     readonly control?: DevDockControlV1;
     readonly freeze?: PresentationFreezePortV1;
+    readonly rate?: PresentationRatePortV1;
     /** Story-owned live stats rendered in the engine launcher `info` slot. */
     readonly info?: ReactNode;
   };
@@ -332,6 +334,7 @@ function DefaultDevDockV1(props: {
   readonly chip?: boolean;
   readonly control?: DevDockControlV1;
   readonly freeze?: PresentationFreezePortV1;
+  readonly rate?: PresentationRatePortV1;
   readonly info?: ReactNode;
   readonly savePort?: SaveOverlayPortV1;
   readonly clearAllSaves?: () => Promise<void>;
@@ -431,6 +434,7 @@ function DefaultDevDockV1(props: {
               setLauncherState(next ? openedDevDockStateV1 : closedDevDockStateV1)}
             {...(props.position === undefined ? {} : { position: props.position })}
             {...(props.freeze === undefined ? {} : { presentationFreeze: props.freeze })}
+            {...(props.rate === undefined ? {} : { presentationRate: props.rate })}
             {...(props.savePort === undefined ? {} : { savePort: props.savePort })}
             {...(props.clearAllSaves === undefined ? {} : { clearAllSaves: props.clearAllSaves })}
             {...(props.onReloadCurrentState === undefined
@@ -924,6 +928,7 @@ export function DefaultGameRootV1<
             {...(props.devDock?.chip === undefined ? {} : { chip: props.devDock.chip })}
             {...(props.devDock?.control === undefined ? {} : { control: props.devDock.control })}
             {...(props.devDock?.freeze === undefined ? {} : { freeze: props.devDock.freeze })}
+            {...(props.devDock?.rate === undefined ? {} : { rate: props.devDock.rate })}
             {...(props.devDock?.info === undefined ? {} : { info: props.devDock.info })}
             {...(props.sessionMaintenance?.savePort === undefined
               ? {}

@@ -13,12 +13,8 @@ import type {
   CatcafeSnapshotV1,
 } from "../../kernel.ts";
 import { applyStatEffectsV1, catcafeDebugStatsV1, clampV1 } from "../../kernel.ts";
-import { transactionRunnerV1 } from "../../runtime.ts";
-import { calendarModuleV1 } from "../calendar/module.ts";
-import { catModuleV1 } from "../cat/module.ts";
+import { emitCatcafeStageV1, transactionRunnerV1 } from "../../runtime.ts";
 import { catcafeGrowthMutationV1 } from "../cat/growth.ts";
-import { shopModuleV1 } from "../shop/module.ts";
-import { stageModuleV1 } from "../stage/module.ts";
 
 export const catcafeDebugCommandSchemaV1: RuntimeSchemaV1<CatcafeDebugCommandV1> = Object.freeze({
   parse(value: unknown): CatcafeDebugCommandV1 {
@@ -121,16 +117,14 @@ export const catcafeDebugCommandExecutorV1: CatcafeDebugCommandExecutorV1 = Obje
       return transactionRunnerV1.execute(snapshot, rng, (transaction) => {
         const [scope, field] = command.stat.split(".") as [string, string];
         if (scope === "cat") {
-          transaction.propose(catModuleV1, {
-            kind: "apply",
-            ...state.cat,
-            [field]: command.value,
+          transaction.emit({
+            kind: "cc.cat_set",
+            next: Object.freeze({ ...state.cat, [field]: command.value }),
           });
         } else {
-          transaction.propose(shopModuleV1, {
-            kind: "apply",
-            ...state.shop,
-            [field]: command.value,
+          transaction.emit({
+            kind: "cc.shop_set",
+            next: Object.freeze({ ...state.shop, [field]: command.value }),
           });
         }
         return transaction.complete();
@@ -143,26 +137,27 @@ export const catcafeDebugCommandExecutorV1: CatcafeDebugCommandExecutorV1 = Obje
         const total = state.calendar.day + command.days;
         const week = clampV1(state.calendar.week + Math.floor(total / 7), 1, 9999);
         const day = total % 7;
-        transaction.propose(calendarModuleV1, {
-          kind: "set",
+        transaction.emit({
+          kind: "cc.calendar_set",
           next: Object.freeze({ week, day, slot: 0, stamina: catcafeDailyStaminaV1 }),
         });
-        transaction.propose(shopModuleV1, {
-          kind: "apply",
-          ...state.shop,
-          tidiness: clampV1(state.shop.tidiness - 10 * command.days, 0, 100),
+        transaction.emit({
+          kind: "cc.shop_set",
+          next: Object.freeze({
+            ...state.shop,
+            tidiness: clampV1(state.shop.tidiness - 10 * command.days, 0, 100),
+          }),
         });
-        transaction.propose(catModuleV1, {
-          kind: "apply",
-          ...state.cat,
-          pettingLeft: catcafeDailyPettingV1,
-          facts: [Object.freeze({ kind: "cc.slot_advanced" as const, week, day, slot: 0 })],
+        transaction.emit({
+          kind: "cc.cat_set",
+          next: Object.freeze({ ...state.cat, pettingLeft: catcafeDailyPettingV1 }),
         });
+        transaction.emit({ kind: "cc.slot_advanced", week, day, slot: 0 });
         if (state.narrative.phase === "completed") {
-          transaction.propose(stageModuleV1, {
-            kind: "apply",
-            mutations: [catcafeGrowthMutationV1(week, "/debug/appearance")],
-          });
+          const blocked = emitCatcafeStageV1(transaction, state.stage, [
+            catcafeGrowthMutationV1(week, "/debug/appearance"),
+          ]);
+          if (blocked !== null) return transaction.reject({ code: blocked });
         }
         return transaction.complete();
       });
@@ -186,19 +181,14 @@ export const catcafeDebugCommandExecutorV1: CatcafeDebugCommandExecutorV1 = Obje
         const cat = { ...state.cat };
         const shop = { ...state.shop };
         applyStatEffectsV1(cat, shop, row.effects, { fishBuffDoublesTrust: false });
-        transaction.propose(catModuleV1, {
-          kind: "apply",
-          ...cat,
-          facts: [
-            Object.freeze({
-              kind: "cc.encounter" as const,
-              encounterId: draw.eventId,
-              textId: row.textId,
-              explanation: draw.explanation,
-            }),
-          ],
+        transaction.emit({ kind: "cc.cat_set", next: Object.freeze(cat) });
+        transaction.emit({ kind: "cc.shop_set", next: Object.freeze(shop) });
+        transaction.emit({
+          kind: "cc.encounter",
+          encounterId: draw.eventId,
+          textId: row.textId,
+          explanation: draw.explanation,
         });
-        transaction.propose(shopModuleV1, { kind: "apply", ...shop });
         return transaction.complete();
       });
     }

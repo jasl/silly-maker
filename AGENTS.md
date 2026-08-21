@@ -42,15 +42,23 @@ Read only the documents relevant to the change:
   loop motion; the owner-accepted contract lives in
   `docs/engine/proposals/ambient-loop-motion.md`). Cue identity (presentation
   edge context) delivered 2026-08-17; its contract and closure record live in
-  `docs/engine/proposals/cue-identity.md`. The current default/core lane is
+  `docs/engine/proposals/cue-identity.md`. Six owner-ordered engine-gap lanes
+  then delivered between 2026-08-19 and 2026-08-22: authoritative hold clock
+  (`hold`, later unified under `TimeTickV1`), parallel monitors (domain events
+  and reducers, authoritative monitors, persistence safepoints, and Host
+  pacing), authorable frame sets, shaped hit regions, hold `when`, and
+  mid-hold input. Their contracts and closure records live in the corresponding
+  proposals and plans dated 2026-08-19 through 2026-08-22. After absorbing
+  those delivered capabilities, the current default/core lane remains
   `docs/engine/plans/2026-08-18-application-runtime-embedded-authoring.md`:
   Browser/Deno Desktop startup evidence, build-known progressive activation, an
   orchestration-neutral domain lifecycle with a bounded direct/Cordis-core A/B,
   structured authoring operations, an embeddable Authoring Host, and a typed RPC
   plus experimental Agent/UiArtifact seam. AR1 chooses exactly one private
   lifecycle backend; AR3 keeps Authoring stable across application-domain
-  successors, with Game/Session as the first conformance path. Engine capabilities
-  land before any separately accepted follow-on product or work.
+  successors, with Game/Session as the first conformance path. AR0 is the only
+  next task. Engine capabilities land before any separately accepted follow-on
+  product or work.
   Desktop persistence remains an accepted, unfinished, conditional promotion
   lane while the adapter is preview.
 - `docs/engine/design/application-runtime-and-embedded-authoring.md` — accepted
@@ -66,6 +74,81 @@ Read only the documents relevant to the change:
   the maintained internal Composition package plus the still-experimental
   neutral State façade. It does not activate a public Mod ABI, State Format V2,
   Effect Broker, or production Story migration.
+- The plans and proposals dated 2026-08-19 through 2026-08-22 own the detailed
+  acceptance and closure evidence for the six engine-gap lanes summarized
+  above. The authoritative hold clock lane
+  (accepted 2026-08-19) delivered M0–M3 the same day:
+  `docs/engine/proposals/authoritative-hold-clock.md` and
+  `docs/engine/plans/2026-08-19-authoritative-hold-clock.md` (new `hold`
+  pending interaction driven by elapsed milliseconds — originally the
+  `hold_tick` verb, since unified into `TimeTickV1`; `pause`/`resume`
+  merged into `hold` and deleted; `tickQuantumMs` partial commits and
+  batch-invariant threshold-crossing tick effects/frame swaps). The
+  declared-condition reroute lane (hold `when`, owner-ordered and
+  delivered 2026-08-21) completed M0–M2 the same day:
+  `docs/engine/proposals/hold-when.md` (with the closure record) and
+  `docs/engine/plans/2026-08-21-hold-when.md` — ordered `when` arms on
+  `hold` nodes evaluated as occurrence-timeline cuts (t=0 plus after each
+  of the hold's own tick/frame crossings; first match truncates, batch
+  invariant, entry-time evaluation, skip cannot pass the catch) via the
+  base `settleHoldTimelineV1` stepping helper, with template-kit arms,
+  both Engine Lab granularities (tick-driven same-instant, monitor-driven
+  next-settlement t=0), and the experiment repo's night-room mid-bar
+  wake/disgust cut as the first live abort path. Explicit defers: the
+  second abort path (alert catch); the input-axis defer was claimed and
+  closed by the mid-hold-input lane. The
+  parallel-monitors lane (accepted and
+  delivered 2026-08-20) completed M0–M5 the same day:
+  `docs/engine/plans/2026-08-20-parallel-monitors.md` with its contract in
+  `docs/engine/proposals/parallel-monitors.md` — the single session-level
+  time verb `TimeTickV1` replacing `hold_tick`, domain events + reducers
+  replacing the registered-effect command family, authoritative monitors V1
+  (declaration + accumulator + settlement), persistence safepoints /
+  in-flight spans with autosave inhibit (engine capability first; the
+  persistence orchestrator is the internal consumer), and the monitor pacing
+  loop (`pace` hints, session time reporter, realtime rate pin) with the
+  Engine Lab drill consuming all three monitor archetypes. Every milestone
+  was independently reviewed before commit. The authorable-frame-set lane
+  (accepted and delivered 2026-08-21) completed M0–M3 the same day:
+  `docs/engine/plans/2026-08-21-authorable-frame-set.md` with its contract
+  in `docs/engine/proposals/authorable-frame-set.md` — the stepped `frame`
+  motion channel (no easing, sampled `frameIndex`), content-declared
+  `frameAssetIds` frame tables delivered by the stage host to entry
+  renderers over the existing one-shot and ambient bindings, Workbench
+  frame-track editing, and consumers in the Engine Lab, the starter
+  template (scene-document-declared blink), and the external experiment
+  repo. The only explicit defer is the cross-document frame-index-vs-table
+  story lint, gated on content declarations becoming data. The shaped-hit-regions lane
+  (accepted and delivered 2026-08-21) completed M0–M5 the same day:
+  `docs/engine/plans/2026-08-21-shaped-hit-regions.md` with its contract in
+  `docs/engine/proposals/shaped-hit-regions.md` — `polygonPoints` +
+  `hoverAssetId` on hit regions with clip-path hits and hover/focus reveal
+  through the stage `assets` port, the `sillymaker.regions` document family
+  with story-check lints and dev-server CAS ports, the Studio Regions
+  workspace editing against the real host rendering, the `story regions
+  trace` bitmap-to-polygon devtool (sub-byte palette PNGs first-class), and
+  both consumers (the Engine Lab crate collection port in-repo; the external
+  experiment repo's three-pose night-bed body zones, where the vendor
+  judgment art proved to be fully opaque 1-bit rectangles and the
+  rect-intersect-silhouette refinement is a recorded native improvement).
+  The explicit defer is the multi-region activation payload for overlapping
+  regions (topmost-wins is the V1 contract), gated on an audited real
+  consumer. The mid-hold-input lane (accepted and delivered 2026-08-22)
+  completed M0–M1 the same day:
+  `docs/engine/proposals/mid-hold-input.md` (with the closure record) and
+  `docs/engine/plans/2026-08-22-mid-hold-input.md` — claiming hold `when`'s
+  input-axis defer with zero new engine primitives (the session never gated
+  ordinary commands while a hold is pending; the lane pinned the
+  composition: hit-region activation routes to an
+  `expectedHoldOccurrenceId`-fenced ordinary write command, and the hold's
+  own `when` arms read the write at the next fenced settlement's t=0), with
+  the Engine Lab input-granularity conformance (fenced write command +
+  tripwire arm; batch-invariance, stale-fence whole rejection, and mid-hold
+  save/load locks) and the experiment repo's CE18 mid-bar kiss zone as the
+  live path (decode-verified: original zone clicks are concurrent state
+  writers and the reroute authority stays with the CE20 watchdog arms).
+  Regions never gain routing power; input commands never settle time;
+  remaining body zones are per-zone content knives, not engine work.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,
   `docs/engine/plans/2026-07-30-snapshot-commit-performance.md`,
   `docs/engine/plans/2026-07-30-save-migration.md`,

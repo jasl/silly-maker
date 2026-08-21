@@ -19,7 +19,7 @@ export interface LegacyStateRuntimeTypeMapV1<TTypes extends StateRuntimeTypeMapV
   readonly snapshot: TTypes["snapshot"];
   readonly rngDrawTrace: TTypes["rngDrawTrace"];
   readonly command: TTypes["command"];
-  readonly fact: TTypes["fact"];
+  readonly event: TTypes["event"];
   readonly rejection: TTypes["rejection"];
   readonly fault: TTypes["fault"];
   readonly debugCommand: TTypes["debugCommand"];

@@ -80,14 +80,14 @@ function prepareAuthoritativeCommandVectorV1(
   );
 }
 
-export type ReplayRecordedOutcomeV1<TFact, TRejection, TFault> =
-  | { readonly kind: "committed"; readonly facts: readonly TFact[] }
+export type ReplayRecordedOutcomeV1<TEvent, TRejection, TFault> =
+  | { readonly kind: "committed"; readonly events: readonly TEvent[] }
   | { readonly kind: "rejected"; readonly reasons: readonly TRejection[] }
   | { readonly kind: "faulted"; readonly fault: TFault };
 
 export type ReplayCommandLogEntryV1<
   TLoggedCommand extends ReplayLoggedCommandShapeV1,
-  TFact,
+  TEvent,
   TRejection,
   TFault,
   TRngState,
@@ -104,22 +104,22 @@ export type ReplayCommandLogEntryV1<
   readonly attemptedDraws: readonly TRngDrawTrace[];
   readonly candidateRngAfter?: TRngState;
   readonly committedRngAfter: TRngState;
-  readonly outcome: ReplayRecordedOutcomeV1<TFact, TRejection, TFault>;
+  readonly outcome: ReplayRecordedOutcomeV1<TEvent, TRejection, TFault>;
 };
 
 type ReplayAttemptV1<
   TSnapshot extends ReplaySnapshotV1,
-  TFact,
+  TEvent,
   TRejection,
   TFault,
   TRngState,
   TRngDrawTrace,
-> = FinalizedCommandAttemptV1<TSnapshot, TFact, TRejection, TFault, TRngState, TRngDrawTrace>;
+> = FinalizedCommandAttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>;
 
 export interface ReplayDriverV1<
   TSnapshot extends ReplaySnapshotV1,
   TLoggedCommand extends ReplayLoggedCommandShapeV1,
-  TFact,
+  TEvent,
   TRejection,
   TFault,
   TRngState,
@@ -129,14 +129,14 @@ export interface ReplayDriverV1<
   submit(
     command: DeepReadonly<TLoggedCommand>,
   ):
-    | ReplayAttemptV1<TSnapshot, TFact, TRejection, TFault, TRngState, TRngDrawTrace>
-    | PromiseLike<ReplayAttemptV1<TSnapshot, TFact, TRejection, TFault, TRngState, TRngDrawTrace>>;
+    | ReplayAttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>
+    | PromiseLike<ReplayAttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>>;
 }
 
 export interface ReplayInputV1<
   TSnapshot extends ReplaySnapshotV1,
   TLoggedCommand extends ReplayLoggedCommandShapeV1,
-  TFact,
+  TEvent,
   TRejection,
   TFault,
   TRngState,
@@ -147,7 +147,7 @@ export interface ReplayInputV1<
   readonly replayBase: DeepReadonly<TSnapshot>;
   readonly replayBaseStateDigest: Digest;
   readonly commandLog: readonly DeepReadonly<
-    ReplayCommandLogEntryV1<TLoggedCommand, TFact, TRejection, TFault, TRngState, TRngDrawTrace>
+    ReplayCommandLogEntryV1<TLoggedCommand, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>
   >[];
   readonly currentSnapshot: DeepReadonly<TSnapshot>;
   readonly currentStateDigest: Digest;
@@ -155,7 +155,15 @@ export interface ReplayInputV1<
   projectStableFault(fault: DeepReadonly<TFault>): unknown;
   createDriver(
     replayBase: DeepReadonly<TSnapshot>,
-  ): ReplayDriverV1<TSnapshot, TLoggedCommand, TFact, TRejection, TFault, TRngState, TRngDrawTrace>;
+  ): ReplayDriverV1<
+    TSnapshot,
+    TLoggedCommand,
+    TEvent,
+    TRejection,
+    TFault,
+    TRngState,
+    TRngDrawTrace
+  >;
 }
 
 export type ReplayBlockingIdentityFieldV1 =
@@ -167,7 +175,7 @@ export type ReplayBlockingIdentityFieldV1 =
 export type ReplayEntryMismatchFieldV1 =
   | "pre_state_digest"
   | "outcome"
-  | "facts"
+  | "events"
   | "reasons"
   | "fault"
   | "post_state_digest"
@@ -298,9 +306,9 @@ function comparisonV1(
   });
 }
 
-function compareOutcomeV1<TFact, TRejection, TFault>(
-  recorded: DeepReadonly<ReplayRecordedOutcomeV1<TFact, TRejection, TFault>>,
-  actual: DeepReadonly<CommandExecutionResultEnvelopeV1<unknown, TFact, TRejection, TFault>>,
+function compareOutcomeV1<TEvent, TRejection, TFault>(
+  recorded: DeepReadonly<ReplayRecordedOutcomeV1<TEvent, TRejection, TFault>>,
+  actual: DeepReadonly<CommandExecutionResultEnvelopeV1<unknown, TEvent, TRejection, TFault>>,
   logOrdinal: PositiveSafeInteger,
   mismatches: ReplayMismatchV1[],
   projectStableRejection: (rejection: DeepReadonly<TRejection>) => unknown,
@@ -312,8 +320,8 @@ function compareOutcomeV1<TFact, TRejection, TFault>(
     return;
   }
   if (recorded.kind === "committed" && actual.kind === "committed") {
-    if (!dataEqualV1(recorded.facts, actual.facts, instrumentation)) {
-      addMismatchV1(mismatches, { scope: "entry", logOrdinal, field: "facts" });
+    if (!dataEqualV1(recorded.events, actual.events, instrumentation)) {
+      addMismatchV1(mismatches, { scope: "entry", logOrdinal, field: "events" });
     }
   } else if (recorded.kind === "rejected" && actual.kind === "rejected") {
     const recordedReasons = recorded.reasons.map(projectStableRejection);
@@ -337,17 +345,17 @@ function compareOutcomeV1<TFact, TRejection, TFault>(
 type AnyReplayInputV1<
   TSnapshot extends ReplaySnapshotV1,
   TLoggedCommand extends ReplayLoggedCommandShapeV1,
-  TFact,
+  TEvent,
   TRejection,
   TFault,
   TRngState,
   TRngDrawTrace,
-> = ReplayInputV1<TSnapshot, TLoggedCommand, TFact, TRejection, TFault, TRngState, TRngDrawTrace>;
+> = ReplayInputV1<TSnapshot, TLoggedCommand, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>;
 
 async function compareReplayV1<
   TSnapshot extends ReplaySnapshotV1,
   TLoggedCommand extends ReplayLoggedCommandShapeV1,
-  TFact,
+  TEvent,
   TRejection,
   TFault,
   TRngState,
@@ -356,7 +364,7 @@ async function compareReplayV1<
   input: AnyReplayInputV1<
     TSnapshot,
     TLoggedCommand,
-    TFact,
+    TEvent,
     TRejection,
     TFault,
     TRngState,
@@ -540,7 +548,7 @@ async function compareReplayV1<
 export interface ReplayFromAttemptsInputV1<
   TSnapshot extends ReplaySnapshotV1,
   TLoggedCommand extends ReplayLoggedCommandShapeV1,
-  TFact,
+  TEvent,
   TRejection,
   TFault,
   TRngState,
@@ -550,7 +558,7 @@ export interface ReplayFromAttemptsInputV1<
   readonly replayBase: DeepReadonly<TSnapshot>;
   readonly replayBaseStateDigest: Digest;
   readonly commandLog: readonly DeepReadonly<
-    ReplayCommandLogEntryV1<TLoggedCommand, TFact, TRejection, TFault, TRngState, TRngDrawTrace>
+    ReplayCommandLogEntryV1<TLoggedCommand, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>
   >[];
   readonly currentSnapshot: DeepReadonly<TSnapshot>;
   /** @internal Standard compositions may inject their own Snapshot admission. */
@@ -562,7 +570,7 @@ export interface ReplayFromAttemptsInputV1<
     command: DeepReadonly<TLoggedCommand>,
   ): CommandExecutionAttemptEnvelopeV1<
     TSnapshot,
-    TFact,
+    TEvent,
     TRejection,
     TFault,
     TRngState,
@@ -580,7 +588,7 @@ export interface ReplayFromAttemptsInputV1<
 export async function replayAuthoritativelyFromAttemptsInternalV1<
   TSnapshot extends ReplaySnapshotV1,
   TLoggedCommand extends ReplayLoggedCommandShapeV1,
-  TFact,
+  TEvent,
   TRejection,
   TFault,
   TRngState,
@@ -589,7 +597,7 @@ export async function replayAuthoritativelyFromAttemptsInternalV1<
   input: ReplayFromAttemptsInputV1<
     TSnapshot,
     TLoggedCommand,
-    TFact,
+    TEvent,
     TRejection,
     TFault,
     TRngState,
@@ -606,7 +614,7 @@ export async function replayAuthoritativelyFromAttemptsInternalV1<
   const replayInput: ReplayInputV1<
     TSnapshot,
     TLoggedCommand,
-    TFact,
+    TEvent,
     TRejection,
     TFault,
     TRngState,
@@ -626,7 +634,7 @@ export async function replayAuthoritativelyFromAttemptsInternalV1<
     ): ReplayDriverV1<
       TSnapshot,
       TLoggedCommand,
-      TFact,
+      TEvent,
       TRejection,
       TFault,
       TRngState,
@@ -647,7 +655,7 @@ export async function replayAuthoritativelyFromAttemptsInternalV1<
             preSnapshot,
             preStateDigest: stateDigestV1(preSnapshot, instrumentation),
             postStateDigest: stateDigestV1(attempt.result.snapshot, instrumentation),
-          }) as ReplayAttemptV1<TSnapshot, TFact, TRejection, TFault, TRngState, TRngDrawTrace>;
+          }) as ReplayAttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>;
         },
       });
     },
@@ -663,7 +671,7 @@ export async function replayAuthoritativelyFromAttemptsInternalV1<
 export function replayAuthoritativelyV1<
   TSnapshot extends ReplaySnapshotV1,
   TLoggedCommand extends ReplayLoggedCommandShapeV1,
-  TFact,
+  TEvent,
   TRejection,
   TFault,
   TRngState,
@@ -672,7 +680,7 @@ export function replayAuthoritativelyV1<
   input: ReplayInputV1<
     TSnapshot,
     TLoggedCommand,
-    TFact,
+    TEvent,
     TRejection,
     TFault,
     TRngState,
@@ -685,7 +693,7 @@ export function replayAuthoritativelyV1<
 export function inspectReplayBestEffortV1<
   TSnapshot extends ReplaySnapshotV1,
   TLoggedCommand extends ReplayLoggedCommandShapeV1,
-  TFact,
+  TEvent,
   TRejection,
   TFault,
   TRngState,
@@ -694,7 +702,7 @@ export function inspectReplayBestEffortV1<
   input: ReplayInputV1<
     TSnapshot,
     TLoggedCommand,
-    TFact,
+    TEvent,
     TRejection,
     TFault,
     TRngState,

@@ -6,7 +6,7 @@ import type { TransientEffectRequestV1 } from "@sillymaker/base";
 
 import type {
   OsCommandV1,
-  OsFactV1,
+  OsEventV1,
   OsGameViewV1,
   OsNarrativeViewV1,
   OsQueriesV1,
@@ -136,15 +136,15 @@ function commandForInvocationV1(invocation: OsInvocationV1): OsCommandV1 {
 }
 
 export function projectOsTransientEffectsV1(
-  facts: readonly OsFactV1[],
+  events: readonly OsEventV1[],
 ): readonly TransientEffectRequestV1[] {
-  return facts.flatMap((fact): readonly TransientEffectRequestV1[] => {
-    switch (fact.kind) {
+  return events.flatMap((event): readonly TransientEffectRequestV1[] => {
+    switch (event.kind) {
       case "os.mine.exploded":
         return [
           Object.freeze({
             effectId: "effect.os.mine",
-            payload: Object.freeze({ outcome: "exploded", x: fact.x, y: fact.y }),
+            payload: Object.freeze({ outcome: "exploded", x: event.x, y: event.y }),
           }),
         ];
       case "os.mine.won":
@@ -158,7 +158,7 @@ export function projectOsTransientEffectsV1(
         return [
           Object.freeze({
             effectId: "effect.os.saved",
-            payload: Object.freeze({ name: fact.name }),
+            payload: Object.freeze({ name: event.name }),
           }),
         ];
       default:
@@ -200,5 +200,5 @@ export const osSemanticAdapterV1: CoreSemanticAdapterV1<
   },
   invalidInvocationResult: () =>
     Object.freeze({ kind: "not_executed" as const, code: "validation_failed" as const }),
-  projectTransientEffects: (facts) => projectOsTransientEffectsV1(facts as readonly OsFactV1[]),
+  projectTransientEffects: (events) => projectOsTransientEffectsV1(events as readonly OsEventV1[]),
 };

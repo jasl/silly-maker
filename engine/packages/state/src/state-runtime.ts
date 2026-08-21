@@ -26,7 +26,7 @@ export interface StateRuntimeTypeMapV1<TState = unknown, TRngState = unknown> {
   readonly snapshot: StateSnapshotV1<TState, TRngState>;
   readonly rngDrawTrace: unknown;
   readonly command: unknown;
-  readonly fact: unknown;
+  readonly event: unknown;
   readonly rejection: unknown;
   readonly fault: unknown;
   readonly debugCommand: unknown;
@@ -37,7 +37,7 @@ export interface StateRuntimeTypeMapV1<TState = unknown, TRngState = unknown> {
 export type StateCommandResultV1<TTypes extends StateRuntimeTypeMapV1> =
   CommandExecutionResultEnvelopeV1<
     TTypes["snapshot"],
-    TTypes["fact"],
+    TTypes["event"],
     TTypes["rejection"],
     TTypes["fault"]
   >;
@@ -45,7 +45,7 @@ export type StateCommandResultV1<TTypes extends StateRuntimeTypeMapV1> =
 export type StateCommandAttemptV1<TTypes extends StateRuntimeTypeMapV1> =
   CommandExecutionAttemptEnvelopeV1<
     TTypes["snapshot"],
-    TTypes["fact"],
+    TTypes["event"],
     TTypes["rejection"],
     TTypes["fault"],
     TTypes["rngState"],

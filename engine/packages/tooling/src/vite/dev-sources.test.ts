@@ -5,7 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { createDevSourcesMiddlewareV1, resolveDevSourcePathV1 } from "./dev-sources.ts";
+import {
+  createDevSourcesMiddlewareV1,
+  createDevSourcesOriginGuardV1,
+  resolveDevSourcePathV1,
+} from "./dev-sources.ts";
 
 let appRoot = "";
 
@@ -112,5 +116,70 @@ describe("createDevSourcesMiddlewareV1", () => {
       forwarded = true;
     });
     expect(forwarded).toBe(true);
+  });
+});
+
+function guardedRequestV1(
+  method: string,
+  url: string,
+  secFetchSite?: string,
+): IncomingMessage {
+  return {
+    method,
+    url,
+    headers: secFetchSite === undefined ? {} : { "sec-fetch-site": secFetchSite },
+  } as IncomingMessage;
+}
+
+describe("createDevSourcesOriginGuardV1", () => {
+  const guard = createDevSourcesOriginGuardV1();
+  const openUrl = "/__sillymaker/dev-sources/open?path=src%2Fmotions%2Fenter.motion.json";
+
+  it("rejects cross-site and same-site browser requests to dev-sources endpoints", () => {
+    for (const site of ["cross-site", "same-site"]) {
+      for (
+        const url of [
+          openUrl,
+          "/__sillymaker/dev-sources/regions-document",
+          "/__sillymaker/dev-sources/motion",
+          "/__sillymaker/dev-sources/scene",
+          "/__sillymaker/dev-sources/scenes",
+        ]
+      ) {
+        const { response, status } = fakeResponseV1();
+        guard(guardedRequestV1("POST", url, site), response, () => {
+          throw new Error("a cross-origin dev-sources request must not fall through");
+        });
+        expect(status()).toBe(403);
+      }
+    }
+  });
+
+  it("passes same-origin requests, direct navigations, and headerless callers", () => {
+    for (const site of ["same-origin", "none", undefined]) {
+      let forwarded = false;
+      const { response } = fakeResponseV1();
+      guard(guardedRequestV1("POST", openUrl, site), response, () => {
+        forwarded = true;
+      });
+      expect(forwarded).toBe(true);
+    }
+  });
+
+  it("stays out of the way for every non-dev-sources url", () => {
+    for (
+      const url of ["/assets/x.webp", "/__sillymaker/studio/", "/src/main.tsx", undefined]
+    ) {
+      let forwarded = false;
+      const { response } = fakeResponseV1();
+      guard(
+        { method: "GET", url, headers: { "sec-fetch-site": "cross-site" } } as IncomingMessage,
+        response,
+        () => {
+          forwarded = true;
+        },
+      );
+      expect(forwarded).toBe(true);
+    }
   });
 });

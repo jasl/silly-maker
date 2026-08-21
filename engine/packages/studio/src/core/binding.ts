@@ -48,6 +48,13 @@ export interface StudioAssetRegistryPortV1 {
   preload(assetIds: readonly string[], signal: AbortSignal): Promise<unknown>;
   observe(): { readonly revision: number };
   subscribe(listener: () => void): () => void;
+  /**
+   * Optional runtime URL resolution (the full registry surface has it):
+   * when present, Studio previews hover-reveal overlays with the real art.
+   * Omitted: shaped regions still edit fine, reveals just stay invisible
+   * in the canvas.
+   */
+  resolve?(assetId: never, usage: never): { readonly delivery: string; readonly url?: string };
 }
 
 /**
@@ -69,6 +76,7 @@ export interface NarrativeFlowGraphNodeV1 {
     | "branch"
     | "flag"
     | "barrier"
+    | "hold"
     | "end";
   /** The source interaction document; null for hand-written legacy nodes. */
   readonly docId: string | null;

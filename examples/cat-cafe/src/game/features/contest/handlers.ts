@@ -4,9 +4,7 @@ import type { CatcafeCommandHandlerMapV1 } from "../../runtime.ts";
 import { transactionRunnerV1 } from "../../runtime.ts";
 import { catcafeMovesV1, catcafeRivalsV1 } from "../../content.ts";
 import { clampV1 } from "../../kernel.ts";
-import { contestModuleV1 } from "./module.ts";
 import { catcafeContestTodayV1 } from "./rules.ts";
-import { shopModuleV1 } from "../shop/module.ts";
 
 export const contestCommandHandlersV1: Pick<
   CatcafeCommandHandlerMapV1,
@@ -25,8 +23,8 @@ export const contestCommandHandlersV1: Pick<
       if (rivalId === null) return transaction.reject({ code: "cc.contest_not_today" });
       const rival = catcafeRivalsV1.byId(rivalId);
       if (rival === null) return transaction.reject({ code: "cc.contest_not_today" });
-      transaction.propose(contestModuleV1, {
-        kind: "set",
+      transaction.emit({
+        kind: "cc.contest_set",
         next: Object.freeze({
           rivalId,
           round: 1,
@@ -34,8 +32,8 @@ export const contestCommandHandlersV1: Pick<
           rivalMorale: rival.morale,
           feintActive: false,
         }),
-        facts: [Object.freeze({ kind: "cc.contest_started" as const, rivalId })],
       });
+      transaction.emit({ kind: "cc.contest_started", rivalId });
       return transaction.complete();
     }),
 
@@ -76,8 +74,8 @@ export const contestCommandHandlersV1: Pick<
       const won = rivalMorale === 0 || (finished && morale > rivalMorale);
 
       if (!finished) {
-        transaction.propose(contestModuleV1, {
-          kind: "set",
+        transaction.emit({
+          kind: "cc.contest_set",
           next: Object.freeze({
             rivalId: contest.rivalId,
             round,
@@ -85,48 +83,37 @@ export const contestCommandHandlersV1: Pick<
             rivalMorale,
             feintActive: move.kind === "feint",
           }),
-          facts: [
-            Object.freeze({
-              kind: "cc.contest_resolved" as const,
-              moveId: move.id,
-              rivalMorale,
-              morale,
-            }),
-          ],
+        });
+        transaction.emit({
+          kind: "cc.contest_resolved",
+          moveId: move.id,
+          rivalMorale,
+          morale,
         });
         return transaction.complete();
       }
 
       if (won) {
-        transaction.propose(contestModuleV1, {
-          kind: "set",
-          next: null,
-          facts: [
-            Object.freeze({
-              kind: "cc.contest_won" as const,
-              rivalId: contest.rivalId,
-              albumId: rival.trophyAlbumId,
-            }),
-            Object.freeze({
-              kind: "cc.album_unlocked" as const,
-              albumId: rival.trophyAlbumId,
-            }),
-          ],
+        transaction.emit({ kind: "cc.contest_set", next: null });
+        transaction.emit({
+          kind: "cc.contest_won",
+          rivalId: contest.rivalId,
+          albumId: rival.trophyAlbumId,
         });
-        transaction.propose(shopModuleV1, {
-          kind: "apply",
-          reputation: clampV1(state.shop.reputation + 10, 0, 100),
-          tidiness: state.shop.tidiness,
-          money: state.shop.money + 40,
-          trophies: clampV1(state.shop.trophies + 1, 0, 3),
+        transaction.emit({ kind: "cc.album_unlocked", albumId: rival.trophyAlbumId });
+        transaction.emit({
+          kind: "cc.shop_set",
+          next: Object.freeze({
+            ...state.shop,
+            reputation: clampV1(state.shop.reputation + 10, 0, 100),
+            money: state.shop.money + 40,
+            trophies: clampV1(state.shop.trophies + 1, 0, 3),
+          }),
         });
         return transaction.complete();
       }
-      transaction.propose(contestModuleV1, {
-        kind: "set",
-        next: null,
-        facts: [Object.freeze({ kind: "cc.contest_lost" as const, rivalId: contest.rivalId })],
-      });
+      transaction.emit({ kind: "cc.contest_set", next: null });
+      transaction.emit({ kind: "cc.contest_lost", rivalId: contest.rivalId });
       return transaction.complete();
     }),
 });

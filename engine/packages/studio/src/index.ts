@@ -21,3 +21,13 @@ export type {
   SceneIoWriteResultV1,
   SceneSourceIoV1,
 } from "./core/scene-io.ts";
+export { createDevServerRegionsIoV1 } from "./core/regions-io.ts";
+export type {
+  RegionsIoErrorCodeV1,
+  RegionsIoListEntryV1,
+  RegionsIoListResultV1,
+  RegionsIoListSkipV1,
+  RegionsIoReadResultV1,
+  RegionsIoWriteResultV1,
+  RegionsSourceIoV1,
+} from "./core/regions-io.ts";

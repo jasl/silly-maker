@@ -2,11 +2,18 @@
 // Simulation runtime: module composition, the transaction runner, and the shared shape of feature command handlers.
 // Feature handlers (features/*/handlers.ts) take the runner from here; aggregation in simulation.ts.
 import type { createTransactionalRngV1 } from "@sillymaker/base";
+import type { SemanticStageState, StageMutation } from "@sillymaker/base/story";
+import { reduceStageMutations } from "@sillymaker/base/story";
 
 import { catcafeGameStateSchemaV1 } from "./state.ts";
 import type { CatcafeGameStateV1 } from "./state.ts";
-import type { CatcafeAttemptV1, CatcafeCommandV1, CatcafeSnapshotV1 } from "./kernel.ts";
-import { kit } from "./kernel.ts";
+import type {
+  CatcafeAttemptV1,
+  CatcafeCommandV1,
+  CatcafeEventV1,
+  CatcafeSnapshotV1,
+} from "./kernel.ts";
+import { catcafeEventSchemaV1, kit } from "./kernel.ts";
 import { calendarModuleV1 } from "./features/calendar/module.ts";
 import { catModuleV1 } from "./features/cat/module.ts";
 import { contestModuleV1 } from "./features/contest/module.ts";
@@ -27,10 +34,30 @@ export type CatcafeModulesV1 = typeof catcafeModuleCompositionV1.modules;
 
 export const transactionRunnerV1 = catcafeModuleCompositionV1.createTransactionRunner({
   stateSchema: catcafeGameStateSchemaV1,
+  eventSchema: catcafeEventSchemaV1,
   createFault: () => Object.freeze({ code: "cc.executor_failed" as const }),
 });
 
 export type CatcafeTransactionalRngV1 = ReturnType<typeof createTransactionalRngV1>;
+
+/**
+ * Emit cc.stage_changed after checking the mutations reduce cleanly against
+ * the command-start stage, so an unappliable mutation rejects the command at
+ * the decision point instead of faulting the fold. Because the pre-check reads
+ * command-start state, a command must emit at most one stage batch; a second
+ * batch would validate against a stale stage.
+ */
+export function emitCatcafeStageV1(
+  transaction: { emit(event: CatcafeEventV1): void },
+  stage: SemanticStageState,
+  mutations: readonly StageMutation[],
+): "cc.stage_rejected" | null {
+  if (mutations.length === 0) return null;
+  const outcome = reduceStageMutations(stage, mutations);
+  if (outcome.kind === "rejected") return "cc.stage_rejected";
+  transaction.emit({ kind: "cc.stage_changed", mutations });
+  return null;
+}
 
 /** Feature command-handler input: snapshot, transaction RNG, convenient simulation state, and the narrowed command. */
 export interface CatcafeHandlerInputV1<C extends CatcafeCommandV1> {

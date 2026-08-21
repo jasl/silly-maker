@@ -94,7 +94,7 @@ interface SnapshotWorkloadCommandV1 {
   readonly kind: SnapshotCommitCommandClassV1;
 }
 
-interface SnapshotWorkloadFactV1 {
+interface SnapshotWorkloadEventV1 {
   readonly kind: "snapshot_workload.committed";
   readonly commandClass: "single_field_committed" | "multi_slice_committed";
 }
@@ -115,7 +115,7 @@ interface SnapshotWorkloadTypesV1 extends
   > {
   readonly snapshot: SnapshotWorkloadSnapshotV1;
   readonly command: SnapshotWorkloadCommandV1;
-  readonly fact: SnapshotWorkloadFactV1;
+  readonly event: SnapshotWorkloadEventV1;
   readonly rejection: SnapshotWorkloadRejectionV1;
   readonly fault: SnapshotWorkloadFaultV1;
   readonly debugCommand: never;
@@ -127,7 +127,7 @@ interface SnapshotWorkloadTypesV1 extends
 
 type SnapshotWorkloadAttemptV1 = CommandExecutionAttemptEnvelopeV1<
   SnapshotWorkloadSnapshotV1,
-  SnapshotWorkloadFactV1,
+  SnapshotWorkloadEventV1,
   SnapshotWorkloadRejectionV1,
   SnapshotWorkloadFaultV1,
   SnapshotWorkloadRngStateV1,
@@ -250,7 +250,7 @@ function attemptV1(
     result: Object.freeze({
       kind: "committed" as const,
       snapshot,
-      facts: Object.freeze([
+      events: Object.freeze([
         Object.freeze({
           kind: "snapshot_workload.committed" as const,
           commandClass: command.kind,

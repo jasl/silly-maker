@@ -79,20 +79,21 @@ export const authoritativeOrderingVectorExpectedV1 = {
     safeIntegersDescending: [Number.MAX_SAFE_INTEGER, 0, Number.MIN_SAFE_INTEGER],
   },
   transaction: {
-    proposalOrder: ["order.a_1", "order.a-1"],
-    applyOrder: ["order.a-1", "order.a_1"],
-    replayProposalOrder: ["order.a_1", "order.a-1"],
-    replayApplyOrder: ["order.a-1", "order.a_1"],
-    facts: [
+    // Two emitted events, each fanned out to both subscribed modules in
+    // UTF-16 module-id order ("order.a-1" precedes "order.a_1").
+    foldOrder: ["order.a-1", "order.a_1", "order.a-1", "order.a_1"],
+    replayFoldOrder: ["order.a-1", "order.a_1", "order.a-1", "order.a_1"],
+    // The committed journal preserves emission order (underscore first).
+    events: [
       {
         kind: "ordering.value_applied",
-        owner: "order.a-1",
-        value: 3,
+        module: "order.a_1",
+        value: 13,
       },
       {
         kind: "ordering.value_applied",
-        owner: "order.a_1",
-        value: 13,
+        module: "order.a-1",
+        value: 3,
       },
     ],
     candidateSnapshot: {
@@ -141,16 +142,16 @@ export const authoritativeOrderingVectorExpectedV1 = {
         },
         outcome: {
           kind: "committed",
-          facts: [
+          events: [
             {
               kind: "ordering.value_applied",
-              owner: "order.a-1",
-              value: 3,
+              module: "order.a_1",
+              value: 13,
             },
             {
               kind: "ordering.value_applied",
-              owner: "order.a_1",
-              value: 13,
+              module: "order.a-1",
+              value: 3,
             },
           ],
         },

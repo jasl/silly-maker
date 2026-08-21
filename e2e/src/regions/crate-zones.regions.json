@@ -1,0 +1,28 @@
+{
+  "format": "sillymaker.regions",
+  "version": 1,
+  "regionsId": "regions.e2e.crate-zones",
+  "label": "样本箱热区",
+  "regions": [
+    {
+      "regionId": "zone.crate.collect",
+      "accessibleNameText": "样本箱采集口",
+      "x": -83,
+      "y": -126,
+      "width": 166,
+      "height": 126,
+      "polygonPoints": [
+        { "x": -63, "y": -126 },
+        { "x": 63, "y": -126 },
+        { "x": 83, "y": -106 },
+        { "x": 83, "y": -20 },
+        { "x": 63, "y": 0 },
+        { "x": -63, "y": 0 },
+        { "x": -83, "y": -20 },
+        { "x": -83, "y": -106 }
+      ],
+      "hoverAssetId": "asset.e2e.lab.crate-glow"
+    }
+  ],
+  "authoring": { "status": "human_tuned" }
+}

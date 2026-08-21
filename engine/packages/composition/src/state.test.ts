@@ -30,7 +30,7 @@ interface PilotStateV1 {
 }
 
 interface PilotTypesV1 extends StateWorkflowTypeMapV1<PilotStateV1> {
-  readonly fact: never;
+  readonly event: never;
   readonly rejection: never;
   readonly fault: { readonly code: "pilot.failed" };
 }
@@ -44,18 +44,6 @@ const sliceSchemaV1 = Object.freeze({
       throw new TypeError("invalid pilot slice");
     }
     return Object.freeze({ value: Reflect.get(value, "value") as number });
-  },
-});
-
-const operationSchemaV1 = Object.freeze({
-  parse(value: unknown) {
-    if (
-      value === null || typeof value !== "object" ||
-      Reflect.get(value, "kind") !== "retain"
-    ) {
-      throw new TypeError("invalid retain operation");
-    }
-    return Object.freeze({ kind: "retain" as const });
   },
 });
 
@@ -85,21 +73,7 @@ function definePilotModuleV1(
       schema: sliceSchemaV1,
       initial: () => Object.freeze({ value: 0 }),
     },
-    owner: {
-      operationSchema: operationSchemaV1,
-      propose(_state, operation) {
-        return Object.freeze({
-          kind: "proposed" as const,
-          proposal: Object.freeze({
-            payload: operation,
-            facts: Object.freeze([]),
-          }),
-        });
-      },
-      apply(state) {
-        return state;
-      },
-    },
+    reducers: {},
   });
 }
 
@@ -114,21 +88,7 @@ describe("Composition State module integration", () => {
         schema: sliceSchemaV1,
         initial: () => Object.freeze({ value: 0 }),
       },
-      owner: {
-        operationSchema: operationSchemaV1,
-        propose(_state: { readonly value: number }, operation: { readonly kind: "retain" }) {
-          return Object.freeze({
-            kind: "proposed" as const,
-            proposal: Object.freeze({
-              payload: operation,
-              facts: Object.freeze([]),
-            }),
-          });
-        },
-        apply(state: { readonly value: number }) {
-          return state;
-        },
-      },
+      reducers: {},
     };
     const module = kit.defineModule(definition);
     Reflect.set(definition, "contractRevision", 99);

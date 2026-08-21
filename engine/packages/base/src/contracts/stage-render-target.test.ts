@@ -137,6 +137,147 @@ describe("projectStageRenderTargetV1", () => {
     }
   });
 
+  it("passes a valid frame set into the entry and the preload set, drops invalid ones", () => {
+    const frameCatalog = (frameAssetIds: unknown): StageContentCatalogV1 =>
+      Object.freeze({
+        resolveContent: () =>
+          Object.freeze({
+            rendererId: "renderer.test.character",
+            assetIds: Object.freeze(["asset.test.base" as AssetId]),
+            accessibleName: "角色",
+            props: Object.freeze({}),
+            frameAssetIds: frameAssetIds as never,
+          }),
+      });
+
+    const valid = projectStageRenderTargetV1(
+      stageWithContentV1(),
+      frameCatalog(["asset.test.eyes-open", "asset.test.eyes-closed"]),
+    );
+    expect(valid.diagnostics).toEqual([]);
+    expect(valid.target.layers[0]?.entries[0]?.frameAssetIds).toEqual([
+      "asset.test.eyes-open",
+      "asset.test.eyes-closed",
+    ]);
+    // Frames join the preload set so a swap never flashes.
+    expect(valid.target.requiredAssetIds).toContain("asset.test.eyes-open");
+    expect(valid.target.requiredAssetIds).toContain("asset.test.eyes-closed");
+
+    for (
+      const broken of [
+        ["asset.test.eyes-open", ""],
+        Array.from({ length: 65 }, (_ignored, index) => `asset.test.frame-${String(index)}`),
+      ]
+    ) {
+      const projection = projectStageRenderTargetV1(stageWithContentV1(), frameCatalog(broken));
+      expect(projection.diagnostics.map((diagnostic) => diagnostic.code)).toContain(
+        "stage.frame_assets_invalid",
+      );
+      expect(projection.target.layers[0]?.entries[0]?.frameAssetIds).toEqual([]);
+    }
+  });
+
+  it("passes shaped hit regions through and adds hover assets to the preload set", () => {
+    const regionCatalog = (hitRegions: unknown): StageContentCatalogV1 =>
+      Object.freeze({
+        resolveContent: () =>
+          Object.freeze({
+            rendererId: "renderer.test.character",
+            assetIds: Object.freeze([]),
+            accessibleName: "角色",
+            props: Object.freeze({}),
+            hitRegions: hitRegions as never,
+          }),
+      });
+
+    const projection = projectStageRenderTargetV1(
+      stageWithContentV1(),
+      regionCatalog([
+        {
+          regionId: "region.head",
+          accessibleNameText: "头",
+          x: 10,
+          y: 20,
+          width: 100,
+          height: 80,
+          polygonPoints: [{ x: 60, y: 20 }, { x: 110, y: 100 }, { x: 10, y: 100 }],
+          hoverAssetId: "asset.test.head-glow",
+        },
+      ]),
+    );
+    expect(projection.diagnostics).toEqual([]);
+    const region = projection.target.layers[0]?.entries[0]?.hitRegions[0];
+    expect(region?.polygonPoints).toEqual([
+      { x: 60, y: 20 },
+      { x: 110, y: 100 },
+      { x: 10, y: 100 },
+    ]);
+    expect(region?.hoverAssetId).toBe("asset.test.head-glow");
+    // The reveal asset preloads with the entry so hover never flashes.
+    expect(projection.target.requiredAssetIds).toContain("asset.test.head-glow");
+  });
+
+  it("degrades invalid polygons to the bounding box and drops invalid hover assets", () => {
+    const regionCatalog = (region: Record<string, unknown>): StageContentCatalogV1 =>
+      Object.freeze({
+        resolveContent: () =>
+          Object.freeze({
+            rendererId: "renderer.test.character",
+            assetIds: Object.freeze([]),
+            accessibleName: "角色",
+            props: Object.freeze({}),
+            hitRegions: [
+              {
+                regionId: "region.zone",
+                accessibleNameText: "区域",
+                x: 0,
+                y: 0,
+                width: 100,
+                height: 100,
+                ...region,
+              },
+            ] as never,
+          }),
+      });
+
+    const brokenPolygons: readonly unknown[] = [
+      // Too few vertices.
+      [{ x: 0, y: 0 }, { x: 100, y: 100 }],
+      // Over the vertex budget.
+      Array.from({ length: 65 }, (_ignored, index) => ({ x: index, y: index % 2 })),
+      // A vertex escapes the bounding box.
+      [{ x: 0, y: 0 }, { x: 101, y: 0 }, { x: 0, y: 100 }],
+      // Non-integer vertex.
+      [{ x: 0.5, y: 0 }, { x: 100, y: 0 }, { x: 0, y: 100 }],
+      // Zero area (collinear).
+      [{ x: 0, y: 0 }, { x: 50, y: 50 }, { x: 100, y: 100 }],
+    ];
+    for (const polygonPoints of brokenPolygons) {
+      const projection = projectStageRenderTargetV1(
+        stageWithContentV1(),
+        regionCatalog({ polygonPoints }),
+      );
+      expect(projection.diagnostics.map((diagnostic) => diagnostic.code)).toContain(
+        "stage.hit_region_polygon_invalid",
+      );
+      const region = projection.target.layers[0]?.entries[0]?.hitRegions[0];
+      // The region survives as its bounding box: activation never dies to a shape typo.
+      expect(region?.regionId).toBe("region.zone");
+      expect(region?.polygonPoints).toBeUndefined();
+    }
+
+    const hoverProjection = projectStageRenderTargetV1(
+      stageWithContentV1(),
+      regionCatalog({ hoverAssetId: "" }),
+    );
+    expect(hoverProjection.diagnostics.map((diagnostic) => diagnostic.code)).toContain(
+      "stage.hit_region_hover_invalid",
+    );
+    const hoverRegion = hoverProjection.target.layers[0]?.entries[0]?.hitRegions[0];
+    expect(hoverRegion?.regionId).toBe("region.zone");
+    expect(hoverRegion?.hoverAssetId).toBeUndefined();
+  });
+
   it("reports resolutions that omit renderers or accessible names", () => {
     const sparseCatalog: StageContentCatalogV1 = Object.freeze({
       resolveContent: () =>

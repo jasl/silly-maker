@@ -35,7 +35,13 @@ const transcriptInvocationsV1: readonly LabInvocationV1[] = Object.freeze([
     kind: "barrier_completed",
     transitionId: "transition.e2e.bg-crossfade",
   }),
-  resolveV1("interaction-occurrence.5", { kind: "resume" }),
+  Object.freeze({
+    kind: "time" as const,
+    tick: Object.freeze({
+      elapsedMs: 400,
+      expectedHoldOccurrenceId: "interaction-occurrence.5",
+    }),
+  }),
   resolveV1("interaction-occurrence.6", { kind: "custom", payload: { value: 2 } }),
   resolveV1("interaction-occurrence.7", { kind: "advance" }),
   Object.freeze({ kind: "invoke" as const, actionId: "lab.begin_procedure" as const }),

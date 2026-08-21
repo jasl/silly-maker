@@ -286,6 +286,7 @@ export const bookshopSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
       unavailable: "存储不可用",
       empty_slot: "存档槽为空",
       conflict: "存档发生冲突",
+      in_flight: "正在过场，暂不可保存",
       invalid_record: "存档无效",
       invalid_note: "备注不合法",
       lineage_limit: "存档兼容链过长",
@@ -362,12 +363,15 @@ export const bookshopGameApplicationV1: WebGameApplicationV1<
             renderer: BookshopNarrativeRendererV1,
             resolveText: bookshopTextForLocaleV1,
             replayCurrentVoice: null,
+            // The bookshop narrative declares no hold, so it binds no time
+            // dispatcher.
+            dispatchTime: null,
           } satisfies DefineNarrativeSurfaceInputV1<BookshopSemanticPublicationV1>,
         ),
       ),
       slots: createBookshopUiSlotsV1(),
       labels: bookshopRootLabelsV1,
       saveLabels: bookshopSaveOverlayLabelsV1,
-      inputMaps: Object.freeze({ keyboard: bookshopKeyboardMapV1 }),
+      input: Object.freeze({ keyboard: bookshopKeyboardMapV1 }),
     }),
 });

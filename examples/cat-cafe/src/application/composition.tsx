@@ -457,6 +457,9 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
             renderer: CatcafeNarrativeRendererV1,
             resolveText: catcafeTextForLocaleV1,
             replayCurrentVoice: null,
+            // The cat-cafe narrative declares no hold, so it binds no time
+            // dispatcher.
+            dispatchTime: null,
           } satisfies DefineNarrativeSurfaceInputV1<CatcafeSemanticPublicationV1>,
         ),
       ),
@@ -474,7 +477,7 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
           saveGuard: catcafeSaveGuardForLocaleV1(locale),
         };
       })(),
-      inputMaps: Object.freeze({ keyboard: catcafeKeyboardMapV1, pointer: catcafePointerMapV1 }),
+      input: Object.freeze({ keyboard: catcafeKeyboardMapV1, pointer: catcafePointerMapV1 }),
       loadDevDockContributions: () =>
         import("./dev-dock.tsx").then((module) =>
           module.createCatcafeDevDockContributionsV1({ instance, playerProfile, registry })

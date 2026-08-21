@@ -43,9 +43,9 @@ function dynamicLengthArrayV1<T>(items: readonly T[]): {
 
 it("captures committed evidence vectors from one fixed own length descriptor", () => {
   const snapshot = fixtureSnapshot();
-  const facts = dynamicLengthArrayV1([
-    { kind: "fixture.fact", ordinal: 1 },
-    { kind: "fixture.fact", ordinal: 2 },
+  const events = dynamicLengthArrayV1([
+    { kind: "fixture.event", ordinal: 1 },
+    { kind: "fixture.event", ordinal: 2 },
   ]);
   const attemptedDraws = dynamicLengthArrayV1([
     { kind: "fixture.draw", ordinal: 1 },
@@ -56,7 +56,7 @@ it("captures committed evidence vectors from one fixed own length descriptor", (
     result: {
       kind: "committed",
       snapshot,
-      facts: facts.value,
+      events: events.value,
     },
     diagnostics: {
       committedRngBefore: snapshot.rng,
@@ -67,11 +67,11 @@ it("captures committed evidence vectors from one fixed own length descriptor", (
   });
 
   if (admitted.result.kind !== "committed") throw new Error("expected committed evidence");
-  expect(admitted.result.facts).toHaveLength(2);
+  expect(admitted.result.events).toHaveLength(2);
   expect(admitted.diagnostics.attemptedDraws).toHaveLength(2);
-  expect(facts.lengthReads()).toBe(0);
+  expect(events.lengthReads()).toBe(0);
   expect(attemptedDraws.lengthReads()).toBe(0);
-  expect(facts.lengthDescriptorReads()).toBe(1);
+  expect(events.lengthDescriptorReads()).toBe(1);
   expect(attemptedDraws.lengthDescriptorReads()).toBe(1);
 });
 
@@ -116,13 +116,13 @@ it("captures Debug validation errors from one fixed own length descriptor", () =
 
 it("rejects a maximum-length sparse evidence array at its first hole without materializing indices", () => {
   const snapshot = fixtureSnapshot();
-  const facts: unknown[] = [];
-  facts.length = 0xffff_ffff;
+  const events: unknown[] = [];
+  events.length = 0xffff_ffff;
   const attempt = {
     result: {
       kind: "committed" as const,
       snapshot,
-      facts,
+      events,
     },
     diagnostics: {
       committedRngBefore: snapshot.rng,
@@ -142,33 +142,33 @@ it("rejects a maximum-length sparse evidence array at its first hole without mat
   expect(failure).toBeInstanceOf(CanonicalJsonError);
   expect(failure).toMatchObject({
     code: "value.sparse_array",
-    path: "/result/facts/0",
+    path: "/result/events/0",
   });
-  expect(Object.isFrozen(facts)).toBe(false);
+  expect(Object.isFrozen(events)).toBe(false);
 });
 
 it("returns canonical evidence projections without retaining normalized raw identity state", () => {
   const snapshot = fixtureSnapshot();
   const shared = { value: 1 };
   let virtualReads = 0;
-  const rawFactTarget = {
-    kind: "fixture.fact" as const,
+  const rawEventTarget = {
+    kind: "fixture.event" as const,
     first: shared,
     second: shared,
   };
-  const rawFact = new Proxy(rawFactTarget, {
+  const rawEvent = new Proxy(rawEventTarget, {
     get(target, key, receiver) {
       if (key === "virtual") return ++virtualReads;
       return Reflect.get(target, key, receiver);
     },
   });
-  const sideTable = new WeakMap<object, string>([[rawFact, "raw-only"]]);
-  const expectedBytes = canonicalJsonBytes(rawFact);
+  const sideTable = new WeakMap<object, string>([[rawEvent, "raw-only"]]);
+  const expectedBytes = canonicalJsonBytes(rawEvent);
   const attempt = {
     result: {
       kind: "committed" as const,
       snapshot,
-      facts: [rawFact],
+      events: [rawEvent],
     },
     diagnostics: {
       committedRngBefore: snapshot.rng,
@@ -180,22 +180,22 @@ it("returns canonical evidence projections without retaining normalized raw iden
 
   const admitted = admitCommandAttemptEvidenceInternalV1(snapshot, attempt);
   if (admitted.result.kind !== "committed") throw new Error("expected committed evidence");
-  const fact = admitted.result.facts[0] as typeof rawFactTarget & {
+  const event = admitted.result.events[0] as typeof rawEventTarget & {
     readonly virtual?: number;
   };
 
-  expect(fact).not.toBe(rawFact);
-  expect(fact.first).not.toBe(shared);
-  expect(fact.second).not.toBe(shared);
-  expect(fact.first).not.toBe(fact.second);
-  expect(fact.virtual).toBeUndefined();
+  expect(event).not.toBe(rawEvent);
+  expect(event.first).not.toBe(shared);
+  expect(event.second).not.toBe(shared);
+  expect(event.first).not.toBe(event.second);
+  expect(event.virtual).toBeUndefined();
   expect(virtualReads).toBe(0);
-  expect(sideTable.has(fact)).toBe(false);
-  expect(Object.isFrozen(fact)).toBe(true);
-  expect(Object.isFrozen(fact.first)).toBe(true);
-  expect(Object.isFrozen(rawFact)).toBe(false);
+  expect(sideTable.has(event)).toBe(false);
+  expect(Object.isFrozen(event)).toBe(true);
+  expect(Object.isFrozen(event.first)).toBe(true);
+  expect(Object.isFrozen(rawEvent)).toBe(false);
   expect(Object.isFrozen(shared)).toBe(false);
-  expect(canonicalJsonBytes(fact)).toEqual(expectedBytes);
+  expect(canonicalJsonBytes(event)).toEqual(expectedBytes);
 });
 
 it("does not carry private elements from canonical-looking normalized evidence", () => {

@@ -19,7 +19,7 @@ Then register the application in the root `project.config.ts` (copy the template
 | File                               | Role                                                                           |
 | ---------------------------------- | ------------------------------------------------------------------------------ |
 | `src/scenes/opening/*.scene.json`  | Scene composition: placements, appearance, cue→motion binding (edit in Studio) |
-| `src/story/narrative.ts`           | The script: say/choice/stage/branch/end nodes and story flags                  |
+| `src/story/narrative.ts`           | The script: say/choice/stage/branch/hold/end nodes and story flags             |
 | `src/content/presentation.ts`      | Text catalogs (all display text behind textIds), stage content, transitions    |
 | `src/ui/stage-renderers.tsx`       | Stage renderers shared by the game and the Studio canvas                       |
 | `src/game/state.ts`                | Module state shapes, schemas, and initial values                               |

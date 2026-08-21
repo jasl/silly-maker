@@ -79,7 +79,7 @@ import {
 import {
   createNarrativeManagedSurfaceFamilyContractInternalV1,
   createNarrativeStableBarrierAcknowledgmentControllerInternalV1,
-  createNarrativeStablePauseExpiryControllerInternalV1,
+  createNarrativeStableHoldExpiryControllerInternalV1,
   createNarrativeStablePhysicalActionAdmissionInternalV1,
   createNarrativeStablePublisherBridgeInternalV1,
   createNarrativeStableSessionInternalV1,
@@ -116,10 +116,10 @@ import {
   type NarrativeStableHistoryChildPreparationResultInternalV1,
   type NarrativeStableHistoryOpenDispatchResultInternalV1,
   type NarrativeStableHistoryOpenIntentInternalV1,
-  type NarrativeStablePauseResumeActionAttemptInternalV1,
-  type NarrativeStablePauseExpiryControllerAttemptInternalV1,
-  type NarrativeStablePauseExpiryControllerInternalV1,
-  type NarrativeStablePauseExpiryDispatchResultInternalV1,
+  type NarrativeStableHoldSkipActionAttemptInternalV1,
+  type NarrativeStableHoldExpiryControllerAttemptInternalV1,
+  type NarrativeStableHoldExpiryControllerInternalV1,
+  type NarrativeStableHoldExpiryDispatchResultInternalV1,
   type NarrativeStablePhysicalActionAdmissionInternalV1,
   type NarrativeStablePhysicalActionDispatchResultInternalV1,
   type NarrativeStablePlaybackModeInternalV1,
@@ -359,7 +359,7 @@ function occurrenceV1(sequence: number): string {
 }
 
 function pendingV1(
-  kind: "say" | "choice" | "pause" | "presentation_barrier" | "custom",
+  kind: "say" | "choice" | "hold" | "presentation_barrier" | "custom",
   sequence = 1,
 ): unknown {
   const base = {
@@ -386,8 +386,8 @@ function pendingV1(
           { choiceId: "choice.test.second", textId: "text.test.second" },
         ],
       };
-    case "pause":
-      return { kind, ...base, durationMs: 250, skippable: true };
+    case "hold":
+      return { kind, ...base, totalMs: 250, remainingMs: 250, skippable: true };
     case "presentation_barrier":
       return {
         kind,
@@ -681,7 +681,7 @@ function physicalChoiceHarnessV1(input: {
   return { harness, inputRouter, stableActionAuthority, admission, semanticDispatchPort };
 }
 
-function physicalPauseHarnessV1(input: {
+function physicalHoldHarnessV1(input: {
   readonly semanticDispatchPort?: NarrativeStableSemanticResolutionPortInternalV1;
   readonly isGestureCurrent?: () => boolean;
   readonly skippable?: boolean;
@@ -697,7 +697,7 @@ function physicalPauseHarnessV1(input: {
     }),
   });
   const pending = {
-    ...(pendingV1("pause") as Record<string, unknown>),
+    ...(pendingV1("hold") as Record<string, unknown>),
     skippable: input.skippable ?? true,
   };
   expect(harness.bridge.reconcilePendingInternalV1(pending)).toMatchObject({
@@ -823,7 +823,7 @@ function routePlaybackModeToggleV1(
 type NarrativeReadyPendingKindV1 =
   | "say"
   | "choice"
-  | "pause"
+  | "hold"
   | "custom"
   | "presentation_barrier";
 
@@ -946,7 +946,7 @@ function createNarrativeBridgeSuccessorV1(
   });
 }
 
-function automaticPauseHarnessV1(input: {
+function automaticHoldHarnessV1(input: {
   readonly semanticDispatchPort?: NarrativeStableSemanticResolutionPortInternalV1;
   readonly skippable?: boolean;
   readonly presentationClock?: object | ((...args: never[]) => unknown);
@@ -965,12 +965,12 @@ function automaticPauseHarnessV1(input: {
   });
   expect(
     harness.bridge.reconcilePendingInternalV1({
-      ...(pendingV1("pause") as Record<string, unknown>),
+      ...(pendingV1("hold") as Record<string, unknown>),
       skippable: input.skippable ?? true,
     }),
   ).toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
   settleCurrentNarrativeReadyV1(harness);
-  const controller = createNarrativeStablePauseExpiryControllerInternalV1(harness.bridge);
+  const controller = createNarrativeStableHoldExpiryControllerInternalV1(harness.bridge);
   return { harness, controller, semanticDispatchPort };
 }
 
@@ -2346,7 +2346,7 @@ describe("Narrative stable Managed Surface family", () => {
     [
       ["say", "narrative.renderer.say"],
       ["choice", "narrative.renderer.choice"],
-      ["pause", "narrative.renderer.pause"],
+      ["hold", "narrative.renderer.hold"],
       ["presentation_barrier", "narrative.renderer.presentation_barrier"],
       ["custom", "narrative.custom.test"],
     ] as const,
@@ -2499,12 +2499,33 @@ describe("Narrative stable Managed Surface family", () => {
         ...(pendingV1("choice") as Record<string, unknown>),
         options: [{ choiceId: "choice.test.changed", textId: "text.test.changed" }],
       }],
-      ["pause duration", pendingV1("pause"), {
-        ...(pendingV1("pause") as Record<string, unknown>),
-        durationMs: 251,
+      ["hold total", pendingV1("hold"), {
+        ...(pendingV1("hold") as Record<string, unknown>),
+        totalMs: 251,
       }],
-      ["pause skippable", pendingV1("pause"), {
-        ...(pendingV1("pause") as Record<string, unknown>),
+      // Authoritative remaining only ever decreases; a same-occurrence
+      // increase is divergence, not a partial tick.
+      ["hold remaining regression", {
+        ...(pendingV1("hold") as Record<string, unknown>),
+        remainingMs: 100,
+      }, {
+        ...(pendingV1("hold") as Record<string, unknown>),
+        remainingMs: 200,
+      }],
+      // A remaining decrement only rides along when every other byte is
+      // identical; a decrement bundled with other drift still faults.
+      ["hold remaining decrement with skippable drift", pendingV1("hold"), {
+        ...(pendingV1("hold") as Record<string, unknown>),
+        remainingMs: 100,
+        skippable: false,
+      }],
+      ["hold remaining decrement with cadence drift", pendingV1("hold"), {
+        ...(pendingV1("hold") as Record<string, unknown>),
+        remainingMs: 100,
+        tickQuantumMs: 50,
+      }],
+      ["hold skippable", pendingV1("hold"), {
+        ...(pendingV1("hold") as Record<string, unknown>),
         skippable: false,
       }],
       ["barrier transition", pendingV1("presentation_barrier"), {
@@ -2548,6 +2569,40 @@ describe("Narrative stable Managed Surface family", () => {
     expect(harness.kernel.getStateInternalV1()).toBe(before);
     expect(publisherSnapshotV1(harness)).toBe(snapshot);
     expect(harness.stateNotificationCount()).toBe(notifications);
+  });
+
+  it("accepts a same-occurrence hold remaining decrement as the unchanged current frame", () => {
+    const harness = harnessV1();
+    const cadenced = {
+      ...(pendingV1("hold") as Record<string, unknown>),
+      tickQuantumMs: 50,
+    };
+    expect(harness.bridge.reconcilePendingInternalV1(cadenced).kind).toBe("applied");
+    const before = harness.kernel.getStateInternalV1();
+    const snapshot = publisherSnapshotV1(harness);
+    const notifications = harness.stateNotificationCount();
+
+    // Each partial time tick republishes the same occurrence with a smaller
+    // remainder (every other byte identical, the declared cadence included):
+    // the admitted frame stays the current one with zero kernel or publisher
+    // traffic. The comparison runs against the admitted entry remainder, so
+    // successive decrements keep landing on the same frame.
+    for (const remainingMs of [200, 150, 40]) {
+      expectZeroResultV1(
+        harness.bridge.reconcilePendingInternalV1({ ...cadenced, remainingMs }),
+        "unchanged",
+        "surface.stable_publication_unchanged",
+      );
+    }
+    expect(harness.kernel.getStateInternalV1()).toBe(before);
+    expect(publisherSnapshotV1(harness)).toBe(snapshot);
+    expect(harness.stateNotificationCount()).toBe(notifications);
+
+    // Expiry consumes the boundary: the successor occurrence publishes a
+    // fresh frame through the normal admission path.
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say", 2)).kind).toBe(
+      "applied",
+    );
   });
 
   it("advances dedicated source and occurrence across replace, empty, and reopen", () => {
@@ -2816,7 +2871,7 @@ describe("Narrative stable Managed Surface family", () => {
     expect(Reflect.ownKeys(admission)).toEqual([
       "createEnvelopeInternalV1",
       "issueChoiceAttemptInternalV1",
-      "issuePauseResumeAttemptInternalV1",
+      "issueHoldSkipAttemptInternalV1",
       "issueCustomAttemptInternalV1",
       "issueSayActivationAttemptInternalV1",
       "issueVoiceReplayAttemptInternalV1",
@@ -3221,22 +3276,25 @@ describe("Narrative stable Managed Surface family", () => {
     expect(dispatchResolution).not.toHaveBeenCalled();
   });
 
-  it("dispatches one authenticated skippable pause resume through the exact captured semantic port", async () => {
-    const semanticReceipt = Object.freeze({ kind: "pause-resumed" as const });
+  it("dispatches one authenticated skippable hold resume through the exact captured semantic port", async () => {
+    const semanticReceipt = Object.freeze({ kind: "hold-resumed" as const });
     let capturedRequest: unknown = null;
     let semanticPort!: NarrativeStableSemanticResolutionPortInternalV1;
-    const dispatchResolution = vi.fn(function (this: unknown, request: unknown) {
+    const dispatchTime = vi.fn(function (this: unknown, request: unknown) {
       expect(this).toBe(semanticPort);
       capturedRequest = request;
       return Promise.resolve(semanticReceipt);
     });
-    semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
-    const fixture = physicalPauseHarnessV1({ semanticDispatchPort: semanticPort });
+    semanticPort = Object.freeze({
+      dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+      dispatchTimeInternalV1: dispatchTime,
+    });
+    const fixture = physicalHoldHarnessV1({ semanticDispatchPort: semanticPort });
     const state = fixture.harness.kernel.getStateInternalV1();
 
-    const attempt = fixture.admission.issuePauseResumeAttemptInternalV1();
+    const attempt = fixture.admission.issueHoldSkipAttemptInternalV1();
     expectTypeOf(attempt).toEqualTypeOf<
-      NarrativeStablePauseResumeActionAttemptInternalV1 | null
+      NarrativeStableHoldSkipActionAttemptInternalV1 | null
     >();
     expect(attempt).not.toBeNull();
     expect(Object.isFrozen(attempt)).toBe(true);
@@ -3246,7 +3304,7 @@ describe("Narrative stable Managed Surface family", () => {
     const result = fixture.admission.routeInternalV1(
       fixture.admission.createEnvelopeInternalV1({
         actionId: narrativeResumeActionIdV1,
-        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-resume-current"),
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.hold-resume-current"),
       }),
       attempt,
     );
@@ -3256,34 +3314,31 @@ describe("Narrative stable Managed Surface family", () => {
     });
     expect(result.consumerResult).toMatchObject({ kind: "dispatched" });
     if (result.consumerResult?.kind !== "dispatched") {
-      throw new Error("expected pause resume completion");
+      throw new Error("expected hold resume completion");
     }
     await expect(result.consumerResult.completion).resolves.toBe(semanticReceipt);
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(dispatchTime).toHaveBeenCalledOnce();
     expect(capturedRequest).toEqual({
-      expectedOccurrenceId: occurrenceV1(1),
-      resolution: { kind: "resume" },
+      elapsedMs: 250,
+      expectedHoldOccurrenceId: occurrenceV1(1),
     });
     expect(Object.isFrozen(capturedRequest)).toBe(true);
-    expect(
-      Object.isFrozen((capturedRequest as { readonly resolution: object }).resolution),
-    ).toBe(true);
     expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
     expect(
       fixture.admission.routeInternalV1(
         fixture.admission.createEnvelopeInternalV1({
           actionId: narrativeResumeActionIdV1,
-          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-resume-repeat"),
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.hold-resume-repeat"),
         }),
         attempt,
       ).consumerResult,
     ).toEqual({ kind: "stale", completion: null });
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(dispatchTime).toHaveBeenCalledOnce();
   });
 
-  it("constructs for a ready pause but issues manual resume only when skippable", () => {
+  it("constructs for a ready hold but issues manual resume only when skippable", () => {
     const preparing = harnessV1();
-    expect(preparing.bridge.reconcilePendingInternalV1(pendingV1("pause"))).toMatchObject({
+    expect(preparing.bridge.reconcilePendingInternalV1(pendingV1("hold"))).toMatchObject({
       kind: "applied",
       code: "surface.stable_publication_applied",
     });
@@ -3296,7 +3351,7 @@ describe("Narrative stable Managed Surface family", () => {
     ).toThrowError("ui.narrative_stable_action_admission_unavailable");
 
     const nonSkippableDispatch = vi.fn(() => Promise.resolve("must-not-dispatch"));
-    const nonSkippable = physicalPauseHarnessV1({
+    const nonSkippable = physicalHoldHarnessV1({
       skippable: false,
       semanticDispatchPort: Object.freeze({
         dispatchResolutionInternalV1: nonSkippableDispatch,
@@ -3309,14 +3364,14 @@ describe("Narrative stable Managed Surface family", () => {
         isGestureCurrent: () => true,
       })
     ).toThrowError("ui.narrative_stable_action_admission_invalid");
-    expect(nonSkippable.admission.issuePauseResumeAttemptInternalV1()).toBeNull();
+    expect(nonSkippable.admission.issueHoldSkipAttemptInternalV1()).toBeNull();
     expect(nonSkippable.admission.issueChoiceAttemptInternalV1("choice.test.first")).toBeNull();
     expect(
       nonSkippable.admission.routeInternalV1(
         nonSkippable.admission.createEnvelopeInternalV1({
           actionId: narrativeResumeActionIdV1,
           gestureId: parseManagedSurfaceGestureIdV1(
-            "gesture.narrative.pause-non-skippable",
+            "gesture.narrative.hold-non-skippable",
           ),
         }),
         null,
@@ -3330,18 +3385,19 @@ describe("Narrative stable Managed Surface family", () => {
       isGestureCurrent: () => true,
     });
     expect(freshNonSkippable).not.toBe(nonSkippable.admission);
-    expect(freshNonSkippable.issuePauseResumeAttemptInternalV1()).toBeNull();
+    expect(freshNonSkippable.issueHoldSkipAttemptInternalV1()).toBeNull();
     freshNonSkippable.disposeInternalV1();
   });
 
-  it("keeps wrong actions and foreign attempt kinds from consuming an authentic pause resume", async () => {
-    const dispatchResolution = vi.fn(() => Promise.resolve("pause-dispatched"));
-    const fixture = physicalPauseHarnessV1({
+  it("keeps wrong actions and foreign attempt kinds from consuming an authentic hold resume", async () => {
+    const dispatchTime = vi.fn(() => Promise.resolve("hold-dispatched"));
+    const fixture = physicalHoldHarnessV1({
       semanticDispatchPort: Object.freeze({
-        dispatchResolutionInternalV1: dispatchResolution,
+        dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+        dispatchTimeInternalV1: dispatchTime,
       }),
     });
-    const attempt = fixture.admission.issuePauseResumeAttemptInternalV1();
+    const attempt = fixture.admission.issueHoldSkipAttemptInternalV1();
     expect(attempt).not.toBeNull();
 
     expect(
@@ -3349,7 +3405,7 @@ describe("Narrative stable Managed Surface family", () => {
         fixture.admission.createEnvelopeInternalV1({
           actionId: narrativeChooseActionIdV1,
           gestureId: parseManagedSurfaceGestureIdV1(
-            "gesture.narrative.pause-choice-mapped-mismatch",
+            "gesture.narrative.hold-choice-mapped-mismatch",
           ),
         }),
         attempt,
@@ -3358,8 +3414,8 @@ describe("Narrative stable Managed Surface family", () => {
 
     for (
       const [actionId, gestureId] of [
-        [narrativeConfirmActionIdV1, "gesture.narrative.pause-confirm-unmapped"],
-        [narrativeAdvanceActionIdV1, "gesture.narrative.pause-advance-unmapped"],
+        [narrativeConfirmActionIdV1, "gesture.narrative.hold-confirm-unmapped"],
+        [narrativeAdvanceActionIdV1, "gesture.narrative.hold-advance-unmapped"],
       ] as const
     ) {
       expect(
@@ -3372,13 +3428,13 @@ describe("Narrative stable Managed Surface family", () => {
         ).consumerResult,
       ).toEqual({ kind: "unmapped", completion: null });
     }
-    expect(dispatchResolution).not.toHaveBeenCalled();
+    expect(dispatchTime).not.toHaveBeenCalled();
 
     expect(
       fixture.admission.routeInternalV1(
         fixture.admission.createEnvelopeInternalV1({
           actionId: narrativeResumeActionIdV1,
-          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-clone"),
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.hold-clone"),
         }),
         { ...(attempt as object) },
       ).consumerResult,
@@ -3393,57 +3449,59 @@ describe("Narrative stable Managed Surface family", () => {
       fixture.admission.routeInternalV1(
         fixture.admission.createEnvelopeInternalV1({
           actionId: narrativeResumeActionIdV1,
-          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-choice-attempt"),
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.hold-choice-attempt"),
         }),
         choiceAttempt,
       ).consumerResult,
     ).toEqual({ kind: "stale", completion: null });
 
-    const foreignPause = physicalPauseHarnessV1();
-    const foreignPauseAttempt = foreignPause.admission.issuePauseResumeAttemptInternalV1();
-    expect(foreignPauseAttempt).not.toBeNull();
+    const foreignHold = physicalHoldHarnessV1();
+    const foreignHoldAttempt = foreignHold.admission.issueHoldSkipAttemptInternalV1();
+    expect(foreignHoldAttempt).not.toBeNull();
     expect(
       fixture.admission.routeInternalV1(
         fixture.admission.createEnvelopeInternalV1({
           actionId: narrativeResumeActionIdV1,
-          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-foreign"),
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.hold-foreign"),
         }),
-        foreignPauseAttempt,
+        foreignHoldAttempt,
       ).consumerResult,
     ).toEqual({ kind: "stale", completion: null });
 
     const dispatched = fixture.admission.routeInternalV1(
       fixture.admission.createEnvelopeInternalV1({
         actionId: narrativeResumeActionIdV1,
-        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-after-unmapped"),
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.hold-after-unmapped"),
       }),
       attempt,
     );
     expect(dispatched.consumerResult).toMatchObject({ kind: "dispatched" });
     if (dispatched.consumerResult?.kind !== "dispatched") {
-      throw new Error("expected authentic pause resume after unmapped actions");
+      throw new Error("expected authentic hold resume after unmapped actions");
     }
-    await expect(dispatched.consumerResult.completion).resolves.toBe("pause-dispatched");
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    await expect(dispatched.consumerResult.completion).resolves.toBe("hold-dispatched");
+    expect(dispatchTime).toHaveBeenCalledOnce();
 
     choiceFixture.admission.disposeInternalV1();
-    foreignPause.admission.disposeInternalV1();
+    foreignHold.admission.disposeInternalV1();
   });
 
-  it("keeps stale gesture, source replacement, suspension, and dispose at zero pause dispatch", async () => {
+  it("keeps stale gesture, source replacement, suspension, and dispose at zero hold dispatch", async () => {
     let gestureCurrent = false;
-    const dispatchResolution = vi.fn(() => Promise.resolve("pause-dispatched"));
-    const fixture = physicalPauseHarnessV1({
-      semanticDispatchPort: Object.freeze({
-        dispatchResolutionInternalV1: dispatchResolution,
-      }),
+    const dispatchTime = vi.fn(() => Promise.resolve("hold-dispatched"));
+    const holdTimePortV1 = Object.freeze({
+      dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+      dispatchTimeInternalV1: dispatchTime,
+    });
+    const fixture = physicalHoldHarnessV1({
+      semanticDispatchPort: holdTimePortV1,
       isGestureCurrent: () => gestureCurrent,
     });
-    const staleGestureAttempt = fixture.admission.issuePauseResumeAttemptInternalV1();
+    const staleGestureAttempt = fixture.admission.issueHoldSkipAttemptInternalV1();
     expect(staleGestureAttempt).not.toBeNull();
     const staleGestureEnvelope = fixture.admission.createEnvelopeInternalV1({
       actionId: narrativeResumeActionIdV1,
-      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-stale"),
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.hold-stale"),
     });
     expect(fixture.admission.routeInternalV1(staleGestureEnvelope, staleGestureAttempt))
       .toMatchObject({
@@ -3454,96 +3512,93 @@ describe("Narrative stable Managed Surface family", () => {
     const recovered = fixture.admission.routeInternalV1(
       fixture.admission.createEnvelopeInternalV1({
         actionId: narrativeResumeActionIdV1,
-        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-recovered"),
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.hold-recovered"),
       }),
       staleGestureAttempt,
     );
     expect(recovered.consumerResult).toMatchObject({ kind: "dispatched" });
     if (recovered.consumerResult?.kind !== "dispatched") {
-      throw new Error("expected pause resume after stale gesture");
+      throw new Error("expected hold resume after stale gesture");
     }
-    await expect(recovered.consumerResult.completion).resolves.toBe("pause-dispatched");
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    await expect(recovered.consumerResult.completion).resolves.toBe("hold-dispatched");
+    expect(dispatchTime).toHaveBeenCalledOnce();
 
-    const replacementAttempt = fixture.admission.issuePauseResumeAttemptInternalV1();
+    const replacementAttempt = fixture.admission.issueHoldSkipAttemptInternalV1();
     expect(replacementAttempt).not.toBeNull();
-    expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("pause", 2)))
+    expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("hold", 2)))
       .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
-    expect(fixture.admission.issuePauseResumeAttemptInternalV1()).toBeNull();
+    expect(fixture.admission.issueHoldSkipAttemptInternalV1()).toBeNull();
     expect(
       fixture.admission.routeInternalV1(
         fixture.admission.createEnvelopeInternalV1({
           actionId: narrativeResumeActionIdV1,
-          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-replaced"),
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.hold-replaced"),
         }),
         replacementAttempt,
       ).consumerResult,
     ).toEqual({ kind: "stale", completion: null });
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(dispatchTime).toHaveBeenCalledOnce();
 
-    const suspended = physicalPauseHarnessV1({
-      semanticDispatchPort: Object.freeze({
-        dispatchResolutionInternalV1: dispatchResolution,
-      }),
+    const suspended = physicalHoldHarnessV1({
+      semanticDispatchPort: holdTimePortV1,
     });
-    const suspendedAttempt = suspended.admission.issuePauseResumeAttemptInternalV1();
+    const suspendedAttempt = suspended.admission.issueHoldSkipAttemptInternalV1();
     expect(suspendedAttempt).not.toBeNull();
     suspendCurrentNarrativeV1(suspended.harness);
     expect(
       suspended.admission.routeInternalV1(
         suspended.admission.createEnvelopeInternalV1({
           actionId: narrativeResumeActionIdV1,
-          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-suspended"),
+          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.hold-suspended"),
         }),
         suspendedAttempt,
       ).consumerResult,
     ).toEqual({ kind: "stale", completion: null });
 
-    const disposed = physicalPauseHarnessV1({
-      semanticDispatchPort: Object.freeze({
-        dispatchResolutionInternalV1: dispatchResolution,
-      }),
+    const disposed = physicalHoldHarnessV1({
+      semanticDispatchPort: holdTimePortV1,
     });
-    const disposedAttempt = disposed.admission.issuePauseResumeAttemptInternalV1();
+    const disposedAttempt = disposed.admission.issueHoldSkipAttemptInternalV1();
     expect(disposedAttempt).not.toBeNull();
     const disposedEnvelope = disposed.admission.createEnvelopeInternalV1({
       actionId: narrativeResumeActionIdV1,
-      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-disposed"),
+      gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.hold-disposed"),
     });
     disposed.admission.disposeInternalV1();
     expect(disposed.admission.routeInternalV1(disposedEnvelope, disposedAttempt)).toMatchObject({
       route: { input: { code: "input.stale_publication" }, surface: null },
       consumerResult: null,
     });
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(dispatchTime).toHaveBeenCalledOnce();
   });
 
-  it("normalizes a synchronous pause semantic-port throw without rolling back state", async () => {
-    const sentinel = new Error("pause semantic dispatch failed");
-    const dispatchResolution = vi.fn(() => {
+  it("normalizes a synchronous hold semantic-port throw without rolling back state", async () => {
+    const sentinel = new Error("hold semantic dispatch failed");
+    const dispatchTime = vi.fn(() => {
       throw sentinel;
     });
-    const fixture = physicalPauseHarnessV1({
+    const fixture = physicalHoldHarnessV1({
       semanticDispatchPort: Object.freeze({
-        dispatchResolutionInternalV1: dispatchResolution,
+        dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+        dispatchTimeInternalV1: dispatchTime,
       }),
     });
     const state = fixture.harness.kernel.getStateInternalV1();
-    const attempt = fixture.admission.issuePauseResumeAttemptInternalV1();
+    const attempt = fixture.admission.issueHoldSkipAttemptInternalV1();
     expect(attempt).not.toBeNull();
     const result = fixture.admission.routeInternalV1(
       fixture.admission.createEnvelopeInternalV1({
         actionId: narrativeResumeActionIdV1,
-        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.pause-throw"),
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.hold-throw"),
       }),
       attempt,
     );
     expect(result.consumerResult).toMatchObject({ kind: "dispatched" });
     if (result.consumerResult?.kind !== "dispatched") {
-      throw new Error("expected rejected pause semantic completion");
+      throw new Error("expected rejected hold semantic completion");
     }
     await expect(result.consumerResult.completion).rejects.toBe(sentinel);
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(dispatchTime).toHaveBeenCalledOnce();
     expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
   });
 
@@ -3669,7 +3724,7 @@ describe("Narrative stable Managed Surface family", () => {
     }
     expect(getterCalls).toBe(1);
     expect(fixture.admission.issueChoiceAttemptInternalV1("choice.test.first")).toBeNull();
-    expect(fixture.admission.issuePauseResumeAttemptInternalV1()).toBeNull();
+    expect(fixture.admission.issueHoldSkipAttemptInternalV1()).toBeNull();
     expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
     expect(fixture.harness.stateNotificationCount()).toBe(notifications);
 
@@ -4032,13 +4087,13 @@ describe("Narrative stable Managed Surface family", () => {
     expect(fixture.harness.stateNotificationCount()).toBe(notifications);
   });
 
-  it("dispatches one clock-free automatic pause expiry for skippable and unskippable pauses", async () => {
-    type ExpectedPauseExpiryResultV1 =
+  it("dispatches one clock-free automatic hold expiry for skippable and unskippable holds", async () => {
+    type ExpectedHoldExpiryResultV1 =
       | Readonly<{ readonly kind: "dispatched"; readonly completion: Promise<unknown> }>
       | Readonly<{ readonly kind: "stale"; readonly completion: null }>
       | Readonly<{ readonly kind: "faulted"; readonly completion: null }>;
-    expectTypeOf<NarrativeStablePauseExpiryDispatchResultInternalV1>()
-      .toEqualTypeOf<ExpectedPauseExpiryResultV1>();
+    expectTypeOf<NarrativeStableHoldExpiryDispatchResultInternalV1>()
+      .toEqualTypeOf<ExpectedHoldExpiryResultV1>();
 
     for (const skippable of [true, false] as const) {
       const now = vi.fn(() => 0);
@@ -4046,16 +4101,19 @@ describe("Narrative stable Managed Surface family", () => {
         ...defaultDialoguePlayerClockPortV1,
         nowInternalV1: now,
       });
-      const semanticReceipt = Object.freeze({ kind: "pause-expired" as const, skippable });
+      const semanticReceipt = Object.freeze({ kind: "hold-expired" as const, skippable });
       let capturedRequest: unknown = null;
       let semanticPort!: NarrativeStableSemanticResolutionPortInternalV1;
-      const dispatchResolution = vi.fn(function (this: unknown, request: unknown) {
+      const dispatchTime = vi.fn(function (this: unknown, request: unknown) {
         expect(this).toBe(semanticPort);
         capturedRequest = request;
         return Promise.resolve(semanticReceipt);
       });
-      semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
-      const fixture = automaticPauseHarnessV1({
+      semanticPort = Object.freeze({
+        dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+        dispatchTimeInternalV1: dispatchTime,
+      });
+      const fixture = automaticHoldHarnessV1({
         semanticDispatchPort: semanticPort,
         skippable,
         presentationClock,
@@ -4063,7 +4121,7 @@ describe("Narrative stable Managed Surface family", () => {
       const state = fixture.harness.kernel.getStateInternalV1();
       const notifications = fixture.harness.stateNotificationCount();
       const controller = fixture.controller;
-      expectTypeOf(controller).toEqualTypeOf<NarrativeStablePauseExpiryControllerInternalV1>();
+      expectTypeOf(controller).toEqualTypeOf<NarrativeStableHoldExpiryControllerInternalV1>();
       expect(Object.isFrozen(controller)).toBe(true);
       expect(Reflect.ownKeys(controller)).toEqual([
         "issueAttemptInternalV1",
@@ -4073,34 +4131,31 @@ describe("Narrative stable Managed Surface family", () => {
 
       const attempt = controller.issueAttemptInternalV1();
       expectTypeOf(attempt).toEqualTypeOf<
-        NarrativeStablePauseExpiryControllerAttemptInternalV1 | null
+        NarrativeStableHoldExpiryControllerAttemptInternalV1 | null
       >();
       expect(attempt).not.toBeNull();
       expect(Object.isFrozen(attempt)).toBe(true);
       expect(Reflect.ownKeys(attempt as object)).toEqual([]);
       expect(controller.issueAttemptInternalV1()).toBeNull();
 
-      const result = controller.dispatchInternalV1(attempt);
-      expectTypeOf(result).toEqualTypeOf<NarrativeStablePauseExpiryDispatchResultInternalV1>();
+      const result = controller.dispatchInternalV1(attempt, 250);
+      expectTypeOf(result).toEqualTypeOf<NarrativeStableHoldExpiryDispatchResultInternalV1>();
       expect(result).toMatchObject({ kind: "dispatched" });
       expect(Object.isFrozen(result)).toBe(true);
-      if (result.kind !== "dispatched") throw new Error("expected automatic pause dispatch");
+      if (result.kind !== "dispatched") throw new Error("expected automatic hold dispatch");
       expect(result.completion).toBeInstanceOf(Promise);
       await expect(result.completion).resolves.toBe(semanticReceipt);
-      expect(dispatchResolution).toHaveBeenCalledOnce();
+      expect(dispatchTime).toHaveBeenCalledOnce();
       expect(capturedRequest).toEqual({
-        expectedOccurrenceId: occurrenceV1(1),
-        resolution: { kind: "resume" },
+        elapsedMs: 250,
+        expectedHoldOccurrenceId: occurrenceV1(1),
       });
       expect(Object.isFrozen(capturedRequest)).toBe(true);
-      expect(
-        Object.isFrozen((capturedRequest as { readonly resolution: object }).resolution),
-      ).toBe(true);
-      expect(controller.dispatchInternalV1(attempt)).toEqual({
+      expect(controller.dispatchInternalV1(attempt, 250)).toEqual({
         kind: "stale",
         completion: null,
       });
-      expect(dispatchResolution).toHaveBeenCalledOnce();
+      expect(dispatchTime).toHaveBeenCalledOnce();
       expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
       expect(fixture.harness.stateNotificationCount()).toBe(notifications);
       expect(now).not.toHaveBeenCalled();
@@ -4108,50 +4163,96 @@ describe("Narrative stable Managed Surface family", () => {
     }
   });
 
+  it("faults hold expiry and hold-skip dispatch when the captured port binds no time verb", () => {
+    // A hold frame admitted against a resolution-only port has no path to
+    // settle time: the dispatch itself must fault (never silently stale)
+    // so the Host retires the player instead of retrying forever.
+    const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
+    const timeless = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+
+    const automatic = automaticHoldHarnessV1({ semanticDispatchPort: timeless });
+    const attempt = automatic.controller.issueAttemptInternalV1();
+    expect(attempt).not.toBeNull();
+    expect(automatic.controller.dispatchInternalV1(attempt, 250)).toEqual({
+      kind: "faulted",
+      completion: null,
+    });
+    // The faulted attempt is spent; the controller itself stays alive.
+    expect(automatic.controller.dispatchInternalV1(attempt, 250)).toEqual({
+      kind: "stale",
+      completion: null,
+    });
+    expect(automatic.controller.issueAttemptInternalV1()).not.toBeNull();
+    automatic.controller.disposeInternalV1();
+
+    const skippable = physicalHoldHarnessV1({ semanticDispatchPort: timeless });
+    const skipAttempt = skippable.admission.issueHoldSkipAttemptInternalV1();
+    expect(skipAttempt).not.toBeNull();
+    const routed = skippable.admission.routeInternalV1(
+      skippable.admission.createEnvelopeInternalV1({
+        actionId: narrativeResumeActionIdV1,
+        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.hold-timeless"),
+      }),
+      skipAttempt,
+    );
+    expect(routed.consumerResult).toEqual({ kind: "faulted", completion: null });
+    expect(dispatchResolution).not.toHaveBeenCalled();
+    skippable.admission.disposeInternalV1();
+  });
+
   it("keeps attempts generation-bound across clones, foreign controllers, and A-to-B replacement", async () => {
-    const dispatchResolution = vi.fn(() => Promise.resolve("automatic-resumed"));
-    const semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
-    const fixture = automaticPauseHarnessV1({ semanticDispatchPort: semanticPort });
+    const dispatchTime = vi.fn(() => Promise.resolve("automatic-resumed"));
+    const semanticPort = Object.freeze({
+      dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+      dispatchTimeInternalV1: dispatchTime,
+    });
+    const fixture = automaticHoldHarnessV1({ semanticDispatchPort: semanticPort });
     const controllerA = fixture.controller;
     const attemptA = controllerA.issueAttemptInternalV1();
     expect(attemptA).not.toBeNull();
-    expect(controllerA.dispatchInternalV1({ ...(attemptA as object) })).toEqual({
+    for (const invalidElapsed of [0, -1, 0.5, Number.NaN]) {
+      expect(controllerA.dispatchInternalV1(attemptA, invalidElapsed)).toEqual({
+        kind: "faulted",
+        completion: null,
+      });
+    }
+    expect(controllerA.dispatchInternalV1({ ...(attemptA as object) }, 250)).toEqual({
       kind: "stale",
       completion: null,
     });
 
-    const foreign = automaticPauseHarnessV1();
+    const foreign = automaticHoldHarnessV1();
     const foreignAttempt = foreign.controller.issueAttemptInternalV1();
     expect(foreignAttempt).not.toBeNull();
-    expect(controllerA.dispatchInternalV1(foreignAttempt)).toEqual({
+    expect(controllerA.dispatchInternalV1(foreignAttempt, 250)).toEqual({
       kind: "stale",
       completion: null,
     });
-    expect(dispatchResolution).not.toHaveBeenCalled();
+    expect(dispatchTime).not.toHaveBeenCalled();
 
-    expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("pause", 2)))
+    expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("hold", 2)))
       .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
-    expect(controllerA.dispatchInternalV1(attemptA)).toEqual({
+    expect(controllerA.dispatchInternalV1(attemptA, 250)).toEqual({
       kind: "stale",
       completion: null,
     });
-    expect(() => createNarrativeStablePauseExpiryControllerInternalV1(fixture.harness.bridge))
-      .toThrowError("ui.narrative_stable_pause_expiry_controller_unavailable");
-    expect(dispatchResolution).not.toHaveBeenCalled();
+    expect(() => createNarrativeStableHoldExpiryControllerInternalV1(fixture.harness.bridge))
+      .toThrowError("ui.narrative_stable_hold_expiry_controller_unavailable");
+    expect(dispatchTime).not.toHaveBeenCalled();
     controllerA.disposeInternalV1();
     settleCurrentNarrativeReadyV1(fixture.harness);
 
-    const controllerB = createNarrativeStablePauseExpiryControllerInternalV1(
+    const controllerB = createNarrativeStableHoldExpiryControllerInternalV1(
       fixture.harness.bridge,
     );
     const attemptB = controllerB.issueAttemptInternalV1();
     expect(attemptB).not.toBeNull();
-    const resultB = controllerB.dispatchInternalV1(attemptB);
+    const resultB = controllerB.dispatchInternalV1(attemptB, 250);
     expect(resultB).toMatchObject({ kind: "dispatched" });
     if (resultB.kind !== "dispatched") throw new Error("expected B generation dispatch");
     await expect(resultB.completion).resolves.toBe("automatic-resumed");
-    expect(dispatchResolution).toHaveBeenCalledOnce();
-    expect(controllerB.dispatchInternalV1(attemptB)).toEqual({
+    expect(dispatchTime).toHaveBeenCalledOnce();
+    expect(controllerB.dispatchInternalV1(attemptB, 250)).toEqual({
       kind: "stale",
       completion: null,
     });
@@ -4161,15 +4262,18 @@ describe("Narrative stable Managed Surface family", () => {
   });
 
   it("stales the old topology attempt but admits a fresh controller under a higher nonblocking input owner", async () => {
-    const dispatchResolution = vi.fn(() => Promise.resolve("nonblocking-resumed"));
-    const semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+    const dispatchTime = vi.fn(() => Promise.resolve("nonblocking-resumed"));
+    const semanticPort = Object.freeze({
+      dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+      dispatchTimeInternalV1: dispatchTime,
+    });
     const { harness, nonBlockingDefinition } = nonBlockingNarrativeHarnessV1(semanticPort);
-    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("pause"))).toMatchObject({
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("hold"))).toMatchObject({
       kind: "applied",
       code: "surface.stable_publication_applied",
     });
     settleCurrentNarrativeReadyV1(harness);
-    const oldController = createNarrativeStablePauseExpiryControllerInternalV1(harness.bridge);
+    const oldController = createNarrativeStableHoldExpiryControllerInternalV1(harness.bridge);
     const oldAttempt = oldController.issueAttemptInternalV1();
     expect(oldAttempt).not.toBeNull();
 
@@ -4179,30 +4283,30 @@ describe("Narrative stable Managed Surface family", () => {
       "suspended",
       "candidate",
       () => {
-        expect(() => createNarrativeStablePauseExpiryControllerInternalV1(harness.bridge))
-          .toThrowError("ui.narrative_stable_pause_expiry_controller_unavailable");
+        expect(() => createNarrativeStableHoldExpiryControllerInternalV1(harness.bridge))
+          .toThrowError("ui.narrative_stable_hold_expiry_controller_unavailable");
       },
     );
-    expect(oldController.dispatchInternalV1(oldAttempt)).toEqual({
+    expect(oldController.dispatchInternalV1(oldAttempt, 250)).toEqual({
       kind: "stale",
       completion: null,
     });
 
     const state = harness.kernel.getStateInternalV1();
     const notifications = harness.stateNotificationCount();
-    const freshController = createNarrativeStablePauseExpiryControllerInternalV1(
+    const freshController = createNarrativeStableHoldExpiryControllerInternalV1(
       harness.bridge,
     );
     oldController.disposeInternalV1();
-    expect(() => createNarrativeStablePauseExpiryControllerInternalV1(harness.bridge))
-      .toThrowError("ui.narrative_stable_pause_expiry_controller_invalid");
+    expect(() => createNarrativeStableHoldExpiryControllerInternalV1(harness.bridge))
+      .toThrowError("ui.narrative_stable_hold_expiry_controller_invalid");
     const freshAttempt = freshController.issueAttemptInternalV1();
     expect(freshAttempt).not.toBeNull();
-    const result = freshController.dispatchInternalV1(freshAttempt);
+    const result = freshController.dispatchInternalV1(freshAttempt, 250);
     expect(result).toMatchObject({ kind: "dispatched" });
     if (result.kind !== "dispatched") throw new Error("expected nonblocking dispatch");
     await expect(result.completion).resolves.toBe("nonblocking-resumed");
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(dispatchTime).toHaveBeenCalledOnce();
     expect(harness.kernel.getStateInternalV1()).toBe(state);
     expect(harness.stateNotificationCount()).toBe(notifications);
     expect(state.transientState.publication.inputOwner?.surfaceInstanceId).not.toBe(
@@ -4214,40 +4318,43 @@ describe("Narrative stable Managed Surface family", () => {
   });
 
   it("reissues within the same generation after lower nonblocking topology changes without suspending Narrative", async () => {
-    const dispatchResolution = vi.fn(() => Promise.resolve("lower-nonblocking-resumed"));
-    const semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+    const dispatchTime = vi.fn(() => Promise.resolve("lower-nonblocking-resumed"));
+    const semanticPort = Object.freeze({
+      dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+      dispatchTimeInternalV1: dispatchTime,
+    });
     const { harness, nonBlockingDefinition } = nonBlockingNarrativeHarnessV1(
       semanticPort,
       10,
     );
-    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("pause"))).toMatchObject({
+    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("hold"))).toMatchObject({
       kind: "applied",
       code: "surface.stable_publication_applied",
     });
     settleCurrentNarrativeReadyV1(harness);
-    const controller = createNarrativeStablePauseExpiryControllerInternalV1(harness.bridge);
+    const controller = createNarrativeStableHoldExpiryControllerInternalV1(harness.bridge);
     const oldAttempt = controller.issueAttemptInternalV1();
     expect(oldAttempt).not.toBeNull();
 
     openNonBlockingSurfaceV1(harness, nonBlockingDefinition, "active", "narrative");
-    expect(controller.dispatchInternalV1(oldAttempt)).toEqual({
+    expect(controller.dispatchInternalV1(oldAttempt, 250)).toEqual({
       kind: "stale",
       completion: null,
     });
-    expect(dispatchResolution).not.toHaveBeenCalled();
+    expect(dispatchTime).not.toHaveBeenCalled();
 
     const state = harness.kernel.getStateInternalV1();
     const notifications = harness.stateNotificationCount();
     const freshAttempt = controller.issueAttemptInternalV1();
     expect(freshAttempt).not.toBeNull();
     expect(freshAttempt).not.toBe(oldAttempt);
-    const result = controller.dispatchInternalV1(freshAttempt);
+    const result = controller.dispatchInternalV1(freshAttempt, 250);
     expect(result).toMatchObject({ kind: "dispatched" });
     if (result.kind !== "dispatched") {
       throw new Error("expected same-generation lower-topology dispatch");
     }
     await expect(result.completion).resolves.toBe("lower-nonblocking-resumed");
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(dispatchTime).toHaveBeenCalledOnce();
     expect(harness.kernel.getStateInternalV1()).toBe(state);
     expect(harness.stateNotificationCount()).toBe(notifications);
     controller.disposeInternalV1();
@@ -4257,10 +4364,10 @@ describe("Narrative stable Managed Surface family", () => {
     const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
     const semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
 
-    const nonPause = physicalChoiceHarnessV1({ semanticDispatchPort: semanticPort });
-    expect(() => createNarrativeStablePauseExpiryControllerInternalV1(nonPause.harness.bridge))
-      .toThrowError("ui.narrative_stable_pause_expiry_controller_unavailable");
-    nonPause.admission.disposeInternalV1();
+    const nonHold = physicalChoiceHarnessV1({ semanticDispatchPort: semanticPort });
+    expect(() => createNarrativeStableHoldExpiryControllerInternalV1(nonHold.harness.bridge))
+      .toThrowError("ui.narrative_stable_hold_expiry_controller_unavailable");
+    nonHold.admission.disposeInternalV1();
 
     const preparing = harnessV1({
       candidatePreflight: Object.freeze({
@@ -4271,35 +4378,35 @@ describe("Narrative stable Managed Surface family", () => {
           })),
       }),
     });
-    expect(preparing.bridge.reconcilePendingInternalV1(pendingV1("pause"))).toMatchObject({
+    expect(preparing.bridge.reconcilePendingInternalV1(pendingV1("hold"))).toMatchObject({
       kind: "applied",
       code: "surface.stable_publication_applied",
     });
-    expect(() => createNarrativeStablePauseExpiryControllerInternalV1(preparing.bridge))
-      .toThrowError("ui.narrative_stable_pause_expiry_controller_unavailable");
+    expect(() => createNarrativeStableHoldExpiryControllerInternalV1(preparing.bridge))
+      .toThrowError("ui.narrative_stable_hold_expiry_controller_unavailable");
 
-    const suspended = automaticPauseHarnessV1({ semanticDispatchPort: semanticPort });
+    const suspended = automaticHoldHarnessV1({ semanticDispatchPort: semanticPort });
     const suspendedAttempt = suspended.controller.issueAttemptInternalV1();
     expect(suspendedAttempt).not.toBeNull();
     suspendCurrentNarrativeV1(suspended.harness);
-    expect(suspended.controller.dispatchInternalV1(suspendedAttempt)).toEqual({
+    expect(suspended.controller.dispatchInternalV1(suspendedAttempt, 250)).toEqual({
       kind: "stale",
       completion: null,
     });
 
-    const emptied = automaticPauseHarnessV1({ semanticDispatchPort: semanticPort });
+    const emptied = automaticHoldHarnessV1({ semanticDispatchPort: semanticPort });
     const emptiedAttempt = emptied.controller.issueAttemptInternalV1();
     expect(emptiedAttempt).not.toBeNull();
     expect(emptied.harness.bridge.reconcilePendingInternalV1(null)).toMatchObject({
       kind: "applied",
       code: "surface.stable_publication_applied",
     });
-    expect(emptied.controller.dispatchInternalV1(emptiedAttempt)).toEqual({
+    expect(emptied.controller.dispatchInternalV1(emptiedAttempt, 250)).toEqual({
       kind: "stale",
       completion: null,
     });
 
-    const publisherDisposed = automaticPauseHarnessV1({
+    const publisherDisposed = automaticHoldHarnessV1({
       semanticDispatchPort: semanticPort,
     });
     const publisherDisposedAttempt = publisherDisposed.controller.issueAttemptInternalV1();
@@ -4309,32 +4416,33 @@ describe("Narrative stable Managed Surface family", () => {
       code: "surface.stable_publisher_disposed",
     });
     expect(
-      publisherDisposed.controller.dispatchInternalV1(publisherDisposedAttempt),
+      publisherDisposed.controller.dispatchInternalV1(publisherDisposedAttempt, 250),
     ).toEqual({ kind: "stale", completion: null });
 
-    const controllerDisposed = automaticPauseHarnessV1({
+    const controllerDisposed = automaticHoldHarnessV1({
       semanticDispatchPort: semanticPort,
     });
     const controllerDisposedAttempt = controllerDisposed.controller.issueAttemptInternalV1();
     expect(controllerDisposedAttempt).not.toBeNull();
     controllerDisposed.controller.disposeInternalV1();
-    expect(controllerDisposed.controller.dispatchInternalV1(controllerDisposedAttempt)).toEqual({
-      kind: "stale",
-      completion: null,
-    });
-    const fresh = createNarrativeStablePauseExpiryControllerInternalV1(
+    expect(controllerDisposed.controller.dispatchInternalV1(controllerDisposedAttempt, 250))
+      .toEqual({
+        kind: "stale",
+        completion: null,
+      });
+    const fresh = createNarrativeStableHoldExpiryControllerInternalV1(
       controllerDisposed.harness.bridge,
     );
     expect(fresh.issueAttemptInternalV1()).not.toBeNull();
     fresh.disposeInternalV1();
 
-    const terminal = automaticPauseHarnessV1({ semanticDispatchPort: semanticPort });
+    const terminal = automaticHoldHarnessV1({ semanticDispatchPort: semanticPort });
     const terminalAttempt = terminal.controller.issueAttemptInternalV1();
     expect(terminalAttempt).not.toBeNull();
     expect(terminal.harness.kernel.transitionTransientInternalV1({
       kind: "dispose_coordinator",
     })).toMatchObject({ kind: "applied", code: "surface.coordinator_disposed" });
-    expect(terminal.controller.dispatchInternalV1(terminalAttempt)).toEqual({
+    expect(terminal.controller.dispatchInternalV1(terminalAttempt, 250)).toEqual({
       kind: "stale",
       completion: null,
     });
@@ -4347,41 +4455,44 @@ describe("Narrative stable Managed Surface family", () => {
   });
 
   it("normalizes semantic throw, spends before reentry, and preserves exact successor claims", async () => {
-    const sentinel = new Error("automatic pause semantic dispatch failed");
-    let controller!: NarrativeStablePauseExpiryControllerInternalV1;
-    let attempt!: NarrativeStablePauseExpiryControllerAttemptInternalV1;
-    let reentrantResult: NarrativeStablePauseExpiryDispatchResultInternalV1 | null = null;
-    const dispatchResolution = vi.fn(() => {
-      reentrantResult = controller.dispatchInternalV1(attempt);
+    const sentinel = new Error("automatic hold semantic dispatch failed");
+    let controller!: NarrativeStableHoldExpiryControllerInternalV1;
+    let attempt!: NarrativeStableHoldExpiryControllerAttemptInternalV1;
+    let reentrantResult: NarrativeStableHoldExpiryDispatchResultInternalV1 | null = null;
+    const dispatchTime = vi.fn(() => {
+      reentrantResult = controller.dispatchInternalV1(attempt, 250);
       throw sentinel;
     });
-    const fixture = automaticPauseHarnessV1({
-      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+    const fixture = automaticHoldHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+        dispatchTimeInternalV1: dispatchTime,
+      }),
     });
     controller = fixture.controller;
-    expect(() => createNarrativeStablePauseExpiryControllerInternalV1(fixture.harness.bridge))
-      .toThrowError("ui.narrative_stable_pause_expiry_controller_invalid");
+    expect(() => createNarrativeStableHoldExpiryControllerInternalV1(fixture.harness.bridge))
+      .toThrowError("ui.narrative_stable_hold_expiry_controller_invalid");
     const issued = controller.issueAttemptInternalV1();
-    if (issued === null) throw new Error("expected automatic pause attempt");
+    if (issued === null) throw new Error("expected automatic hold attempt");
     attempt = issued;
     const state = fixture.harness.kernel.getStateInternalV1();
     const notifications = fixture.harness.stateNotificationCount();
-    const result = controller.dispatchInternalV1(attempt);
+    const result = controller.dispatchInternalV1(attempt, 250);
     expect(result).toMatchObject({ kind: "dispatched" });
     if (result.kind !== "dispatched") throw new Error("expected rejected completion");
     await expect(result.completion).rejects.toBe(sentinel);
     expect(reentrantResult).toEqual({ kind: "stale", completion: null });
-    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(dispatchTime).toHaveBeenCalledOnce();
     expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
     expect(fixture.harness.stateNotificationCount()).toBe(notifications);
 
     controller.disposeInternalV1();
-    const successor = createNarrativeStablePauseExpiryControllerInternalV1(
+    const successor = createNarrativeStableHoldExpiryControllerInternalV1(
       fixture.harness.bridge,
     );
     controller.disposeInternalV1();
-    expect(() => createNarrativeStablePauseExpiryControllerInternalV1(fixture.harness.bridge))
-      .toThrowError("ui.narrative_stable_pause_expiry_controller_invalid");
+    expect(() => createNarrativeStableHoldExpiryControllerInternalV1(fixture.harness.bridge))
+      .toThrowError("ui.narrative_stable_hold_expiry_controller_invalid");
     expect(successor.issueAttemptInternalV1()).not.toBeNull();
     successor.disposeInternalV1();
   });
@@ -4389,18 +4500,21 @@ describe("Narrative stable Managed Surface family", () => {
   it(
     "bounds ten-thousand controller rotations without timer, source, or runtime churn",
     () => {
-      let activeController: NarrativeStablePauseExpiryControllerInternalV1 | null = null;
-      let activeAttempt: NarrativeStablePauseExpiryControllerAttemptInternalV1 | null = null;
-      let reentrantResult: NarrativeStablePauseExpiryDispatchResultInternalV1 | null = null;
-      const dispatchResolution = vi.fn(() => {
+      let activeController: NarrativeStableHoldExpiryControllerInternalV1 | null = null;
+      let activeAttempt: NarrativeStableHoldExpiryControllerAttemptInternalV1 | null = null;
+      let reentrantResult: NarrativeStableHoldExpiryDispatchResultInternalV1 | null = null;
+      const dispatchTime = vi.fn(() => {
         if (activeController === null || activeAttempt === null) {
           throw new Error("missing active automatic controller");
         }
-        reentrantResult = activeController.dispatchInternalV1(activeAttempt);
+        reentrantResult = activeController.dispatchInternalV1(activeAttempt, 250);
         return Promise.resolve("bounded-resume");
       });
-      const fixture = automaticPauseHarnessV1({
-        semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+      const fixture = automaticHoldHarnessV1({
+        semanticDispatchPort: Object.freeze({
+          dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+          dispatchTimeInternalV1: dispatchTime,
+        }),
       });
       const state = fixture.harness.kernel.getStateInternalV1();
       const notifications = fixture.harness.stateNotificationCount();
@@ -4415,21 +4529,21 @@ describe("Narrative stable Managed Surface family", () => {
         }
         controller.disposeInternalV1();
         if (index < 9_999) {
-          controller = createNarrativeStablePauseExpiryControllerInternalV1(
+          controller = createNarrativeStableHoldExpiryControllerInternalV1(
             fixture.harness.bridge,
           );
         }
       }
 
-      activeController = createNarrativeStablePauseExpiryControllerInternalV1(
+      activeController = createNarrativeStableHoldExpiryControllerInternalV1(
         fixture.harness.bridge,
       );
       activeAttempt = activeController.issueAttemptInternalV1();
       expect(activeAttempt).not.toBeNull();
-      const result = activeController.dispatchInternalV1(activeAttempt);
+      const result = activeController.dispatchInternalV1(activeAttempt, 250);
       expect(result).toMatchObject({ kind: "dispatched" });
       expect(reentrantResult).toEqual({ kind: "stale", completion: null });
-      expect(dispatchResolution).toHaveBeenCalledOnce();
+      expect(dispatchTime).toHaveBeenCalledOnce();
       expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
       expect(fixture.harness.stateNotificationCount()).toBe(notifications);
       expect(publisherSnapshotV1(fixture.harness)).toMatchObject({
@@ -6410,13 +6524,13 @@ describe("Narrative stable Managed Surface family", () => {
 
   it("issues only for current Say and spends before a shared content-auto claim", () => {
     const choice = physicalChoiceHarnessV1();
-    const pause = physicalPauseHarnessV1();
+    const hold = physicalHoldHarnessV1();
     const custom = physicalCustomHarnessV1();
     expect(choice.admission.issueVoiceReplayAttemptInternalV1()).toBeNull();
-    expect(pause.admission.issueVoiceReplayAttemptInternalV1()).toBeNull();
+    expect(hold.admission.issueVoiceReplayAttemptInternalV1()).toBeNull();
     expect(custom.admission.issueVoiceReplayAttemptInternalV1()).toBeNull();
     choice.admission.disposeInternalV1();
-    pause.admission.disposeInternalV1();
+    hold.admission.disposeInternalV1();
     custom.admission.disposeInternalV1();
 
     let fixture!: ReturnType<typeof physicalSayHarnessV1>;
@@ -6860,7 +6974,7 @@ describe("Narrative stable Managed Surface family", () => {
     for (
       const kind of [
         "choice",
-        "pause",
+        "hold",
         "custom",
       ] as const
     ) {
@@ -6938,7 +7052,7 @@ describe("Narrative stable Managed Surface family", () => {
     const attempt = admission.issuePlaybackModeToggleAttemptInternalV1("skip");
     expect(attempt).not.toBeNull();
     expect(admission.issueChoiceAttemptInternalV1("choice.test.first")).toBeNull();
-    expect(admission.issuePauseResumeAttemptInternalV1()).toBeNull();
+    expect(admission.issueHoldSkipAttemptInternalV1()).toBeNull();
     expect(admission.issueCustomAttemptInternalV1(Object.freeze({}))).toBeNull();
     expect(admission.issueSayActivationAttemptInternalV1(barrier.controller)).toBeNull();
     expect(admission.issueVoiceReplayAttemptInternalV1()).toBeNull();
@@ -7090,7 +7204,7 @@ describe("Narrative stable Managed Surface family", () => {
   it("resets both active modes before every remaining non-Say boundary notification", () => {
     for (
       const [kind, mode] of [
-        ["pause", "auto"],
+        ["hold", "auto"],
         ["custom", "skip"],
         ["presentation_barrier", "auto"],
       ] as const
@@ -7855,13 +7969,18 @@ describe("Narrative stable Managed Surface family", () => {
       .toMatchObject({ kind: "dispatched" });
     choice.admission.disposeInternalV1();
 
-    const pause = physicalPauseHarnessV1();
-    const pauseAttempt = pause.admission.issuePauseResumeAttemptInternalV1();
-    expect(pauseAttempt).not.toBeNull();
-    probeModeAction(pause.admission, pauseAttempt, "pause");
-    expect(routeCorrect(pause.admission, narrativeResumeActionIdV1, pauseAttempt, "pause"))
+    const hold = physicalHoldHarnessV1({
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+        dispatchTimeInternalV1: () => Promise.resolve(undefined),
+      }),
+    });
+    const holdAttempt = hold.admission.issueHoldSkipAttemptInternalV1();
+    expect(holdAttempt).not.toBeNull();
+    probeModeAction(hold.admission, holdAttempt, "hold");
+    expect(routeCorrect(hold.admission, narrativeResumeActionIdV1, holdAttempt, "hold"))
       .toMatchObject({ kind: "dispatched" });
-    pause.admission.disposeInternalV1();
+    hold.admission.disposeInternalV1();
 
     const custom = physicalCustomHarnessV1();
     const customAttempt = custom.admission.issueCustomAttemptInternalV1({ value: 1 });
@@ -10607,7 +10726,7 @@ describe("Narrative stable Managed Surface family", () => {
   }, 30_000);
 
   it.each(
-    (["say", "choice", "pause", "custom", "presentation_barrier"] as const).flatMap(
+    (["say", "choice", "hold", "custom", "presentation_barrier"] as const).flatMap(
       (kind) =>
         [
           [kind, "true", (): boolean => true, "requested"],
@@ -10769,7 +10888,7 @@ describe("Narrative stable Managed Surface family", () => {
         .consumerResult,
     ).toBeNull();
 
-    const emptied = physicalHistoryHarnessV1({ kind: "pause" });
+    const emptied = physicalHistoryHarnessV1({ kind: "hold" });
     const emptiedAttempt = emptied.admission.issueHistoryOpenAttemptInternalV1();
     expect(emptied.harness.bridge.reconcilePendingInternalV1(null)).toMatchObject({
       kind: "applied",

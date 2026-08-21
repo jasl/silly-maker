@@ -1,6 +1,6 @@
 # SillyMaker engine roadmap
 
-状态：2026-07-19 接受，最近审查修订 2026-08-18。已实现能力以
+状态：2026-07-19 接受，最近审查修订 2026-08-22。已实现能力以
 [features](features.md) 为准；历史交付见
 [roadmap archive](roadmap-archive.md)。当前执行入口只有
 [Production-floor execution sequence](plans/2026-07-30-production-floor-sequence.md)，它再引用各 focused plan；design/roadmap
@@ -108,10 +108,18 @@ authoring geometry + 项目级 Studio（Track D 第 6 项 editor shell 的 VN �
 2026-08-15 所有者以 A5 两轮基准与实验仓真实内容迁移证据（调校既有场景可用，但从零构
 造与素材/内容进场未收敛）及自身角色决定（常态为试玩与 bug 汇报，日常修改由 Agent
 与 Studio 完成）接受并于同日完成
-[Authoring Architecture V1](plans/2026-08-15-authoring-architecture.md)：Studio 作者信任
-加固、统一创作外壳与共享文档会话、project authoring
-index、Story 包目录 locality 与 Scene Construction，目标合同见
-[统一创作架构](design/authoring-architecture.md)。
+[Authoring Architecture V1](plans/2026-08-15-authoring-architecture.md)：Studio
+作者信任加固、统一创作外壳与共享文档会话、project authoring index、Story 包目录
+locality、Scene Construction 与只读 Flow workspace，目标合同见
+[统一创作架构](design/authoring-architecture.md)。其后为逐条所有者下令的引擎车
+道，全部当日交付收口：cue identity（2026-08-17）、权威持有钟（2026-08-19，
+`pause` 并入 `hold`）、并行监视器（2026-08-20，唯一时间动词 `TimeTickV1`、领域
+事件 + reducer、权威监视器 V1、持久化安全点、监视器节奏环）、可创作帧集/命中区
+形状/hold `when`（均 2026-08-21）、持有中输入（2026-08-22，零新引擎原语）。
+上述补缺 lane 至 2026-08-22 全部交付关闭；合并后当前默认/core lane 回到本文后述的
+Application Runtime AR0–AR6，唯一 next task 是 AR0。排序与交付记录以
+[Production-floor sequence](plans/2026-07-30-production-floor-sequence.md) §1
+为准，live capability 以 [features](features.md) 为准。
 
 2026-08-18 新的外部规模证据激活了一个独立分支实验：
 [Experimental composition kernel and State Runtime](plans/2026-08-18-experimental-composition-state-runtime.md)。
@@ -129,6 +137,8 @@ State Format V2、Effect Broker/OpenUI、独立的 i18n/message-catalog lane 或
 migration，未激活层不构成新的 release blocker。X7 证明 Composition 开销很低并刻画
 whole-Snapshot 规模成本；若真实 replay/fast-forward/Save latency 成为产品问题，先 profile
 authoritative replay 的重复 canonicalization，再讨论改变 State 格式。
+2026-08-22 吸收 parallel-monitors 后，实验 State façade 同步改用 Base 唯一的 domain-event
+journal/reducer transaction；早期 proposal/fact shape 只保留为历史 checkpoint，不建立兼容层。
 
 2026-08-18 所有者以新的产品方向证据接受
 [Application Runtime and Embedded Authoring V1](plans/2026-08-18-application-runtime-embedded-authoring.md)
@@ -167,7 +177,18 @@ SQLite operational contract；除非出现 concrete blocker，不再把 journal/
 - [VN Scene Workspace](plans/2026-08-14-vn-scene-workspace.md)（2026-08-14 接受，
   2026-08-15 完成）
 - [Authoring Architecture](plans/2026-08-15-authoring-architecture.md)（2026-08-15
-  接受并完成）
+  接受，同日完成）
+- [Authoritative hold clock](plans/2026-08-19-authoritative-hold-clock.md)
+  （2026-08-19 接受，同日完成）
+- [Parallel monitors](plans/2026-08-20-parallel-monitors.md)（2026-08-20 接受，
+  同日完成）
+- [Authorable frame set](plans/2026-08-21-authorable-frame-set.md)（2026-08-21
+  接受，同日完成）
+- [Shaped hit regions](plans/2026-08-21-shaped-hit-regions.md)（2026-08-21 接受，
+  同日完成）
+- [Hold when](plans/2026-08-21-hold-when.md)（2026-08-21 接受，同日完成）
+- [Mid-hold input](plans/2026-08-22-mid-hold-input.md)（2026-08-22 接受，同日
+  完成）
 
 原则是**一次只迁移一个可独立验收的 authority**。不接受把 Surface、Save、
 Snapshot 数据结构、determinism guard 或 Mod resolver 作为一个大改动交给 Agent。
@@ -199,7 +220,7 @@ Surface pilot。
 - network、LLM、wall clock 与系统 entropy 只有先变成 validated canonical
   command/resource identity 才能影响规则，replay 不重新调用 oracle；
 - 修复 xorshift32 zero absorbing state，并在 executor/log 前封住 normalized
-  command、facts、rejections、stable fault/RNG evidence；
+  command、events、rejections、stable fault/RNG evidence；
 - 修复 Strict JSON 先转 binary64 导致数学小数可能舍入为 safe integer 的 token
   admission gap，同时保持 canonical output/digest 不变；
 - 将 Story-owned `createBootstrapInput` 限定为显式 entropy ingress adapter，并在

@@ -18,6 +18,7 @@ import {
 } from "@sillymaker/base";
 
 import type { PresentationFreezePortV1 } from "../presentation-run/presentation-freeze.ts";
+import type { PresentationRatePortV1 } from "../presentation-run/presentation-rate.ts";
 import type { SaveOverlayPortV1 } from "../persistence/save-overlay.tsx";
 import { Button } from "../primitives/button.tsx";
 import type { DevDockPositionV1 } from "./dev-dock.tsx";
@@ -50,6 +51,8 @@ export interface StoryDebugDockLabelsV1 extends SessionMaintenanceLabelsV1 {
   readonly resumeLabel: string;
   readonly freezeNote: string;
   readonly resumeNote: string;
+  readonly rateLabel: string;
+  readonly ratePinnedLabel: string;
   readonly toolOpenedNote: string;
   readonly wipeDialogTitle: string;
   readonly wipeDialogDescription: string;
@@ -80,6 +83,8 @@ export const defaultStoryDebugDockLabelsV1: StoryDebugDockLabelsV1 = Object.free
   resumeLabel: "恢复画面",
   freezeNote: "画面已冻结——动画与 gameplay 输入暂停，调试点击照常。",
   resumeNote: "画面已恢复。",
+  rateLabel: "倍速",
+  ratePinnedLabel: "实时段 1×",
   toolOpenedNote: "已打开工具窗口（拖动标题栏可移动，Esc 关闭）。",
   exportStateLabel: "导出状态",
   importStateLabel: "导入状态",
@@ -126,6 +131,8 @@ export interface StoryDebugDockPropsV1 {
   readonly capabilities: RuntimeCapabilityPortV1;
   readonly control: DevDockControlV1;
   readonly presentationFreeze?: PresentationFreezePortV1;
+  /** Presentation playback-rate port; renders the 倍速 preset row. */
+  readonly presentationRate?: PresentationRatePortV1;
   readonly savePort?: SaveOverlayPortV1;
   /** Engine Core wipe (autosave drain + partial failure). */
   readonly clearAllSaves?: () => Promise<void>;
@@ -176,6 +183,13 @@ export interface StoryDebugDockPropsV1 {
 
 function failureNoteV1(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** Debug playback-rate presets; a Story's Ctrl fast-forward pin stays its own binding. */
+const presentationRatePresetsV1: readonly number[] = Object.freeze([0.5, 1, 2, 4, 8]);
+
+function formatRatePresetV1(rate: number): string {
+  return `${rate}×`;
 }
 
 function confirmSpecV1(
@@ -400,6 +414,16 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
     () => props.presentationFreeze?.state.getCurrent().frozen ?? false,
     () => props.presentationFreeze?.state.getCurrent().frozen ?? false,
   );
+  const presentationRate = useSyncExternalStore(
+    props.presentationRate?.state.subscribe ?? (() => () => undefined),
+    () => props.presentationRate?.state.getCurrent().rate ?? 1,
+    () => props.presentationRate?.state.getCurrent().rate ?? 1,
+  );
+  const presentationRatePinned = useSyncExternalStore(
+    props.presentationRate?.state.subscribe ?? (() => () => undefined),
+    () => props.presentationRate?.state.getCurrent().pinned ?? false,
+    () => props.presentationRate?.state.getCurrent().pinned ?? false,
+  );
   const registry = useSyncExternalStore(
     props.control.panels.subscribe,
     props.control.panels.getCurrent,
@@ -443,6 +467,7 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
     props.clearAllSaves !== undefined ||
     stateTools.length > 0;
   const hasSceneSection = props.presentationFreeze !== undefined ||
+    props.presentationRate !== undefined ||
     sceneTools.length > 0 ||
     studioHref !== undefined;
 
@@ -757,6 +782,36 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
                             {sceneTools[0] === undefined
                               ? null
                               : renderToolButtonV1(sceneTools[0], false)}
+                          </div>
+                        )}
+                      {props.presentationRate === undefined
+                        ? null
+                        : (
+                          <div className={styles["story-debug-dock__rate"]}>
+                            <span className={styles["story-debug-dock__rate-label"]}>
+                              {labels.rateLabel}
+                            </span>
+                            <div className={styles["story-debug-dock__rate-options"]}>
+                              {presentationRatePresetsV1.map((preset) => (
+                                <Button
+                                  key={preset}
+                                  data-debug-dock-action="rate"
+                                  data-debug-dock-rate={String(preset)}
+                                  aria-pressed={presentationRate === preset}
+                                  onClick={() => props.presentationRate?.setRate(preset)}
+                                >
+                                  {formatRatePresetV1(preset)}
+                                </Button>
+                              ))}
+                            </div>
+                            {presentationRatePinned && (
+                              <span
+                                className={styles["story-debug-dock__rate-pinned"]}
+                                data-debug-dock-rate-pinned=""
+                              >
+                                {labels.ratePinnedLabel}
+                              </span>
+                            )}
                           </div>
                         )}
                       {sceneTools.slice(1).map((tool) => renderToolButtonV1(tool, false))}

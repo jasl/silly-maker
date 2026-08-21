@@ -29,6 +29,7 @@ import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 import {
   createStateAuthoringKitV1,
   type StateAnyModuleV1,
+  type StateCapabilityV1,
   type StateFinalizedCommandAttemptV1,
   type StateModuleCompositionV1,
   type StateRuntimeDefinitionV1,
@@ -111,10 +112,13 @@ interface NeutralBenchmarkCommandV1 {
   readonly kind: "neutral.advance";
 }
 
-interface NeutralBenchmarkFactV1 {
-  readonly kind: "neutral.module_advanced";
-  readonly moduleId: string;
+interface NeutralBenchmarkEventV1 {
+  readonly kind: `neutral.module_advanced:${string}`;
   readonly counter: number;
+}
+
+interface NeutralModuleReadPortV1 {
+  counter(): number;
 }
 
 interface NeutralBenchmarkRejectionV1 {
@@ -127,7 +131,7 @@ interface NeutralBenchmarkFaultV1 {
 
 interface NeutralBenchmarkTypesV1 extends StateWorkflowTypeMapV1<NeutralBenchmarkStateV1> {
   readonly command: NeutralBenchmarkCommandV1;
-  readonly fact: NeutralBenchmarkFactV1;
+  readonly event: NeutralBenchmarkEventV1;
   readonly rejection: NeutralBenchmarkRejectionV1;
   readonly fault: NeutralBenchmarkFaultV1;
   readonly debugCommand: never;
@@ -152,6 +156,7 @@ interface ActivatedNeutralHarnessV1 {
   readonly adapter: NeutralAdapterV1;
   readonly kernel: CompositionKernelV1;
   readonly lease: LegacyApplicationLeaseV1<NeutralApplicationV1>;
+  readonly readTokens: readonly StateCapabilityV1<NeutralModuleReadPortV1>[];
   readonly stateComposition: NeutralStateCompositionV1;
   dispose(): Promise<void>;
 }
@@ -164,6 +169,9 @@ const moduleKeysV1 = Object.freeze(
   ),
 );
 const moduleIdsV1 = Object.freeze(moduleKeysV1.map((key) => `bench.state.${key}`));
+const moduleEventKindsV1 = Object.freeze(
+  moduleIdsV1.map((moduleId) => `neutral.module_advanced:${moduleId}` as const),
+);
 const neutralCommandV1 = Object.freeze({ kind: "neutral.advance" as const });
 const fixedInstantV1 = "2026-08-18T00:00:00.000Z" as IsoUtcInstant;
 let persistenceIdentityV1 = 0;
@@ -220,12 +228,21 @@ const neutralCommandSchemaV1: RuntimeSchemaV1<NeutralBenchmarkCommandV1> = Objec
   },
 });
 
-const neutralOperationSchemaV1: RuntimeSchemaV1<{ readonly kind: "advance" }> = Object.freeze({
+const neutralEventSchemaV1: RuntimeSchemaV1<NeutralBenchmarkEventV1> = Object.freeze({
   parse(value: unknown) {
-    if (!isPlainRecordV1(value) || value.kind !== "advance") {
-      throw new TypeError("invalid neutral module operation");
+    if (
+      !isPlainRecordV1(value) ||
+      Object.keys(value).sort().join("\0") !== "counter\0kind" ||
+      typeof value.kind !== "string" ||
+      !moduleEventKindsV1.includes(value.kind as `neutral.module_advanced:${string}`) ||
+      !Number.isSafeInteger(value.counter)
+    ) {
+      throw new TypeError("invalid neutral benchmark event");
     }
-    return Object.freeze({ kind: "advance" as const });
+    return Object.freeze({
+      kind: value.kind as `neutral.module_advanced:${string}`,
+      counter: parseNonNegativeSafeInteger(value.counter),
+    });
   },
 });
 
@@ -301,7 +318,9 @@ function createModulesV1(
   const payloads = payloadsV1(payloadBytes);
   return Object.freeze(moduleKeysV1.map((key, index) => {
     const moduleId = moduleIdsV1[index]!;
-    return kit.defineModule({
+    const eventKind = moduleEventKindsV1[index]!;
+    const read = kit.defineCapability<NeutralModuleReadPortV1>(`${moduleId}.read`);
+    const module = kit.defineModule({
       id: moduleId,
       contractRevision: 1,
       state: {
@@ -309,48 +328,42 @@ function createModulesV1(
         schema: neutralSliceSchemaV1,
         initial: () => Object.freeze({ counter: 0, payload: payloads[index]! }),
       },
-      owner: {
-        operationSchema: neutralOperationSchemaV1,
-        propose(state, operation) {
-          const counter = parseNonNegativeSafeInteger(state.counter + 1);
+      provides: (provide) => [
+        provide(read, ({ readOwnState }) => ({ counter: () => readOwnState().counter })),
+      ],
+      reducers: {
+        [eventKind](state, event) {
           return Object.freeze({
-            kind: "proposed" as const,
-            proposal: Object.freeze({
-              payload: operation,
-              facts: Object.freeze([
-                Object.freeze({
-                  kind: "neutral.module_advanced" as const,
-                  moduleId,
-                  counter,
-                }),
-              ]),
-            }),
-          });
-        },
-        apply(state) {
-          return Object.freeze({
-            counter: parseNonNegativeSafeInteger(state.counter + 1),
+            counter: event.counter,
             payload: state.payload,
           });
         },
       },
     });
+    return Object.freeze({ module, read });
   }));
 }
 
 function createAdapterV1(input: {
   readonly stateComposition: NeutralStateCompositionV1;
-  readonly modules: ReturnType<typeof createModulesV1>;
+  readonly readTokens: readonly StateCapabilityV1<NeutralModuleReadPortV1>[];
   readonly touchedModules: NeutralStateTouchedModuleCountV1;
   readonly initialSnapshot: NeutralSnapshotV1;
   readonly attempts?: StateFinalizedCommandAttemptV1<NeutralBenchmarkTypesV1>[];
 }): NeutralAdapterV1 {
   const workflow = input.stateComposition.createWorkflow({
     stateSchema: neutralStateSchemaV1,
+    eventSchema: neutralEventSchemaV1,
     createFault: () => Object.freeze({ code: "neutral.failed" as const }),
     run(transaction) {
       for (let index = 0; index < input.touchedModules; index += 1) {
-        transaction.propose(input.modules[index]!, { kind: "advance" });
+        const counter = parseNonNegativeSafeInteger(
+          transaction.read(input.readTokens[index]!).counter() + 1,
+        );
+        transaction.emit(Object.freeze({
+          kind: moduleEventKindsV1[index]!,
+          counter,
+        }));
       }
       return transaction.complete();
     },
@@ -378,8 +391,8 @@ function createAdapterV1(input: {
 
 interface NeutralHarnessBlueprintV1 {
   readonly kit: ReturnType<typeof createStateAuthoringKitV1<NeutralBenchmarkTypesV1>>;
-  readonly modules: ReturnType<typeof createModulesV1>;
   readonly profile: ReturnType<typeof defineStateCompositionProfileV1>;
+  readonly readTokens: readonly StateCapabilityV1<NeutralModuleReadPortV1>[];
   readonly factoryToken: ReturnType<
     typeof createCompositionServiceTokenV1<LegacyApplicationFactoryV1<NeutralApplicationV1>>
   >;
@@ -392,7 +405,9 @@ function createHarnessBlueprintV1(input: {
   readonly commandSequence?: number;
 }): NeutralHarnessBlueprintV1 {
   const kit = createStateAuthoringKitV1<NeutralBenchmarkTypesV1>();
-  const modules = createModulesV1(kit, input.payloadBytes);
+  const moduleEntries = createModulesV1(kit, input.payloadBytes);
+  const modules = Object.freeze(moduleEntries.map(({ module }) => module));
+  const readTokens = Object.freeze(moduleEntries.map(({ read }) => read));
   const factoryToken = createCompositionServiceTokenV1<
     LegacyApplicationFactoryV1<NeutralApplicationV1>
   >("bench.state.session.factory");
@@ -409,7 +424,7 @@ function createHarnessBlueprintV1(input: {
       return Object.freeze({
         adapter: createAdapterV1({
           stateComposition,
-          modules,
+          readTokens,
           touchedModules: input.touchedModules,
           initialSnapshot: initialSnapshotV1(input),
         }),
@@ -424,8 +439,8 @@ function createHarnessBlueprintV1(input: {
   });
   return Object.freeze({
     kit,
-    modules,
     profile,
+    readTokens,
     factoryToken,
     setStateComposition(composition: NeutralStateCompositionV1) {
       if (stateComposition !== null) throw new TypeError("neutral State plan already compiled");
@@ -451,6 +466,7 @@ async function activateHarnessV1(input: {
     adapter: lease.application.adapter,
     kernel,
     lease,
+    readTokens: blueprint.readTokens,
     stateComposition,
     async dispose() {
       if (disposed) return;
@@ -540,7 +556,6 @@ async function calibratePayloadBytesV1(
 
 async function authoritativeReplayV1(
   harness: ActivatedNeutralHarnessV1,
-  modules: ReturnType<typeof createModulesV1>,
   touchedModules: NeutralStateTouchedModuleCountV1,
 ): Promise<ReplayComparisonV1> {
   const commandLog = harness.adapter.composition.commandLog.entries();
@@ -560,7 +575,7 @@ async function authoritativeReplayV1(
       const attempts: StateFinalizedCommandAttemptV1<NeutralBenchmarkTypesV1>[] = [];
       const adapter = createAdapterV1({
         stateComposition: harness.stateComposition,
-        modules,
+        readTokens: harness.readTokens,
         touchedModules,
         initialSnapshot: replayBase as NeutralSnapshotV1,
         attempts,
@@ -662,6 +677,7 @@ export async function runNeutralStateCorrectnessV1(input: {
     adapter: sourceLease.application.adapter,
     kernel: sourceKernel,
     lease: sourceLease,
+    readTokens: sourceBlueprint.readTokens,
     stateComposition: sourceComposition,
     async dispose() {
       if (sourceDisposed) return;
@@ -707,7 +723,6 @@ export async function runNeutralStateCorrectnessV1(input: {
     const replayStarted = now();
     const replay = await authoritativeReplayV1(
       sourceHarness,
-      sourceBlueprint.modules,
       input.touchedModules,
     );
     const replayDuration = now() - replayStarted;

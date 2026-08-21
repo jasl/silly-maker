@@ -70,7 +70,7 @@ type Attempt = CommandExecutionAttemptEnvelopeV1<
 interface Types extends GameSimulationTypeMapV1<GameBootstrapInputV1, State, RngState> {
   readonly snapshot: Snapshot;
   readonly command: Command;
-  readonly fact: { readonly count: number };
+  readonly event: { readonly count: number };
   readonly rejection: { readonly code: string };
   readonly fault: { readonly code: string };
   readonly debugCommand: DebugCommand;
@@ -136,7 +136,7 @@ const attempt = (current: Snapshot, command: Command): Attempt => {
     result: Object.freeze({
       kind: "committed" as const,
       snapshot: createSnapshot(current.state.count + 1, current.integrity),
-      facts: Object.freeze([{ count: current.state.count + 1 }]),
+      events: Object.freeze([{ count: current.state.count + 1 }]),
     }),
     diagnostics: Object.freeze({
       committedRngBefore: Object.freeze({ cursor: 0 }),
@@ -155,7 +155,7 @@ function integrityDriftAttempt(
     ? Object.freeze({
       kind: "committed" as const,
       snapshot: drifted,
-      facts: Object.freeze([{ count: drifted.state.count }]),
+      events: Object.freeze([{ count: drifted.state.count }]),
     })
     : kind === "rejected"
     ? Object.freeze({
@@ -594,7 +594,7 @@ describe("GameSession FIFO", () => {
     expect(entry).toMatchObject({
       source: "game",
       command: { kind: "increment" },
-      outcome: { kind: "committed", facts: [{ count: 1 }] },
+      outcome: { kind: "committed", events: [{ count: 1 }] },
       commandSequence: { before: 0, after: 1 },
     });
     expect(entry?.command).not.toBe(admitted);
@@ -3290,7 +3290,7 @@ describe("GameSession snapshot immutability", () => {
         const current = snapshot as Snapshot;
         const next = createMutableSnapshot(current.state.count + 1, current.integrity);
         return {
-          result: { kind: "committed", snapshot: next, facts: [{ count: next.state.count }] },
+          result: { kind: "committed", snapshot: next, events: [{ count: next.state.count }] },
           diagnostics: {
             committedRngBefore: current.rng,
             attemptedDraws: [] as readonly never[],
@@ -3345,7 +3345,7 @@ describe("GameSession snapshot immutability", () => {
         const current = snapshot as Snapshot;
         const next = createMutableSnapshot(current.state.count + 1, current.integrity);
         return {
-          result: { kind: "committed", snapshot: next, facts: [{ count: next.state.count }] },
+          result: { kind: "committed", snapshot: next, events: [{ count: next.state.count }] },
           diagnostics: {
             committedRngBefore: current.rng,
             attemptedDraws: [] as readonly never[],

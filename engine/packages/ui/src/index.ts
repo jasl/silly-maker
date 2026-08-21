@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 export { createAssetRegistryV1 } from "./assets/asset-registry.ts";
 export { resolveAssetUrlV1, useAssetUrlV1 } from "./assets/use-asset-url.ts";
+export type { AssetUrlRegistryV1 } from "./assets/use-asset-url.ts";
 export type {
   AssetLoadFaultCodeV1,
   AssetLoadResultV1,
@@ -60,6 +61,7 @@ export { createViewSourceV1, useReadonlyViewV1 } from "./runtime/create-view-bri
 export type { MutableViewSourceV1 } from "./runtime/create-view-bridge.ts";
 export {
   InputContextProviderV1,
+  createHeldKeyInputV1,
   createInputRouterV1,
   inputHandledV1,
   inputIgnoredV1,
@@ -73,6 +75,10 @@ export {
 export type {
   GamepadActionMapV1,
   GamepadLikeV1,
+  HeldInputPortV1,
+  HeldInputStateV1,
+  HeldKeyInputV1,
+  HeldKeyMapV1,
   InputActionIdV1,
   InputContextIdV1,
   InputContextProviderPropsV1,
@@ -82,6 +88,7 @@ export type {
   InputRouterV1,
   InstallGamepadAdapterOptionsV1,
   InstalledGamepadAdapterV1,
+  InstallHeldKeyAdapterOptionsV1,
   InstallKeyboardAdapterOptionsV1,
   KeyboardActionMapV1,
   PointerActionMapV1,
@@ -279,7 +286,9 @@ export {
   createAnimationFramePresentationClockV1,
   createManualPresentationClockV1,
   createPresentationFreezePortV1,
+  createPresentationRatePortV1,
   createPresentationRunV1,
+  createSessionTimeReporterV1,
   easeInOutV1,
 } from "./presentation-run/index.ts";
 export type {
@@ -288,9 +297,12 @@ export type {
   PresentationClockV1,
   PresentationFreezePortV1,
   PresentationFreezeStateV1,
+  PresentationRatePortV1,
+  PresentationRateStateV1,
   PresentationRunOutcomeV1,
   PresentationRunStatusV1,
   PresentationRunV1,
+  SessionTimeReporterV1,
 } from "./presentation-run/index.ts";
 export {
   InstanceLeaseBannerV1,

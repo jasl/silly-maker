@@ -24,7 +24,13 @@ const scenariosV1 = Object.freeze({
       kind: "barrier_completed",
       transitionId: "transition.e2e.bg-crossfade",
     }),
-    resolveStepV1(5, { kind: "resume" }),
+    Object.freeze({
+      kind: "time" as const,
+      tick: Object.freeze({
+        elapsedMs: 400,
+        expectedHoldOccurrenceId: "interaction-occurrence.5",
+      }),
+    }),
     resolveStepV1(6, { kind: "custom", payload: { value: 2 } }),
     resolveStepV1(7, { kind: "advance" }),
   ]),

@@ -73,7 +73,7 @@ export interface AuthoritativeDeterminismCommandV1 {
   readonly kind: AuthoritativeDeterminismCommandClassV1;
 }
 
-export interface AuthoritativeDeterminismFactV1 {
+export interface AuthoritativeDeterminismEventV1 {
   readonly kind: "determinism.committed";
   readonly commandClass: "no_draw_committed" | "rng_committed";
   readonly result: NonNegativeSafeInteger | null;
@@ -95,7 +95,7 @@ interface AuthoritativeDeterminismTypesV1 extends
   > {
   readonly snapshot: AuthoritativeDeterminismSnapshotV1;
   readonly command: AuthoritativeDeterminismCommandV1;
-  readonly fact: AuthoritativeDeterminismFactV1;
+  readonly event: AuthoritativeDeterminismEventV1;
   readonly rejection: AuthoritativeDeterminismRejectionV1;
   readonly fault: AuthoritativeDeterminismFaultV1;
   readonly debugCommand: never;
@@ -107,7 +107,7 @@ interface AuthoritativeDeterminismTypesV1 extends
 
 type AuthoritativeDeterminismAttemptV1 = CommandExecutionAttemptEnvelopeV1<
   AuthoritativeDeterminismSnapshotV1,
-  AuthoritativeDeterminismFactV1,
+  AuthoritativeDeterminismEventV1,
   AuthoritativeDeterminismRejectionV1,
   AuthoritativeDeterminismFaultV1,
   RngStateV1,
@@ -137,7 +137,7 @@ export interface AuthoritativeDeterminismWorkloadDescriptorV1 {
 export type AuthoritativeDeterminismCommandLogOutcomeV1 =
   | {
     readonly kind: "committed";
-    readonly facts: readonly DeepReadonly<AuthoritativeDeterminismFactV1>[];
+    readonly events: readonly DeepReadonly<AuthoritativeDeterminismEventV1>[];
   }
   | {
     readonly kind: "rejected";
@@ -498,7 +498,7 @@ export async function runAuthoritativeDeterminismTranscriptV1(input: {
 
 type UnsafeAuthoritativeDeterminismCaseV1 =
   | "fractional_command"
-  | "fractional_fact"
+  | "fractional_event"
   | "fractional_rejection"
   | "fractional_fault"
   | "fractional_rng_draw"
@@ -520,9 +520,9 @@ interface UnsafeAuthoritativeDeterminismCommandV1 {
   readonly amount: number;
 }
 
-type UnsafeAuthoritativeDeterminismFactV1 =
+type UnsafeAuthoritativeDeterminismEventV1 =
   | { readonly kind: "determinism.unsafe_committed" }
-  | { readonly kind: "determinism.unsafe_fact"; readonly value: number };
+  | { readonly kind: "determinism.unsafe_event"; readonly value: number };
 
 interface UnsafeAuthoritativeDeterminismRejectionV1 {
   readonly code: "determinism.unsafe_rejection";
@@ -551,7 +551,7 @@ interface UnsafeAuthoritativeDeterminismTypesV1 extends
   > {
   readonly snapshot: UnsafeAuthoritativeDeterminismSnapshotV1;
   readonly command: UnsafeAuthoritativeDeterminismCommandV1;
-  readonly fact: UnsafeAuthoritativeDeterminismFactV1;
+  readonly event: UnsafeAuthoritativeDeterminismEventV1;
   readonly rejection: UnsafeAuthoritativeDeterminismRejectionV1;
   readonly fault: UnsafeAuthoritativeDeterminismFaultV1;
   readonly debugCommand: UnsafeAuthoritativeDeterminismDebugCommandV1;
@@ -563,7 +563,7 @@ interface UnsafeAuthoritativeDeterminismTypesV1 extends
 
 type UnsafeAuthoritativeDeterminismAttemptV1 = CommandExecutionAttemptEnvelopeV1<
   UnsafeAuthoritativeDeterminismSnapshotV1,
-  UnsafeAuthoritativeDeterminismFactV1,
+  UnsafeAuthoritativeDeterminismEventV1,
   UnsafeAuthoritativeDeterminismRejectionV1,
   UnsafeAuthoritativeDeterminismFaultV1,
   RngStateV1,
@@ -602,7 +602,7 @@ interface UnsafeAuthoritativeDeterminismCommandLogEntryV1 {
   readonly outcome:
     | {
       readonly kind: "committed";
-      readonly facts: readonly UnsafeAuthoritativeDeterminismFactV1[];
+      readonly events: readonly UnsafeAuthoritativeDeterminismEventV1[];
     }
     | {
       readonly kind: "rejected";
@@ -679,9 +679,9 @@ function unsafeAttemptV1(
         rng,
         [Object.freeze({ kind: "determinism.unsafe_committed" as const })],
       );
-    case "fractional_fact":
+    case "fractional_event":
       return commitAttemptV1(current, createUnsafeCommittedSnapshotV1(current, 1), rng, [
-        Object.freeze({ kind: "determinism.unsafe_fact" as const, value: 0.5 }),
+        Object.freeze({ kind: "determinism.unsafe_event" as const, value: 0.5 }),
       ]);
     case "fractional_rejection":
       return rejectAttemptV1(current, rng, [
@@ -701,7 +701,7 @@ function unsafeAttemptV1(
       throw new TypeError("debug validation case cannot execute as a game command");
     case "illegal_fallback_fault":
       return commitAttemptV1(current, createUnsafeCommittedSnapshotV1(current, 1), rng, [
-        Object.freeze({ kind: "determinism.unsafe_fact" as const, value: 0.625 }),
+        Object.freeze({ kind: "determinism.unsafe_event" as const, value: 0.625 }),
       ]);
   }
   throw new TypeError("unsupported unsafe authoritative determinism case");

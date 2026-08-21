@@ -33,6 +33,8 @@ the normal interactive setup command.
 
 The workspace is ESM, imports TypeScript sources with explicit `.ts`/`.tsx` extensions, and uses one shared `deno.lock` with exact dependency versions (npm packages resolve through Deno's Node compatibility).
 
+The root `deno.json` pins `"nodeModulesDir": "manual"`: only `deno install` writes `node_modules`. Auto mode re-materialized the workspace symlinks on every `deno run` startup — including every vitest fork worker — which raced any concurrently running test that resolves through those links (observed as transient `ERR_MODULE_NOT_FOUND` in the determinism authority-map under full-suite load). Re-run `deno install` after dependency changes.
+
 Dependency reference rule: engine and Story sources (everything Vite builds or vitest transforms) declare dependencies in `package.json` and import them as bare specifiers — Vite does not resolve `npm:` URLs (`ERR_UNSUPPORTED_ESM_URL_SCHEME`). `npm:` inline specifiers are valid only in Deno-executed code: `scripts/**`, the story CLI, and `deno.json` tasks. Normal installation may use the network. If a browser test reports a missing Playwright browser, install the requested browser with the Playwright CLI for the current lockfile.
 
 ## Repository layout
@@ -82,7 +84,7 @@ descriptor.
 
 X5's `createStateAuthoringKitV1` exposes neutral State module/workflow names but
 delegates to the one Base authoring kit and transaction runner. Do not add a
-parallel proposal map, candidate State, RNG, queue, or commit path. Engine Lab
+parallel event journal, candidate State, RNG, queue, or commit path. Engine Lab
 uses the State-composition bridge only for experimental equivalence coverage;
 no maintained production Story uses the State runtime, and the experiment does
 not define State Format V2.
@@ -93,9 +95,12 @@ clone. V1 module initializers are intentionally bootstrap-independent, and the
 neutral API does not expose Base module-local invariant metadata because the
 current transaction runner does not execute it. Use workflow
 `validateCandidate` for aggregate validation. `StateTransactionV1` reads only
-command-start State (no read-your-writes), stages at most one proposal per
-owner, and applies proposals and facts in UTF-16 module-ID order; rejection and
-fault leave the authoritative Snapshot and committed RNG unchanged.
+command-start State (no read-your-writes). Modules declare pure reducers keyed
+by domain-event kind; a workflow admits emitted events through `eventSchema`
+and must reject before its first `emit`. Events fold in emission order, with
+subscribed reducers for one event ordered by UTF-16 module ID; an event with no
+subscriber remains journal-only evidence. Rejection and fault leave the
+authoritative Snapshot and committed RNG unchanged.
 
 `@sillymaker/composition` is cold-path only. Public plugins use its scope and
 typed tokens; no dynamic lifecycle Context is exported. Compile services and

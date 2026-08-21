@@ -19,8 +19,11 @@ CAS contract。
 
 引擎的 runtime 侧（确定性内核、Save/replay/migration、Managed Surface、Semantic
 Stage、Motion 资产）已经很强，但源代码按 runtime 责任组织，人类按创作对象思考
-（"序章"、"小雨"、"小雨第一次登场"）。两者之间缺一层作者模型。现状证据（全部为
-live 代码事实）：
+（"序章"、"小雨"、"小雨第一次登场"）。两者之间缺一层作者模型。现状证据
+（2026-08-14 立项时的 live 代码事实；本设计与 VN Scene Workspace / Authoring
+Architecture 计划已交付，cue 身份于 2026-08-17 交付——transition 解析现可携带
+dispatching cue 的 presentation edge context。以下清单保留为立项证据，不再是现
+状，实况以 [features](../features.md) 为准）：
 
 - **人物最终位置埋在剧情代码里**：template 的 Mei 写在 `template/src/narrative.ts`
   （`placement: { x: 1180, y: 880, … }`），cat-cafe 的小雨写在
@@ -150,7 +153,7 @@ typed accessors（形状由 A0 拥有）至少提供：
   `cut: true`，互斥）派生的 **per-cue** 绑定。解析 cue-first（2026-08-17 接受
   并交付的 [cue-identity 提案](../proposals/cue-identity.md)）：提交边携带的
   presentation edge context（`{sceneId, cueId}` / `{sceneId, open}` dispatch
-  列表，从已提交 facts 投影、与语义 revision 精确配对）指名哪个 cue 引发这条
+  列表，从已提交 domain events 投影、与语义 revision 精确配对）指名哪个 cue 引发这条
   边，各 cue 解析各自的声明——motion、压制外层的合成 cut、或裸 cue 的 null
   落回；同边分歧声明因此合法。无上下文的边走 edge-tuple 回落（仅"全部绑定
   一致"的边保留条目，与前上下文行为逐字节等位）；上下文存在时"本场景无

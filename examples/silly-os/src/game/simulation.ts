@@ -13,7 +13,6 @@ import type {
   OsCellViewV1,
   OsCommandV1,
   OsDebugValidationErrorV1,
-  OsFactV1,
   OsGameViewV1,
   OsMinesweeperViewV1,
   OsQueriesV1,
@@ -21,7 +20,7 @@ import type {
   OsSimulationTypesV1,
   OsSnapshotV1,
 } from "./kernel.ts";
-import { commandSchemaV1, passthroughSchemaV1 } from "./kernel.ts";
+import { commandSchemaV1, osEventSchemaV1, passthroughSchemaV1 } from "./kernel.ts";
 import type { OsCommandHandlerMapV1, OsHandlerInputV1, OsModulesV1 } from "./runtime.ts";
 import { osModuleCompositionV1 } from "./runtime.ts";
 import { osCellFlaggedV1, osCellMineV1, osCellRevealedV1 } from "./state.ts";
@@ -40,7 +39,7 @@ export type {
   OsBootstrapInputV1,
   OsCellViewV1,
   OsCommandV1,
-  OsFactV1,
+  OsEventV1,
   OsFaultV1,
   OsGameViewV1,
   OsMinesweeperViewV1,
@@ -148,7 +147,7 @@ export function createOsGameSimulationV1(): OsGameSimulationV1 {
     modules: osModuleCompositionV1.modules,
     stateSchema: osGameStateSchemaV1,
     commandSchema: commandSchemaV1,
-    factSchema: passthroughSchemaV1<OsFactV1>(),
+    eventSchema: osEventSchemaV1,
     rejectionSchema: passthroughSchemaV1<OsRejectionV1>(),
     debugCommandSchema: debugCommandSchemaV1,
     debugValidationErrorSchema: passthroughSchemaV1<OsDebugValidationErrorV1>(),

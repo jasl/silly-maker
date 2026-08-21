@@ -24,6 +24,7 @@ import {
 import type { SillymakerProjectConfigV1 } from "./config.ts";
 import { joinAppPathV1, resolveStoryApplicationV1 } from "./config.ts";
 import { collectMotionSourceDiagnosticsV1 } from "./motion-diagnostics.ts";
+import { collectRegionsSourceDiagnosticsV1 } from "./regions-diagnostics.ts";
 import { collectSceneSourceDiagnosticsV1 } from "./scene-diagnostics.ts";
 
 /** Loads a repository module for command execution; injectable for tests. */
@@ -215,6 +216,7 @@ export async function checkStoryApplicationV1(
     : resolve(options.repositoryRoot, dirname(application.storyEntry.module));
   const sourceDiagnostics = sourceRoot === null ? [] : [
     ...collectMotionSourceDiagnosticsV1(sourceRoot),
+    ...collectRegionsSourceDiagnosticsV1(sourceRoot),
     ...collectSceneSourceDiagnosticsV1(sourceRoot),
   ];
 
@@ -426,6 +428,8 @@ export interface ProjectCommandRunnerV1 {
   fetchText(url: string): Promise<{ readonly status: number; readonly body: string }>;
   sleep(milliseconds: number): Promise<void>;
   readFile(path: string): Promise<string>;
+  /** Reads one file as raw bytes (used for image inputs like trace bitmaps). */
+  readFileBytes(path: string): Promise<Uint8Array>;
   /** Returns a regular file's byte length, or null when absent/non-regular. */
   fileSize(path: string): Promise<number | null>;
   writeFile(path: string, contents: string): Promise<void>;

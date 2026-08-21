@@ -14,6 +14,7 @@ import type {
 import type { MotionSourceIoV1 } from "@sillymaker/ui/debug";
 
 import type { StudioBindingV1 } from "./core/binding.ts";
+import type { RegionsSourceIoV1 } from "./core/regions-io.ts";
 import type { SceneSourceIoV1 } from "./core/scene-io.ts";
 
 export { createStudioToolingReactPublicationV1 } from "./react-publication.tsx";
@@ -31,6 +32,8 @@ export interface StudioToolingPlanV1 {
   readonly binding: StudioBindingV1;
   readonly sceneIo: SceneSourceIoV1;
   readonly motionIo: MotionSourceIoV1;
+  /** Optional outside Vite Studio; when present its identity is stable across successors. */
+  readonly regionsIo?: RegionsSourceIoV1;
 }
 
 export interface StudioToolingLiveRootInputV1 extends StudioToolingPlanV1 {
@@ -76,6 +79,7 @@ function profileV1(
     binding: input.binding,
     sceneIo: input.sceneIo,
     motionIo: input.motionIo,
+    ...(input.regionsIo === undefined ? {} : { regionsIo: input.regionsIo }),
   });
   const plugin = defineCompositionPluginV1({
     id: studioToolingRootPluginIdV1,

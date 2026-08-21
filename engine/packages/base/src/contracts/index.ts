@@ -72,6 +72,7 @@ export type {
 } from "./game-package.ts";
 export type {
   BootstrapEntropyV1,
+  DomainEventKindOfV1,
   GameBootstrapInputV1,
   GameCommandExecutorV1,
   GameDebugCommandExecutorV1,
@@ -83,11 +84,10 @@ export type {
   GameplayModuleDescriptorV1,
   GameplayModuleSurfaceV1,
   GameplayModuleTupleForSimulationV1,
+  ModuleEventReducerMapV1,
+  ModuleEventReducerV1,
   ModuleInvariantViolationV1,
   ModuleLocalInvariantV1,
-  ModuleOwnerCapabilityV1,
-  ModuleOwnerProposalEnvelopeV1,
-  ModuleProposalResultV1,
   ModuleQueryCapabilityV1,
   StatefulGameplayModuleBindingV1,
   StatelessGameplayModuleBindingV1,
@@ -399,7 +399,11 @@ export type {
   StageMutationRejectionV1,
   StageMutationV1,
 } from "./semantic-stage-reducer.ts";
-export { projectStageRenderTargetV1, stageFallbackRendererIdV1 } from "./stage-render-target.ts";
+export {
+  hitRegionPolygonValidV1,
+  projectStageRenderTargetV1,
+  stageFallbackRendererIdV1,
+} from "./stage-render-target.ts";
 export { createAssetDemandPlanV1 } from "./asset-demand.ts";
 export type {
   AssetDemandEntryV1,
@@ -478,14 +482,52 @@ export {
   parsePendingInteractionV1,
 } from "./pending-interaction.ts";
 export type {
+  HoldPendingInteractionV1,
   InteractionChoiceOptionV1,
   InteractionRejectionCodeV1,
   InteractionResolutionContextV1,
   InteractionResolutionOutcomeV1,
   InteractionResolutionV1,
+  PaceHintV1,
   PendingInteractionBaseV1,
   PendingInteractionV1,
 } from "./pending-interaction.ts";
+export {
+  applyElapsedToHoldV1,
+  countThresholdCrossingsV1,
+  evaluateTimeTickV1,
+  firstMatchingHoldArmV1,
+  parseTimeTickV1,
+  settleHoldTimelineV1,
+} from "./time-tick.ts";
+export type {
+  HoldSettlementV1,
+  HoldTimelineCrossingV1,
+  HoldTimelineSettlementV1,
+  TimeTickOutcomeV1,
+  TimeTickRejectionCodeV1,
+  TimeTickV1,
+} from "./time-tick.ts";
+export {
+  anyRealtimeMonitorActiveV1,
+  parseMonitorAccumulatorV1,
+  parseMonitorDeclarationsV1,
+  settleMonitorsV1,
+} from "./authoritative-monitor.ts";
+export type {
+  MonitorAccumulatorV1,
+  MonitorDeclarationV1,
+  MonitorRetentionV1,
+  MonitorSettlementV1,
+} from "./authoritative-monitor.ts";
+export {
+  maxPersistenceSafepointSpanCommitsV1,
+  parsePersistenceSafepointPolicyV1,
+} from "./persistence-safepoint.ts";
+export type {
+  PersistenceSafepointClassificationV1,
+  PersistenceSafepointPolicyV1,
+} from "./persistence-safepoint.ts";
 export { diffPlainDataV1 } from "./plain-data-diff.ts";
 export type { PlainDataDiffEntryV1 } from "./plain-data-diff.ts";
 export {
@@ -608,9 +650,20 @@ export type {
   StageContentCatalogV1,
   StageContentGeometryV1,
   StageContentResolutionV1,
+  StageHitRegionPointV1,
   StageHitRegionV1,
   StageRenderEntryV1,
   StageRenderLayerV1,
   StageRenderProjectionV1,
   StageRenderTargetV1,
 } from "./stage-render-target.ts";
+export {
+  parseRegionsDocumentV1,
+  regionsDocumentFormatV1,
+  regionsDocumentVersionV1,
+} from "./stage-regions.ts";
+export type {
+  RegionsAuthoringStatusV1,
+  RegionsAuthoringV1,
+  RegionsDocumentV1,
+} from "./stage-regions.ts";

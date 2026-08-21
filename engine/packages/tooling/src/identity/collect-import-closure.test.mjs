@@ -22,10 +22,21 @@ const execFileAsync = promisify(execFile);
 const reactSpecifierPattern = /^(?:react(?:\/|$)|react-dom(?:\/|$))/u;
 
 async function collectFromCli(cwd, entries) {
-  const { stdout } = await execFileAsync(process.execPath, ["run", "-A", cli, ...entries], {
-    cwd,
-    maxBuffer: 10 * 1024 * 1024,
-  });
+  // `--node-modules-dir=none` keeps the spawned deno from re-materializing
+  // the workspace's node_modules symlinks: every managed `deno run` briefly
+  // unlinks/relinks workspace members, which races any concurrently running
+  // test that realpath-resolves through those links (observed as transient
+  // ENOENT in the determinism authority-map under full-suite load). The
+  // walker itself resolves via the on-disk node_modules tree, which this
+  // flag leaves untouched.
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ["run", "--node-modules-dir=none", "-A", cli, ...entries],
+    {
+      cwd,
+      maxBuffer: 10 * 1024 * 1024,
+    },
+  );
   return JSON.parse(stdout);
 }
 

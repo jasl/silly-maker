@@ -261,6 +261,95 @@ describe("SemanticStageV1 ambient loops", () => {
     expect(clock.pendingTickCount()).toBe(0);
   });
 
+  it("swaps the ambient frame index stepwise on the presentation clock", () => {
+    // A 400ms blink: open eyes (0), closed at 900‰ (360ms), open at 950‰.
+    const blinkMotionV1 = parseMotionDefinitionV1({
+      motionId: "motion.test.blink",
+      durationMs: 400,
+      delayMs: 0,
+      tracks: [
+        {
+          channel: "frame",
+          keyframes: [
+            { atPermille: 0, value: 0 },
+            { atPermille: 900, value: 1 },
+            { atPermille: 950, value: 0 },
+            { atPermille: 1000, value: 0 },
+          ],
+        },
+      ],
+    });
+    const frameContentCatalog: StageContentCatalogV1 = {
+      resolveContent: (contentId) =>
+        Object.freeze({
+          rendererId: "renderer.test.box",
+          assetIds: Object.freeze([] as readonly AssetId[]),
+          accessibleName: `内容 ${contentId}`,
+          props: Object.freeze({}),
+          frameAssetIds: Object.freeze([
+            "asset.test.eyes-open" as AssetId,
+            "asset.test.eyes-closed" as AssetId,
+          ]),
+        }),
+    };
+    const blinkAmbient: StageAmbientCatalogV1 = {
+      resolveAmbient: () => Object.freeze({ motion: blinkMotionV1, phaseMs: 0 }),
+    };
+    function blinkTargetV1(tags: readonly string[]) {
+      const empty = createSemanticStageStateV1({
+        stageId: "stage.test.ambient",
+        layerIds: ["layer.test.back"],
+      });
+      const outcome = reduceStageMutationsV1(
+        empty,
+        tags.map((tag) => ({
+          kind: "show",
+          layerId: "layer.test.back",
+          tag,
+          contentId: "content.test.actor",
+        })),
+      );
+      if (outcome.kind !== "applied") throw new Error("ambient fixture stage must apply");
+      return projectStageRenderTargetV1(outcome.state, frameContentCatalog).target;
+    }
+
+    const clock = createManualPresentationClockV1();
+    const shared = {
+      catalog: cutCatalogV1,
+      ambient: blinkAmbient,
+      renderers: renderersV1,
+      accessibleName: "Ambient 舞台",
+      clock,
+    } as const;
+    const { container, rerender } = render(
+      <SemanticStageV1 target={blinkTargetV1([])} revision={1} epoch={0} {...shared} />,
+    );
+    act(() => {
+      rerender(
+        <SemanticStageV1
+          target={blinkTargetV1(["tag.test.actor"])}
+          revision={2}
+          epoch={0}
+          {...shared}
+        />,
+      );
+    });
+
+    const entry = () => entryOf(container, "tag.test.actor");
+    // Open eyes through the long hold — no interpolation midway.
+    expect(entry().dataset.stageFrame).toBe("0");
+    act(() => clock.advance(200));
+    expect(entry().dataset.stageFrame).toBe("0");
+    // Cross the 900‰ stop: closed-eye frame appears and holds.
+    act(() => clock.advance(165));
+    expect(entry().dataset.stageFrame).toBe("1");
+    // Cross 950‰: back to open eyes; the loop wraps seamlessly after 400ms.
+    act(() => clock.advance(20));
+    expect(entry().dataset.stageFrame).toBe("0");
+    act(() => clock.advance(400));
+    expect(entry().dataset.stageFrame).toBe("0");
+  });
+
   it("suspends during an entrance edge and restarts the phase at settle", () => {
     const clock = createManualPresentationClockV1();
     const shared = {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Simulation kernel: command/fact/verdict contracts, command schemas, the kit, and shared helpers.
+// Simulation kernel: command/event/verdict contracts, command schemas, the kit, and shared helpers.
 // Feature slices (features/*) take shared shapes from here; aggregation in simulation.ts.
 import type {
   CommandExecutionAttemptEnvelopeV1,
@@ -12,8 +12,8 @@ import type {
 } from "@sillymaker/base";
 import { createGameAuthoringKit } from "@sillymaker/base/story";
 
-import type { OsFileV1, OsGameStateV1 } from "./state.ts";
-import { osMaxFileContentV1 } from "./state.ts";
+import type { OsBoardV1, OsFileV1, OsGameStateV1 } from "./state.ts";
+import { osMaxFileContentV1, osMinesweeperStateSchemaV1 } from "./state.ts";
 
 export type OsCommandV1 =
   | { readonly kind: "os.fs.write"; readonly name: string; readonly content: string }
@@ -28,9 +28,21 @@ export type OsCommandV1 =
   | { readonly kind: "os.mine.flag"; readonly x: number; readonly y: number }
   | { readonly kind: "os.desktop.set_wallpaper"; readonly wallpaperId: string };
 
-export type OsFactV1 =
-  | { readonly kind: "os.fs.saved"; readonly name: string; readonly revision: number }
+/**
+ * SillyOS's domain-event union: the only internal authoritative update
+ * channel. `os.fs.saved`, `os.fs.removed`, `os.mine.board_set`, and
+ * `os.desktop.wallpaper_changed` fold state; the minesweeper broadcast
+ * events (`started`/`exploded`/`won`) are journal-only UI evidence.
+ */
+export type OsEventV1 =
+  | {
+    readonly kind: "os.fs.saved";
+    readonly name: string;
+    readonly content: string;
+    readonly revision: number;
+  }
   | { readonly kind: "os.fs.removed"; readonly name: string }
+  | { readonly kind: "os.mine.board_set"; readonly board: OsBoardV1 | null }
   | { readonly kind: "os.mine.started"; readonly width: number; readonly height: number }
   | { readonly kind: "os.mine.exploded"; readonly x: number; readonly y: number }
   | { readonly kind: "os.mine.won" }
@@ -108,7 +120,7 @@ export interface OsSimulationTypesV1 extends
   readonly snapshot: GameSnapshotEnvelopeV1<OsGameStateV1, RngStateV1>;
   readonly rngDrawTrace: RngDrawTraceV1;
   readonly command: OsCommandV1;
-  readonly fact: OsFactV1;
+  readonly event: OsEventV1;
   readonly rejection: OsRejectionV1;
   readonly fault: OsFaultV1;
   readonly debugCommand: never;
@@ -121,7 +133,7 @@ export interface OsSimulationTypesV1 extends
 export type OsSnapshotV1 = OsSimulationTypesV1["snapshot"];
 export type OsAttemptV1 = CommandExecutionAttemptEnvelopeV1<
   OsSnapshotV1,
-  OsFactV1,
+  OsEventV1,
   OsRejectionV1,
   OsFaultV1,
   RngStateV1,
@@ -130,20 +142,80 @@ export type OsAttemptV1 = CommandExecutionAttemptEnvelopeV1<
 
 export const kit = createGameAuthoringKit<OsSimulationTypesV1>();
 
-export function operationSchemaV1<T>(label: string): RuntimeSchemaV1<T> {
-  return Object.freeze({
-    parse(value: unknown): T {
-      if (value === null || typeof value !== "object") {
-        throw new TypeError(`invalid silly-os ${label} operation`);
-      }
-      return value as T;
-    },
-  });
-}
-
 export function passthroughSchemaV1<T>(): RuntimeSchemaV1<T> {
   return Object.freeze({ parse: (value: unknown) => value as T });
 }
+
+/**
+ * Domain-event admission: structural key checks plus primitive validation;
+ * the board payload reuses the minesweeper slice schema so an invalid board
+ * faults at emit instead of at fold.
+ */
+export const osEventSchemaV1: RuntimeSchemaV1<OsEventV1> = Object.freeze({
+  parse(value: unknown): OsEventV1 {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      throw new TypeError("invalid silly-os event");
+    }
+    const record = value as Record<string, unknown>;
+    const keys = Object.keys(record).toSorted().join("\u0000");
+    switch (record.kind) {
+      case "os.fs.saved":
+        if (
+          keys !== "content\u0000kind\u0000name\u0000revision" ||
+          !isSafeName(record.name) ||
+          typeof record.content !== "string" ||
+          record.content.length > osMaxFileContentV1 ||
+          typeof record.revision !== "number" ||
+          !Number.isSafeInteger(record.revision) ||
+          record.revision < 1
+        ) {
+          throw new TypeError("invalid silly-os fs.saved event");
+        }
+        return Object.freeze({
+          kind: record.kind,
+          name: record.name,
+          content: record.content,
+          revision: record.revision,
+        });
+      case "os.fs.removed":
+        if (keys !== "kind\u0000name" || !isSafeName(record.name)) {
+          throw new TypeError("invalid silly-os fs.removed event");
+        }
+        return Object.freeze({ kind: record.kind, name: record.name });
+      case "os.mine.board_set": {
+        if (keys !== "board\u0000kind") {
+          throw new TypeError("invalid silly-os mine.board_set event");
+        }
+        const slice = osMinesweeperStateSchemaV1.parse(Object.freeze({ board: record.board }));
+        return Object.freeze({ kind: record.kind, board: slice.board });
+      }
+      case "os.mine.started":
+        if (
+          keys !== "height\u0000kind\u0000width" ||
+          !isCoordinate(record.width) ||
+          !isCoordinate(record.height)
+        ) {
+          throw new TypeError("invalid silly-os mine.started event");
+        }
+        return Object.freeze({ kind: record.kind, width: record.width, height: record.height });
+      case "os.mine.exploded":
+        if (keys !== "kind\u0000x\u0000y" || !isCoordinate(record.x) || !isCoordinate(record.y)) {
+          throw new TypeError("invalid silly-os mine.exploded event");
+        }
+        return Object.freeze({ kind: record.kind, x: record.x, y: record.y });
+      case "os.mine.won":
+        if (keys !== "kind") throw new TypeError("invalid silly-os mine.won event");
+        return Object.freeze({ kind: record.kind });
+      case "os.desktop.wallpaper_changed":
+        if (keys !== "kind\u0000wallpaperId" || typeof record.wallpaperId !== "string") {
+          throw new TypeError("invalid silly-os wallpaper event");
+        }
+        return Object.freeze({ kind: record.kind, wallpaperId: record.wallpaperId });
+      default:
+        throw new TypeError("invalid silly-os event kind");
+    }
+  },
+});
 
 function isSafeName(value: unknown): value is string {
   return typeof value === "string" && value.length >= 1 && value.length <= 64;

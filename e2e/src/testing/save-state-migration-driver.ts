@@ -45,8 +45,8 @@ import { labGameStateSchemaV1 } from "../gameplay/state.ts";
 import {
   labCurrentStateContractIdentityV1,
   labSaveStateMigrationRegistryV1,
-  labStateContractIdentityRevision3V1,
   labStateContractIdentityRevision4V1,
+  labStateContractIdentityRevision5V1,
 } from "../save-state-migrations.ts";
 
 type MigrationCaseIdV1 =
@@ -90,6 +90,7 @@ export interface SaveMigrationReleaseCorpusParityCaseV1 {
     | "engine-lab-state-3"
     | "engine-lab-state-4"
     | "engine-lab-state-5"
+    | "engine-lab-state-6"
     | "cat-cafe-state-1";
   readonly productId: "engine-lab" | "cat-cafe";
   readonly source: {
@@ -143,6 +144,10 @@ const releaseFixtureUrlsV1 = Object.freeze(
     ),
     "engine-lab-state-5": new URL(
       "../../fixtures/saves/engine-lab-state-5.save.json?no-inline",
+      import.meta.url,
+    ),
+    "engine-lab-state-6": new URL(
+      "../../fixtures/saves/engine-lab-state-6.save.json?no-inline",
       import.meta.url,
     ),
     "cat-cafe-state-1": new URL(
@@ -439,21 +444,45 @@ const historicalNarrativeRevision4V1 = Object.freeze({
   history: Object.freeze({ entries: Object.freeze([]) }),
 });
 
-const historicalStateRevision3V1 = Object.freeze({
-  simulation: Object.freeze({
-    samples: Object.freeze({ collected: 0 }),
-    procedure: Object.freeze({ phase: "idle", stepsTaken: 0 }),
-    stage: historicalStageRevision2V1,
-    narrative: historicalNarrativeRevision3V1,
-  }),
-}) as StrictJsonValueV1;
-
 const historicalStateRevision4V1 = Object.freeze({
   simulation: Object.freeze({
     samples: Object.freeze({ collected: 0 }),
     procedure: Object.freeze({ phase: "idle", stepsTaken: 0 }),
     stage: historicalStageRevision2V1,
     narrative: historicalNarrativeRevision4V1,
+  }),
+}) as StrictJsonValueV1;
+
+/** The revision-5 shape: exactly what `migration.engine-lab.revision-4-to-5`
+ * produces from the revision-4 state above, so single-step and multi-step
+ * chains converge on one migrated terminal digest. */
+const historicalStageRevision3V1 = Object.freeze({
+  ...historicalStageRevision2V1,
+  contractRevision: 3,
+  layers: Object.freeze(
+    historicalStageRevision2V1.layers.map((layer) =>
+      Object.freeze({
+        ...layer,
+        entries: Object.freeze(
+          layer.entries.map((entry) =>
+            Object.freeze({
+              ...entry,
+              placement: Object.freeze({ ...entry.placement, opacityPermille: 1000 }),
+            })
+          ),
+        ),
+      })
+    ),
+  ),
+});
+
+const historicalStateRevision5V1 = Object.freeze({
+  simulation: Object.freeze({
+    samples: Object.freeze({ collected: 0 }),
+    procedure: Object.freeze({ phase: "idle", stepsTaken: 0 }),
+    stage: historicalStageRevision3V1,
+    narrative: Object.freeze({ ...historicalNarrativeRevision4V1, rapport: 0 }),
+    wallet: Object.freeze({ credits: 0 }),
   }),
 }) as StrictJsonValueV1;
 
@@ -677,7 +706,7 @@ async function collectReleaseCorpusV1(): Promise<
   readonly SaveMigrationReleaseCorpusParityCaseV1[]
 > {
   const loaded = await Promise.all(saveMigrationReleaseCorpusV1.map(loadReleaseFixtureV1));
-  const engineCurrent = loaded.find(({ descriptor }) => descriptor.id === "engine-lab-state-5");
+  const engineCurrent = loaded.find(({ descriptor }) => descriptor.id === "engine-lab-state-6");
   if (engineCurrent === undefined) {
     throw new TypeError("Engine Lab current release fixture missing");
   }
@@ -781,13 +810,13 @@ function conformanceRegistryV1(
 ): SaveStateMigrationRegistryV1 {
   return defineSaveStateMigrationRegistryV1({
     namespace: conformanceNamespaceV1,
-    minimumSupported: labStateContractIdentityRevision4V1,
+    minimumSupported: labStateContractIdentityRevision5V1,
     current: labCurrentStateContractIdentityV1,
     steps: Object.freeze([
       Object.freeze({
         migrationId: parseSaveStateMigrationIdV1(migrationId),
         namespace: conformanceNamespaceV1,
-        from: labStateContractIdentityRevision4V1,
+        from: labStateContractIdentityRevision5V1,
         to: labCurrentStateContractIdentityV1,
         references: Object.freeze({ renames: Object.freeze([]), deletions: Object.freeze([]) }),
         migrate,
@@ -829,43 +858,43 @@ export async function collectSaveStateMigrationVectorV1(): Promise<
     cases: Object.freeze([
       runCaseV1({
         caseId: "one_step",
-        identity: labStateContractIdentityRevision4V1,
-        state: historicalStateRevision4V1,
+        identity: labStateContractIdentityRevision5V1,
+        state: historicalStateRevision5V1,
         registry: labSaveStateMigrationRegistryV1,
         adoption: false,
       }),
       runCaseV1({
         caseId: "two_step",
-        identity: labStateContractIdentityRevision3V1,
-        state: historicalStateRevision3V1,
+        identity: labStateContractIdentityRevision4V1,
+        state: historicalStateRevision4V1,
         registry: labSaveStateMigrationRegistryV1,
         adoption: false,
       }),
       runCaseV1({
         caseId: "explicit_reject",
-        identity: labStateContractIdentityRevision4V1,
-        state: historicalStateRevision4V1,
+        identity: labStateContractIdentityRevision5V1,
+        state: historicalStateRevision5V1,
         registry: rejectedRegistryV1,
         adoption: false,
       }),
       runCaseV1({
         caseId: "callback_throw",
-        identity: labStateContractIdentityRevision4V1,
-        state: historicalStateRevision4V1,
+        identity: labStateContractIdentityRevision5V1,
+        state: historicalStateRevision5V1,
         registry: throwingRegistryV1,
         adoption: false,
       }),
       runCaseV1({
         caseId: "invalid_output",
-        identity: labStateContractIdentityRevision4V1,
-        state: historicalStateRevision4V1,
+        identity: labStateContractIdentityRevision5V1,
+        state: historicalStateRevision5V1,
         registry: invalidOutputRegistryV1,
         adoption: false,
       }),
       runCaseV1({
         caseId: "migration_plus_adoption",
-        identity: labStateContractIdentityRevision3V1,
-        state: historicalStateRevision3V1,
+        identity: labStateContractIdentityRevision4V1,
+        state: historicalStateRevision4V1,
         registry: labSaveStateMigrationRegistryV1,
         adoption: true,
       }),
@@ -892,24 +921,30 @@ const expectedRevision5V1 = Object.freeze({
     "sha256:c6407d9e0b5bd4d93fbe6e54d61fc62f59d209892d71a663a70190a4970735e3",
   ),
 });
+const expectedRevision6V1 = Object.freeze({
+  stateContractRevision: parsePositiveSafeInteger(6),
+  stateContractDigest: parseDigest(
+    "sha256:2919caedc31ba996a3c48091b70d78d7ae002e2049f2dd3ddd1ccb8b5f16628a",
+  ),
+});
 const expectedRevision4SourceDigestV1 = parseDigest(
   "sha256:b3ed32df507c0cb29f22da0260a0bd67a4bdcc8ba38a8df4bb061f27304c6258",
 );
-const expectedRevision3SourceDigestV1 = parseDigest(
-  "sha256:f01859baf1688d2ea613ec3e72de6e817f8202cbf4dcbabef73ef26f13ecc1a2",
-);
-const expectedMigratedDigestV1 = parseDigest(
+const expectedRevision5SourceDigestV1 = parseDigest(
   "sha256:b26574952975aaa002cb03990f439d6594e46f1435fd7a025c7ef86ba1576d58",
 );
-const expectedStep3To4V1 = Object.freeze({
-  migrationId: parseSaveStateMigrationIdV1("migration.engine-lab.revision-3-to-4"),
-  from: expectedRevision3V1,
-  to: expectedRevision4V1,
-});
+const expectedMigratedDigestV1 = parseDigest(
+  "sha256:6c33dbf47034d46c05c279be204f58c24ec74348c79743a4277abe759059a551",
+);
 const expectedStep4To5V1 = Object.freeze({
   migrationId: parseSaveStateMigrationIdV1("migration.engine-lab.revision-4-to-5"),
   from: expectedRevision4V1,
   to: expectedRevision5V1,
+});
+const expectedStep5To6V1 = Object.freeze({
+  migrationId: parseSaveStateMigrationIdV1("migration.engine-lab.revision-5-to-6"),
+  from: expectedRevision5V1,
+  to: expectedRevision6V1,
 });
 const expectedOutputV1: CompactMigratedLabStateV1 = Object.freeze({
   samplesCollected: 0,
@@ -930,7 +965,7 @@ function expectedReceiptV1(input: {
   return Object.freeze({
     namespace: parseSaveStateMigrationNamespaceV1("state.e2e.engine-lab"),
     source: input.source,
-    target: expectedRevision5V1,
+    target: expectedRevision6V1,
     steps: input.steps,
     sourceStateDigest: input.sourceStateDigest,
     migratedStateDigest: expectedMigratedDigestV1,
@@ -943,14 +978,14 @@ function expectedAttemptV1(input: {
 }): SaveStateMigrationAttemptV1 {
   return Object.freeze({
     namespace: parseSaveStateMigrationNamespaceV1("state.e2e.engine-lab.conformance"),
-    source: expectedRevision4V1,
-    target: expectedRevision5V1,
-    sourceStateDigest: expectedRevision4SourceDigestV1,
+    source: expectedRevision5V1,
+    target: expectedRevision6V1,
+    sourceStateDigest: expectedRevision5SourceDigestV1,
     completedSteps: Object.freeze([]),
     failingStep: Object.freeze({
       migrationId: parseSaveStateMigrationIdV1(input.migrationId),
-      from: expectedRevision4V1,
-      to: expectedRevision5V1,
+      from: expectedRevision5V1,
+      to: expectedRevision6V1,
     }),
     failingPhase: input.failingPhase,
     migratedStateDigest: null,
@@ -958,14 +993,14 @@ function expectedAttemptV1(input: {
 }
 
 const expectedOneStepReceiptV1 = expectedReceiptV1({
-  source: expectedRevision4V1,
-  steps: Object.freeze([expectedStep4To5V1]),
-  sourceStateDigest: expectedRevision4SourceDigestV1,
+  source: expectedRevision5V1,
+  steps: Object.freeze([expectedStep5To6V1]),
+  sourceStateDigest: expectedRevision5SourceDigestV1,
 });
 const expectedTwoStepReceiptV1 = expectedReceiptV1({
-  source: expectedRevision3V1,
-  steps: Object.freeze([expectedStep3To4V1, expectedStep4To5V1]),
-  sourceStateDigest: expectedRevision3SourceDigestV1,
+  source: expectedRevision4V1,
+  steps: Object.freeze([expectedStep4To5V1, expectedStep5To6V1]),
+  sourceStateDigest: expectedRevision4SourceDigestV1,
 });
 
 /** Hand-maintained exact JSON oracle for Deno and all three browser engines. */
@@ -980,7 +1015,7 @@ export const saveStateMigrationVectorExpectedV1: SaveStateMigrationDeterminismVe
         phase: null,
         callbackCount: 1,
         normalizedOutput: expectedOutputV1,
-        sourceStateDigest: expectedRevision4SourceDigestV1,
+        sourceStateDigest: expectedRevision5SourceDigestV1,
         migratedStateDigest: expectedMigratedDigestV1,
         receipt: expectedOneStepReceiptV1,
         attempt: null,
@@ -994,7 +1029,7 @@ export const saveStateMigrationVectorExpectedV1: SaveStateMigrationDeterminismVe
         phase: null,
         callbackCount: 2,
         normalizedOutput: expectedOutputV1,
-        sourceStateDigest: expectedRevision3SourceDigestV1,
+        sourceStateDigest: expectedRevision4SourceDigestV1,
         migratedStateDigest: expectedMigratedDigestV1,
         receipt: expectedTwoStepReceiptV1,
         attempt: null,
@@ -1008,7 +1043,7 @@ export const saveStateMigrationVectorExpectedV1: SaveStateMigrationDeterminismVe
         phase: "callback_rejected",
         callbackCount: 1,
         normalizedOutput: null,
-        sourceStateDigest: expectedRevision4SourceDigestV1,
+        sourceStateDigest: expectedRevision5SourceDigestV1,
         migratedStateDigest: null,
         receipt: null,
         attempt: expectedAttemptV1({
@@ -1025,7 +1060,7 @@ export const saveStateMigrationVectorExpectedV1: SaveStateMigrationDeterminismVe
         phase: "callback",
         callbackCount: 1,
         normalizedOutput: null,
-        sourceStateDigest: expectedRevision4SourceDigestV1,
+        sourceStateDigest: expectedRevision5SourceDigestV1,
         migratedStateDigest: null,
         receipt: null,
         attempt: expectedAttemptV1({
@@ -1042,7 +1077,7 @@ export const saveStateMigrationVectorExpectedV1: SaveStateMigrationDeterminismVe
         phase: "result_envelope",
         callbackCount: 1,
         normalizedOutput: null,
-        sourceStateDigest: expectedRevision4SourceDigestV1,
+        sourceStateDigest: expectedRevision5SourceDigestV1,
         migratedStateDigest: null,
         receipt: null,
         attempt: expectedAttemptV1({
@@ -1059,7 +1094,7 @@ export const saveStateMigrationVectorExpectedV1: SaveStateMigrationDeterminismVe
         phase: null,
         callbackCount: 2,
         normalizedOutput: expectedOutputV1,
-        sourceStateDigest: expectedRevision3SourceDigestV1,
+        sourceStateDigest: expectedRevision4SourceDigestV1,
         migratedStateDigest: expectedMigratedDigestV1,
         receipt: expectedTwoStepReceiptV1,
         attempt: null,
@@ -1086,17 +1121,17 @@ export const saveStateMigrationVectorExpectedV1: SaveStateMigrationDeterminismVe
           stateContractRevision: 3,
           stateContractDigest: expectedRevision3V1.stateContractDigest,
           bytesDigest: parseDigest(
-            "sha256:f40396978f6c721e147834546809770d368548efc604d8c446c0332df6bba795",
+            "sha256:e0eb1e44ab26d9f14730c47e6f950b954bf71292cdb8cb93054f59b9dc5154b4",
           ),
           stateDigest: parseDigest(
             "sha256:1679d8854ae96eb70009a1de3c8ff7106e67a1e93a29b7278beb4c3e034bca0b",
           ),
         }),
         target: Object.freeze({
-          stateContractRevision: 5,
-          stateContractDigest: expectedRevision5V1.stateContractDigest,
+          stateContractRevision: 6,
+          stateContractDigest: expectedRevision6V1.stateContractDigest,
           stateDigest: parseDigest(
-            "sha256:db57e8ec50a820ac5edd2461b7867bbc175ca0d71ba6a8d92cc00da1e2b9b01e",
+            "sha256:d6e5383e9fd7e024dcce4bc87570ffac0a661e5cf880f69fe2877192fe5b8ed9",
           ),
         }),
         outcome: "exact",
@@ -1104,8 +1139,9 @@ export const saveStateMigrationVectorExpectedV1: SaveStateMigrationDeterminismVe
         migrationSteps: Object.freeze([
           "migration.engine-lab.revision-3-to-4",
           "migration.engine-lab.revision-4-to-5",
+          "migration.engine-lab.revision-5-to-6",
         ]),
-        callbackCount: 2,
+        callbackCount: 3,
         sourceBytesPreserved: true,
       }),
       Object.freeze({
@@ -1115,23 +1151,26 @@ export const saveStateMigrationVectorExpectedV1: SaveStateMigrationDeterminismVe
           stateContractRevision: 4,
           stateContractDigest: expectedRevision4V1.stateContractDigest,
           bytesDigest: parseDigest(
-            "sha256:42573be3dca88e2e5262c9be7d38356056cba662211e7ff17b117563f6565534",
+            "sha256:84c463a6544fbf95cdc864b5cbc1b0685ccabd874433a82aa9faf9871baab5d3",
           ),
           stateDigest: parseDigest(
             "sha256:6639e7ea42cb4aede04e423a7db75e5a95fc3fc113be005e3dd14a0284bc46a4",
           ),
         }),
         target: Object.freeze({
-          stateContractRevision: 5,
-          stateContractDigest: expectedRevision5V1.stateContractDigest,
+          stateContractRevision: 6,
+          stateContractDigest: expectedRevision6V1.stateContractDigest,
           stateDigest: parseDigest(
-            "sha256:db57e8ec50a820ac5edd2461b7867bbc175ca0d71ba6a8d92cc00da1e2b9b01e",
+            "sha256:d6e5383e9fd7e024dcce4bc87570ffac0a661e5cf880f69fe2877192fe5b8ed9",
           ),
         }),
         outcome: "exact",
         diagnostic: null,
-        migrationSteps: Object.freeze(["migration.engine-lab.revision-4-to-5"]),
-        callbackCount: 1,
+        migrationSteps: Object.freeze([
+          "migration.engine-lab.revision-4-to-5",
+          "migration.engine-lab.revision-5-to-6",
+        ]),
+        callbackCount: 2,
         sourceBytesPreserved: true,
       }),
       Object.freeze({
@@ -1141,17 +1180,43 @@ export const saveStateMigrationVectorExpectedV1: SaveStateMigrationDeterminismVe
           stateContractRevision: 5,
           stateContractDigest: expectedRevision5V1.stateContractDigest,
           bytesDigest: parseDigest(
-            "sha256:e19a79e7c340349b75b89e1fe27d1ce3bfdff5fa72ded9df52260fa771e2f01d",
+            "sha256:64455b23ea779f6749d98c9a3915e10dfad1bf36049e33b4743cbd38c268d6b6",
           ),
           stateDigest: parseDigest(
             "sha256:db57e8ec50a820ac5edd2461b7867bbc175ca0d71ba6a8d92cc00da1e2b9b01e",
           ),
         }),
         target: Object.freeze({
-          stateContractRevision: 5,
-          stateContractDigest: expectedRevision5V1.stateContractDigest,
+          stateContractRevision: 6,
+          stateContractDigest: expectedRevision6V1.stateContractDigest,
           stateDigest: parseDigest(
-            "sha256:db57e8ec50a820ac5edd2461b7867bbc175ca0d71ba6a8d92cc00da1e2b9b01e",
+            "sha256:d6e5383e9fd7e024dcce4bc87570ffac0a661e5cf880f69fe2877192fe5b8ed9",
+          ),
+        }),
+        outcome: "exact",
+        diagnostic: null,
+        migrationSteps: Object.freeze(["migration.engine-lab.revision-5-to-6"]),
+        callbackCount: 1,
+        sourceBytesPreserved: true,
+      }),
+      Object.freeze({
+        fixtureId: "engine-lab-state-6",
+        productId: "engine-lab",
+        source: Object.freeze({
+          stateContractRevision: 6,
+          stateContractDigest: expectedRevision6V1.stateContractDigest,
+          bytesDigest: parseDigest(
+            "sha256:909b28a2c75197df7bad1358a1067baceee1361ba8d40355452b4ebeda745238",
+          ),
+          stateDigest: parseDigest(
+            "sha256:d6e5383e9fd7e024dcce4bc87570ffac0a661e5cf880f69fe2877192fe5b8ed9",
+          ),
+        }),
+        target: Object.freeze({
+          stateContractRevision: 6,
+          stateContractDigest: expectedRevision6V1.stateContractDigest,
+          stateDigest: parseDigest(
+            "sha256:d6e5383e9fd7e024dcce4bc87570ffac0a661e5cf880f69fe2877192fe5b8ed9",
           ),
         }),
         outcome: "exact",
@@ -1169,7 +1234,7 @@ export const saveStateMigrationVectorExpectedV1: SaveStateMigrationDeterminismVe
             "sha256:a0f26c983c47fa89b599141ae3d2b8e7653a8cd32533152d17e440bcafc8dd26",
           ),
           bytesDigest: parseDigest(
-            "sha256:48630fdae6e7edcd69ce4384c9f8aa33ede0f624acf172eb674a01863d5c478a",
+            "sha256:5c5eb77ae42a964cb4a8925450e174399d2d70db761e17b865e9c03bcaa3e479",
           ),
           stateDigest: parseDigest(
             "sha256:d0a093896429c55e88c447ff90116af9d0362932d23710aace06c541faec41a3",

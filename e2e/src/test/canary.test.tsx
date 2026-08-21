@@ -68,16 +68,25 @@ async function playNarrativeToEndV1(harness: LabHarnessV1): Promise<readonly str
     const pending = harness.observe().narrative.pending;
     if (pending === null) break;
     definitions.push(pending.definitionId);
-    const resolution: InteractionResolutionV1 = pending.kind === "choice"
-      ? { kind: "choose", choiceId: "choice.e2e.cal.basic" }
-      : pending.kind === "presentation_barrier"
-      ? { kind: "barrier_completed", transitionId: pending.expectedTransitionId }
-      : pending.kind === "pause"
-      ? { kind: "resume" }
-      : pending.kind === "custom"
-      ? { kind: "custom", payload: { value: 2 } }
-      : { kind: "advance" };
-    await dispatchCommittedV1(harness, resolveV1(pending.occurrenceId, resolution));
+    const invocation: LabInvocationV1 = pending.kind === "hold"
+      ? Object.freeze({
+        kind: "time" as const,
+        tick: Object.freeze({
+          elapsedMs: pending.remainingMs,
+          expectedHoldOccurrenceId: pending.occurrenceId,
+        }),
+      })
+      : resolveV1(
+        pending.occurrenceId,
+        pending.kind === "choice"
+          ? { kind: "choose", choiceId: "choice.e2e.cal.basic" }
+          : pending.kind === "presentation_barrier"
+          ? { kind: "barrier_completed", transitionId: pending.expectedTransitionId }
+          : pending.kind === "custom"
+          ? { kind: "custom", payload: { value: 2 } }
+          : { kind: "advance" },
+      );
+    await dispatchCommittedV1(harness, invocation);
   }
   return Object.freeze(definitions);
 }
@@ -93,7 +102,7 @@ describe("canary: currency and shop module", () => {
     expect(after.samplesCollected).toBe(before.samplesCollected - 1);
     expect(after.credits).toBe(before.credits + 2);
 
-    // One committed log entry carries both owners' facts.
+    // One committed log entry journals both modules' domain events.
     const entry = harness.admin.commandLog().at(-1);
     const serialized = JSON.stringify(entry?.outcome);
     expect(serialized).toContain("lab.samples_consumed");
@@ -187,7 +196,7 @@ describe("canary: relationship-conditioned narrative branch", () => {
     expect(secondRun).toContain("interaction.e2e.cal-beta-warm");
     expect(secondRun).not.toContain("interaction.e2e.cal-beta-note");
 
-    // Loading the save restores rapport = 1: a fresh run still warms up.
+    // Loading the save restores the raised rapport: a fresh run still warms up.
     await expect(harness.saves.load("manual.1")).resolves.toMatchObject({ kind: "loaded" });
     const reloadedRun = await playNarrativeToEndV1(harness);
     expect(reloadedRun).toContain("interaction.e2e.cal-beta-warm");

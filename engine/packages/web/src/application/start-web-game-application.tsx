@@ -34,6 +34,8 @@ import type {
   GamepadActionMapV1,
   GameShellViewportOptionsV1,
   GameUiProjectorV1,
+  HeldInputPortV1,
+  HeldKeyMapV1,
   KeyboardActionMapV1,
   NativeBehaviorResetConfigV1,
   NarrativeSurfaceDefinitionV1,
@@ -55,14 +57,17 @@ import type {
 } from "@sillymaker/ui/debug";
 import {
   createDevDockControlV1,
+  createHeldKeyInputV1,
   createPresentationFreezePortV1,
+  createPresentationRatePortV1,
   DefaultGameRootV1,
   defaultGameRootLabelsV1,
   installNativeBehaviorResetV1,
 } from "@sillymaker/ui";
-import type { PresentationFreezePortV1 } from "@sillymaker/ui";
+import type { PresentationFreezePortV1, PresentationRatePortV1 } from "@sillymaker/ui";
 import {
   createHostedGameUiCompositionInternalV1,
+  resolveOptionalGameUiManagedSurfaceCompositionInternalV1,
   sealHostedGameUiCompositionTerminalInternalV1,
 } from "@sillymaker/ui/internal";
 import type { GameUiPresentationAnchorEventInternalV1 } from "@sillymaker/ui/internal";
@@ -91,6 +96,7 @@ import { createWebApplicationTerminalSupervisorInternalV1 } from "./application-
 import { createCompositionBoundRestartLifecycleInternalV1 } from "./composition-bound-restart-lifecycle.ts";
 import { installDesktopCloseFlushV1 } from "./install-desktop-close-flush.ts";
 import { createManagedSurfaceApplicationEpochAllocatorInternalV1 } from "./managed-surface-application-epoch.ts";
+import { installPresentationPacingInternalV1 } from "./presentation-pacing.ts";
 import {
   createPresentationSuccessorAcknowledgmentBrokerInternalV1,
   type PresentationSuccessorAcknowledgmentBrokerInternalV1,
@@ -185,25 +191,54 @@ export interface WebGameUiDefinitionV1<
    * tool windows through `devDockControl` sets false.
    */
   readonly devDockChip?: boolean;
-  /** Optional keyboard/pointer/gamepad action maps installed by the root. */
-  readonly inputMaps?: {
+  /**
+   * The unified input surface: discrete keyboard/pointer/gamepad action
+   * maps (installed by the root, routed through the InputRouter with
+   * context priority), held-key bindings (modifier chords published as
+   * state through the ui-context `heldInput` port — never routed, never
+   * logged), and the game-shell native-behavior reset (suppress the
+   * browser context menu, text selection, and hover-cursor changes
+   * document-wide; editable controls and `data-native-menu` /
+   * `data-native-text` subtrees keep native behavior). The reset installs
+   * by default — a Player is a game shell, not a document; pass
+   * `nativeBehavior: false` for a browser-native page.
+   */
+  readonly input?: {
     readonly keyboard?: KeyboardActionMapV1;
+    readonly held?: HeldKeyMapV1;
     readonly pointer?: PointerActionMapV1;
     readonly gamepad?: GamepadActionMapV1;
+    readonly nativeBehavior?: NativeBehaviorResetConfigV1 | false;
   };
   /** Install the pointer adapter on the application root element. */
   readonly pointer?: boolean;
-  /**
-   * Game-shell native-behavior reset: suppress the browser context menu,
-   * text selection, and hover-cursor changes document-wide (editable
-   * controls and `data-native-menu` / `data-native-text` subtrees keep
-   * native behavior). Semantic right-click actions remain exclusively
-   * routed through the InputRouter. Installed by default — a Player is a
-   * game shell, not a document; pass `false` for a browser-native page.
-   */
-  readonly nativeBehaviorReset?: NativeBehaviorResetConfigV1 | false;
   /** Spatial interaction surface IDs the intent router accepts. */
   readonly interactionSurfaceIds?: readonly string[];
+  /**
+   * The Host metronome for unfenced session time: while `enabledWhen`
+   * holds over the live presentation publication, the host batches scaled
+   * presentation-clock elapsed into `quantumMs` reports and delivers each
+   * through `dispatch` (the Story's session time command, an unfenced
+   * `TimeTickV1`). Declare it when the Story runs authoritative monitors
+   * that must accumulate outside holds. The host closes the gate on its
+   * own while a hold is pending (hold time arrives through the narrative
+   * surface's fenced ticks — one elapsed span never enters authority
+   * twice) and while the document is hidden.
+   */
+  readonly timeReporting?: {
+    readonly quantumMs: number;
+    readonly enabledWhen: (publication: unknown) => boolean;
+    readonly dispatch: (elapsedMs: number) => Promise<unknown>;
+  };
+  /**
+   * Story-declared realtime reaction window over the live publication:
+   * while true, the host pins the presentation rate to exactly 1x so the
+   * presented duration matches wall time (`pace: "realtime"` monitors
+   * projected into the view — see `anyRealtimeMonitorActive`). Realtime
+   * holds pin automatically from the engine-typed pending; declare this
+   * only for Story-shaped windows the engine cannot see.
+   */
+  readonly realtimeWindow?: (publication: unknown) => boolean;
   /** Optional live stage label (current scene name) for the shell main region. */
   resolveStageAccessibleName?(publication: unknown): string;
   /**
@@ -310,6 +345,24 @@ export interface WebGameApplicationV1<
      * Story's mounted `SemanticStageV1` so stage motion freezes too.
      */
     readonly presentationFreeze: PresentationFreezePortV1;
+    /**
+     * Presentation playback rate (time scaling): `setRate()` multiplies the
+     * shared presentation clock from this instant on. Presentation-only —
+     * the authoritative core consumes already-scaled reported milliseconds,
+     * so Saves, digests, and replay are untouched. Stories bind fast-forward
+     * (e.g. hold Ctrl → pin 2×) to this port; the engine debug dock renders
+     * a preset row from the same port.
+     */
+    readonly presentationRate: PresentationRatePortV1;
+    /**
+     * Held-key input: the current set of held input actions declared
+     * through `input.held` (modifier chords such as hold-Ctrl). Pure
+     * presentation-side state — a Story subscribes and owns the policy
+     * (for example pin the presentation rate and enable auto while
+     * `player.fast_forward` is held); physical keys never enter the
+     * CommandLog.
+     */
+    readonly heldInput: HeldInputPortV1;
     /**
      * Core wipe: drain pending Auto Save, then clear every slot. A Story
      * debug dock must use this instead of looping `savePort.clear`.
@@ -638,6 +691,7 @@ export async function startWebGameApplicationV1<
   let mounted: MountedGameApplicationV1 | undefined;
   let pointer: { dispose(): void } | undefined;
   let nativeBehaviorReset: { dispose(): void } | undefined;
+  let heldKeyUninstall: (() => void) | undefined;
   let unbindUiContext: (() => void) | undefined;
   let uiDisposer: (() => void) | undefined;
   let successorAcknowledgments: PresentationSuccessorAcknowledgmentBrokerInternalV1 | undefined;
@@ -661,6 +715,7 @@ export async function startWebGameApplicationV1<
   let removeDesktopCloseFlush: (() => void) | undefined;
   let instanceLease: WebInstanceLeasePortV1 | undefined;
   let unbindPresentationFreeze: (() => void) | undefined;
+  let presentationPacing: { dispose(): void } | undefined;
 
   const terminalSupervisor = createWebApplicationTerminalSupervisorInternalV1({
     fenceSteps: Object.freeze([
@@ -695,6 +750,14 @@ export async function startWebGameApplicationV1<
       Object.freeze({
         name: "native_behavior",
         run: () => nativeBehaviorReset?.dispose(),
+      }),
+      Object.freeze({
+        name: "held_input",
+        run: () => heldKeyUninstall?.(),
+      }),
+      Object.freeze({
+        name: "presentation_pacing",
+        run: () => presentationPacing?.dispose(),
       }),
       Object.freeze({
         name: "presentation_freeze",
@@ -775,10 +838,19 @@ export async function startWebGameApplicationV1<
     });
     instanceLease = instanceLeaseCoordinator;
     const devDockControl = createDevDockControlV1();
-    // One shared pausable presentation clock: narrative reveal and hosted
-    // surfaces consume it directly; Stories pass `presentationFreeze.clock`
-    // to their mounted stages so 冻结画面 holds every plane together.
-    const presentationFreeze = createPresentationFreezePortV1();
+    // One shared pausable, rate-scalable presentation clock: the rate port
+    // wraps the raw host clock (debug 倍速 / Story fast-forward), the freeze
+    // port wraps the rate port, and narrative reveal plus hosted surfaces
+    // consume the result directly; Stories pass `presentationFreeze.clock`
+    // to their mounted stages so 冻结画面 and 倍速 hold every plane together.
+    const presentationRate = createPresentationRatePortV1();
+    const presentationFreeze = createPresentationFreezePortV1({
+      inner: presentationRate.clock,
+    });
+    // Held-key (modifier) input: the port exists before `ui()` so Story
+    // surfaces can subscribe; the adapter installs after mount when the
+    // definition declares `input.held`.
+    const heldKeyInput = createHeldKeyInputV1();
     const clearAllSaves = (): Promise<void> =>
       clearAllCoreApplicationSavesForMaintenanceInternalV1(instance);
     const reloadCurrentState = async (): Promise<void> => {
@@ -813,6 +885,8 @@ export async function startWebGameApplicationV1<
       capabilities,
       devDockControl,
       presentationFreeze,
+      presentationRate,
+      heldInput: heldKeyInput.port,
       clearAllSaves,
       reportFailure,
     });
@@ -943,6 +1017,35 @@ export async function startWebGameApplicationV1<
       hostedSurfaceDefinitions,
     );
     unbindPresentationFreeze = presentationFreeze.bindInputRouterInternalV1(composition.input);
+    // Pacing installs whenever any of its duties can arise: declared time
+    // reporting, a declared realtime span, or a narrative runtime whose
+    // engine-typed `pace: "realtime"` holds must pin the rate even when the
+    // Story declares neither composer member.
+    const pacingNarrative =
+      resolveOptionalGameUiManagedSurfaceCompositionInternalV1(composition)?.narrative ?? null;
+    if (
+      uiDefinition.timeReporting !== undefined || uiDefinition.realtimeWindow !== undefined ||
+      pacingNarrative !== null
+    ) {
+      presentationPacing = installPresentationPacingInternalV1({
+        presentation: composition.presentation,
+        narrative: pacingNarrative,
+        rate: presentationRate,
+        // The freeze-wrapped clock: frozen presentation stops session time
+        // with everything else, and realtime pins reshape hold ticks too.
+        clock: presentationFreeze.clock,
+        timeReporting: uiDefinition.timeReporting ?? null,
+        realtimeWindow: uiDefinition.realtimeWindow ?? null,
+        visibility: Object.freeze({
+          isHidden: () => document.visibilityState === "hidden",
+          subscribe: (listener: () => void) => {
+            document.addEventListener("visibilitychange", listener);
+            return () => document.removeEventListener("visibilitychange", listener);
+          },
+        }),
+        reportFailure,
+      });
+    }
 
     automation = installBrowserAutomationBridgeV1({
       semantic: instance.semantic,
@@ -952,6 +1055,22 @@ export async function startWebGameApplicationV1<
     // DevDock open state feeds the diagnostics UI context without giving
     // the resident player DOM any debug vocabulary.
     let devDockOpenState: DevDockOpenStateV1 = Object.freeze({ open: false });
+    // The root installs only the router-coupled discrete adapters; held
+    // bindings and the native-behavior reset install below, composer-side.
+    const rootInputMaps = ((): {
+      readonly keyboard?: KeyboardActionMapV1;
+      readonly pointer?: PointerActionMapV1;
+      readonly gamepad?: GamepadActionMapV1;
+    } | undefined => {
+      const input = uiDefinition.input;
+      if (input === undefined) return undefined;
+      const maps = {
+        ...(input.keyboard === undefined ? {} : { keyboard: input.keyboard }),
+        ...(input.pointer === undefined ? {} : { pointer: input.pointer }),
+        ...(input.gamepad === undefined ? {} : { gamepad: input.gamepad }),
+      };
+      return Object.keys(maps).length === 0 ? undefined : maps;
+    })();
     const rootNode: ReactElement = (
       <DefaultGameRootV1
         composition={composition}
@@ -1004,11 +1123,12 @@ export async function startWebGameApplicationV1<
           ...(uiDefinition.devDockChip === undefined ? {} : { chip: uiDefinition.devDockChip }),
           control: devDockControl,
           freeze: presentationFreeze,
+          rate: presentationRate,
           observeOpenState: (state: DevDockOpenStateV1) => {
             devDockOpenState = state;
           },
         })}
-        {...(uiDefinition.inputMaps === undefined ? {} : { inputMaps: uiDefinition.inputMaps })}
+        {...(rootInputMaps === undefined ? {} : { inputMaps: rootInputMaps })}
       />
     );
     mounted = mountGameApplicationV1(rootElement, rootNode);
@@ -1021,9 +1141,12 @@ export async function startWebGameApplicationV1<
         document,
       });
     }
-    if (uiDefinition.nativeBehaviorReset !== false) {
+    if (uiDefinition.input?.held !== undefined) {
+      heldKeyUninstall = heldKeyInput.install({ map: uiDefinition.input.held });
+    }
+    if (uiDefinition.input?.nativeBehavior !== false) {
       nativeBehaviorReset = installNativeBehaviorResetV1(
-        uiDefinition.nativeBehaviorReset ?? {},
+        uiDefinition.input?.nativeBehavior ?? {},
       );
     }
     if (uiDefinition.debugUiContext !== undefined) {

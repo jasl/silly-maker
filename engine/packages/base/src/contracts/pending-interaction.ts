@@ -155,9 +155,28 @@ export type PendingInteractionV1 =
     readonly options: readonly InteractionChoiceOptionV1[];
   })
   | (PendingInteractionBaseV1 & {
-    readonly kind: "pause";
-    readonly durationMs: number;
+    readonly kind: "hold";
+    readonly totalMs: number;
+    readonly remainingMs: number;
     readonly skippable: boolean;
+    /**
+     * Optional authoritative commit cadence declared by the Story block: a
+     * Host that owns the presentation clock commits accumulated elapsed
+     * time as partial hold-scoped time ticks every quantum instead of
+     * holding everything for one expiry commit. Absent means the hold
+     * settles as a single expiry tick. The terminal state never depends on
+     * the cadence — only mid-hold Save durability and same-commit tick
+     * effects observe it.
+     */
+    readonly tickQuantumMs?: number;
+    /**
+     * Optional pacing hint for the Host, the `skippable` idiom applied to
+     * time scaling: absent means `cinematic` (presented time may be scaled
+     * or the remainder folded), `realtime` pins the rate while this hold
+     * is pending. Fold-verb availability stays governed by `skippable`
+     * alone. See {@link PaceHintV1}.
+     */
+    readonly pace?: PaceHintV1;
   })
   | (PendingInteractionBaseV1 & {
     readonly kind: "presentation_barrier";
@@ -170,12 +189,34 @@ export type PendingInteractionV1 =
     readonly params: StrictJsonObjectV1;
   });
 
+/**
+ * Input resolutions for pending interactions. A `hold` pending has no
+ * resolution kind on purpose: holds are pure time-settlement boundaries
+ * fed by the session-level time verb (see `time-tick.ts`), so every input
+ * resolution against a hold rejects with `interaction.kind_mismatch`.
+ */
 export type InteractionResolutionV1 =
   | { readonly kind: "advance" }
   | { readonly kind: "choose"; readonly choiceId: string }
-  | { readonly kind: "resume" }
   | { readonly kind: "barrier_completed"; readonly transitionId: string }
   | { readonly kind: "custom"; readonly payload: StrictJsonObjectV1 };
+
+/**
+ * Host pacing hint vocabulary shared by hold blocks and authoritative
+ * monitor declarations (`contracts/authoritative-monitor.ts` reuses this
+ * type): `realtime` declares a fairness-sensitive reaction span whose
+ * presented duration must match wall time — the Host pins its
+ * presentation-rate multiplier back to 1x while the span is live.
+ * `cinematic` (the default) lets the Host scale freely. The hint never
+ * enters authoritative arithmetic — reported milliseconds settle
+ * identically either way.
+ */
+export type PaceHintV1 = "cinematic" | "realtime";
+
+/** Shared admission guard so a future pace value lands in one place. */
+export function isPaceHintV1(value: unknown): value is PaceHintV1 {
+  return value === "cinematic" || value === "realtime";
+}
 
 const interactionBaseKeysV1 = ["kind", "definitionId", "seenRevision", "occurrenceId"] as const;
 
@@ -228,7 +269,11 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
         path,
       );
       const optionsValue = readArray(record.options, `${path}/options`);
-      if (optionsValue.length < 1 || optionsValue.length > 16) {
+      // An empty menu has no resolvable option. There is no upper bound:
+      // untrusted Saves are already bounded by `saveJsonLimitsV1` array-item
+      // and node limits at admission, so a count cap here would only
+      // constrain authors.
+      if (optionsValue.length < 1) {
         return dataFailure(`${path}/options`, "choice_options_invalid");
       }
       const seen = new Set<string>();
@@ -262,17 +307,48 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
         options: freezeInteractionDataInternalV1(options),
       });
     }
-    case "pause": {
+    case "hold": {
+      const declaresTickQuantum = Object.hasOwn(value, "tickQuantumMs");
+      const declaresPace = Object.hasOwn(value, "pace");
       const record = readExactRecord(
         value,
-        [...interactionBaseKeysV1, "durationMs", "skippable"],
+        [
+          ...interactionBaseKeysV1,
+          "totalMs",
+          "remainingMs",
+          "skippable",
+          ...(declaresTickQuantum ? ["tickQuantumMs"] : []),
+          ...(declaresPace ? ["pace"] : []),
+        ],
         path,
       );
+      const totalMs = parsePositiveDurationMsV1(record.totalMs, `${path}/totalMs`);
+      const remainingMs = parsePositiveDurationMsV1(record.remainingMs, `${path}/remainingMs`);
+      // A saved hold always has at least one live millisecond: the tick that
+      // reaches zero expires the boundary in the same commit, so a pending
+      // with remainingMs 0 (or beyond its total) cannot exist.
+      if (remainingMs > totalMs) {
+        return dataFailure(`${path}/remainingMs`, "hold_remaining_invalid");
+      }
+      if (declaresPace && !isPaceHintV1(record.pace)) {
+        return dataFailure(`${path}/pace`, "pace_invalid");
+      }
+      const base = parseInteractionBaseV1(record, path);
+      const skippable = parseBooleanV1(record.skippable, `${path}/skippable`);
+      // The canonical shape omits the optional members entirely when the
+      // block does not declare them, keeping earlier pendings byte-identical.
       return freezeInteractionDataInternalV1({
         kind,
-        ...parseInteractionBaseV1(record, path),
-        durationMs: parsePositiveDurationMsV1(record.durationMs, `${path}/durationMs`),
-        skippable: parseBooleanV1(record.skippable, `${path}/skippable`),
+        ...base,
+        totalMs,
+        remainingMs,
+        skippable,
+        ...(declaresTickQuantum
+          ? {
+            tickQuantumMs: parsePositiveDurationMsV1(record.tickQuantumMs, `${path}/tickQuantumMs`),
+          }
+          : {}),
+        ...(declaresPace ? { pace: record.pace as PaceHintV1 } : {}),
       });
     }
     case "presentation_barrier": {
@@ -326,8 +402,7 @@ export function parseInteractionResolutionV1(
   }
   const kind = (value as { readonly kind?: unknown }).kind;
   switch (kind) {
-    case "advance":
-    case "resume": {
+    case "advance": {
       readExactRecord(value, ["kind"], path);
       return freezeInteractionDataInternalV1({ kind });
     }
@@ -385,11 +460,10 @@ export interface InteractionResolutionContextV1 {
 }
 
 const resolutionKindForInteractionV1: Readonly<
-  Record<PendingInteractionV1["kind"], InteractionResolutionV1["kind"]>
+  Record<Exclude<PendingInteractionV1["kind"], "hold">, InteractionResolutionV1["kind"]>
 > = freezeInteractionDataInternalV1({
   say: "advance",
   choice: "choose",
-  pause: "resume",
   presentation_barrier: "barrier_completed",
   custom: "custom",
 });
@@ -411,6 +485,9 @@ export function evaluateInteractionResolutionV1(
   if (pending.occurrenceId !== expectedOccurrenceId) {
     return rejected("interaction.occurrence_mismatch");
   }
+  // Holds are time-settlement boundaries: no input resolution targets them.
+  // The session-level time verb (`time-tick.ts`) owns their folding.
+  if (pending.kind === "hold") return rejected("interaction.kind_mismatch");
   if (resolutionKindForInteractionV1[pending.kind] !== resolution.kind) {
     return rejected("interaction.kind_mismatch");
   }
@@ -438,3 +515,5 @@ export function evaluateInteractionResolutionV1(
   }
   return freezeInteractionDataInternalV1({ kind: "accepted" });
 }
+
+export type HoldPendingInteractionV1 = Extract<PendingInteractionV1, { readonly kind: "hold" }>;

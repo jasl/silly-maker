@@ -354,10 +354,10 @@ import type { NarrativeStableChoiceActionAttemptInternalV1 as ForbiddenInternalN
 import type { NarrativeStableCustomActionAttemptInternalV1 as ForbiddenPublicNarrativeCustomActionAttemptV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative custom-action attempts.
 import type { NarrativeStableCustomActionAttemptInternalV1 as ForbiddenInternalNarrativeCustomActionAttemptV1 } from "./internal.ts";
-// @ts-expect-error Narrative pause-resume action attempts remain source-relative.
-import type { NarrativeStablePauseResumeActionAttemptInternalV1 as ForbiddenPublicNarrativePauseResumeActionAttemptV1 } from "./index.ts";
-// @ts-expect-error The Host-only internal barrel does not expose Narrative pause-resume action attempts.
-import type { NarrativeStablePauseResumeActionAttemptInternalV1 as ForbiddenInternalNarrativePauseResumeActionAttemptV1 } from "./internal.ts";
+// @ts-expect-error Narrative hold-skip action attempts remain source-relative.
+import type { NarrativeStableHoldSkipActionAttemptInternalV1 as ForbiddenPublicNarrativeHoldSkipActionAttemptV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative hold-skip action attempts.
+import type { NarrativeStableHoldSkipActionAttemptInternalV1 as ForbiddenInternalNarrativeHoldSkipActionAttemptV1 } from "./internal.ts";
 // @ts-expect-error Narrative Say activation attempts remain source-relative.
 import type { NarrativeStableSayActivationAttemptInternalV1 as ForbiddenPublicNarrativeSayActivationAttemptV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative Say activation attempts.
@@ -642,10 +642,10 @@ import type { createNarrativeSurfaceCompositionRuntimeInternalV1 as ForbiddenInt
 import type { useNarrativeSurfaceCompositionBoundActionInternalV1 as ForbiddenPublicNarrativeSurfaceCompositionBoundActionHookV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose composition-owned Narrative bound-action hooks.
 import type { useNarrativeSurfaceCompositionBoundActionInternalV1 as ForbiddenInternalNarrativeSurfaceCompositionBoundActionHookV1 } from "./internal.ts";
-// @ts-expect-error Optional managed Narrative composition lookup remains source-relative.
+// @ts-expect-error Optional managed Narrative composition lookup stays off the Story-facing index.
 import type { resolveOptionalGameUiManagedSurfaceCompositionInternalV1 as ForbiddenPublicOptionalGameUiManagedSurfaceCompositionResolverV1 } from "./index.ts";
-// @ts-expect-error The Host-only internal barrel does not expose optional managed Narrative composition lookup.
-import type { resolveOptionalGameUiManagedSurfaceCompositionInternalV1 as ForbiddenInternalOptionalGameUiManagedSurfaceCompositionResolverV1 } from "./internal.ts";
+// The Host-only internal barrel exposes the optional lookup for host pacing wiring.
+import type { resolveOptionalGameUiManagedSurfaceCompositionInternalV1 as HostOnlyOptionalGameUiManagedSurfaceCompositionResolverV1 } from "./internal.ts";
 // @ts-expect-error Stage presentation-generation proofs remain source-relative.
 import type { StagePresentationGenerationProofInternalV1 as ForbiddenPublicStagePresentationGenerationProofV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Stage presentation-generation proofs.
@@ -710,22 +710,22 @@ import type { NarrativeStableSayRevealControllerInternalV1 as ForbiddenInternalN
 import type { createNarrativeStableSayRevealControllerInternalV1 as ForbiddenPublicNarrativeSayRevealControllerFactoryV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative Say reveal-controller construction.
 import type { createNarrativeStableSayRevealControllerInternalV1 as ForbiddenInternalNarrativeSayRevealControllerFactoryV1 } from "./internal.ts";
-// @ts-expect-error Narrative pause-expiry controller attempts remain source-relative.
-import type { NarrativeStablePauseExpiryControllerAttemptInternalV1 as ForbiddenPublicNarrativePauseExpiryControllerAttemptV1 } from "./index.ts";
-// @ts-expect-error The Host-only internal barrel does not expose Narrative pause-expiry controller attempts.
-import type { NarrativeStablePauseExpiryControllerAttemptInternalV1 as ForbiddenInternalNarrativePauseExpiryControllerAttemptV1 } from "./internal.ts";
-// @ts-expect-error Narrative pause-expiry dispatch results remain source-relative.
-import type { NarrativeStablePauseExpiryDispatchResultInternalV1 as ForbiddenPublicNarrativePauseExpiryDispatchResultV1 } from "./index.ts";
-// @ts-expect-error The Host-only internal barrel does not expose Narrative pause-expiry dispatch results.
-import type { NarrativeStablePauseExpiryDispatchResultInternalV1 as ForbiddenInternalNarrativePauseExpiryDispatchResultV1 } from "./internal.ts";
-// @ts-expect-error Narrative pause-expiry controllers remain source-relative.
-import type { NarrativeStablePauseExpiryControllerInternalV1 as ForbiddenPublicNarrativePauseExpiryControllerV1 } from "./index.ts";
-// @ts-expect-error The Host-only internal barrel does not expose Narrative pause-expiry controllers.
-import type { NarrativeStablePauseExpiryControllerInternalV1 as ForbiddenInternalNarrativePauseExpiryControllerV1 } from "./internal.ts";
-// @ts-expect-error Narrative pause-expiry controller construction remains source-relative.
-import type { createNarrativeStablePauseExpiryControllerInternalV1 as ForbiddenPublicNarrativePauseExpiryControllerFactoryV1 } from "./index.ts";
-// @ts-expect-error The Host-only internal barrel does not expose Narrative pause-expiry controller construction.
-import type { createNarrativeStablePauseExpiryControllerInternalV1 as ForbiddenInternalNarrativePauseExpiryControllerFactoryV1 } from "./internal.ts";
+// @ts-expect-error Narrative hold-expiry controller attempts remain source-relative.
+import type { NarrativeStableHoldExpiryControllerAttemptInternalV1 as ForbiddenPublicNarrativeHoldExpiryControllerAttemptV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative hold-expiry controller attempts.
+import type { NarrativeStableHoldExpiryControllerAttemptInternalV1 as ForbiddenInternalNarrativeHoldExpiryControllerAttemptV1 } from "./internal.ts";
+// @ts-expect-error Narrative hold-expiry dispatch results remain source-relative.
+import type { NarrativeStableHoldExpiryDispatchResultInternalV1 as ForbiddenPublicNarrativeHoldExpiryDispatchResultV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative hold-expiry dispatch results.
+import type { NarrativeStableHoldExpiryDispatchResultInternalV1 as ForbiddenInternalNarrativeHoldExpiryDispatchResultV1 } from "./internal.ts";
+// @ts-expect-error Narrative hold-expiry controllers remain source-relative.
+import type { NarrativeStableHoldExpiryControllerInternalV1 as ForbiddenPublicNarrativeHoldExpiryControllerV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative hold-expiry controllers.
+import type { NarrativeStableHoldExpiryControllerInternalV1 as ForbiddenInternalNarrativeHoldExpiryControllerV1 } from "./internal.ts";
+// @ts-expect-error Narrative hold-expiry controller construction remains source-relative.
+import type { createNarrativeStableHoldExpiryControllerInternalV1 as ForbiddenPublicNarrativeHoldExpiryControllerFactoryV1 } from "./index.ts";
+// @ts-expect-error The Host-only internal barrel does not expose Narrative hold-expiry controller construction.
+import type { createNarrativeStableHoldExpiryControllerInternalV1 as ForbiddenInternalNarrativeHoldExpiryControllerFactoryV1 } from "./internal.ts";
 // @ts-expect-error Narrative physical-action dispatch results remain source-relative.
 import type { NarrativeStablePhysicalActionDispatchResultInternalV1 as ForbiddenPublicNarrativePhysicalActionDispatchResultV1 } from "./index.ts";
 // @ts-expect-error The Host-only internal barrel does not expose Narrative physical-action dispatch results.
@@ -1213,6 +1213,7 @@ describe("@sillymaker/ui public managed System surface", () => {
     expectTypeOf<keyof DefineNarrativeSurfaceInputV1<unknown>>().toEqualTypeOf<
       | "selectNarrative"
       | "dispatchResolution"
+      | "dispatchTime"
       | "renderer"
       | "resolveText"
       | "replayCurrentVoice"
@@ -1553,7 +1554,7 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "NarrativeStablePlaybackModeResetDispatchResultInternalV1"
       | "NarrativeStableChoiceActionAttemptInternalV1"
       | "NarrativeStableCustomActionAttemptInternalV1"
-      | "NarrativeStablePauseResumeActionAttemptInternalV1"
+      | "NarrativeStableHoldSkipActionAttemptInternalV1"
       | "NarrativeStableSayActivationAttemptInternalV1"
       | "NarrativeStableSayContentAutoAttemptInternalV1"
       | "NarrativeStableSayContentAutoDispatchResultInternalV1"
@@ -1709,7 +1710,6 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "NarrativeSurfaceCompositionRuntimeInternalV1"
       | "createNarrativeSurfaceCompositionRuntimeInternalV1"
       | "useNarrativeSurfaceCompositionBoundActionInternalV1"
-      | "resolveOptionalGameUiManagedSurfaceCompositionInternalV1"
       | "StagePresentationGenerationProofInternalV1"
       | "StagePresentationGenerationCaptureResultInternalV1"
       | "StagePresentationGenerationRetargetResultInternalV1"
@@ -1733,10 +1733,10 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "CreateNarrativeStableSayRevealControllerInputInternalV1"
       | "NarrativeStableSayRevealControllerInternalV1"
       | "createNarrativeStableSayRevealControllerInternalV1"
-      | "NarrativeStablePauseExpiryControllerAttemptInternalV1"
-      | "NarrativeStablePauseExpiryDispatchResultInternalV1"
-      | "NarrativeStablePauseExpiryControllerInternalV1"
-      | "createNarrativeStablePauseExpiryControllerInternalV1"
+      | "NarrativeStableHoldExpiryControllerAttemptInternalV1"
+      | "NarrativeStableHoldExpiryDispatchResultInternalV1"
+      | "NarrativeStableHoldExpiryControllerInternalV1"
+      | "createNarrativeStableHoldExpiryControllerInternalV1"
       | "NarrativeStablePhysicalActionDispatchResultInternalV1"
       | "CreateNarrativeStablePhysicalActionAdmissionInputInternalV1"
       | "NarrativeStablePhysicalActionAdmissionInternalV1"
@@ -1826,6 +1826,13 @@ describe("@sillymaker/ui public managed System surface", () => {
     expect(internalUiV1).not.toHaveProperty(
       "createManagedSurfaceStableAdmissionAuthorityInternalV1",
     );
+    // The optional managed-composition lookup is a Host-only pacing seam: it
+    // stays off the Story-facing index but ships on the internal barrel.
+    expect(publicUiV1).not.toHaveProperty(
+      "resolveOptionalGameUiManagedSurfaceCompositionInternalV1",
+    );
+    expect(internalUiV1.resolveOptionalGameUiManagedSurfaceCompositionInternalV1)
+      .toBeTypeOf("function");
     for (
       const dormantContractExport of [
         "WholeCanvasManagedSurfaceCatalogRowInternalV1",
@@ -1971,7 +1978,7 @@ describe("@sillymaker/ui public managed System surface", () => {
         "NarrativeStablePlaybackModeResetDispatchResultInternalV1",
         "NarrativeStableChoiceActionAttemptInternalV1",
         "NarrativeStableCustomActionAttemptInternalV1",
-        "NarrativeStablePauseResumeActionAttemptInternalV1",
+        "NarrativeStableHoldSkipActionAttemptInternalV1",
         "NarrativeStableSayActivationAttemptInternalV1",
         "NarrativeStableSayContentAutoAttemptInternalV1",
         "NarrativeStableSayContentAutoDispatchResultInternalV1",
@@ -2126,7 +2133,6 @@ describe("@sillymaker/ui public managed System surface", () => {
         "NarrativeSurfaceCompositionRuntimeInternalV1",
         "createNarrativeSurfaceCompositionRuntimeInternalV1",
         "useNarrativeSurfaceCompositionBoundActionInternalV1",
-        "resolveOptionalGameUiManagedSurfaceCompositionInternalV1",
         "StagePresentationGenerationProofInternalV1",
         "StagePresentationGenerationCaptureResultInternalV1",
         "StagePresentationGenerationRetargetResultInternalV1",
@@ -2150,10 +2156,10 @@ describe("@sillymaker/ui public managed System surface", () => {
         "CreateNarrativeStableSayRevealControllerInputInternalV1",
         "NarrativeStableSayRevealControllerInternalV1",
         "createNarrativeStableSayRevealControllerInternalV1",
-        "NarrativeStablePauseExpiryControllerAttemptInternalV1",
-        "NarrativeStablePauseExpiryDispatchResultInternalV1",
-        "NarrativeStablePauseExpiryControllerInternalV1",
-        "createNarrativeStablePauseExpiryControllerInternalV1",
+        "NarrativeStableHoldExpiryControllerAttemptInternalV1",
+        "NarrativeStableHoldExpiryDispatchResultInternalV1",
+        "NarrativeStableHoldExpiryControllerInternalV1",
+        "createNarrativeStableHoldExpiryControllerInternalV1",
         "NarrativeStablePhysicalActionDispatchResultInternalV1",
         "CreateNarrativeStablePhysicalActionAdmissionInputInternalV1",
         "NarrativeStablePhysicalActionAdmissionInternalV1",

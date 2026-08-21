@@ -56,7 +56,7 @@ type SyntheticDebugCommandV1 = {
   readonly amount: NonNegativeSafeInteger;
 };
 
-interface SyntheticFactV1 {
+interface SyntheticEventV1 {
   readonly kind: "value.changed";
   readonly before: NonNegativeSafeInteger;
   readonly after: NonNegativeSafeInteger;
@@ -81,7 +81,7 @@ type SyntheticLoggedCommandV1 =
 
 type SyntheticAttemptV1 = CommandExecutionAttemptEnvelopeV1<
   SyntheticSnapshotV1,
-  SyntheticFactV1,
+  SyntheticEventV1,
   SyntheticRejectionV1,
   SyntheticFaultV1,
   RngStateV1,
@@ -90,7 +90,7 @@ type SyntheticAttemptV1 = CommandExecutionAttemptEnvelopeV1<
 
 type SyntheticFinalizedAttemptV1 = FinalizedCommandAttemptV1<
   SyntheticSnapshotV1,
-  SyntheticFactV1,
+  SyntheticEventV1,
   SyntheticRejectionV1,
   SyntheticFaultV1,
   RngStateV1,
@@ -99,7 +99,7 @@ type SyntheticFinalizedAttemptV1 = FinalizedCommandAttemptV1<
 
 type SyntheticEntryV1 = ReplayCommandLogEntryV1<
   SyntheticLoggedCommandV1,
-  SyntheticFactV1,
+  SyntheticEventV1,
   SyntheticRejectionV1,
   SyntheticFaultV1,
   RngStateV1,
@@ -109,7 +109,7 @@ type SyntheticEntryV1 = ReplayCommandLogEntryV1<
 type SyntheticReplayInputV1 = ReplayInputV1<
   SyntheticSnapshotV1,
   SyntheticLoggedCommandV1,
-  SyntheticFactV1,
+  SyntheticEventV1,
   SyntheticRejectionV1,
   SyntheticFaultV1,
   RngStateV1,
@@ -272,9 +272,9 @@ function finalizedAttemptV1(
 
 function outcomeV1(
   attempt: SyntheticAttemptV1,
-): ReplayRecordedOutcomeV1<SyntheticFactV1, SyntheticRejectionV1, SyntheticFaultV1> {
+): ReplayRecordedOutcomeV1<SyntheticEventV1, SyntheticRejectionV1, SyntheticFaultV1> {
   if (attempt.result.kind === "committed") {
-    return Object.freeze({ kind: "committed", facts: attempt.result.facts });
+    return Object.freeze({ kind: "committed", events: attempt.result.events });
   }
   if (attempt.result.kind === "rejected") {
     return Object.freeze({ kind: "rejected", reasons: attempt.result.reasons });
@@ -356,7 +356,7 @@ function createDriverV1(
 ): ReplayDriverV1<
   SyntheticSnapshotV1,
   SyntheticLoggedCommandV1,
-  SyntheticFactV1,
+  SyntheticEventV1,
   SyntheticRejectionV1,
   SyntheticFaultV1,
   RngStateV1,
@@ -1012,7 +1012,7 @@ describe("authoritative replay", () => {
     });
   });
 
-  it("compares mixed outcomes, ordered facts, digests, sequence, and every RNG field", async () => {
+  it("compares mixed outcomes, ordered events, digests, sequence, and every RNG field", async () => {
     const fixture = fixtureV1();
     await expect(replayAuthoritativelyV1(fixture.input)).resolves.toEqual({
       authoritative: true,
@@ -1172,7 +1172,7 @@ describe("authoritative replay", () => {
   it.each(
     [
       ["outcome", 0],
-      ["facts", 0],
+      ["events", 0],
       ["reasons", 1],
       ["fault", 2],
       ["pre_state_digest", 0],
@@ -1204,12 +1204,12 @@ describe("authoritative replay", () => {
             ]),
           }),
         });
-      } else if (field === "facts") {
+      } else if (field === "events") {
         replacement = Object.freeze({
           ...original,
           outcome: Object.freeze({
             kind: "committed" as const,
-            facts: Object.freeze([
+            events: Object.freeze([
               Object.freeze({
                 kind: "value.changed" as const,
                 before: parseNonNegativeSafeInteger(999),

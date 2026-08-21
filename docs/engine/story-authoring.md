@@ -11,7 +11,7 @@ A Story owns the game-specific parts of a playable application:
 - stable identity and state-contract description;
 - validated gameplay data and named deterministic rule providers;
 - the State shape and GameplayModules that own it;
-- commands, rejections, facts, debug commands, queries, and ViewModels;
+- commands, rejections, domain events, debug commands, queries, and ViewModels;
 - text, assets, scene graph, interactions, semantic actions, and renderer contributions;
 - Story-specific application composition and optional tooling.
 
@@ -27,7 +27,7 @@ Treat a revision as a compatibility statement. Change it when the corresponding 
 
 ### Define GameplayModules
 
-Each stateful module declares its owned State slot(s), schema, initial State, public read ports, owner-scoped proposals/apply behavior, and local invariants. Dependencies should name capabilities another module intentionally exposes.
+Each stateful module declares its owned State slot(s), schema, initial State, public read ports, domain-event reducers over its own slice, and local invariants. Dependencies should name capabilities another module intentionally exposes.
 
 Schemas can be hand-written parse functions or, preferably, built through `@sillymaker/base/authoring`: `createRuntimeSchemaV1` wraps a parse function and `fromStandardSchemaV1` adapts a Zod (or any Standard Schema V1) schema. Both enforce canonical-JSON output, deep-freeze the result, and report failures as stable `DiagnosticEnvelopeV1` values with JSON pointers instead of bare exceptions. `collectGamePackageDiagnosticsV1` aggregates definition/resolution failures for a whole package the same way.
 
@@ -55,7 +55,8 @@ properties rather than accessors; admission rejects an accessor as
 rely on a later Snapshot or Save encode to catch an invalid command.
 
 Likewise, finalization does not retain or itself freeze the upstream identities
-produced by Story fact/rejection/Debug-error normalizers; a schema helper may
+produced by Story domain-event/rejection/Debug-error normalizers; a schema
+helper may
 already have frozen its output. Evidence arrays use one captured own `length`
 data descriptor, so Proxy virtual length cannot alter their item vector.
 Finalization projects and freezes the Snapshot-free canonical data;
@@ -63,7 +64,7 @@ the returned attempt and CommandLog share that admitted projection. Snapshot
 objects themselves remain the authoritative identity and are not cloned by this
 evidence boundary.
 
-For module wiring, `createGameAuthoringKitV1` captures the Game type family once and provides `defineCapability` (typed tokens), `defineStatefulModule`/`defineStatelessModule` helpers (omit absent command/query surfaces; proposal schemas derive from operation schemas), `provides` factories that build narrow read-only ports from the owner's own State slice, `requires` declarations that surface as typed dependency ports in `owner.propose`, and `initializesAfter` for startup order. `composeModules` validates both the capability DAG and the lifecycle DAG with stable diagnostic codes and emits ordinary low-level bindings for `defineGameSimulation`, so kit and hand-written modules never form two authorities.
+For module wiring, `createGameAuthoringKitV1` captures the Game type family once and provides `defineCapability` (typed tokens), `defineStatefulModule`/`defineStatelessModule` helpers (omit absent command/query surfaces; a stateful module declares a `reducers` map from domain-event kinds to folds over its own slice), `provides` factories that build narrow read-only ports from the module's own State slice, `requires` declarations that feed the validated capability DAG and the module's serialized dependency vector (`transaction.read(token)` resolves any composed provider; the declaration documents and validates the dependency, it does not gate the read), and `initializesAfter` for startup order. `composeModules` validates both the capability DAG and the lifecycle DAG with stable diagnostic codes and emits ordinary low-level bindings for `defineGameSimulation`, so kit and hand-written modules never form two authorities.
 
 The aggregate State should align with the modules the Story actually composes. Avoid a universal object containing optional fields for every possible module. Stateless gameplay services can remain named pure capabilities rather than fake State.
 
@@ -72,15 +73,15 @@ The aggregate State should align with the modules the Story actually composes. A
 Use `defineGameSimulation` to bind:
 
 - the exact module tuple;
-- aggregate State, command, fact, rejection, and debug schemas;
+- aggregate State, command, domain-event, rejection, and debug schemas;
 - bootstrap and initial-State creation;
 - gameplay and debug command executors;
 - `createQueries(State)`;
 - immutable ViewModel projection.
 
-Cross-module commands remain Story-owned orchestration. They gather validated owner proposals and commit a complete candidate or reject without changing the current Snapshot. Deterministic rule code uses the supplied serializable RNG capabilities rather than ambient time or `Math.random()`.
+Cross-module commands remain Story-owned orchestration. The handler decides against the command-start Snapshot, emits domain events for every decided outcome, and commits a complete candidate or rejects without changing the current Snapshot. Deterministic rule code uses the supplied serializable RNG capabilities rather than ambient time or `Math.random()`.
 
-The kit composition's `createTransactionRunner` owns the mechanics of that orchestration: the Story handler reads capabilities against the command-start Snapshot, stages at most one proposal per owner, and returns `complete()` or `reject(...)`; proposal callbacks therefore run in the Story's explicit call order. After `complete()`, the engine sorts staged owner IDs by locale-independent UTF-16 code units, applies each proposal against its command-start owner slice, accumulates State replacements and facts in that exact order, validates the aggregate candidate, and produces the commit/reject/fault attempt envelope with full RNG and sequence rollback. The same order reaches the candidate Snapshot, CommandLog evidence, and authoritative replay; Host locale never chooses gameplay order. The transaction surface exists only inside command executors; UI and automation never receive it.
+The kit composition's `createTransactionRunner` owns the mechanics of that orchestration: the Story handler reads capabilities against the command-start Snapshot, performs every gameplay refusal via `reject(...)` before emitting, and journals decided outcomes with `emit(event)` (validated once against the Story `eventSchema` at emit time); `emit` never rejects — an event is a decided fact of the commit. After `complete()`, the engine folds the journal deterministically: events replay in emission order, and within one event the subscribed module reducers run in locale-independent UTF-16 code-unit module-ID order, each folding its own current slice forward (handlers read the command-start snapshot; reducers see the running fold, and touched slices re-validate against their module schemas before the aggregate candidate is checked). The engine validates the aggregate candidate and produces the commit/reject/fault attempt envelope (the committed envelope carries the event journal) with full RNG and sequence rollback. The same order reaches the candidate Snapshot, CommandLog evidence, and authoritative replay; Host locale never chooses gameplay order. Events with no subscribed reducer are journal-only broadcast evidence for UI projections and tests. The transaction surface exists only inside command executors; UI and automation never receive it.
 
 ### Design queries and semantic actions
 
@@ -108,6 +109,10 @@ The presentation facet contains validated Story-owned data:
 Story React contributions resolve stable renderer IDs inside the application closure. They receive immutable semantic/presentation projections and send semantic or presentation intents. Scene data that participates in resolution should stay plain and serializable.
 
 Narrative entrance/exit animation is authored as Motion assets: `sillymaker.motion` JSON documents (strictly admitted integer keyframes with per-segment easing), bound to stage edges through `motionStageTransition` in the transition catalog — or, for a scene-managed scene, through its Scene document's cue bindings. Motions compose over the settled placement (layout stays authoritative) and never enter authoritative State, Saves, digests, or replay. They are the human tuning surface — the DevDock provenance panel locates them from the running picture and the Motion Workbench edits and saves them (a save marks `authoring.status: "human_tuned"`; agents must not overwrite human-tuned or locked assets — see the collaboration contract in `authoring-quickstart.md`). `story check` lints every motion file: admission, unique ids, and filename↔id agreement.
+
+Discrete frame swaps (blinks, breathing sheets, burst frame runs) are the same Motion asset: a `frame` track samples stepwise (no interpolation, no easing) and selects an index into the frame table the content declares via `StageContentResolution.frameAssetIds` (ordered, ≤64; joins asset preloading). The stage host hands the sampled `frameIndex` to the entry renderer — one-shot cue motions override while in flight, an entry's `ambient` loop overrides while settled, otherwise `frameIndex` is `null` and the renderer shows its default appearance. Author frame 0 as the default pose (reduced motion drops the override), and make a one-shot run's last frame equal the settled appearance so the settle is invisible. The runtime clamps out-of-table indices; the Workbench edits frame keyframes like any other track (easing controls replaced by a stepped label).
+
+Clickable body/prop zones are authored as Regions documents: a `sillymaker.regions` JSON file (`*.regions.json`, strictly admitted) declaring named regions — bounding box plus accessible name, optionally refined by a `polygonPoints` shape (pointer hits then follow the polygon via CSS clip-path; keyboard activation keeps the box) and a `hoverAssetId` silhouette highlight the host reveals on hover/focus when the Story passes an `assets` registry. Story code imports the document, runs `parseRegionsDocumentV1` once, and hands `document.regions` to the content catalog's `resolveContent` (`hitRegions`); activations arrive through the stage's `onHitRegionActivate` and become ordinary semantic invocations — regions never carry gameplay authority, and hover state never enters State, Saves, or replay. `story check` lints every regions file (admission, unique ids, filename↔id agreement); Studio's Regions workspace edits them against the compiled scene's real rendering, and `story regions trace <image.png>` bootstraps a document from a bitmap alpha silhouette (status `generated`) for hand tuning.
 
 Visual scene composition may be authored as a first-class Scene document: a `sillymaker.scene` JSON file (`src/scenes/<scene>/<scene>.scene.json`, strictly admitted) declaring the scene's entries (stable `<layerId, tag>` identity, contentId, zOrder, placement, appearance) and named cues (`show`/`hide` per entry, optionally binding a motion to exactly that cue's stage edge). `sceneFromDocument` compiles it into typed accessors: stage nodes call `cueMutations(cueId, stage)` (idempotent — show ensures the declared content and keeps placement/appearance continuity on a content replace; hide only removes what is present) or `openMutations(stage)` (open/reopen the whole scene: strangers on declared layers hide, declared entries settle back to their declared content/placement/appearance; idempotent, and layers the document does not declare stay untouched) and annotate `mayShow` from `cueMayShow(cueId)`; the transition catalog composes `sceneStageTransitionBindings(scene, { motions, edges? })`, which resolves exact edges (kind + layer + entry key + content) instead of Story-global inference; the optional per-cue `edges` overrides own edge behavior (input policy, acknowledgment, …) so barrier-acknowledged entrances stay expressible. For a scene-managed scene the document is the single authoring authority for placements and cue→motion binding — scripts must not repeat placement literals. Compiled mutations are byte-identical to hand-written ones, so Snapshot/Save/digest/replay are unaffected. `story check` lints every scene file: admission, unique ids, filename↔id agreement, cue motion references, and cross-document edge collisions (two scenes binding different motions to one stage edge; `scene.*` diagnostics). The Cat Cafe opening (`examples/cat-cafe/src/scenes/opening/`) is the first consumer; the starter template's opening (`template/src/scenes/opening/`) is the second, so a copied starter is scene-managed out of the box.
 
@@ -149,6 +154,150 @@ the composition definition, so do not add `slots.narrative`, a direct semantic
 writer, or a second stage claimant. Engine Lab, the starter template, Bookshop,
 and Cat Cafe are the maintained examples. SillyOS intentionally omits the
 definition and therefore mounts no Narrative surface.
+
+An authoritative screen-hold between two lines is authored as a `hold`
+interaction: positive integer `totalMs`/`remainingMs` plus the author's
+`skippable` flag (original frame counts convert to milliseconds at Story
+compile time). A hold is a time-settlement boundary, not an input boundary:
+every input resolution against it rejects, and elapsed time arrives as the
+session-level time verb `TimeTick` (`parseTimeTick`/`evaluateTimeTick` from
+`@sillymaker/base/story`) — a tick carries `elapsedMs` plus the
+`expectedHoldOccurrenceId` fence naming the hold it settles, and a stale
+fence rejects without touching State. Story runners apply an accepted tick
+with `applyElapsedToHold` — a partial tick keeps the same boundary occurrence
+and decrements `remainingMs`, and the tick that reaches zero expires into the
+node's successor. The Story's narrative surface binds a `dispatchTime`
+handler next to `dispatchResolution` (pass `null` only when the Story has no
+holds); the Narrative Host owns the presentation clock and dispatches the
+tick commits through it: without a declared cadence it commits only skip-folds and
+expiry, while a hold that sets the optional `tickQuantumMs` gets partial
+commits per quantum, so a mid-hold Save restores the hold with the last
+committed remainder (loss bounded by one quantum) and wall clocks never enter
+State, Saves, digests, or replay. A hold that drips authority or swaps frames
+mid-hold settles those inside the same time-tick commit by threshold
+crossing: `countThresholdCrossings` from `@sillymaker/base/story` counts how
+many interval boundaries fall in `(elapsed before, elapsed after]`, so the
+outcome depends only on the millisecond sum and never on how the Host
+batches ticks. Show the held picture by committing its stage node before
+the hold — the starter template's interaction-document kit does this with a
+`hold` block whose inline `ops` compile to a preceding stage node — never by
+flashing a zero-duration stage during the wait.
+
+A hold that must end early when a declared condition becomes true — a
+watcher catching the player mid-bar, a gauge crossing its line — declares
+`when` reroute arms on the hold block: each arm pairs a branch-vocabulary
+predicate with a reroute target, the first declared match wins, and there is
+no implicit else (no match means keep holding, or expire into the block's
+`next`). Do not invent an abort verb or let the Host pick a target; the
+reroute is derived inside the ordinary time-tick commit. Story runners step
+fenced settlements with `settleHoldTimeline` from `@sillymaker/base/story`:
+arms evaluate at t=0 against command-start state and again after each of the
+hold's own tick/frame crossings, and the first match truncates the hold at
+that instant — consumed milliseconds stop at the cut, later crossings never
+apply, and the discarded remainder is never pre-folded into the target. The
+commit that opens the hold evaluates arms against in-transaction working
+state, so an already-true arm reroutes without spending a hold occurrence;
+a skippable fold runs through the same stepping, so skip cannot jump past
+the catch. Know the granularity promise before wiring predicates: an arm
+over state the hold's own tick effects write cuts at the exact crossing,
+while monitor or external-command writes surface at the next fenced
+settlement's t=0 (the same discipline as monitor `activeWhen`). Two
+authoring notes: an arm-carrying hold should keep `tickQuantumMs ≤
+tick.everyMs` — the cut instant is exact either way, but the commit that
+carries it lands per quantum, and an oversized quantum lets the on-screen
+bar run visibly past the catch before snapping back; and a kit whose
+effects only apply at command boundaries (the starter template's shape)
+should reject `when` combined with `tick` on one block, because the arms
+could never observe that block's own tick writes.
+
+Player input during a hold — pressing a body zone while a touch bar runs,
+throwing a switch mid-watch — is the same `when` machinery plus one write
+discipline, never a new interaction kind. The session does not gate
+ordinary commands while a hold is pending, so declare an ordinary write
+command whose payload carries `expectedHoldOccurrenceId` and whatever
+declared write intent the press means; the handler compares that fence
+against the pending hold in one line (reject the whole command with your
+Story's `*.hold_occurrence_stale` code when it does not match — a stale
+press queued behind a cut must never write into the next hold), and on
+the current occurrence it **only writes**: a field write or a domain
+event, never the pending interaction, never time (`TimeTickV1` stays the
+only time verb), never a reroute. The hold's own `when` arms read the
+committed write at the next fenced settlement's t=0 — the monitor
+granularity — so the input picks state and the declared arms pick the
+route. Route the activation in your application layer: when
+`pending.kind === "hold"`, a hit-region activation dispatches the fenced
+write command instead of an interaction resolution (input resolutions
+against holds keep rejecting `interaction.kind_mismatch` by contract).
+Keep write-request fields plain versioned Story state so they survive
+mid-hold save/load, and make the reroute target consume and clear any
+request latch it acted on — the engine does not know your request fields,
+so that hygiene is yours. Never put pointer coordinates, hover state, or
+region ids into authoritative state, and never dispatch per pointer-move.
+
+A timing accumulation that must run while the player can still act — a
+decision gauge rising under a live menu, a scene-scoped drip while the player
+reads, a held-interaction drip — is an authoritative monitor, not a hold.
+Declare monitors once with `parseMonitorDeclarations` (from
+`@sillymaker/base/story`): each entry is `{ id, everyMs, retention, event,
+activeWhen }`, where `activeWhen` is an authoritative-state predicate in the
+branch `when` vocabulary (effects write state, the flipping predicate starts
+and stops accumulation — there are no arm/disarm commands) and `event` is the
+domain-event payload emitted once per threshold crossing. Keep the
+accumulator in a module slice as plain `{ [monitorId]: accumulatedMs }` data
+admitted by `parseMonitorAccumulator`, so a mid-gauge Save simply keeps the
+milliseconds. Inside the Story's time-verb command handler, after folding a
+pending hold's remainder, call `settleMonitors` with the reported
+`elapsedMs`, the command-start state, and the current accumulator; emit the
+returned events plus an accumulator-set event through `transaction.emit` like
+any other domain events. Declaration order is settlement order, inactive
+monitors clear or retain their accumulation per declaration, and the
+arithmetic is batch invariant — `{500,500,500}` and `{1500}` produce the same
+terminal state, so Host tick batching can never change outcomes. Monitors
+have no script body and cannot route the narrative; anything that needs to
+change the pending interaction stays in narrative vocabulary.
+
+Session time reaches that handler through the composer, not a Story timer:
+declare `timeReporting` on the `WebGameUiDefinitionV1` — a `quantumMs` batch
+size, an `enabledWhen` predicate over the live publication (project a
+"reporting active" flag from your monitor predicates so the metronome only
+runs while some monitor is active), and a `dispatch` that sends your unfenced
+time command through the semantic port. Unfenced session time must be
+unconditionally admissible in your command handler — never gameplay-rejected
+— and if your dispatch wrapper can fail, surface the failure as a rejected
+promise (not a resolved rejection object) so the engine can latch reporting
+off with a diagnostic instead of spamming the command log. The engine gates
+the reporter off while a hold is pending (holds report through the fenced
+expiry controller) and while the document is hidden, so hidden-tab time
+never accumulates.
+Pace is the second declaration: mark a reaction window — a gauge charging
+under a live decision menu — with `pace: "realtime"` on the monitor (and on a
+hold that must run at wall parity), project an "realtime active" flag
+(`anyRealtimeMonitorActive`), and declare `realtimeWindow` with that
+predicate; while it holds, the engine pins the presentation rate to exactly
+1× and releases it when the window closes, so player fast-forward never
+compresses a reaction span. Cinematic pace (the default) means scaled time is
+fine. Keep both predicates cheap, deterministic reads of the publication — a
+throwing predicate latches its feature off with one diagnostic.
+
+A bounded stretch of commits whose intermediate states a Save should not
+re-enter — a presentation barrier in progress, an asset assembly, an external
+side-effect bracket — is an in-flight span, declared as application policy
+rather than Story choreography: give `defineCoreGameApplicationV1` a
+`persistenceSafepoint` whose `classify(state)` derives `safepoint` |
+`in_flight` deterministically from committed authoritative state (prefer
+existing vocabulary — the Engine Lab classifies a pending
+`presentation_barrier` as in-flight — or an explicit span field your domain
+events set and clear) and whose `maxInFlightCommits` (1..256) bounds the
+span. While the span is open the engine defers autosave, falls back to the
+last safepoint Snapshot on flush, and rejects player-slot saves with
+`in_flight` (give the Save labels' `rejected.in_flight` entry a
+player-readable reason); the next safepoint commit restores ordinary
+granularity. Long-lived authoritative state — monitor accumulations, hold
+remainders — must stay saveable and never hides inside a span; a span that
+outlives its bound forfeits the inhibit with a diagnostic and keeps saving.
+Loads stay available mid-span, and a barrier's `loadRecovery` still owns what
+a restored barrier does. This is orchestration policy, not data safety: every
+commit remains complete, valid, and replayable.
 
 For a whole-canvas primary or exact-parent detail, freeze the seven-key input
 to `defineWholeCanvasSurfaceV1`: `catalog`, `source`, `resolveTarget`,

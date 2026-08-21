@@ -20,7 +20,18 @@
         { "atPermille": 600, "value": 1000 },
         { "atPermille": 1000, "value": 1000 }
       ]
+    },
+    {
+      "channel": "frame",
+      "keyframes": [
+        { "atPermille": 0, "value": 1 },
+        { "atPermille": 700, "value": 0 },
+        { "atPermille": 1000, "value": 0 }
+      ]
     }
   ],
-  "authoring": { "status": "generated" }
+  "authoring": {
+    "status": "generated",
+    "notes": "The frame track is the one-shot frame-set drill: step frame while rising, default frame from 70%. Content without a declared frame set ignores it."
+  }
 }

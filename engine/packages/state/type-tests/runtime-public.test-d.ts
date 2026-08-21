@@ -34,7 +34,7 @@ interface ConsumerRngStateV1 {
 
 interface ConsumerTypesV1 extends StateRuntimeTypeMapV1<ConsumerStateV1, ConsumerRngStateV1> {
   readonly command: { readonly kind: "advance" };
-  readonly fact: { readonly kind: "advanced" };
+  readonly event: { readonly kind: "advanced" };
   readonly rejection: { readonly code: "blocked" };
   readonly fault: { readonly code: "failed" };
   readonly rngDrawTrace: never;

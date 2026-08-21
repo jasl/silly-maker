@@ -27,7 +27,7 @@ interface LegacyAdapterTypesV1
   extends GameSimulationTypeMapV1<GameBootstrapInputV1, LegacyAdapterStateV1, RngStateV1> {
   readonly rngDrawTrace: RngDrawTraceV1;
   readonly command: { readonly kind: "legacy.run" };
-  readonly fact: never;
+  readonly event: never;
   readonly rejection: never;
   readonly fault: never;
   readonly queries: { readValue(): number };
@@ -45,15 +45,6 @@ const sliceSchemaV1: RuntimeSchemaV1<{ readonly value: number }> = Object.freeze
   },
 });
 
-const operationSchemaV1: RuntimeSchemaV1<{ readonly kind: "retain" }> = Object.freeze({
-  parse(value: unknown) {
-    if (value === null || typeof value !== "object" || Reflect.get(value, "kind") !== "retain") {
-      throw new TypeError("invalid retain operation");
-    }
-    return Object.freeze({ kind: "retain" as const });
-  },
-});
-
 function createCompositionV1() {
   const kit = createStateAuthoringKitV1<LegacyAdapterTypesV1>();
   const alphaRead = kit.defineCapability<{ read(): number }>("adapter.alpha.read");
@@ -68,18 +59,7 @@ function createCompositionV1() {
     provides: (provide) => [
       provide(alphaRead, ({ readOwnState }) => ({ read: () => readOwnState().value })),
     ],
-    owner: {
-      operationSchema: operationSchemaV1,
-      propose(_state, operation) {
-        return Object.freeze({
-          kind: "proposed" as const,
-          proposal: Object.freeze({ payload: operation, facts: Object.freeze([]) }),
-        });
-      },
-      apply(state) {
-        return state;
-      },
-    },
+    reducers: {},
   });
   const beta = kit.defineModule({
     id: "adapter.beta",
@@ -91,19 +71,7 @@ function createCompositionV1() {
     },
     requires: { alpha: alphaRead },
     initializesAfter: ["adapter.alpha"],
-    owner: {
-      operationSchema: operationSchemaV1,
-      propose(_state, operation, dependencies) {
-        dependencies.alpha.read();
-        return Object.freeze({
-          kind: "proposed" as const,
-          proposal: Object.freeze({ payload: operation, facts: Object.freeze([]) }),
-        });
-      },
-      apply(state) {
-        return state;
-      },
-    },
+    reducers: {},
   });
   return kit.composeModules([alpha, beta]);
 }
@@ -146,9 +114,7 @@ describe("legacy State authoring adapter", () => {
           "querySchema",
           "queryResultSchema",
           "stateSchema",
-          "ownerOperationSchema",
-          "ownerProposalSchema",
-          "owner",
+          "reducers",
           "queries",
           "createInitialState",
           "createReadPort",
@@ -216,9 +182,7 @@ describe("legacy State authoring adapter", () => {
       commandSchema: null,
       querySchema: null,
       queryResultSchema: null,
-      ownerOperationSchema: null,
-      ownerProposalSchema: null,
-      owner: null,
+      reducers: null,
       capabilities,
     };
     Object.defineProperty(sourceInput, "capabilities", {

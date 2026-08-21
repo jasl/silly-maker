@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Endings slice · commands: confirm the ending and cross into postgame (endless daily play).
 import type { CatcafeCommandHandlerMapV1 } from "../../runtime.ts";
-import { transactionRunnerV1 } from "../../runtime.ts";
+import { emitCatcafeStageV1, transactionRunnerV1 } from "../../runtime.ts";
 import { catcafeDailyPettingV1 } from "../../state.ts";
 import { catcafeEndingForV1 } from "./rules.ts";
-import { applyCalendarV1, calendarModuleV1 } from "../calendar/module.ts";
-import { catModuleV1 } from "../cat/module.ts";
+import { advanceCalendarV1 } from "../calendar/module.ts";
 import { catcafeGrowthMutationV1 } from "../cat/growth.ts";
-import { shopModuleV1 } from "../shop/module.ts";
-import { stageModuleV1 } from "../stage/module.ts";
 
 export const endingsCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.enter_postgame"> =
   Object.freeze({
@@ -19,27 +16,22 @@ export const endingsCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.ente
         if (ending === null) {
           return transaction.reject({ code: "cc.no_ending_pending" });
         }
-        transaction.propose(shopModuleV1, {
-          kind: "apply",
-          reputation: state.shop.reputation,
-          tidiness: state.shop.tidiness,
-          money: state.shop.money,
-          trophies: state.shop.trophies,
-          epilogue: ending,
-          facts: [Object.freeze({ kind: "cc.postgame_entered" as const, ending })],
+        transaction.emit({
+          kind: "cc.shop_set",
+          next: Object.freeze({ ...state.shop, epilogue: ending }),
         });
+        transaction.emit({ kind: "cc.postgame_entered", ending });
         // Step directly into week 8 Monday morning: confirming the ending starts the new day.
-        transaction.propose(calendarModuleV1, { kind: "advance" });
-        transaction.propose(catModuleV1, {
-          kind: "apply",
-          ...state.cat,
-          pettingLeft: catcafeDailyPettingV1,
+        const next = advanceCalendarV1(state.calendar);
+        transaction.emit({ kind: "cc.calendar_set", next });
+        transaction.emit({
+          kind: "cc.cat_set",
+          next: Object.freeze({ ...state.cat, pettingLeft: catcafeDailyPettingV1 }),
         });
-        const next = applyCalendarV1(state.calendar, { kind: "advance" });
-        transaction.propose(stageModuleV1, {
-          kind: "apply",
-          mutations: [catcafeGrowthMutationV1(next.week, "/postgame/appearance")],
-        });
+        const blocked = emitCatcafeStageV1(transaction, state.stage, [
+          catcafeGrowthMutationV1(next.week, "/postgame/appearance"),
+        ]);
+        if (blocked !== null) return transaction.reject({ code: blocked });
         return transaction.complete();
       }),
   });

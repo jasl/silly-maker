@@ -73,6 +73,7 @@ pnpm-debug.log*
 !.vscode/launch.json
 *.user
 *.suo
+.cursor/
 
 # Operating-system metadata.
 .DS_Store

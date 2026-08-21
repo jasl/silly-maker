@@ -27,4 +27,4 @@ What's on screen is described as plain data: layers, entries with content IDs, i
 
 ## 5. Explanations are data
 
-Draws from the event pool report their candidates, weights, and roll. Rejected commands return structured codes. Diagnostics are typed envelopes. Transient presentation feedback derives from committed facts. This is what makes the engine legible to AI agents and debuggable by humans — the same explanation objects feed tests, DevDock panels, and simulation reports.
+Draws from the event pool report their candidates, weights, and roll. Rejected commands return structured codes. Diagnostics are typed envelopes. Transient presentation feedback derives from committed domain events. This is what makes the engine legible to AI agents and debuggable by humans — the same explanation objects feed tests, DevDock panels, and simulation reports.

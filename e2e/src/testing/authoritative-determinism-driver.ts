@@ -27,7 +27,7 @@ export interface AuthoritativeDeterminismTraceDrawV1 {
 export type AuthoritativeDeterminismTraceOutcomeV1 =
   | {
     readonly kind: "committed";
-    readonly facts: readonly {
+    readonly events: readonly {
       readonly kind: "determinism.committed";
       readonly commandClass: "no_draw_committed" | "rng_committed";
       readonly result: number | null;
@@ -126,7 +126,7 @@ function parseAuthoritativeDeterminismBootstrapInputV1(
 type TraceOutcomeInputV1 =
   | {
     readonly kind: "committed";
-    readonly facts: readonly {
+    readonly events: readonly {
       readonly kind: "determinism.committed";
       readonly commandClass: "no_draw_committed" | "rng_committed";
       readonly result: number | null;
@@ -161,12 +161,12 @@ function traceOutcomeV1(outcome: TraceOutcomeInputV1): AuthoritativeDeterminismT
     case "committed":
       return Object.freeze({
         kind: "committed",
-        facts: Object.freeze(
-          outcome.facts.map((fact) =>
+        events: Object.freeze(
+          outcome.events.map((event) =>
             Object.freeze({
-              kind: fact.kind,
-              commandClass: fact.commandClass,
-              result: fact.result,
+              kind: event.kind,
+              commandClass: event.commandClass,
+              result: event.result,
             })
           ),
         ),
@@ -202,7 +202,7 @@ const noDrawDigestV1 = "sha256:80b2dc3a69418b738e7bde9818543858b7e07caa518f543b7
 const drawnDigestV1 = "sha256:64cb7c488d923ccc3a227ca569883f51952f1ec3de76795529c9163cd4fd6227";
 const noDrawOutcomeV1 = Object.freeze({
   kind: "committed" as const,
-  facts: Object.freeze([
+  events: Object.freeze([
     Object.freeze({
       kind: "determinism.committed" as const,
       commandClass: "no_draw_committed" as const,
@@ -212,7 +212,7 @@ const noDrawOutcomeV1 = Object.freeze({
 });
 const drawnOutcomeV1 = Object.freeze({
   kind: "committed" as const,
-  facts: Object.freeze([
+  events: Object.freeze([
     Object.freeze({
       kind: "determinism.committed" as const,
       commandClass: "rng_committed" as const,

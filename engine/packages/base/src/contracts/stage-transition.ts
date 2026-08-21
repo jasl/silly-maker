@@ -273,7 +273,7 @@ export function motionStageTransitionV1(
  * One scene dispatch that produced a committed publication edge: either a
  * named cue dispatch or a whole-scene open (`openMutations`). The list is
  * ephemeral presentation edge context (cue-identity proposal, accepted
- * 2026-08-17): derived from committed command facts, paired with exactly
+ * 2026-08-17): derived from committed domain events, paired with exactly
  * one semantic revision, and never stored in State, Saves, digests, or
  * replay. Dropping it degrades to edge-tuple resolution; it never changes
  * authoritative behavior.

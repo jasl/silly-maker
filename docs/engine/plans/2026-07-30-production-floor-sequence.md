@@ -1,6 +1,6 @@
 # Production-floor execution sequence
 
-状态：持续维护的唯一跨计划排序入口；最近排序修订 2026-08-18。PF0–PF7 与 Complexity
+状态：持续维护的唯一跨计划排序入口；最近排序修订 2026-08-22。PF0–PF7 与 Complexity
 Reset 的 CR0、CR1、CR2.1–CR2.5、CR3、CR4 已于 2026-08-13 完成。CR4 的真实作者纵切没有
 暴露需要通用 PF6 harness 解决的问题，PF6 已重新裁决为
 不激活。同日以真实产品证据接受并完成了
@@ -15,15 +15,17 @@ motion 资产地板、点击反查溯源、Motion Workbench 编辑闭环、预�
 [Authoring Architecture V1](2026-08-15-authoring-architecture.md)，并于同日完成
 S0–S5；目标合同见[统一创作架构设计](../design/authoring-architecture.md)。
 
-本文是唯一跨计划排序入口。它只保留 current、next、依赖、验收与 stop conditions。
-旧版逐提交 delivery ledger 已退出 active authority；完成里程碑摘要在
+本文是唯一跨计划排序入口。§1 首段独占 current/next authority；其后的 dated recap 只保存这次
+合并吸收的已关闭证据，不形成并列顺序或可领取 backlog。旧版逐提交 delivery ledger 已退出
+active authority；完成里程碑摘要在
 [roadmap archive](../roadmap-archive.md)，更细的历史仍由 Git 保留。
 
 ## 1. Current and next
 
-当前：2026-08-18 所有者以新的产品方向证据接受
+当前：2026-08-19 至 2026-08-22 的六条 engine-gap lane 全部交付关闭后，恢复
+2026-08-18 所有者以新产品方向证据接受的
 [Application Runtime and Embedded Authoring V1](2026-08-18-application-runtime-embedded-authoring.md)
-为下一条默认/core lane。引擎能力全部前置，按 AR0 startup/dependency baseline → AR1
+为当前默认/core lane。引擎能力全部前置，按 AR0 startup/dependency baseline → AR1
 progressive activation 与 private extension-runtime selection → AR2 structured Scene operations →
 AR3 embeddable Authoring Host/stable sibling → AR4 experimental Agent RPC/UiArtifact seam → AR5
 Browser/Deno Desktop GUI/build/performance promotion → AR6 closure 顺序执行。目标合同见
@@ -36,7 +38,86 @@ production Story State migration。普通静态游戏 release 仍不得包含 au
 extension runtime 或 RPC implementation。AR6 后的作品/examples/产品由所有者另行选择和立案，
 不在本计划预先排序。下一项可领取任务只有 AR0。
 
-前置证据：[Ambient Loop Motion V1](2026-08-15-ambient-loop-motion.md) 的 M0–M3 已
+前一条：[Mid-hold Input V1](2026-08-22-mid-hold-input.md)（提案
+[mid-hold-input](../proposals/mid-hold-input.md)，2026-08-22 所有者
+裁决接受，q1–q3 全按建议：组合而非原语、围栏留 Story 惯例、清除留
+Story 纪律）——认领 hold `when` 唯一输入轴 defer。零新引擎原语：
+勘探证实基座 dispatch 无 pending 门，输入轴 = 已交付合同的声明式组
+合（热区激活 → 应用路由 → `expectedHoldOccurrenceId` 围栏的普通写
+命令 → 该 hold 自身 `when` 臂下一围栏结算 t=0 读到并改道）。**同日
+M0–M1 全部交付收口**：M0（Engine Lab `lab.engage_collector` 围栏写
+
+- 绊线臂，五条测试锁：写不动 hold、下一结算 t=0 切、批切不变、
+  stale 整拒、中持有 save/load 存活仍切；features / story-authoring
+  模式段）→ M1（实验仓 CE18 条中途嘴区活路径，克隆刀 #326：解码证实
+  原作热区点击是并发状态写入者、CE281 臂入场闩定不切分支、改道权全在
+  CE20 看门狗——`imouto.zone_press` 围栏写复用既有 `inspect-kiss` 效果
+  对，+5 分钟推过 2:00 由 bar 自身 `when` 臂下次结算 t=0 超时切断；克
+  隆 723 例全绿，NOTES / fidelity-gaps E3 / capability-backlog /
+  AGENTS 四处台账收口）。其余身体热区是逐区内容刀，不再经引擎车道。
+
+再前一条：[Hold When V1](2026-08-21-hold-when.md)（提案
+[hold-when](../proposals/hold-when.md)，2026-08-21 所有者下令开启）
+——认领权威持有钟 M3 唯一显式 defer：hold 块声明条件改道。**同日
+M0–M2 全部交付收口**：M0（base `settleHoldTimelineV1` occurrence 时
+间线步进：t=0 + 每个自身穿越后评臂，首中截断、消耗到命中瞬间、其后
+穿越不应用、截断余量不预折改道目标；skip 同规则不能越过截断点；入
+场按事务内工作状态也评一次；合同测试锁批切不变与中持有 Save/load；
+template kit `when` 臂 + starter hurry 演示）→ M1（Engine Lab 锁两
+种粒度：vigil 自身 tick 同瞬间截断、stakeout 监视器写真下一围栏结
+算 t=0 零耗时改道；lint 图臂后继在到期边之前）→ M2（实验仓第一条真
+中止活路径——深夜房 CE281 触摸条三段 bar 挂 `shinyaException >= 2`
+臂，`touch-tick` 与左手监视器折叠同 commit 重算例外缓存，左手越格
+压深度过觉醒线时该结算 t=0 切断，实验仓刀 #325 全库 720 例全绿；
+features / story-authoring / AGENTS 收口）。显式 defer：hold 中热区
+（输入轴）、第二条真中止路径（警戒抓包）、监视器路由叙事（仍禁）、
+`when` 臂 Studio 可视化编辑。
+
+再前一条：[命中区形状车道](2026-08-21-shaped-hit-regions.md)（提案
+[shaped-hit-regions](../proposals/shaped-hit-regions.md) 2026-08-21 所有
+者接受）——**同日 M0–M5 全部交付收口**：M0（`polygonPoints` +
+`hoverAssetId` 合同与共享判定，投影降级诊断）→ M1（host clip-path 命
+中 + 兄弟焦点环 + hover/focus 显示层走 `assets` 口）→ M2
+（`sillymaker.regions` 第三文档族：严格入院、authoring index、story
+check lint、dev-server CAS 端口）→ M3（Studio Regions 工作区：真实
+host 渲染当画布，框/顶点/矩形⇄多边形编辑走共享文档会话）→ M4
+（`story regions trace` 位图剪影→多边形文档 devtool，严格最小 PNG
+alpha 解码器 + marching-squares + 预算内 Douglas–Peucker）→ M5 双消费
+者（仓内：Engine Lab 样本箱八边形采集口——regions 文档 + hover 辉光 +
+激活派发普通语义采集；外部实验仓：三姿势夜床身体热区——判定图证据为
+全不透明 1-bit 矩形、原作热区即摆放矩形，矩形 ∩ 身体剪影裁边为原生改
+良，激活决议隐藏 zone 选项、合法性/重放全在叙事引擎；顺带把 trace 解
+码器的 1/2/4 位调色板 PNG 收为一等）。唯一显式 defer：「一次点击同时
+激活多重叠区域」的激活载荷形态，等被审计的真实消费者（V1 合同为最上
+层独占命中）。
+
+更前一条：[帧集提案](../proposals/authorable-frame-set.md)
+（2026-08-21 所有者接受；帧集先行、命中区形状第二的车道顺序随裁决确
+定）与 [Authorable Frame Set V1](2026-08-21-authorable-frame-set.md)——
+**同日 M0–M3 全部交付收口**：M0（motion 文档 `frame` 通道：阶梯采样、
+easing 入院拒绝、`MotionSampleV1.frameIndex`）→ M1（内容侧
+`frameAssetIds` 帧表 + 预载并入 + 舞台 host 每帧下发 `frameIndex`，一
+次性/ambient 双路径与钳制）→ M2（Workbench 帧轨道编辑，缓动下拉换阶梯
+标签）→ M3（消费者：Engine Lab 信标两帧循环 + 入场步伐一次性、
+template 用 opening 场景文档声明 Mei 眨眼、外部实验仓把 CE240 眨眼从
+renderer CSS 换成 ambient 帧轨道并把 5 条 SHOW_PIC→WAIT 帧串换成一次
+性 motion 文档）。唯一显式 defer：跨文档「帧下标不超帧表」story
+lint，等内容声明数据化的真实车道（运行时钳制 + Workbench 预览兜底）。
+
+更早：[并行监视器提案](../proposals/parallel-monitors.md)
+（2026-08-20 所有者接受，含同日六项裁决与裁决 #5 修订）与
+[Parallel Monitors V1](2026-08-20-parallel-monitors.md)——**同日 M0–M5
+全部交付收口**：M0（唯一时间动词 `TimeTickV1`，`hold_tick` 归并删除）
+→ M1（领域事件 + reducer，注册效果命令家族全量迁移删除）→ M2（权威监
+视器 V1，`retain`/清零双策略）→ M3（持久化安全点与在途段 + autosave
+抑制，引擎能力先行、持久化编排器为内部消费者）→ M4（三型消费者各一条
+活路径 + `pace` 提示 + Host 报时/钉回环）→ M5（收尾扫描）。车道纪律按
+所有者要求执行：每个里程碑独立 review 后提交；收尾统一扫描死代码、过
+时文档、未迁移实现与正交性/单向数据流/依赖最佳实践（交付记录见该计
+划）。Desktop persistence 仍是独立 promotion gate（安全点合同先行不改
+变该门）。
+
+前一波：[Ambient Loop Motion V1](2026-08-15-ambient-loop-motion.md) 的 M0–M3 已
 于 2026-08-15 当日交付（表现侧循环运行时、Scene 文档 `ambient` admission、创作
 面、双消费者实证；交付记录见该计划）。高密度内容波已在外部实验仓完成
 （2026-08-15 开工，2026-08-17 收口：约 65 轮迭代、台词逐字覆盖 99.4%，残余全
@@ -47,16 +128,19 @@ extension runtime 或 RPC implementation。AR6 后的作品/examples/产品由�
 内容刀落地，不扩 runtime）；appearance 交换循环与文档聚合税维持观察记录。cue
 identity 独立设计文档于 2026-08-17 起草、**同日经所有者批复 open questions 后
 接受，V1 实现切片同日交付**（[cue-identity 提案](../proposals/cue-identity.md)
-持有交付记录与剩余验收：词汇/facts 投影 seam/retarget 与 change 的可选
+持有交付记录与剩余验收：词汇/提交证据投影 seam（8/20 后由 domain events 承载）、
+retarget 与 change 的可选
 `dispatches`/场景绑定 cue-first 与显式 cut/保守 lint 起点/template 取猫节拍首
 个消费者；`deno task check` 与浏览器套件绿，引擎切片通过全量退化等位门）。
 **第二消费者验收已于 2026-08-17 完成**：外部实验仓撤销其唯一
 裂 tag——第二登场立绘回归共享 tag，show/hide 声明显式 cut，dispatch 链
-（叙事节点标注 → fact → 适配器投影 → composition）全线打通；digest 经 stash
+（叙事节点标注 → committed evidence〔8/20 后迁移为 domain event〕→ 适配器投影 →
+composition）全线打通；digest 经 stash
 对照逐字节不变，e2e 断言第二登场立绘瞬现。验收回灌两处引擎修正（同日交付）：外场
 景 open 不再具备 edge-tuple 回落资格（裁决 #2 澄清为**仅本场景自己的 open**
 保持无上下文回落语义，杜绝共享 enter 边被外场景 open 偷走），以及批盖章前移
-——`onAttempt`（发布前）暂存已提交 facts、实例作为 semantic port 首个订阅者
+——`onAttempt`（发布前）暂存当时已提交 facts（8/20 后为 events）、实例作为 semantic port
+首个订阅者
 在 UI 收到通知前盖章，消除同步 flush React 宿主下 rev N+1 首帧配对失败的竞
 态。证据环收口（2026-08-17 同日）：locality 复测第 2 轮达标（新增词汇行
 "改 cue 表现 = 1 场景文档编辑点"；接线为每包一次采纳成本，template 起步为
@@ -82,7 +166,18 @@ V2、Effect Broker/OpenUI、独立的 i18n/message-catalog lane 或 production S
 本轮所有者证据已经激活上述 engine-only lane；未写入该计划的 roadmap 候选仍不能自行领取。
 已接受但未完成的 Desktop promotion 是独立、条件性且不阻塞 core 的 lane，仍由 §7 拥有。
 
-上一条 lane：[Authoring Architecture V1](2026-08-15-authoring-architecture.md)
+补充交付记录（2026-08-19 起草、**同日经所有者接受、同日 M0–M3 全部
+交付**）：[权威计时持有](../proposals/authoritative-hold-clock.md) 与
+[Authoritative Hold Clock V1](2026-08-19-authoritative-hold-clock.md)。
+证据：实验仓可绑该句的 STORY 已收完，剩余 1:1 卡在两句台词之间的
+WAIT / 换帧 / 滴权威（实验仓 `docs/fidelity-gaps.md` E1/E2）。切片
+M0（base 合同）→ M1（Host 提议 + `pause` 归并删除）→ M2（作者块 +
+实验仓消费者）→ M3（`tickQuantumMs` 部分 commit + 阈值穿越滴/换帧，
+Lab 与实验仓滴路径双消费者）。唯一显式 defer：hold 块声明条件改道，等
+第一条真实中止路径（记录见该计划 §3）。Desktop persistence 仍是独立
+promotion gate。
+
+更早的 lane：[Authoring Architecture V1](2026-08-15-authoring-architecture.md)
 （Studio 作者信任加固 → 统一创作外壳与共享文档会话 → project authoring index →
 Story 包目录 locality → Scene Construction → Flow workspace；目标合同见
 [统一创作架构设计](../design/authoring-architecture.md)）。S0–S5 全部切片已于
@@ -204,7 +299,7 @@ commit、async stale-result rejection 与 deterministic authoritative replay。
 
 ### CR0 — Governance
 
-- 本文保持约 200 行量级，只描述 current/next/dependencies/stops；
+- current/next authority 只在 §1 首段表达；已关闭 lane 的 recap 不得反向激活任务；
 - focused Surface plan 不再承载已完成 S0–S4b 的逐提交账本；
 - slice 编号最多两级；
 - 一个功能最多一次 docs-only entry；

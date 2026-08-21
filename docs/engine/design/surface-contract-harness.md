@@ -1,6 +1,10 @@
 # Managed Surface lifecycle and contract harness
 
-状态：2026-07-30 接受的目标设计，2026-07-31 根据 PF2 pilot 决策与 dormant
+状态：2026-07-30 接受的目标设计（补记 2026-08-19/20：正文中 Dialogue 的
+`pause` pending 与 `resume` resolution 已由权威持有钟车道并入 `hold`，时间经
+session 级 `TimeTickV1` 结算而非 input resolution；本文余下的 pause/resume 叙述
+是历史交付词汇，现状见 [features](../features.md) 与 architecture.md 的
+supersede 记录）；2026-07-31 根据 PF2 pilot 决策与 dormant
 kernel 审计修订 readiness、application epoch、stable-target reconcile、slot、
 identity boundedness 与 action admission 合同；2026-08-04 冻结 PF4/S3 System
 transient topology、initial supersede/retained-active cancellation、exact result/delta

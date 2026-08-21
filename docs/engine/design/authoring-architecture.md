@@ -23,7 +23,10 @@ CAS contract；普通 runtime/Player 永远不因嵌入 shell 获得 source-writ
 
 ## 1. 问题：调校可用，构造与局部性未收敛
 
-live 事实（2026-08-15）：
+live 事实（2026-08-15 立项时快照；计划各切片已于同日交付——统一外壳与
+workspaces、共享文档会话、project authoring index、Scene Construction 与只读
+Flow workspace 均已落地，现状以 [features](../features.md) 为准。以下清单保留
+为立项证据，不再是现状）：
 
 - Studio 只能调校既有场景（选 entry、改 placement/zOrder/mirror、换/调已有
   motion、保存），不能新建场景、增删人物/背景/cue、从零登记 content 或 motion；

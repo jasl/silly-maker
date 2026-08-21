@@ -54,6 +54,8 @@ export {
   motionDefinitionFromDocumentV1 as motionDefinitionFromDocument,
   motionTotalDurationMsV1 as motionTotalDurationMs,
   parseMotionDocumentV1 as parseMotionDocument,
+  parseRegionsDocumentV1 as parseRegionsDocument,
+  hitRegionPolygonValidV1 as hitRegionPolygonValid,
   sampleMotionAtV1 as sampleMotionAt,
   parseSceneDocumentV1 as parseSceneDocument,
   parseStageCueDispatchesV1 as parseStageCueDispatches,
@@ -75,6 +77,7 @@ export type {
   StageContentCatalogV1 as StageContentCatalog,
   StageContentGeometryV1 as StageContentGeometry,
   StageContentResolutionV1 as StageContentResolution,
+  StageHitRegionPointV1 as StageHitRegionPoint,
   StageHitRegionV1 as StageHitRegion,
   StageRenderTargetV1 as StageRenderTarget,
   StageTransitionDefinitionV1 as StageTransitionDefinition,
@@ -90,6 +93,8 @@ export type {
   MotionKeyframeV1 as MotionKeyframe,
   MotionSampleV1 as MotionSample,
   MotionTrackV1 as MotionTrack,
+  RegionsAuthoringV1 as RegionsAuthoring,
+  RegionsDocumentV1 as RegionsDocument,
   SceneAmbientCatalogInputV1 as SceneAmbientCatalogInput,
   SceneCanvasV1 as SceneCanvas,
   SceneCueEdgeOptionsV1 as SceneCueEdgeOptions,
@@ -108,18 +113,48 @@ export type {
 // Pending interactions (current generation: V1).
 // ---------------------------------------------------------------------------
 export {
+  applyElapsedToHoldV1 as applyElapsedToHold,
+  countThresholdCrossingsV1 as countThresholdCrossings,
   evaluateInteractionResolutionV1 as evaluateInteractionResolution,
+  evaluateTimeTickV1 as evaluateTimeTick,
+  firstMatchingHoldArmV1 as firstMatchingHoldArm,
   interactionOccurrenceIdV1 as interactionOccurrenceId,
   parseInteractionOccurrenceIdV1 as parseInteractionOccurrenceId,
   parseInteractionResolutionV1 as parseInteractionResolution,
   parsePendingInteractionV1 as parsePendingInteraction,
+  parseTimeTickV1 as parseTimeTick,
+  settleHoldTimelineV1 as settleHoldTimeline,
 } from "../index.ts";
 export type {
   PendingInteractionV1 as PendingInteraction,
+  HoldPendingInteractionV1 as HoldPendingInteraction,
+  HoldSettlementV1 as HoldSettlement,
+  HoldTimelineCrossingV1 as HoldTimelineCrossing,
+  HoldTimelineSettlementV1 as HoldTimelineSettlement,
   InteractionResolutionV1 as InteractionResolution,
   InteractionResolutionContextV1 as InteractionResolutionContext,
   InteractionResolutionOutcomeV1 as InteractionResolutionOutcome,
   InteractionRejectionCodeV1 as InteractionRejectionCode,
+  PaceHintV1 as PaceHint,
+  TimeTickOutcomeV1 as TimeTickOutcome,
+  TimeTickRejectionCodeV1 as TimeTickRejectionCode,
+  TimeTickV1 as TimeTick,
+} from "../index.ts";
+
+// ---------------------------------------------------------------------------
+// Authoritative monitors (current generation: V1).
+// ---------------------------------------------------------------------------
+export {
+  anyRealtimeMonitorActiveV1 as anyRealtimeMonitorActive,
+  parseMonitorAccumulatorV1 as parseMonitorAccumulator,
+  parseMonitorDeclarationsV1 as parseMonitorDeclarations,
+  settleMonitorsV1 as settleMonitors,
+} from "../index.ts";
+export type {
+  MonitorAccumulatorV1 as MonitorAccumulator,
+  MonitorDeclarationV1 as MonitorDeclaration,
+  MonitorRetentionV1 as MonitorRetention,
+  MonitorSettlementV1 as MonitorSettlement,
 } from "../index.ts";
 
 // ---------------------------------------------------------------------------

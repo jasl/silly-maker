@@ -185,6 +185,7 @@ const hostedSaveLabelsV1 = Object.freeze({
       unavailable: "Unavailable",
       empty_slot: "Empty slot",
       conflict: "Conflict",
+      in_flight: "In flight",
       invalid_record: "Invalid record",
       invalid_note: "Invalid note",
       lineage_limit: "Lineage limit",
@@ -833,6 +834,7 @@ function renderCompositionOwnedNarrativeRootInternalV1(
         }
         throw new TypeError("unexpected Narrative completion fixture mode");
       },
+      dispatchTime: null,
       renderer: ChoiceRendererInternalV1,
       resolveText: (_locale: string | null, textId: string) => textId,
       replayCurrentVoice: null,
@@ -1853,24 +1855,35 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     }
   });
 
-  it("terminal-seals an already-resolved Choice completion without synchronous publication", async () => {
+  it("keeps a Story-rejected Choice completion interactive as an unpublished no-op", async () => {
     const fixture = renderCompositionOwnedNarrativeRootInternalV1({
       completionMode: "resolve_without_publication",
     });
     try {
-      await userEvent
-        .setup()
-        .click(await screen.findByTestId("default-root-narrative-choice"));
-      await waitFor(() => expect(fixture.failures).toHaveLength(1));
+      const user = userEvent.setup();
+      await user.click(await screen.findByTestId("default-root-narrative-choice"));
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
 
+      // The Story refused the resolution and left the session unchanged:
+      // not a Surface fault, and the same Choice must stay dispatchable.
+      expect(fixture.dispatches).toHaveLength(1);
+      expect(fixture.failures).toEqual([]);
       const managed = resolveGameUiManagedSurfaceCompositionInternalV1(
         fixture.composition,
       );
-      expect(fixture.failures[0]?.code).toBe(
-        "ui.narrative_surface_composition_failed",
-      );
-      expect(managed.isTerminalInternalV1()).toBe(true);
-      expect(managed.narrative.getCurrentSessionInternalV1()).toBeNull();
+      expect(managed.isTerminalInternalV1()).toBe(false);
+      expect(managed.narrative.getCurrentSessionInternalV1()).not.toBeNull();
+
+      await user.click(await screen.findByTestId("default-root-narrative-choice"));
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(fixture.dispatches).toHaveLength(2);
+      expect(fixture.failures).toEqual([]);
     } finally {
       fixture.unmount();
       fixture.composition.dispose();

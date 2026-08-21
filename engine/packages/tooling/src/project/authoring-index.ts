@@ -2,7 +2,11 @@
 import { lstatSync, readdirSync, readFileSync } from "node:fs";
 import { relative, resolve, sep } from "node:path";
 
-import { parseMotionDocumentV1, parseSceneDocumentV1 } from "@sillymaker/base";
+import {
+  parseMotionDocumentV1,
+  parseRegionsDocumentV1,
+  parseSceneDocumentV1,
+} from "@sillymaker/base";
 
 /**
  * The Project Authoring Index (Authoring Architecture S2): one
@@ -19,7 +23,7 @@ import { parseMotionDocumentV1, parseSceneDocumentV1 } from "@sillymaker/base";
  * reason instead of silently disappearing.
  */
 
-export type AuthoringSourceSuffixV1 = ".scene.json" | ".motion.json";
+export type AuthoringSourceSuffixV1 = ".scene.json" | ".motion.json" | ".regions.json";
 
 export interface AuthoringSourceFileV1 {
   /** Root-relative posix path (the id every port and lint reports). */
@@ -39,15 +43,22 @@ export interface AuthoringMotionSourceV1 {
   readonly label: string;
 }
 
+export interface AuthoringRegionsSourceV1 {
+  readonly path: string;
+  readonly regionsId: string;
+  readonly label: string;
+}
+
 export interface AuthoringIndexSkipV1 {
   readonly path: string;
-  readonly kind: "scene" | "motion";
+  readonly kind: "scene" | "motion" | "regions";
   readonly reason: string;
 }
 
 export interface AuthoringProjectIndexV1 {
   readonly scenes: readonly AuthoringSceneSourceV1[];
   readonly motions: readonly AuthoringMotionSourceV1[];
+  readonly regions: readonly AuthoringRegionsSourceV1[];
   /** Convention-matched files the index could not admit, with the reason. */
   readonly skipped: readonly AuthoringIndexSkipV1[];
 }
@@ -101,10 +112,11 @@ function reasonV1(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** Scans one source root into the unified scene + motion enumeration. */
+/** Scans one source root into the unified scene + motion + regions enumeration. */
 export function buildAuthoringProjectIndexV1(sourceRoot: string): AuthoringProjectIndexV1 {
   const scenes: AuthoringSceneSourceV1[] = [];
   const motions: AuthoringMotionSourceV1[] = [];
+  const regions: AuthoringRegionsSourceV1[] = [];
   const skipped: AuthoringIndexSkipV1[] = [];
 
   for (const file of listAuthoringSourceFilesV1(sourceRoot, ".scene.json")) {
@@ -143,9 +155,28 @@ export function buildAuthoringProjectIndexV1(sourceRoot: string): AuthoringProje
     }
   }
 
+  for (const file of listAuthoringSourceFilesV1(sourceRoot, ".regions.json")) {
+    try {
+      const regionsDocument = parseRegionsDocumentV1(
+        JSON.parse(readFileSync(file.filePath, "utf8")) as unknown,
+        `/${file.path}`,
+      );
+      regions.push(
+        Object.freeze({
+          path: file.path,
+          regionsId: regionsDocument.regionsId,
+          label: regionsDocument.label,
+        }),
+      );
+    } catch (error) {
+      skipped.push(Object.freeze({ path: file.path, kind: "regions", reason: reasonV1(error) }));
+    }
+  }
+
   return Object.freeze({
     scenes: Object.freeze(scenes),
     motions: Object.freeze(motions),
+    regions: Object.freeze(regions),
     skipped: Object.freeze(skipped),
   });
 }

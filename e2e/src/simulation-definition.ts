@@ -16,9 +16,20 @@ export const labStateContractManifestV1 = Object.freeze({
   contractRevision: 1 as const,
   aggregateStateSchema: Object.freeze({
     schemaId: "schema.e2e.lab.game-state",
-    revision: parsePositiveSafeInteger(5),
+    // Revision 6: the lab.monitors module joins with the simulation.monitors
+    // slot (authoritative monitor accumulator and drill counters).
+    revision: parsePositiveSafeInteger(6),
   }),
   moduleStateSchemas: Object.freeze([
+    Object.freeze({
+      moduleId: parseModuleId("lab.monitors"),
+      moduleContractRevision: parsePositiveSafeInteger(1),
+      stateSlots: Object.freeze([parseStateSlotId("simulation.monitors")]),
+      stateSchema: Object.freeze({
+        schemaId: "schema.e2e.lab.monitors-state",
+        revision: parsePositiveSafeInteger(1),
+      }),
+    }),
     Object.freeze({
       moduleId: parseModuleId("lab.narrative"),
       moduleContractRevision: parsePositiveSafeInteger(4),
@@ -89,7 +100,7 @@ function createLabGameSimulationFromProgramV1(
 
 /** Package-internal owner for every callback in the Story simulation facet. */
 export const labSimulationDefinitionV1 = Object.freeze({
-  stateContractRevision: parsePositiveSafeInteger(5),
+  stateContractRevision: parsePositiveSafeInteger(6),
   stateContractManifest: labStateContractManifestV1,
   data: Object.freeze({}),
   rules: Object.freeze({}),

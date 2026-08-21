@@ -2,26 +2,34 @@
 import type {
   AssetId,
   ResolvedAudioManifestV1,
+  StageAmbientCatalogV1,
   StageContentCatalogV1,
   StageContentResolutionV1,
   StageTargetChangeV1,
   StageTransitionCatalogV1,
   StageTransitionDefinitionV1,
   TextCatalogSetV1,
+  TimelineCatalogV1,
+  TimelineDefinitionV1,
 } from "@sillymaker/base";
 import {
   definePresentationPatchSurface,
+  motionDefinitionFromDocumentV1,
   motionStageTransitionV1,
+  parseMotionDocumentV1,
   parsePositiveSafeInteger,
+  parseRegionsDocumentV1,
   parseStageTransitionDefinitionV1,
   parseTextCatalogSetV1,
   resolveAudioManifestV1,
+  timelineV1,
 } from "@sillymaker/base";
 
-import type { TimelineCatalogV1, TimelineDefinitionV1 } from "@sillymaker/base";
-import { timelineV1 } from "@sillymaker/base";
-
+import labBeaconFramesMotionJsonV1 from "./motions/beacon-frames.motion.json" with {
+  type: "json",
+};
 import labCharEnterMotionDocumentV1 from "./motions/char-enter.motion.json" with { type: "json" };
+import labCrateZonesRegionsJsonV1 from "./regions/crate-zones.regions.json" with { type: "json" };
 import { labStageContentIdsV1 } from "./stage-ids.ts";
 
 export const labTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
@@ -57,6 +65,21 @@ export const labTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.e2e.lab.narrative.cal.skip", text: "跳过等待" },
         { textId: "text.e2e.lab.narrative.cal.advance", text: "继续" },
         { textId: "text.e2e.lab.narrative.cal.dial", text: "选择校准档位" },
+        { textId: "text.e2e.lab.narrative.drill.chamber", text: "环境采样进行中，保持观察。" },
+        { textId: "text.e2e.lab.narrative.drill.decision", text: "蓄力就绪后释放校准脉冲" },
+        { textId: "text.e2e.lab.narrative.drill.release", text: "释放脉冲" },
+        { textId: "text.e2e.lab.narrative.drill.vent", text: "放空蓄力" },
+        { textId: "text.e2e.lab.narrative.drill.vigil", text: "守夜观测" },
+        { textId: "text.e2e.lab.narrative.drill.stakeout", text: "蹲守收集器" },
+        { textId: "text.e2e.lab.narrative.drill.tripwire", text: "布设绊线" },
+        { textId: "text.e2e.lab.narrative.drill.catch", text: "有动静——正好抓个正着。" },
+        { textId: "text.e2e.lab.narrative.drill.quiet", text: "一夜无事，按计划收尾。" },
+        { textId: "text.e2e.lab.narrative.drill.result", text: "脉冲释放完毕。" },
+        { textId: "text.e2e.lab.action.begin_drill", text: "开始演习" },
+        { textId: "text.e2e.lab.action.toggle_collector", text: "切换收集器" },
+        { textId: "text.e2e.lab.monitors.gauge", text: "蓄力" },
+        { textId: "text.e2e.lab.monitors.ambient", text: "环境自燃" },
+        { textId: "text.e2e.lab.monitors.collector", text: "收集器" },
         { textId: "text.e2e.lab.player.controls", text: "播放控制" },
         { textId: "text.e2e.lab.player.rollback", text: "回退一步" },
         { textId: "text.e2e.lab.player.auto", text: "自动" },
@@ -149,6 +172,18 @@ const labSmallPropGeometryV1 = Object.freeze({
 });
 
 /**
+ * Shaped-hit-regions drill: the crate's collection port is a beveled
+ * octagon with a hover-reveal glow, authored as a `sillymaker.regions`
+ * Document and bound here — the Document-to-`resolveContent` path the
+ * lane's contract describes (binding stays in Story code, like motion
+ * documents binding cues).
+ */
+const labCrateZonesRegionsV1 = parseRegionsDocumentV1(
+  labCrateZonesRegionsJsonV1,
+  "/regions/crate-zones",
+);
+
+/**
  * Deterministic Story catalog resolving semantic stage content into renderer
  * bindings. Only this projection layer knows renderer IDs, asset IDs, and
  * accessible names; authoritative stage state never carries them.
@@ -182,6 +217,15 @@ export const labStageContentCatalogV1: StageContentCatalogV1 = {
               : "neutral",
           }),
           geometry: labCharacterGeometryV1,
+          // Authorable-frame-set drill (one-shot): the entrance motion's
+          // frame track steps through these while the edge is in flight.
+          // Beta declares no frame set on purpose — its identical entrance
+          // must deliver a null frame index (conformance for the no-frame
+          // path).
+          frameAssetIds: Object.freeze([
+            "asset.e2e.lab.char-stand" as AssetId,
+            "asset.e2e.lab.char-step" as AssetId,
+          ]),
         });
       case labStageContentIdsV1.characterBeta:
         return Object.freeze({
@@ -203,6 +247,7 @@ export const labStageContentCatalogV1: StageContentCatalogV1 = {
           accessibleName: "样本箱",
           props: Object.freeze({}),
           geometry: labSmallPropGeometryV1,
+          hitRegions: labCrateZonesRegionsV1.regions,
         });
       case labStageContentIdsV1.propBanner:
         return Object.freeze({
@@ -227,6 +272,12 @@ export const labStageContentCatalogV1: StageContentCatalogV1 = {
             mode: typeof appearance.mode === "string" ? appearance.mode : "idle",
           }),
           geometry: labSmallPropGeometryV1,
+          // Authorable-frame-set drill (loop): the ambient binding below
+          // cycles dim/lit through these two frames.
+          frameAssetIds: Object.freeze([
+            "asset.e2e.lab.beacon-dim" as AssetId,
+            "asset.e2e.lab.beacon-lit" as AssetId,
+          ]),
         });
       default:
         return null;
@@ -318,6 +369,24 @@ export const labStageTransitionCatalogV1: StageTransitionCatalogV1 = {
   },
   resolveTransitionById(transitionId: string): StageTransitionDefinitionV1 | null {
     return labTransitionByIdV1.get(transitionId) ?? null;
+  },
+};
+
+const labBeaconFramesMotionV1 = motionDefinitionFromDocumentV1(
+  parseMotionDocumentV1(labBeaconFramesMotionJsonV1, "/motions/beacon-frames"),
+);
+
+/**
+ * The Engine Lab ambient catalog (authorable-frame-set drill, loop
+ * archetype): the settled beacon cycles its dim/lit frame set on the
+ * presentation clock. Purely decorative — no commands, no authoritative
+ * state, no Save/digest/replay bytes.
+ */
+export const labStageAmbientCatalogV1: StageAmbientCatalogV1 = {
+  resolveAmbient(_layerId, entry) {
+    return (entry.contentId as string) === labStageContentIdsV1.propBeacon
+      ? Object.freeze({ motion: labBeaconFramesMotionV1, phaseMs: 0 })
+      : null;
   },
 };
 

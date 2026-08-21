@@ -44,7 +44,7 @@ interface ConsumerTypesV1
   readonly snapshot: GameSnapshotEnvelopeV1<ConsumerStateV1, RngStateV1>;
   readonly rngDrawTrace: RngDrawTraceV1;
   readonly command: { readonly kind: "consumer.run" };
-  readonly fact: { readonly kind: "consumer.fact" };
+  readonly event: { readonly kind: "consumer.event" };
   readonly rejection: { readonly code: "consumer.rejected" };
   readonly fault: { readonly code: "consumer.failed" };
   readonly debugCommand: { readonly kind: "consumer.debug" };
@@ -55,10 +55,9 @@ interface ConsumerTypesV1
 }
 
 declare const sliceSchemaV1: RuntimeSchemaV1<{ readonly value: number }>;
-declare const operationSchemaV1: RuntimeSchemaV1<{ readonly kind: "retain" }>;
 declare const commandSchemaV1: RuntimeSchemaV1<ConsumerTypesV1["command"]>;
 declare const stateSchemaV1: RuntimeSchemaV1<ConsumerTypesV1["state"]>;
-declare const factSchemaV1: RuntimeSchemaV1<ConsumerTypesV1["fact"]>;
+declare const eventSchemaV1: RuntimeSchemaV1<ConsumerTypesV1["event"]>;
 declare const rejectionSchemaV1: RuntimeSchemaV1<ConsumerTypesV1["rejection"]>;
 declare const debugCommandSchemaV1: RuntimeSchemaV1<ConsumerTypesV1["debugCommand"]>;
 declare const debugValidationErrorSchemaV1: RuntimeSchemaV1<
@@ -93,12 +92,8 @@ const alphaV1 = kitV1.defineModule({
   id: "consumer.alpha",
   contractRevision: 1,
   state: { slot: "simulation.alpha", schema: sliceSchemaV1, initial: () => ({ value: 1 }) },
-  owner: {
-    operationSchema: operationSchemaV1,
-    propose(_state, operation) {
-      return { kind: "proposed", proposal: { payload: operation, facts: [] } };
-    },
-    apply(state) {
+  reducers: {
+    "consumer.event"(state) {
       return state;
     },
   },
@@ -107,12 +102,8 @@ const betaV1 = kitV1.defineModule({
   id: "consumer.beta",
   contractRevision: 1,
   state: { slot: "simulation.beta", schema: sliceSchemaV1, initial: () => ({ value: 2 }) },
-  owner: {
-    operationSchema: operationSchemaV1,
-    propose(_state, operation) {
-      return { kind: "proposed", proposal: { payload: operation, facts: [] } };
-    },
-    apply(state) {
+  reducers: {
+    "consumer.event"(state) {
       return state;
     },
   },
@@ -146,7 +137,7 @@ export const consumerSimulationV1 = defineGameSimulation<ConsumerTypesV1>()({
   modules: legacyBindingsV1,
   stateSchema: stateSchemaV1,
   commandSchema: commandSchemaV1,
-  factSchema: factSchemaV1,
+  eventSchema: eventSchemaV1,
   rejectionSchema: rejectionSchemaV1,
   debugCommandSchema: debugCommandSchemaV1,
   debugValidationErrorSchema: debugValidationErrorSchemaV1,
@@ -160,7 +151,7 @@ export const consumerSimulationV1 = defineGameSimulation<ConsumerTypesV1>()({
 
 interface StateOnlyTypesV1 extends StateWorkflowTypeMapV1<ConsumerStateV1> {
   readonly command: ConsumerTypesV1["command"];
-  readonly fact: never;
+  readonly event: never;
   readonly rejection: never;
   readonly fault: never;
 }
@@ -170,15 +161,7 @@ const stateOnlyModuleV1 = stateOnlyKitV1.defineModule({
   id: "consumer.state-only",
   contractRevision: 1,
   state: { slot: "simulation.alpha", schema: sliceSchemaV1, initial: () => ({ value: 1 }) },
-  owner: {
-    operationSchema: operationSchemaV1,
-    propose(_state, operation) {
-      return { kind: "proposed", proposal: { payload: operation, facts: [] } };
-    },
-    apply(state) {
-      return state;
-    },
-  },
+  reducers: {},
 });
 const stateOnlyCompositionV1 = stateOnlyKitV1.composeModules([stateOnlyModuleV1]);
 // @ts-expect-error the legacy Game adapter requires the consumer's complete GameSimulation map.

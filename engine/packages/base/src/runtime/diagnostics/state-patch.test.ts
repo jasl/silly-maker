@@ -100,7 +100,7 @@ describe("engine debug state patch", () => {
     expect(attempt.result.snapshot.commandSequence).toBe(1);
     expect(attempt.result.snapshot.rng).toEqual(before.rng);
     expect(attempt.result.snapshot.integrity).toBe(before.integrity);
-    expect(attempt.result.facts).toEqual([]);
+    expect(attempt.result.events).toEqual([]);
     expect(attempt).toEqual(
       commitAttemptV1(
         before,

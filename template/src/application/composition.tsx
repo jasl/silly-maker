@@ -254,6 +254,7 @@ export const templateSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
       unavailable: "存储不可用",
       empty_slot: "存档槽为空",
       conflict: "存档发生冲突",
+      in_flight: "正在过场，暂不可保存",
       invalid_record: "存档无效",
       invalid_note: "备注不合法",
       lineage_limit: "存档兼容链过长",
@@ -324,6 +325,13 @@ export const templateGameApplicationV1: WebGameApplicationV1<
                   resolution: request.resolution,
                 }) as never,
               ),
+            // The session-level time verb: hold cadence ticks, expiry, and
+            // skippable folds all arrive here as hold-fenced elapsed
+            // milliseconds and route to the Story's time command.
+            dispatchTime: (tick) =>
+              instance.semantic.dispatch(
+                Object.freeze({ kind: "time" as const, tick }) as never,
+              ),
             renderer: TemplateNarrativeRendererV1,
             resolveText: templateTextForLocaleV1,
             replayCurrentVoice: null,
@@ -333,10 +341,10 @@ export const templateGameApplicationV1: WebGameApplicationV1<
       slots: createTemplateUiSlotsV1(instance, presentationFreeze),
       labels: templateRootLabelsV1,
       saveLabels: templateSaveOverlayLabelsV1,
-      inputMaps: Object.freeze({ keyboard: templateKeyboardMapV1 }),
+      input: Object.freeze({ keyboard: templateKeyboardMapV1 }),
       // Game-shell feel is the engine default: no browser context menu, text
       // selection, or hover-cursor changes; editable controls and
       // data-native-menu / data-native-text subtrees stay native. Declare
-      // `nativeBehaviorReset: false` only for a browser-native page.
+      // `input: { nativeBehavior: false }` only for a browser-native page.
     }),
 });

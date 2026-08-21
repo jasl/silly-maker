@@ -26,7 +26,7 @@ interface ConsumerStateV1 {
 }
 
 interface ConsumerTypesV1 extends StateWorkflowTypeMapV1<ConsumerStateV1> {
-  readonly fact: never;
+  readonly event: never;
   readonly rejection: never;
   readonly fault: never;
 }

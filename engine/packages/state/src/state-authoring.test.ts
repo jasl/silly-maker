@@ -47,7 +47,7 @@ interface EveningPilotStateV1 {
   };
 }
 
-type EveningPilotFactV1 =
+type EveningPilotEventV1 =
   | { readonly kind: "calendar.advanced"; readonly day: number }
   | { readonly kind: "inventory.consumed"; readonly portions: number }
   | { readonly kind: "actor.energy_spent"; readonly stamina: number }
@@ -68,7 +68,7 @@ interface EveningPilotFaultV1 {
 
 interface EveningPilotTypesV1 extends StateWorkflowTypeMapV1<EveningPilotStateV1> {
   readonly command: { readonly kind: "evening.run" };
-  readonly fact: EveningPilotFactV1;
+  readonly event: EveningPilotEventV1;
   readonly rejection: EveningPilotRejectionV1;
   readonly fault: EveningPilotFaultV1;
   readonly debugCommand: never;
@@ -133,6 +133,41 @@ function kindSchemaV1<TKind extends string>(
   });
 }
 
+const eveningPilotEventSchemaV1: RuntimeSchemaV1<EveningPilotEventV1> = Object.freeze({
+  parse(value: unknown): EveningPilotEventV1 {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      throw new TypeError("invalid evening pilot event");
+    }
+    const event = value as Readonly<Record<string, unknown>>;
+    switch (event.kind) {
+      case "calendar.advanced":
+        return Object.freeze({
+          kind: event.kind,
+          day: parseNonNegativeSafeInteger(event.day),
+        });
+      case "inventory.consumed":
+        return Object.freeze({
+          kind: event.kind,
+          portions: parseNonNegativeSafeInteger(event.portions),
+        });
+      case "actor.energy_spent":
+        return Object.freeze({
+          kind: event.kind,
+          stamina: parseNonNegativeSafeInteger(event.stamina),
+        });
+      case "evening.recorded":
+        return Object.freeze({
+          kind: event.kind,
+          day: parseNonNegativeSafeInteger(event.day),
+          portions: parseNonNegativeSafeInteger(event.portions),
+          stamina: parseNonNegativeSafeInteger(event.stamina),
+        });
+      default:
+        throw new TypeError("invalid evening pilot event kind");
+    }
+  },
+});
+
 function createEveningPilotV1(forceCandidateFailure = false) {
   const kit = createStateAuthoringKitV1<EveningPilotTypesV1>();
   const calendarRead = kit.defineCapability<{ day(): number }>("pilot.calendar.read");
@@ -150,21 +185,9 @@ function createEveningPilotV1(forceCandidateFailure = false) {
     provides: (provide) => [
       provide(calendarRead, ({ readOwnState }) => ({ day: () => readOwnState().day })),
     ],
-    owner: {
-      operationSchema: kindSchemaV1("advance"),
-      propose(state, operation) {
-        return Object.freeze({
-          kind: "proposed" as const,
-          proposal: Object.freeze({
-            payload: operation,
-            facts: Object.freeze([
-              Object.freeze({ kind: "calendar.advanced" as const, day: state.day + 1 }),
-            ]),
-          }),
-        });
-      },
-      apply(state) {
-        return Object.freeze({ day: state.day + 1 });
+    reducers: {
+      "calendar.advanced"(_state, event) {
+        return Object.freeze({ day: event.day });
       },
     },
   });
@@ -182,36 +205,9 @@ function createEveningPilotV1(forceCandidateFailure = false) {
         portions: () => readOwnState().portions,
       })),
     ],
-    owner: {
-      operationSchema: Object.freeze({
-        parse(value: unknown) {
-          const amount = Reflect.get(value as object, "amount");
-          if (amount !== 1) throw new TypeError("invalid consume operation");
-          return Object.freeze({ kind: "consume" as const, amount });
-        },
-      }),
-      propose(state, operation) {
-        if (state.portions < operation.amount) {
-          return Object.freeze({
-            kind: "rejected" as const,
-            rejection: Object.freeze({ code: "inventory.insufficient" as const }),
-          });
-        }
-        return Object.freeze({
-          kind: "proposed" as const,
-          proposal: Object.freeze({
-            payload: operation,
-            facts: Object.freeze([
-              Object.freeze({
-                kind: "inventory.consumed" as const,
-                portions: state.portions - operation.amount,
-              }),
-            ]),
-          }),
-        });
-      },
-      apply(state, proposal) {
-        return Object.freeze({ portions: state.portions - proposal.payload.amount });
+    reducers: {
+      "inventory.consumed"(_state, event) {
+        return Object.freeze({ portions: event.portions });
       },
     },
   });
@@ -227,27 +223,9 @@ function createEveningPilotV1(forceCandidateFailure = false) {
     provides: (provide) => [
       provide(actorRead, ({ readOwnState }) => ({ stamina: () => readOwnState().stamina })),
     ],
-    owner: {
-      operationSchema: kindSchemaV1("spend"),
-      propose(state, operation) {
-        if (state.stamina < 1) {
-          return Object.freeze({
-            kind: "rejected" as const,
-            rejection: Object.freeze({ code: "actor.exhausted" as const }),
-          });
-        }
-        return Object.freeze({
-          kind: "proposed" as const,
-          proposal: Object.freeze({
-            payload: operation,
-            facts: Object.freeze([
-              Object.freeze({ kind: "actor.energy_spent" as const, stamina: state.stamina - 1 }),
-            ]),
-          }),
-        });
-      },
-      apply(state) {
-        return Object.freeze({ stamina: state.stamina - 1 });
+    reducers: {
+      "actor.energy_spent"(_state, event) {
+        return Object.freeze({ stamina: event.stamina });
       },
     },
   });
@@ -262,25 +240,8 @@ function createEveningPilotV1(forceCandidateFailure = false) {
     },
     requires: { calendar: calendarRead, inventory: inventoryRead, actor: actorRead },
     initializesAfter: ["pilot.calendar", "pilot.inventory", "pilot.actor"],
-    owner: {
-      operationSchema: kindSchemaV1("record"),
-      propose(_state, operation, dependencies) {
-        return Object.freeze({
-          kind: "proposed" as const,
-          proposal: Object.freeze({
-            payload: operation,
-            facts: Object.freeze([
-              Object.freeze({
-                kind: "evening.recorded" as const,
-                day: dependencies.calendar.day(),
-                portions: dependencies.inventory.portions(),
-                stamina: dependencies.actor.stamina(),
-              }),
-            ]),
-          }),
-        });
-      },
-      apply(state) {
+    reducers: {
+      "evening.recorded"(state) {
         return Object.freeze({ completed: state.completed + 1 });
       },
     },
@@ -289,15 +250,30 @@ function createEveningPilotV1(forceCandidateFailure = false) {
   const composition = kit.composeModules([calendar, inventory, actor, evening]);
   const useEveningSupply = composition.createWorkflow({
     stateSchema: eveningPilotStateSchemaV1,
+    eventSchema: eveningPilotEventSchemaV1,
     createFault: () => Object.freeze({ code: "evening.workflow_failed" as const }),
     ...(forceCandidateFailure
       ? { validateCandidate: () => ["synthetic evening invariant failure"] }
       : {}),
     run(transaction) {
-      transaction.propose(calendar, { kind: "advance" });
-      transaction.propose(inventory, { kind: "consume", amount: 1 });
-      transaction.propose(actor, { kind: "spend" });
-      transaction.propose(evening, { kind: "record" });
+      const day = transaction.read(calendarRead).day();
+      const portions = transaction.read(inventoryRead).portions();
+      const stamina = transaction.read(actorRead).stamina();
+      if (portions < 1) {
+        return transaction.reject(Object.freeze({ code: "inventory.insufficient" as const }));
+      }
+      if (stamina < 1) {
+        return transaction.reject(Object.freeze({ code: "actor.exhausted" as const }));
+      }
+      transaction.emit(Object.freeze({ kind: "calendar.advanced", day: day + 1 }));
+      transaction.emit(Object.freeze({ kind: "inventory.consumed", portions: portions - 1 }));
+      transaction.emit(Object.freeze({ kind: "actor.energy_spent", stamina: stamina - 1 }));
+      transaction.emit(Object.freeze({
+        kind: "evening.recorded",
+        day,
+        portions,
+        stamina,
+      }));
       return transaction.complete();
     },
   });
@@ -354,21 +330,12 @@ describe("neutral State module workflow pilot", () => {
         schema: calendarStateSchemaV1,
         initial: () => Object.freeze({ day: 1 }),
       },
-      owner: {
-        operationSchema: kindSchemaV1("advance"),
-        propose(state: CalendarStateV1, operation: { readonly kind: "advance" }) {
-          return Object.freeze({
-            kind: "proposed" as const,
-            proposal: Object.freeze({
-              payload: operation,
-              facts: Object.freeze([
-                Object.freeze({ kind: "calendar.advanced" as const, day: state.day + 1 }),
-              ]),
-            }),
-          });
-        },
-        apply(state: CalendarStateV1) {
-          return Object.freeze({ day: state.day + 1 });
+      reducers: {
+        "calendar.advanced"(_state: CalendarStateV1, event: DeepReadonly<EveningPilotEventV1>) {
+          if (event.kind !== "calendar.advanced") {
+            throw new TypeError("unexpected calendar event");
+          }
+          return Object.freeze({ day: event.day });
         },
       },
     };
@@ -426,15 +393,15 @@ describe("neutral State module workflow pilot", () => {
       evening: { completed: 1 },
     });
     expect(result.execution.snapshot.commandSequence).toBe(1);
-    expect(result.execution.facts).toEqual([
-      { kind: "actor.energy_spent", stamina: 1 },
+    expect(result.execution.events).toEqual([
       { kind: "calendar.advanced", day: 2 },
-      { kind: "evening.recorded", day: 1, portions: 2, stamina: 2 },
       { kind: "inventory.consumed", portions: 1 },
+      { kind: "actor.energy_spent", stamina: 1 },
+      { kind: "evening.recorded", day: 1, portions: 2, stamina: 2 },
     ]);
   });
 
-  test("rolls every staged module back when one owner rejects", async () => {
+  test("rejects before emission and preserves every module", async () => {
     const { runtime } = createPilotRuntimeV1(0);
     const before = runtime.session.getCurrentSnapshot();
     const result = await runtime.session.dispatch({ kind: "evening.run" });

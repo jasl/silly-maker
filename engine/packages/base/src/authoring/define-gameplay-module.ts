@@ -5,7 +5,6 @@ import {
 } from "../contracts/diagnostic-envelope.ts";
 import type {
   GameSimulationTypeMapV1,
-  ModuleOwnerProposalEnvelopeV1,
   StatefulGameplayModuleBindingV1,
   StatelessGameplayModuleBindingV1,
 } from "../contracts/gameplay-module.ts";
@@ -58,8 +57,6 @@ interface DefineGameplayModuleV1<TTypes extends GameSimulationTypeMapV1> {
     TModuleCommand,
     TModuleQuery,
     TModuleQueryResult,
-    TOwnerOperation,
-    TOwnerProposal extends ModuleOwnerProposalEnvelopeV1<unknown, TTypes["fact"]>,
     TReadPort,
     TDependencyPorts,
   >(
@@ -69,8 +66,6 @@ interface DefineGameplayModuleV1<TTypes extends GameSimulationTypeMapV1> {
       TModuleCommand,
       TModuleQuery,
       TModuleQueryResult,
-      TOwnerOperation,
-      TOwnerProposal,
       TReadPort,
       TDependencyPorts
     >,
@@ -80,8 +75,6 @@ interface DefineGameplayModuleV1<TTypes extends GameSimulationTypeMapV1> {
     TModuleCommand,
     TModuleQuery,
     TModuleQueryResult,
-    TOwnerOperation,
-    TOwnerProposal,
     TReadPort,
     TDependencyPorts
   >;
@@ -170,9 +163,7 @@ function validateGameplayModuleV1(bindingValue: unknown): unknown {
   if (binding.bindingKind === "stateless") {
     if (
       slots.length !== 0 ||
-      binding.owner !== null ||
-      binding.ownerOperationSchema !== null ||
-      binding.ownerProposalSchema !== null ||
+      binding.reducers !== null ||
       !Object.hasOwn(binding, "capabilities") ||
       Object.hasOwn(binding, "services") ||
       Object.hasOwn(binding, "stateSchema") ||
@@ -191,31 +182,25 @@ function validateGameplayModuleV1(bindingValue: unknown): unknown {
       requireFunction(capability, `GameplayModule capability ${name}`);
     }
   } else if (binding.bindingKind === "stateful") {
-    const owner = requireRecord(binding.owner, "GameplayModule owner");
+    const reducers = requireRecord(binding.reducers, "GameplayModule reducers");
     if (
       slots.length === 0 ||
       binding.stateSchema === null ||
-      binding.ownerOperationSchema === null ||
-      binding.ownerProposalSchema === null ||
       !Array.isArray(binding.localInvariants) ||
-      typeof owner.propose !== "function" ||
-      typeof owner.apply !== "function" ||
       typeof binding.createInitialState !== "function" ||
       typeof binding.createReadPort !== "function"
     ) {
       throw new TypeError("stateful GameplayModule must declare complete ownership");
     }
+    for (const [kind, reducer] of Object.entries(reducers)) {
+      if (kind.length === 0) {
+        throw new TypeError("GameplayModule reducer kinds must be non-empty");
+      }
+      requireFunction(reducer, `GameplayModule reducer ${kind}`);
+    }
     requireFunction(
       requireRecord(binding.stateSchema, "GameplayModule State Schema").parse,
       "GameplayModule State Schema parse",
-    );
-    requireFunction(
-      requireRecord(binding.ownerOperationSchema, "GameplayModule owner operation Schema").parse,
-      "GameplayModule owner operation Schema parse",
-    );
-    requireFunction(
-      requireRecord(binding.ownerProposalSchema, "GameplayModule owner proposal Schema").parse,
-      "GameplayModule owner proposal Schema parse",
     );
     for (const invariant of binding.localInvariants) {
       requireFunction(

@@ -1,18 +1,8 @@
 // SPDX-License-Identifier: MIT
-// Cat slice · module: trust/vigor/skill/fresh-fish bonus/petting allowance (clamped 0-100).
+// Cat slice · module: trust/vigor/skill/fresh-fish bonus/petting allowance.
+// The cc.cat_set reducer clamps the handler-computed draft into range (0-100).
 import { catcafeCatStateSchemaV1, catcafeDailyPettingV1 } from "../../state.ts";
-import type { CatcafeFactV1 } from "../../kernel.ts";
-import { clampV1, commandSchemaV1, kit, operationSchemaV1 } from "../../kernel.ts";
-
-export type CatOperationV1 = {
-  readonly kind: "apply";
-  readonly trust: number;
-  readonly vigor: number;
-  readonly skill: number;
-  readonly fishBuff: number;
-  readonly pettingLeft: number;
-  readonly facts?: readonly CatcafeFactV1[];
-};
+import { clampV1, commandSchemaV1, kit } from "../../kernel.ts";
 
 export const catModuleV1 = kit.defineStatefulModule({
   id: "catcafe.cat",
@@ -30,25 +20,17 @@ export const catModuleV1 = kit.defineStatefulModule({
       }),
   },
   commandSchema: commandSchemaV1,
-  owner: {
-    operationSchema: operationSchemaV1<CatOperationV1>("cat"),
-    propose: (_state, operation) =>
+  // cc.cat_set carries the absolute post-command draft computed by the
+  // handler from the command-start snapshot: emit at most one per command
+  // (a second would clobber the first, not compose with it).
+  reducers: {
+    "cc.cat_set": (_state, event) =>
       Object.freeze({
-        kind: "proposed" as const,
-        proposal: Object.freeze({
-          payload: operation,
-          facts: Object.freeze([...(operation.facts ?? [])]),
-        }),
+        trust: clampV1(event.next.trust, 0, 100),
+        vigor: clampV1(event.next.vigor, 0, 100),
+        skill: clampV1(event.next.skill, 0, 100),
+        fishBuff: clampV1(event.next.fishBuff, 0, 3),
+        pettingLeft: clampV1(event.next.pettingLeft, 0, catcafeDailyPettingV1),
       }),
-    apply: (_state, proposal) => {
-      const next = proposal.payload;
-      return Object.freeze({
-        trust: clampV1(next.trust, 0, 100),
-        vigor: clampV1(next.vigor, 0, 100),
-        skill: clampV1(next.skill, 0, 100),
-        fishBuff: clampV1(next.fishBuff, 0, 3),
-        pettingLeft: clampV1(next.pettingLeft, 0, catcafeDailyPettingV1),
-      });
-    },
   },
 });

@@ -94,7 +94,7 @@ const rngCommittedDigestV1 =
   "sha256:a69c2ff76d07348a5bff1f2e2b2de247d69780a417b345f9838bfb021012f165";
 const noDrawOutcomeV1 = Object.freeze({
   kind: "committed" as const,
-  facts: Object.freeze([
+  events: Object.freeze([
     Object.freeze({
       kind: "determinism.committed" as const,
       commandClass: "no_draw_committed" as const,
@@ -108,7 +108,7 @@ const rejectedOutcomeV1 = Object.freeze({
 });
 const rngCommittedOutcomeV1 = Object.freeze({
   kind: "committed" as const,
-  facts: Object.freeze([
+  events: Object.freeze([
     Object.freeze({
       kind: "determinism.committed" as const,
       commandClass: "rng_committed" as const,

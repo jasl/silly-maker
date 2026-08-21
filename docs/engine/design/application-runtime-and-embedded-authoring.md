@@ -170,7 +170,7 @@ restart、failure diagnostics、bundle/startup 和残留资源，而不是 Cordi
 Loader、Include 和 Node HMR 不随 core 一起引入。
 
 Extension backend 可以在内部使用可逆 notification 或 dispatch primitive，但其派发模式不自动
-成为 SillyMaker 领域合同。已提交的 durable Fact 仍由 authoritative Session/CommandLog 拥有；
+成为 SillyMaker 领域合同。已提交的 domain-event journal 仍由 authoritative Session/CommandLog 拥有；
 authoritative intent、tool 或 policy interception 若未来出现，必须另有 typed admission、稳定顺序、
 idempotency 与 queue-front revalidation，不能仅以通用 event 或 `waterfall` 获得写权威。AR1 不冻结
 全局 event taxonomy、plugin priority、plugin ID 排序或 `next()` 语义。

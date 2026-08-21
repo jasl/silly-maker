@@ -8,7 +8,11 @@ import {
 
 import { labBgmForBackgroundV1, labVoiceForSayV1 } from "./audio.ts";
 import type { LabNarrativeNodeV1 } from "./narrative.ts";
-import { labNarrativeScriptV1 } from "./narrative.ts";
+import {
+  labCalibrationEntryNodeIdV1,
+  labDrillChamberNodeIdV1,
+  labNarrativeScriptV1,
+} from "./narrative.ts";
 
 import { labStageContentIdsV1 } from "../stage-ids.ts";
 
@@ -84,7 +88,16 @@ function graphNodeForV1(node: LabNarrativeNodeV1): unknown {
           stageContentIds: [],
         },
       };
-    case "pause":
+    case "hold":
+      return {
+        ...base,
+        kind: "interaction",
+        // `when` arm targets first (declared evaluation order), then the
+        // expiry successor — the same order the runner cuts in.
+        successors: [...(node.when ?? []).map((arm) => arm.next), node.next],
+        interaction: { definitionId: node.definitionId, seenRevision: node.seenRevision },
+        dependencies: { textIds: [], assetIds: [], stageContentIds: [] },
+      };
     case "barrier":
     case "custom":
       return {
@@ -109,12 +122,30 @@ function graphNodeForV1(node: LabNarrativeNodeV1): unknown {
   }
 }
 
+/**
+ * The synthetic graph root: the script has two command-level entry points
+ * (`lab.begin_calibration` and `lab.begin_drill`), and the graph contract
+ * is single-entry, so the projection models the command choice as a pure
+ * fan-out — exactly what the dispatcher does. Keep the successor list in
+ * lockstep with the begin-command handlers.
+ */
+export const labNarrativeGraphRootNodeIdV1 = "node.e2e.graph-root";
+
 export function projectLabNarrativeGraphV1(): NarrativeGraphV1 {
-  const entry = labNarrativeScriptV1[0];
-  if (entry === undefined) throw new TypeError("e2e.narrative_script_empty");
   return parseNarrativeGraphV1({
-    entryNodeId: entry.nodeId,
-    nodes: labNarrativeScriptV1.map((node) => graphNodeForV1(node)),
+    entryNodeId: labNarrativeGraphRootNodeIdV1,
+    nodes: [
+      {
+        nodeId: labNarrativeGraphRootNodeIdV1,
+        callTarget: null,
+        source: `gameplay/narrative-graph.ts#${labNarrativeGraphRootNodeIdV1}`,
+        kind: "pure",
+        successors: [labCalibrationEntryNodeIdV1, labDrillChamberNodeIdV1],
+        interaction: null,
+        dependencies: { textIds: [], assetIds: [], stageContentIds: [] },
+      },
+      ...labNarrativeScriptV1.map((node) => graphNodeForV1(node)),
+    ],
   });
 }
 

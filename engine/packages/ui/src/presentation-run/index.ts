@@ -6,6 +6,8 @@ export {
 export type { ManualPresentationClockV1, PresentationClockV1 } from "./presentation-clock.ts";
 export { createPresentationFreezePortV1 } from "./presentation-freeze.ts";
 export type { PresentationFreezePortV1, PresentationFreezeStateV1 } from "./presentation-freeze.ts";
+export { createPresentationRatePortV1 } from "./presentation-rate.ts";
+export type { PresentationRatePortV1, PresentationRateStateV1 } from "./presentation-rate.ts";
 export { createPresentationRunV1, easeInOutV1 } from "./presentation-run.ts";
 export type {
   CreatePresentationRunOptionsV1,
@@ -13,3 +15,5 @@ export type {
   PresentationRunStatusV1,
   PresentationRunV1,
 } from "./presentation-run.ts";
+export { createSessionTimeReporterV1 } from "./session-time-reporter.ts";
+export type { SessionTimeReporterV1 } from "./session-time-reporter.ts";

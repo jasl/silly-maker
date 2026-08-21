@@ -1,7 +1,17 @@
 // SPDX-License-Identifier: MIT
 import type { Digest, PositiveSafeInteger } from "./values.ts";
 
-export type AssetUsageV1 = "scene_background" | "character_pose" | "story_prop" | "ui_decoration";
+export type AssetUsageV1 =
+  | "scene_background"
+  | "character_pose"
+  | "story_prop"
+  | "ui_decoration"
+  /**
+   * A hit region's hover/focus reveal overlay (shaped-hit-regions, accepted
+   * 2026-08-21): same-frame art the stage host aligns to the entry's
+   * geometry box while the region is hovered or focused.
+   */
+  | "stage_hover_reveal";
 
 export interface AssetSafeAreaV1 {
   readonly x: number;

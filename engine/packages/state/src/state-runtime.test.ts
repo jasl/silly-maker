@@ -33,7 +33,7 @@ type CounterCommandV1 =
   | { readonly kind: "fault" }
   | { readonly kind: "throw" };
 
-interface CounterFactV1 {
+interface CounterEventV1 {
   readonly kind: "incremented";
   readonly value: number;
 }
@@ -50,7 +50,7 @@ interface CounterTypesV1 extends StateRuntimeTypeMapV1<CounterStateV1, CounterRn
   readonly snapshot: CounterSnapshotV1;
   readonly rngDrawTrace: never;
   readonly command: CounterCommandV1;
-  readonly fact: CounterFactV1;
+  readonly event: CounterEventV1;
   readonly rejection: CounterRejectionV1;
   readonly fault: CounterFaultV1;
   readonly debugCommand: never;
@@ -128,7 +128,7 @@ function createDefinitionV1(
         result: {
           kind: "committed",
           snapshot: next,
-          facts: [{ kind: "incremented", value: next.state.value }],
+          events: [{ kind: "incremented", value: next.state.value }],
         },
         diagnostics: diagnosticsV1(snapshot),
       };
@@ -160,7 +160,7 @@ describe("State Runtime compatibility facade", () => {
     expect(committed.execution).toMatchObject({
       kind: "committed",
       snapshot: { state: { value: 3 }, commandSequence: 1 },
-      facts: [{ kind: "incremented", value: 3 }],
+      events: [{ kind: "incremented", value: 3 }],
     });
     expect(adapter.runtimeControl.inspectForRuntime().snapshot).toBe(
       adapter.runtime.session.getCurrentSnapshot(),

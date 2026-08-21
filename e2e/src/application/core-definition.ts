@@ -46,6 +46,18 @@ export const labCoreApplicationDefinitionV1 = defineCoreGameApplicationV1<
     capacity: 32,
     classify: (command) => (command.kind === "lab.run_experiment" ? "barrier" : "checkpoint"),
   },
+  // Persistence safepoints (parallel-monitors M3): a pending presentation
+  // barrier is the Lab's natural in-flight span — Saves should re-enter at
+  // the pre-transition state, not inside the transition. The barrier's
+  // `loadRecovery` stays authoritative for Saves that do capture one
+  // (bound forfeit, imports); the span only keeps ordinary writes out.
+  persistenceSafepoint: {
+    classify: (state) =>
+      state.simulation.narrative.pending?.kind === "presentation_barrier"
+        ? "in_flight"
+        : "safepoint",
+    maxInFlightCommits: 8,
+  },
 });
 
 export type LabApplicationInstanceV1 = CoreGameApplicationInstanceV1<

@@ -61,7 +61,10 @@ async function playCalibrationV1(
       transitionId: "transition.e2e.bg-crossfade",
     }),
   );
-  await dispatch(resolveV1(pending().occurrenceId, { kind: "resume" }));
+  await dispatch(Object.freeze({
+    kind: "time" as const,
+    tick: Object.freeze({ elapsedMs: 400, expectedHoldOccurrenceId: pending().occurrenceId }),
+  }));
   await dispatch(resolveV1(pending().occurrenceId, { kind: "custom", payload: { value: 2 } }));
   await dispatch(resolveV1(pending().occurrenceId, { kind: "advance" }));
 }
@@ -69,10 +72,16 @@ async function playCalibrationV1(
 describe("Lab narrative graph", () => {
   it("projects the script into a lint-clean graph", () => {
     const graph = projectLabNarrativeGraphV1();
-    expect(graph.nodes).toHaveLength(labNarrativeScriptV1.length);
+    // Every script node plus the synthetic fan-out root (the graph contract
+    // is single-entry; the Lab has two begin commands).
+    expect(graph.nodes).toHaveLength(labNarrativeScriptV1.length + 1);
     expect(lintNarrativeGraphV1(graph)).toEqual([]);
-    // Sources point back into the script for every node.
+    // Sources point back into the script for every projected script node.
     for (const node of graph.nodes) {
+      if (node.nodeId === graph.entryNodeId) {
+        expect(node.source).toBe(`gameplay/narrative-graph.ts#${node.nodeId}`);
+        continue;
+      }
       expect(node.source).toBe(`gameplay/narrative.ts#${node.nodeId}`);
     }
   });

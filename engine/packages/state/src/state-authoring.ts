@@ -57,52 +57,30 @@ export type ProvideStateCapabilityV1<TStateSlice> = <TPort>(
   createPort: (context: StateCapabilityProviderContextV1<TStateSlice>) => TPort,
 ) => StateCapabilityProvisionV1<TStateSlice>;
 
-export interface StateModuleProposalV1<TOperation, TFact> {
-  readonly payload: TOperation;
-  readonly facts: readonly TFact[];
-}
+/** The kind-key union of a neutral workflow's domain-event union. */
+export type StateEventKindOfV1<TEvent> = TEvent extends
+  { readonly kind: infer TKind extends string } ? TKind : never;
 
-export type StateModuleProposalResultV1<TOperation, TFact, TRejection> =
-  | {
-    readonly kind: "proposed";
-    readonly proposal: StateModuleProposalV1<TOperation, TFact>;
-  }
-  | { readonly kind: "rejected"; readonly rejection: TRejection };
+/** One module's pure fold step for one admitted domain event. */
+export type StateModuleEventReducerV1<TStateSlice, TEvent> = (
+  state: DeepReadonly<TStateSlice>,
+  event: DeepReadonly<TEvent>,
+) => TStateSlice;
 
 /**
- * Owner operations for one neutral State slice.
- *
- * Module-local invariants are deliberately not part of the V1 neutral
- * surface. The existing Base transaction runner validates the aggregate
- * candidate through `StateWorkflowDefinitionV1.validateCandidate`; expose a
- * local invariant contract only when a real consumer establishes where and
- * when those checks execute.
+ * A module's reducers keyed by domain-event kind. Events without a subscribed
+ * reducer remain journal-only evidence.
  */
-export interface StateModuleOwnerV1<
-  TTypes extends StateWorkflowTypeMapV1,
-  TStateSlice,
-  TOwnerOperation,
-  TRequires extends StateCapabilityRequirementsV1,
-> {
-  readonly operationSchema: RuntimeSchemaV1<TOwnerOperation>;
-  readonly proposalSchema?: RuntimeSchemaV1<
-    StateModuleProposalV1<TOwnerOperation, TTypes["fact"]>
+export type StateModuleEventReducerMapV1<TStateSlice, TEvent> = {
+  readonly [TKind in StateEventKindOfV1<TEvent>]?: StateModuleEventReducerV1<
+    TStateSlice,
+    Extract<TEvent, { readonly kind: TKind }>
   >;
-  propose(
-    state: DeepReadonly<TStateSlice>,
-    operation: DeepReadonly<TOwnerOperation>,
-    dependencies: StateDependencyPortsOfV1<TRequires>,
-  ): StateModuleProposalResultV1<TOwnerOperation, TTypes["fact"], TTypes["rejection"]>;
-  apply(
-    state: DeepReadonly<TStateSlice>,
-    proposal: DeepReadonly<StateModuleProposalV1<TOwnerOperation, TTypes["fact"]>>,
-  ): TStateSlice;
-}
+};
 
 export interface StateModuleDefinitionV1<
   TTypes extends StateWorkflowTypeMapV1,
   TStateSlice,
-  TOwnerOperation,
   TRequires extends StateCapabilityRequirementsV1,
 > {
   readonly id: string;
@@ -123,7 +101,8 @@ export interface StateModuleDefinitionV1<
     provide: ProvideStateCapabilityV1<TStateSlice>,
   ) => readonly StateCapabilityProvisionV1<TStateSlice>[];
   readonly initializesAfter?: readonly string[];
-  readonly owner: StateModuleOwnerV1<TTypes, TStateSlice, TOwnerOperation, TRequires>;
+  /** Pure folds are the only post-bootstrap writers of this State slice. */
+  readonly reducers: StateModuleEventReducerMapV1<TStateSlice, TTypes["event"]>;
 }
 
 declare const stateModuleTypeWitnessV1: unique symbol;
@@ -140,14 +119,12 @@ export interface StateAnyModuleV1 {
 export interface StateModuleV1<
   TTypes extends StateWorkflowTypeMapV1,
   TStateSlice,
-  TOwnerOperation,
   TRequires extends StateCapabilityRequirementsV1,
 > extends StateAnyModuleV1 {
   readonly requires: TRequires;
   readonly [stateModuleTypeWitnessV1]?: {
     readonly types: TTypes;
     readonly state: TStateSlice;
-    readonly operation: TOwnerOperation;
   };
 }
 
@@ -157,14 +134,6 @@ export function getStateModuleContractRevisionV1(
 ): PositiveSafeInteger {
   return getStateModuleContractRevisionInternalV1(module);
 }
-
-export type StateModuleOperationOfV1<TModule> = TModule extends StateModuleV1<
-  infer _TTypes,
-  infer _TStateSlice,
-  infer TOwnerOperation,
-  infer _TRequires
-> ? TOwnerOperation
-  : never;
 
 export interface StateModuleDescriptorV1 {
   readonly id: ModuleId;
@@ -185,33 +154,25 @@ export type StateTransactionOutcomeV1<TTypes extends StateWorkflowTypeMapV1> =
   | { readonly kind: "transaction_complete" }
   | { readonly kind: "transaction_reject"; readonly rejection: TTypes["rejection"] };
 
-export type StateTransactionProposeResultV1<TTypes extends StateWorkflowTypeMapV1> =
-  | { readonly kind: "proposed" }
-  | { readonly kind: "rejected"; readonly rejection: TTypes["rejection"] };
-
 /**
- * A snapshot-isolated, atomic multi-owner command transaction.
+ * A snapshot-isolated, atomic domain-event transaction.
  *
- * Every `read()` and owner `propose()` observes the immutable command-start
- * State; staged proposals are never visible through later reads (there is no
- * read-your-writes). Each owner may stage at most one proposal. Once the
- * workflow completes, proposals are applied against their command-start owner
- * slices in locale-independent UTF-16 code-unit module-ID order, and facts are
- * collected in that same order. A rejection or fault preserves the complete
- * command-start Snapshot and transactional RNG state.
+ * Every `read()` observes the immutable command-start State. The workflow
+ * decides all rejections before emission, then emits admitted domain events in
+ * journal order. Base folds each event through subscribed module reducers in
+ * locale-independent UTF-16 code-unit module-ID order. A rejection or fault
+ * preserves the complete command-start Snapshot and transactional RNG state.
  */
 export interface StateTransactionV1<TTypes extends StateWorkflowTypeMapV1> {
   read<TPort>(token: StateCapabilityV1<TPort>): TPort;
-  propose<TModule extends StateAnyModuleV1>(
-    module: TModule,
-    operation: StateModuleOperationOfV1<TModule>,
-  ): StateTransactionProposeResultV1<TTypes>;
+  emit(event: TTypes["event"]): void;
   reject(rejection: TTypes["rejection"]): StateTransactionOutcomeV1<TTypes>;
   complete(): StateTransactionOutcomeV1<TTypes>;
 }
 
 export interface StateWorkflowDefinitionV1<TTypes extends StateWorkflowTypeMapV1> {
   readonly stateSchema: RuntimeSchemaV1<TTypes["state"]>;
+  readonly eventSchema: RuntimeSchemaV1<TTypes["event"]>;
   createFault(cause: unknown): TTypes["fault"];
   validateCandidate?(state: DeepReadonly<TTypes["state"]>): readonly string[];
   run(transaction: StateTransactionV1<TTypes>): StateTransactionOutcomeV1<TTypes>;
@@ -252,11 +213,10 @@ export interface StateAuthoringKitV1<TTypes extends StateWorkflowTypeMapV1> {
   defineCapability<TPort>(id: string): StateCapabilityV1<TPort>;
   defineModule<
     TStateSlice,
-    TOwnerOperation,
     TRequires extends StateCapabilityRequirementsV1 = Readonly<Record<never, never>>,
   >(
-    definition: StateModuleDefinitionV1<TTypes, TStateSlice, TOwnerOperation, TRequires>,
-  ): StateModuleV1<TTypes, TStateSlice, TOwnerOperation, TRequires>;
+    definition: StateModuleDefinitionV1<TTypes, TStateSlice, TRequires>,
+  ): StateModuleV1<TTypes, TStateSlice, TRequires>;
   composeModules<const TModules extends readonly StateAnyModuleV1[]>(
     modules: TModules,
   ): StateModuleCompositionV1<TTypes, TModules>;

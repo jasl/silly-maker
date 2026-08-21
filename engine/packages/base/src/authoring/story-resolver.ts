@@ -917,7 +917,7 @@ function gameSimulationIdentityProjectionsV1(value: unknown): {
       ports: [
         "stateSchema",
         "commandSchema",
-        "factSchema",
+        "eventSchema",
         "rejectionSchema",
         "debugCommandSchema",
         "debugValidationErrorSchema",

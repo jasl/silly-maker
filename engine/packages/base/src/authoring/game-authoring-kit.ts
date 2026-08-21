@@ -9,9 +9,8 @@ import { commitAttemptV1, faultAttemptV1, rejectAttemptV1 } from "../contracts/e
 import type {
   GameplayModuleBindingV1,
   GameSimulationTypeMapV1,
+  ModuleEventReducerMapV1,
   ModuleLocalInvariantV1,
-  ModuleOwnerProposalEnvelopeV1,
-  ModuleProposalResultV1,
   StatefulGameplayModuleBindingV1,
   StatelessGameplayModuleBindingV1,
 } from "../contracts/gameplay-module.ts";
@@ -61,35 +60,9 @@ export type ProvideCapabilityV1<TStateSlice> = <TPort>(
   createPort: (context: CapabilityProviderContextV1<TStateSlice>) => TPort,
 ) => CapabilityProvisionV1<TStateSlice>;
 
-export interface AuthoringKitStatefulOwnerV1<
-  TTypes extends GameSimulationTypeMapV1,
-  TStateSlice,
-  TOwnerOperation,
-  TRequires extends CapabilityRequirementsV1,
-> {
-  readonly operationSchema: RuntimeSchemaV1<TOwnerOperation>;
-  readonly proposalSchema?: RuntimeSchemaV1<
-    ModuleOwnerProposalEnvelopeV1<TOwnerOperation, TTypes["fact"]>
-  >;
-  propose(
-    state: DeepReadonly<TStateSlice>,
-    operation: DeepReadonly<TOwnerOperation>,
-    dependencies: DependencyPortsOfV1<TRequires>,
-  ): ModuleProposalResultV1<
-    ModuleOwnerProposalEnvelopeV1<TOwnerOperation, TTypes["fact"]>,
-    TTypes["rejection"]
-  >;
-  apply(
-    state: DeepReadonly<TStateSlice>,
-    proposal: DeepReadonly<ModuleOwnerProposalEnvelopeV1<TOwnerOperation, TTypes["fact"]>>,
-  ): TStateSlice;
-  readonly invariants?: readonly ModuleLocalInvariantV1<TStateSlice, DeepReadonly<TStateSlice>>[];
-}
-
 export interface AuthoringKitStatefulModuleConfigV1<
   TTypes extends GameSimulationTypeMapV1,
   TStateSlice,
-  TOwnerOperation,
   TModuleCommand,
   TRequires extends CapabilityRequirementsV1,
 > {
@@ -106,13 +79,18 @@ export interface AuthoringKitStatefulModuleConfigV1<
     provide: ProvideCapabilityV1<TStateSlice>,
   ) => readonly CapabilityProvisionV1<TStateSlice>[];
   readonly initializesAfter?: readonly string[];
-  readonly owner: AuthoringKitStatefulOwnerV1<TTypes, TStateSlice, TOwnerOperation, TRequires>;
+  /**
+   * The module's pure fold steps, keyed by domain-event kind. Reducers are
+   * the only way this module's slice changes after bootstrap; command
+   * handlers decide and emit, reducers fold, nothing else writes.
+   */
+  readonly reducers: ModuleEventReducerMapV1<TStateSlice, TTypes["event"]>;
+  readonly invariants?: readonly ModuleLocalInvariantV1<TStateSlice, DeepReadonly<TStateSlice>>[];
 }
 
 export type AuthoringKitStatefulBindingV1<
   TTypes extends GameSimulationTypeMapV1,
   TStateSlice,
-  TOwnerOperation,
   TModuleCommand,
   TRequires extends CapabilityRequirementsV1,
 > = StatefulGameplayModuleBindingV1<
@@ -121,8 +99,6 @@ export type AuthoringKitStatefulBindingV1<
   TModuleCommand,
   never,
   never,
-  TOwnerOperation,
-  ModuleOwnerProposalEnvelopeV1<TOwnerOperation, TTypes["fact"]>,
   DeepReadonly<TStateSlice>,
   DependencyPortsOfV1<TRequires>
 >;
@@ -130,7 +106,6 @@ export type AuthoringKitStatefulBindingV1<
 export interface AuthoringKitStatefulModuleV1<
   TTypes extends GameSimulationTypeMapV1,
   TStateSlice,
-  TOwnerOperation,
   TModuleCommand,
   TRequires extends CapabilityRequirementsV1,
 > {
@@ -143,7 +118,6 @@ export interface AuthoringKitStatefulModuleV1<
   readonly config: AuthoringKitStatefulModuleConfigV1<
     TTypes,
     TStateSlice,
-    TOwnerOperation,
     TModuleCommand,
     TRequires
   >;
@@ -188,15 +162,10 @@ export interface AuthoringKitAnyStatefulModuleV1 {
       readonly initial: (bootstrap: never) => unknown;
     };
     readonly commandSchema?: RuntimeSchemaV1<unknown>;
-    readonly owner: {
-      readonly operationSchema: RuntimeSchemaV1<unknown>;
-      readonly proposalSchema?: RuntimeSchemaV1<unknown>;
-      readonly propose: (state: never, operation: never, dependencies: never) => unknown;
-      readonly apply: (state: never, proposal: never) => unknown;
-      readonly invariants?: readonly {
-        readonly check: (state: never, readPort: never) => unknown;
-      }[];
-    };
+    readonly reducers: Readonly<Record<string, (state: never, event: never) => unknown>>;
+    readonly invariants?: readonly {
+      readonly check: (state: never, readPort: never) => unknown;
+    }[];
   };
 }
 
@@ -218,49 +187,35 @@ export type AuthoringKitBindingOfV1<TTypes extends GameSimulationTypeMapV1, TMod
   TModule extends AuthoringKitStatefulModuleV1<
     TTypes,
     infer TStateSlice,
-    infer TOwnerOperation,
     infer TModuleCommand,
     infer TRequires
-  > ? AuthoringKitStatefulBindingV1<TTypes, TStateSlice, TOwnerOperation, TModuleCommand, TRequires>
+  > ? AuthoringKitStatefulBindingV1<TTypes, TStateSlice, TModuleCommand, TRequires>
     : TModule extends AuthoringKitStatelessModuleV1<TTypes, infer TCapabilities>
       ? StatelessGameplayModuleBindingV1<TTypes, never, never, never, TCapabilities>
     : GameplayModuleBindingV1<TTypes>;
-
-export type KitOwnerOperationOfV1<TModule> = TModule extends AuthoringKitStatefulModuleV1<
-  infer _TTypes,
-  infer _TStateSlice,
-  infer TOwnerOperation,
-  infer _TModuleCommand,
-  infer _TRequires
-> ? TOwnerOperation
-  : never;
 
 export type KitTransactionOutcomeV1<TTypes extends GameSimulationTypeMapV1> =
   | { readonly kind: "transaction_complete" }
   | { readonly kind: "transaction_reject"; readonly rejection: TTypes["rejection"] };
 
-export type KitProposeResultV1<TTypes extends GameSimulationTypeMapV1> =
-  | { readonly kind: "proposed" }
-  | { readonly kind: "rejected"; readonly rejection: TTypes["rejection"] };
-
 /**
- * The Story-facing cross-owner transaction surface. All reads observe the
- * command-start immutable Snapshot; each owner accepts at most one proposal;
- * `complete()` only hands back a full candidate while validation, commit,
- * rejection, fault, and RNG/sequence rollback stay engine-owned.
+ * The Story-facing transaction surface. The handler reads the command-start
+ * immutable Snapshot, decides, and emits domain events; the engine folds the
+ * admitted events through every declared reducer in one atomic commit while
+ * validation, rejection, fault, and RNG/sequence rollback stay engine-owned.
+ * `emit` never rejects — an event is a decided outcome, so every gameplay
+ * refusal must happen before emission via `reject`.
  */
 export interface KitTransactionV1<TTypes extends GameSimulationTypeMapV1> {
   read<TPort>(token: CapabilityTokenV1<TPort>): TPort;
-  propose<TModule extends AuthoringKitAnyStatefulModuleV1>(
-    module: TModule,
-    operation: KitOwnerOperationOfV1<TModule>,
-  ): KitProposeResultV1<TTypes>;
+  emit(event: TTypes["event"]): void;
   reject(rejection: TTypes["rejection"]): KitTransactionOutcomeV1<TTypes>;
   complete(): KitTransactionOutcomeV1<TTypes>;
 }
 
 export interface KitTransactionRunnerConfigV1<TTypes extends GameSimulationTypeMapV1> {
   readonly stateSchema: RuntimeSchemaV1<TTypes["state"]>;
+  readonly eventSchema: RuntimeSchemaV1<TTypes["event"]>;
   createFault(cause: unknown): TTypes["fault"];
   validateCandidate?(state: DeepReadonly<TTypes["state"]>): readonly string[];
 }
@@ -268,7 +223,7 @@ export interface KitTransactionRunnerConfigV1<TTypes extends GameSimulationTypeM
 export type KitAttemptOfV1<TTypes extends GameSimulationTypeMapV1> =
   CommandExecutionAttemptEnvelopeV1<
     TTypes["snapshot"],
-    TTypes["fact"],
+    TTypes["event"],
     TTypes["rejection"],
     TTypes["fault"],
     RngStateV1,
@@ -389,43 +344,22 @@ export interface GameAuthoringKitV1<TTypes extends GameSimulationTypeMapV1> {
   defineCapability<TPort>(id: string): CapabilityTokenV1<TPort>;
   defineStatefulModule<
     TStateSlice,
-    TOwnerOperation,
     TModuleCommand = never,
     TRequires extends CapabilityRequirementsV1 = Readonly<Record<never, never>>,
   >(
     config: AuthoringKitStatefulModuleConfigV1<
       TTypes,
       TStateSlice,
-      TOwnerOperation,
       TModuleCommand,
       TRequires
     >,
-  ): AuthoringKitStatefulModuleV1<TTypes, TStateSlice, TOwnerOperation, TModuleCommand, TRequires>;
+  ): AuthoringKitStatefulModuleV1<TTypes, TStateSlice, TModuleCommand, TRequires>;
   defineStatelessModule<TCapabilities>(
     config: AuthoringKitStatelessModuleConfigV1<TCapabilities>,
   ): AuthoringKitStatelessModuleV1<TTypes, TCapabilities>;
   composeModules<const TModules extends readonly AuthoringKitAnyModuleV1[]>(
     modules: TModules,
   ): AuthoringKitCompositionV1<TTypes, TModules>;
-}
-
-function deriveProposalSchemaV1<TOwnerOperation, TFact>(
-  operationSchema: RuntimeSchemaV1<TOwnerOperation>,
-): RuntimeSchemaV1<ModuleOwnerProposalEnvelopeV1<TOwnerOperation, TFact>> {
-  return Object.freeze({
-    parse(value: unknown): ModuleOwnerProposalEnvelopeV1<TOwnerOperation, TFact> {
-      if (value === null || typeof value !== "object") {
-        throw new TypeError("invalid owner proposal");
-      }
-      const payload = operationSchema.parse(Reflect.get(value, "payload"));
-      const facts = Reflect.get(value, "facts");
-      if (!Array.isArray(facts)) throw new TypeError("invalid owner proposal facts");
-      return Object.freeze({
-        payload,
-        facts: Object.freeze([...facts]) as readonly TFact[],
-      });
-    },
-  });
 }
 
 interface ErasedStatefulConfigV1 {
@@ -442,13 +376,8 @@ interface ErasedStatefulConfigV1 {
     | ((provide: ProvideCapabilityV1<never>) => readonly CapabilityProvisionV1<never>[])
     | undefined;
   readonly initializesAfter?: readonly string[] | undefined;
-  readonly owner: {
-    readonly operationSchema: RuntimeSchemaV1<unknown>;
-    readonly proposalSchema?: RuntimeSchemaV1<unknown> | undefined;
-    readonly propose: (state: never, operation: never, dependencies: never) => unknown;
-    readonly apply: (state: never, proposal: never) => unknown;
-    readonly invariants?: readonly ModuleLocalInvariantV1<never, never>[] | undefined;
-  };
+  readonly reducers: Readonly<Record<string, (state: never, event: never) => unknown>>;
+  readonly invariants?: readonly ModuleLocalInvariantV1<never, never>[] | undefined;
 }
 
 interface ErasedStatefulModuleV1 {
@@ -483,6 +412,7 @@ interface ErasedTransactionSnapshotV1 {
 
 interface ErasedRunnerConfigV1 {
   readonly stateSchema: RuntimeSchemaV1<unknown>;
+  readonly eventSchema: RuntimeSchemaV1<unknown>;
   createFault(cause: unknown): unknown;
   validateCandidate?(state: never): readonly string[];
 }
@@ -491,9 +421,37 @@ type ErasedTransactionOutcomeV1 =
   | { readonly kind: "transaction_complete"; readonly rejection?: undefined }
   | { readonly kind: "transaction_reject"; readonly rejection: unknown };
 
-interface StagedProposalV1 {
-  readonly module: ErasedStatefulModuleV1;
-  readonly proposal: { readonly payload: unknown; readonly facts: readonly unknown[] };
+function validateReducerMapV1(
+  reducers: unknown,
+  moduleId: string,
+): Readonly<Record<string, (state: never, event: never) => unknown>> {
+  if (
+    reducers === null ||
+    typeof reducers !== "object" ||
+    Array.isArray(reducers) ||
+    Object.getPrototypeOf(reducers) !== Object.prototype
+  ) {
+    throw new AuthoringDiagnosticErrorV1([
+      kitDiagnosticV1(
+        "authoring.module.invalid_reducers",
+        `module ${moduleId} must declare a plain reducers record`,
+        { kind: "module", id: moduleId },
+      ),
+    ]);
+  }
+  for (const [kind, reducer] of Object.entries(reducers)) {
+    if (kind.length === 0 || typeof reducer !== "function") {
+      throw new AuthoringDiagnosticErrorV1([
+        kitDiagnosticV1(
+          "authoring.module.invalid_reducers",
+          `module ${moduleId} reducer for kind ${JSON.stringify(kind)} must be a function`,
+          { kind: "module", id: moduleId },
+          { eventKind: kind },
+        ),
+      ]);
+    }
+  }
+  return reducers as Readonly<Record<string, (state: never, event: never) => unknown>>;
 }
 
 export function createGameAuthoringKitV1<
@@ -525,6 +483,7 @@ export function createGameAuthoringKitV1<
     const id = parseModuleId(config.id);
     const stateSlot = parseStateSlotId(config.state.slot);
     parsePositiveSafeInteger(config.contractRevision);
+    validateReducerMapV1(config.reducers, String(id));
     const provide: ProvideCapabilityV1<never> = (token, createPort) =>
       Object.freeze({ token, createPort });
     const provisions = Object.freeze(
@@ -691,9 +650,7 @@ export function createGameAuthoringKitV1<
           commandSchema: null,
           querySchema: null,
           queryResultSchema: null,
-          ownerOperationSchema: null,
-          ownerProposalSchema: null,
-          owner: null,
+          reducers: null,
           capabilities: module.config.capabilities as never,
         });
       }
@@ -709,8 +666,6 @@ export function createGameAuthoringKitV1<
           }),
         ),
       ].sort(compareUtf16CodeUnitsInternalV1);
-      const proposalSchema = config.owner.proposalSchema ??
-        deriveProposalSchemaV1(config.owner.operationSchema);
       return defineGameplayModule<TTypes>()({
         bindingKind: "stateful" as const,
         descriptor: {
@@ -723,13 +678,8 @@ export function createGameAuthoringKitV1<
         querySchema: null,
         queryResultSchema: null,
         stateSchema: config.state.schema as never,
-        ownerOperationSchema: config.owner.operationSchema as never,
-        ownerProposalSchema: proposalSchema as never,
-        localInvariants: [...(config.owner.invariants ?? [])] as never,
-        owner: {
-          propose: config.owner.propose as never,
-          apply: config.owner.apply as never,
-        },
+        localInvariants: [...(config.invariants ?? [])] as never,
+        reducers: config.reducers as never,
         queries: null,
         createInitialState: config.state.initial as never,
         createReadPort: ((state: never) => state) as never,
@@ -740,16 +690,11 @@ export function createGameAuthoringKitV1<
       statefulModules.map((module) => [module.id, new Set(Object.values(module.requires))]),
     );
 
-    const proposalSchemasByModule = new Map<ModuleId, RuntimeSchemaV1<unknown>>();
-    const kitModulesById = new Map<ModuleId, ErasedStatefulModuleV1>();
-    for (const module of statefulModules) {
-      kitModulesById.set(module.id, module);
-      proposalSchemasByModule.set(
-        module.id,
-        module.config.owner.proposalSchema ??
-          deriveProposalSchemaV1(module.config.owner.operationSchema),
-      );
-    }
+    // Fold order is deterministic: events in emission order, and for each
+    // event every subscribed module in UTF-16 module-id order.
+    const foldModulesOrdered = [...statefulModules].sort((left, right) =>
+      compareUtf16CodeUnitsInternalV1(String(left.id), String(right.id))
+    );
 
     const createDependencyPortsFor = (consumer: ErasedConsumerV1, state: unknown) => {
       const ports: Record<string, unknown> = {};
@@ -766,61 +711,50 @@ export function createGameAuthoringKitV1<
           rng: RuleRngV1,
           run: (transaction: never) => ErasedTransactionOutcomeV1,
         ) {
-          const staged = new Map<ModuleId, StagedProposalV1>();
-          const ownerRejections: unknown[] = [];
+          const emitted: { readonly kind: string; readonly event: unknown }[] = [];
+          // The transaction latches closed on the first reject/complete: a
+          // handler (or leaked reference) touching it afterwards is a bug and
+          // faults instead of silently extending a settled commit.
+          let settled = false;
+          const assertOpen = (operation: string): void => {
+            if (!settled) return;
+            throw new AuthoringDiagnosticErrorV1([
+              kitDiagnosticV1(
+                "authoring.transaction.settled",
+                `transaction ${operation} was called after reject/complete settled it`,
+                { kind: "transaction", id: operation },
+              ),
+            ]);
+          };
           const transaction = Object.freeze({
             read: (token: CapabilityTokenV1<unknown>) => buildPort(token, snapshot.state),
-            propose(moduleLike: { readonly id: ModuleId }, operation: unknown) {
-              const module = kitModulesById.get(moduleLike.id);
-              if (module === undefined) {
+            emit(event: unknown): void {
+              assertOpen("emit");
+              const parsed = config.eventSchema.parse(event);
+              const kind = parsed === null || typeof parsed !== "object"
+                ? undefined
+                : Reflect.get(parsed, "kind");
+              if (typeof kind !== "string" || kind.length === 0) {
                 throw new AuthoringDiagnosticErrorV1([
                   kitDiagnosticV1(
-                    "authoring.transaction.unknown_module",
-                    `module ${String(moduleLike.id)} is not part of this composition`,
-                    { kind: "module", id: String(moduleLike.id) },
+                    "authoring.transaction.invalid_event",
+                    "domain events must carry a non-empty string kind",
+                    { kind: "event", id: "unknown" },
                   ),
                 ]);
               }
-              if (staged.has(module.id)) {
-                throw new AuthoringDiagnosticErrorV1([
-                  kitDiagnosticV1(
-                    "authoring.transaction.duplicate_proposal",
-                    `owner ${String(module.id)} already staged a proposal in this transaction`,
-                    { kind: "module", id: String(module.id) },
-                  ),
-                ]);
-              }
-              const parsedOperation = module.config.owner.operationSchema.parse(operation);
-              const startSlice = readStateSlotV1(snapshot.state, module.stateSlot);
-              const dependencies = createDependencyPortsFor(module, snapshot.state);
-              const result = module.config.owner.propose(
-                startSlice as never,
-                parsedOperation as never,
-                dependencies as never,
-              ) as
-                | { readonly kind: "proposed"; readonly proposal: unknown }
-                | { readonly kind: "rejected"; readonly rejection: unknown };
-              if (result.kind === "rejected") {
-                ownerRejections.push(result.rejection);
-                return Object.freeze({ kind: "rejected" as const, rejection: result.rejection });
-              }
-              if (result.kind !== "proposed") {
-                throw new TypeError("owner.propose returned an invalid result");
-              }
-              const proposalSchema = proposalSchemasByModule.get(module.id);
-              if (proposalSchema === undefined) {
-                throw new TypeError("owner proposal schema disappeared after composition");
-              }
-              const proposal = proposalSchema.parse(result.proposal) as {
-                readonly payload: unknown;
-                readonly facts: readonly unknown[];
-              };
-              staged.set(module.id, { module, proposal });
-              return Object.freeze({ kind: "proposed" as const });
+              emitted.push({ kind, event: parsed });
             },
-            reject: (rejection: unknown) =>
-              Object.freeze({ kind: "transaction_reject" as const, rejection }),
-            complete: () => Object.freeze({ kind: "transaction_complete" as const }),
+            reject(rejection: unknown) {
+              assertOpen("reject");
+              settled = true;
+              return Object.freeze({ kind: "transaction_reject" as const, rejection });
+            },
+            complete() {
+              assertOpen("complete");
+              settled = true;
+              return Object.freeze({ kind: "transaction_complete" as const });
+            },
           });
 
           try {
@@ -831,20 +765,29 @@ export function createGameAuthoringKitV1<
             if (outcome.kind !== "transaction_complete") {
               throw new TypeError("transaction run returned an invalid outcome");
             }
-            if (ownerRejections.length > 0) {
-              return rejectAttemptV1(snapshot, rng, ownerRejections);
-            }
-            const ordered = [...staged.values()].sort((left, right) =>
-              compareUtf16CodeUnitsInternalV1(String(left.module.id), String(right.module.id))
-            );
             let nextState: unknown = snapshot.state;
-            const facts: unknown[] = [];
-            for (const { module, proposal } of ordered) {
-              const startSlice = readStateSlotV1(snapshot.state, module.stateSlot);
-              const applied = module.config.owner.apply(startSlice as never, proposal as never);
-              const parsedSlice = module.config.state.schema.parse(applied);
+            const touched = new Set<ErasedStatefulModuleV1>();
+            for (const { kind, event } of emitted) {
+              for (const module of foldModulesOrdered) {
+                const reducer = Object.hasOwn(module.config.reducers, kind)
+                  ? module.config.reducers[kind]
+                  : undefined;
+                if (reducer === undefined) continue;
+                const slice = readStateSlotV1(nextState, module.stateSlot);
+                const reduced = reducer(slice as never, event as never);
+                nextState = writeStateSlotV1(nextState, module.stateSlot, reduced);
+                touched.add(module);
+              }
+            }
+            // Touched slices validate once after the whole fold, not per
+            // event: reducers are trusted Story code consuming events the
+            // schema admitted at emit time, and an invalid intermediate value
+            // still faults here before any commit.
+            for (const module of foldModulesOrdered) {
+              if (!touched.has(module)) continue;
+              const slice = readStateSlotV1(nextState, module.stateSlot);
+              const parsedSlice = module.config.state.schema.parse(slice);
               nextState = writeStateSlotV1(nextState, module.stateSlot, parsedSlice);
-              facts.push(...proposal.facts);
             }
             const candidateState = config.stateSchema.parse(nextState);
             const violations = config.validateCandidate?.(candidateState as never) ?? [];
@@ -864,7 +807,12 @@ export function createGameAuthoringKitV1<
               commandSequence: parseNonNegativeSafeInteger(snapshot.commandSequence + 1),
               integrity: snapshot.integrity,
             });
-            return commitAttemptV1(snapshot, next as typeof snapshot, rng, facts);
+            return commitAttemptV1(
+              snapshot,
+              next as typeof snapshot,
+              rng,
+              emitted.map((entry) => entry.event),
+            );
           } catch (error) {
             return faultAttemptV1(snapshot, rng, config.createFault(error));
           }

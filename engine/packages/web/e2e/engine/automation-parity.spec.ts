@@ -26,7 +26,7 @@ const automationKeyV1 = "__SILLYMAKER_AUTOMATION_V1__";
 const forbiddenPlayerResultKeysV1 = Object.freeze([
   "attempt",
   "commandLog",
-  "facts",
+  "events",
   "fault",
   "rng",
   "snapshot",

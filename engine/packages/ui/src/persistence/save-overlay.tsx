@@ -372,6 +372,8 @@ function persistenceRejectedTextV1(
       return labels.operation.rejected.empty_slot;
     case "conflict":
       return labels.operation.rejected.conflict;
+    case "in_flight":
+      return labels.operation.rejected.in_flight;
     case "invalid_record":
       return labels.operation.rejected.invalid_record;
     case "invalid_note":

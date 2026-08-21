@@ -10,6 +10,7 @@ import {
   parsePendingInteractionV1,
 } from "./pending-interaction.ts";
 import type { PendingInteractionV1 } from "./pending-interaction.ts";
+import { applyElapsedToHoldV1 } from "./time-tick.ts";
 
 function choiceFixtureV1(): PendingInteractionV1 {
   return parsePendingInteractionV1({
@@ -38,12 +39,14 @@ describe("PendingInteractionV1", () => {
         advancePolicy: "confirm",
       },
       {
-        kind: "pause",
+        // A mid-hold Save shape: partial progress already committed.
+        kind: "hold",
         definitionId: "interaction.test.hold",
         seenRevision: 1,
-        occurrenceId: interactionOccurrenceIdV1(2),
-        durationMs: 400,
-        skippable: true,
+        occurrenceId: interactionOccurrenceIdV1(10),
+        totalMs: 7833,
+        remainingMs: 833,
+        skippable: false,
       },
       {
         kind: "presentation_barrier",
@@ -67,6 +70,46 @@ describe("PendingInteractionV1", () => {
       expect(parsePendingInteractionV1(JSON.parse(JSON.stringify(parsed)))).toEqual(parsed);
       expect(Object.isFrozen(parsed)).toBe(true);
     }
+  });
+
+  it("admits a choice menu with more than sixteen options", () => {
+    const options = Array.from({ length: 17 }, (_, index) => {
+      const token = String(index + 1).padStart(2, "0");
+      return {
+        choiceId: `choice.test.opt${token}`,
+        textId: `text.test.opt${token}`,
+      };
+    });
+    const pending = parsePendingInteractionV1({
+      kind: "choice",
+      definitionId: "interaction.test.wide-menu",
+      seenRevision: 1,
+      occurrenceId: interactionOccurrenceIdV1(6),
+      promptTextId: "text.test.prompt",
+      options,
+    });
+    if (pending.kind !== "choice") throw new Error("expected choice");
+    expect(pending.options).toHaveLength(17);
+    expect(
+      evaluateInteractionResolutionV1(
+        pending,
+        pending.occurrenceId,
+        parseInteractionResolutionV1({ kind: "choose", choiceId: "choice.test.opt17" }),
+      ),
+    ).toEqual({ kind: "accepted" });
+  });
+
+  it("still rejects an empty choice list", () => {
+    expect(() =>
+      parsePendingInteractionV1({
+        kind: "choice",
+        definitionId: "interaction.test.empty-menu",
+        seenRevision: 1,
+        occurrenceId: interactionOccurrenceIdV1(6),
+        promptTextId: "text.test.prompt",
+        options: [],
+      })
+    ).toThrow("choice_options_invalid");
   });
 
   it("rejects functions, floats, duplicate choices, and unknown kinds", () => {
@@ -301,6 +344,136 @@ describe("PendingInteractionV1", () => {
         { isChoiceEnabled: (choiceId) => choiceId !== "choice.test.precise" },
       ),
     ).toEqual({ kind: "rejected", code: "interaction.choice_disabled" });
+  });
+
+  it("admits holds strictly and rejects every input resolution against a hold", () => {
+    const holdRawV1 = {
+      kind: "hold",
+      definitionId: "interaction.test.commute-hold",
+      seenRevision: 1,
+      occurrenceId: interactionOccurrenceIdV1(11),
+      totalMs: 1500,
+      remainingMs: 1500,
+      skippable: false,
+    };
+    const hold = parsePendingInteractionV1(holdRawV1);
+    if (hold.kind !== "hold") throw new Error("expected hold");
+
+    // remainingMs may never exceed the total, and a zero remainder cannot
+    // be saved: the tick reaching zero expires the boundary in-commit.
+    expect(() => parsePendingInteractionV1({ ...holdRawV1, remainingMs: 1501 })).toThrow(
+      "hold_remaining_invalid",
+    );
+    expect(() => parsePendingInteractionV1({ ...holdRawV1, remainingMs: 0 })).toThrow(
+      "duration_invalid",
+    );
+    expect(() => parsePendingInteractionV1({ ...holdRawV1, totalMs: 0 })).toThrow(
+      "duration_invalid",
+    );
+
+    // The merged verbs stay deleted from the resolution vocabulary: neither
+    // `resume` (pause era) nor `hold_tick` (pre-merge era) parses. Holds are
+    // settled by the session-level time verb, never by an input resolution.
+    expect(() => parseInteractionResolutionV1({ kind: "resume" })).toThrow(
+      "resolution_kind_invalid",
+    );
+    expect(() => parseInteractionResolutionV1({ kind: "hold_tick", elapsedMs: 500 })).toThrow(
+      "resolution_kind_invalid",
+    );
+    expect(
+      evaluateInteractionResolutionV1(
+        hold,
+        interactionOccurrenceIdV1(99),
+        parseInteractionResolutionV1({ kind: "advance" }),
+      ),
+    ).toEqual({ kind: "rejected", code: "interaction.occurrence_mismatch" });
+    for (
+      const resolution of [
+        parseInteractionResolutionV1({ kind: "advance" }),
+        parseInteractionResolutionV1({ kind: "choose", choiceId: "choice.test.basic" }),
+        parseInteractionResolutionV1({ kind: "custom", payload: { value: 1 } }),
+      ]
+    ) {
+      expect(
+        evaluateInteractionResolutionV1(hold, hold.occurrenceId, resolution),
+      ).toEqual({ kind: "rejected", code: "interaction.kind_mismatch" });
+    }
+  });
+
+  it("admits the optional block-declared tick cadence and keeps it across partial ticks", () => {
+    const cadencedRawV1 = {
+      kind: "hold",
+      definitionId: "interaction.test.commute-hold",
+      seenRevision: 1,
+      occurrenceId: interactionOccurrenceIdV1(12),
+      totalMs: 1500,
+      remainingMs: 1500,
+      skippable: false,
+      tickQuantumMs: 250,
+    };
+    const cadenced = parsePendingInteractionV1(cadencedRawV1);
+    if (cadenced.kind !== "hold") throw new Error("expected hold");
+    expect(cadenced.tickQuantumMs).toBe(250);
+    // The canonical shape omits the member entirely when absent, so an
+    // M1-era hold without a cadence stays byte-identical.
+    const { tickQuantumMs: _omitted, ...plainRawV1 } = cadencedRawV1;
+    const plain = parsePendingInteractionV1(plainRawV1);
+    if (plain.kind !== "hold") throw new Error("expected hold");
+    expect(Object.hasOwn(plain, "tickQuantumMs")).toBe(false);
+
+    for (const tickQuantumMs of [0, -1, 0.5, "250", null, 600_001]) {
+      expect(() => parsePendingInteractionV1({ ...cadencedRawV1, tickQuantumMs })).toThrow(
+        "duration_invalid",
+      );
+    }
+
+    // The runner arithmetic ignores the cadence but preserves the member
+    // across partial ticks, so a mid-hold Save keeps the block's rhythm.
+    const afterPartial = applyElapsedToHoldV1(cadenced, 250);
+    if (afterPartial.kind !== "holding") throw new Error("expected holding");
+    expect(afterPartial.pending.tickQuantumMs).toBe(250);
+    expect(afterPartial.pending.remainingMs).toBe(1250);
+  });
+
+  it("admits the optional pace hint and keeps it across partial ticks", () => {
+    const realtimeRawV1 = {
+      kind: "hold",
+      definitionId: "interaction.test.reaction-window",
+      seenRevision: 1,
+      occurrenceId: interactionOccurrenceIdV1(13),
+      totalMs: 900,
+      remainingMs: 900,
+      skippable: true,
+      pace: "realtime",
+    };
+    const realtime = parsePendingInteractionV1(realtimeRawV1);
+    if (realtime.kind !== "hold") throw new Error("expected hold");
+    expect(realtime.pace).toBe("realtime");
+    expect(
+      (() => {
+        const explicit = parsePendingInteractionV1({ ...realtimeRawV1, pace: "cinematic" });
+        return explicit.kind === "hold" ? explicit.pace : null;
+      })(),
+    ).toBe("cinematic");
+    // The canonical shape omits the member when the block does not declare
+    // a pace, so earlier holds stay byte-identical (cinematic by absence).
+    const { pace: _omitted, ...plainRawV1 } = realtimeRawV1;
+    const plain = parsePendingInteractionV1(plainRawV1);
+    if (plain.kind !== "hold") throw new Error("expected hold");
+    expect(Object.hasOwn(plain, "pace")).toBe(false);
+
+    for (const pace of ["fast", "", 1, null, true]) {
+      expect(() => parsePendingInteractionV1({ ...realtimeRawV1, pace })).toThrow(
+        "pace_invalid",
+      );
+    }
+
+    // The hint is Host vocabulary: hold arithmetic ignores it but carries
+    // it across partial ticks so mid-window Saves keep the declaration.
+    const afterPartial = applyElapsedToHoldV1(realtime, 300);
+    if (afterPartial.kind !== "holding") throw new Error("expected holding");
+    expect(afterPartial.pending.pace).toBe("realtime");
+    expect(afterPartial.pending.remainingMs).toBe(600);
   });
 
   it("fences barriers by transition identity and customs by payload schema", () => {

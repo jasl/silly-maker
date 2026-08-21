@@ -46,8 +46,8 @@ interface CommandLogEntryBaseForV1<TRngState, TRngDrawTrace> {
   readonly committedRngAfter: TRngState;
 }
 
-type CommandLogOutcomeV1<TFact, TRejection, TFault> =
-  | { readonly kind: "committed"; readonly facts: readonly TFact[] }
+type CommandLogOutcomeV1<TEvent, TRejection, TFault> =
+  | { readonly kind: "committed"; readonly events: readonly TEvent[] }
   | { readonly kind: "rejected"; readonly reasons: readonly TRejection[] }
   | { readonly kind: "faulted"; readonly fault: TFault };
 
@@ -56,13 +56,13 @@ type CommandLogEngineFieldV1<TRngState, TRngDrawTrace> =
   | keyof CommandLogEntryBaseForV1<TRngState, TRngDrawTrace>
   | "outcome";
 
-type CommandLogEntryForV1<TLoggedCommand, TFact, TRejection, TFault, TRngState, TRngDrawTrace> =
+type CommandLogEntryForV1<TLoggedCommand, TEvent, TRejection, TFault, TRngState, TRngDrawTrace> =
   TLoggedCommand extends LoggedCommandShapeV1 ? DeepReadonly<
       & CommandLogEntryBaseForV1<TRngState, TRngDrawTrace>
       & Pick<TLoggedCommand, keyof LoggedCommandShapeV1>
       & Omit<TLoggedCommand, CommandLogEngineFieldV1<TRngState, TRngDrawTrace>>
       & {
-        readonly outcome: CommandLogOutcomeV1<TFact, TRejection, TFault>;
+        readonly outcome: CommandLogOutcomeV1<TEvent, TRejection, TFault>;
       }
     >
     : never;
@@ -74,7 +74,7 @@ interface InternalCommandLogEntryV1<TSnapshot, TEntry> {
 
 export type FinalizedCommandAttemptV1<
   TSnapshot extends CommandLogSnapshotV1 = CommandLogSnapshotV1,
-  TFact = unknown,
+  TEvent = unknown,
   TRejection = unknown,
   TFault = unknown,
   TRngState = TSnapshot["rng"],
@@ -83,7 +83,7 @@ export type FinalizedCommandAttemptV1<
   & DeepReadonly<
     CommandExecutionAttemptEnvelopeV1<
       TSnapshot,
-      TFact,
+      TEvent,
       TRejection,
       TFault,
       TRngState,
@@ -106,7 +106,7 @@ interface PreparedCommandLogAnchorV1<TSnapshot> {
 export interface CommandLogV1<
   TSnapshot extends CommandLogSnapshotV1,
   TLoggedCommand extends LoggedCommandShapeV1,
-  TFact = unknown,
+  TEvent = unknown,
   TRejection = unknown,
   TFault = unknown,
   TRngState = TSnapshot["rng"],
@@ -116,16 +116,16 @@ export interface CommandLogV1<
     loggedCommand: DeepReadonly<TLoggedCommand>,
     finalizedAttempt: FinalizedCommandAttemptV1<
       TSnapshot,
-      TFact,
+      TEvent,
       TRejection,
       TFault,
       TRngState,
       TRngDrawTrace
     >,
-  ): CommandLogEntryForV1<TLoggedCommand, TFact, TRejection, TFault, TRngState, TRngDrawTrace>;
+  ): CommandLogEntryForV1<TLoggedCommand, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>;
   entries(): readonly CommandLogEntryForV1<
     TLoggedCommand,
-    TFact,
+    TEvent,
     TRejection,
     TFault,
     TRngState,
@@ -227,7 +227,7 @@ function projectAdditionalLoggedCommandFieldsV1(
 
 function createOutcomeV1<
   TSnapshot extends CommandLogSnapshotV1,
-  TFact,
+  TEvent,
   TRejection,
   TFault,
   TRngState,
@@ -235,18 +235,18 @@ function createOutcomeV1<
 >(
   attempt: FinalizedCommandAttemptV1<
     TSnapshot,
-    TFact,
+    TEvent,
     TRejection,
     TFault,
     TRngState,
     TRngDrawTrace
   >,
-): DeepReadonly<CommandLogOutcomeV1<TFact, TRejection, TFault>> {
+): DeepReadonly<CommandLogOutcomeV1<TEvent, TRejection, TFault>> {
   switch (attempt.result.kind) {
     case "committed":
       return Object.freeze({
         kind: "committed",
-        facts: Object.freeze([...attempt.result.facts]),
+        events: Object.freeze([...attempt.result.events]),
       });
     case "rejected":
       return Object.freeze({
@@ -261,7 +261,7 @@ function createOutcomeV1<
 
 function validateFinalizedAttemptV1<
   TSnapshot extends CommandLogSnapshotV1,
-  TFact,
+  TEvent,
   TRejection,
   TFault,
   TRngState,
@@ -271,7 +271,7 @@ function validateFinalizedAttemptV1<
   expectedPreStateDigest: Digest,
   attempt: FinalizedCommandAttemptV1<
     TSnapshot,
-    TFact,
+    TEvent,
     TRejection,
     TFault,
     TRngState,
@@ -313,7 +313,7 @@ function validateFinalizedAttemptV1<
 export function createCommandLogInternalV1<
   TSnapshot extends CommandLogSnapshotV1,
   TLoggedCommand extends LoggedCommandShapeV1 = LoggedCommandShapeV1,
-  TFact = unknown,
+  TEvent = unknown,
   TRejection = unknown,
   TFault = unknown,
   TRngState = TSnapshot["rng"],
@@ -326,10 +326,10 @@ export function createCommandLogInternalV1<
     readonly auditStateDigests: boolean;
   },
   instrumentation?: SnapshotWorkInstrumentationV1,
-): CommandLogV1<TSnapshot, TLoggedCommand, TFact, TRejection, TFault, TRngState, TRngDrawTrace> {
+): CommandLogV1<TSnapshot, TLoggedCommand, TEvent, TRejection, TFault, TRngState, TRngDrawTrace> {
   type PublicEntry = CommandLogEntryForV1<
     TLoggedCommand,
-    TFact,
+    TEvent,
     TRejection,
     TFault,
     TRngState,
@@ -356,7 +356,7 @@ export function createCommandLogInternalV1<
   const log: CommandLogV1<
     TSnapshot,
     TLoggedCommand,
-    TFact,
+    TEvent,
     TRejection,
     TFault,
     TRngState,
@@ -466,7 +466,7 @@ export function createCommandLogInternalV1<
 export function createCommandLogV1<
   TSnapshot extends CommandLogSnapshotV1,
   TLoggedCommand extends LoggedCommandShapeV1 = LoggedCommandShapeV1,
-  TFact = unknown,
+  TEvent = unknown,
   TRejection = unknown,
   TFault = unknown,
   TRngState = TSnapshot["rng"],
@@ -474,7 +474,7 @@ export function createCommandLogV1<
 >(input: {
   readonly replayBase: DeepReadonly<TSnapshot>;
   readonly limit: number;
-}): CommandLogV1<TSnapshot, TLoggedCommand, TFact, TRejection, TFault, TRngState, TRngDrawTrace> {
+}): CommandLogV1<TSnapshot, TLoggedCommand, TEvent, TRejection, TFault, TRngState, TRngDrawTrace> {
   return createCommandLogInternalV1({
     replayBase: input.replayBase,
     limit: input.limit,

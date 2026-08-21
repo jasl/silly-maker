@@ -278,7 +278,7 @@ test("the DevDock tuning panel commits debug commands through the session", asyn
   await expect(page.locator("[data-cc-stats]")).toContainText("信任77");
 
   // Force a regular encounter in the same dock session: its effect and
-  // HUD line come from the same fact/effect path as a natural draw.
+  // HUD line come from the same event/effect path as a natural draw.
   await tuning.locator("[data-cc-debug-encounter]").selectOption("encounter.baker");
   await tuning.locator("form").nth(2).getByRole("button", { name: "执行调试命令" }).click();
   await expect(page.locator("[data-cc-encounter='text.cc.encounter.baker']")).toBeVisible();

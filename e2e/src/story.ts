@@ -30,7 +30,8 @@ export const labStoryEntryV1 = defineGamePackage({
   contractRevision: 1,
   identity: {
     id: "story.e2e.engine-lab",
-    revision: parsePositiveSafeInteger(8),
+    // Revision 9: the monitor drill (authoritative monitors conformance).
+    revision: parsePositiveSafeInteger(9),
   },
   define: () => labStoryDefinitionV1,
 });

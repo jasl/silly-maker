@@ -26,6 +26,13 @@ function chooseV1(choiceId: string) {
   });
 }
 
+function timeTickV1(elapsedMs: number) {
+  return Object.freeze({
+    kind: "time" as const,
+    tick: Object.freeze({ elapsedMs }),
+  });
+}
+
 const scenariosV1 = Object.freeze({
   /** Take the courtyard look and reach the warm ending. */
   opening: Object.freeze([
@@ -33,6 +40,9 @@ const scenariosV1 = Object.freeze({
     advanceV1(),
     chooseV1("choice.template.look"),
     advanceV1(),
+    // The fetch beat holds for an authoritative 600ms; the scenario expires
+    // it in one tick (the browser Host accumulates the same milliseconds).
+    timeTickV1(600),
     advanceV1(),
   ]),
   /** Go inside instead and reach the plain ending. */
@@ -45,13 +55,24 @@ const scenariosV1 = Object.freeze({
   ]),
 });
 
-/** Fills the current pending occurrence into occurrence-free resolve steps. */
+/**
+ * Fills the current pending occurrence into occurrence-free resolve steps
+ * and hold-fence-free time steps, exactly like a live Host reads the
+ * publication before dispatching.
+ */
 function withCurrentOccurrenceV1<
   TAgent extends {
     observe(): unknown;
     dispatch(invocation: unknown): Promise<unknown>;
   },
 >(agent: TAgent): TAgent {
+  const currentOccurrenceId = (): string | undefined => {
+    const publication = agent.observe() as {
+      readonly narrative?: { readonly pending?: { readonly occurrenceId?: unknown } | null };
+    };
+    const occurrenceId = publication.narrative?.pending?.occurrenceId;
+    return typeof occurrenceId === "string" ? occurrenceId : undefined;
+  };
   return Object.freeze({
     ...agent,
     dispatch(invocation: unknown): Promise<unknown> {
@@ -61,12 +82,28 @@ function withCurrentOccurrenceV1<
         (invocation as { readonly expectedOccurrenceId?: unknown }).expectedOccurrenceId ===
           undefined
       ) {
-        const publication = agent.observe() as {
-          readonly narrative?: { readonly pending?: { readonly occurrenceId?: unknown } | null };
-        };
-        const occurrenceId = publication.narrative?.pending?.occurrenceId;
-        if (typeof occurrenceId === "string") {
+        const occurrenceId = currentOccurrenceId();
+        if (occurrenceId !== undefined) {
           return agent.dispatch({ ...invocation, expectedOccurrenceId: occurrenceId });
+        }
+      }
+      if (
+        invocation !== null && typeof invocation === "object" &&
+        (invocation as { readonly kind?: unknown }).kind === "time"
+      ) {
+        const tick = (invocation as { readonly tick?: unknown }).tick;
+        if (
+          tick !== null && typeof tick === "object" &&
+          (tick as { readonly expectedHoldOccurrenceId?: unknown }).expectedHoldOccurrenceId ===
+            undefined
+        ) {
+          const occurrenceId = currentOccurrenceId();
+          if (occurrenceId !== undefined) {
+            return agent.dispatch({
+              ...invocation,
+              tick: { ...tick, expectedHoldOccurrenceId: occurrenceId },
+            });
+          }
         }
       }
       return agent.dispatch(invocation);

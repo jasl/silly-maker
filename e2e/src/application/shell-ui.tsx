@@ -5,7 +5,11 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 
 import type { DeepReadonly } from "@sillymaker/base";
-import type { DefaultGameRootSlotsV1, SemanticStageEntryRendererV1 } from "@sillymaker/ui";
+import type {
+  AssetUrlRegistryV1,
+  DefaultGameRootSlotsV1,
+  SemanticStageEntryRendererV1,
+} from "@sillymaker/ui";
 import { Button, SemanticStageV1 } from "@sillymaker/ui";
 
 import { labStageInspectControllerV1 } from "./stage-inspect.ts";
@@ -16,6 +20,7 @@ import type { LabUiOverlayIdV1, LabUiPublicationV1 } from "./composition.tsx";
 import { labUiTextV1 } from "./ui-text.ts";
 import {
   labBeaconPulseCueIdV1,
+  labStageAmbientCatalogV1,
   labStageTransitionCatalogV1,
   labTimelineCatalogV1,
 } from "../presentation.ts";
@@ -28,8 +33,39 @@ const labActionTextIdsV1: Readonly<Record<LabActionIdV1, string>> = Object.freez
   "lab.advance_procedure": "text.e2e.lab.action.advance_procedure",
   "lab.run_experiment": "text.e2e.lab.action.run_experiment",
   "lab.begin_calibration": "text.e2e.lab.action.begin_calibration",
+  "lab.begin_drill": "text.e2e.lab.action.begin_drill",
+  "lab.toggle_collector": "text.e2e.lab.action.toggle_collector",
   "lab.sell_sample": "text.e2e.lab.action.sell_sample",
   "lab.buy_banner": "text.e2e.lab.action.buy_banner",
+});
+
+/**
+ * The crate-glow hover reveal (shaped-hit-regions drill): the region's
+ * declared `hoverAssetId` resolved to an inline SVG matching the collection
+ * port's octagon in the crate's 166×126 geometry box. Reveal is feedback
+ * only — activation flows through `onHitRegionActivate` below.
+ */
+const labCrateGlowUrlV1 = `data:image/svg+xml,${
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 166 126">' +
+      '<polygon points="20 0, 146 0, 166 20, 166 106, 146 126, 20 126, 0 106, 0 20" ' +
+      'fill="rgba(255, 214, 130, 0.4)" stroke="#ffd682" stroke-width="4"/></svg>',
+  )
+}`;
+
+/**
+ * The Lab's stage asset port. The conformance Story ships no media files,
+ * so hover-reveal art resolves to a static data URI; everything else keeps
+ * the code-native fallback. Static registry — the revision never moves.
+ */
+export const labStageAssetsV1: AssetUrlRegistryV1 = Object.freeze({
+  resolve: (assetId: never, usage: never) =>
+    (usage as string) === "stage_hover_reveal" &&
+      (assetId as string) === "asset.e2e.lab.crate-glow"
+      ? Object.freeze({ delivery: "runtime_image", url: labCrateGlowUrlV1 })
+      : Object.freeze({ delivery: "code_fallback" }),
+  observe: () => Object.freeze({ revision: 0 }),
+  subscribe: () => () => {},
 });
 
 /**
@@ -53,17 +89,22 @@ export const labStageRenderersV1: Readonly<Record<string, SemanticStageEntryRend
     ),
     // The catalog geometry owns each content box and anchor; renderers
     // fill the engine-provided box without their own translate.
-    "renderer.e2e.lab.stage-character": ({ entry }) => (
+    "renderer.e2e.lab.stage-character": ({ entry, frameIndex }) => (
       <figure
         data-lab-character={entry.contentId}
         data-lab-pose={String(entry.props.pose)}
         data-lab-expression={String(entry.props.expression)}
+        data-lab-frame-asset={frameIndex === null
+          ? undefined
+          : (entry.frameAssetIds[frameIndex] as string)}
         style={{
           margin: 0,
           width: "100%",
           height: "100%",
           borderRadius: "110px 110px 12px 12px",
-          background: "rgba(214, 205, 189, 0.85)",
+          // frame 1 is the mid-entrance step pose; the tint swap is the
+          // one-shot frame-set drill made visible.
+          background: frameIndex === 1 ? "rgba(189, 205, 214, 0.85)" : "rgba(214, 205, 189, 0.85)",
         }}
       >
         <figcaption style={{ paddingBlockStart: "1rem", textAlign: "center", color: "#20242c" }}>
@@ -71,9 +112,12 @@ export const labStageRenderersV1: Readonly<Record<string, SemanticStageEntryRend
         </figcaption>
       </figure>
     ),
-    "renderer.e2e.lab.stage-prop": ({ entry }) => (
+    "renderer.e2e.lab.stage-prop": ({ entry, frameIndex }) => (
       <div
         data-lab-prop={entry.contentId}
+        data-lab-frame-asset={frameIndex === null
+          ? undefined
+          : (entry.frameAssetIds[frameIndex] as string)}
         style={entry.props.variant === "banner"
           ? {
             width: "100%",
@@ -87,7 +131,8 @@ export const labStageRenderersV1: Readonly<Record<string, SemanticStageEntryRend
             height: "100%",
             boxSizing: "border-box",
             border: "3px solid #9c8a63",
-            background: "#6f6146",
+            // frame 1 is the beacon's lit frame from the ambient loop drill.
+            background: frameIndex === 1 ? "#b8a15a" : "#6f6146",
           }}
       />
     ),
@@ -124,12 +169,26 @@ export function LabHudV1(props: {
   readonly publication: DeepReadonly<LabUiPublicationV1>;
   readonly semantic: LabSemanticPortV1;
 }): ReactElement {
+  const monitors = props.publication.semantic.game.monitors;
   return (
     <div data-lab-hud="true">
       <p>
         {labUiTextV1("text.e2e.lab.hud.samples")}
         {String(props.publication.view.samplesCollected)} · {labUiTextV1("text.e2e.lab.hud.steps")}
         {String(props.publication.view.procedureSteps)}
+      </p>
+      <p
+        data-lab-monitors="true"
+        data-lab-gauge-level={String(monitors.gaugeLevel)}
+        data-lab-ambient-ignitions={String(monitors.ambientIgnitions)}
+        data-lab-collector-units={String(monitors.collectorUnits)}
+        data-lab-collector-engaged={monitors.collectorEngaged ? "true" : "false"}
+        data-lab-realtime-active={monitors.realtimeActive ? "true" : "false"}
+      >
+        {labUiTextV1("text.e2e.lab.monitors.gauge")}
+        {String(monitors.gaugeLevel)} · {labUiTextV1("text.e2e.lab.monitors.ambient")}
+        {String(monitors.ambientIgnitions)} · {labUiTextV1("text.e2e.lab.monitors.collector")}
+        {String(monitors.collectorUnits)}
       </p>
       <div role="group" aria-label="实验操作">
         {props.publication.semantic.actions.map((action) => (
@@ -159,7 +218,9 @@ export function LabHudV1(props: {
  * The Lab stage slot: the semantic stage plus the R5 timeline wiring. A
  * committed calibration result triggers the beacon-pulse cue through the
  * ordinary presentation intent, and the last timeline event is exposed as
- * a data probe for tests. Pure presentation: no gameplay dispatch here.
+ * a data probe for tests. The one stage-to-gameplay path is the declared
+ * hit region: activating the crate's collection port dispatches the same
+ * semantic invocation as the HUD button — the stage never mutates State.
  */
 export function LabStageV1(props: {
   readonly context: Parameters<
@@ -197,9 +258,17 @@ export function LabStageV1(props: {
         catalog={labStageTransitionCatalogV1}
         renderers={labStageRenderersV1}
         accessibleName={context.publication.view.stageName}
+        ambient={labStageAmbientCatalogV1}
         timelines={labTimelineCatalogV1}
         cues={context.cues}
         onTimelineEvent={(eventId) => setLastCueEvent(eventId)}
+        assets={labStageAssetsV1}
+        onHitRegionActivate={(activation) => {
+          if (activation.regionId !== "zone.crate.collect") return;
+          void context.semantic.dispatch(
+            Object.freeze({ kind: "invoke" as const, actionId: "lab.collect_sample" as const }),
+          );
+        }}
         inspect={labStageInspectControllerV1}
       />
     </section>

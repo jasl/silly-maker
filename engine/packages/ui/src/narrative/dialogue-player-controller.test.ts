@@ -110,6 +110,11 @@ function manualDialogueClockV1(input: {
   };
 }
 
+/** Lets an in-flight semantic dispatch completion settle its latch. */
+function flushDialogueMicrotasksV1(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 interface MutableDialogueProfileV1 {
   readonly port: NarrativeStableDialoguePlayerProfilePortInternalV1;
   readonly getSnapshot: ReturnType<typeof vi.fn>;
@@ -206,14 +211,16 @@ function passivePendingV1(sequence = 1) {
   });
 }
 
-function pausePendingV1(sequence = 1, durationMs = 100) {
+function holdPendingV1(sequence = 1, durationMs = 100, tickQuantumMs?: number) {
   return Object.freeze({
-    kind: "pause" as const,
-    definitionId: "narrative.test.dialogue-player-pause",
+    kind: "hold" as const,
+    definitionId: "narrative.test.dialogue-player-hold",
     seenRevision: 1,
     occurrenceId: `interaction-occurrence.${String(20_000 + sequence)}`,
-    durationMs,
+    totalMs: durationMs,
+    remainingMs: durationMs,
     skippable: true,
+    ...(tickQuantumMs === undefined ? {} : { tickQuantumMs }),
   });
 }
 
@@ -342,12 +349,15 @@ function installSayCandidateV1(
   return currentTargetAndFrameV1(harness);
 }
 
-function installPauseCandidateV1(
+function installHoldCandidateV1(
   harness: DialoguePlayerHarnessV1,
   sequence = 1,
   durationMs = 100,
+  tickQuantumMs?: number,
 ) {
-  expect(harness.bridge.reconcilePendingInternalV1(pausePendingV1(sequence, durationMs)))
+  expect(
+    harness.bridge.reconcilePendingInternalV1(holdPendingV1(sequence, durationMs, tickQuantumMs)),
+  )
     .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
   return currentTargetAndFrameV1(harness);
 }
@@ -864,16 +874,17 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     controller.disposeInternalV1();
   });
 
-  it("starts exact Pause expiry when first created after Pause is ready-active", () => {
-    const dispatchResolution = vi.fn(() => Promise.resolve("late-ready-pause-complete"));
+  it("starts exact Hold expiry when first created after Hold is ready-active", () => {
+    const dispatchTime = vi.fn(() => Promise.resolve("late-ready-hold-complete"));
     const clock = manualDialogueClockV1({ initialNowMs: 1_000 });
     const harness = dialoguePlayerHarnessV1({
       clock,
       semanticDispatchPort: Object.freeze({
-        dispatchResolutionInternalV1: dispatchResolution,
+        dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+        dispatchTimeInternalV1: dispatchTime,
       }),
     });
-    const current = installPauseCandidateV1(harness, 1, 100);
+    const current = installHoldCandidateV1(harness, 1, 100);
     settleCurrentNarrativeReadyV1(harness);
 
     const controller = createControllerV1(harness, current.target, current.frame);
@@ -886,12 +897,172 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     expect(clock.now).toHaveBeenCalledOnce();
     expect(clock.requestTick).toHaveBeenCalledOnce();
     clock.fire(1_099);
-    expect(dispatchResolution).not.toHaveBeenCalled();
+    expect(dispatchTime).not.toHaveBeenCalled();
     clock.fire(1_100);
-    expect(dispatchResolution).toHaveBeenCalledOnce();
-    expect(dispatchResolution).toHaveBeenCalledWith({
-      expectedOccurrenceId: "interaction-occurrence.20001",
-      resolution: { kind: "resume" },
+    expect(dispatchTime).toHaveBeenCalledOnce();
+    expect(dispatchTime).toHaveBeenCalledWith({
+      elapsedMs: 100,
+      expectedHoldOccurrenceId: "interaction-occurrence.20001",
+    });
+
+    controller.disposeInternalV1();
+  });
+
+  it("faults the player once when a hold frame carries no time port instead of retrying forever", () => {
+    const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
+    const clock = manualDialogueClockV1({ initialNowMs: 1_000 });
+    const harness = dialoguePlayerHarnessV1({
+      clock,
+      // The Story bound only the resolution port: a hold frame admitted
+      // against it can never settle time, so expiry must fault the player
+      // exactly once rather than rescheduling the presentation clock on a
+      // boundary that cannot expire.
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: dispatchResolution,
+      }),
+    });
+    const current = installHoldCandidateV1(harness, 1, 100);
+    settleCurrentNarrativeReadyV1(harness);
+    const controller = createControllerV1(harness, current.target, current.frame);
+    expect(clock.requestTick).toHaveBeenCalledOnce();
+
+    clock.fire(1_100);
+
+    expect(dispatchResolution).not.toHaveBeenCalled();
+    expect(controller.getSnapshotInternalV1()).toMatchObject({
+      kind: "passive",
+      phase: "suspended",
+    });
+    expect(clock.requestTick).toHaveBeenCalledOnce();
+    expect(() => clock.fire(1_200)).toThrowError("expected one scheduled Dialogue tick");
+
+    controller.disposeInternalV1();
+  });
+
+  it("commits declared-cadence partial time ticks whose elapsed sum equals the remainder", async () => {
+    const dispatchTime = vi.fn(() => Promise.resolve("cadenced-hold-commit"));
+    const clock = manualDialogueClockV1({ initialNowMs: 1_000 });
+    const harness = dialoguePlayerHarnessV1({
+      clock,
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+        dispatchTimeInternalV1: dispatchTime,
+      }),
+    });
+    const current = installHoldCandidateV1(harness, 1, 250, 100);
+    settleCurrentNarrativeReadyV1(harness);
+    const controller = createControllerV1(harness, current.target, current.frame);
+
+    // Below the first whole quantum nothing commits.
+    clock.fire(1_050);
+    expect(dispatchTime).not.toHaveBeenCalled();
+
+    // Crossing 100ms presented commits the first quantum.
+    clock.fire(1_100);
+    expect(dispatchTime).toHaveBeenCalledTimes(1);
+    expect(dispatchTime).toHaveBeenNthCalledWith(1, {
+      elapsedMs: 100,
+      expectedHoldOccurrenceId: "interaction-occurrence.20001",
+    });
+    await flushDialogueMicrotasksV1();
+
+    // A hitch across a boundary folds the crossed quanta into one tick.
+    clock.fire(1_220);
+    expect(dispatchTime).toHaveBeenCalledTimes(2);
+    expect(dispatchTime).toHaveBeenNthCalledWith(2, {
+      elapsedMs: 100,
+      expectedHoldOccurrenceId: "interaction-occurrence.20001",
+    });
+    await flushDialogueMicrotasksV1();
+
+    // Expiry proposes exactly the milliseconds no partial dispatched yet:
+    // 100 + 100 + 50 = the authoritative 250ms remainder.
+    clock.fire(1_250);
+    expect(dispatchTime).toHaveBeenCalledTimes(3);
+    expect(dispatchTime).toHaveBeenNthCalledWith(3, {
+      elapsedMs: 50,
+      expectedHoldOccurrenceId: "interaction-occurrence.20001",
+    });
+
+    controller.disposeInternalV1();
+  });
+
+  it("withholds a crossing while a partial commit is in flight and catches up afterwards", async () => {
+    const dispatchTime = vi.fn(() => Promise.resolve("cadenced-hold-in-flight"));
+    const clock = manualDialogueClockV1({ initialNowMs: 1_000 });
+    const harness = dialoguePlayerHarnessV1({
+      clock,
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+        dispatchTimeInternalV1: dispatchTime,
+      }),
+    });
+    const current = installHoldCandidateV1(harness, 1, 250, 100);
+    settleCurrentNarrativeReadyV1(harness);
+    const controller = createControllerV1(harness, current.target, current.frame);
+
+    clock.fire(1_100);
+    expect(dispatchTime).toHaveBeenCalledTimes(1);
+
+    // The first completion has not settled, so the 200ms crossing is
+    // withheld — the ledger does not advance on a withheld attempt.
+    clock.fire(1_200);
+    expect(dispatchTime).toHaveBeenCalledTimes(1);
+
+    await flushDialogueMicrotasksV1();
+
+    // The next tick catches up the missed quantum in one exact delta.
+    clock.fire(1_249);
+    expect(dispatchTime).toHaveBeenCalledTimes(2);
+    expect(dispatchTime).toHaveBeenNthCalledWith(2, {
+      elapsedMs: 100,
+      expectedHoldOccurrenceId: "interaction-occurrence.20001",
+    });
+    await flushDialogueMicrotasksV1();
+
+    clock.fire(1_250);
+    expect(dispatchTime).toHaveBeenCalledTimes(3);
+    expect(dispatchTime).toHaveBeenNthCalledWith(3, {
+      elapsedMs: 50,
+      expectedHoldOccurrenceId: "interaction-occurrence.20001",
+    });
+
+    controller.disposeInternalV1();
+  });
+
+  it("retries a withheld expiry on the next tick until the in-flight partial settles", async () => {
+    const dispatchTime = vi.fn(() => Promise.resolve("cadenced-hold-expiry-retry"));
+    const clock = manualDialogueClockV1({ initialNowMs: 1_000 });
+    const harness = dialoguePlayerHarnessV1({
+      clock,
+      semanticDispatchPort: Object.freeze({
+        dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+        dispatchTimeInternalV1: dispatchTime,
+      }),
+    });
+    const current = installHoldCandidateV1(harness, 1, 100, 60);
+    settleCurrentNarrativeReadyV1(harness);
+    const controller = createControllerV1(harness, current.target, current.frame);
+
+    clock.fire(1_060);
+    expect(dispatchTime).toHaveBeenCalledTimes(1);
+    expect(dispatchTime).toHaveBeenNthCalledWith(1, {
+      elapsedMs: 60,
+      expectedHoldOccurrenceId: "interaction-occurrence.20001",
+    });
+
+    // Expiry arrives while the partial is still settling: the dispatch is
+    // withheld and the loop schedules a retry tick instead of parking.
+    clock.fire(1_100);
+    expect(dispatchTime).toHaveBeenCalledTimes(1);
+
+    await flushDialogueMicrotasksV1();
+
+    clock.fire(1_101);
+    expect(dispatchTime).toHaveBeenCalledTimes(2);
+    expect(dispatchTime).toHaveBeenNthCalledWith(2, {
+      elapsedMs: 40,
+      expectedHoldOccurrenceId: "interaction-occurrence.20001",
     });
 
     controller.disposeInternalV1();
@@ -1915,16 +2086,17 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     controller.disposeInternalV1();
   });
 
-  it("expires Pause only while ready-active and preserves remaining time across suspension", () => {
-    const directDispatch = vi.fn(() => Promise.resolve("direct-pause-complete"));
+  it("expires Hold only while ready-active and preserves remaining presentation time across suspension", () => {
+    const directDispatch = vi.fn(() => Promise.resolve("direct-hold-complete"));
     const directClock = manualDialogueClockV1({ initialNowMs: 1_000 });
     const direct = dialoguePlayerHarnessV1({
       clock: directClock,
       semanticDispatchPort: Object.freeze({
-        dispatchResolutionInternalV1: directDispatch,
+        dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+        dispatchTimeInternalV1: directDispatch,
       }),
     });
-    const directCurrent = installPauseCandidateV1(direct, 1, 100);
+    const directCurrent = installHoldCandidateV1(direct, 1, 100);
     const directController = createControllerV1(
       direct,
       directCurrent.target,
@@ -1945,20 +2117,21 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     directClock.fire(1_100);
     expect(directDispatch).toHaveBeenCalledOnce();
     expect(directDispatch).toHaveBeenCalledWith({
-      expectedOccurrenceId: "interaction-occurrence.20001",
-      resolution: { kind: "resume" },
+      elapsedMs: 100,
+      expectedHoldOccurrenceId: "interaction-occurrence.20001",
     });
     directController.disposeInternalV1();
 
-    const resumedDispatch = vi.fn(() => Promise.resolve("resumed-pause-complete"));
+    const resumedDispatch = vi.fn(() => Promise.resolve("resumed-hold-complete"));
     const resumedClock = manualDialogueClockV1({ initialNowMs: 2_000 });
     const resumed = dialoguePlayerHarnessV1({
       clock: resumedClock,
       semanticDispatchPort: Object.freeze({
-        dispatchResolutionInternalV1: resumedDispatch,
+        dispatchResolutionInternalV1: () => Promise.resolve(undefined),
+        dispatchTimeInternalV1: resumedDispatch,
       }),
     });
-    const resumedCurrent = installPauseCandidateV1(resumed, 2, 100);
+    const resumedCurrent = installHoldCandidateV1(resumed, 2, 100);
     const resumedController = createControllerV1(
       resumed,
       resumedCurrent.target,
@@ -1988,8 +2161,8 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     resumedClock.fire(5_060);
     expect(resumedDispatch).toHaveBeenCalledOnce();
     expect(resumedDispatch).toHaveBeenCalledWith({
-      expectedOccurrenceId: "interaction-occurrence.20002",
-      resolution: { kind: "resume" },
+      elapsedMs: 100,
+      expectedHoldOccurrenceId: "interaction-occurrence.20002",
     });
     resumedController.disposeInternalV1();
   });

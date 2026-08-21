@@ -4,7 +4,7 @@ export type {
   LabBootstrapInputV1,
   LabCommandV1,
   LabDebugValidationErrorV1,
-  LabFactV1,
+  LabEventV1,
   LabFaultV1,
   LabGameSimulationV1,
   LabGameViewV1,

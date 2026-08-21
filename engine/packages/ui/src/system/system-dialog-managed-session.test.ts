@@ -724,6 +724,7 @@ describe("dormant managed System dialog session", () => {
             unavailable: "unavailable",
             empty_slot: "empty",
             conflict: "conflict",
+            in_flight: "in flight",
             invalid_record: "invalid record",
             invalid_note: "invalid note",
             lineage_limit: "lineage limit",

@@ -9,6 +9,12 @@ retain/remove checkpoint 后由 direct lifecycle 取代。X7 的中立性能证�
 State Format V2；Effect Broker/OpenUI、i18n 与 production Story migration 均未启动，也不构成
 release blocker。
 
+2026-08-22 吸收 main 后，parallel-monitors 已把 Base transaction runner 统一为 domain events +
+reducers，并删除 registered-effect command family。X5 初始 checkpoint 的 proposal/fact API 因而只
+保留为历史实现证据；维护中的 neutral façade 已迁移到同一个 Base event journal/reducer authority，
+不保留 compatibility shim、合成未声明事件或第二事务。下文的 dated benchmark 数字仍描述原始
+checkpoint，不冒充迁移后的新性能采样。
+
 本实验要回答两个问题：SillyMaker 能否用一个可逆、可诊断的 composition kernel 组合
 能力；能否把唯一权威 Session 从游戏命名中抽成中立 State Runtime，同时保持 State、
 Save、digest、replay 与原子事务语义。成功路径是逐步绞杀现有组合根，不是一次性重写。
@@ -93,9 +99,9 @@ X5 的 module plugin 复用现有 `GameplayModuleDescriptor` 的 ID、revision�
 身份；不额外叠加同义 blocking identity。只有显式进入 State Format V2 时，才允许新增或更改
 blocking simulation identity，并必须同时提供迁移计划。
 
-State module 把 owned state、schema、operation、selector 与 migration 放在同一目录。它不能
+State module 把 owned state、schema、domain-event reducer、selector 与 migration 放在同一目录。它不能
 导入 root State、application、presentation 或另一 module 的 internals。跨 module 行为是 workflow，
-通过公开 module operation 在一个 State transaction 内完成。scene、motion、character、dialogue
+通过公开 domain event 在一个 State transaction 内完成。scene、motion、character、dialogue
 line 与内容行仍是数据，不是 plugin。
 
 ## 2. X0 基线
@@ -175,9 +181,12 @@ Cordis 本身只能使用其最新的 `4.0.0-rc.8` prerelease。
 
 neutral module 公开 admission 后冻结的 `contractRevision`，冷路径 carrier 只引用同一个 Base
 authoring module；spread/prototype alias 不得让公开 metadata 与 physical binding 分叉。V1 initializer
-明确 bootstrap-independent；`StateTransaction` 只读 command-start State、无 read-your-writes、每 owner
-至多一个 proposal，并以 UTF-16 module-ID 顺序 apply/收集 facts。module-local invariants 在有真实
-执行语义前不进入 neutral surface，aggregate `validateCandidate` 保持唯一中立校验点。
+明确 bootstrap-independent。初始 X5 checkpoint 曾以每 owner 一个 proposal/fact 完成这项证明；
+2026-08-22 兼容迁移删除了这套 public 词汇。当前 `StateTransaction` 只读 command-start State、
+无 read-your-writes，所有拒绝发生在 emit 前；workflow `eventSchema` admission 每个事件，Base 按
+emission order、再按 UTF-16 module-ID 顺序运行订阅 reducer，无订阅事件只进入 journal。
+module-local invariants 在有真实执行语义前不进入 neutral surface，aggregate `validateCandidate`
+保持唯一中立校验点。
 
 外部 workload 选择现有最窄的 `imouto.tea.brew`，而不是重置 108 fields 且触及更多领域的 sleep。
 接入时保持 `imouto.night`、`simulation.night`、全部 108 fields、Save slot 与 command identity，
@@ -325,7 +334,8 @@ locale fallback 证据激活该 lane；它同样不能成为第二 authoritative
   queue/CommandLog。runtime definition 与 authoring config/runner 都显式逐字段桥接；中立
   module/workflow 复用一个 Base authoring kit/transaction runner。module revision 是稳定 neutral
   字段，私有 cold carrier 不可枚举且只接受 own property，避免 alias metadata 双权威；原创四
-  module fixture 验证一次原子提交、owner reject 和 candidate invariant fault 的完整回滚。
+  module fixture 在初始 checkpoint 验证一次原子提交、owner reject 和 candidate invariant fault
+  的完整回滚，并在 2026-08-22 迁移后以 domain event/reducer 重新锁定同一行为。
   显式 `./legacy` adapter 用 Base 公开 constructor 重建完整 binding 并保留消费者的
   exact `GameSimulationTypeMapV1`，不要求 Story 展开隐藏字段或 `as unknown`。
 - Cordis removal 后的最终 canonical check、bundle 与 lifecycle A/B 见 §7.4。committed command

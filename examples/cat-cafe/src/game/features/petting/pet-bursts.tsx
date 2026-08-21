@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Petting slice · in-place feedback: reaction particles (emoji burst floating up) +
 // a reaction bubble above the cat's head. The trigger is the commit-only transient-
-// effect stream (a projection of authoritative facts); particle positions compute in place from the touched part's hit-region element (percent coordinates relative to the stage container).
+// effect stream (a projection of committed domain events); particle positions compute in place from the touched part's hit-region element (percent coordinates relative to the stage container).
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 

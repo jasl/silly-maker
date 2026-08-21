@@ -67,8 +67,14 @@ async function playToCompletionV1(agent: LabAgentPortV1): Promise<number> {
           invocation = resolve({ kind: "choose", choiceId: enabled.choiceId });
           break;
         }
-        case "pause":
-          invocation = resolve({ kind: "resume" });
+        case "hold":
+          invocation = Object.freeze({
+            kind: "time" as const,
+            tick: Object.freeze({
+              elapsedMs: pending.remainingMs,
+              expectedHoldOccurrenceId: pending.occurrenceId,
+            }),
+          }) as LabInvocationV1;
           break;
         case "presentation_barrier":
           invocation = resolve({
@@ -108,7 +114,7 @@ describe("Engine Lab agent port", () => {
     const harness = await createLabHarnessV1();
     const agent: LabAgentPortV1 = harness.agent;
 
-    expect(agent.identity()).toEqual({ storyId: "story.e2e.engine-lab", storyRevision: 8 });
+    expect(agent.identity()).toEqual({ storyId: "story.e2e.engine-lab", storyRevision: 9 });
     await playToCompletionV1(agent);
     // The whole route: calibration narrative completed AND the ordinary
     // SLG procedure finished after returning from the narrative.
@@ -144,7 +150,9 @@ describe("Engine Lab agent port", () => {
       committed,
       actions: agent.describeActions(),
     });
-    for (const forbidden of ["snapshot", "rng", "integrity", "commandSequence", "debug", "facts"]) {
+    for (
+      const forbidden of ["snapshot", "rng", "integrity", "commandSequence", "debug", "events"]
+    ) {
       expect(serialized).not.toContain(forbidden);
     }
     expect("inspectForTest" in agent).toBe(false);

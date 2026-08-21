@@ -1,12 +1,26 @@
 // @vitest-environment jsdom
 // SPDX-License-Identifier: MIT
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createPlayerProfileStoreV1 } from "@sillymaker/base/runtime";
-import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
+import type {
+  HostAtomicRecordStoreV1,
+  InteractionResolutionV1,
+  IsoUtcInstant,
+  SessionLeaseOwnerId,
+} from "@sillymaker/base";
+import {
+  createCoreGameApplicationInstanceV1,
+  createPlayerProfileStoreV1,
+  defineCoreGameApplicationV1,
+  resolveCoreGameApplicationV1,
+} from "@sillymaker/base/runtime";
+import {
+  createFixedBootstrapEntropyV1,
+  createMemoryHostRecordStoreV1,
+} from "@sillymaker/base/testkit";
 import {
   DefaultGameRootV1,
   createFakeAudioHostV1,
@@ -17,6 +31,7 @@ import { createWebHostV1, startWebGameApplicationV1 } from "@sillymaker/web";
 
 import { createLabApplicationInstanceV1 } from "../application/core-application.ts";
 import type { LabApplicationInstanceV1 } from "../application/core-definition.ts";
+import { labCoreApplicationDefinitionV1 } from "../application/core-definition.ts";
 import {
   createLabGameUiDefinitionV1,
   createLabUiSlotsV1,
@@ -48,9 +63,11 @@ async function composeLabUiV1() {
   return { instance, composition };
 }
 
-async function startHostedLabUiV1() {
+async function startHostedLabUiV1(options: {
+  readonly records?: HostAtomicRecordStoreV1;
+} = {}) {
   globalThis.window.history.replaceState({}, "", "/");
-  const records = createMemoryHostRecordStoreV1();
+  const records = options.records ?? createMemoryHostRecordStoreV1();
   const profile = await createPlayerProfileStoreV1({
     records,
     storyId: "story.e2e.engine-lab",
@@ -84,6 +101,63 @@ async function startHostedLabUiV1() {
   });
   if (instance === null) throw new TypeError("e2e.default_ui_host_capture_missing");
   return Object.freeze({ started, instance: instance as LabApplicationInstanceV1 });
+}
+
+/**
+ * Stages a legacy mid-barrier Save: the safepoint policy keeps new player
+ * saves out of the barrier span, but records written before the policy (or
+ * imported from elsewhere) may still capture a pending barrier, and load
+ * recovery owns what happens when they come back. A policy-free twin of the
+ * Lab definition plays to the barrier headlessly and saves exactly there.
+ */
+async function stageLegacyMidBarrierSaveV1(
+  records: HostAtomicRecordStoreV1,
+  slotId: Parameters<LabApplicationInstanceV1["persistence"]["save"]>[0],
+): Promise<void> {
+  const { persistenceSafepoint: _policyGone, ...legacyDefinition } = labCoreApplicationDefinitionV1;
+  const resolved = resolveCoreGameApplicationV1(
+    defineCoreGameApplicationV1(legacyDefinition) as typeof labCoreApplicationDefinitionV1,
+  );
+  if (resolved.kind !== "resolved") {
+    throw new TypeError("policy-free Lab definition failed to resolve");
+  }
+  const instance = await createCoreGameApplicationInstanceV1(resolved.application, {
+    host: Object.freeze({
+      entropy: createFixedBootstrapEntropyV1({
+        uuids: ["bd4018a2-2fea-4359-95c6-96c634b7de8a"],
+        seeds: [20260812],
+      }),
+      records,
+      now: () => "2026-08-12T00:00:00.000Z" as IsoUtcInstant,
+      ownerId: "owner.sillymaker.e2e.default-ui-legacy" as SessionLeaseOwnerId,
+      nextHandoffRequestId: () => "handoff.sillymaker.e2e.default-ui-legacy",
+    }),
+  }) as LabApplicationInstanceV1;
+  try {
+    await instance.semantic.dispatch({
+      kind: "invoke",
+      actionId: "lab.begin_calibration",
+    });
+    for (let step = 0; step < 8; step += 1) {
+      const pending = instance.semantic.observe().narrative.pending;
+      if (pending === null || pending.kind === "presentation_barrier") break;
+      const resolution: InteractionResolutionV1 = pending.kind === "say"
+        ? { kind: "advance" }
+        : { kind: "choose", choiceId: "choice.e2e.cal.basic" };
+      await instance.semantic.dispatch({
+        kind: "resolve",
+        expectedOccurrenceId: pending.occurrenceId,
+        resolution,
+      });
+    }
+    if (instance.semantic.observe().narrative.pending?.kind !== "presentation_barrier") {
+      throw new TypeError("expected the calibration barrier to be pending");
+    }
+    const saved = await instance.persistence.save(slotId);
+    if (saved.kind !== "saved") throw new TypeError("legacy mid-barrier save failed");
+  } finally {
+    await instance.dispose();
+  }
 }
 
 function renderLabRootV1(
@@ -144,7 +218,9 @@ describe("Engine Lab default UI", () => {
     ).toBeInTheDocument();
 
     // Replacing the background retargets demand exactly: the storeroom has
-    // no runtime asset, so the superseded background asset is released.
+    // no runtime asset, so the superseded background asset is released;
+    // what remains is the entering character's declared frame set (frame
+    // assets preload with the entry) plus the crate region's hover reveal.
     await userEvent.setup().click(screen.getByRole("button", { name: "开始流程" }));
     await waitFor(() => {
       expect(
@@ -153,7 +229,11 @@ describe("Engine Lab default UI", () => {
           ?.getAttribute("data-stage-content"),
       ).toBe("content.e2e.bg.storeroom");
     });
-    expect(composition.presentation.getSnapshot().requiredAssetIds).toEqual([]);
+    expect(composition.presentation.getSnapshot().requiredAssetIds).toEqual([
+      "asset.e2e.lab.char-stand",
+      "asset.e2e.lab.char-step",
+      "asset.e2e.lab.crate-glow",
+    ]);
     expect(
       document.querySelectorAll('[data-stage-key="layer.e2e.characters:tag.e2e.alpha"]'),
     ).toHaveLength(1);
@@ -168,6 +248,55 @@ describe("Engine Lab default UI", () => {
       ).toBe("true");
     });
     expect(instance.semantic.observe().revision).toBe(revisionDuringPlay);
+
+    composition.dispose();
+    await instance.dispose();
+  });
+
+  it("drives the crate's shaped hit region: clip, hover reveal, activation", async () => {
+    const labUi = await composeLabUiV1();
+    const { instance, composition } = labUi;
+    renderLabRootV1(labUi);
+
+    // The crate (with its authored regions Document) enters on first collect.
+    await userEvent.setup().click(screen.getByRole("button", { name: "采集样本" }));
+    const zone = await screen.findByRole("button", { name: "样本箱采集口" });
+
+    // The polygon narrows pointer hits natively via clip-path; keyboard
+    // focus keeps the bounding-box indicator sibling.
+    expect(zone).toHaveAttribute("data-stage-hit-region-shape", "polygon");
+    expect(zone.style.clipPath).toContain("polygon(");
+    expect(
+      document.querySelector('[data-stage-hit-region-focus="zone.crate.collect"]'),
+    ).toBeInTheDocument();
+
+    // Hovering reveals the authored glow through the Story's asset port and
+    // leaving hides it — pure feedback, no semantic revision moves.
+    const revisionBeforeHover = instance.semantic.observe().revision;
+    fireEvent.pointerEnter(zone);
+    const reveal = document.querySelector('[data-stage-hover-reveal="zone.crate.collect"]');
+    expect(reveal).not.toBeNull();
+    expect(reveal?.getAttribute("src")).toContain("data:image/svg+xml");
+    fireEvent.pointerLeave(zone);
+    expect(document.querySelector("[data-stage-hover-reveal]")).toBeNull();
+    expect(instance.semantic.observe().revision).toBe(revisionBeforeHover);
+
+    // Activating the region dispatches the same semantic invocation as the
+    // HUD button (collect yields a project-random 1–3 samples per commit);
+    // the stage itself never mutates State.
+    const samplesBeforeActivation = composition.presentation.getSnapshot().view.samplesCollected;
+    await userEvent.setup().click(zone);
+    await waitFor(() => {
+      expect(
+        composition.presentation.getSnapshot().view.samplesCollected,
+      ).toBeGreaterThan(samplesBeforeActivation);
+    });
+
+    // The region's hover asset is part of settled asset demand.
+    expect(composition.presentation.getSnapshot().requiredAssetIds).toEqual([
+      "asset.e2e.lab.background",
+      "asset.e2e.lab.crate-glow",
+    ]);
 
     composition.dispose();
     await instance.dispose();
@@ -230,7 +359,7 @@ describe("Engine Lab default UI", () => {
       await user.click(screen.getByRole("button", { name: "直接校准" }));
       await waitFor(
         () => {
-          expect(document.querySelector("[data-lab-interaction='pause']")).toBeInTheDocument();
+          expect(document.querySelector("[data-lab-interaction='hold']")).toBeInTheDocument();
         },
         { timeout: 4000 },
       );
@@ -259,11 +388,15 @@ describe("Engine Lab default UI", () => {
   it(
     "settles a load-restored presentation barrier instead of replaying its transition",
     async () => {
-      const lab = await startHostedLabUiV1();
+      // The safepoint policy keeps live player saves out of the barrier span
+      // (they reject as in-flight), so the mid-barrier record arrives the way
+      // it does in production: written before the policy existed.
+      const records = createMemoryHostRecordStoreV1();
+      await stageLegacyMidBarrierSaveV1(records, "manual.1");
+      const lab = await startHostedLabUiV1({ records });
       const user = userEvent.setup();
       try {
-        // Reach the barrier and save exactly there. The save runs on the queue
-        // long before the ~400ms crossfade acknowledgment can resolve it.
+        // A live save at the barrier is what the span forbids.
         await user.click(screen.getByRole("button", { name: "开始校准" }));
         await user.click(await screen.findByRole("button", { name: "继续" }));
         await user.click(await screen.findByRole("button", { name: "继续" }));
@@ -271,17 +404,15 @@ describe("Engine Lab default UI", () => {
         await waitFor(() => {
           expect(document.querySelector("[data-lab-interaction='barrier']")).toBeInTheDocument();
         });
-        const barrierOccurrence = document
-          .querySelector("[data-lab-interaction='barrier']")
-          ?.getAttribute("data-lab-occurrence");
-        await expect(lab.instance.persistence.save("manual.1")).resolves.toMatchObject({
-          kind: "saved",
+        await expect(lab.instance.persistence.save("manual.2")).resolves.toEqual({
+          kind: "rejected",
+          code: "in_flight",
         });
 
         // Let the live run finish normally all the way to completion.
         await waitFor(
           () => {
-            expect(document.querySelector("[data-lab-interaction='pause']")).toBeInTheDocument();
+            expect(document.querySelector("[data-lab-interaction='hold']")).toBeInTheDocument();
           },
           { timeout: 4000 },
         );
@@ -295,16 +426,16 @@ describe("Engine Lab default UI", () => {
           expect(document.querySelector("[data-lab-narrative='calibrated']")).toBeInTheDocument();
         });
 
-        // Load back to the barrier: the epoch advances, no transition replays,
-        // and the settle recovery policy acknowledges the restored occurrence
-        // through the ordinary semantic command. Play continues to the custom
-        // surface without re-choosing anything.
+        // Load the legacy mid-barrier record: the epoch advances, no
+        // transition replays, and the settle recovery policy acknowledges the
+        // restored occurrence through the ordinary semantic command. Play
+        // continues to the custom surface without re-choosing anything.
         await expect(lab.instance.persistence.load("manual.1")).resolves.toMatchObject({
           kind: "loaded",
         });
         await waitFor(
           () => {
-            expect(document.querySelector("[data-lab-interaction='pause']")).toBeInTheDocument();
+            expect(document.querySelector("[data-lab-interaction='hold']")).toBeInTheDocument();
           },
           { timeout: 4000 },
         );
@@ -312,7 +443,6 @@ describe("Engine Lab default UI", () => {
         await waitFor(() => {
           expect(document.querySelector("[data-lab-interaction='custom']")).toBeInTheDocument();
         });
-        expect(barrierOccurrence).toMatch(/^interaction-occurrence\./u);
         expect(lab.instance.semantic.observe().narrative.pending).toMatchObject({ kind: "custom" });
       } finally {
         await lab.started.dispose();

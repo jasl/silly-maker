@@ -75,6 +75,11 @@ describe("studioPluginV1", () => {
     expect(source).toContain(
       'import { createStudioToolingHmrCoordinatorV1, createStudioToolingLiveCompositionV1, createStudioToolingReactPublicationV1 } from "@sillymaker/studio/composition";',
     );
+    expect(source).toContain(
+      'import { createDevServerRegionsIoV1, createDevServerSceneIoV1 } from "@sillymaker/studio";',
+    );
+    expect(source).toContain("const regionsIoV1 = createDevServerRegionsIoV1();");
+    expect(source.match(/regionsIo: regionsIoV1,/gu)).toHaveLength(2);
     expect(source).toContain('profileId: "sillymaker.studio.live"');
     expect(source).toContain(
       'import.meta.hot.accept("/src/application/studio.ts", (moduleV1) => {',

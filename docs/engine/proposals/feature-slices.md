@@ -1,6 +1,6 @@
 # 特性切片：把 Module 的内聚性扩展到整个玩法纵切
 
-状态：已执行（2026-07-28）。cat-cafe 与 template 均已按特性切片重排并全量验证（vitest 1378 / E2E 116 全绿，`story check` 通过）；引擎侧助手仍按"两个真实消费者后定型"保留观察。2026-08-12 的 production Narrative 提升已将当时的对话面板预测替换为公开 `NarrativeSurfaceDefinitionV1`；本文保留 2026-07-28 的组织决策与实施记录。
+状态：已执行（2026-07-28）。cat-cafe 与 template 均已按特性切片重排并全量验证（vitest 1378 / E2E 116 全绿，`story check` 通过）；引擎侧助手仍按"两个真实消费者后定型"保留观察。2026-08-12 的 production Narrative 提升已将当时的对话面板预测替换为公开 `NarrativeSurfaceDefinitionV1`；2026-08-20 的并行监视器车道已把 module owner（propose/apply）替换为 domain events + reducers，文中 owner 记述为当时词汇。本文保留 2026-07-28 的组织决策与实施记录。
 
 ## 问题
 

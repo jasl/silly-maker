@@ -18,6 +18,11 @@ import type {
 } from "../../contracts/gameplay-module.ts";
 import type { HostAtomicRecordStoreV1, IsoUtcInstant } from "../../contracts/host.ts";
 import type { PatchSetAdoptionDeclarationV1 } from "../../contracts/hotfix.ts";
+import { parsePersistenceSafepointPolicyV1 } from "../../contracts/persistence-safepoint.ts";
+import type {
+  PersistenceSafepointClassificationV1,
+  PersistenceSafepointPolicyV1,
+} from "../../contracts/persistence-safepoint.ts";
 import {
   createTransactionalRngV1,
   parseRngDrawTraceInternalV1,
@@ -230,24 +235,24 @@ export interface CoreSemanticAdapterV1<
   invalidInvocationResult(): TResult;
   /**
    * Optional commit-only transient effects (for example SFX occurrences)
-   * derived from committed command facts. The instance stamps a monotonic
+   * derived from committed domain events. The instance stamps a monotonic
    * sequence and the current presentation epoch; effects never enter State,
    * Saves, publications, or Agent transcripts.
    */
   projectTransientEffects?(
-    facts: readonly DeepReadonly<TTypes["fact"]>[],
+    events: readonly DeepReadonly<TTypes["event"]>[],
   ): readonly TransientEffectRequestV1[];
   /**
    * Optional presentation edge context (cue-identity proposal, accepted
    * 2026-08-17): the scene cue dispatches (and whole-scene opens) this
-   * commit performed, derived from its committed facts. The instance admits
+   * commit performed, derived from its committed events. The instance admits
    * the list once (id patterns, bound), stamps it with the commit's
    * semantic revision and presentation epoch, and keeps only the latest
    * batch; the context never enters State, Saves, digests, replay, or
    * command identity.
    */
   projectStageCueDispatches?(
-    facts: readonly DeepReadonly<TTypes["fact"]>[],
+    events: readonly DeepReadonly<TTypes["event"]>[],
   ): readonly StageCueDispatchV1[];
 }
 
@@ -319,6 +324,17 @@ export interface CoreGameApplicationDefinitionV1<
    * "Continue" button truthful.
    */
   readonly resumeFromAutosave?: boolean;
+  /**
+   * Opt-in persistence safepoint policy: a deterministic classifier over
+   * committed authoritative state plus an admission-enforced bound on
+   * consecutive in-flight commits. While the live state classifies
+   * `in_flight`, the orchestrator defers autosave, close-time flushes fall
+   * back to the most recent safepoint Snapshot, and player-slot saves
+   * reject with `in_flight`. Absent means every commit is a safepoint
+   * (the historical behavior). Resolution rejects an invalid or unbounded
+   * declaration (`persistence_safepoint.invalid`).
+   */
+  readonly persistenceSafepoint?: PersistenceSafepointPolicyV1<DeepReadonly<TTypes["state"]>>;
   /** Opt-in player rollback policy; absent means the port reports unconfigured. */
   readonly rollback?: CoreRollbackPolicyV1<TTypes["command"]>;
   normalizeUnexpectedDispatchFault?(
@@ -600,9 +616,28 @@ export function resolveCoreGameApplicationV1<
       }),
     });
   }
+  let persistenceSafepoint:
+    | PersistenceSafepointPolicyV1<DeepReadonly<TTypes["state"]>>
+    | undefined;
+  try {
+    // An unbounded or malformed span declaration never resolves: the bound
+    // is what keeps in-flight spans from starving the Save.
+    persistenceSafepoint = definition.persistenceSafepoint === undefined
+      ? undefined
+      : parsePersistenceSafepointPolicyV1(definition.persistenceSafepoint);
+  } catch {
+    return Object.freeze({
+      kind: "failed" as const,
+      failure: Object.freeze({
+        code: "persistence_safepoint.invalid",
+        details: Object.freeze({}),
+      }),
+    });
+  }
   const admittedDefinition = Object.freeze({
     ...definition,
     adoptionDeclarations,
+    ...(persistenceSafepoint === undefined ? {} : { persistenceSafepoint }),
   });
   const result = resolveGamePackageV1(
     admittedDefinition.entry,
@@ -962,7 +997,7 @@ export interface CoreGameApplicationInstanceV1<
   /**
    * The latest commit's presentation edge context (cue-identity proposal,
    * accepted 2026-08-17): scene cue dispatches projected from that commit's
-   * facts, stamped with exactly its semantic publication revision and the
+   * events, stamped with exactly its semantic publication revision and the
    * presentation epoch at commit time. Nothing is stored beyond the latest
    * batch, anchor replacement (load/import/restart/rollback) clears it, and
    * consumers must drop a batch whose revision or epoch does not match the
@@ -1099,7 +1134,7 @@ export async function createCoreGameApplicationInstanceV1<
     rngStateV1Schema.parse(descriptor.value);
   };
   const evidencePolicyV1: FinalizedEvidencePolicyInternalV1<
-    TTypes["fact"],
+    TTypes["event"],
     TTypes["rejection"],
     TTypes["rngState"],
     TTypes["rngDrawTrace"],
@@ -1107,7 +1142,7 @@ export async function createCoreGameApplicationInstanceV1<
   > = Object.freeze({
     validateCandidateSnapshot: (value: unknown) =>
       validateSnapshotRngV1(value as DeepReadonly<TTypes["snapshot"]>),
-    parseFact: (value: unknown) => gameSimulation.factSchema.parse(value),
+    parseEvent: (value: unknown) => gameSimulation.eventSchema.parse(value),
     parseRejection: (value: unknown) => gameSimulation.rejectionSchema.parse(value),
     parseRngState: (value: unknown) => rngStateV1Schema.parse(value) as TTypes["rngState"],
     parseRngDrawTrace: (value: unknown) =>
@@ -1159,15 +1194,15 @@ export async function createCoreGameApplicationInstanceV1<
     }
     | undefined = () => undefined;
 
-  // Presentation edge context: a committed attempt's facts are staged here
+  // Presentation edge context: a committed attempt's events are staged here
   // (the session calls `onAttempt` BEFORE it publishes) and stamped into
   // the dispatch batch by the instance's own first semantic-port
   // subscriber — so the batch already pairs with the publication when UI
   // subscribers render it. Stamping after the dispatch promise resolves is
   // too late: hosts that flush React synchronously inside the publication
   // notification would render (and retarget the stage) before the stamp.
-  let pendingStageCueDispatchFactsV1:
-    | readonly DeepReadonly<TTypes["fact"]>[]
+  let pendingStageCueDispatchEventsV1:
+    | readonly DeepReadonly<TTypes["event"]>[]
     | null = null;
 
   // Steps below acquire live resources; anything after session creation is
@@ -1238,10 +1273,10 @@ export async function createCoreGameApplicationInstanceV1<
     ),
     onAttempt(attempt) {
       const result = (attempt as {
-        readonly result?: { readonly kind?: unknown; readonly facts?: unknown };
+        readonly result?: { readonly kind?: unknown; readonly events?: unknown };
       }).result;
-      pendingStageCueDispatchFactsV1 = result?.kind === "committed"
-        ? (result as { readonly facts: readonly DeepReadonly<TTypes["fact"]>[] }).facts
+      pendingStageCueDispatchEventsV1 = result?.kind === "committed"
+        ? (result as { readonly events: readonly DeepReadonly<TTypes["event"]>[] }).events
         : null;
       const pending = readLatestLoggedAttemptCommand();
       if (pending === undefined || result?.kind !== "faulted") return;
@@ -1447,19 +1482,79 @@ export async function createCoreGameApplicationInstanceV1<
     });
 
     // The instance's own FIRST semantic-port subscriber (registration order
-    // is the contract): stamp the staged commit facts as the dispatch batch
+    // is the contract): stamp the staged commit events as the dispatch batch
     // before any later subscriber — including hosts that flush React
     // synchronously — observes the new publication.
     cleanups.push(
       semantic.subscribe(() => {
-        const facts = pendingStageCueDispatchFactsV1;
-        if (facts === null) return;
-        pendingStageCueDispatchFactsV1 = null;
-        recordStageCueDispatchesFromFactsV1(facts);
+        const events = pendingStageCueDispatchEventsV1;
+        if (events === null) return;
+        pendingStageCueDispatchEventsV1 = null;
+        recordStageCueDispatchesFromEventsV1(events);
       }),
     );
 
     recordCoreApplicationConstructionV1(constructionInstrumentation, "persistence_factory");
+    // Persistence safepoint tracking (in-flight spans): instance-local
+    // orchestration state — never authoritative, never serialized. The
+    // most recent safepoint Snapshot backs mid-span flush fallbacks; the
+    // run length enforces the declared bound; a forfeited inhibit means a
+    // runaway span lost its deferral privilege until the next safepoint.
+    const safepointPolicy = definition.persistenceSafepoint ?? null;
+    let lastSafepointSnapshot: DeepReadonly<TTypes["snapshot"]> | undefined;
+    let inFlightRunLength = 0;
+    let inFlightInhibitForfeited = false;
+    const classifyStateSafepointV1 = (
+      state: DeepReadonly<TTypes["state"]>,
+    ): PersistenceSafepointClassificationV1 => {
+      if (safepointPolicy === null) return "safepoint";
+      let classification: PersistenceSafepointClassificationV1;
+      try {
+        classification = safepointPolicy.classify(state);
+      } catch (error) {
+        // A malfunctioning declaration forfeits the inhibit, never the
+        // autosave: treating the state as a safepoint cannot starve
+        // persistence, and the diagnostic surfaces the Story bug.
+        reportObserverFailure(
+          new TypeError("persistence.safepoint_classify_failed", { cause: error }),
+        );
+        return "safepoint";
+      }
+      if (classification === "in_flight") return "in_flight";
+      if (classification !== "safepoint") {
+        reportObserverFailure(new TypeError("persistence.safepoint_classify_failed"));
+      }
+      return "safepoint";
+    };
+    /** Span accounting: called once per committed snapshot, nowhere else. */
+    const observeCommittedSpanV1 = (
+      snapshot: DeepReadonly<TTypes["snapshot"]>,
+    ): PersistenceSafepointClassificationV1 => {
+      if (safepointPolicy === null) return "safepoint";
+      if (classifyStateSafepointV1(stateOfSnapshotV1(snapshot)) === "safepoint") {
+        inFlightRunLength = 0;
+        inFlightInhibitForfeited = false;
+        lastSafepointSnapshot = snapshot;
+        return "safepoint";
+      }
+      if (!inFlightInhibitForfeited) {
+        inFlightRunLength += 1;
+        if (inFlightRunLength <= safepointPolicy.maxInFlightCommits) {
+          return "in_flight";
+        }
+        // The declared bound is the anti-starvation guarantee: a span that
+        // outlives it forfeits the deferral (long-lived state can never use
+        // a span to escape the Save) and the overrun becomes a diagnostic.
+        inFlightInhibitForfeited = true;
+        reportObserverFailure(new TypeError("persistence.safepoint_span_exceeded"));
+      }
+      return "safepoint";
+    };
+    const resetSafepointTrackingForAnchorV1 = (): void => {
+      lastSafepointSnapshot = undefined;
+      inFlightRunLength = 0;
+      inFlightInhibitForfeited = false;
+    };
     const persistenceOptions: CreateStandardPersistenceServiceOptionsV1<
       TTypes["state"],
       TTypes["snapshot"]
@@ -1491,7 +1586,15 @@ export async function createCoreGameApplicationInstanceV1<
       ...(definition.summarizeSave === undefined ? {} : {
         summarizeSave: (state: DeepReadonly<TTypes["state"]>) => definition.summarizeSave!(state),
       }),
-      autoSaveCapture: autosave.mode === "every_commit" ? "committed_snapshots" : "external",
+      // With a safepoint policy the instance always feeds captures itself:
+      // the service's own committed-snapshot subscription cannot classify.
+      autoSaveCapture: autosave.mode === "every_commit" && safepointPolicy === null
+        ? "committed_snapshots"
+        : "external",
+      ...(safepointPolicy === null ? {} : {
+        classifyWriteCandidate: (state: DeepReadonly<TTypes["state"]>) =>
+          inFlightInhibitForfeited ? "safepoint" as const : classifyStateSafepointV1(state),
+      }),
       leaseAcquisition: options.rebootstrapDisposition === undefined
         ? "acquire_initial"
         : "deferred_rebootstrap",
@@ -1554,6 +1657,9 @@ export async function createCoreGameApplicationInstanceV1<
         // Never let an old-base timer write back over a load/import/restart/
         // rollback replacement.
         clearPendingAutoSaveForAnchorV1();
+        // Safepoint tracking belongs to the replaced base too: the new
+        // anchor's classification starts fresh on its first commit.
+        resetSafepointTrackingForAnchorV1();
         // A replaced replay base invalidates the rollback lineage — except
         // for rollback itself, which already trimmed the surviving prefix.
         if (!rollingBack && rollbackCapacity > 0) {
@@ -1587,18 +1693,20 @@ export async function createCoreGameApplicationInstanceV1<
     });
 
     // Commit-only transient effect stream: effects derive from committed
-    // command facts, stamped with a monotonic sequence and the epoch at
+    // command events, stamped with a monotonic sequence and the epoch at
     // commit time. Nothing is stored, so re-projection and load/bootstrap
     // publications can never replay history.
     const effectListeners = new Set<(effect: TransientEffectV1) => void>();
     let effectSequence = 0;
     cleanups.push(() => effectListeners.clear());
-    function emitTransientEffectsFromFactsV1(facts: readonly DeepReadonly<TTypes["fact"]>[]): void {
+    function emitTransientEffectsFromEventsV1(
+      events: readonly DeepReadonly<TTypes["event"]>[],
+    ): void {
       const project = definition.semantic.projectTransientEffects;
       if (project === undefined || disposed) return;
       let requests: readonly TransientEffectRequestV1[];
       try {
-        requests = project(facts);
+        requests = project(events);
       } catch (error) {
         reportObserverFailure(error);
         return;
@@ -1625,8 +1733,8 @@ export async function createCoreGameApplicationInstanceV1<
       if (result.kind !== "executed" || result.execution.kind !== "committed") {
         return;
       }
-      emitTransientEffectsFromFactsV1(
-        result.execution.facts as readonly DeepReadonly<TTypes["fact"]>[],
+      emitTransientEffectsFromEventsV1(
+        result.execution.events as readonly DeepReadonly<TTypes["event"]>[],
       );
     }
 
@@ -1636,14 +1744,14 @@ export async function createCoreGameApplicationInstanceV1<
     // it. Called from the instance's first semantic-port subscriber, where
     // the port has already assigned this commit's publication revision but
     // no UI subscriber has rendered it yet — the stamp pairs exactly.
-    function recordStageCueDispatchesFromFactsV1(
-      facts: readonly DeepReadonly<TTypes["fact"]>[],
+    function recordStageCueDispatchesFromEventsV1(
+      events: readonly DeepReadonly<TTypes["event"]>[],
     ): void {
       const project = definition.semantic.projectStageCueDispatches;
       if (project === undefined || disposed) return;
       let dispatches: readonly StageCueDispatchV1[];
       try {
-        dispatches = parseStageCueDispatchesV1(project(facts));
+        dispatches = parseStageCueDispatchesV1(project(events));
       } catch (error) {
         reportObserverFailure(error);
         return;
@@ -1678,23 +1786,43 @@ export async function createCoreGameApplicationInstanceV1<
     };
     cleanups.push(
       created.runtimeControl.subscribeCommittedSnapshots((snapshot) => {
-        if (autosave.mode === "debounced") {
-          pendingAutoSnapshot = snapshot;
-          commandsSinceCapture += 1;
-          if (
-            autosave.checkpointEveryCommands !== undefined &&
-            commandsSinceCapture >= autosave.checkpointEveryCommands
-          ) {
-            captureNowV1();
-            return;
-          }
-          cancelFlushTimer?.();
-          cancelFlushTimer = scheduler.schedule(captureNowV1, autosave.delayMs);
+        // Deferred autosave: an in-flight commit is never a candidate. The
+        // last safepoint candidate (and any timer already running for it)
+        // stays in place, so the span neither refreshes nor cancels it.
+        if (observeCommittedSpanV1(snapshot) === "in_flight") return;
+        if (autosave.mode === "every_commit") {
+          // With a safepoint policy the service's own subscription is off;
+          // the instance forwards each safepoint commit itself.
+          if (safepointPolicy !== null) persistence.captureAutoSave(snapshot);
+          return;
         }
+        pendingAutoSnapshot = snapshot;
+        commandsSinceCapture += 1;
+        if (
+          autosave.checkpointEveryCommands !== undefined &&
+          commandsSinceCapture >= autosave.checkpointEveryCommands
+        ) {
+          captureNowV1();
+          return;
+        }
+        cancelFlushTimer?.();
+        cancelFlushTimer = scheduler.schedule(captureNowV1, autosave.delayMs);
       }),
     );
     cleanups.push(clearPendingAutoSaveV1);
 
+    // Mid-span flushes fall back to the most recent safepoint Snapshot; with
+    // none in this anchor era there is nothing safe to write and the stored
+    // record (the pre-span safepoint by construction) already is the correct
+    // crash-recovery target.
+    const flushCandidateV1 = (
+      snapshot: DeepReadonly<TTypes["snapshot"]>,
+    ): DeepReadonly<TTypes["snapshot"]> | null => {
+      if (safepointPolicy === null || inFlightInhibitForfeited) return snapshot;
+      return classifyStateSafepointV1(stateOfSnapshotV1(snapshot)) === "safepoint"
+        ? snapshot
+        : lastSafepointSnapshot ?? null;
+    };
     const flushAutoSaveV1 = async (): Promise<void> => {
       clearPendingAutoSaveV1();
       try {
@@ -1702,12 +1830,16 @@ export async function createCoreGameApplicationInstanceV1<
           // Enqueue inside the synchronous queue-front reader. Awaiting the
           // Snapshot first would let a replacement anchor rotate between the
           // read and capture, assigning an old Snapshot to the new epoch.
-          const attempt = await created.runtimeControl.readAtQueueFront((snapshot) =>
-            Object.freeze({
+          const attempt = await created.runtimeControl.readAtQueueFront((snapshot) => {
+            const candidate = flushCandidateV1(snapshot);
+            return Object.freeze({
               snapshot,
-              settled: captureAutoSaveWithReceiptInternalV1(persistence, snapshot),
-            })
-          );
+              settled: candidate === null
+                ? null
+                : captureAutoSaveWithReceiptInternalV1(persistence, candidate),
+            });
+          });
+          if (attempt.settled === null) return;
           const receipt = await attempt.settled;
           const current = await created.runtimeControl.readAtQueueFront((snapshot) => snapshot);
           if (receipt.kind === "superseded" || current !== attempt.snapshot) {
@@ -2336,8 +2468,8 @@ export async function createCoreGameApplicationInstanceV1<
                 // Dispatch batches for committed debug commands are staged
                 // by `onAttempt` and stamped by the semantic-port
                 // subscriber, exactly like gameplay commits.
-                emitTransientEffectsFromFactsV1(
-                  result.attempt.result.facts as readonly DeepReadonly<TTypes["fact"]>[],
+                emitTransientEffectsFromEventsV1(
+                  result.attempt.result.events as readonly DeepReadonly<TTypes["event"]>[],
                 );
               }
               return result;

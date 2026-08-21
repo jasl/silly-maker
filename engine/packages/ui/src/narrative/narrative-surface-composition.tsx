@@ -4,11 +4,13 @@ import {
   parseInteractionResolutionV1,
   parseNarrativeHistoryV1,
   parsePendingInteractionV1,
+  parseTimeTickV1,
   type DeepReadonly,
   type InteractionResolutionV1,
   type NarrativeHistoryV1,
   type PendingInteractionV1,
   type StrictJsonObjectV1,
+  type TimeTickV1,
 } from "@sillymaker/base";
 import type { PlayerProfileStoreV1, PlayerProfileV1 } from "@sillymaker/base/runtime";
 import {
@@ -65,6 +67,7 @@ import {
   type NarrativeStableHistoryRendererPropsInternalV1,
   type NarrativeStablePhysicalActionAdmissionInternalV1,
   type NarrativeStablePublisherBridgeInternalV1,
+  type NarrativeStableSemanticTimeRequestInternalV1,
 } from "./narrative-managed-surface-family.ts";
 import type { NarrativeStableSessionInternalV1 } from "./narrative-managed-surface-session.ts";
 import {
@@ -139,9 +142,27 @@ export interface DefineNarrativeSurfaceInputV1<TSemanticPublication> {
   readonly selectNarrative: (
     publication: DeepReadonly<TSemanticPublication>,
   ) => NarrativeSurfaceSelectionV1;
+  /**
+   * Routes one interaction resolution to the Story's semantic command. A
+   * committed resolution must publish its new selection before the returned
+   * promise settles. A resolution the Story rejects on game rules (session
+   * unchanged, nothing published) must resolve rather than throw: the
+   * Surface treats a completion whose pending interaction never changed as
+   * that ordinary rejected no-op and keeps the dialogue interactive. A
+   * rejected promise is a wiring fault and terminal-seals the composition.
+   */
   readonly dispatchResolution: (
     request: NarrativeSurfaceResolutionRequestV1,
   ) => Promise<unknown>;
+  /**
+   * The session-level time verb: the hold machinery reports elapsed
+   * milliseconds (partial cadence ticks, expiry, skippable folds) as
+   * hold-fenced time ticks through this binding, which the Story routes to
+   * its time command. Stories whose narratives declare no hold may pass
+   * null; admitting a hold frame without a time dispatcher faults the
+   * frame instead of silently never expiring.
+   */
+  readonly dispatchTime: ((tick: DeepReadonly<TimeTickV1>) => Promise<unknown>) | null;
   readonly renderer: ComponentType<NarrativeSurfaceRendererPropsV1>;
   readonly resolveText: (locale: string | null, textId: string) => string;
   readonly replayCurrentVoice: (() => boolean) | null;
@@ -350,6 +371,7 @@ interface NarrativeSurfacePublicDefinitionBindingInternalV1 {
   readonly receiver: object;
   readonly selectNarrative: (publication: never) => NarrativeSurfaceSelectionV1;
   readonly dispatchResolution: (request: NarrativeSurfaceResolutionRequestV1) => Promise<unknown>;
+  readonly dispatchTime: ((tick: DeepReadonly<TimeTickV1>) => Promise<unknown>) | null;
   readonly renderer: ComponentType<NarrativeSurfaceRendererPropsV1>;
   readonly resolveText: (locale: string | null, textId: string) => string;
   readonly replayCurrentVoice: (() => boolean) | null;
@@ -373,6 +395,7 @@ const publicDefinitionKeysInternalV1 = Object.freeze(
   [
     "selectNarrative",
     "dispatchResolution",
+    "dispatchTime",
     "renderer",
     "resolveText",
     "replayCurrentVoice",
@@ -546,23 +569,38 @@ function createNarrativeSurfacePublicCandidateInternalV1(
   }
   const profile = Reflect.apply(environment.playerProfile.current, environment.playerProfile, []);
   const locale = profile.preferences.locale;
+  const dispatchResolutionInternalV1 = (request: NarrativeSurfaceResolutionRequestV1) => {
+    if (request.expectedOccurrenceId !== pending.occurrenceId) {
+      throw new TypeError("ui.narrative_surface_resolution_invalid");
+    }
+    const resolution = parseInteractionResolutionV1(request.resolution);
+    return Reflect.apply(binding.dispatchResolution, binding.receiver, [Object.freeze({
+      expectedOccurrenceId: pending.occurrenceId,
+      resolution,
+    })]);
+  };
+  const dispatchTime = binding.dispatchTime;
+  const semanticDispatchPort = Object.freeze(
+    dispatchTime === null ? { dispatchResolutionInternalV1 } : {
+      dispatchResolutionInternalV1,
+      dispatchTimeInternalV1: (request: NarrativeStableSemanticTimeRequestInternalV1) => {
+        if (request.expectedHoldOccurrenceId !== pending.occurrenceId) {
+          throw new TypeError("ui.narrative_surface_time_invalid");
+        }
+        const tick = parseTimeTickV1({
+          elapsedMs: request.elapsedMs,
+          expectedHoldOccurrenceId: request.expectedHoldOccurrenceId,
+        });
+        return Reflect.apply(dispatchTime, binding.receiver, [tick]);
+      },
+    },
+  );
   return Object.freeze({
     kind: "captured" as const,
     candidateSnapshot: Object.freeze({
       rendererComponent: binding.rendererComponent,
       visualConfig: Object.freeze({}),
-      semanticDispatchPort: Object.freeze({
-        dispatchResolutionInternalV1(request: NarrativeSurfaceResolutionRequestV1) {
-          if (request.expectedOccurrenceId !== pending.occurrenceId) {
-            throw new TypeError("ui.narrative_surface_resolution_invalid");
-          }
-          const resolution = parseInteractionResolutionV1(request.resolution);
-          return Reflect.apply(binding.dispatchResolution, binding.receiver, [Object.freeze({
-            expectedOccurrenceId: pending.occurrenceId,
-            resolution,
-          })]);
-        },
-      }),
+      semanticDispatchPort,
       historyObservationPort: Object.freeze({
         getSnapshotInternalV1: () =>
           observation?.getSelectionInternalV1()?.history ?? selection.history,
@@ -642,6 +680,8 @@ export function defineNarrativeSurfaceV1<TSemanticPublication>(
     captured === null ||
     !isCallableWithoutThenInternalV1(captured.selectNarrative) ||
     !isCallableWithoutThenInternalV1(captured.dispatchResolution) ||
+    (captured.dispatchTime !== null &&
+      !isCallableWithoutThenInternalV1(captured.dispatchTime)) ||
     !isCallableWithoutThenInternalV1(captured.renderer) ||
     !isCallableWithoutThenInternalV1(captured.resolveText) ||
     (captured.replayCurrentVoice !== null &&
@@ -664,6 +704,7 @@ export function defineNarrativeSurfaceV1<TSemanticPublication>(
     receiver: input,
     selectNarrative: captured.selectNarrative,
     dispatchResolution: captured.dispatchResolution,
+    dispatchTime: captured.dispatchTime,
     renderer: captured.renderer,
     resolveText: captured.resolveText,
     replayCurrentVoice: captured.replayCurrentVoice,
@@ -1108,15 +1149,34 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
     }
   };
 
+  /**
+   * Tracks a dispatched semantic completion against the exact frame it was
+   * issued from. Committed resolutions and Barrier acknowledgments consume
+   * their pending interaction, so a completion that settles while the fence
+   * is still current proves the command did not commit — an ordinary
+   * Story-side rejection (game rules refusing the resolution and leaving the
+   * session unchanged), which must stay a no-op rather than seal the
+   * composition. The remaining Surface hazard is a commit whose publication
+   * this composition never observed: the direct source re-read below
+   * diverging from the reconciled selection while the fence still claims
+   * currentness.
+   */
   const trackCurrentCompletion = (
     generation: NarrativeSurfaceCompositionGenerationInternalV1,
     fence: NarrativeSurfaceCompletionFenceInternalV1,
     completion: Promise<unknown>,
-    requireSynchronousPublication: boolean,
   ): void => {
     void completion.then(
       () => {
-        if (requireSynchronousPublication && completionFenceIsCurrent(generation, fence)) {
+        if (!completionFenceIsCurrent(generation, fence)) return;
+        let freshPendingOccurrenceId: string | null;
+        try {
+          freshPendingOccurrenceId = readSelection()?.pending?.occurrenceId ?? null;
+        } catch (error) {
+          failComposition(error);
+          return;
+        }
+        if (freshPendingOccurrenceId !== fence.semanticOccurrenceId) {
           failComposition(
             new TypeError("ui.narrative_surface_completion_without_publication"),
           );
@@ -1154,7 +1214,7 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
       if (fence === null) {
         void result.completion.catch(() => undefined);
         failComposition(new TypeError("ui.narrative_surface_barrier_completion_unfenced"));
-      } else trackCurrentCompletion(generation, fence, result.completion, true);
+      } else trackCurrentCompletion(generation, fence, result.completion);
     }
   };
 
@@ -1175,7 +1235,7 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
           void result.completion.catch(() => undefined);
           throw new TypeError("ui.narrative_surface_barrier_completion_unfenced");
         }
-        trackCurrentCompletion(generation, fence, result.completion, true);
+        trackCurrentCompletion(generation, fence, result.completion);
       }
     }
     const replayUnsupported = controller.readReplayRecoveryUnsupportedInternalV1();
@@ -1541,10 +1601,10 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
         ) {
           attempt = admission.issueChoiceAttemptInternalV1(invokedChoiceId);
         } else if (
-          selection.pending.kind === "pause" &&
+          selection.pending.kind === "hold" && selection.pending.skippable &&
           (actionId === systemInputActionIdsV1.confirm || String(actionId) === "narrative.resume")
         ) {
-          attempt = admission.issuePauseResumeAttemptInternalV1();
+          attempt = admission.issueHoldSkipAttemptInternalV1();
         } else if (
           selection.pending.kind === "custom" && String(actionId) === "narrative.custom"
         ) {
@@ -1565,7 +1625,7 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
         const authenticatedActionId = actionId === systemInputActionIdsV1.confirm
           ? selection.pending.kind === "choice"
             ? "narrative.choose"
-            : selection.pending.kind === "pause"
+            : selection.pending.kind === "hold"
             ? "narrative.resume"
             : selection.pending.kind === "say"
             ? String(systemInputActionIdsV1.narrativeAdvance)
@@ -1594,7 +1654,6 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
             generation,
             completionFence,
             consumerResult.completion,
-            true,
           );
           return true;
         }

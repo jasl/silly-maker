@@ -1,0 +1,174 @@
+# Shaped hit regions（E3）实施计划
+
+状态：**已完成**（2026-08-21 接受、同日 M0–M5 全部交付；唯一显式
+defer 是重叠区域的多区域激活载荷，见验收下方）。合同：
+`docs/engine/proposals/shaped-hit-regions.md`（已接受）。
+
+## Admission 裁决（车道开启时固化）
+
+- 多边形是矩形的加法细化：`polygonPoints?: readonly { x, y }[]`——3..64
+  个整数顶点、同一锚点坐标系、全部落在外接框内、鞋带面积非零。校验失败
+  **降级为矩形**并报 `stage.hit_region_polygon_invalid`：激活路径不因形
+  状笔误死亡（与 geometry/frameAssetIds 的「丢细化、保基座」同族）。
+- 悬停揭示：`hoverAssetId?: AssetId`。指针在形状内或该区域按钮获键盘焦
+  点时，host 把资产按条目 geometry 框对齐显示为表现覆盖层，离开/失焦即
+  隐。V1 固定 geometry 同框（提案 q1：偏移需求出现再加）；未声明
+  geometry 的内容不渲染揭示层。揭示资产并入 `requiredAssetIds` 预载；
+  无效值丢弃悬停字段并报 `stage.hit_region_hover_invalid`。
+- 资产 URL 走既有 `AssetUrlRegistryV1` 变异无关面：`SemanticStageV1`
+  与 host 新增可选 `assets` 端口。无注册表或未解析 → 不渲染揭示层
+  （反馈增强，不改激活语义；触屏无悬停同理）。
+- 键盘可达性不变：Tab 聚焦、Enter/Space 激活、焦点框画外接框。
+  clip-path 会裁掉按钮自身的 outline，形状按钮的焦点框由兄弟元素承担。
+- 重叠维持 DOM 现状并写进合同：最上层（条目 z 序 + 区域声明序）独占命
+  中；「一次点击激活多区域」显式 defer（提案 §5）。
+- 区域文档绑定走内容目录 helper（q2）：Story 代码 import 文档 JSON 并经
+  `parseRegionsDocumentV1` 后把 `regions` 交给 `resolveContent`；scene
+  声明式绑定随 Scene Construction 的真实需求回流。
+- trace 工具归 engine devtool（q3），多仓复用。
+
+## 里程碑
+
+- M0 base 合同：`polygonPoints` + `hoverAssetId` 进 `StageHitRegionV1`；
+  投影校验与降级诊断；hover 资产并入 `requiredAssetIds`；合同测试。
+- M1 host：clip-path 形状命中（浏览器原生指针裁剪，运行时零像素读取）
+  - 形状按钮外接框焦点框 + 悬停/焦点揭示层（`assets` 端口）+ 开发轮廓
+    显示形状；`SemanticStageV1`/`SemanticStageTargetHostV1` 透传；jsdom
+    测试覆盖显隐、无 geometry / 无注册表不渲染。
+- M2 区域文档：`sillymaker.regions` 格式 + `parseRegionsDocumentV1` 严
+  格入院（regionId 唯一、顶点/外接框规则与投影同源）；授权索引第三家族
+  （`.regions.json`）；story check 源 lint；dev-server list/read/write
+  CAS 端口（与 motion 端口同构）。
+- M3 Studio 区域编辑：画布对着真实底图拉顶点、拖外接框、增删顶点、试
+  悬停揭示；保存走共享文档会话 CAS 纪律。
+- M4 trace devtool：`story regions trace <image>`——alpha 剪影
+  marching squares + 折线简化 → 可编辑区域文档；像素语义只存在于导入
+  时刻。
+- M5 消费者与文档收口：外部实验仓身体热区（贴合姿态形状 + 剪影悬停高
+  亮）+ 仓内消费者（Engine Lab 或 cat-cafe）；features /
+  story-authoring / authoring-quickstart / production-floor / AGENTS
+  更新。
+
+## 交付记录（2026-08-21，M5 外部半 —— 车道收口）
+
+- **M5（外部实验仓身体热区）**：三姿势夜床身体图接形状热区，全链路
+  （trace → 生成器 → 严格入院 → geometry/hitRegions 发布 → 悬停显形
+  → 激活接语义）走通。判定素材证据：原作全部 `atarihantei_*.png` 判
+  定图是 1-bit 调色板、单色、无 tRNS——完全不透明矩形，其「像素级」
+  点击测试在矩形内恒真，原作热区**就是**摆放矩形。因此矩形坐标保持
+  权威，每格再用姿势身体图的 alpha 剪影（`story regions trace`，
+  540×540 立绘 31–48 顶点）经 Sutherland–Hodgman 对矩形四半平面裁边
+  ——命中跟身体不吃同矩形里的枕头，是引擎表达的原生改良（实验仓
+  fidelity 记录明示不是 1:1）；床上胖次堆不裁。仓本地生成器产出三份
+  `sillymaker.regions` 文档并复跑 `parseRegionsDocumentV1` 入院。内
+  容侧发布 1024×576 左上锚 geometry（区域锚点空间 = 原作屏幕坐标逐
+  字）+ 按姿势/胖次门选区；热区激活决议武装 touch-menu 上的隐藏
+  `choice.imouto.zone.*` 选项（同一 occurrence——合法性/门/重放全在
+  叙事引擎），检视子菜单删除、观察分支回身体点击；悬停/聚焦显形为
+  SVG 剪影 data URI 走静态 `AssetUrlRegistryV1` 端口；zone 武装时选
+  单右贴边、无幕布、点透舞台。实验仓门禁全绿（fmt + 43 文件 690
+  测试，含新增 zone 套件：文档入院/姿势与胖次门/选项与辉光映射/发布
+  geometry/武装窗）。 **车道收口**。顺带交付：trace 解码器把 1/2/4
+  位调色板 PNG 收为一等（遗留判定图 canonically tiny-palette，打包行
+  按规范 1 字节步长 unfilter、下标大端解包，测试盖跨滤波 4 位行、跨
+  字节 1 位行与 16 位调色板拒绝）；node_modules 符号链接竞态根因收口
+  ——实测每个 vitest fork worker 都是 `deno run` 子进程、auto 模式每
+  次启动重连符号链接（watcher 抓到运行中 600ms 内五次重连），根
+  `deno.json` 改 `"nodeModulesDir": "manual"`（只有 `deno install`
+  写 node_modules），修前独立全量三连红、修后四连绿 + 全门禁绿。
+
+## 交付记录（2026-08-21，M5 仓内消费者 + 文档）
+
+- **M5（仓内半）**：Engine Lab 样本箱采集口走通完整链路——
+  `e2e/src/regions/crate-zones.regions.json`（八边形 + `hoverAssetId`，
+  `human_tuned`）经 `parseRegionsDocumentV1` 绑进 `resolveContent`
+  （`assetIds` 刻意留空：hover 资产只经引擎区域路径并入
+  `requiredAssetIds`）；shell 侧静态 `AssetUrlRegistryV1` 把辉光解析为
+  内联 SVG data URI（conformance Story 不带媒体文件），
+  `onHitRegionActivate` 对 `zone.crate.collect` 派发与 HUD 按钮同一条
+  `lab.collect_sample` 语义调用——舞台不碰 State。jsdom 集成测试断言
+  clip-path 形状、兄弟焦点元素、悬停揭示显隐且 semantic revision 不
+  动、激活后样本数上升（采集产出为工程随机 1–3，断言用增量）。文档收
+  口：features / story-authoring / authoring-quickstart /
+  production-floor / AGENTS 同步（顺带把 M2 记录的 lint「五码」纠为四
+  码）。当时剩外部实验仓身体热区消费者；已由上方收口记录交付。
+
+## 交付记录（2026-08-21，M4）
+
+- **M4**：`story regions trace <image.png> --out <file.regions.json>`
+  devtool（tooling `project/png-alpha.ts` + `project/regions-trace.ts` +
+  CLI 动词）。最小 PNG alpha 解码器按不可信输入严格入院（签名/块结构/
+  尺寸上限/精确 inflate 长度；8/16 位 RGBA、灰+alpha、8 位调色板+tRNS；
+  拒绝隔行与无 alpha 类型，结构化 `regions.trace_image_invalid` +
+  `details.reason`）。管线：阈值二值化 → 最大 4-连通域 → 像素裂缝行走
+  （marching-squares 角态表，鞍点按进入方向消解保持对角不连通）→ 只记
+  转角 → 闭环 Douglas–Peucker 预算内简化（几何增长 + 二分收紧取最小可
+  行 epsilon；预算不可达时结构化报错而非退化多边形）。顶点永远是精确边
+  界角点的子集（整数、在外接框内）；锚点平移默认底中 (500,1000)
+  permille；输出单区域文档 `authoring.status: "generated"`，落盘前复跑
+  `parseRegionsDocumentV1`，默认 regionsId 由 `--out` 文件名推导（与
+  filename lint 同步），覆写需 `--force`
+  （`regions.trace_output_exists`）；runner 增 `readFileBytes` 二进制
+  口。实测外部实验仓 300×540 立绘：752 个精确边界转角 → 31 顶点，多边
+  形面积/剪影像素数比 1.000。顺带把 M2 消除的 node_modules 符号链接竞
+  态修到其余三个 spawn deno 子进程的桌面测试（record-file-store-fault
+  / sqlite spike / sigkill spike 补 `--node-modules-dir=none`）——全量
+  套件下 determinism authority-map 当日复现两次，修后连续四次全绿。
+
+## 交付记录（2026-08-21，M3）
+
+- **M3**：Studio 新增 Regions 工作区（`studio` 包
+  `workspaces/regions/`）：dev-server regions 端口的浏览器侧 IO +
+  共享创作会话（同一 CAS/undo/redo/脏导航纪律，`regions-io.ts` /
+  `regions-session.ts`）；画布把草稿 regions 注入场景工作区已编译底图的
+  选定条目——host 的真实 clip-path 形状与悬停揭示就是预览，点形状即选
+  中；叠加层只对选中区域画拖拽手柄（外接框移动/右下角缩放/顶点/边中点
+  插入），拖动经指针差 ÷ 预览缩放 ÷ 条目缩放（含镜像）回锚点空间，每次
+  手势合并为一步撤销。纯编辑命令 `regions-edit.ts`（矩形⇄多边形种子、
+  顶点增删移、外接框平移携带多边形、缩放按比例重投），保存门直接复跑
+  `parseRegionsDocumentV1`（入院即门禁），保存时 `authoring.status` 升
+  `human_tuned`。`StudioAssetRegistryPortV1` 增可选 `resolve`（cat-cafe
+  绑定传完整注册表即自动满足，悬停揭示在 Studio 预览用真图）；
+  `@sillymaker/ui` 根导出补 `AssetUrlRegistryV1` 类型；dev studio 入口
+  生成代码接 `createDevServerRegionsIoV1`。jsdom 覆盖列表/自动打开/host
+  形状选中/拖拽/多边形顶点编辑/入院门禁/脏切换确认/新建推断前缀。
+
+## 交付记录（2026-08-21，M0–M2）
+
+- **M0**：`StageHitRegionV1.polygonPoints`（3..64 整数顶点、外接框内、
+  鞋带面积非零，共享判定 `hitRegionPolygonValidV1`）与 `hoverAssetId`；
+  投影降级诊断 `stage.hit_region_polygon_invalid` /
+  `stage.hit_region_hover_invalid`；hover 资产并入 `requiredAssetIds`；
+  `AssetUsageV1` 增 `"stage_hover_reveal"`。
+- **M1**：host 以 CSS `clip-path` 承载形状命中（指针裁剪浏览器原生，
+  运行时零像素读取）；形状按钮焦点框由兄弟元素画外接框；悬停/焦点揭
+  示层走新增可选 `assets` 端口（`SemanticStageV1` →
+  `SemanticStageTargetHostV1` 透传），无 geometry / 无注册表 / 触屏不
+  渲染；开发轮廓叠加形状填充。jsdom 覆盖显隐、降级与轮廓。
+- **M2**：`sillymaker.regions` 格式 + `parseRegionsDocumentV1` 严格入院
+  （base `contracts/stage-regions.ts`；regionId 唯一、顶点/外接框规则
+  与投影同源）；授权索引第三家族 `.regions.json`（列表 + 结构化 skip）；
+  `story check` 源 lint（`regions.*` 四码，与 motion lint 同构）；
+  dev-server list/read/write/create CAS 端口
+  （`/__sillymaker/dev-sources/regions-document[s]`，与 motion 端口同
+  构）。顺带修复全量套件下的既有测试竞态：closure CLI 测试的子 deno
+  进程会重建 workspace node_modules 符号链接，与 determinism
+  authority-map 的 realpath 并发竞争，spawn 加
+  `--node-modules-dir=none` 消除（实证 6 次 spawn 49 个 ENOENT 窗口 →
+  0）。
+
+## 验收（承提案）
+
+- 多边形区域指针命中按形状、键盘激活按外接框；命中/悬停开关两种构建下
+  同一 scenario 的 Save/replay/digest 逐字节相同；
+- 悬停/焦点揭示显隐可测（jsdom 断言覆盖层出现），CommandLog 零新条目；
+- Studio 画布能新建/编辑多边形并保存区域文档（CAS 纪律不变）；
+- trace 工具从一张 alpha 位图产出可编辑文档，顶点数在限额内；
+- 双消费者：外部实验仓身体热区 + 仓内一例。
+
+## 停（承提案）
+
+- 运行时读取像素做命中判定，或把位图 alpha 语义带进合同；
+- 悬停状态进入 authoritative State / Save / semantic transcript；
+- 区域获得路由权（决定去向而非报告 regionId 激活）；
+- 出现第二套区域坐标格式，或 Studio 之外再造一个区域编辑面。

@@ -92,6 +92,9 @@ function spawnSigkillChildV1(databasePath: string, phase: SigkillPhaseV1): Sigki
     [
       "run",
       "--quiet",
+      // See spawnSqliteCasChildV1: no node_modules re-materialization in
+      // children, so concurrent suite realpath walks never race them.
+      "--node-modules-dir=none",
       "--allow-read",
       "--allow-write",
       fileURLToPath(

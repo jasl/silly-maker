@@ -20,6 +20,7 @@ describe("Save migration release corpus", () => {
       "engine-lab-state-3",
       "engine-lab-state-4",
       "engine-lab-state-5",
+      "engine-lab-state-6",
       "cat-cafe-state-1",
     ]);
     expect(Object.isFrozen(saveMigrationReleaseCorpusV1)).toBe(true);

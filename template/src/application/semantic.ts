@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 import type { CoreSemanticAdapterV1 } from "@sillymaker/base/runtime";
-import type { InteractionResolution } from "@sillymaker/base/story";
+import type { InteractionResolution, TimeTick } from "@sillymaker/base/story";
 import {
   evaluateInteractionResolution,
+  evaluateTimeTick,
   parseInteractionOccurrenceId,
   parseInteractionResolution,
+  parseTimeTick,
 } from "@sillymaker/base/story";
 
 import type {
@@ -27,7 +29,10 @@ import {
  * One availability rule serves the action catalog, preview, and dispatch.
  */
 
-export type TemplateActionIdV1 = Exclude<TemplateCommandV1["kind"], "template.narrative_resolve">;
+export type TemplateActionIdV1 = Exclude<
+  TemplateCommandV1["kind"],
+  "template.narrative_resolve" | "template.time_tick"
+>;
 
 export interface TemplateActionDescriptorV1 {
   readonly actionId: TemplateActionIdV1;
@@ -41,7 +46,8 @@ export type TemplateInvocationV1 =
     readonly kind: "resolve";
     readonly expectedOccurrenceId: string;
     readonly resolution: InteractionResolution;
-  };
+  }
+  | { readonly kind: "time"; readonly tick: TimeTick };
 
 export type TemplatePreviewV1 =
   | { readonly kind: "allowed" }
@@ -92,6 +98,15 @@ function resolutionBlockedByV1(
   return outcome.kind === "accepted" ? null : outcome.code;
 }
 
+/** The same time-tick evaluator used at queue-front dispatch, fed by queries. */
+function timeTickBlockedByV1(
+  queries: TemplateQueriesV1,
+  invocation: Extract<TemplateInvocationV1, { readonly kind: "time" }>,
+): TemplateRejectionV1["code"] | null {
+  const outcome = evaluateTimeTick(queries.narrative.pending, invocation.tick);
+  return outcome.kind === "accepted" ? null : outcome.code;
+}
+
 export function projectTemplateNarrativeViewV1(
   queries: TemplateQueriesV1,
 ): TemplateNarrativeViewV1 {
@@ -136,6 +151,15 @@ export function parseTemplateInvocationV1(value: unknown): TemplateInvocationV1 
       resolution: parseInteractionResolution(record.resolution),
     });
   }
+  if (kind === "time") {
+    if (Object.keys(value).toSorted().join("\0") !== "kind\0tick") {
+      throw new TypeError("invalid template time invocation");
+    }
+    return Object.freeze({
+      kind: "time",
+      tick: parseTimeTick((value as { readonly tick?: unknown }).tick, "/tick"),
+    });
+  }
   if (kind !== "invoke" || Object.keys(value).toSorted().join("\0") !== "actionId\0kind") {
     throw new TypeError("invalid template invocation");
   }
@@ -169,6 +193,8 @@ export const templateSemanticAdapterV1: CoreSemanticAdapterV1<
   preview: (queries, invocation) => {
     const blockedBy = invocation.kind === "resolve"
       ? resolutionBlockedByV1(queries, invocation)
+      : invocation.kind === "time"
+      ? timeTickBlockedByV1(queries, invocation)
       : blockedByV1(queries, invocation.actionId);
     return blockedBy === null
       ? Object.freeze({ kind: "allowed" as const })
@@ -182,6 +208,8 @@ export const templateSemanticAdapterV1: CoreSemanticAdapterV1<
         expectedOccurrenceId: invocation.expectedOccurrenceId,
         resolution: invocation.resolution,
       })
+      : invocation.kind === "time"
+      ? Object.freeze({ kind: "template.time_tick" as const, tick: invocation.tick })
       : Object.freeze({ kind: invocation.actionId }),
   projectDispatchResult: (result) => {
     if (result.kind === "not_executed") {
@@ -202,10 +230,12 @@ export const templateSemanticAdapterV1: CoreSemanticAdapterV1<
   invalidInvocationResult: () =>
     Object.freeze({ kind: "not_executed" as const, code: "validation_failed" as const }),
   // Presentation edge context (cue identity, accepted 2026-08-17): the
-  // stage facts carry the scene dispatches behind each commit's mutations;
+  // stage events carry the scene dispatches behind each commit's mutations;
   // the instance stamps them with the commit's revision/epoch and the
   // stage forwards them so per-cue bindings (motions, explicit cuts)
   // resolve by dispatching cue instead of edge tuple alone.
-  projectStageCueDispatches: (facts) =>
-    facts.flatMap((fact) => fact.kind === "template.stage_changed" ? fact.dispatches ?? [] : []),
+  projectStageCueDispatches: (events) =>
+    events.flatMap((event) =>
+      event.kind === "template.stage_changed" ? event.dispatches ?? [] : []
+    ),
 };

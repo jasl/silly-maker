@@ -10,7 +10,7 @@ import {
 
 import type {
   CatcafeCommandV1,
-  CatcafeFactV1,
+  CatcafeEventV1,
   CatcafeGameViewV1,
   CatcafeNarrativeViewV1,
   CatcafeQueriesV1,
@@ -263,22 +263,22 @@ function commandForInvocationV1(invocation: CatcafeInvocationV1): CatcafeCommand
 }
 
 /**
- * Commit-only transient effects: projected from committed facts (the engine's
- * existing mechanism, same as the Lab audio). The UI subscribes for reaction bubbles / contest toasts; never enters State, saves, publications, or transcripts.
+ * Commit-only transient effects: projected from committed domain events (the
+ * engine's existing mechanism, same as the Lab audio). The UI subscribes for reaction bubbles / contest toasts; never enters State, saves, publications, or transcripts.
  */
 export function projectCatcafeTransientEffectsV1(
-  facts: readonly CatcafeFactV1[],
+  events: readonly CatcafeEventV1[],
 ): readonly TransientEffectRequestV1[] {
-  return facts.flatMap((fact): readonly TransientEffectRequestV1[] => {
-    switch (fact.kind) {
+  return events.flatMap((event): readonly TransientEffectRequestV1[] => {
+    switch (event.kind) {
       case "cc.petted":
         return [
           Object.freeze({
             effectId: "effect.catcafe.reaction",
             payload: Object.freeze({
-              reactionId: fact.reactionId,
-              zone: fact.zone,
-              trustDelta: fact.trustDelta,
+              reactionId: event.reactionId,
+              zone: event.zone,
+              trustDelta: event.trustDelta,
             }),
           }),
         ];
@@ -286,21 +286,21 @@ export function projectCatcafeTransientEffectsV1(
         return [
           Object.freeze({
             effectId: "effect.catcafe.contest",
-            payload: Object.freeze({ outcome: "won", rivalId: fact.rivalId }),
+            payload: Object.freeze({ outcome: "won", rivalId: event.rivalId }),
           }),
         ];
       case "cc.contest_lost":
         return [
           Object.freeze({
             effectId: "effect.catcafe.contest",
-            payload: Object.freeze({ outcome: "lost", rivalId: fact.rivalId }),
+            payload: Object.freeze({ outcome: "lost", rivalId: event.rivalId }),
           }),
         ];
       case "cc.encounter":
-        return fact.textId === null ? [] : [
+        return event.textId === null ? [] : [
           Object.freeze({
             effectId: "effect.catcafe.encounter",
-            payload: Object.freeze({ encounterId: fact.encounterId, textId: fact.textId }),
+            payload: Object.freeze({ encounterId: event.encounterId, textId: event.textId }),
           }),
         ];
       default:
@@ -371,6 +371,6 @@ export const catcafeSemanticAdapterV1: CoreSemanticAdapterV1<
   },
   invalidInvocationResult: () =>
     Object.freeze({ kind: "not_executed" as const, code: "validation_failed" as const }),
-  projectTransientEffects: (facts) =>
-    projectCatcafeTransientEffectsV1(facts as readonly CatcafeFactV1[]),
+  projectTransientEffects: (events) =>
+    projectCatcafeTransientEffectsV1(events as readonly CatcafeEventV1[]),
 };

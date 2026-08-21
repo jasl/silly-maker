@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { lintNarrativeGraph } from "@sillymaker/base/story";
+import { lintNarrativeGraph, sampleMotionAt } from "@sillymaker/base/story";
 import { createGameHarnessV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
 
 import type { StageTargetChange } from "@sillymaker/base/story";
@@ -12,9 +12,11 @@ import { compileTemplateInteractionDocV1 } from "../story/narrative-kit.ts";
 import { projectTemplateNarrativeGraphV1 } from "../story/narrative-graph.ts";
 import { templateFlowGraphV1, templateScriptV1 } from "../story/narrative.ts";
 import {
+  templateStageContentCatalogV1,
   templateStageTransitionCatalogV1,
   templateTextCatalogsV1,
 } from "../content/presentation.ts";
+import { templateOpeningAmbientCatalogV1 } from "../scenes/opening/index.ts";
 import { templateSemanticAdapterV1 } from "../application/semantic.ts";
 import { templateStoryEntryV1 } from "../story.ts";
 
@@ -26,20 +28,40 @@ function compileDocV1(
   });
 }
 
-/** Resolves whatever is pending now — inserting script lines never renumbers tests. */
-function currentResolveV1(
+function currentOccurrenceIdV1(
   application: { readonly semantic: { observe(): unknown } },
-  resolution: Readonly<Record<string, unknown>>,
-) {
+): string {
   const publication = application.semantic.observe() as {
     readonly narrative: { readonly pending: { readonly occurrenceId: string } | null };
   };
   const pending = publication.narrative.pending;
   if (pending === null) throw new TypeError("test.no_pending_interaction");
+  return pending.occurrenceId;
+}
+
+/** Resolves whatever is pending now — inserting script lines never renumbers tests. */
+function currentResolveV1(
+  application: { readonly semantic: { observe(): unknown } },
+  resolution: Readonly<Record<string, unknown>>,
+) {
   return Object.freeze({
     kind: "resolve" as const,
-    expectedOccurrenceId: pending.occurrenceId,
+    expectedOccurrenceId: currentOccurrenceIdV1(application),
     resolution: Object.freeze(resolution),
+  });
+}
+
+/** A time tick fenced to whatever hold is pending now. */
+function currentTimeTickV1(
+  application: { readonly semantic: { observe(): unknown } },
+  elapsedMs: number,
+) {
+  return Object.freeze({
+    kind: "time" as const,
+    tick: Object.freeze({
+      elapsedMs,
+      expectedHoldOccurrenceId: currentOccurrenceIdV1(application),
+    }),
   });
 }
 
@@ -90,9 +112,175 @@ describe("template story baseline", () => {
     if (choice?.kind === "choice") {
       expect(choice.options.map((option) => option.choiceId)).toEqual([
         "choice.template.look",
+        "choice.template.hurry",
         "choice.template.inside",
       ]);
     }
+  });
+
+  it("compiles hold blocks with an opening stage batch and jump redirection", () => {
+    const compiled = compileDocV1({
+      entry: "wait",
+      blocks: [
+        {
+          kind: "hold",
+          name: "wait",
+          durationMs: 500,
+          skippable: true,
+          ops: [
+            {
+              setAppearance: {
+                layerId: "layer.template.characters",
+                tag: "tag.mei",
+                appearance: { expression: "smiling" },
+              },
+            },
+          ],
+          next: "again",
+        },
+        { kind: "say", name: "again", speaker: null, text: "……", next: "wait" },
+      ],
+    });
+    // Entry and jumps land on the compiled opening stage node, so the held
+    // picture is committed stage state — never a silent flash.
+    expect(compiled.entryNodeId).toBe("node.template.wait-stage");
+    const say = compiled.nodes.find((node) => node.nodeId === "node.template.again");
+    expect(say).toMatchObject({ next: "node.template.wait-stage" });
+    const stage = compiled.nodes.find((node) => node.nodeId === "node.template.wait-stage");
+    expect(stage).toMatchObject({ kind: "stage", next: "node.template.wait" });
+    const hold = compiled.nodes.find((node) => node.nodeId === "node.template.wait");
+    expect(hold).toMatchObject({
+      kind: "hold",
+      definitionId: "interaction.template.wait",
+      durationMs: 500,
+      skippable: true,
+      next: "node.template.again",
+    });
+    expect(compiled.flowGraph.nodes.find((node) => node.nodeId === "node.template.wait"))
+      .toMatchObject({ kind: "hold", summary: "hold 500ms skippable" });
+    // The stage→hold edge keeps the flow projection connected.
+    expect(compiled.flowGraph.edges).toContainEqual(
+      expect.objectContaining({ from: "node.template.wait-stage", to: "node.template.wait" }),
+    );
+  });
+
+  it("compiles a bare hold without ops onto the current stage picture", () => {
+    const compiled = compileDocV1({
+      entry: "beat",
+      blocks: [
+        { kind: "hold", name: "beat", durationMs: 240, next: "close" },
+        { kind: "end", name: "close" },
+      ],
+    });
+    expect(compiled.entryNodeId).toBe("node.template.beat");
+    expect(compiled.nodes.find((node) => node.nodeId === "node.template.beat")).toMatchObject({
+      kind: "hold",
+      durationMs: 240,
+      skippable: false,
+      when: [],
+    });
+    expect(compiled.flowGraph.nodes.find((node) => node.nodeId === "node.template.beat"))
+      .toMatchObject({ kind: "hold", summary: "hold 240ms" });
+  });
+
+  it("compiles hold `when` arms with resolved targets and labeled reroute edges", () => {
+    const compiled = compileDocV1({
+      entry: "watch",
+      blocks: [
+        {
+          kind: "hold",
+          name: "watch",
+          durationMs: 800,
+          when: [
+            { when: { flag: "flag.template.spotted" }, next: "caught" },
+            // An arm may target a hold-with-ops block; the jump redirects
+            // to its compiled opening stage node like any other jump.
+            { when: { flag: "flag.template.tired" }, next: "rest" },
+          ],
+          next: "close",
+        },
+        { kind: "say", name: "caught", speaker: null, text: "被发现了。", next: "close" },
+        {
+          kind: "hold",
+          name: "rest",
+          durationMs: 200,
+          ops: [
+            {
+              setAppearance: {
+                layerId: "layer.template.characters",
+                tag: "tag.mei",
+                appearance: { expression: "calm" },
+              },
+            },
+          ],
+          next: "close",
+        },
+        { kind: "end", name: "close" },
+      ],
+    });
+    const hold = compiled.nodes.find((node) => node.nodeId === "node.template.watch");
+    expect(hold).toMatchObject({
+      kind: "hold",
+      when: [
+        { flag: "flag.template.spotted", next: "node.template.caught" },
+        { flag: "flag.template.tired", next: "node.template.rest-stage" },
+      ],
+      next: "node.template.close",
+    });
+    // Reroute edges precede the expiry edge, in declaration order.
+    const outgoing = compiled.flowGraph.edges.filter((edge) => edge.from === "node.template.watch");
+    expect(outgoing).toEqual([
+      expect.objectContaining({
+        to: "node.template.caught",
+        label: { kind: "branch", condition: "when flag.template.spotted" },
+      }),
+      expect.objectContaining({
+        to: "node.template.rest-stage",
+        label: { kind: "branch", condition: "when flag.template.tired" },
+      }),
+      expect.objectContaining({ to: "node.template.close", label: { kind: "next" } }),
+    ]);
+
+    // Admission rejects empty arm lists, blank flags, unresolved targets.
+    expect(() =>
+      compileDocV1({
+        entry: "watch",
+        blocks: [
+          { kind: "hold", name: "watch", durationMs: 100, when: [], next: "close" },
+          { kind: "end", name: "close" },
+        ],
+      })
+    ).toThrow(/hold_when_empty/u);
+    expect(() =>
+      compileDocV1({
+        entry: "watch",
+        blocks: [
+          {
+            kind: "hold",
+            name: "watch",
+            durationMs: 100,
+            when: [{ when: { flag: "" }, next: "close" }],
+            next: "close",
+          },
+          { kind: "end", name: "close" },
+        ],
+      })
+    ).toThrow(/hold_when_flag_invalid/u);
+    expect(() =>
+      compileDocV1({
+        entry: "watch",
+        blocks: [
+          {
+            kind: "hold",
+            name: "watch",
+            durationMs: 100,
+            when: [{ when: { flag: "flag.template.spotted" }, next: "nowhere" }],
+            next: "close",
+          },
+          { kind: "end", name: "close" },
+        ],
+      })
+    ).toThrow(/next_unresolved:nowhere/u);
   });
 
   it("rejects bad documents at admission with pointed reasons", () => {
@@ -171,6 +359,40 @@ describe("template story baseline", () => {
         ],
       })
     ).toThrow(/scene_unknown:missing/u);
+    expect(() =>
+      compileDocV1({
+        entry: "wait",
+        blocks: [
+          { kind: "hold", name: "wait", durationMs: 0, next: "close" },
+          { kind: "end", name: "close" },
+        ],
+      })
+    ).toThrow(/hold_duration_invalid/u);
+    // A hold with ops reserves `<name>-stage`; colliding block names fail.
+    expect(() =>
+      compileDocV1({
+        entry: "wait",
+        blocks: [
+          {
+            kind: "hold",
+            name: "wait",
+            durationMs: 500,
+            ops: [
+              {
+                setAppearance: {
+                  layerId: "layer.template.characters",
+                  tag: "tag.mei",
+                  appearance: { expression: "smiling" },
+                },
+              },
+            ],
+            next: "close",
+          },
+          { kind: "end", name: "wait-stage" },
+          { kind: "end", name: "close" },
+        ],
+      })
+    ).toThrow(/duplicate_block_name/u);
     // Reusing an option name across two different choices stays legal (a
     // shared label shares its derived ids on purpose).
     expect(() =>
@@ -233,7 +455,29 @@ describe("template story baseline", () => {
       (node) => node.nodeId === "node.template.first-choice",
     );
     expect(menuNode?.kind).toBe("menu");
-    expect(menuNode?.summary).toBe("接下来做什么？ / 去看看檐下的动静 / 先回屋里");
+    expect(menuNode?.summary).toBe(
+      "接下来做什么？ / 去看看檐下的动静 / 小跑过去看个究竟 / 先回屋里",
+    );
+    // The hold beat projects its authoritative duration; its opening ops
+    // stage node precedes it in the same document.
+    const holdNode = templateFlowGraphV1.nodes.find(
+      (node) => node.nodeId === "node.template.mei-fetches",
+    );
+    expect(holdNode).toMatchObject({ kind: "hold", summary: "hold 600ms" });
+    expect(templateFlowGraphV1.edges).toContainEqual(
+      expect.objectContaining({
+        from: "node.template.mei-fetches-stage",
+        to: "node.template.mei-fetches",
+      }),
+    );
+    // The declared-condition reroute projects as a labeled edge off the
+    // hold, so Flow shows the abort path next to the expiry path.
+    const rerouteEdge = templateFlowGraphV1.edges.find(
+      (edge) => edge.from === "node.template.mei-fetches" && edge.to === "node.template.hurry-line",
+    );
+    expect(rerouteEdge).toMatchObject({
+      label: { kind: "branch", condition: "when flag.template.hurried" },
+    });
   });
 
   it("keeps branch choosers inside their static successor annotations", () => {
@@ -289,10 +533,13 @@ describe("template presentation edge context", () => {
   });
 
   it("annotates stage nodes with their scene dispatches for the runner", () => {
+    // The hold block's opening ops compile to a real stage node entered
+    // before the wait, carrying the cue dispatch like any stage beat.
     const fetches = templateScriptV1.find((node) =>
-      node.kind === "stage" && node.nodeId === "node.template.mei-fetches"
+      node.kind === "stage" && node.nodeId === "node.template.mei-fetches-stage"
     );
     expect(fetches).toMatchObject({
+      next: "node.template.mei-fetches",
       dispatches: [
         { sceneId: "scene.template.opening", cueId: "cue.template.opening.mei-fetches" },
       ],
@@ -311,6 +558,42 @@ describe("template presentation edge context", () => {
       node.kind === "stage" && node.nodeId === "node.template.mei-smiles"
     );
     expect(smiles).toMatchObject({ dispatches: [] });
+  });
+});
+
+describe("template opening ambient (authorable frame set)", () => {
+  it("declares Mei's blink as a scene-document frame loop over her frame set", () => {
+    // The content side owns the ordered frame table the track indexes.
+    const mei = templateStageContentCatalogV1.resolveContent(
+      "content.template.character.mei" as Parameters<
+        typeof templateStageContentCatalogV1.resolveContent
+      >[0],
+      {},
+    );
+    expect(mei?.frameAssetIds).toEqual([
+      "asset.template.mei-eyes-open",
+      "asset.template.mei-eyes-closed",
+    ]);
+
+    // The scene document binds the blink loop to Mei's settled presence —
+    // same declared route as the mist drift, no renderer CSS animation.
+    const binding = templateOpeningAmbientCatalogV1.resolveAmbient(
+      "layer.template.characters" as Parameters<
+        typeof templateOpeningAmbientCatalogV1.resolveAmbient
+      >[0],
+      {
+        key: "layer.template.characters:tag.mei",
+        contentId: "content.template.character.mei",
+      } as Parameters<typeof templateOpeningAmbientCatalogV1.resolveAmbient>[1],
+    );
+    expect(binding).not.toBeNull();
+
+    // Stepped frame semantics over one 4s cycle: eyes open, a 200ms blink
+    // near the end (3600–3800ms), open again — no interpolation.
+    expect(sampleMotionAt(binding!.motion, 0).frameIndex).toBe(0);
+    expect(sampleMotionAt(binding!.motion, 3500).frameIndex).toBe(0);
+    expect(sampleMotionAt(binding!.motion, 3700).frameIndex).toBe(1);
+    expect(sampleMotionAt(binding!.motion, 3900).frameIndex).toBe(0);
   });
 });
 
@@ -340,7 +623,7 @@ describe("template narrative playthrough", () => {
       await dispatch(currentResolveV1(application, { kind: "advance" }));
       publication = application.semantic.observe();
       expect(publication.narrative.pending).toMatchObject({ kind: "choice" });
-      expect(publication.narrative.choiceOptions).toHaveLength(2);
+      expect(publication.narrative.choiceOptions).toHaveLength(3);
 
       await dispatch(
         currentResolveV1(application, { kind: "choose", choiceId: "choice.template.look" }),
@@ -355,11 +638,14 @@ describe("template narrative playthrough", () => {
       await dispatch(currentResolveV1(application, { kind: "advance" }));
       publication = application.semantic.observe();
       // Mei smiled, then darted off-frame to fetch the kitten: the
-      // explicit-cut hide leaves her absent while the narration plays, and
-      // the commit's dispatch batch pairs with exactly this revision.
+      // explicit-cut hide committed in this same command (the hold block's
+      // opening ops), and the screen now holds on the empty frame for an
+      // authoritative 600ms. The dispatch batch pairs with this revision.
       expect(publication.narrative.pending).toMatchObject({
-        kind: "say",
-        textId: "text.template.line.fetch-line",
+        kind: "hold",
+        totalMs: 600,
+        remainingMs: 600,
+        skippable: false,
       });
       const meiAway = publication.game.stage.layers
         .find((layer) => layer.layerId === "layer.template.characters")
@@ -374,6 +660,27 @@ describe("template narrative playthrough", () => {
             cueId: "cue.template.opening.mei-fetches",
           },
         ],
+      });
+
+      // A partial hold-fenced time tick decrements the authoritative
+      // remaining time without consuming the boundary: same occurrence,
+      // script not run.
+      const holdOccurrence = publication.narrative.pending?.occurrenceId;
+      await dispatch(currentTimeTickV1(application, 250));
+      publication = application.semantic.observe();
+      expect(publication.narrative.pending).toMatchObject({
+        kind: "hold",
+        occurrenceId: holdOccurrence,
+        totalMs: 600,
+        remainingMs: 350,
+      });
+
+      // The tick that reaches zero expires the hold; the narration plays.
+      await dispatch(currentTimeTickV1(application, 350));
+      publication = application.semantic.observe();
+      expect(publication.narrative.pending).toMatchObject({
+        kind: "say",
+        textId: "text.template.line.fetch-line",
       });
 
       await dispatch(currentResolveV1(application, { kind: "advance" }));
@@ -406,6 +713,63 @@ describe("template narrative playthrough", () => {
       expect(publication.narrative.phase).toBe("completed");
       expect(publication.narrative.pending).toBeNull();
       expect(publication.narrative.history.entries.length).toBeGreaterThanOrEqual(3);
+    } finally {
+      await application.dispose();
+    }
+  });
+
+  it("reroutes the fetch hold at entry on the hurried path without opening the wait", async () => {
+    const application = await createTemplateApplicationInstanceV1();
+    try {
+      const dispatch = async (invocation: unknown) => {
+        const result = await application.semantic.dispatch(invocation as never);
+        expect(result).toMatchObject({ kind: "committed" });
+      };
+      await dispatch({ kind: "invoke", actionId: "template.begin_story" });
+      await dispatch(currentResolveV1(application, { kind: "advance" }));
+      await dispatch(
+        currentResolveV1(application, { kind: "choose", choiceId: "choice.template.hurry" }),
+      );
+      let publication = application.semantic.observe();
+      expect(publication.narrative.flags).toEqual([
+        "flag.template.cat_found",
+        "flag.template.hurried",
+      ]);
+      expect(publication.narrative.pending).toMatchObject({
+        kind: "say",
+        textId: "text.template.line.cat",
+      });
+
+      // Advancing plays the smile beat and the hold's opening stage batch,
+      // but the hold itself reroutes at entry: the `when` arm's flag was
+      // set in this transaction's working state, so the 600ms wait never
+      // opens and the close-up line is pending instead — zero elapsed,
+      // zero hold occurrence.
+      await dispatch(currentResolveV1(application, { kind: "advance" }));
+      publication = application.semantic.observe();
+      expect(publication.narrative.pending).toMatchObject({
+        kind: "say",
+        textId: "text.template.line.hurry-line",
+      });
+      expect(application.stageCueDispatches()).toMatchObject({
+        revision: publication.revision,
+        dispatches: [
+          {
+            sceneId: "scene.template.opening",
+            cueId: "cue.template.opening.mei-fetches",
+          },
+        ],
+      });
+
+      // The reroute path rejoins the return beat and the warm ending.
+      await dispatch(currentResolveV1(application, { kind: "advance" }));
+      publication = application.semantic.observe();
+      expect(publication.narrative.pending).toMatchObject({
+        kind: "say",
+        textId: "text.template.line.ending-warm",
+      });
+      await dispatch(currentResolveV1(application, { kind: "advance" }));
+      expect(application.semantic.observe().narrative.phase).toBe("completed");
     } finally {
       await application.dispose();
     }

@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
-import type { InteractionResolutionV1 } from "@sillymaker/base";
+import type { InteractionResolutionV1, TimeTickV1 } from "@sillymaker/base";
 import {
   evaluateInteractionResolutionV1,
+  evaluateTimeTickV1,
   parseInteractionOccurrenceIdV1,
   parseInteractionResolutionV1,
+  parseTimeTickV1,
 } from "@sillymaker/base";
 import type { CoreSemanticAdapterV1 } from "@sillymaker/base/runtime";
 
@@ -23,7 +25,10 @@ import {
   labInteractionContextV1,
 } from "../gameplay/narrative.ts";
 
-export type LabActionIdV1 = Exclude<LabCommandV1["kind"], "lab.narrative_resolve">;
+export type LabActionIdV1 = Exclude<
+  LabCommandV1["kind"],
+  "lab.narrative_resolve" | "lab.time_tick" | "lab.engage_collector"
+>;
 
 export interface LabActionDescriptorV1 {
   readonly actionId: LabActionIdV1;
@@ -37,6 +42,17 @@ export type LabInvocationV1 =
     readonly kind: "resolve";
     readonly expectedOccurrenceId: string;
     readonly resolution: InteractionResolutionV1;
+  }
+  | { readonly kind: "time"; readonly tick: TimeTickV1 }
+  | {
+    /**
+     * The mid-hold input write: routed by the application while a hold is
+     * pending (a hit region or key press), fenced to that hold's
+     * occurrence. Preview and dispatch share the same one-line fence.
+     */
+    readonly kind: "hold_write";
+    readonly actionId: "lab.engage_collector";
+    readonly expectedHoldOccurrenceId: string;
   };
 
 export type LabPreviewV1 =
@@ -58,6 +74,8 @@ const labActionIdsV1: readonly LabActionIdV1[] = Object.freeze([
   "lab.advance_procedure",
   "lab.run_experiment",
   "lab.begin_calibration",
+  "lab.begin_drill",
+  "lab.toggle_collector",
   "lab.sell_sample",
   "lab.buy_banner",
 ]);
@@ -86,7 +104,10 @@ function blockedByV1(
       if (queries.samplesCollected < 1) return "lab.insufficient_samples";
       return null;
     case "lab.begin_calibration":
+    case "lab.begin_drill":
       return queries.narrative.pending === null ? null : "lab.narrative_busy";
+    case "lab.toggle_collector":
+      return null;
     case "lab.sell_sample":
       return queries.samplesCollected >= 1 ? null : "lab.insufficient_samples";
     case "lab.buy_banner":
@@ -112,6 +133,27 @@ function resolutionBlockedByV1(
     labInteractionContextV1(queries.narrative.pending, queries.samplesCollected),
   );
   return outcome.kind === "accepted" ? null : outcome.code;
+}
+
+/** The same time-tick evaluator used at queue-front dispatch, fed by queries. */
+function timeTickBlockedByV1(
+  queries: LabQueriesV1,
+  invocation: Extract<LabInvocationV1, { readonly kind: "time" }>,
+): LabRejectionV1["code"] | null {
+  const outcome = evaluateTimeTickV1(queries.narrative.pending, invocation.tick);
+  return outcome.kind === "accepted" ? null : outcome.code;
+}
+
+/** The same one-line hold fence the dispatch handler re-checks. */
+function holdWriteBlockedByV1(
+  queries: LabQueriesV1,
+  invocation: Extract<LabInvocationV1, { readonly kind: "hold_write" }>,
+): LabRejectionV1["code"] | null {
+  const pending = queries.narrative.pending;
+  return pending !== null && pending.kind === "hold" &&
+      pending.occurrenceId === invocation.expectedHoldOccurrenceId
+    ? null
+    : "lab.hold_occurrence_stale";
 }
 
 export function projectLabNarrativeViewV1(queries: LabQueriesV1): LabNarrativeViewV1 {
@@ -156,6 +198,34 @@ export function parseLabInvocationV1(value: unknown): LabInvocationV1 {
       resolution: parseInteractionResolutionV1(record.resolution),
     });
   }
+  if (kind === "time") {
+    if (Object.keys(value).toSorted().join("\0") !== "kind\0tick") {
+      throw new TypeError("invalid lab time invocation");
+    }
+    return Object.freeze({
+      kind: "time",
+      tick: parseTimeTickV1((value as { readonly tick?: unknown }).tick, "/tick"),
+    });
+  }
+  if (kind === "hold_write") {
+    if (
+      Object.keys(value).toSorted().join("\0") !== "actionId\0expectedHoldOccurrenceId\0kind"
+    ) {
+      throw new TypeError("invalid lab hold write invocation");
+    }
+    const record = value as {
+      readonly actionId?: unknown;
+      readonly expectedHoldOccurrenceId?: unknown;
+    };
+    if (record.actionId !== "lab.engage_collector") {
+      throw new TypeError("unknown lab hold write action");
+    }
+    return Object.freeze({
+      kind: "hold_write",
+      actionId: "lab.engage_collector",
+      expectedHoldOccurrenceId: parseInteractionOccurrenceIdV1(record.expectedHoldOccurrenceId),
+    });
+  }
   if (kind !== "invoke" || Object.keys(value).toSorted().join("\0") !== "actionId\0kind") {
     throw new TypeError("invalid lab invocation");
   }
@@ -189,6 +259,10 @@ export const labSemanticAdapterV1: CoreSemanticAdapterV1<
   preview: (queries, invocation) => {
     const blockedBy = invocation.kind === "resolve"
       ? resolutionBlockedByV1(queries, invocation)
+      : invocation.kind === "time"
+      ? timeTickBlockedByV1(queries, invocation)
+      : invocation.kind === "hold_write"
+      ? holdWriteBlockedByV1(queries, invocation)
       : blockedByV1(queries, invocation.actionId);
     return blockedBy === null
       ? Object.freeze({ kind: "allowed" as const })
@@ -202,6 +276,13 @@ export const labSemanticAdapterV1: CoreSemanticAdapterV1<
         expectedOccurrenceId: invocation.expectedOccurrenceId,
         resolution: invocation.resolution,
       })
+      : invocation.kind === "time"
+      ? Object.freeze({ kind: "lab.time_tick" as const, tick: invocation.tick })
+      : invocation.kind === "hold_write"
+      ? Object.freeze({
+        kind: "lab.engage_collector" as const,
+        expectedHoldOccurrenceId: invocation.expectedHoldOccurrenceId,
+      })
       : Object.freeze({ kind: invocation.actionId }),
   projectDispatchResult: (result) => {
     if (result.kind === "not_executed") {
@@ -209,8 +290,8 @@ export const labSemanticAdapterV1: CoreSemanticAdapterV1<
     }
     const execution = result.execution;
     if (execution.kind === "committed") {
-      // Committed facts stay engine evidence; agents observe outcomes through
-      // the published game view, never through a raw fact stream.
+      // Committed domain events stay engine evidence; agents observe outcomes through
+      // the published game view, never through the raw event journal.
       return Object.freeze({ kind: "committed" as const });
     }
     if (execution.kind === "rejected") {
@@ -223,5 +304,5 @@ export const labSemanticAdapterV1: CoreSemanticAdapterV1<
   },
   invalidInvocationResult: () =>
     Object.freeze({ kind: "not_executed" as const, code: "validation_failed" as const }),
-  projectTransientEffects: (facts) => projectLabTransientEffectsV1(facts),
+  projectTransientEffects: (events) => projectLabTransientEffectsV1(events),
 };
