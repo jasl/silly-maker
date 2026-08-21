@@ -11,6 +11,7 @@ import type { SceneIoListEntryV1, SceneIoListSkipV1, SceneSourceIoV1 } from "./c
 import { createSceneDocumentSessionV1 } from "./core/scene-session.ts";
 import { loadStudioMotionSourcesV1 } from "./core/motion-sources.ts";
 import type { StudioMotionSourcesV1 } from "./core/motion-sources.ts";
+import type { RegionsSourceIoV1 } from "./core/regions-io.ts";
 import {
   applyPreviewAppearanceV1,
   compileSceneV1,
@@ -37,6 +38,7 @@ import {
   buildMotionWorkbenchModelV1,
 } from "./workspaces/motion/motion-cases.ts";
 import { MotionWorkspaceSectionV1 } from "./workspaces/motion/motion-workspace.tsx";
+import { RegionsWorkspaceSectionV1 } from "./workspaces/regions/regions-workspace.tsx";
 import type { StudioBindingV1, StudioContentDescriptorV1 } from "./core/binding.ts";
 import styles from "./studio-app.module.css";
 
@@ -69,6 +71,8 @@ export interface StudioAppPropsV1 {
   readonly io: SceneSourceIoV1;
   /** The motion port: the index-backed list plus per-document read/write. */
   readonly motionIo: MotionSourceIoV1;
+  /** The regions port; omitted hides the Regions workspace entirely. */
+  readonly regionsIo?: RegionsSourceIoV1;
 }
 
 const studioPreviewMaxWidthV1 = 720;
@@ -80,7 +84,7 @@ function saveNoteV1(code: string): string {
 }
 
 export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
-  const { binding, io, motionIo } = props;
+  const { binding, io, motionIo, regionsIo } = props;
   const [scenes, setScenes] = useState<readonly SceneIoListEntryV1[] | null>(null);
   const [sceneSkips, setSceneSkips] = useState<readonly SceneIoListSkipV1[]>(Object.freeze([]));
   // Index-enumerated motion documents (null while loading); registration-free.
@@ -963,6 +967,18 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
       {workbench.kind !== "ready"
         ? null
         : <MotionWorkspaceSectionV1 workbench={workbench} io={motionIo} />}
+      {regionsIo === undefined ? null : (
+        <RegionsWorkspaceSectionV1
+          io={regionsIo}
+          renderers={binding.renderers}
+          assets={assets}
+          backdrop={draft !== null && canvasCompiled !== null && canvasCompiled.kind === "ok"
+            ? { canvas: draft.canvas, target: canvasCompiled.target }
+            : null}
+          scale={scale}
+          storyHint={sceneIdPrefix.split(".")[1] ?? null}
+        />
+      )}
       {binding.flow === undefined ? null : (
         <FlowWorkspaceSectionV1
           flow={binding.flow}

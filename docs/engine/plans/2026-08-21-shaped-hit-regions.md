@@ -48,6 +48,24 @@
   story-authoring / authoring-quickstart / production-floor / AGENTS
   更新。
 
+## 交付记录（2026-08-21，M3）
+
+- **M3**：Studio 新增 Regions 工作区（`studio` 包
+  `workspaces/regions/`）：dev-server regions 端口的浏览器侧 IO +
+  共享创作会话（同一 CAS/undo/redo/脏导航纪律，`regions-io.ts` /
+  `regions-session.ts`）；画布把草稿 regions 注入场景工作区已编译底图的
+  选定条目——host 的真实 clip-path 形状与悬停揭示就是预览，点形状即选
+  中；叠加层只对选中区域画拖拽手柄（外接框移动/右下角缩放/顶点/边中点
+  插入），拖动经指针差 ÷ 预览缩放 ÷ 条目缩放（含镜像）回锚点空间，每次
+  手势合并为一步撤销。纯编辑命令 `regions-edit.ts`（矩形⇄多边形种子、
+  顶点增删移、外接框平移携带多边形、缩放按比例重投），保存门直接复跑
+  `parseRegionsDocumentV1`（入院即门禁），保存时 `authoring.status` 升
+  `human_tuned`。`StudioAssetRegistryPortV1` 增可选 `resolve`（cat-cafe
+  绑定传完整注册表即自动满足，悬停揭示在 Studio 预览用真图）；
+  `@sillymaker/ui` 根导出补 `AssetUrlRegistryV1` 类型；dev studio 入口
+  生成代码接 `createDevServerRegionsIoV1`。jsdom 覆盖列表/自动打开/host
+  形状选中/拖拽/多边形顶点编辑/入院门禁/脏切换确认/新建推断前缀。
+
 ## 交付记录（2026-08-21，M0–M2）
 
 - **M0**：`StageHitRegionV1.polygonPoints`（3..64 整数顶点、外接框内、

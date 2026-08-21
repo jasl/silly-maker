@@ -17,3 +17,4 @@ export type {
   PresentationReadPortV1,
 } from "./presentation-read-port.ts";
 export { resolveAssetUrlV1, useAssetUrlV1 } from "./use-asset-url.ts";
+export type { AssetUrlRegistryV1 } from "./use-asset-url.ts";

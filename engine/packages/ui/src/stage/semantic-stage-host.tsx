@@ -619,6 +619,8 @@ export function SemanticStageTargetHostV1(props: {
   readonly highlightHitRegions?: boolean;
   /** Hover-reveal asset URLs; see SemanticStageHostPropsV1.assets. */
   readonly assets?: AssetUrlRegistryV1 | null;
+  /** Region buttons render only when provided; previews may pass a no-op. */
+  readonly onHitRegionActivate?: SemanticStageHostPropsV1["onHitRegionActivate"];
   reportDiagnostic?(diagnostic: SemanticStageHostDiagnosticV1): void;
 }): ReactElement {
   const frame = useMemo(() => settledStageFrameV1(props.target), [props.target]);
@@ -631,6 +633,9 @@ export function SemanticStageTargetHostV1(props: {
         ? {}
         : { highlightHitRegions: props.highlightHitRegions })}
       {...(props.assets === undefined ? {} : { assets: props.assets })}
+      {...(props.onHitRegionActivate === undefined
+        ? {}
+        : { onHitRegionActivate: props.onHitRegionActivate })}
       {...(props.reportDiagnostic === undefined
         ? {}
         : { reportDiagnostic: props.reportDiagnostic })}

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 export { createAssetRegistryV1 } from "./assets/asset-registry.ts";
 export { resolveAssetUrlV1, useAssetUrlV1 } from "./assets/use-asset-url.ts";
+export type { AssetUrlRegistryV1 } from "./assets/use-asset-url.ts";
 export type {
   AssetLoadFaultCodeV1,
   AssetLoadResultV1,
