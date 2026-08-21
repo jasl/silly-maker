@@ -24,6 +24,7 @@ import {
 import type { SillymakerProjectConfigV1 } from "./config.ts";
 import { joinAppPathV1, resolveStoryApplicationV1 } from "./config.ts";
 import { collectMotionSourceDiagnosticsV1 } from "./motion-diagnostics.ts";
+import { collectRegionsSourceDiagnosticsV1 } from "./regions-diagnostics.ts";
 import { collectSceneSourceDiagnosticsV1 } from "./scene-diagnostics.ts";
 
 /** Loads a repository module for command execution; injectable for tests. */
@@ -215,6 +216,7 @@ export async function checkStoryApplicationV1(
     : resolve(options.repositoryRoot, dirname(application.storyEntry.module));
   const sourceDiagnostics = sourceRoot === null ? [] : [
     ...collectMotionSourceDiagnosticsV1(sourceRoot),
+    ...collectRegionsSourceDiagnosticsV1(sourceRoot),
     ...collectSceneSourceDiagnosticsV1(sourceRoot),
   ];
 

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { Fragment, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 
 import type {
   MotionSampleV1,
   StageContentGeometryV1,
+  StageHitRegionV1,
   StageLayerIdV1,
   StageRenderEntryV1,
   StageRenderTargetV1,
@@ -17,6 +18,8 @@ import {
   timelineChannelBaselineV1,
 } from "@sillymaker/base";
 
+import type { AssetUrlRegistryV1 } from "../assets/use-asset-url.ts";
+import { useAssetUrlV1 } from "../assets/use-asset-url.ts";
 import type { StageInspectControllerV1 } from "../debug/stage-inspect.ts";
 import type {
   StageFrameEntryV1,
@@ -83,6 +86,15 @@ export interface SemanticStageHostPropsV1 {
     readonly contentId: string;
     readonly regionId: string;
   }): void;
+  /**
+   * Resolves hover-reveal assets to runtime URLs (shaped-hit-regions,
+   * accepted 2026-08-21). The host shows a region's `hoverAssetId` aligned
+   * to the entry's geometry box while the pointer is inside the region's
+   * shape or its button holds keyboard focus. Without a registry (or an
+   * unresolved asset) the reveal simply stays hidden — it is feedback
+   * enhancement, never activation semantics.
+   */
+  readonly assets?: AssetUrlRegistryV1 | null;
   /**
    * Dev-only provenance: when present the host reports each rendered frame
    * to the controller and, while inspection is enabled, overlays click
@@ -267,6 +279,57 @@ function contentBoxStyleV1(geometry: StageContentGeometryV1): CSSProperties {
   };
 }
 
+function hitRegionBoxStyleV1(region: StageHitRegionV1): CSSProperties {
+  return {
+    left: `${String(region.x)}px`,
+    top: `${String(region.y)}px`,
+    width: `${String(region.width)}px`,
+    height: `${String(region.height)}px`,
+  };
+}
+
+/**
+ * The CSS `clip-path` of a shaped region, in the region button's own box
+ * coordinates. Clipping is what makes pointer hit-testing follow the shape
+ * — browsers exclude clipped-out pixels from hit testing natively, so the
+ * runtime never reads pixels and the region stays pure serializable data.
+ */
+function hitRegionClipPathV1(region: StageHitRegionV1): string | undefined {
+  const points = region.polygonPoints;
+  if (points === undefined) return undefined;
+  const path = points
+    .map((point) => `${String(point.x - region.x)}px ${String(point.y - region.y)}px`)
+    .join(", ");
+  return `polygon(${path})`;
+}
+
+/**
+ * One hover/focus reveal overlay: the region's declared asset aligned to
+ * the entry's geometry box (silhouette highlights are authored same-frame
+ * as the base art). Renders nothing until the registry resolves a runtime
+ * URL; re-renders when asset bytes arrive.
+ */
+function StageHoverRevealV1(props: {
+  readonly assets: AssetUrlRegistryV1 | null;
+  readonly assetId: string;
+  readonly geometry: StageContentGeometryV1;
+  readonly regionId: string;
+}): ReactElement | null {
+  const url = useAssetUrlV1(props.assets, props.assetId, "stage_hover_reveal");
+  if (url === null) return null;
+  return (
+    <img
+      className={styles["hover-reveal"]}
+      data-stage-hover-reveal={props.regionId}
+      src={url}
+      alt=""
+      aria-hidden="true"
+      draggable={false}
+      style={contentBoxStyleV1(props.geometry)}
+    />
+  );
+}
+
 function StageEntryV1(props: {
   readonly layerId: StageLayerIdV1;
   readonly frameEntry: StageFrameEntryV1;
@@ -274,6 +337,7 @@ function StageEntryV1(props: {
   readonly overlayChannels: ReadonlyMap<TimelinePropertyV1, number> | undefined;
   readonly ambientSample: MotionSampleV1 | undefined;
   readonly onHitRegionActivate: SemanticStageHostPropsV1["onHitRegionActivate"];
+  readonly assets: AssetUrlRegistryV1 | null;
   readonly inspect: StageInspectControllerV1 | null;
   readonly inspectEnabled: boolean;
   readonly inspectSelected: boolean;
@@ -282,6 +346,24 @@ function StageEntryV1(props: {
   const { layerId, frameEntry, renderer, onHitRegionActivate, inspect } = props;
   const { entry, phase } = frameEntry;
   const exiting = phase === "exiting";
+  // Hover/focus reveal state: the pointer rests on at most one region
+  // button and keyboard focus on at most one, so two ids cover every
+  // combination. Pure UI transients — never authoritative, never saved.
+  const [hoverRegionId, setHoverRegionId] = useState<string | null>(null);
+  const [focusRegionId, setFocusRegionId] = useState<string | null>(null);
+  useEffect(() => {
+    // Exiting unmounts the region buttons without blur/leave events.
+    if (!exiting) return;
+    setHoverRegionId(null);
+    setFocusRegionId(null);
+  }, [exiting]);
+  const revealRegions = exiting || (hoverRegionId === null && focusRegionId === null)
+    ? []
+    : entry.hitRegions.filter(
+      (region) =>
+        region.hoverAssetId !== undefined &&
+        (region.regionId === hoverRegionId || region.regionId === focusRegionId),
+    );
   const ambientLooping = props.ambientSample !== undefined && phase === "settled";
   const motionSample = motionSampleV1(frameEntry);
   // The frame channel: an in-flight one-shot motion owns the entry's frame
@@ -324,48 +406,87 @@ function StageEntryV1(props: {
             </div>
           );
       })()}
+      {revealRegions.map((region) =>
+        entry.geometry === undefined || region.hoverAssetId === undefined
+          ? null
+          : (
+            <StageHoverRevealV1
+              key={`reveal:${region.regionId}`}
+              assets={props.assets}
+              assetId={region.hoverAssetId}
+              geometry={entry.geometry}
+              regionId={region.regionId}
+            />
+          )
+      )}
       {onHitRegionActivate === undefined || exiting || entry.hitRegions.length === 0
         ? null
-        : entry.hitRegions.map((region) => (
-          <button
-            key={region.regionId}
-            type="button"
-            className={styles["hit-region"]}
-            data-stage-hit-region={region.regionId}
-            aria-label={region.accessibleNameText}
-            style={{
-              left: `${String(region.x)}px`,
-              top: `${String(region.y)}px`,
-              width: `${String(region.width)}px`,
-              height: `${String(region.height)}px`,
-            }}
-            onClick={() =>
-              onHitRegionActivate({
-                layerId,
-                tag: entry.tag as string,
-                contentId: entry.contentId as string,
-                regionId: region.regionId,
-              })}
-          />
-        ))}
+        : entry.hitRegions.map((region) => {
+          const clipPath = hitRegionClipPathV1(region);
+          return (
+            <Fragment key={region.regionId}>
+              <button
+                type="button"
+                className={styles["hit-region"]}
+                data-stage-hit-region={region.regionId}
+                data-stage-hit-region-shape={clipPath === undefined ? undefined : "polygon"}
+                aria-label={region.accessibleNameText}
+                style={{
+                  ...hitRegionBoxStyleV1(region),
+                  ...(clipPath === undefined ? {} : { clipPath }),
+                }}
+                onClick={() =>
+                  onHitRegionActivate({
+                    layerId,
+                    tag: entry.tag as string,
+                    contentId: entry.contentId as string,
+                    regionId: region.regionId,
+                  })}
+                onPointerEnter={() => setHoverRegionId(region.regionId)}
+                onPointerLeave={() =>
+                  setHoverRegionId((current) => current === region.regionId ? null : current)}
+                onFocus={() => setFocusRegionId(region.regionId)}
+                onBlur={() =>
+                  setFocusRegionId((current) => current === region.regionId ? null : current)}
+              />
+              {clipPath === undefined ? null : (
+                // clip-path clips the button's own focus outline, so a
+                // shaped region's focus indicator is this bounding-box
+                // sibling (shown via CSS on :focus-visible). Shapes narrow
+                // pointer hits; keyboard keeps the box.
+                <span
+                  className={styles["hit-region-focus"]}
+                  data-stage-hit-region-focus={region.regionId}
+                  aria-hidden="true"
+                  style={hitRegionBoxStyleV1(region)}
+                />
+              )}
+            </Fragment>
+          );
+        })}
       {!props.hitRegionsHighlighted || exiting || entry.hitRegions.length === 0
         ? null
-        : entry.hitRegions.map((region) => (
-          <div
-            key={`outline:${region.regionId}`}
-            className={styles["hit-region-outline"]}
-            data-stage-hit-region-outline={region.regionId}
-            aria-hidden="true"
-            style={{
-              left: `${String(region.x)}px`,
-              top: `${String(region.y)}px`,
-              width: `${String(region.width)}px`,
-              height: `${String(region.height)}px`,
-            }}
-          >
-            <span className={styles["hit-region-outline-label"]}>{region.regionId}</span>
-          </div>
-        ))}
+        : entry.hitRegions.map((region) => {
+          const clipPath = hitRegionClipPathV1(region);
+          return (
+            <div
+              key={`outline:${region.regionId}`}
+              className={styles["hit-region-outline"]}
+              data-stage-hit-region-outline={region.regionId}
+              aria-hidden="true"
+              style={hitRegionBoxStyleV1(region)}
+            >
+              {clipPath === undefined ? null : (
+                <span
+                  className={styles["hit-region-outline-shape"]}
+                  data-stage-hit-region-outline-shape={region.regionId}
+                  style={{ clipPath }}
+                />
+              )}
+              <span className={styles["hit-region-outline-label"]}>{region.regionId}</span>
+            </div>
+          );
+        })}
       {inspect === null || !props.inspectEnabled ? null : (
         <button
           type="button"
@@ -467,6 +588,7 @@ export function SemanticStageHostV1(props: SemanticStageHostPropsV1): ReactEleme
                 layerId={layer.layerId}
                 frameEntry={frameEntry}
                 onHitRegionActivate={props.onHitRegionActivate}
+                assets={props.assets ?? null}
                 inspect={inspect}
                 inspectEnabled={inspectState.enabled}
                 inspectSelected={inspectState.selectedKey === frameEntry.frameKey}
@@ -495,6 +617,8 @@ export function SemanticStageTargetHostV1(props: {
   readonly accessibleName: string;
   /** Dev-only: outline declared hit regions (editors, previews). */
   readonly highlightHitRegions?: boolean;
+  /** Hover-reveal asset URLs; see SemanticStageHostPropsV1.assets. */
+  readonly assets?: AssetUrlRegistryV1 | null;
   reportDiagnostic?(diagnostic: SemanticStageHostDiagnosticV1): void;
 }): ReactElement {
   const frame = useMemo(() => settledStageFrameV1(props.target), [props.target]);
@@ -506,6 +630,7 @@ export function SemanticStageTargetHostV1(props: {
       {...(props.highlightHitRegions === undefined
         ? {}
         : { highlightHitRegions: props.highlightHitRegions })}
+      {...(props.assets === undefined ? {} : { assets: props.assets })}
       {...(props.reportDiagnostic === undefined
         ? {}
         : { reportDiagnostic: props.reportDiagnostic })}

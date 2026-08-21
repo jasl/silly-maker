@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AssetId, MotionSampleV1, StageContentCatalogV1 } from "@sillymaker/base";
@@ -11,6 +11,7 @@ import {
   reduceStageMutationsV1,
 } from "@sillymaker/base";
 
+import type { AssetUrlRegistryV1 } from "../assets/use-asset-url.ts";
 import type { SemanticStageEntryRendererV1 } from "./semantic-stage-host.tsx";
 import { SemanticStageHostV1, SemanticStageTargetHostV1 } from "./semantic-stage-host.tsx";
 import { settledStageFrameV1 } from "./stage-reconciler.ts";
@@ -297,6 +298,225 @@ describe("SemanticStageHostV1", () => {
     const after = container.querySelector('[data-stage-key="layer.test.front:tag.test.alpha"]');
     expect(after).toBe(before);
     expect(after?.getAttribute("data-stage-content")).toBe("content.test.beta");
+  });
+});
+
+describe("shaped hit regions and hover reveal", () => {
+  const shapedCatalogV1 = (withGeometry: boolean): StageContentCatalogV1 => ({
+    resolveContent: (contentId) =>
+      Object.freeze({
+        rendererId: "renderer.test.box",
+        assetIds: Object.freeze([] as readonly AssetId[]),
+        accessibleName: `内容 ${contentId}`,
+        props: Object.freeze({}),
+        ...(withGeometry
+          ? {
+            geometry: Object.freeze({
+              width: 200,
+              height: 400,
+              anchorXPermille: 500,
+              anchorYPermille: 1000,
+            }),
+          }
+          : {}),
+        hitRegions: Object.freeze([
+          Object.freeze({
+            regionId: "zone.chest",
+            accessibleNameText: "胸口",
+            x: -100,
+            y: -400,
+            width: 200,
+            height: 200,
+            polygonPoints: Object.freeze([
+              Object.freeze({ x: 0, y: -400 }),
+              Object.freeze({ x: 100, y: -200 }),
+              Object.freeze({ x: -100, y: -200 }),
+            ]),
+            hoverAssetId: "asset.test.chest-glow" as AssetId,
+          }),
+          Object.freeze({
+            regionId: "zone.base",
+            accessibleNameText: "底座",
+            x: -100,
+            y: -200,
+            width: 200,
+            height: 200,
+          }),
+        ]),
+      }),
+  });
+
+  function shapedTargetV1(withGeometry: boolean) {
+    const empty = createSemanticStageStateV1({
+      stageId: "stage.test.shaped",
+      layerIds: ["layer.test.front"],
+    });
+    const outcome = reduceStageMutationsV1(empty, [
+      {
+        kind: "show",
+        layerId: "layer.test.front",
+        tag: "tag.test.actor",
+        contentId: "content.test.actor",
+      },
+    ]);
+    if (outcome.kind !== "applied") throw new Error("shaped fixture stage must apply");
+    return projectStageRenderTargetV1(outcome.state, shapedCatalogV1(withGeometry)).target;
+  }
+
+  function fakeAssetsV1(urlByAssetId: Readonly<Record<string, string>>): AssetUrlRegistryV1 {
+    return {
+      resolve: ((assetId: string, usage: string) => {
+        const url = usage === "stage_hover_reveal" ? urlByAssetId[assetId] : undefined;
+        return url === undefined
+          ? { delivery: "code_native_fallback" }
+          : { delivery: "runtime_image", url };
+      }) as unknown as AssetUrlRegistryV1["resolve"],
+      observe: () => ({ revision: 1 }),
+      subscribe: () => () => {},
+    };
+  }
+
+  it("clips shaped region buttons to their polygon and keeps rect buttons unclipped", () => {
+    const container = render(
+      <SemanticStageHostV1
+        frame={settledStageFrameV1(shapedTargetV1(true))}
+        renderers={{ "renderer.test.box": boxRendererV1 }}
+        accessibleName="测试舞台"
+        onHitRegionActivate={() => undefined}
+      />,
+    ).container;
+
+    const shaped = container.querySelector('[data-stage-hit-region="zone.chest"]') as HTMLElement;
+    expect(shaped.getAttribute("data-stage-hit-region-shape")).toBe("polygon");
+    // Vertices translate into the button's own box coordinates.
+    expect(shaped.style.clipPath).toBe("polygon(100px 0px, 200px 200px, 0px 200px)");
+    // The clipped button's focus indicator is its bounding-box sibling.
+    expect(shaped.nextElementSibling?.getAttribute("data-stage-hit-region-focus")).toBe(
+      "zone.chest",
+    );
+
+    const rect = container.querySelector('[data-stage-hit-region="zone.base"]') as HTMLElement;
+    expect(rect.getAttribute("data-stage-hit-region-shape")).toBeNull();
+    expect(rect.style.clipPath).toBe("");
+    // An unshaped button needs no focus sibling; nothing follows it.
+    expect(rect.nextElementSibling).toBeNull();
+  });
+
+  it("reveals the hover asset while the pointer is inside and hides it on leave", () => {
+    const assets = fakeAssetsV1({ "asset.test.chest-glow": "blob:chest-glow" });
+    const container = render(
+      <SemanticStageHostV1
+        frame={settledStageFrameV1(shapedTargetV1(true))}
+        renderers={{ "renderer.test.box": boxRendererV1 }}
+        accessibleName="测试舞台"
+        onHitRegionActivate={() => undefined}
+        assets={assets}
+      />,
+    ).container;
+
+    expect(container.querySelector("[data-stage-hover-reveal]")).toBeNull();
+    const shaped = container.querySelector('[data-stage-hit-region="zone.chest"]') as HTMLElement;
+
+    fireEvent.pointerEnter(shaped);
+    const reveal = container.querySelector(
+      '[data-stage-hover-reveal="zone.chest"]',
+    ) as HTMLImageElement;
+    expect(reveal).not.toBeNull();
+    expect(reveal.getAttribute("src")).toBe("blob:chest-glow");
+    // Aligned to the entry's geometry box, exactly like the content box.
+    expect(reveal.style.width).toBe("200px");
+    expect(reveal.style.height).toBe("400px");
+    expect(reveal.style.transform).toBe("translate(-100px, -400px)");
+
+    fireEvent.pointerLeave(shaped);
+    expect(container.querySelector("[data-stage-hover-reveal]")).toBeNull();
+  });
+
+  it("reveals on keyboard focus and hides on blur", () => {
+    const assets = fakeAssetsV1({ "asset.test.chest-glow": "blob:chest-glow" });
+    const container = render(
+      <SemanticStageHostV1
+        frame={settledStageFrameV1(shapedTargetV1(true))}
+        renderers={{ "renderer.test.box": boxRendererV1 }}
+        accessibleName="测试舞台"
+        onHitRegionActivate={() => undefined}
+        assets={assets}
+      />,
+    ).container;
+
+    const shaped = container.querySelector('[data-stage-hit-region="zone.chest"]') as HTMLElement;
+    fireEvent.focus(shaped);
+    expect(container.querySelector('[data-stage-hover-reveal="zone.chest"]')).not.toBeNull();
+    fireEvent.blur(shaped);
+    expect(container.querySelector("[data-stage-hover-reveal]")).toBeNull();
+  });
+
+  it("stays hidden without a registry, without geometry, or without a hover asset", () => {
+    // No registry: hovering resolves nothing and renders nothing.
+    const bare = render(
+      <SemanticStageHostV1
+        frame={settledStageFrameV1(shapedTargetV1(true))}
+        renderers={{ "renderer.test.box": boxRendererV1 }}
+        accessibleName="测试舞台"
+        onHitRegionActivate={() => undefined}
+      />,
+    ).container;
+    fireEvent.pointerEnter(
+      bare.querySelector('[data-stage-hit-region="zone.chest"]') as HTMLElement,
+    );
+    expect(bare.querySelector("[data-stage-hover-reveal]")).toBeNull();
+    cleanup();
+
+    // No geometry: the reveal has no frame to align to, so it never shows.
+    const assets = fakeAssetsV1({ "asset.test.chest-glow": "blob:chest-glow" });
+    const withoutGeometry = render(
+      <SemanticStageHostV1
+        frame={settledStageFrameV1(shapedTargetV1(false))}
+        renderers={{ "renderer.test.box": boxRendererV1 }}
+        accessibleName="测试舞台"
+        onHitRegionActivate={() => undefined}
+        assets={assets}
+      />,
+    ).container;
+    fireEvent.pointerEnter(
+      withoutGeometry.querySelector('[data-stage-hit-region="zone.chest"]') as HTMLElement,
+    );
+    expect(withoutGeometry.querySelector("[data-stage-hover-reveal]")).toBeNull();
+    cleanup();
+
+    // No hoverAssetId on the region: hovering it reveals nothing.
+    const noHover = render(
+      <SemanticStageHostV1
+        frame={settledStageFrameV1(shapedTargetV1(true))}
+        renderers={{ "renderer.test.box": boxRendererV1 }}
+        accessibleName="测试舞台"
+        onHitRegionActivate={() => undefined}
+        assets={assets}
+      />,
+    ).container;
+    fireEvent.pointerEnter(
+      noHover.querySelector('[data-stage-hit-region="zone.base"]') as HTMLElement,
+    );
+    expect(noHover.querySelector("[data-stage-hover-reveal]")).toBeNull();
+  });
+
+  it("shows the polygon fill inside the dev outline for shaped regions", () => {
+    const highlighted = render(
+      <SemanticStageTargetHostV1
+        target={shapedTargetV1(true)}
+        renderers={{ "renderer.test.box": boxRendererV1 }}
+        accessibleName="测试舞台"
+        highlightHitRegions={true}
+      />,
+    ).container;
+    const shape = highlighted.querySelector(
+      '[data-stage-hit-region-outline-shape="zone.chest"]',
+    ) as HTMLElement;
+    expect(shape).not.toBeNull();
+    expect(shape.style.clipPath).toBe("polygon(100px 0px, 200px 200px, 0px 200px)");
+    expect(
+      highlighted.querySelector('[data-stage-hit-region-outline-shape="zone.base"]'),
+    ).toBeNull();
   });
 });
 

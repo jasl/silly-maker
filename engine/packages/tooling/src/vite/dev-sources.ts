@@ -7,6 +7,7 @@ import launchEditor from "launch-editor";
 import type { Plugin } from "vite";
 
 import { createMotionPortMiddlewareV1 } from "./motion-port.ts";
+import { createRegionsPortMiddlewareV1 } from "./regions-port.ts";
 import { createScenePortMiddlewareV1 } from "./scene-port.ts";
 
 /**
@@ -191,6 +192,7 @@ export function devSourcesPluginV1(appRoot: string): Plugin {
     configureServer(server) {
       server.middlewares.use(createDevSourcesMiddlewareV1({ appRoot }));
       server.middlewares.use(createMotionPortMiddlewareV1({ appRoot }));
+      server.middlewares.use(createRegionsPortMiddlewareV1({ appRoot }));
       server.middlewares.use(createScenePortMiddlewareV1({ appRoot }));
     },
   };

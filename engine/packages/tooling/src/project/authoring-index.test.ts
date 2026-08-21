@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { buildAuthoringProjectIndexV1 } from "./authoring-index.ts";
 import { collectMotionSourceDiagnosticsV1 } from "./motion-diagnostics.ts";
+import { collectRegionsSourceDiagnosticsV1 } from "./regions-diagnostics.ts";
 import { collectSceneSourceDiagnosticsV1 } from "./scene-diagnostics.ts";
 
 function sceneJsonV1(sceneId: string, label = "场景"): string {
@@ -43,6 +44,20 @@ function motionJsonV1(motionId: string, label = "动效"): string {
   }\n`;
 }
 
+function regionsJsonV1(regionsId: string, label = "区域"): string {
+  return `${
+    JSON.stringify({
+      format: "sillymaker.regions",
+      version: 1,
+      regionsId,
+      label,
+      regions: [
+        { regionId: "head", accessibleNameText: "头", x: 10, y: 10, width: 80, height: 60 },
+      ],
+    })
+  }\n`;
+}
+
 let sourceRoot = "";
 
 beforeEach(() => {
@@ -69,6 +84,10 @@ describe("buildAuthoringProjectIndexV1", () => {
       join(sourceRoot, "scenes", "opening", "motions", "enter.motion.json"),
       motionJsonV1("motion.app.enter", "登场"),
     );
+    writeFileSync(
+      join(sourceRoot, "scenes", "opening", "mei.regions.json"),
+      regionsJsonV1("regions.app.mei", "小妹"),
+    );
 
     const index = buildAuthoringProjectIndexV1(sourceRoot);
     expect(index.scenes).toEqual([
@@ -82,6 +101,13 @@ describe("buildAuthoringProjectIndexV1", () => {
         label: "登场",
       },
     ]);
+    expect(index.regions).toEqual([
+      {
+        path: "scenes/opening/mei.regions.json",
+        regionsId: "regions.app.mei",
+        label: "小妹",
+      },
+    ]);
     expect(index.skipped).toEqual([]);
   });
 
@@ -90,6 +116,10 @@ describe("buildAuthoringProjectIndexV1", () => {
     writeFileSync(
       join(sourceRoot, "scenes", "opening", "motions", "bad.motion.json"),
       `${JSON.stringify({ format: "sillymaker.motion" })}\n`,
+    );
+    writeFileSync(
+      join(sourceRoot, "scenes", "opening", "bad.regions.json"),
+      `${JSON.stringify({ format: "sillymaker.regions" })}\n`,
     );
     writeFileSync(
       join(sourceRoot, "scenes", "opening", "opening.scene.json"),
@@ -101,9 +131,11 @@ describe("buildAuthoringProjectIndexV1", () => {
       "scenes/opening/opening.scene.json",
     ]);
     expect(index.motions).toEqual([]);
+    expect(index.regions).toEqual([]);
     expect(index.skipped.map((skip) => `${skip.kind}@${skip.path}`)).toEqual([
       "scene@scenes/broken.scene.json",
       "motion@scenes/opening/motions/bad.motion.json",
+      "regions@scenes/opening/bad.regions.json",
     ]);
     for (const skip of index.skipped) expect(skip.reason.length).toBeGreaterThan(0);
   });
@@ -113,9 +145,11 @@ describe("buildAuthoringProjectIndexV1", () => {
     writeFileSync(join(sourceRoot, "node_modules", "pkg", "x.scene.json"), "{ nope\n");
     mkdirSync(join(sourceRoot, ".cache"), { recursive: true });
     writeFileSync(join(sourceRoot, ".cache", "y.motion.json"), "{ nope\n");
+    writeFileSync(join(sourceRoot, ".cache", "z.regions.json"), "{ nope\n");
     expect(buildAuthoringProjectIndexV1(sourceRoot)).toEqual({
       scenes: [],
       motions: [],
+      regions: [],
       skipped: [],
     });
   });
@@ -134,11 +168,17 @@ describe("buildAuthoringProjectIndexV1", () => {
       join(sourceRoot, "scenes", "opening", "motions", "broken.motion.json"),
       "{ nope\n",
     );
+    writeFileSync(
+      join(sourceRoot, "scenes", "opening", "mei.regions.json"),
+      regionsJsonV1("regions.app.mei"),
+    );
+    writeFileSync(join(sourceRoot, "scenes", "opening", "broken.regions.json"), "{ nope\n");
 
     const index = buildAuthoringProjectIndexV1(sourceRoot);
     const indexedPaths = [
       ...index.scenes.map((scene) => scene.path),
       ...index.motions.map((motion) => motion.path),
+      ...index.regions.map((entry) => entry.path),
       ...index.skipped.map((skip) => skip.path),
     ].toSorted();
 
@@ -147,10 +187,13 @@ describe("buildAuthoringProjectIndexV1", () => {
     const lintFlagged = [
       ...collectSceneSourceDiagnosticsV1(sourceRoot),
       ...collectMotionSourceDiagnosticsV1(sourceRoot),
+      ...collectRegionsSourceDiagnosticsV1(sourceRoot),
     ].map((diagnostic) => diagnostic.location?.file ?? "");
     for (const skip of index.skipped) expect(lintFlagged).toContain(skip.path);
     expect(indexedPaths).toEqual([
       "scenes/broken.scene.json",
+      "scenes/opening/broken.regions.json",
+      "scenes/opening/mei.regions.json",
       "scenes/opening/motions/broken.motion.json",
       "scenes/opening/motions/enter.motion.json",
       "scenes/opening/opening.scene.json",

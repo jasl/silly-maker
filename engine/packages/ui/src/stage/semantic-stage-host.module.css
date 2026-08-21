@@ -50,6 +50,34 @@
   outline-offset: 2px;
 }
 
+/* A shaped button's clip-path clips its own outline, so its focus
+   indicator is the bounding-box sibling below. */
+.hit-region[data-stage-hit-region-shape="polygon"]:focus-visible {
+  outline: none;
+}
+
+.hit-region-focus {
+  display: none;
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.hit-region:focus-visible + .hit-region-focus {
+  display: block;
+  outline: 2px solid currentcolor;
+  outline-offset: 2px;
+}
+
+/* Hover/focus reveal overlay: same-frame art aligned to the entry's
+   geometry box; purely decorative and never interactive. */
+.hover-reveal {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  pointer-events: none;
+}
+
 /* Dev-only hit-region visualization: labeled outlines over the declared
    activatable rects. Never interactive — the real .hit-region buttons keep
    receiving pointer input underneath. */
@@ -60,6 +88,15 @@
   background: rgb(94 234 212 / 12%);
   pointer-events: none;
   z-index: 2147482999;
+}
+
+/* The polygon fill inside a shaped region's outline: denser than the
+   bounding-box wash so the actual pointer surface reads at a glance. */
+.hit-region-outline-shape {
+  position: absolute;
+  inset: 0;
+  background: rgb(94 234 212 / 25%);
+  pointer-events: none;
 }
 
 .hit-region-outline-label {

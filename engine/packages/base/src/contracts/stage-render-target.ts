@@ -36,6 +36,31 @@ export interface StageHitRegionV1 {
   readonly y: number;
   readonly width: number;
   readonly height: number;
+  /**
+   * Optional shaped refinement (shaped-hit-regions, accepted 2026-08-21):
+   * 3..64 integer vertices in the same anchor space, all inside the
+   * bounding box, with non-zero area. Pointer hit-testing follows the
+   * shape (the DOM host clips the region button); keyboard focus and
+   * activation keep the bounding box, so shapes narrow pointer hits
+   * without creating keyboard dead zones. An invalid polygon degrades to
+   * the bounding box with a diagnostic.
+   */
+  readonly polygonPoints?: readonly StageHitRegionPointV1[];
+  /**
+   * Optional hover/focus reveal: while the pointer is inside the shape or
+   * the region's button holds keyboard focus, the host shows this asset
+   * aligned to the entry's geometry box (silhouette highlights are
+   * authored same-frame as the base art). Pure UI transient — zero
+   * authority, zero Save/digest/replay contact; the asset joins the
+   * required-asset preload.
+   */
+  readonly hoverAssetId?: AssetId;
+}
+
+/** One integer vertex of a shaped hit region, in the entry's anchor space. */
+export interface StageHitRegionPointV1 {
+  readonly x: number;
+  readonly y: number;
 }
 
 /**
@@ -148,6 +173,74 @@ function contentDiagnosticV1(code: string, message: string, pointer: string): Di
 /** Per-entry hit-region budget. Picture-dense SLGs need headroom beyond early VN pets. */
 const maxHitRegionsV1 = 64;
 
+/** Per-region polygon vertex budget (shaped-hit-regions, accepted 2026-08-21). */
+const maxPolygonPointsV1 = 64;
+
+/**
+ * Twice the signed shoelace area of a closed polygon; 0 means degenerate
+ * (all vertices collinear or coincident), which admission rejects.
+ */
+function polygonAreaTwiceV1(points: readonly StageHitRegionPointV1[]): number {
+  let sum = 0;
+  for (let index = 0; index < points.length; index += 1) {
+    const current = points[index];
+    const next = points[(index + 1) % points.length];
+    if (current === undefined || next === undefined) return 0;
+    sum += current.x * next.y - next.x * current.y;
+  }
+  return sum;
+}
+
+/**
+ * The one polygon admission rule every boundary shares (projection degrade
+ * here, strict `sillymaker.regions` Document admission): 3..64 integer
+ * vertices, every vertex inside the bounding box, non-zero shoelace area.
+ */
+export function hitRegionPolygonValidV1(
+  bounds: Pick<StageHitRegionV1, "x" | "y" | "width" | "height">,
+  points: readonly StageHitRegionPointV1[],
+): boolean {
+  const pointOk = (point: StageHitRegionPointV1): boolean =>
+    typeof point === "object" &&
+    point !== null &&
+    Number.isSafeInteger(point.x) &&
+    Number.isSafeInteger(point.y) &&
+    point.x >= bounds.x &&
+    point.x <= bounds.x + bounds.width &&
+    point.y >= bounds.y &&
+    point.y <= bounds.y + bounds.height;
+  return Array.isArray(points) &&
+    points.length >= 3 &&
+    points.length <= maxPolygonPointsV1 &&
+    points.every(pointOk) &&
+    polygonAreaTwiceV1(points) !== 0;
+}
+
+/**
+ * Validates a region's optional polygon refinement. Failure degrades the
+ * region to its bounding box (the activation path survives a shape typo)
+ * and reports a diagnostic.
+ */
+function validatePolygonPointsV1(
+  region: StageHitRegionV1,
+  path: string,
+  diagnostics: DiagnosticEnvelopeV1[],
+): readonly StageHitRegionPointV1[] | undefined {
+  const points = region.polygonPoints;
+  if (points === undefined) return undefined;
+  if (!hitRegionPolygonValidV1(region, points)) {
+    diagnostics.push(
+      contentDiagnosticV1(
+        "stage.hit_region_polygon_invalid",
+        "invalid stage hit region polygon; falling back to the bounding box",
+        `${path}/polygonPoints`,
+      ),
+    );
+    return undefined;
+  }
+  return Object.freeze(points.map((point) => Object.freeze({ x: point.x, y: point.y })));
+}
+
 /** Per-entry frame-set budget (authorable-frame-set, accepted 2026-08-21). */
 const maxFrameAssetsV1 = 64;
 
@@ -232,6 +325,21 @@ function validateHitRegionsV1(
       return;
     }
     seen.add(region.regionId);
+    const polygonPoints = validatePolygonPointsV1(region, path, diagnostics);
+    let hoverAssetId: AssetId | undefined;
+    if (region.hoverAssetId !== undefined) {
+      if (typeof region.hoverAssetId === "string" && region.hoverAssetId.length > 0) {
+        hoverAssetId = region.hoverAssetId;
+      } else {
+        diagnostics.push(
+          contentDiagnosticV1(
+            "stage.hit_region_hover_invalid",
+            "invalid stage hit region hover asset; dropping the reveal",
+            `${path}/hoverAssetId`,
+          ),
+        );
+      }
+    }
     valid.push(
       Object.freeze({
         regionId: region.regionId,
@@ -240,6 +348,8 @@ function validateHitRegionsV1(
         y: region.y,
         width: region.width,
         height: region.height,
+        ...(polygonPoints === undefined ? {} : { polygonPoints }),
+        ...(hoverAssetId === undefined ? {} : { hoverAssetId }),
       }),
     );
   });
@@ -302,6 +412,10 @@ export function projectStageRenderTargetV1(
       for (const assetId of resolution.assetIds) requiredAssetIds.add(assetId);
       const frameAssetIds = validateFrameAssetIdsV1(resolution.frameAssetIds, pointer, diagnostics);
       for (const assetId of frameAssetIds) requiredAssetIds.add(assetId);
+      const hitRegions = validateHitRegionsV1(resolution.hitRegions, pointer, diagnostics);
+      for (const region of hitRegions) {
+        if (region.hoverAssetId !== undefined) requiredAssetIds.add(region.hoverAssetId);
+      }
       const geometry = validateGeometryV1(resolution.geometry, pointer, diagnostics);
       return {
         key: `${layer.layerId}:${entry.tag}`,
@@ -319,7 +433,7 @@ export function projectStageRenderTargetV1(
           : resolution.accessibleName,
         props: resolution.props,
         fallback: resolution.rendererId.length === 0,
-        hitRegions: validateHitRegionsV1(resolution.hitRegions, pointer, diagnostics),
+        hitRegions,
         frameAssetIds,
         ...(geometry === undefined ? {} : { geometry }),
       };

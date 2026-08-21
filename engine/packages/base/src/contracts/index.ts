@@ -399,7 +399,11 @@ export type {
   StageMutationRejectionV1,
   StageMutationV1,
 } from "./semantic-stage-reducer.ts";
-export { projectStageRenderTargetV1, stageFallbackRendererIdV1 } from "./stage-render-target.ts";
+export {
+  hitRegionPolygonValidV1,
+  projectStageRenderTargetV1,
+  stageFallbackRendererIdV1,
+} from "./stage-render-target.ts";
 export { createAssetDemandPlanV1 } from "./asset-demand.ts";
 export type {
   AssetDemandEntryV1,
@@ -642,9 +646,20 @@ export type {
   StageContentCatalogV1,
   StageContentGeometryV1,
   StageContentResolutionV1,
+  StageHitRegionPointV1,
   StageHitRegionV1,
   StageRenderEntryV1,
   StageRenderLayerV1,
   StageRenderProjectionV1,
   StageRenderTargetV1,
 } from "./stage-render-target.ts";
+export {
+  parseRegionsDocumentV1,
+  regionsDocumentFormatV1,
+  regionsDocumentVersionV1,
+} from "./stage-regions.ts";
+export type {
+  RegionsAuthoringStatusV1,
+  RegionsAuthoringV1,
+  RegionsDocumentV1,
+} from "./stage-regions.ts";
