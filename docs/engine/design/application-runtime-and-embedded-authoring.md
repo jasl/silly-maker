@@ -25,10 +25,13 @@ SillyMaker 的下一阶段定位是 **game-first GUI application runtime**：
 - 共用的是 Application Host、Surface、authoring、typed intent 和生命周期机制，不是把所有
   领域塞进 GameSnapshot。
 
-本文的 **Application Host** 是产品静态启动、核心 shell 与 application lifecycle 的 owner；
-它可以按产品装配可选 Authoring Host、Agent Host 或其他内聚 domain，但不因此取得 gameplay、
-authoring draft 或 Agent session 的写权威。Authoring Host 只拥有创作会话，Agent Host 只拥有
-Agent UI/session；这些词汇先表达 ownership，不提前冻结同名 public API。
+本文的 **Application Host** 是产品静态启动、核心 shell 与 application lifecycle 的中性 owner；
+它承载一个或多个 **Application Domain**，但不因此取得 gameplay、authoring draft 或 Agent
+session 的写权威。Application Domain 指有明确 admission、owner、lifecycle 与 authority boundary
+的内聚产品领域；是否支持局部 successor 由该领域合同决定。Game Domain 只是其中一种，非游戏
+GUI 产品不需要伪装成 Game。Authoring 与 Agent 可以成为产品选择的 Application Domain；
+Authoring Host 与 Agent Host 分别是其创作会话和 Agent UI/session owner。这些词汇先表达
+ownership，不提前冻结同名 public API。目标设计不再用 `Game Host` 指代中立宿主。
 
 Browser 与 Deno Desktop 是当前正式兼容矩阵。Deno Desktop 是产品 target，不等于当前
 persistence、packaging、签名或三个桌面平台都已经 production-ready；这些仍由独立 Desktop
@@ -136,8 +139,23 @@ source、UI publication 或 RPC transport，也不进入 command、selector、re
 hot path。成功激活后，owner 持有直接函数/对象。
 
 领域 factory 必须既能直接 mount，也能由私有 Extension Runtime 包装；普通静态游戏可以直接
-创建内聚 Game domain，并从依赖图完全排除动态 extension runtime。Game、Authoring 和 Agent 是
-稳定 sibling，不按每个 reducer、renderer 或 service 碎成 plugin。
+创建内聚 Game Domain，并从依赖图完全排除动态 extension runtime。Application Host 下被产品
+选择的 Game、Authoring、Agent 或其他 Application Domain 是相互独立的 sibling，各自可以拥有
+可换代的子 scope，但不按每个 reducer、renderer 或 service 碎成 plugin。
+
+进程内 participation 按产品语义分类，而不是由“是否使用 plugin lifecycle”决定：
+
+- **required domain**：产品声明缺少该领域就不能完成 composition，缺失时在 admission 阶段失败；
+- **required local binding**：依赖领域 mount 前必须从 build-known 实现中选定一个本地 binding；
+- **optional contribution**：缺席或激活失败不得卸载无关 sibling，并提供明确 disable/retry。
+
+这些只是 package-internal composition 语义，不建立公共 `Profile`、extension manifest 或 DI API。
+required RPC service 也不是 required local binding：它允许在进程启动后不可用，此时依赖领域不
+报告 ready，而 recovery/configuration GUI 继续可用。required admission、readiness 与 fail-fast
+由 Application Host 判断，不能把 extension backend 的 pending/active 状态直接当成产品状态。若
+胜出 backend 提供 Fiber、scope 或 isolation primitive，Application Host 下的 Application Domain/
+child-scope ownership tree 仍由 SillyMaker adapter 显式建立，不从通用 Context 或 isolation label
+自动推导。
 
 AR1 以同一中立 conformance suite 比较：
 
@@ -151,6 +169,12 @@ restart、failure diagnostics、bundle/startup 和残留资源，而不是 Cordi
 无论选择哪条，领域合同与 public declarations 都不能出现 Cordis/Context 类型；Cordis
 Loader、Include 和 Node HMR 不随 core 一起引入。
 
+Extension backend 可以在内部使用可逆 notification 或 dispatch primitive，但其派发模式不自动
+成为 SillyMaker 领域合同。已提交的 durable Fact 仍由 authoritative Session/CommandLog 拥有；
+authoritative intent、tool 或 policy interception 若未来出现，必须另有 typed admission、稳定顺序、
+idempotency 与 queue-front revalidation，不能仅以通用 event 或 `waterfall` 获得写权威。AR1 不冻结
+全局 event taxonomy、plugin priority、plugin ID 排序或 `next()` 语义。
+
 ### 4.3 SillyMaker publication and reload authority
 
 现有 SillyMaker publication 继续拥有 candidate admission、staging-safe mount、consumer
@@ -161,12 +185,15 @@ published。
 换代按权威影响分类，不按文件扩展名分类：
 
 - **R0 — admitted data/document refresh**：不换 domain owner；经过原有 schema/CAS/admission；
-- **R1 — presentation/tool/workspace successor**：只换目标 contribution，保留 Session 与 stable
-  sibling；
-- **R2 — authoritative graph/Session successor**：必须有 compatibility/migration/replay 与原子
-  handoff；Authoring/Agent sibling 不随 Game 重建；
+- **R1 — presentation/tool/workspace successor**：只换目标 contribution，保留未受影响的 domain
+  authority 与 stable sibling；存在 GameSession 时也保留；
+- **R2 — authoritative Application Domain successor**：必须满足该领域的 compatibility/migration
+  与原子 handoff；Game Domain 的 Game/Session successor 还必须保持 Save/replay 与 simulation
+  identity 合同。Authoring/Agent sibling 不随该领域重建；
 - **R3 — Host restart**：bootstrap config、Host/runtime implementation 或无法安全分类的变化触发
-  完整 restart/handoff。
+  完整 restart/handoff；受控 restart 前必须完成既有 save/discard/cancel dirty gate，或证明目标
+  Host 已支持的 recovery handoff，但不承诺未 promotion 的 Desktop durable draft，也不承诺保留
+  进程内 domain identity。
 
 Module Update Source 只报告 candidate；publication owner 决定 R0–R3。无法明确分类或迁移时拒绝
 candidate，不做“尽量热替换”。
@@ -212,10 +239,12 @@ standalone Studio route      embedded author surface
 IO；不得各自复制 dirty、undo、save 或 conflict 语义。现有 `/__sillymaker/studio/` 保留为迁移
 wrapper，直到 embedded consumer 的 GUI、HMR、dirty draft 和输入/焦点行为达到对等证据。
 
-Authoring Host 是 Game domain 的 stable sibling。R1/R2 Game 或 presentation successor 成功、
-失败、rollback 都不能重建 Authoring Host，也不能丢失 document identity、dirty draft、undo/
-redo、selection 或 workspace state。Agent 完全缺席时，编辑器仍须是完整可用的 authoring 产品；
-Agent 只是可选 sibling/client。
+Authoring Host 与 Application Host 下其他 Application Domain 是相互独立的 sibling。其他领域的
+R1 presentation/tool/workspace successor 与 R2 authoritative Application Domain successor 的
+成功、失败或 rollback 都不能重建 Authoring Host，也不能丢失 document identity、dirty draft、
+undo/redo、selection 或 workspace state；游戏 conformance 以 Game/Session successor 证明这一
+合同。Agent 完全缺席时，编辑器仍须是完整可用的 authoring 产品；Agent 只是可选
+sibling/client。
 
 嵌入应用不等于把源码编辑器发给玩家：
 
@@ -266,6 +295,9 @@ V1 不承诺跨文档事务、任意 TypeScript AST 修改、operation log 持�
 引擎只定义 transport/provider-neutral client 与 artifact 边界；真实 Agent 产品、后台和 LLM 由
 后续产品计划证明：
 
+- 产品选择 Agent capability 时，Agent Host 的 session、run/step、cancel/resume 与 GUI lifecycle
+  构成一个内聚 required domain，不为追求细粒度 plugin 化而拆散；本地 panel、tool UI 或 renderer
+  可以是 optional contribution，真实模型、工具后台和 companion service 仍统一经 RPC；
 - Agent Host 拥有 GUI/session；RPC client 只 connect/observe/submit/cancel/reconnect；
 - deterministic fake 实现同一 RPC client port，不建立第二套只供测试使用的 lifecycle；
 - required service 慢、离线或失败时，Agent domain 不得谎报 ready，但 shell、配置、诊断和 retry

@@ -28,7 +28,8 @@ Cordis-core-derived A/B。它不激活 public Cordis API 或 Mod runtime。
 - Game、Authoring 与 Agent UI 是内聚 sibling domain；进程内 extension runtime 只负责构建期
   已知贡献的组合、可逆生命周期、局部重载和动态装卸；
 - editor 即使未来扩展为多 workspace、代码编辑器或类似 coding workbench 的产品，也必须在
-  Agent 缺席时完整可用，并与 Game domain 独立换代；
+  Agent 缺席时完整可用，并与其他 Application Domain 独立换代；游戏是首个 conformance
+  domain，不是中立 Host 的命名来源；
 - 后续可能先做小作品、examples 重写或其他产品验证，但具体选择与顺序尚未决定，不能写成本
   计划的隐含 backlog。
 
@@ -55,6 +56,11 @@ live baseline 同时说明缺口位于 Host、activation 和 lifecycle，而不�
 embedded Authoring Host 和最窄 Agent RPC/UiArtifact seam。Module Update Source、Extension
 Runtime 和 SillyMaker publication/authority 必须分层。Cordis 的 release 标签不是否决理由；实际
 语义覆盖、glue/test 成本、bundle/startup 和 failure recovery 才是选择证据。
+
+“使用 lifecycle/plugin 机制”不表示能力一定 optional。AR1 会以 package-internal composition
+语义区分 required domain、required local binding 与 optional contribution；它不建立公共
+`Profile`、extension manifest 或 service locator。外部 required service 继续由 AR4 RPC readiness
+表达，不伪装成本地 binding。
 
 每个切片必须保持：
 
@@ -87,8 +93,16 @@ Runtime 和 SillyMaker publication/authority 必须分层。Cordis 的 release �
   不新增或复用名为 `profile` 的公共概念，也不改变 `--profile release|debug` 构建语义；
 - 定义 Deno Desktop CLI 参数与 Browser Host config 到同一 admitted/frozen bootstrap config 的
   行为边界；参数在启动后不可变，不成为 global config/service bus；
+- 把 live `GameHostV1` 识别为历史 game-oriented Host capability port；审计其 `platform`、
+  `bootstrapEntropy` 与 records/files/clock/navigation/log 边界，以 Browser 与 Deno Desktop 两个
+  target 的真实需求形成中性 Host-capability contract。若 entropy 只服务游戏 bootstrap，就留在
+  Game Domain admission 而不伪装成所有 GUI Host 的通用能力；
+- 在非游戏消费者进入前迁移 public type/export、内部 consumers 与 live docs，并删除
+  `GameHostV1`；只有真实兼容消费者或维护中的兼容承诺才能保留 bounded alias。不得把旧名扩展为
+  新的 application root，也不得借重命名复制 Host owner；
 - characterise 两平台当前 module-update source、full restart 与 application handoff 行为，并用
-  R0 data、R1 presentation/workspace、R2 authoritative Session、R3 Host restart 分类现有路径；
+  R0 data、R1 presentation/workspace、R2 authoritative Application Domain、R3 Host restart 分类
+  现有路径；游戏 fixture 继续以 Game/Session successor 证明 R2；
 - 为 shell visible、recovery/configuration actionable、first product action、required
   service/domain ready、optional capability ready 建立稳定 Host/test 信号；
 - 扩展现有 bundle report，使 entry/preload/lazy 归属能点名 contribution；报告继续写 OS
@@ -96,8 +110,9 @@ Runtime 和 SillyMaker publication/authority 必须分层。Cordis 的 release �
 - characterization 当前 Player、独立 Studio route、DevDock lazy activation、HMR dirty-draft、
   author-code-absence 与 ordinary no-extension/no-RPC-client graph；
 - 用可控永不 resolve 的 optional loader 和最小 Host-level required-service failure stimulus 证明：
-  前者不阻塞核心产品，后者不谎报依赖 domain ready，但 GUI 仍提供配置、诊断和 retry；AR0 不
-  定义 RPC client、transport 或 fake API，这些由 AR4 拥有。
+  optional loader 不阻塞核心产品；外部服务失败不谎报依赖 domain ready，但 GUI 仍提供配置、
+  诊断和 retry。AR0 不定义 required domain/local binding composition、RPC client、transport 或 fake
+  API，这些分别由 AR1 与 AR4 拥有。
 
 验收：信号不进入 State/Save；现有 Story digest/Save/replay 不变；明确选择 no-RPC、
 no-extension 的静态 game baseline 中 Studio/dev-source/dynamic-extension/RPC implementation 为
@@ -127,10 +142,20 @@ Module Update Source 与 Extension Runtime 分开：
 2. 只取 Cordis core 能力的 private adapter。
 
 suite 覆盖 single-flight、failure/retry、late result、sibling isolation、nested child ownership、
-reversible effect、provider disappearance/recovery、per-extension restart、reentrant/async
-cleanup、diagnostics、candidate failure 保留 predecessor、listener/timer/subscription 残留；
+reversible effect、selected in-process service dependency loss/recovery、per-extension restart、
+reentrant/async cleanup、diagnostics、candidate failure 保留 predecessor、listener/timer/
+subscription 残留；
 DevDock contribution 与一个现有 Studio workspace implementation 分别提供 GUI 纵切。command、
 selector、reducer、render 和 frame path 在 ready 后只持有 direct object，不查 Context/registry。
+
+同一 suite 还必须证明：required domain 缺失在 composition admission 阶段失败；required local
+binding 在 dependent domain mount 前唯一确定；optional contribution 缺席、失败或 retry 不影响
+无关 sibling。这里的 in-process dependency loss 不包括外部 RPC availability、任意 provider
+自动择优/替换、public service locator 或通用依赖树自动重建。required readiness/fail-fast 由
+Application Host 判断，不能把 backend 的 pending/active 状态直接当成产品状态。Cordis 的
+`emit`/`parallel`/`serial`/`bail`/`waterfall` 等 dispatch primitive 即使被 backend 使用，也只是
+实现细节；AR1 不冻结全局 event taxonomy、priority/plugin-ID 排序、`next()` 或 authoritative
+interception 合同。
 
 选择同时比较：
 
@@ -195,9 +220,10 @@ publication，不重写这些内核。
   dirty/undo/save/conflict 状态机；
 - Agent/RPC 完全缺席时，Authoring Host、project navigation、draft、undo、save 和 workspace
   仍完整可用；
-- R1 presentation/tool/workspace successor 与 R2 authoritative Game/Session successor 的
-  success、failure、rollback 都不能重建 Authoring Host，不能丢 document identity、dirty draft、
-  undo/redo、selection 或 workspace state；
+- R1 presentation/tool/workspace successor 与其他 sibling Application Domain 的 R2 authoritative
+  successor，其 success、failure、rollback 都不能重建 Authoring Host，不能丢 document identity、
+  dirty draft、undo/redo、selection 或 workspace state；游戏 conformance 必须覆盖 Game/Session
+  successor；
 - draft 操作、undo/redo、discard 在 save 前不改变 live application digest；CAS success 仍经
   file write → Module Update Source → SillyMaker publication；
 - 409 刷新 saved/digest 并保留 draft；failed workspace load 不丢 predecessor；
@@ -255,8 +281,14 @@ conversation/task/artifact storage、permission UI、Mutation gateway 或 Effect
 - Deno Desktop 跑通 bootstrap CLI config、同一 domain factory、selected Extension Runtime、
   RPC failure/retry 和至少一个真实 build-known candidate flow；若只能 full restart，明确验证
   R3 handoff，不把它写成 local reload；
-- 两平台都证明 Game/presentation candidate success、failure、rollback 保留 Authoring Host
-  identity、document、dirty、undo 和 selection；
+- 两平台都证明 R1 presentation candidate，以及其他 sibling Application Domain 的 R2 candidate，
+  其 success、failure、rollback 均保留 Authoring Host identity、document、dirty、undo 和 selection；
+  游戏 conformance 必须覆盖 Game/Session candidate；
+- 在 in-flight fake Agent session/stream 下，两平台的 R1 presentation 与其他 sibling
+  Application Domain 的 R2 successor，其 success、failure、rollback 都保留 Agent Host/session
+  identity；游戏 conformance 必须覆盖 Game/Session successor。其他领域换代不得 cancel、
+  reconnect 或重建 Agent；任何 domain-bound late intent 必须针对 current generation 重新
+  admission 或稳定拒绝，不能落到 stale domain authority；
 - 两平台都跑通 AR4 fake stream → admitted Artifact → render → intent → AR2 operation；
 - ordinary static game build 精确排除 Authoring Host、selected dynamic extension backend
   （包括可能的 Cordis/fork）、unrelated RPC client、Node/Electron code 和 author-only graph；

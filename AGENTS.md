@@ -48,8 +48,9 @@ Read only the documents relevant to the change:
   orchestration-neutral domain lifecycle with a bounded direct/Cordis-core A/B,
   structured authoring operations, an embeddable Authoring Host, and a typed RPC
   plus experimental Agent/UiArtifact seam. AR1 chooses exactly one private
-  lifecycle backend; AR3 keeps Authoring stable across Game successors. Engine
-  capabilities land before any separately accepted follow-on product or work.
+  lifecycle backend; AR3 keeps Authoring stable across application-domain
+  successors, with Game/Session as the first conformance path. Engine capabilities
+  land before any separately accepted follow-on product or work.
   Desktop persistence remains an accepted, unfinished, conditional promotion
   lane while the adapter is preview.
 - `docs/engine/design/application-runtime-and-embedded-authoring.md` — accepted
@@ -123,9 +124,12 @@ accepted.
   before that acknowledgement and therefore must be staging-safe. Do not add
   dynamic lifecycle lookup to command/render paths. The active AR1 may compare
   the current direct lifecycle with a private Cordis-core-derived backend under
-  one neutral conformance suite; the selected backend must remain optional,
-  keep Cordis/Context out of domain and public contracts, exclude Node HMR, and
-  leave SillyMaker publication/State authority unchanged.
+  one neutral conformance suite; the selected backend must remain structurally
+  excludable from products that direct-mount their domains, keep Cordis/Context
+  out of domain and public contracts, exclude Node HMR, and leave SillyMaker
+  publication/State authority unchanged. A domain or local binding may still be
+  required by a product; lifecycle composition does not imply product
+  optionality.
 - `@sillymaker/state` is an experimental neutral façade for authoritative
   transactional State, not a generic React/UI store. It must reuse exactly one
   Base Session and transaction runner; it never owns a second State, digest,
