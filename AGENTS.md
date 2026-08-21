@@ -52,10 +52,13 @@ Read only the documents relevant to the change:
   invariant, entry-time evaluation, skip cannot pass the catch) via the
   base `settleHoldTimelineV1` stepping helper, with template-kit arms,
   both Engine Lab granularities (tick-driven same-instant, monitor-driven
-  next-settlement t=0), and the experiment repo's night-room mid-bar
-  wake/disgust cut as the first live abort path. Explicit defers: the
-  second abort path (alert catch); the input-axis defer was claimed and
-  closed by the mid-hold-input lane. The
+  next-settlement t=0), and   the experiment repo's night-room mid-bar
+  wake/disgust cut as the first live abort path. The second abort-path
+  candidate (alert catch) was decode-falsified 2026-08-22 (experiment
+  repo knife #339: CE249 asks after the window / WAIT 100; CE277 does
+  not write alert; hanging `when` would skip `V354++` or the 100f
+  wait). The input-axis defer was claimed and closed by the
+  mid-hold-input lane. The
   parallel-monitors lane (accepted and
   delivered 2026-08-20) completed M0–M5 the same day:
   `docs/engine/plans/2026-08-20-parallel-monitors.md` with its contract in
