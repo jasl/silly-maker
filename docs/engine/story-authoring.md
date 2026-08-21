@@ -210,6 +210,30 @@ effects only apply at command boundaries (the starter template's shape)
 should reject `when` combined with `tick` on one block, because the arms
 could never observe that block's own tick writes.
 
+Player input during a hold — pressing a body zone while a touch bar runs,
+throwing a switch mid-watch — is the same `when` machinery plus one write
+discipline, never a new interaction kind. The session does not gate
+ordinary commands while a hold is pending, so declare an ordinary write
+command whose payload carries `expectedHoldOccurrenceId` and whatever
+declared write intent the press means; the handler compares that fence
+against the pending hold in one line (reject the whole command with your
+Story's `*.hold_occurrence_stale` code when it does not match — a stale
+press queued behind a cut must never write into the next hold), and on
+the current occurrence it **only writes**: a field write or a domain
+event, never the pending interaction, never time (`TimeTickV1` stays the
+only time verb), never a reroute. The hold's own `when` arms read the
+committed write at the next fenced settlement's t=0 — the monitor
+granularity — so the input picks state and the declared arms pick the
+route. Route the activation in your application layer: when
+`pending.kind === "hold"`, a hit-region activation dispatches the fenced
+write command instead of an interaction resolution (input resolutions
+against holds keep rejecting `interaction.kind_mismatch` by contract).
+Keep write-request fields plain versioned Story state so they survive
+mid-hold save/load, and make the reroute target consume and clear any
+request latch it acted on — the engine does not know your request fields,
+so that hygiene is yours. Never put pointer coordinates, hover state, or
+region ids into authoritative state, and never dispatch per pointer-move.
+
 A timing accumulation that must run while the player can still act — a
 decision gauge rising under a live menu, a scene-scoped drip while the player
 reads, a held-interaction drip — is an authoritative monitor, not a hold.

@@ -93,6 +93,18 @@ export type LabCommandV1 =
   | { readonly kind: "lab.sell_sample" }
   | { readonly kind: "lab.buy_banner" }
   | {
+    /**
+     * The mid-hold input write: an ordinary command fenced to a pending
+     * hold occurrence. It only writes declared session state (engages the
+     * collector switch) — it never touches the pending interaction, never
+     * settles time, and never routes. The fence predicate is the same
+     * one-line comparison `evaluateTimeTickV1` uses, so a stale queued
+     * press can never write into a successor hold's watch.
+     */
+    readonly kind: "lab.engage_collector";
+    readonly expectedHoldOccurrenceId: string;
+  }
+  | {
     readonly kind: "lab.narrative_resolve";
     readonly expectedOccurrenceId: string;
     readonly resolution: InteractionResolutionV1;
@@ -158,6 +170,7 @@ export type LabRejectionCodeV1 =
   | "lab.banner_already_owned"
   | "lab.stage_rejected"
   | "lab.narrative_busy"
+  | "lab.hold_occurrence_stale"
   | InteractionRejectionCodeV1
   | TimeTickRejectionCodeV1;
 
@@ -299,6 +312,17 @@ const commandSchemaV1: RuntimeSchemaV1<LabCommandV1> = Object.freeze({
       return Object.freeze({
         kind,
         tick: parseTimeTickV1((value as { readonly tick?: unknown }).tick, "/tick"),
+      });
+    }
+    if (kind === "lab.engage_collector") {
+      if (Object.keys(value).toSorted().join("\0") !== "expectedHoldOccurrenceId\0kind") {
+        throw new TypeError("invalid lab engage collector command");
+      }
+      return Object.freeze({
+        kind,
+        expectedHoldOccurrenceId: parseInteractionOccurrenceIdV1(
+          (value as { readonly expectedHoldOccurrenceId?: unknown }).expectedHoldOccurrenceId,
+        ),
       });
     }
     if (Object.keys(value).join("\0") !== "kind") {
@@ -652,9 +676,12 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
       // The command-start session counters hold `when` arms may read.
       // Monitor crossings land as domain events after this command, so
       // arms watching them surface at the next settlement's t=0 — the
-      // same granularity `activeWhen` has.
+      // same granularity `activeWhen` has. Input writes (the collector
+      // switch) share that seam: they commit in their own command and
+      // surface at the next fenced settlement.
       const holdSessionRead = Object.freeze({
         collectorUnits: state.monitors.collectorUnits,
+        collectorEngaged: state.monitors.collectorEngaged,
       });
 
       const emitStage = (
@@ -735,6 +762,29 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
             kind: "lab.collector_toggled",
             engaged: !state.monitors.collectorEngaged,
           });
+          return transaction.complete();
+        });
+      }
+
+      if (command.kind === "lab.engage_collector") {
+        // The fenced mid-hold input write. The fence is Story convention
+        // (mid-hold-input q2): one comparison against the pending hold,
+        // whole-command rejection when stale — a late press queued behind
+        // the cut can never write into a successor hold's watch. On the
+        // current occurrence it only writes the declared switch state;
+        // the hold's own `when` arm reads it at the next settlement's
+        // t=0 and owns the reroute entirely.
+        return labTransactionRunnerV1.execute(snapshot, rng, (transaction) => {
+          const pending = state.narrative.pending;
+          if (
+            pending === null || pending.kind !== "hold" ||
+            pending.occurrenceId !== command.expectedHoldOccurrenceId
+          ) {
+            return transaction.reject({ code: "lab.hold_occurrence_stale" });
+          }
+          if (!state.monitors.collectorEngaged) {
+            transaction.emit({ kind: "lab.collector_toggled", engaged: true });
+          }
           return transaction.complete();
         });
       }

@@ -83,11 +83,14 @@ export interface LabChoiceOptionV1 {
  * at the exact crossing instant) plus the command-start session counters
  * (monitor crossings land as domain events after the command, so
  * monitor-driven arms surface at the next settlement's t=0 — the same
- * granularity seam `activeWhen` already has).
+ * granularity seam `activeWhen` already has). `collectorEngaged` is the
+ * input axis: an ordinary write command flips it between settlements, so
+ * input-driven arms share the next-settlement granularity with monitors.
  */
 export interface LabHoldWhenContextV1 {
   readonly rapport: number;
   readonly collectorUnits: number;
+  readonly collectorEngaged: boolean;
 }
 
 export interface LabHoldWhenArmV1 {
@@ -102,6 +105,7 @@ export interface LabHoldWhenArmV1 {
  */
 export interface LabHoldSessionReadV1 {
   readonly collectorUnits: number;
+  readonly collectorEngaged: boolean;
 }
 
 export type LabNarrativeNodeV1 =
@@ -226,7 +230,7 @@ export const labDrillReleaseChoiceIdV1 = "choice.e2e.drill.release";
 export const labDrillVentChoiceIdV1 = "choice.e2e.drill.vent";
 
 /**
- * The hold `when` consumers: two drill paths locking the two declared
+ * The hold `when` consumers: three drill paths locking the three declared
  * predicate granularities.
  *
  * - The **vigil** hold's own tick effect raises rapport; its arm cuts at
@@ -237,15 +241,23 @@ export const labDrillVentChoiceIdV1 = "choice.e2e.drill.vent";
  *   monitor writes. Drips land as domain events after the settling
  *   command, so the arm sees them at the next fenced settlement's t=0 —
  *   the next-settlement granularity.
+ * - The **tripwire** hold watches the collector switch itself — session
+ *   state an ordinary input command writes. The mid-hold-input pattern:
+ *   `lab.engage_collector` is fenced to this hold's occurrence, only
+ *   writes state (never touches pending, time, or routing), and the arm
+ *   reads the committed switch at the next fenced settlement's t=0.
  */
 export const labDrillVigilChoiceIdV1 = "choice.e2e.drill.vigil";
 export const labDrillStakeoutChoiceIdV1 = "choice.e2e.drill.stakeout";
+export const labDrillTripwireChoiceIdV1 = "choice.e2e.drill.tripwire";
 export const labDrillVigilNodeIdV1 = "node.e2e.drill.vigil";
 export const labDrillStakeoutNodeIdV1 = "node.e2e.drill.stakeout";
+export const labDrillTripwireNodeIdV1 = "node.e2e.drill.tripwire";
 export const labDrillVigilTickEveryMsV1 = 300;
 export const labDrillVigilDurationMsV1 = 800;
 export const labDrillVigilRapportThresholdV1 = 2;
 export const labDrillStakeoutDurationMsV1 = 1_500;
+export const labDrillTripwireDurationMsV1 = 1_500;
 
 export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
   {
@@ -555,6 +567,13 @@ export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
         consumesSamples: 0,
         next: labDrillStakeoutNodeIdV1,
       },
+      {
+        choiceId: labDrillTripwireChoiceIdV1,
+        textId: "text.e2e.lab.narrative.drill.tripwire",
+        requiresSamples: 0,
+        consumesSamples: 0,
+        next: labDrillTripwireNodeIdV1,
+      },
     ],
   },
   {
@@ -590,6 +609,22 @@ export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
     // declared next-settlement granularity.
     when: [
       { matches: ({ collectorUnits }) => collectorUnits >= 1, next: "node.e2e.drill.catch" },
+    ],
+    next: "node.e2e.drill.quiet",
+  },
+  {
+    kind: "hold",
+    nodeId: labDrillTripwireNodeIdV1,
+    definitionId: "interaction.e2e.drill-tripwire",
+    seenRevision: 1,
+    durationMs: labDrillTripwireDurationMsV1,
+    skippable: false,
+    // The input axis: the arm watches the collector switch, which the
+    // fenced `lab.engage_collector` write command (or the ordinary
+    // toggle) flips between settlements. The write never routes — the
+    // arm cuts at the next fenced settlement's t=0.
+    when: [
+      { matches: ({ collectorEngaged }) => collectorEngaged, next: "node.e2e.drill.catch" },
     ],
     next: "node.e2e.drill.quiet",
   },
@@ -810,6 +845,7 @@ export function runLabNarrativeUntilInteractionV1(
         candidate.matches({
           rapport: narrative.rapport,
           collectorUnits: session.collectorUnits,
+          collectorEngaged: session.collectorEngaged,
         })
       );
       if (arm !== undefined) {
@@ -955,7 +991,13 @@ export function labNarrativeAfterTimeTickV1(
     pending,
     elapsedMs: tick.elapsedMs,
     ...(node.tick !== undefined ? { tickEveryMs: node.tick.everyMs } : {}),
-    arms: arms.map((arm) => () => arm.matches({ rapport, collectorUnits: session.collectorUnits })),
+    arms: arms.map((arm) => () =>
+      arm.matches({
+        rapport,
+        collectorUnits: session.collectorUnits,
+        collectorEngaged: session.collectorEngaged,
+      })
+    ),
     onCrossing: (crossing) => {
       if (crossing.kind === "tick" && node.tick !== undefined) {
         rapport += node.tick.rapportPerTick;
