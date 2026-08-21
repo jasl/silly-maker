@@ -11,8 +11,11 @@
 
 引擎的 runtime 侧（确定性内核、Save/replay/migration、Managed Surface、Semantic
 Stage、Motion 资产）已经很强，但源代码按 runtime 责任组织，人类按创作对象思考
-（"序章"、"小雨"、"小雨第一次登场"）。两者之间缺一层作者模型。现状证据（全部为
-live 代码事实）：
+（"序章"、"小雨"、"小雨第一次登场"）。两者之间缺一层作者模型。现状证据
+（2026-08-14 立项时的 live 代码事实；本设计与 VN Scene Workspace / Authoring
+Architecture 计划已交付，cue 身份于 2026-08-17 交付——transition 解析现可携带
+dispatching cue 的 presentation edge context。以下清单保留为立项证据，不再是现
+状，实况以 [features](../features.md) 为准）：
 
 - **人物最终位置埋在剧情代码里**：template 的 Mei 写在 `template/src/narrative.ts`
   （`placement: { x: 1180, y: 880, … }`），cat-cafe 的小雨写在

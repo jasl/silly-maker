@@ -22,8 +22,9 @@ Read only the documents relevant to the change:
   implemented yet.
 - `docs/engine/plans/2026-07-30-production-floor-sequence.md` — the only
   cross-plan execution order. PF0–PF7 and the Complexity Reset are complete;
-  PF6 remains evidence-gated and inactive. The two most recent lanes both
-  delivered on 2026-08-15:
+  PF6 remains evidence-gated and inactive. There is currently no active lane
+  (mid-hold input closed 2026-08-22; the recap below runs oldest to newest).
+  Two lanes delivered on 2026-08-15:
   `docs/engine/plans/2026-08-15-authoring-architecture.md` (Studio author-trust
   hardening, the unified authoring shell with workspaces, the project authoring
   index, shared document sessions, story-package locality, Scene Construction,

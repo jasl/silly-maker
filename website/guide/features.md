@@ -11,7 +11,7 @@ A tour of the capabilities a Story gets by declaring, not building. Everything h
 
 ## Authoring surfaces
 
-- **Narrative scripts** are plain TypeScript data: say / choice / stage / branch / end nodes with flags, validated at parse time, lintable as a graph (unreachable nodes, missing text, illegal branch targets).
+- **Narrative scripts** are plain TypeScript data: say / choice / stage / branch / hold / end nodes with flags, validated at parse time, lintable as a graph (unreachable nodes, missing text, illegal branch targets).
 - **Content database**: static definitions (items, activities, events, reactions) live in typed tables with Prisma-style queries, validated at parse time — tuning is editing a row. Mutable state stays in versioned, schema-validated modules.
 - **Event pools** draw weighted, condition-gated events through transactional RNG with JSON-safe explanations of every draw.
 - **Text catalogs** put every display string behind a textId with per-locale catalogs and parity checks — i18n is built in, and the player's language preference persists.

@@ -1,6 +1,6 @@
 # SillyMaker engine roadmap
 
-状态：2026-07-19 接受，最近审查修订 2026-08-04。已实现能力以
+状态：2026-07-19 接受，最近审查修订 2026-08-22。已实现能力以
 [features](features.md) 为准；历史交付见
 [roadmap archive](roadmap-archive.md)。当前执行入口只有
 [Production-floor execution sequence](plans/2026-07-30-production-floor-sequence.md)，它再引用五个独立计划；design/roadmap
@@ -88,11 +88,18 @@ authoring geometry + 项目级 Studio（Track D 第 6 项 editor shell 的 VN �
 目标合同见[场景创作模型与 SillyMaker Studio](design/scene-authoring-and-studio.md)。
 2026-08-15 所有者以 A5 两轮基准与实验仓真实内容迁移证据（调校既有场景可用，但从零构
 造与素材/内容进场未收敛）及自身角色决定（常态为试玩与 bug 汇报，日常修改由 Agent
-与 Studio 完成）接受
-[Authoring Architecture V1](plans/2026-08-15-authoring-architecture.md) 为当前
-active plan：Studio 作者信任加固、统一创作外壳与共享文档会话、project authoring
-index、Story 包目录 locality 与 Scene Construction，目标合同见
-[统一创作架构](design/authoring-architecture.md)。
+与 Studio 完成）接受并于同日完成
+[Authoring Architecture V1](plans/2026-08-15-authoring-architecture.md)：Studio
+作者信任加固、统一创作外壳与共享文档会话、project authoring index、Story 包目录
+locality、Scene Construction 与只读 Flow workspace，目标合同见
+[统一创作架构](design/authoring-architecture.md)。其后为逐条所有者下令的引擎车
+道，全部当日交付收口：cue identity（2026-08-17）、权威持有钟（2026-08-19，
+`pause` 并入 `hold`）、并行监视器（2026-08-20，唯一时间动词 `TimeTickV1`、领域
+事件 + reducer、权威监视器 V1、持久化安全点、监视器节奏环）、可创作帧集/命中区
+形状/hold `when`（均 2026-08-21）、持有中输入（2026-08-22，零新引擎原语）。
+**当前无 active 车道**，等所有者下一道命令；排序与交付记录以
+[Production-floor sequence](plans/2026-07-30-production-floor-sequence.md) §1
+为准，live capability 以 [features](features.md) 为准。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实
@@ -120,7 +127,18 @@ SQLite operational contract；除非出现 concrete blocker，不再把 journal/
 - [VN Scene Workspace](plans/2026-08-14-vn-scene-workspace.md)（2026-08-14 接受，
   2026-08-15 完成）
 - [Authoring Architecture](plans/2026-08-15-authoring-architecture.md)（2026-08-15
-  接受，当前 active plan）
+  接受，同日完成）
+- [Authoritative hold clock](plans/2026-08-19-authoritative-hold-clock.md)
+  （2026-08-19 接受，同日完成）
+- [Parallel monitors](plans/2026-08-20-parallel-monitors.md)（2026-08-20 接受，
+  同日完成）
+- [Authorable frame set](plans/2026-08-21-authorable-frame-set.md)（2026-08-21
+  接受，同日完成）
+- [Shaped hit regions](plans/2026-08-21-shaped-hit-regions.md)（2026-08-21 接受，
+  同日完成）
+- [Hold when](plans/2026-08-21-hold-when.md)（2026-08-21 接受，同日完成）
+- [Mid-hold input](plans/2026-08-22-mid-hold-input.md)（2026-08-22 接受，同日
+  完成）
 
 原则是**一次只迁移一个可独立验收的 authority**。不接受把 Surface、Save、
 Snapshot 数据结构、determinism guard 或 Mod resolver 作为一个大改动交给 Agent。
