@@ -1,10 +1,29 @@
 // SPDX-License-Identifier: MIT
 import { execFile as execFileCallback } from "node:child_process";
 import { gzipSync } from "node:zlib";
-import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
+import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+
+import {
+  buildDependencyMeasurementEnvironmentKeyInternalV1,
+  parseBuildDependencyReceiptInternalV1,
+  serializeBuildDependencyMeasurementRequestInternalV1,
+} from "../../engine/packages/tooling/src/vite/build-dependency-receipt.ts";
+import type { BuildDependencyReceiptInternalV1 } from "../../engine/packages/tooling/src/vite/build-dependency-receipt.ts";
+import {
+  contributionIdsByPlayerBuildAssetV1,
+  playerBuildAssetKindV1,
+  playerBuildAssetRoleV1,
+  referencedPlayerBuildAssetsV1,
+  repositoryRelativePlayerBuildPathV1,
+} from "./player-build-baseline-helpers.ts";
+import type {
+  PlayerBuildAssetKindV1,
+  PlayerBuildAssetRoleV1,
+} from "./player-build-baseline-helpers.ts";
 
 declare const Deno: {
   readonly args: readonly string[];
@@ -24,15 +43,13 @@ interface OptionsV1 {
   readonly output?: string;
 }
 
-type AssetKindV1 = "javascript" | "css" | "runtime_asset";
-type AssetRoleV1 = "entry" | "preload" | "lazy" | "runtime_asset";
-
 interface AssetRowV1 {
   readonly path: string;
-  readonly kind: AssetKindV1;
-  readonly role: AssetRoleV1;
+  readonly kind: PlayerBuildAssetKindV1;
+  readonly role: PlayerBuildAssetRoleV1;
   readonly rawBytes: number;
   readonly gzipBytes: number;
+  readonly contributionIds: readonly string[];
 }
 
 const execFile = promisify(execFileCallback);
@@ -72,18 +89,6 @@ function parseOptionsV1(argv: readonly string[]): OptionsV1 {
   return output === undefined ? { applicationId, outDir } : { applicationId, outDir, output };
 }
 
-function assertRepositoryPathV1(path: string): string {
-  const resolved = resolve(repositoryRootV1, path);
-  const relativePath = relative(repositoryRootV1, resolved);
-  if (
-    relativePath.length === 0 || relativePath === ".." ||
-    relativePath.startsWith(`..${sep}`)
-  ) {
-    throw new TypeError("player build baseline outDir must be inside the repository");
-  }
-  return resolved;
-}
-
 async function listFilesV1(root: string, directory = root): Promise<readonly string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
   const files: string[] = [];
@@ -93,34 +98,6 @@ async function listFilesV1(root: string, directory = root): Promise<readonly str
     else if (entry.isFile()) files.push(relative(root, path).split(sep).join("/"));
   }
   return files;
-}
-
-function referencedAssetsV1(html: string): Readonly<{
-  readonly entry: ReadonlySet<string>;
-  readonly preload: ReadonlySet<string>;
-}> {
-  const entry = new Set<string>();
-  const preload = new Set<string>();
-  const normalize = (value: string): string => value.replace(/^\.\//u, "").replace(/^\//u, "");
-  for (const match of html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/giu)) {
-    if (match[1] !== undefined) entry.add(normalize(match[1]));
-  }
-  for (const match of html.matchAll(/<link\b([^>]*)>/giu)) {
-    const attributes = match[1] ?? "";
-    const href = /\bhref=["']([^"']+)["']/iu.exec(attributes)?.[1];
-    const rel = /\brel=["']([^"']+)["']/iu.exec(attributes)?.[1] ?? "";
-    if (href === undefined) continue;
-    const path = normalize(href);
-    if (rel.split(/\s+/u).includes("modulepreload")) preload.add(path);
-    else if (rel.split(/\s+/u).includes("stylesheet")) entry.add(path);
-  }
-  return Object.freeze({ entry, preload });
-}
-
-function assetKindV1(path: string): AssetKindV1 {
-  if (path.endsWith(".js") || path.endsWith(".mjs")) return "javascript";
-  if (path.endsWith(".css")) return "css";
-  return "runtime_asset";
 }
 
 function sumV1(rows: readonly AssetRowV1[]): Readonly<{
@@ -154,50 +131,90 @@ async function outputPathV1(requestedPath: string | undefined): Promise<string> 
   return join(directory, "baseline.json");
 }
 
-async function mainV1(): Promise<void> {
-  const options = parseOptionsV1(Deno.args);
-  const outDir = assertRepositoryPathV1(options.outDir);
-  const repository = await repositoryStateV1();
+async function buildReleaseWithDependencyReceiptV1(input: {
+  readonly applicationId: string;
+}): Promise<
+  Readonly<{
+    readonly buildDurationMs: number;
+    readonly dependencyGraph: BuildDependencyReceiptInternalV1;
+  }>
+> {
+  const receiptDirectory = await Deno.makeTempDir({
+    prefix: "sillymaker-build-dependency-receipt-",
+  });
+  const receiptPath = join(receiptDirectory, "receipt.json");
+  const measurement = serializeBuildDependencyMeasurementRequestInternalV1({
+    graphRoot: repositoryRootV1,
+    receiptPath,
+  });
   const buildStartedAt = performance.now();
   try {
     await execFile(
       "deno",
-      ["task", "story", "build", options.applicationId, "--profile", "release"],
-      { cwd: repositoryRootV1, maxBuffer: 16 * 1024 * 1024 },
+      ["task", "story", "build", input.applicationId, "--profile", "release"],
+      {
+        cwd: repositoryRootV1,
+        env: {
+          ...process.env,
+          [buildDependencyMeasurementEnvironmentKeyInternalV1]: measurement,
+        },
+        maxBuffer: 16 * 1024 * 1024,
+      },
     );
+    const buildDurationMs = performance.now() - buildStartedAt;
+    const dependencyGraph = parseBuildDependencyReceiptInternalV1(
+      await readFile(receiptPath, "utf8"),
+    );
+    if (dependencyGraph.applicationId !== input.applicationId) {
+      throw new TypeError(
+        "build dependency receipt application does not match the requested build",
+      );
+    }
+    return Object.freeze({ buildDurationMs, dependencyGraph });
   } catch (error) {
     const detail = error as { readonly stderr?: string; readonly stdout?: string };
     throw new Error(
       `player release build failed\n${detail.stderr ?? ""}\n${detail.stdout ?? ""}`.trim(),
       { cause: error },
     );
+  } finally {
+    await rm(receiptDirectory, { force: true, recursive: true });
   }
-  const buildDurationMs = performance.now() - buildStartedAt;
+}
+
+async function mainV1(): Promise<void> {
+  const options = parseOptionsV1(Deno.args);
+  const reportedOutDir = repositoryRelativePlayerBuildPathV1(
+    repositoryRootV1,
+    options.outDir,
+  );
+  const outDir = resolve(repositoryRootV1, reportedOutDir);
+  const repository = await repositoryStateV1();
+  const { buildDurationMs, dependencyGraph } = await buildReleaseWithDependencyReceiptV1({
+    applicationId: options.applicationId,
+  });
   const outDirStat = await stat(outDir);
   if (!outDirStat.isDirectory()) throw new Error("player release build did not create outDir");
   const html = await readFile(join(outDir, "index.html"), "utf8");
-  const references = referencedAssetsV1(html);
+  const references = referencedPlayerBuildAssetsV1(html);
+  const contributionIdsByAsset = contributionIdsByPlayerBuildAssetV1(dependencyGraph);
+  const noContributionIdsV1 = Object.freeze([]) as readonly string[];
   const rows: AssetRowV1[] = [];
   for (const path of await listFilesV1(outDir)) {
     const bytes = await readFile(join(outDir, path));
-    const kind = assetKindV1(path);
-    const role = kind === "runtime_asset"
-      ? "runtime_asset"
-      : references.entry.has(path)
-      ? "entry"
-      : references.preload.has(path)
-      ? "preload"
-      : "lazy";
+    const kind = playerBuildAssetKindV1(path);
+    const role = playerBuildAssetRoleV1(path, kind, references);
     rows.push(Object.freeze({
       path,
       kind,
       role,
       rawBytes: bytes.byteLength,
       gzipBytes: gzipSync(bytes).byteLength,
+      contributionIds: contributionIdsByAsset.get(path) ?? noContributionIdsV1,
     }));
   }
   const report = Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     repository,
     environment: Object.freeze({
@@ -209,7 +226,7 @@ async function mainV1(): Promise<void> {
     }),
     applicationId: options.applicationId,
     profile: "release",
-    outDir: options.outDir,
+    outDir: reportedOutDir,
     buildDurationMs,
     groups: Object.freeze({
       entry: sumV1(rows.filter((row) => row.role === "entry")),
@@ -221,6 +238,7 @@ async function mainV1(): Promise<void> {
       allFiles: sumV1(rows),
     }),
     assets: Object.freeze(rows),
+    dependencyGraph,
     interpretation: Object.freeze({
       status: "trend_only",
       machineBoundHardGate: false,

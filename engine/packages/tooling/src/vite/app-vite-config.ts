@@ -18,6 +18,11 @@ import {
   versionStampReceiptEnvironmentKeyInternalV1,
 } from "./version-stamp.ts";
 import {
+  buildDependencyMeasurementEnvironmentKeyInternalV1,
+  buildDependencyReceiptPluginInternalV1,
+  parseBuildDependencyMeasurementRequestInternalV1,
+} from "./build-dependency-receipt.ts";
+import {
   copyRuntimeAssetsV1,
   parseRuntimeAssetContentTypesV1,
   resolveRuntimeAssetPathV1,
@@ -186,6 +191,16 @@ export async function createSillymakerAppViteConfigV1(
   if (config.studio !== null && config.studio !== undefined) {
     // Dev-server-only Studio page for scene authoring; never in builds.
     plugins.push(studioPluginV1(config.studio));
+  }
+  const buildDependencyMeasurement = parseBuildDependencyMeasurementRequestInternalV1(
+    process.env[buildDependencyMeasurementEnvironmentKeyInternalV1],
+  );
+  if (buildDependencyMeasurement !== null) {
+    plugins.push(buildDependencyReceiptPluginInternalV1({
+      applicationId: config.applicationId,
+      appRoot,
+      request: buildDependencyMeasurement,
+    }));
   }
 
   return {

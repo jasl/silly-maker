@@ -672,11 +672,17 @@ directory (or `SILLYMAKER_PERFORMANCE_OUTPUT_DIR`).
 
 `deno task bench:player:bundle` performs a fresh release-profile build and
 reports raw/gzip bytes for entry, preload, lazy, all JavaScript, all CSS,
-runtime assets, and all files. It accepts `--application`, `--out-dir`, and
-`--output`; defaults are Engine Lab and OS-temp output. Byte sizes are build
-facts, while build duration is machine-specific. None of these tasks adds a
-normal per-commit CI threshold. Review at least three comparable samples before
-proposing a product budget, and never commit raw local reports.
+runtime assets, and all files. Schema v2 adds the final chunk/asset dependency
+graph and per-output `contributionIds`, including CSS-only dynamic entries; all
+recorded edges name real final outputs. The Template release build is the
+semantic negative control for absent authoring, dev-source, dynamic-extension,
+and RPC implementations without freezing an exact full-module inventory. The
+measurement receipt and default report stay in OS temp and never enter the
+Player. The task accepts `--application`, `--out-dir`, and `--output`; defaults
+are Engine Lab and OS-temp output. Byte sizes are build facts, while build
+duration is machine-specific. None of these tasks adds a normal per-commit CI
+threshold. Review at least three comparable samples before proposing a product
+budget, and never commit raw local reports.
 
 ## Change workflow
 

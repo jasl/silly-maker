@@ -70,7 +70,13 @@ while application and engine code stay in the entry chunk. Chunk size is a
 measured product trend, not an assumed 500 kB guarantee; the current release
 workflow does not enforce a bundle budget. Use `deno task bench:player:bundle`
 to fresh-build Engine Lab and report entry/preload/lazy plus aggregate JS/CSS/
-runtime-asset raw and gzip bytes to an OS-temporary JSON file. The first CR3
+runtime-asset raw and gzip bytes to an OS-temporary JSON file. Its schema-v2
+report also records the final Vite chunk/asset graph and the build-known dynamic
+entry contribution IDs carried by each output. Shared and mixed outputs retain
+every contribution instead of duplicating their physical bytes. The
+measurement plugin writes its private receipt only below the OS temporary
+directory; it emits nothing into the Player and ordinary builds do not install
+it. The first CR3
 sample measured the largest Engine Lab entry at 922,550 raw / 214,643 gzip
 bytes; that is a visible optimization lead, not a compatibility failure or a
 license to raise the warning threshold.
