@@ -83,8 +83,9 @@
 
 ## Defer
 
-- 无新增。重叠热区多区载荷、帧表 lint、警戒抓包、Studio 臂编辑各随
-  自身车道/证据门（见提案与 production-floor）。
+- 无新增。重叠热区多区载荷、帧表 lint、Studio 臂编辑各随自身车
+  道/证据门。警戒抓包于 2026-08-22 由实验仓刀 #339 证伪（见
+  [hold-when](../proposals/hold-when.md) 交付记录），不再随本车道。
 
 ## Stop conditions
 

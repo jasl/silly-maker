@@ -70,8 +70,10 @@ template kit `when` 臂 + starter hurry 演示）→ M1（Engine Lab 锁两
 臂，`touch-tick` 与左手监视器折叠同 commit 重算例外缓存，左手越格
 压深度过觉醒线时该结算 t=0 切断，实验仓刀 #325 全库 720 例全绿；
 features / story-authoring / AGENTS 收口）。显式 defer：hold 中热区
-（输入轴）、第二条真中止路径（警戒抓包）、监视器路由叙事（仍禁）、
-`when` 臂 Studio 可视化编辑。
+（输入轴，2026-08-22 由 mid-hold-input 关闭）、第二条真中止路径
+（警戒抓包，2026-08-22 实验仓刀 #339 证伪——CE249 窗尽 / WAIT 100
+后再问，不是条中途 `when`）、监视器路由叙事（仍禁）、`when` 臂
+Studio 可视化编辑。
 
 再前一条：[命中区形状车道](2026-08-21-shaped-hit-regions.md)（提案
 [shaped-hit-regions](../proposals/shaped-hit-regions.md) 2026-08-21 所有
