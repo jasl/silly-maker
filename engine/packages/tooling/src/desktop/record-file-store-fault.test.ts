@@ -80,6 +80,10 @@ async function runFaultChildV1(root: string): Promise<{
   const args = [
     "run",
     "--quiet",
+    // Keeps the child deno from re-materializing workspace node_modules
+    // symlinks (racing concurrent realpath walks in the parallel suite);
+    // the fixture only imports relative files and node builtins.
+    "--node-modules-dir=none",
     "--allow-read",
     "--allow-write",
     fileURLToPath(new URL("./record-file-store-fault-child.fixture.mts", import.meta.url)),
@@ -129,6 +133,8 @@ function spawnProcessCasChildV1(root: string, bytesBase64: string): ProcessCasCh
   const args = [
     "run",
     "--quiet",
+    // See runFaultChildV1: no node_modules re-materialization in children.
+    "--node-modules-dir=none",
     "--allow-read",
     "--allow-write",
     fileURLToPath(new URL("./record-file-store-cas-child.fixture.mts", import.meta.url)),

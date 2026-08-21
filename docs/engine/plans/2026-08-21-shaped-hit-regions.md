@@ -48,6 +48,28 @@
   story-authoring / authoring-quickstart / production-floor / AGENTS
   更新。
 
+## 交付记录（2026-08-21，M4）
+
+- **M4**：`story regions trace <image.png> --out <file.regions.json>`
+  devtool（tooling `project/png-alpha.ts` + `project/regions-trace.ts` +
+  CLI 动词）。最小 PNG alpha 解码器按不可信输入严格入院（签名/块结构/
+  尺寸上限/精确 inflate 长度；8/16 位 RGBA、灰+alpha、8 位调色板+tRNS；
+  拒绝隔行与无 alpha 类型，结构化 `regions.trace_image_invalid` +
+  `details.reason`）。管线：阈值二值化 → 最大 4-连通域 → 像素裂缝行走
+  （marching-squares 角态表，鞍点按进入方向消解保持对角不连通）→ 只记
+  转角 → 闭环 Douglas–Peucker 预算内简化（几何增长 + 二分收紧取最小可
+  行 epsilon；预算不可达时结构化报错而非退化多边形）。顶点永远是精确边
+  界角点的子集（整数、在外接框内）；锚点平移默认底中 (500,1000)
+  permille；输出单区域文档 `authoring.status: "generated"`，落盘前复跑
+  `parseRegionsDocumentV1`，默认 regionsId 由 `--out` 文件名推导（与
+  filename lint 同步），覆写需 `--force`
+  （`regions.trace_output_exists`）；runner 增 `readFileBytes` 二进制
+  口。实测外部实验仓 300×540 立绘：752 个精确边界转角 → 31 顶点，多边
+  形面积/剪影像素数比 1.000。顺带把 M2 消除的 node_modules 符号链接竞
+  态修到其余三个 spawn deno 子进程的桌面测试（record-file-store-fault
+  / sqlite spike / sigkill spike 补 `--node-modules-dir=none`）——全量
+  套件下 determinism authority-map 当日复现两次，修后连续四次全绿。
+
 ## 交付记录（2026-08-21，M3）
 
 - **M3**：Studio 新增 Regions 工作区（`studio` 包

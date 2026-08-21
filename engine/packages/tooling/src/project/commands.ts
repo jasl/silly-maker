@@ -428,6 +428,8 @@ export interface ProjectCommandRunnerV1 {
   fetchText(url: string): Promise<{ readonly status: number; readonly body: string }>;
   sleep(milliseconds: number): Promise<void>;
   readFile(path: string): Promise<string>;
+  /** Reads one file as raw bytes (used for image inputs like trace bitmaps). */
+  readFileBytes(path: string): Promise<Uint8Array>;
   /** Returns a regular file's byte length, or null when absent/non-regular. */
   fileSize(path: string): Promise<number | null>;
   writeFile(path: string, contents: string): Promise<void>;

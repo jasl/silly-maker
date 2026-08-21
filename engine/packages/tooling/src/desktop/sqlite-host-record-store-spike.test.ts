@@ -90,6 +90,10 @@ function spawnSqliteCasChildV1(
     [
       "run",
       "--quiet",
+      // Keeps the child deno from re-materializing workspace node_modules
+      // symlinks (racing concurrent realpath walks in the parallel suite);
+      // the fixture's runtime imports are relative files and node builtins.
+      "--node-modules-dir=none",
       "--allow-read",
       "--allow-write",
       fileURLToPath(
