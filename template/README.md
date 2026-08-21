@@ -8,7 +8,7 @@
 deno task dev        # 启动游戏（根目录可用 deno task author template）
 ```
 
-打开游戏 → 设置 → 开发者工具 → **调试 → 场景 → Studio**（同源新标签，进行中的会话继续跑）。在 Studio 里可以直接拖动小梅、改缩放、换入场动画，保存后运行中的游戏 HMR 生效，`git diff` 只会出现 `src/scenes/opening/opening.scene.json`（以及编辑过的 `*.motion.json`）。场景文档是构图/站位/每 cue 表现声明（绑定 motion 或显式 `cut: true` 瞬切；同一条目允许多个 cue 各自声明，运行时按"这条边由哪个 cue 触发"解析——开场小梅的仪式性入场与取猫瞬回就共用同一条 enter 边）的唯一作者权威；剧本只引用 cue。
+打开游戏 → 设置 → 开发者工具 → **调试 → 工具 → Studio**（同源新标签，进行中的会话继续跑）。在 Studio 里可以直接拖动小梅、改缩放、换入场动画，保存后运行中的游戏 HMR 生效，`git diff` 只会出现 `src/scenes/opening/opening.scene.json`（以及编辑过的 `*.motion.json`）。场景文档是构图/站位/每 cue 表现声明（绑定 motion 或显式 `cut: true` 瞬切；同一条目允许多个 cue 各自声明，运行时按"这条边由哪个 cue 触发"解析——开场小梅的仪式性入场与取猫瞬回就共用同一条 enter 边）的唯一作者权威；剧本只引用 cue。
 
 复制本目录、全局替换 `template`/`Template` 为你的故事名、改好 `sillymaker.config.ts`，即可开始创作——副本本身就是完整项目（自带 `vite.config.ts` 与本地 story CLI）。在本仓库内开发时，把目录加进根 `project.config.ts` 清单；在仓库外开发时，把 `package.json` 里的引擎依赖改为相对 `file:` 路径并在 `deno.json` 设 `"nodeModulesDir": "manual"`。
 

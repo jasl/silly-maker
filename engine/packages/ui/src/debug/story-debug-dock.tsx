@@ -43,7 +43,8 @@ export interface StoryDebugDockToolV1 {
 }
 
 export type StoryDebugDockConfirmKindV1 = "wipe" | "reload" | "reinitialize";
-type StoryDebugDockGroupV1 = "state" | "scene" | "cheat";
+type StoryDebugDockGroupV1 = "state" | "scene" | "rate" | "tools" | "cheat";
+type StoryDebugDockToolGroupV1 = Exclude<StoryDebugDockGroupV1, "rate">;
 
 export interface StoryDebugDockLabelsV1 extends SessionMaintenanceLabelsV1 {
   readonly chipLabel: string;
@@ -69,6 +70,7 @@ export interface StoryDebugDockLabelsV1 extends SessionMaintenanceLabelsV1 {
   readonly reinitializeBackdropLabel: string;
   readonly sectionStateLabel: string;
   readonly sectionSceneLabel: string;
+  readonly sectionToolsLabel: string;
   readonly sectionCheatLabel: string;
   readonly studioLabel: string;
   readonly studioOpenedNote: string;
@@ -113,6 +115,7 @@ export const defaultStoryDebugDockLabelsV1: StoryDebugDockLabelsV1 = Object.free
   reinitializeBackdropLabel: "取消初始化",
   sectionStateLabel: "状态",
   sectionSceneLabel: "场景",
+  sectionToolsLabel: "工具",
   sectionCheatLabel: "作弊",
   studioLabel: "Studio",
   studioOpenedNote: "已在新标签页打开 Studio（游戏会话继续运行）。",
@@ -308,7 +311,7 @@ function StoryDebugDockConfirmDialogV1(props: {
   );
 }
 
-function dockToolSectionV1(tool: StoryDebugDockToolV1): StoryDebugDockGroupV1 {
+function dockToolSectionV1(tool: StoryDebugDockToolV1): StoryDebugDockToolGroupV1 {
   if (
     tool.panelId === engineStateInspectorPanelIdV1 ||
     tool.panelId === engineStateTunerPanelIdV1
@@ -318,7 +321,9 @@ function dockToolSectionV1(tool: StoryDebugDockToolV1): StoryDebugDockGroupV1 {
   const authority = tool.authority ?? "read_only";
   switch (authority) {
     case "read_only":
-      return "scene";
+      return tool.panelId.includes("workbench") || tool.panelId.includes("studio")
+        ? "tools"
+        : "scene";
     case "cheat":
       return "cheat";
     default: {
@@ -454,6 +459,7 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
     .slice()
     .sort(compareStateToolsV1);
   const sceneTools = tools.filter((tool) => dockToolSectionV1(tool) === "scene");
+  const toolTools = tools.filter((tool) => dockToolSectionV1(tool) === "tools");
   const cheatTools = tools.filter((tool) => dockToolSectionV1(tool) === "cheat");
   const cheatCapabilityLocked = !cheatsEnabled && !grantOnOpen;
   const tunerLocked = cheatCapabilityLocked;
@@ -466,10 +472,9 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
     props.onReinitialize !== undefined ||
     props.clearAllSaves !== undefined ||
     stateTools.length > 0;
-  const hasSceneSection = props.presentationFreeze !== undefined ||
-    props.presentationRate !== undefined ||
-    sceneTools.length > 0 ||
-    studioHref !== undefined;
+  const hasSceneSection = props.presentationFreeze !== undefined || sceneTools.length > 0;
+  const hasRateSection = props.presentationRate !== undefined;
+  const hasToolsSection = toolTools.length > 0 || studioHref !== undefined;
 
   const { clearAllSaves, onWiped, onExpandedChange } = props;
   const setExpanded = useCallback((next: boolean): void => {
@@ -636,96 +641,81 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
                       section="state"
                       title={labels.sectionStateLabel}
                     >
-                      {props.savePort === undefined
-                        ? null
-                        : (
-                          <div className={styles["story-debug-dock__pair"]}>
-                            <Button
-                              data-debug-dock-action="export_state"
-                              disabled={busy !== null}
-                              onClick={() => {
-                                closeConfirm();
-                                setBusy("export");
-                                setNote(null);
-                                void props.savePort
-                                  ?.exportCurrentSave()
-                                  .then(() => setNote(labels.exportDoneText))
-                                  .catch((error: unknown) => setNote(failureNoteV1(error)))
-                                  .finally(() => setBusy(null));
-                              }}
-                            >
-                              {busy === "export"
-                                ? `${labels.exportStateLabel}${labels.busySuffix}`
-                                : labels.exportStateLabel}
-                            </Button>
-                            <Button
-                              data-debug-dock-action="import_state"
-                              disabled={busy !== null}
-                              onClick={() => {
-                                closeConfirm();
-                                setBusy("import");
-                                setNote(null);
-                                void props.savePort
-                                  ?.importSave()
-                                  .then((result) => {
-                                    const next = sessionMaintenanceImportNoteV1(result, labels);
-                                    if (next !== null) setNote(next);
-                                  })
-                                  .catch((error: unknown) => setNote(failureNoteV1(error)))
-                                  .finally(() => setBusy(null));
-                              }}
-                            >
-                              {busy === "import"
-                                ? `${labels.importStateLabel}${labels.busySuffix}`
-                                : labels.importStateLabel}
-                            </Button>
-                          </div>
-                        )}
-                      {stateTools.length === 0
-                        ? null
-                        : (
-                          <div className={styles["story-debug-dock__pair"]}>
-                            {stateTools.map((tool) =>
-                              renderToolButtonV1(
-                                tool,
-                                tool.panelId === engineStateTunerPanelIdV1 && tunerLocked,
-                              )
-                            )}
-                          </div>
-                        )}
-                      {props.onReloadCurrentState === undefined &&
-                          props.onReinitialize === undefined
-                        ? null
-                        : (
-                          <div className={styles["story-debug-dock__pair"]}>
-                            {props.onReloadCurrentState === undefined ? null : (
-                              <Button
-                                data-debug-dock-action="reload_current"
-                                disabled={busy !== null}
-                                aria-expanded={confirm === "reload"}
-                                onClick={() => {
-                                  setNote(null);
-                                  setConfirm("reload");
-                                }}
-                              >
-                                {labels.reloadCurrentStateLabel}
-                              </Button>
-                            )}
-                            {props.onReinitialize === undefined ? null : (
-                              <Button
-                                data-debug-dock-action="reinitialize"
-                                disabled={busy !== null}
-                                aria-expanded={confirm === "reinitialize"}
-                                onClick={() => {
-                                  setNote(null);
-                                  setConfirm("reinitialize");
-                                }}
-                              >
-                                {labels.reinitializeLabel}
-                              </Button>
-                            )}
-                          </div>
-                        )}
+                      {props.savePort === undefined ? null : (
+                        <>
+                          <Button
+                            data-debug-dock-action="export_state"
+                            disabled={busy !== null}
+                            onClick={() => {
+                              closeConfirm();
+                              setBusy("export");
+                              setNote(null);
+                              void props.savePort
+                                ?.exportCurrentSave()
+                                .then(() => setNote(labels.exportDoneText))
+                                .catch((error: unknown) => setNote(failureNoteV1(error)))
+                                .finally(() => setBusy(null));
+                            }}
+                          >
+                            {busy === "export"
+                              ? `${labels.exportStateLabel}${labels.busySuffix}`
+                              : labels.exportStateLabel}
+                          </Button>
+                          <Button
+                            data-debug-dock-action="import_state"
+                            disabled={busy !== null}
+                            onClick={() => {
+                              closeConfirm();
+                              setBusy("import");
+                              setNote(null);
+                              void props.savePort
+                                ?.importSave()
+                                .then((result) => {
+                                  const next = sessionMaintenanceImportNoteV1(result, labels);
+                                  if (next !== null) setNote(next);
+                                })
+                                .catch((error: unknown) => setNote(failureNoteV1(error)))
+                                .finally(() => setBusy(null));
+                            }}
+                          >
+                            {busy === "import"
+                              ? `${labels.importStateLabel}${labels.busySuffix}`
+                              : labels.importStateLabel}
+                          </Button>
+                        </>
+                      )}
+                      {stateTools.map((tool) =>
+                        renderToolButtonV1(
+                          tool,
+                          tool.panelId === engineStateTunerPanelIdV1 && tunerLocked,
+                        )
+                      )}
+                      {props.onReloadCurrentState === undefined ? null : (
+                        <Button
+                          data-debug-dock-action="reload_current"
+                          disabled={busy !== null}
+                          aria-expanded={confirm === "reload"}
+                          onClick={() => {
+                            setNote(null);
+                            setConfirm("reload");
+                          }}
+                        >
+                          {labels.reloadCurrentStateLabel}
+                        </Button>
+                      )}
+                      {props.onReinitialize === undefined ? null : (
+                        <Button
+                          data-debug-dock-action="reinitialize"
+                          disabled={busy !== null}
+                          aria-expanded={confirm === "reinitialize"}
+                          onClick={() => {
+                            setNote(null);
+                            setConfirm("reinitialize");
+                          }}
+                        >
+                          {labels.reinitializeLabel}
+                        </Button>
+                      )}
                       {clearAllSaves === undefined ? null : (
                         <Button
                           className={styles["story-debug-dock__danger"]}
@@ -756,65 +746,66 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
                       section="scene"
                       title={labels.sectionSceneLabel}
                     >
-                      {props.presentationFreeze === undefined && sceneTools.length === 0
-                        ? null
-                        : (
-                          <div className={styles["story-debug-dock__pair"]}>
-                            {props.presentationFreeze === undefined ? null : (
-                              <Button
-                                data-debug-dock-action="freeze"
-                                data-devdock-freeze-toggle="true"
-                                aria-pressed={frozen}
-                                onClick={() => {
-                                  closeConfirm();
-                                  if (frozen) {
-                                    setNote(labels.resumeNote);
-                                    props.presentationFreeze?.resume();
-                                  } else {
-                                    setNote(labels.freezeNote);
-                                    props.presentationFreeze?.pause();
-                                  }
-                                }}
-                              >
-                                {frozen ? labels.resumeLabel : labels.freezeLabel}
-                              </Button>
-                            )}
-                            {sceneTools[0] === undefined
-                              ? null
-                              : renderToolButtonV1(sceneTools[0], false)}
-                          </div>
-                        )}
-                      {props.presentationRate === undefined
-                        ? null
-                        : (
-                          <div className={styles["story-debug-dock__rate"]}>
-                            <span className={styles["story-debug-dock__rate-label"]}>
-                              {labels.rateLabel}
-                            </span>
-                            <div className={styles["story-debug-dock__rate-options"]}>
-                              {presentationRatePresetsV1.map((preset) => (
-                                <Button
-                                  key={preset}
-                                  data-debug-dock-action="rate"
-                                  data-debug-dock-rate={String(preset)}
-                                  aria-pressed={presentationRate === preset}
-                                  onClick={() => props.presentationRate?.setRate(preset)}
-                                >
-                                  {formatRatePresetV1(preset)}
-                                </Button>
-                              ))}
-                            </div>
-                            {presentationRatePinned && (
-                              <span
-                                className={styles["story-debug-dock__rate-pinned"]}
-                                data-debug-dock-rate-pinned=""
-                              >
-                                {labels.ratePinnedLabel}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      {sceneTools.slice(1).map((tool) => renderToolButtonV1(tool, false))}
+                      {props.presentationFreeze === undefined ? null : (
+                        <Button
+                          data-debug-dock-action="freeze"
+                          data-devdock-freeze-toggle="true"
+                          aria-pressed={frozen}
+                          onClick={() => {
+                            closeConfirm();
+                            if (frozen) {
+                              setNote(labels.resumeNote);
+                              props.presentationFreeze?.resume();
+                            } else {
+                              setNote(labels.freezeNote);
+                              props.presentationFreeze?.pause();
+                            }
+                          }}
+                        >
+                          {frozen ? labels.resumeLabel : labels.freezeLabel}
+                        </Button>
+                      )}
+                      {sceneTools.map((tool) => renderToolButtonV1(tool, false))}
+                    </StoryDebugDockSectionV1>
+                  )
+                  : null}
+                {hasRateSection
+                  ? (
+                    <StoryDebugDockSectionV1
+                      section="rate"
+                      title={labels.rateLabel}
+                    >
+                      <div className={styles["story-debug-dock__rate-options"]}>
+                        {presentationRatePresetsV1.map((preset) => (
+                          <Button
+                            key={preset}
+                            data-debug-dock-action="rate"
+                            data-debug-dock-rate={String(preset)}
+                            aria-pressed={presentationRate === preset}
+                            onClick={() => props.presentationRate?.setRate(preset)}
+                          >
+                            {formatRatePresetV1(preset)}
+                          </Button>
+                        ))}
+                      </div>
+                      {presentationRatePinned && (
+                        <span
+                          className={styles["story-debug-dock__rate-pinned"]}
+                          data-debug-dock-rate-pinned=""
+                        >
+                          {labels.ratePinnedLabel}
+                        </span>
+                      )}
+                    </StoryDebugDockSectionV1>
+                  )
+                  : null}
+                {hasToolsSection
+                  ? (
+                    <StoryDebugDockSectionV1
+                      section="tools"
+                      title={labels.sectionToolsLabel}
+                    >
+                      {toolTools.map((tool) => renderToolButtonV1(tool, false))}
                       {studioHref === undefined ? null : (
                         <a
                           className={styles["story-debug-dock__studio"]}

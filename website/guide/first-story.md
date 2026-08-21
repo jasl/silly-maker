@@ -2,7 +2,7 @@
 
 > Prefer to delegate? [Getting started with AI](/guide/getting-started) covers the same flow driven by an AI agent.
 
-The `template/` package is a minimal playable, scene-first game kept working by CI. New games start as a copy of it. Before touching any TypeScript, try the visual loop: `deno task dev`, enable developer tools in Settings, open **调试 → 场景 → Studio**, and drag the character — saving writes only `src/scenes/opening/opening.scene.json` and the running game hot-updates. The scene document owns placements and cue→motion bindings; the script references cues.
+The `template/` package is a minimal playable, scene-first game kept working by CI. New games start as a copy of it. Before touching any TypeScript, try the visual loop: `deno task dev`, enable developer tools in Settings, open **调试 → 工具 → Studio**, and drag the character — saving writes only `src/scenes/opening/opening.scene.json` and the running game hot-updates. The scene document owns placements and cue→motion bindings; the script references cues.
 
 ## Copy and rename
 
