@@ -1,0 +1,211 @@
+// @vitest-environment jsdom
+// SPDX-License-Identifier: MIT
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import process from "node:process";
+
+import { build } from "vite";
+import { describe, expect, it } from "vitest";
+
+import { readApplicationBootstrapConfigFromDocumentInternalV1 } from "@sillymaker/web/internal/application-startup";
+
+import {
+  createDesktopHtmlResponseInternalV1,
+  injectDesktopBootstrapConfigV1,
+} from "../desktop/desktop-html.mts";
+import {
+  applicationRuntimeBootstrapPluginInternalV1,
+  applicationRuntimeBootShellElementIdInternalV1,
+  injectApplicationRuntimeBootstrapHtmlInternalV1,
+} from "./application-entry-bootstrap.ts";
+import { createSillymakerAppViteConfigV1 } from "./app-vite-config.ts";
+import { studioPageUrlV1 } from "./studio.ts";
+
+const repositoryRootV1 = resolve(process.cwd());
+
+describe("runtime application entry bootstrap HTML", () => {
+  it("places one accessible static shell and inert Browser receipt before modules", () => {
+    const html = injectApplicationRuntimeBootstrapHtmlInternalV1({
+      html:
+        '<!doctype html><html><body><div id="root"></div><script type="module" src="entry.ts"></script></body></html>',
+      applicationLabel: "SillyMaker Lab",
+    });
+
+    expect(html).toContain(`id="${applicationRuntimeBootShellElementIdInternalV1}"`);
+    expect(html).toContain(
+      'role="status" aria-live="polite" aria-busy="true" aria-label="SillyMaker Lab 启动状态"',
+    );
+    expect(html).toContain("SillyMaker Lab 正在启动…");
+    expect(html).toContain(
+      '{"revision":1,"entry":"runtime","target":"browser"}',
+    );
+    expect(html).toContain('type="application/json" data-sillymaker-bootstrap-config="v1"');
+    expect(html.indexOf(applicationRuntimeBootShellElementIdInternalV1)).toBeLessThan(
+      html.indexOf('src="entry.ts"'),
+    );
+    expect(html.match(/sillymaker-application-bootstrap/gu)).toHaveLength(1);
+
+    const parsed = new DOMParser().parseFromString(html, "text/html");
+    const config = readApplicationBootstrapConfigFromDocumentInternalV1(parsed, "runtime");
+    expect(config).toEqual({ revision: 1, entry: "runtime", target: "browser" });
+    expect(Object.isFrozen(config)).toBe(true);
+  });
+
+  it("keeps the same admitted receipt boundary after Desktop target replacement", () => {
+    const browserHtml = injectApplicationRuntimeBootstrapHtmlInternalV1({
+      html: '<!doctype html><html><body><div id="root"></div></body></html>',
+      applicationLabel: "Desktop Application",
+    });
+    const desktopHtml = injectDesktopBootstrapConfigV1(
+      browserHtml,
+      Object.freeze({ revision: 1, entry: "runtime", target: "deno_desktop" }),
+    );
+    const parsed = new DOMParser().parseFromString(desktopHtml, "text/html");
+
+    const config = readApplicationBootstrapConfigFromDocumentInternalV1(parsed, "runtime");
+
+    expect(config).toEqual({ revision: 1, entry: "runtime", target: "deno_desktop" });
+    expect(Object.isFrozen(config)).toBe(true);
+    expect(desktopHtml.match(/sillymaker-application-bootstrap/gu)).toHaveLength(1);
+  });
+
+  it("escapes application labels instead of admitting markup", () => {
+    const html = injectApplicationRuntimeBootstrapHtmlInternalV1({
+      html: "<html><body></body></html>",
+      applicationLabel: '<App "unsafe">',
+    });
+
+    expect(html).toContain("&lt;App &quot;unsafe&quot;&gt; 启动状态");
+    expect(html).toContain('&lt;App "unsafe"&gt; 正在启动…');
+    expect(html).not.toContain('<App "unsafe">');
+  });
+
+  it.each([
+    ["missing body", "<html></html>", "body_ambiguous"],
+    ["duplicate body", "<body></body><body></body>", "body_ambiguous"],
+    [
+      "reserved config",
+      '<body><script id="SILLYMAKER-APPLICATION-BOOTSTRAP"></script></body>',
+      "reserved_marker_conflict",
+    ],
+    [
+      "reserved shell",
+      '<body><div DATA-SILLYMAKER-BOOT-SHELL="pending"></div></body>',
+      "reserved_marker_conflict",
+    ],
+  ])("rejects %s", (_label, html, code) => {
+    expect(() =>
+      injectApplicationRuntimeBootstrapHtmlInternalV1({
+        html,
+        applicationLabel: "Application",
+      })
+    ).toThrow(`application_entry_bootstrap.${code}`);
+  });
+
+  it("leaves the generated Studio Author page under its own entry policy", () => {
+    const plugin = applicationRuntimeBootstrapPluginInternalV1({
+      applicationLabel: "Runtime",
+    });
+    const transform = plugin.transformIndexHtml;
+    if (typeof transform !== "object" || transform === null) {
+      throw new TypeError("runtime bootstrap HTML transform missing");
+    }
+    const studioHtml = '<html><body><div id="sillymaker-studio-root"></div></body></html>';
+
+    expect(transform.handler.call({} as never, studioHtml, { path: studioPageUrlV1 } as never))
+      .toBe(
+        studioHtml,
+      );
+  });
+
+  it("is installed by every configured GUI application", async () => {
+    const config = await createSillymakerAppViteConfigV1({
+      appRoot: import.meta.dirname,
+      config: {
+        applicationId: "bootstrap-test",
+        label: "Bootstrap test",
+        storyEntry: { module: "src/story.ts", exportName: "storyV1" },
+        assetVerification: false,
+        simulate: null,
+        web: {
+          applicationHtml: "index.html",
+          applicationEntry: "src/entry.tsx",
+          base: "./",
+          sourcemap: false,
+          identity: null,
+          desktop: null,
+        },
+      },
+    });
+
+    expect(config.plugins).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "sillymaker:application-runtime-bootstrap" }),
+      ]),
+    );
+  });
+
+  it("survives the real Template build and Desktop response boundary", async () => {
+    const outputDirectory = await mkdtemp(join(tmpdir(), "sillymaker-entry-bootstrap-"));
+    try {
+      const output = await build({
+        configFile: join(repositoryRootV1, "template", "vite.config.ts"),
+        logLevel: "silent",
+        build: { write: false, outDir: outputDirectory, emptyOutDir: true },
+      });
+      if (!Array.isArray(output) && !("output" in output)) {
+        throw new TypeError("Template build unexpectedly returned a watcher");
+      }
+      const generated = (Array.isArray(output) ? output : [output]).flatMap(
+        ({ output: files }) => files,
+      );
+      const index = generated.find(
+        (file) => file.type === "asset" && file.fileName === "index.html",
+      );
+      if (index === undefined || index.type !== "asset") {
+        throw new TypeError("Template build did not emit index.html");
+      }
+      const browserHtml = typeof index.source === "string"
+        ? index.source
+        : new TextDecoder().decode(index.source);
+
+      expect(browserHtml.match(/sillymaker-application-bootstrap/gu)).toHaveLength(1);
+      expect(browserHtml.match(/data-sillymaker-boot-shell="pending"/gu)).toHaveLength(1);
+      expect(browserHtml).toContain('"entry":"runtime","target":"browser"');
+      expect(browserHtml).toContain('<script type="module"');
+      const browserDocument = new DOMParser().parseFromString(browserHtml, "text/html");
+      const browserConfig = readApplicationBootstrapConfigFromDocumentInternalV1(
+        browserDocument,
+        "runtime",
+      );
+      expect(browserConfig).toEqual({ revision: 1, entry: "runtime", target: "browser" });
+      expect(Object.isFrozen(browserConfig)).toBe(true);
+
+      const desktopResponse = createDesktopHtmlResponseInternalV1(
+        browserHtml,
+        "a".repeat(43),
+        Object.freeze({ revision: 1, entry: "runtime", target: "deno_desktop" }),
+        false,
+      );
+      const desktopHtml = await desktopResponse.text();
+      const desktopDocument = new DOMParser().parseFromString(desktopHtml, "text/html");
+      const desktopConfig = readApplicationBootstrapConfigFromDocumentInternalV1(
+        desktopDocument,
+        "runtime",
+      );
+
+      expect(desktopConfig).toEqual({
+        revision: 1,
+        entry: "runtime",
+        target: "deno_desktop",
+      });
+      expect(Object.isFrozen(desktopConfig)).toBe(true);
+      expect(desktopHtml).not.toContain('"target":"browser"');
+      expect(desktopHtml.match(/sillymaker-application-bootstrap/gu)).toHaveLength(1);
+      expect(desktopHtml.match(/data-sillymaker-boot-shell="pending"/gu)).toHaveLength(1);
+    } finally {
+      await rm(outputDirectory, { force: true, recursive: true });
+    }
+  });
+});

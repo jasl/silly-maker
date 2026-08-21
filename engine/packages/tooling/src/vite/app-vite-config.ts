@@ -22,6 +22,7 @@ import {
   buildDependencyReceiptPluginInternalV1,
   parseBuildDependencyMeasurementRequestInternalV1,
 } from "./build-dependency-receipt.ts";
+import { applicationRuntimeBootstrapPluginInternalV1 } from "./application-entry-bootstrap.ts";
 import {
   copyRuntimeAssetsV1,
   parseRuntimeAssetContentTypesV1,
@@ -179,6 +180,7 @@ export async function createSillymakerAppViteConfigV1(
       collectVersionStampV1({ appRoot });
   plugins.push(
     react(),
+    applicationRuntimeBootstrapPluginInternalV1({ applicationLabel: config.label }),
     runtimeAssetsPluginV1(appRoot, runtimeAssetContentTypes),
     storyMetadataPluginV1(appRoot),
     // Human-facing version stamp (package versions + git commits, all

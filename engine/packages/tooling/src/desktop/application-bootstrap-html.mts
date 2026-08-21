@@ -48,9 +48,9 @@ export function applicationBootstrapJsonHtmlV1(
 }
 
 /**
- * A dependency-free, visible boot shell. React later renders into the outer
- * container and replaces the status child, so stale `aria-busy` state cannot
- * survive a successful mount.
+ * A dependency-free, visible boot shell. GUI entries keep this diagnostics
+ * container separate from their product mount root; the startup controller
+ * retires its pending child only after the first acknowledged product commit.
  */
 export function accessibleApplicationBootShellHtmlV1(input: {
   readonly containerId: string;

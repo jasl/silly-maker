@@ -20,6 +20,10 @@ import type { DevDockControlV1 } from "./dev-dock-control.ts";
 import type { PresentationFreezePortV1 } from "../presentation-run/presentation-freeze.ts";
 import { useDevDockPortalTargetV1 } from "./dev-dock-portal-coordinator.tsx";
 import styles from "./dev-dock.module.css";
+import {
+  acknowledgeDevDockContributionAcceptanceInternalV1,
+  inheritDevDockContributionAcceptanceInternalV1,
+} from "../composer/dev-dock-contribution-acceptance.ts";
 
 /**
  * Panel grouping metadata kept for contribution compatibility; panels list
@@ -272,7 +276,11 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
     props.capabilities.state.getCurrent,
   );
   const contributions = useMemo(
-    () => createDevDockContributionSetV1(props.contributions),
+    () =>
+      inheritDevDockContributionAcceptanceInternalV1(
+        props.contributions,
+        createDevDockContributionSetV1(props.contributions),
+      ),
     [props.contributions],
   );
   const panels = contributions.panels;
@@ -314,8 +322,9 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
     control.publishPanelsInternalV1(
       panels.map(({ id, title, authority }) => Object.freeze({ id, title, authority })),
     );
+    acknowledgeDevDockContributionAcceptanceInternalV1(contributions);
     return () => control.publishPanelsInternalV1(Object.freeze([]));
-  }, [control, panels]);
+  }, [control, contributions, panels]);
 
   useLayoutEffect(() => {
     if (debugTools) return;

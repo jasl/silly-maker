@@ -177,10 +177,10 @@ export function createReactLayoutPublicationV1<TPlan>(
         }
         initial.host.dataset.sillymakerStudioEpoch = "current";
         try {
-          // The static Author boot shell remains visible while the detached
-          // candidate prepares. Retire it only after the first real layout
-          // commit has acknowledged, at the same cutover that installs the
-          // live Studio owner.
+          // Existing container content remains visible while the detached
+          // candidate prepares. This cutover installs only the live Studio
+          // owner; the generated Author entry separately retires its Host
+          // diagnostics shell after this layout acknowledgement resolves.
           input.container.replaceChildren(initial.host);
         } catch (error) {
           disposeEpoch(initial);

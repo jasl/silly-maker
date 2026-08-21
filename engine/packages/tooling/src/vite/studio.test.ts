@@ -48,6 +48,7 @@ describe("studioPluginV1", () => {
   it("generates a static accessible Author/Browser boot shell", () => {
     const html = createStudioPageHtmlInternalV1();
 
+    expect(html).toContain('<div id="sillymaker-application-boot-shell">');
     expect(html).toContain('<div id="sillymaker-studio-root">');
     expect(html).toContain(
       'role="status" aria-live="polite" aria-busy="true" aria-label="SillyMaker Studio 启动状态"',
@@ -57,8 +58,17 @@ describe("studioPluginV1", () => {
       '{"revision":1,"entry":"author","target":"browser"}',
     );
     expect(html).toContain('type="application/json" data-sillymaker-bootstrap-config="v1"');
-    expect(html.indexOf('data-sillymaker-boot-shell="pending"')).toBeLessThan(
-      html.indexOf('src="/__sillymaker/studio-entry.tsx"'),
+    const shellIndex = html.indexOf('id="sillymaker-application-boot-shell"');
+    const mountIndex = html.indexOf('id="sillymaker-studio-root"');
+    const entryIndex = html.indexOf('src="/__sillymaker/studio-entry.tsx"');
+    expect(shellIndex).toBeGreaterThan(-1);
+    expect(mountIndex).toBeGreaterThan(shellIndex);
+    expect(entryIndex).toBeGreaterThan(mountIndex);
+    expect(html.slice(shellIndex, mountIndex)).toContain(
+      'data-sillymaker-boot-shell="pending"',
+    );
+    expect(html.slice(mountIndex, entryIndex)).not.toContain(
+      'data-sillymaker-boot-shell="pending"',
     );
   });
 
@@ -100,6 +110,13 @@ describe("studioPluginV1", () => {
     expect(source).toContain(
       'import { createDevServerRegionsIoV1, createDevServerSceneIoV1 } from "@sillymaker/studio";',
     );
+    expect(source).toContain(
+      'import { createWebApplicationStartupDiagnosticsControllerInternalV1, readApplicationBootstrapConfigFromDocumentInternalV1 } from "@sillymaker/web/internal/application-startup";',
+    );
+    expect(source).toContain(
+      'readApplicationBootstrapConfigFromDocumentInternalV1(document, "author")',
+    );
+    expect(source).toContain('bootstrapConfigV1.target !== "browser"');
     expect(source).toContain("const regionsIoV1 = createDevServerRegionsIoV1();");
     expect(source.match(/regionsIo: regionsIoV1,/gu)).toHaveLength(2);
     expect(source).toContain('profileId: "sillymaker.studio.live"');
@@ -108,24 +125,46 @@ describe("studioPluginV1", () => {
     );
     expect(source).toContain("hmrV1.accept(moduleV1);");
     expect(source).toContain("void hmrV1.dispose();");
+    const configReadIndex = source.indexOf(
+      'readApplicationBootstrapConfigFromDocumentInternalV1(document, "author")',
+    );
     const mountIndex = source.indexOf("await compositionV1.mount");
     const initialPublicationIndex = source.indexOf(
       "await reactPublicationV1.mount(initialPlanV1)",
     );
-    const initialFailureIndex = source.indexOf("} catch (errorV1) {");
+    const requiredReadyIndex = source.indexOf(
+      "startupDiagnosticsV1.signalRequiredDomainReady()",
+    );
+    const firstCommitIndex = source.indexOf(
+      'startupDiagnosticsV1.signalFirstProductCommit("presentation")',
+    );
+    const initialFailureIndex = source.lastIndexOf("} catch (errorV1) {");
     const rootCleanupIndex = source.indexOf(
-      "reactPublicationV1.dispose();",
+      "disposeReactPublicationV1?.();",
       initialFailureIndex,
     );
     const compositionCleanupIndex = source.indexOf(
-      "await compositionV1.dispose();",
+      "await disposeCompositionV1();",
       initialFailureIndex,
     );
+    const terminalFailureIndex = source.indexOf(
+      "startupDiagnosticsV1.signalTerminalStartupFailure({",
+      initialFailureIndex,
+    );
+    expect(configReadIndex).toBeGreaterThan(-1);
+    expect(mountIndex).toBeGreaterThan(configReadIndex);
     expect(mountIndex).toBeGreaterThan(-1);
-    expect(initialPublicationIndex).toBeGreaterThan(mountIndex);
-    expect(initialFailureIndex).toBeGreaterThan(initialPublicationIndex);
+    expect(requiredReadyIndex).toBeGreaterThan(mountIndex);
+    expect(initialPublicationIndex).toBeGreaterThan(requiredReadyIndex);
+    expect(firstCommitIndex).toBeGreaterThan(initialPublicationIndex);
+    expect(initialFailureIndex).toBeGreaterThan(firstCommitIndex);
     expect(rootCleanupIndex).toBeGreaterThan(initialFailureIndex);
     expect(compositionCleanupIndex).toBeGreaterThan(rootCleanupIndex);
+    expect(terminalFailureIndex).toBeGreaterThan(compositionCleanupIndex);
+    expect(source).toContain("reason: startupFailureReasonV1");
+    expect(source).toContain("globalThis.location.reload();");
+    expect(source).not.toContain("textContent = errorV1");
+    expect(source).not.toContain("innerHTML = errorV1");
     expect(source).toContain(
       "publish: (planV1, signalV1) => reactPublicationV1.publish(planV1, signalV1)",
     );

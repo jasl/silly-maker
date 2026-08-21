@@ -72,6 +72,7 @@ import type {
   GameUiManagedSurfaceCompositionInternalV1,
   GameUiOverlayIdV1,
 } from "./create-game-ui-composition.ts";
+import { inheritDevDockContributionAcceptanceInternalV1 } from "./dev-dock-contribution-acceptance.ts";
 import { resolveOptionalGameUiManagedSurfaceCompositionInternalV1 } from "./create-game-ui-composition.ts";
 import { SemanticStageCompositionClaimantProviderInternalV1 } from "../stage/semantic-stage.tsx";
 import styles from "./default-game-root.module.css";
@@ -419,7 +420,10 @@ function DefaultDevDockV1(props: {
     [props.stateTuner, storyContributions],
   );
   if (!debugTools) return null;
-  const contributions = createDevDockContributionSetV1({ panels: mergedPanels });
+  const contributions = inheritDevDockContributionAcceptanceInternalV1(
+    storyContributions,
+    createDevDockContributionSetV1({ panels: mergedPanels }),
+  );
   return (
     <>
       {chip

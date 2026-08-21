@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
-import type { ReactElement } from "react";
+import { useLayoutEffect } from "react";
+import type { ReactElement, ReactNode } from "react";
 
 import type {
   ApplicationHostCapabilitiesV1,
@@ -68,6 +69,7 @@ import {
 } from "@sillymaker/ui";
 import type { PresentationFreezePortV1, PresentationRatePortV1 } from "@sillymaker/ui";
 import {
+  bindDevDockContributionAcceptanceInternalV1,
   createHostedGameUiCompositionInternalV1,
   resolveOptionalGameUiManagedSurfaceCompositionInternalV1,
   sealHostedGameUiCompositionTerminalInternalV1,
@@ -89,7 +91,7 @@ import { createDesktopShellFetchInternalV1 } from "../host/desktop-shell-capabil
 import { createShellFilePortV1 } from "../host/shell-file-port.ts";
 import { createWebHostV1 } from "../host/create-web-host.ts";
 import { createHttpHostRecordStoreV1 } from "../host/http-record-store.ts";
-import { mountGameApplicationV1 } from "./mount-game-application.tsx";
+import { mountGameApplicationWithStartupDiagnosticsInternalV1 } from "./mount-game-application.tsx";
 import type { MountedGameApplicationV1 } from "./mount-game-application.tsx";
 import { createWebInstanceLeaseCoordinatorV1 } from "./instance-lease.ts";
 import type { WebInstanceLeasePortV1, WebInstancePolicyV1 } from "./instance-lease.ts";
@@ -105,6 +107,12 @@ import {
   type PresentationSuccessorAcknowledgmentBrokerInternalV1,
 } from "./presentation-successor-acknowledgment.ts";
 import { resolveLocalRecordsHostModeV1 } from "./resolve-local-records-host-mode.ts";
+import {
+  createWebApplicationStartupDiagnosticsControllerInternalV1,
+  type ApplicationStartupFailureReasonInternalV1,
+  type WebApplicationStartupDiagnosticsControllerInternalV1,
+} from "./application-startup-diagnostics.ts";
+import { readApplicationBootstrapConfigFromDocumentInternalV1 } from "./read-application-bootstrap-config.ts";
 
 type WebSemanticPublicationV1<TGameView, TNarrativeView, TActionDescriptor> = SemanticPublicationV1<
   TGameView,
@@ -112,6 +120,32 @@ type WebSemanticPublicationV1<TGameView, TNarrativeView, TActionDescriptor> = Se
   TActionDescriptor,
   RuntimeSessionStatusV1
 >;
+
+function ApplicationFirstProductCommitInternalV1(props: {
+  readonly children: ReactNode;
+  commit(): void;
+}): ReactElement {
+  const { commit } = props;
+  useLayoutEffect(() => {
+    let mounted = true;
+    // Let an uncaught sibling layout failure win before publishing the first
+    // usable product commit. React runs this cleanup when that commit aborts.
+    queueMicrotask(() => {
+      if (mounted) commit();
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [commit]);
+  return <>{props.children}</>;
+}
+
+function retryCurrentApplicationEntryInternalV1(): void {
+  if (typeof location === "undefined" || typeof location.reload !== "function") {
+    throw new TypeError("web.application_startup.retry_unavailable");
+  }
+  location.reload();
+}
 
 /**
  * The per-instance UI wiring a Story returns from `ui()`: projector,
@@ -589,25 +623,85 @@ export async function startWebGameApplicationV1<
   >,
   options: StartWebGameApplicationOptionsV1 = {},
 ): Promise<StartedWebGameApplicationV1> {
-  const rootElement = options.rootElement ??
-    (typeof document === "undefined" ? null : document.querySelector("#root"));
-  if (!(rootElement instanceof HTMLElement)) {
-    throw new TypeError("web.application_root_missing");
+  const usesDocumentEntry = options.rootElement === undefined && typeof document !== "undefined";
+  let startupDiagnostics: WebApplicationStartupDiagnosticsControllerInternalV1 | null = null;
+  let bootstrapTarget: "browser" | "deno_desktop" | null = null;
+  let startupFailureReason: ApplicationStartupFailureReasonInternalV1 = "bootstrap_config";
+  let startupAccepted = false;
+  let productCommitted = false;
+
+  const signalStartupFailure = (reason: ApplicationStartupFailureReasonInternalV1): void => {
+    if (startupDiagnostics === null) return;
+    try {
+      startupDiagnostics.signalTerminalStartupFailure({
+        reason,
+        retry: retryCurrentApplicationEntryInternalV1,
+      });
+    } catch {
+      // Preserve the construction/runtime failure when the Host-owned shell
+      // was externally removed after its initial admission.
+    }
+  };
+
+  if (usesDocumentEntry) {
+    try {
+      startupDiagnostics = createWebApplicationStartupDiagnosticsControllerInternalV1(document);
+      bootstrapTarget = readApplicationBootstrapConfigFromDocumentInternalV1(
+        document,
+        "runtime",
+      ).target;
+    } catch (error) {
+      signalStartupFailure("bootstrap_config");
+      throw error;
+    }
+  }
+  startupFailureReason = "unavailable";
+
+  let rootElement: HTMLElement;
+  try {
+    const candidate = options.rootElement ??
+      (typeof document === "undefined" ? null : document.querySelector("#root"));
+    if (!(candidate instanceof HTMLElement)) {
+      throw new TypeError("web.application_root_missing");
+    }
+    rootElement = candidate;
+  } catch (error) {
+    signalStartupFailure("unavailable");
+    throw error;
   }
 
   // The default composer owns the engine theme baseline. Loading it here
   // (not at module scope) keeps custom Roots on their own style composition.
-  await import("@sillymaker/ui/styles.css");
+  try {
+    await import("@sillymaker/ui/styles.css");
+  } catch (error) {
+    signalStartupFailure("unavailable");
+    throw error;
+  }
 
   // Both local channels persist through the HTTP record store. Only the
   // injected marker identifies the Desktop shell, whose private file-download
   // endpoint is unavailable to the query-only browser save server.
-  const { desktopShellCapability, usesDesktopShell, wantsLocalRecords } =
-    resolveLocalRecordsHostModeV1(
+  let localRecordsHostMode: ReturnType<typeof resolveLocalRecordsHostModeV1>;
+  try {
+    localRecordsHostMode = resolveLocalRecordsHostModeV1(
       typeof location === "undefined" ? "" : location.search,
       Reflect.get(globalThis, "__SILLYMAKER_RECORDS__"),
       Reflect.get(globalThis, "__SILLYMAKER_DESKTOP_CAPABILITY__"),
     );
+  } catch (error) {
+    signalStartupFailure("unavailable");
+    throw error;
+  }
+  const { desktopShellCapability, usesDesktopShell, wantsLocalRecords } = localRecordsHostMode;
+  if (
+    bootstrapTarget !== null &&
+    (bootstrapTarget === "deno_desktop") !== usesDesktopShell
+  ) {
+    signalStartupFailure("bootstrap_config");
+    throw new TypeError("web.application_bootstrap.target_mismatch");
+  }
+  startupFailureReason = "required_domain";
   const desktopShellFetch = desktopShellCapability === null
     ? null
     : createDesktopShellFetchInternalV1(desktopShellCapability);
@@ -649,7 +743,12 @@ export async function startWebGameApplicationV1<
   const capabilitySearch = options.capabilitySearch ??
     (typeof location === "undefined" ? "" : location.search);
   const capabilityRequest = parseCapabilityRequestV1(capabilitySearch);
-  const persistedCapabilities = await createWebCapabilityPreferencesV1(host);
+  const persistedCapabilities = await createWebCapabilityPreferencesV1(host).catch(
+    (error: unknown) => {
+      signalStartupFailure("required_domain");
+      throw error;
+    },
+  );
   // The live capability session: page-local requests overlay the persisted
   // preferences (DevDock persists changes through the Host records).
   const capabilities = createRuntimeCapabilitySessionOverlayV1(
@@ -664,6 +763,7 @@ export async function startWebGameApplicationV1<
       : { buildIdentityInput: application.buildIdentityInput },
   );
   if (resolved.kind === "failed") {
+    signalStartupFailure("required_domain");
     throw new TypeError(
       `web.application_resolution_failed:${resolved.failure.code}`,
     );
@@ -693,7 +793,10 @@ export async function startWebGameApplicationV1<
         ? {}
         : { rebootstrapDisposition: options.rebootstrapDisposition }),
     },
-  );
+  ).catch((error: unknown) => {
+    signalStartupFailure("required_domain");
+    throw error;
+  });
 
   let automation: InstalledBrowserAutomationBridgeV1 | undefined;
   let mounted: MountedGameApplicationV1 | undefined;
@@ -795,6 +898,7 @@ export async function startWebGameApplicationV1<
   });
   const signalTerminal = (error: Error): void => {
     const first = terminalSupervisor.getTerminalError() === null;
+    if (first) signalStartupFailure("presentation");
     terminalSupervisor.signalTerminal(error);
     if (first) reportFailure(error.message, error);
   };
@@ -812,10 +916,14 @@ export async function startWebGameApplicationV1<
       },
     }),
   });
-  const disposeForRebootstrap = (): Promise<
+  const disposeForRebootstrap = async (): Promise<
     DeepReadonly<PersistenceRebootstrapDisposalV1>
   > => {
-    return terminalSupervisor.disposeForRebootstrap();
+    try {
+      return await terminalSupervisor.disposeForRebootstrap();
+    } finally {
+      if (startupAccepted) startupDiagnostics?.dispose();
+    }
   };
   const dispose = async (): Promise<void> => {
     await disposeForRebootstrap();
@@ -898,6 +1006,16 @@ export async function startWebGameApplicationV1<
       clearAllSaves,
       reportFailure,
     });
+    const loadDevDockContributionsSource = uiDefinition.loadDevDockContributions;
+    const loadDevDockContributions = loadDevDockContributionsSource === undefined
+      ? undefined
+      : async (): Promise<DevDockContributionSetV1> => {
+        const contributions = await loadDevDockContributionsSource();
+        return bindDevDockContributionAcceptanceInternalV1(
+          contributions,
+          () => startupDiagnostics?.signalOptionalCapabilityReady("ui.dev-dock"),
+        );
+      };
     uiDisposer = uiDefinition.dispose?.bind(uiDefinition);
     const saveSurfaces = createPlayerSaveSurfacesV1({
       files: host.files,
@@ -1079,67 +1197,89 @@ export async function startWebGameApplicationV1<
       };
       return Object.keys(maps).length === 0 ? undefined : maps;
     })();
+    const commitFirstProduct = (): void => {
+      if (productCommitted) return;
+      startupDiagnostics?.signalFirstProductCommit("presentation");
+      productCommitted = true;
+    };
     const rootNode: ReactElement = (
-      <DefaultGameRootV1
-        composition={composition}
-        semantic={instance.semantic}
-        accessibleName={application.accessibleName}
-        applicationId={application.applicationId}
-        viewport={application.viewport}
-        capabilities={capabilities}
-        playerProfile={playerProfile}
-        lifecycle={composedLifecycle}
-        {...(uiDefinition.resolveStageAccessibleName === undefined ? {} : {
-          resolveStageAccessibleName: uiDefinition.resolveStageAccessibleName as (
-            publication: never,
-          ) => string,
-        })}
-        {...(saveSurfaces.saveUi === undefined ? {} : { saveUi: saveSurfaces.saveUi })}
-        {...(saveSurfaces.customSaves === undefined
-          ? {}
-          : { customSaves: saveSurfaces.customSaves })}
-        {...(uiDefinition.hideSystemMenu === undefined
-          ? {}
-          : { hideSystemMenu: uiDefinition.hideSystemMenu })}
-        {...(uiDefinition.hideDeveloperToolsToggle === undefined
-          ? {}
-          : { hideDeveloperToolsToggle: uiDefinition.hideDeveloperToolsToggle })}
-        sessionMaintenance={Object.freeze({
-          savePort: saveSurfaces.maintenance.savePort,
-          clearAllSaves: saveSurfaces.maintenance.clearAllSaves,
-          reloadCurrentState,
-          faultCause: Object.freeze({
-            getCurrent: () => instance.admin.lastFaultCause(),
-            // Faults flip the session status, and the semantic port's
-            // subscribe passes session publishes through.
-            subscribe: (listener: () => void) => instance.semantic.subscribe(listener),
-          }),
-        })}
-        stateTuner={createEngineStateTunerPortV1({ instance, capabilities })}
-        {...(uiDefinition.labels === undefined ? {} : { labels: uiDefinition.labels })}
-        {...(uiDefinition.slots === undefined ? {} : { slots: uiDefinition.slots })}
-        {...(uiDefinition.devDockContributions === undefined
-          ? {}
-          : { devDockContributions: uiDefinition.devDockContributions })}
-        devDock={Object.freeze({
-          ...(uiDefinition.loadDevDockContributions === undefined
+      <ApplicationFirstProductCommitInternalV1 commit={commitFirstProduct}>
+        <DefaultGameRootV1
+          composition={composition}
+          semantic={instance.semantic}
+          accessibleName={application.accessibleName}
+          applicationId={application.applicationId}
+          viewport={application.viewport}
+          capabilities={capabilities}
+          playerProfile={playerProfile}
+          lifecycle={composedLifecycle}
+          {...(uiDefinition.resolveStageAccessibleName === undefined ? {} : {
+            resolveStageAccessibleName: uiDefinition.resolveStageAccessibleName as (
+              publication: never,
+            ) => string,
+          })}
+          {...(saveSurfaces.saveUi === undefined ? {} : { saveUi: saveSurfaces.saveUi })}
+          {...(saveSurfaces.customSaves === undefined
             ? {}
-            : { load: uiDefinition.loadDevDockContributions }),
-          ...(uiDefinition.devDockPosition === undefined
+            : { customSaves: saveSurfaces.customSaves })}
+          {...(uiDefinition.hideSystemMenu === undefined
             ? {}
-            : { position: uiDefinition.devDockPosition }),
-          ...(uiDefinition.devDockChip === undefined ? {} : { chip: uiDefinition.devDockChip }),
-          control: devDockControl,
-          freeze: presentationFreeze,
-          rate: presentationRate,
-          observeOpenState: (state: DevDockOpenStateV1) => {
-            devDockOpenState = state;
-          },
-        })}
-        {...(rootInputMaps === undefined ? {} : { inputMaps: rootInputMaps })}
-      />
+            : { hideSystemMenu: uiDefinition.hideSystemMenu })}
+          {...(uiDefinition.hideDeveloperToolsToggle === undefined
+            ? {}
+            : { hideDeveloperToolsToggle: uiDefinition.hideDeveloperToolsToggle })}
+          sessionMaintenance={Object.freeze({
+            savePort: saveSurfaces.maintenance.savePort,
+            clearAllSaves: saveSurfaces.maintenance.clearAllSaves,
+            reloadCurrentState,
+            faultCause: Object.freeze({
+              getCurrent: () =>
+                instance.admin.lastFaultCause(),
+              // Faults flip the session status, and the semantic port's
+              // subscribe passes session publishes through.
+              subscribe: (listener: () => void) => instance.semantic.subscribe(listener),
+            }),
+          })}
+          stateTuner={createEngineStateTunerPortV1({ instance, capabilities })}
+          {...(uiDefinition.labels === undefined ? {} : { labels: uiDefinition.labels })}
+          {...(uiDefinition.slots === undefined ? {} : { slots: uiDefinition.slots })}
+          {...(uiDefinition.devDockContributions === undefined
+            ? {}
+            : { devDockContributions: uiDefinition.devDockContributions })}
+          devDock={Object.freeze({
+            ...(loadDevDockContributions === undefined ? {} : { load: loadDevDockContributions }),
+            ...(uiDefinition.devDockPosition === undefined
+              ? {}
+              : { position: uiDefinition.devDockPosition }),
+            ...(uiDefinition.devDockChip === undefined ? {} : { chip: uiDefinition.devDockChip }),
+            control: devDockControl,
+            freeze: presentationFreeze,
+            rate: presentationRate,
+            observeOpenState: (state: DevDockOpenStateV1) => {
+              devDockOpenState = state;
+            },
+          })}
+          {...(rootInputMaps === undefined ? {} : { inputMaps: rootInputMaps })}
+        />
+      </ApplicationFirstProductCommitInternalV1>
     );
-    mounted = mountGameApplicationV1(rootElement, rootNode);
+    startupFailureReason = "presentation";
+    mounted = mountGameApplicationWithStartupDiagnosticsInternalV1(
+      rootElement,
+      rootNode,
+      (error) => {
+        // React reports this from inside its own work loop. Teardown in the
+        // next microtask so Root unmount never re-enters the failing commit.
+        queueMicrotask(() =>
+          signalTerminal(
+            error instanceof Error
+              ? error
+              : new Error("web.application_presentation_failed", { cause: error }),
+          )
+        );
+      },
+    );
+    startupFailureReason = "required_domain";
 
     if (uiDefinition.pointer === true) {
       pointer = installPointerAdapterV1({
@@ -1193,12 +1333,16 @@ export async function startWebGameApplicationV1<
     } catch {
       // The construction failure remains primary over release noise.
     }
+    signalStartupFailure(startupFailureReason);
     throw error;
   }
 
   if (instanceLease === undefined) {
+    signalStartupFailure("required_domain");
     throw new TypeError("web.instance_lease_missing");
   }
+  startupDiagnostics?.signalRequiredDomainReady();
+  startupAccepted = true;
   return Object.freeze({
     applicationId: application.applicationId,
     host,

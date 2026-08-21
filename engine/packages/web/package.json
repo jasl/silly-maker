@@ -5,7 +5,8 @@
   "type": "module",
   "license": "MIT",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./internal/application-startup": "./src/application/application-startup.ts"
   },
   "scripts": {
     "test": "deno run -A npm:vitest run engine/packages/web/src",
