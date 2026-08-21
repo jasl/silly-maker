@@ -91,7 +91,8 @@ function packIndicesV1(indices: Uint8Array, bitDepth: number): Uint8Array {
   const packed = new Uint8Array(Math.ceil((indices.length * bitDepth) / 8));
   indices.forEach((index, pixel) => {
     const bitOffset = pixel * bitDepth;
-    packed[bitOffset >> 3] |= index << (8 - bitDepth - (bitOffset & 7));
+    const byte = bitOffset >> 3;
+    packed[byte] = packed[byte]! | (index << (8 - bitDepth - (bitOffset & 7)));
   });
   return packed;
 }
