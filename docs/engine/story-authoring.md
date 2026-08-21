@@ -183,6 +183,33 @@ the hold — the starter template's interaction-document kit does this with a
 `hold` block whose inline `ops` compile to a preceding stage node — never by
 flashing a zero-duration stage during the wait.
 
+A hold that must end early when a declared condition becomes true — a
+watcher catching the player mid-bar, a gauge crossing its line — declares
+`when` reroute arms on the hold block: each arm pairs a branch-vocabulary
+predicate with a reroute target, the first declared match wins, and there is
+no implicit else (no match means keep holding, or expire into the block's
+`next`). Do not invent an abort verb or let the Host pick a target; the
+reroute is derived inside the ordinary time-tick commit. Story runners step
+fenced settlements with `settleHoldTimeline` from `@sillymaker/base/story`:
+arms evaluate at t=0 against command-start state and again after each of the
+hold's own tick/frame crossings, and the first match truncates the hold at
+that instant — consumed milliseconds stop at the cut, later crossings never
+apply, and the discarded remainder is never pre-folded into the target. The
+commit that opens the hold evaluates arms against in-transaction working
+state, so an already-true arm reroutes without spending a hold occurrence;
+a skippable fold runs through the same stepping, so skip cannot jump past
+the catch. Know the granularity promise before wiring predicates: an arm
+over state the hold's own tick effects write cuts at the exact crossing,
+while monitor or external-command writes surface at the next fenced
+settlement's t=0 (the same discipline as monitor `activeWhen`). Two
+authoring notes: an arm-carrying hold should keep `tickQuantumMs ≤
+tick.everyMs` — the cut instant is exact either way, but the commit that
+carries it lands per quantum, and an oversized quantum lets the on-screen
+bar run visibly past the catch before snapping back; and a kit whose
+effects only apply at command boundaries (the starter template's shape)
+should reject `when` combined with `tick` on one block, because the arms
+could never observe that block's own tick writes.
+
 A timing accumulation that must run while the player can still act — a
 decision gauge rising under a live menu, a scene-scoped drip while the player
 reads, a held-interaction drip — is an authoritative monitor, not a hold.

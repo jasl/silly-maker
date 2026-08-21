@@ -1,13 +1,28 @@
 # Hold `when` proposal（持有声明条件改道）
 
-状态：**2026-08-21 所有者下令开启**（认领权威持有钟车道唯一显式
-defer）。切片顺序与 admission 由
+状态：**2026-08-21 所有者下令开启，同日 M0–M2 交付收口**（认领权威
+持有钟车道唯一显式 defer）。切片顺序与 admission 由
 [Hold When V1 计划](../plans/2026-08-21-hold-when.md) 拥有；
 [production-floor sequence](../plans/2026-07-30-production-floor-sequence.md)
 仍是唯一跨计划排序入口。本文只定合同：Host 仍然只报流逝毫秒，中止在
 `TimeTickV1` commit 内由权威状态 + hold 块声明的 `when` 推导。同日
 复审修订 §2–§5：改道时刻定义在 occurrence 时间线上（截断点），不是
 commit 末尾的一个阶段——初稿的「commit 末尾评一次」是批切可变的。
+
+**交付记录（2026-08-21）**：base `settleHoldTimelineV1`（story 出口
+`settleHoldTimeline`，与 `applyElapsedToHoldV1` 同级：t=0 与每个自身
+穿越后评有序谓词回调，首中截断、消耗到命中瞬间、其后穿越不应用；到
+期同瞬间穿越先应用、臂赢），合同测试锁同瞬间截断 / 批切不变 / 入场
+改道 / skip 途中命中 / 改道目标不预折 / 中持有 Save-load。template
+kit `hold` 块收 `when` 臂（branch 词汇同一入院）+ runner 入场评测，
+starter 脚本 hurry 演示。Engine Lab 锁两种粒度：vigil（自身 tick 效
+果写真，同瞬间截断）与 stakeout（监视器写真，下一围栏结算 t=0 零耗
+时改道），Flow 图投影臂边。实验仓第一条真中止活路径——深夜房 CE281
+触摸条三段 bar 挂 `shinyaException >= 2` 臂；`touch-tick` 格间效果与
+左手监视器折叠写夜域时同 commit 重算例外缓存，左手越格把睡眠深度压
+过觉醒线时该结算 t=0 切断，右手当格数字不落（实验仓刀 #325，全库
+720 例全绿）。q1（hold 中热区，输入轴）与第二条真中止路径（警戒抓
+包）仍 defer。
 
 本文兑现 [authoritative-hold-clock](authoritative-hold-clock.md) q7：
 `hold_abort` 不是被 defer 的功能，而是**取消的动词**。中止不是 Host

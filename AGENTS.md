@@ -42,12 +42,19 @@ Read only the documents relevant to the change:
   `hold_tick` verb, since unified into `TimeTickV1`; `pause`/`resume`
   merged into `hold` and deleted; `tickQuantumMs` partial commits and
   batch-invariant threshold-crossing tick effects/frame swaps). The
-  declared-condition reroute defer is now the active lane:
-  `docs/engine/proposals/hold-when.md` and
-  `docs/engine/plans/2026-08-21-hold-when.md` (owner-ordered 2026-08-21
-  after the experiment repo finished the zero-contract STORY leftovers;
-  first live abort paths are the alert catch and the night-room mid-bar
-  wake/disgust). The parallel-monitors lane (accepted and
+  declared-condition reroute lane (hold `when`, owner-ordered and
+  delivered 2026-08-21) completed M0–M2 the same day:
+  `docs/engine/proposals/hold-when.md` (with the closure record) and
+  `docs/engine/plans/2026-08-21-hold-when.md` — ordered `when` arms on
+  `hold` nodes evaluated as occurrence-timeline cuts (t=0 plus after each
+  of the hold's own tick/frame crossings; first match truncates, batch
+  invariant, entry-time evaluation, skip cannot pass the catch) via the
+  base `settleHoldTimelineV1` stepping helper, with template-kit arms,
+  both Engine Lab granularities (tick-driven same-instant, monitor-driven
+  next-settlement t=0), and the experiment repo's night-room mid-bar
+  wake/disgust cut as the first live abort path. Explicit defers: mid-hold
+  hit regions (input axis) and the second abort path (alert catch). The
+  parallel-monitors lane (accepted and
   delivered 2026-08-20) completed M0–M5 the same day:
   `docs/engine/plans/2026-08-20-parallel-monitors.md` with its contract in
   `docs/engine/proposals/parallel-monitors.md` — the single session-level
@@ -83,8 +90,8 @@ Read only the documents relevant to the change:
   rect-intersect-silhouette refinement is a recorded native improvement).
   The explicit defer is the multi-region activation payload for overlapping
   regions (topmost-wins is the V1 contract), gated on an audited real
-  consumer. The active lane is hold `when`
-  (`docs/engine/plans/2026-08-21-hold-when.md`).
+  consumer. There is no active lane (hold `when` closed 2026-08-21;
+  awaiting the owner's next order).
   Desktop persistence remains an independent promotion gate while the
   adapter is preview.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,

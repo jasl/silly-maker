@@ -20,18 +20,27 @@ plan；目标合同见[统一创作架构设计](../design/authoring-architectur
 
 ## 1. Current and next
 
-当前：[Hold When V1](2026-08-21-hold-when.md)（提案
-[hold-when](../proposals/hold-when.md)，2026-08-21 所有者下令开启）
-——认领权威持有钟 M3 唯一显式 defer：hold 块声明条件改道。Host 仍
-只报 `TimeTickV1`；围栏结算按 occurrence 时间线步进评 branch 词汇
-`when`（t=0 + 每个自身穿越后），第一条命中即**截断**——消耗到命中
-瞬间、其后穿越不应用、同 commit 改道；skip 同规则，不能越过截断
-点；入场也评一次。监视器仍收全额毫秒，其写入下一结算 t=0 才对臂可
-见（`activeWhen` 同纪律）。hold 中热区（输入轴）显式 defer。第一
-活路径：Engine Lab 两种粒度 + 实验仓警戒抓包或深夜房条中途觉醒/厌
-恶。
+当前：无 active 车道（Hold When V1 于 2026-08-21 交付收口；等所有
+者下一道命令）。Desktop 持久化仍是独立晋级门。
 
-前一条：[命中区形状车道](2026-08-21-shaped-hit-regions.md)（提案
+前一条：[Hold When V1](2026-08-21-hold-when.md)（提案
+[hold-when](../proposals/hold-when.md)，2026-08-21 所有者下令开启）
+——认领权威持有钟 M3 唯一显式 defer：hold 块声明条件改道。**同日
+M0–M2 全部交付收口**：M0（base `settleHoldTimelineV1` occurrence 时
+间线步进：t=0 + 每个自身穿越后评臂，首中截断、消耗到命中瞬间、其后
+穿越不应用、截断余量不预折改道目标；skip 同规则不能越过截断点；入
+场按事务内工作状态也评一次；合同测试锁批切不变与中持有 Save/load；
+template kit `when` 臂 + starter hurry 演示）→ M1（Engine Lab 锁两
+种粒度：vigil 自身 tick 同瞬间截断、stakeout 监视器写真下一围栏结
+算 t=0 零耗时改道；lint 图臂后继在到期边之前）→ M2（实验仓第一条真
+中止活路径——深夜房 CE281 触摸条三段 bar 挂 `shinyaException >= 2`
+臂，`touch-tick` 与左手监视器折叠同 commit 重算例外缓存，左手越格
+压深度过觉醒线时该结算 t=0 切断，实验仓刀 #325 全库 720 例全绿；
+features / story-authoring / AGENTS 收口）。显式 defer：hold 中热区
+（输入轴）、第二条真中止路径（警戒抓包）、监视器路由叙事（仍禁）、
+`when` 臂 Studio 可视化编辑。
+
+再前一条：[命中区形状车道](2026-08-21-shaped-hit-regions.md)（提案
 [shaped-hit-regions](../proposals/shaped-hit-regions.md) 2026-08-21 所有
 者接受）——**同日 M0–M5 全部交付收口**：M0（`polygonPoints` +
 `hoverAssetId` 合同与共享判定，投影降级诊断）→ M1（host clip-path 命
@@ -49,7 +58,7 @@ alpha 解码器 + marching-squares + 预算内 Douglas–Peucker）→ M5 双消
 激活多重叠区域」的激活载荷形态，等被审计的真实消费者（V1 合同为最上
 层独占命中）。
 
-再前一条：[帧集提案](../proposals/authorable-frame-set.md)
+更前一条：[帧集提案](../proposals/authorable-frame-set.md)
 （2026-08-21 所有者接受；帧集先行、命中区形状第二的车道顺序随裁决确
 定）与 [Authorable Frame Set V1](2026-08-21-authorable-frame-set.md)——
 **同日 M0–M3 全部交付收口**：M0（motion 文档 `frame` 通道：阶梯采样、
@@ -62,7 +71,7 @@ renderer CSS 换成 ambient 帧轨道并把 5 条 SHOW_PIC→WAIT 帧串换成�
 性 motion 文档）。唯一显式 defer：跨文档「帧下标不超帧表」story
 lint，等内容声明数据化的真实车道（运行时钳制 + Workbench 预览兜底）。
 
-更前一条：[并行监视器提案](../proposals/parallel-monitors.md)
+更早：[并行监视器提案](../proposals/parallel-monitors.md)
 （2026-08-20 所有者接受，含同日六项裁决与裁决 #5 修订）与
 [Parallel Monitors V1](2026-08-20-parallel-monitors.md)——**同日 M0–M5
 全部交付收口**：M0（唯一时间动词 `TimeTickV1`，`hold_tick` 归并删除）
