@@ -15,6 +15,7 @@ function fakeIoV1(initial: Readonly<Record<string, Doc>>): {
   set(path: string, document: Doc, digest: string): void;
   failNextWrite(code: string): void;
   deferNextRead(): () => void;
+  deferNextWrite(): () => void;
 } {
   const documents = new Map<string, { document: Doc; digest: string }>(
     Object.entries(initial).map(([path, document]) => [path, { document, digest: `d1:${path}` }]),
@@ -23,6 +24,8 @@ function fakeIoV1(initial: Readonly<Record<string, Doc>>): {
   let failWrite: string | null = null;
   let deferNext = false;
   let deferredResolve: (() => void) | null = null;
+  let deferWrite = false;
+  let deferredWriteResolve: (() => void) | null = null;
   return {
     io: {
       async read(path) {
@@ -36,16 +39,22 @@ function fakeIoV1(initial: Readonly<Record<string, Doc>>): {
         if (entry === undefined) return { kind: "error", code: "not_found" };
         return { kind: "ok", digest: entry.digest, document: entry.document };
       },
-      write(input) {
+      async write(input) {
+        if (deferWrite) {
+          deferWrite = false;
+          await new Promise<void>((resolve) => {
+            deferredWriteResolve = resolve;
+          });
+        }
         if (failWrite !== null) {
           const code = failWrite;
           failWrite = null;
-          return Promise.resolve({ kind: "error", code });
+          return { kind: "error", code };
         }
         writes.push({ ...input });
         const digest = `d${String(writes.length + 1)}:${input.path}`;
         documents.set(input.path, { document: input.document, digest });
-        return Promise.resolve({ kind: "ok", digest });
+        return { kind: "ok", digest };
       },
     },
     writes,
@@ -60,6 +69,13 @@ function fakeIoV1(initial: Readonly<Record<string, Doc>>): {
       return () => {
         deferredResolve?.();
         deferredResolve = null;
+      };
+    },
+    deferNextWrite() {
+      deferWrite = true;
+      return () => {
+        deferredWriteResolve?.();
+        deferredWriteResolve = null;
       };
     },
   };
@@ -115,6 +131,29 @@ describe("createAuthoringDocumentSessionV1", () => {
     expect(fake.writes.at(-1)).toMatchObject({ expectedDigest: "d9:a.json" });
   });
 
+  it("keeps a newer draft when an older captured save completes", async () => {
+    const fake = fakeIoV1({ "a.json": { value: 1 } });
+    const session = createAuthoringDocumentSessionV1<Doc>({ io: fake.io });
+    await session.open("a.json");
+    session.replaceDraft({ value: 2 });
+
+    const release = fake.deferNextWrite();
+    const save = session.save();
+    session.replaceDraft({ value: 3 });
+    const revisionAfterNewerEdit = session.getSnapshot().draftRevision;
+    release();
+
+    await expect(save).resolves.toMatchObject({ kind: "ok", digest: "d2:a.json" });
+    expect(session.getSnapshot()).toMatchObject({
+      saved: { value: 2 },
+      draft: { value: 3 },
+      dirty: true,
+      draftRevision: revisionAfterNewerEdit,
+    });
+    session.undo();
+    expect(session.getSnapshot().draft).toEqual({ value: 2 });
+  });
+
   it("drops a stale read behind a newer open and a save behind a newer open", async () => {
     const fake = fakeIoV1({ "slow.json": { value: 1 }, "fast.json": { value: 2 } });
     const session = createAuthoringDocumentSessionV1<Doc>({ io: fake.io });
@@ -134,6 +173,56 @@ describe("createAuthoringDocumentSessionV1", () => {
     expect(await save).toEqual({ kind: "stale" });
     expect(session.getSnapshot()).toMatchObject({ path: "slow.json", saving: false });
     expect(session.getSnapshot().draft).toEqual({ value: 1 });
+  });
+
+  it("drops a refresh result that completes behind a document successor", async () => {
+    const releases: { open?: () => void; refresh?: () => void } = {};
+    let initialRead = true;
+    const io: AuthoringDocumentIoV1<Doc> = {
+      async read(path) {
+        if (initialRead) {
+          initialRead = false;
+        } else if (path === "b.json") {
+          await new Promise<void>((resolve) => {
+            releases.open = resolve;
+          });
+        } else {
+          await new Promise<void>((resolve) => {
+            releases.refresh = resolve;
+          });
+        }
+        return {
+          kind: "ok",
+          digest: path === "a.json" ? "d2:a.json" : "d1:b.json",
+          document: { value: path === "a.json" ? 9 : 2 },
+        };
+      },
+      write() {
+        return Promise.resolve({ kind: "error", code: "unused" });
+      },
+    };
+    const session = createAuthoringDocumentSessionV1<Doc>({ io });
+    await session.open("a.json");
+
+    const opening = session.open("b.json");
+    const refreshing = session.refreshSaved();
+    await Promise.resolve();
+    const finishOpen = releases.open;
+    const finishRefresh = releases.refresh;
+    if (finishOpen === undefined || finishRefresh === undefined) {
+      throw new TypeError("missing deferred read releases");
+    }
+    finishOpen();
+    await expect(opening).resolves.toEqual({ kind: "ok" });
+    finishRefresh();
+
+    await expect(refreshing).resolves.toEqual({ kind: "stale" });
+    expect(session.getSnapshot()).toMatchObject({
+      path: "b.json",
+      digest: "d1:b.json",
+      saved: { value: 2 },
+      draft: { value: 2 },
+    });
   });
 
   it("coalesces gesture edits into one undo step and bounds the history", () => {
@@ -160,6 +249,89 @@ describe("createAuthoringDocumentSessionV1", () => {
     session.undo();
     expect(session.getSnapshot().canUndo).toBe(false);
     expect(session.getSnapshot().draft).toEqual({ value: 4 });
+  });
+
+  it("advances one monotonic draft revision across edits and document-session successors", async () => {
+    const fake = fakeIoV1({ "a.json": { value: 1 }, "b.json": { value: 2 } });
+    const session = createAuthoringDocumentSessionV1<Doc>({ io: fake.io });
+
+    expect(session.getSnapshot()).toMatchObject({
+      documentIdentity: null,
+      draftRevision: 0,
+    });
+
+    session.installSaved({ path: "a.json", document: { value: 1 }, digest: "d1:a.json" });
+    const installed = session.getSnapshot();
+    expect(installed.documentIdentity).not.toBeNull();
+    expect(installed.draftRevision).toBe(1);
+
+    session.replaceDraft({ value: 2 }, { coalesceKey: "drag:1" });
+    expect(session.getSnapshot().draftRevision).toBe(2);
+    session.replaceDraft({ value: 3 }, { coalesceKey: "drag:1" });
+    expect(session.getSnapshot().draftRevision).toBe(3);
+    session.undo();
+    expect(session.getSnapshot().draftRevision).toBe(4);
+    session.redo();
+    expect(session.getSnapshot().draftRevision).toBe(5);
+    session.discard();
+    expect(session.getSnapshot().draftRevision).toBe(6);
+
+    await session.refreshSaved();
+    expect(session.getSnapshot()).toMatchObject({
+      documentIdentity: installed.documentIdentity,
+      draftRevision: 7,
+    });
+
+    await session.open("b.json");
+    const opened = session.getSnapshot();
+    expect(opened.documentIdentity).not.toBe(installed.documentIdentity);
+    expect(opened.draftRevision).toBe(8);
+
+    session.installSaved({ path: "a.json", document: { value: 9 }, digest: "d9:a.json" });
+    expect(session.getSnapshot().documentIdentity).not.toBe(opened.documentIdentity);
+    expect(session.getSnapshot().draftRevision).toBe(9);
+  });
+
+  it("atomically rejects stale or unchanged compare-and-replace attempts", () => {
+    const session = createAuthoringDocumentSessionV1<Doc>();
+    session.installSaved({ path: "a.json", document: { value: 1 }, digest: null });
+    const current = session.getSnapshot();
+    if (current.documentIdentity === null) throw new TypeError("missing document identity");
+
+    expect(session.replaceDraftIfCurrent({
+      documentIdentity: "authoring-document:stale",
+      expectedDraftRevision: current.draftRevision,
+      document: { value: 2 },
+    })).toEqual({ kind: "stale_document" });
+    expect(session.getSnapshot()).toBe(current);
+
+    expect(session.replaceDraftIfCurrent({
+      documentIdentity: current.documentIdentity,
+      expectedDraftRevision: current.draftRevision + 1,
+      document: { value: 2 },
+    })).toEqual({ kind: "stale_revision" });
+    expect(session.getSnapshot()).toBe(current);
+
+    expect(session.replaceDraftIfCurrent({
+      documentIdentity: current.documentIdentity,
+      expectedDraftRevision: current.draftRevision,
+      document: { value: 1 },
+    })).toEqual({ kind: "unchanged" });
+    expect(session.getSnapshot()).toBe(current);
+
+    expect(session.replaceDraftIfCurrent({
+      documentIdentity: current.documentIdentity,
+      expectedDraftRevision: current.draftRevision,
+      document: { value: 2 },
+      coalesceKey: "drag:1",
+    })).toEqual({ kind: "ok", draftRevision: current.draftRevision + 1 });
+    expect(session.getSnapshot()).toMatchObject({
+      draft: { value: 2 },
+      dirty: true,
+      canUndo: true,
+      canRedo: false,
+      draftRevision: current.draftRevision + 1,
+    });
   });
 
   it("keeps the current document when a later open fails", async () => {

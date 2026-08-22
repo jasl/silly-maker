@@ -1,8 +1,8 @@
 # Application Runtime and Embedded Authoring V1
 
 状态：2026-08-18 由所有者接受为下一条默认/core implementation lane，并在同日以补充 owner
-evidence 收紧产品与平台边界。AR0 与 AR1 已于 2026-08-22 交付关闭，AR2 是唯一下一项；
-AR2–AR6 尚未启动。引擎能力扩展全部前置；本计划完成后的作品、examples 或产品验证由所有者
+evidence 收紧产品与平台边界。AR0–AR2 已于 2026-08-22 交付关闭，AR3 是唯一下一项；
+AR3–AR6 尚未启动。引擎能力扩展全部前置；本计划完成后的作品、examples 或产品验证由所有者
 另行选择和立案，不是本轮切片或完成 blocker。
 
 目标合同由
@@ -244,7 +244,7 @@ implementation 第一次进入前 loader 调用为零；failure 不卸载 core�
   placement/exclusion，不宣称跨机器 timing 或固定 bundle 数字；
 - 本切片没有改变 State、Snapshot、digest、Save、CommandLog、replay、RPC 或 Mod 合同，也没有
   新增 Desktop Module Update Source。Browser 继续使用 AR0 已记录的 R0–R3 边界；Deno Desktop
-  R0–R2 仍未接线，`--hmr` 仍只是 AR5 候选。AR2 structured Scene operations 是唯一下一项。
+  R0–R2 仍未接线，`--hmr` 仍只是 AR5 候选。AR2 structured Scene operations 当时是唯一下一项。
 - 收尾追加 React Doctor `0.9.12` changed scan，以 `de6bea30` 作为 AR1 精确起点。唯一真实 error
   是 DevDock 在 render 中发布 `debugTools` ref，abandoned successor 可把未提交 capability 泄漏给
   predecessor loader；现已改为 layout-commit publication，并由 Suspense abandoned-render 回归
@@ -275,6 +275,44 @@ adapter 只接收当前 document identity、expected draft revision 和 admitted
 文件路径/`FilePort`。未来 RPC caller 也必须经产品 adapter 进入同一 operation。本切片不做
 跨文档事务、TypeScript AST 修改、operation log persistence、MCP/ACP/Harness ABI 或全局
 command/event bus。
+
+**AR2 closure（2026-08-22）：**
+
+- Studio 新增 package-private `scene-operations` seam。revision 1 operation 覆盖 placement、entry
+  add/remove、z-order、appearance、ambient motion、cue add/remove 与 cue motion bind/clear；严格
+  admission 拒绝 getter、额外字段、unknown schema/kind 和非法 payload。operation 与 executor
+  未加入 `@sillymaker/studio` package export，因此不是 public ABI 或远程协议；
+- pure reducer 只接收 admitted Scene document + operation，结构结果统一再经
+  `parseSceneDocumentV1`，并以 canonical bytes 拒绝 no-op。entry remove 原子级联其 cue；cue
+  motion 操作完整拥有 presentation edge，bind motion 清除 `cut`，clear 同时清除 motion/cut，保持
+  两者互斥；
+- 既有 `AuthoringDocumentSessionV1` 增加 session-local opaque document-successor identity、单调
+  draft revision 与 `replaceDraftIfCurrent`。open/refresh/document successor、成功编辑、undo/redo、
+  discard 都按实际 successor 推进 revision；stale identity/revision 在 reducer 前拒绝，reducer
+  完成后的第二次 conditional replace 再封住并发 successor。失败和 no-op 不改变 draft、dirty、
+  history 或 revision；
+- Scene canvas、inspector、construction 与 cue/motion binding 全部改走同一个 local adapter/executor。
+  UI envelope 使用与其渲染 draft 匹配的 identity/revision receipt；canvas gesture 只沿自身成功
+  operation 返回的 revision 前进，遇到 sibling edit 就 stale-stop，不能在 dispatch 时重采 fresh
+  receipt 后覆盖并发修改。placement、z-order、appearance 只有在同一 focus/gesture run 内才以显式
+  key coalesce，run 起始 revision 保证 blur/focus 与 React/HMR remount 后进入新的 undo step；结构与
+  引用 operation 永不 coalesce；
+- non-UI caller 只取得当前 receipt 与 `execute`，不能取得 path、`FilePort`、保存或 HMR 能力。异步
+  motion file create 捕获开始时的 receipt；若等待期间 draft 已推进，文件保留但不会自动绑定到新
+  successor。selection 与未完成 numeric input 在 undo/redo、文档切换和 pending save 边界按当前
+  draft 对齐；试穿预览仍是明确的 ephemeral render override，不伪装成作者文档编辑；
+- AR2 顺带修复两条现有 document-session currentness 缺陷：pending save 完成时不再覆盖等待期间的
+  新 draft/history；旧文档 refresh 结果也不能与其后 open 的 document identity/path/saved digest
+  混合。保存先前 revision 后若仍有新编辑，Studio 保持 dirty 并明确提示；
+- focused admission/reducer/executor、document-session 与 Studio UI 测试覆盖连续、结构、引用、
+  coalesce、undo/redo、stale、pending-save 和 refresh/open race。真实 Browser Studio 另验证非法
+  scale 原子拒绝并失焦恢复、合法后续编辑清除旧错误、cue motion bind/undo，以及 entry remove
+  级联/undo。最终 focused suite 为 5 files / 59 tests，`deno task check` 为 342 files / 5459 tests、
+  5 项 composition/state bench、全部 Story check 与 E2E production build 通过，Template Chromium
+  为 7/7；React Doctor changed scan 为 0 error / 1 个与切片起点 `40819d25` fingerprint 相同的既有
+  `StudioApp` `prefer-useReducer` warning，留待 AR3 Host/workspace 拆分自然处理。这里没有新增第二
+  State/Save/IO authority、RPC、Mod、operation persistence 或 Desktop Module Update Source。AR3
+  embeddable Authoring Host 是唯一下一项。
 
 ### AR3 — Embeddable Authoring Host and stable sibling lifetime
 

@@ -4,6 +4,7 @@ export {
   useAuthoringDocumentSessionV1,
 } from "./authoring-session.ts";
 export type {
+  AuthoringDraftReplaceResultV1,
   AuthoringDocumentIoV1,
   AuthoringDocumentSessionV1,
   AuthoringSessionOpenResultV1,

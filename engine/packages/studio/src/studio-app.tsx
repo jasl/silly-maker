@@ -10,29 +10,29 @@ import type {
   SceneDocumentV1,
   StageAppearanceV1,
   StageContentIdV1,
+  StagePlacementV1,
 } from "@sillymaker/base";
 import type { AuthoringDocumentSessionV1 } from "@sillymaker/ui/debug";
 
 import type { SceneIoListEntryV1, SceneIoListSkipV1, SceneSourceIoV1 } from "./core/scene-io.ts";
 import { createSceneDocumentSessionV1 } from "./core/scene-session.ts";
+import { createSceneAuthoringLocalAdapterV1 } from "./core/scene-operations/local-adapter.ts";
+import type {
+  SceneAuthoringCurrentV1,
+  SceneAuthoringExecutionResultV1,
+  SceneAuthoringOperationV1,
+} from "./core/scene-operations/contract.ts";
 import { loadStudioMotionSourcesV1 } from "./core/motion-sources.ts";
 import type { StudioMotionSourcesV1 } from "./core/motion-sources.ts";
 import type { RegionsSourceIoV1 } from "./core/regions-io.ts";
 import { createRegionsDocumentSessionV1 } from "./core/regions-session.ts";
+import { applyPreviewAppearanceV1, compileSceneV1 } from "./workspaces/scene/scene-compile.ts";
 import {
-  applyPreviewAppearanceV1,
-  compileSceneV1,
-  defaultPlacementV1,
-  editDocumentV1,
-} from "./workspaces/scene/scene-compile.ts";
-import {
-  addContentEntryV1,
-  addCueV1,
   deriveMotionPlanV1,
+  deriveContentEntryV1,
+  deriveCueV1,
   inferSceneIdPrefixV1,
   newSceneDocumentV1,
-  removeCueV1,
-  removeEntryV1,
 } from "./workspaces/scene/scene-construction.ts";
 import { SceneCanvasV1 } from "./workspaces/scene/scene-canvas.tsx";
 import { SceneCuesV1 } from "./workspaces/scene/scene-cues.tsx";
@@ -158,11 +158,61 @@ export function StudioAppWithAuthoringSessionsV1(
   // monotonic open fence, and undo/redo; the shell maps its results to
   // notes and confirms.
   const session = props.sceneSession;
+  const sceneOperations = useMemo(() => createSceneAuthoringLocalAdapterV1(session), [session]);
   const snapshot = useAuthoringDocumentSessionV1(session);
   const draft = snapshot.draft;
   const dirty = snapshot.dirty;
   const busy = snapshot.saving;
   const loading = snapshot.loading;
+
+  const sceneOperationCurrent = useMemo<SceneAuthoringCurrentV1 | null>(
+    () =>
+      draft === null || snapshot.documentIdentity === null ? null : Object.freeze({
+        documentIdentity: snapshot.documentIdentity,
+        draftRevision: snapshot.draftRevision,
+      }),
+    [draft, snapshot.documentIdentity, snapshot.draftRevision],
+  );
+
+  const executeSceneOperationAt = useCallback((
+    current: SceneAuthoringCurrentV1,
+    operation: SceneAuthoringOperationV1,
+    coalesceKey?: string,
+  ): SceneAuthoringExecutionResultV1 => {
+    const result = sceneOperations.execute({
+      documentIdentity: current.documentIdentity,
+      expectedDraftRevision: current.draftRevision,
+      operation,
+      ...(coalesceKey === undefined ? {} : { coalesceKey }),
+    });
+    if (
+      result.kind === "rejected" &&
+      result.diagnostic.code !== "scene_authoring.no_change"
+    ) {
+      setNote(`编辑未应用：${result.diagnostic.code}`);
+    } else {
+      setNote((previousNote) => previousNote?.startsWith("编辑未应用：") ? null : previousNote);
+    }
+    return result;
+  }, [sceneOperations]);
+
+  const executeSceneOperation = useCallback((
+    operation: SceneAuthoringOperationV1,
+    coalesceKey?: string,
+  ): SceneAuthoringExecutionResultV1 | null => {
+    return sceneOperationCurrent === null
+      ? null
+      : executeSceneOperationAt(sceneOperationCurrent, operation, coalesceKey);
+  }, [executeSceneOperationAt, sceneOperationCurrent]);
+
+  const selectedTagCurrent = selectedTag !== null &&
+      draft?.entries.some((entry) => (entry.tag as string) === selectedTag)
+    ? selectedTag
+    : (draft?.entries[0]?.tag as string | undefined) ?? null;
+  const throughCueIdCurrent = throughCueId !== null &&
+      draft?.cues.some((cue) => cue.cueId === throughCueId)
+    ? throughCueId
+    : null;
 
   const openScene = useCallback((path: string): void => {
     setNote(null);
@@ -230,8 +280,8 @@ export function StudioAppWithAuthoringSessionsV1(
   }, [scenes, snapshot.path, openScene]);
 
   const compiled = useMemo(
-    () => (draft === null ? null : compileSceneV1(draft, throughCueId, binding.catalog)),
-    [draft, throughCueId, binding.catalog],
+    () => (draft === null ? null : compileSceneV1(draft, throughCueIdCurrent, binding.catalog)),
+    [draft, throughCueIdCurrent, binding.catalog],
   );
   // Save gating and blocking diagnostics stay on the real draft's compile;
   // the fitting preview only ever swaps what the canvas renders.
@@ -241,10 +291,10 @@ export function StudioAppWithAuthoringSessionsV1(
     if (draft === null || !fitting || Object.keys(fittingByTag).length === 0) return null;
     return compileSceneV1(
       applyPreviewAppearanceV1(draft, fittingByTag),
-      throughCueId,
+      throughCueIdCurrent,
       binding.catalog,
     );
-  }, [binding.catalog, draft, fitting, fittingByTag, throughCueId]);
+  }, [binding.catalog, draft, fitting, fittingByTag, throughCueIdCurrent]);
   const canvasCompiled = fittingCompiled !== null && fittingCompiled.kind === "ok"
     ? fittingCompiled
     : compiled;
@@ -327,8 +377,13 @@ export function StudioAppWithAuthoringSessionsV1(
   const save = useCallback((): void => {
     setNote(null);
     void session.save().then((result) => {
-      if (result.kind === "ok") setNote("已保存；运行中的游戏会热更新。");
-      else if (result.kind === "error") setNote(saveNoteV1(result.code));
+      if (result.kind === "ok") {
+        setNote(
+          session.getSnapshot().dirty
+            ? "已保存先前版本；当前仍有未保存修改。"
+            : "已保存；运行中的游戏会热更新。",
+        );
+      } else if (result.kind === "error") setNote(saveNoteV1(result.code));
     });
   }, [session]);
 
@@ -339,6 +394,10 @@ export function StudioAppWithAuthoringSessionsV1(
     const path = confirmNavigation.path;
     void session.save().then((result) => {
       if (result.kind === "ok") {
+        if (session.getSnapshot().dirty) {
+          setNote("已保存先前版本；当前仍有未保存修改。");
+          return;
+        }
         setNote("已保存；运行中的游戏会热更新。");
         openScene(path);
       } else if (result.kind === "error") {
@@ -452,47 +511,32 @@ export function StudioAppWithAuthoringSessionsV1(
     workbench,
   ]);
 
-  const editDraft = useCallback(
+  const writeActorPlacementAt = useCallback(
     (
-      mutate: Parameters<typeof editDocumentV1>[1],
-      coalesceKey?: string,
-    ): void => {
-      const current = session.getSnapshot().draft;
-      if (current === null) return;
-      session.replaceDraft(
-        editDocumentV1(current, mutate),
-        coalesceKey === undefined ? {} : { coalesceKey },
-      );
-    },
-    [session],
-  );
-
-  const writeActorPlacement = useCallback(
-    (
+      current: SceneAuthoringCurrentV1,
       tag: string,
-      mutatePlacement: (placement: ReturnType<typeof defaultPlacementV1>) => void,
+      placement: StagePlacementV1,
       coalesceKey?: string,
-    ): void => {
-      editDraft((plain) => {
-        const entry = plain.entries.find((candidate) => candidate.tag === tag);
-        if (entry === undefined) return;
-        const placement = entry.placement ?? defaultPlacementV1();
-        mutatePlacement(placement);
-        entry.placement = placement;
+    ): SceneAuthoringExecutionResultV1 => {
+      return executeSceneOperationAt(current, {
+        schemaRevision: 1,
+        kind: "scene.entry.set_placement",
+        tag,
+        placement,
       }, coalesceKey);
     },
-    [editDraft],
+    [executeSceneOperationAt],
   );
 
   const editSelectedPlacement = useCallback(
     (
-      mutatePlacement: (placement: ReturnType<typeof defaultPlacementV1>) => void,
+      placement: StagePlacementV1,
       coalesceKey?: string,
     ): void => {
-      if (selectedTag === null) return;
-      writeActorPlacement(selectedTag, mutatePlacement, coalesceKey);
+      if (selectedTagCurrent === null || sceneOperationCurrent === null) return;
+      writeActorPlacementAt(sceneOperationCurrent, selectedTagCurrent, placement, coalesceKey);
     },
-    [selectedTag, writeActorPlacement],
+    [sceneOperationCurrent, selectedTagCurrent, writeActorPlacementAt],
   );
 
   // ---- Scene Construction (S4) ------------------------------------------
@@ -518,31 +562,37 @@ export function StudioAppWithAuthoringSessionsV1(
   }, [binding.catalog, contents]);
 
   const selectedDescriptor = useMemo((): StudioContentDescriptorV1 | null => {
-    if (contents === null || selectedTag === null || draft === null) return null;
-    const entry = draft.entries.find((candidate) => (candidate.tag as string) === selectedTag);
+    if (contents === null || selectedTagCurrent === null || draft === null) return null;
+    const entry = draft.entries.find(
+      (candidate) => (candidate.tag as string) === selectedTagCurrent,
+    );
     if (entry === undefined) return null;
     return contents.find(
       (descriptor) => descriptor.contentId === (entry.contentId as string),
     ) ?? null;
-  }, [contents, draft, selectedTag]);
+  }, [contents, draft, selectedTagCurrent]);
 
   // The selected entry's declared appearance merged with active fitting
   // overrides — what the inspector fields display and the resolution uses.
   const selectedEffectiveAppearance = useMemo((): Readonly<Record<string, string>> => {
-    if (draft === null || selectedTag === null) return Object.freeze({});
-    const entry = draft.entries.find((candidate) => (candidate.tag as string) === selectedTag);
+    if (draft === null || selectedTagCurrent === null) return Object.freeze({});
+    const entry = draft.entries.find(
+      (candidate) => (candidate.tag as string) === selectedTagCurrent,
+    );
     if (entry === undefined) return Object.freeze({});
     const declared = { ...entry.appearance } as Record<string, string>;
-    const override = fitting ? fittingByTag[selectedTag] ?? {} : {};
+    const override = fitting ? fittingByTag[selectedTagCurrent] ?? {} : {};
     return Object.freeze({ ...declared, ...override });
-  }, [draft, fitting, fittingByTag, selectedTag]);
+  }, [draft, fitting, fittingByTag, selectedTagCurrent]);
 
   // Read-only derived data: what the catalog actually resolved for the
   // effective appearance (renderer, assets in resolution order). The Story
   // compositor keeps ownership; Studio only shows its output.
   const selectedResolution = useMemo((): SceneEntryResolutionV1 | null => {
-    if (draft === null || selectedTag === null) return null;
-    const entry = draft.entries.find((candidate) => (candidate.tag as string) === selectedTag);
+    if (draft === null || selectedTagCurrent === null) return null;
+    const entry = draft.entries.find(
+      (candidate) => (candidate.tag as string) === selectedTagCurrent,
+    );
     if (entry === undefined) return null;
     try {
       const resolution = binding.catalog.resolveContent(
@@ -558,70 +608,86 @@ export function StudioAppWithAuthoringSessionsV1(
     } catch {
       return null;
     }
-  }, [binding.catalog, draft, selectedEffectiveAppearance, selectedTag]);
+  }, [binding.catalog, draft, selectedEffectiveAppearance, selectedTagCurrent]);
 
   const addContent = useCallback((descriptor: StudioContentDescriptorV1): void => {
     const current = session.getSnapshot().draft;
     if (current === null) return;
-    let addedTag: string | null = null;
-    editDraft((plain) => {
-      addedTag = addContentEntryV1(plain, descriptor, current.canvas);
+    const entry = deriveContentEntryV1(current, descriptor);
+    const result = executeSceneOperation({
+      schemaRevision: 1,
+      kind: "scene.entry.add",
+      entry,
     });
-    if (addedTag !== null) setSelectedTag(addedTag);
-  }, [editDraft, session]);
+    if (result?.kind === "applied") setSelectedTag(entry.tag as string);
+  }, [executeSceneOperation, session]);
 
   const removeSelectedEntry = useCallback((): void => {
-    if (selectedTag === null) return;
-    let removedCueIds: readonly string[] = Object.freeze([]);
-    editDraft((plain) => {
-      removedCueIds = removeEntryV1(plain, selectedTag);
+    if (selectedTagCurrent === null) return;
+    const current = session.getSnapshot().draft;
+    if (current === null) return;
+    const removesThroughCue = throughCueIdCurrent !== null &&
+      current.cues.some((cue) =>
+        cue.cueId === throughCueIdCurrent && (cue.tag as string) === selectedTagCurrent
+      );
+    const result = executeSceneOperation({
+      schemaRevision: 1,
+      kind: "scene.entry.remove",
+      tag: selectedTagCurrent,
     });
-    if (throughCueId !== null && removedCueIds.includes(throughCueId)) setThroughCueId(null);
+    if (result?.kind !== "applied") return;
+    if (removesThroughCue) setThroughCueId(null);
     const remaining = session.getSnapshot().draft;
     setSelectedTag((remaining?.entries[0]?.tag as string | undefined) ?? null);
-  }, [editDraft, selectedTag, session, throughCueId]);
+  }, [executeSceneOperation, selectedTagCurrent, session, throughCueIdCurrent]);
 
   const addCue = useCallback((tag: string, kind: "show" | "hide"): void => {
     const current = session.getSnapshot().draft;
     if (current === null) return;
-    editDraft((plain) => {
-      addCueV1(plain, current.sceneId, tag, kind);
+    executeSceneOperation({
+      schemaRevision: 1,
+      kind: "scene.cue.add",
+      cue: deriveCueV1(current, tag, kind),
     });
-  }, [editDraft, session]);
+  }, [executeSceneOperation, session]);
 
   const removeCue = useCallback((cueId: string): void => {
-    editDraft((plain) => {
-      removeCueV1(plain, cueId);
+    const result = executeSceneOperation({
+      schemaRevision: 1,
+      kind: "scene.cue.remove",
+      cueId,
     });
-    if (throughCueId === cueId) setThroughCueId(null);
-  }, [editDraft, throughCueId]);
+    if (result?.kind === "applied" && throughCueIdCurrent === cueId) setThroughCueId(null);
+  }, [executeSceneOperation, throughCueIdCurrent]);
 
-  const editSelectedAppearance = useCallback((key: string, value: string | null): void => {
-    if (selectedTag === null) return;
+  const editSelectedAppearance = useCallback((
+    key: string,
+    value: string | null,
+    coalesceKey?: string,
+  ): void => {
+    if (selectedTagCurrent === null) return;
     if (fitting) {
       // Fitting routes the same edits into the ephemeral override map;
       // clearing a key drops the override (back to the declared value).
       setFittingByTag((current) => {
-        const forTag: Record<string, string> = { ...current[selectedTag] };
+        const forTag: Record<string, string> = { ...current[selectedTagCurrent] };
         if (value === null) delete forTag[key];
         else forTag[key] = value;
         const next: Record<string, Readonly<Record<string, string>>> = { ...current };
-        if (Object.keys(forTag).length === 0) delete next[selectedTag];
-        else next[selectedTag] = Object.freeze(forTag);
+        if (Object.keys(forTag).length === 0) delete next[selectedTagCurrent];
+        else next[selectedTagCurrent] = Object.freeze(forTag);
         return Object.freeze(next);
       });
       return;
     }
-    editDraft((plain) => {
-      const entry = plain.entries.find((candidate) => candidate.tag === selectedTag);
-      if (entry === undefined) return;
-      const appearance = entry.appearance ?? {};
-      if (value === null) delete appearance[key];
-      else appearance[key] = value;
-      if (Object.keys(appearance).length === 0) delete entry.appearance;
-      else entry.appearance = appearance;
-    }, `field:${selectedTag}:appearance:${key}`);
-  }, [editDraft, fitting, selectedTag]);
+    executeSceneOperation({
+      schemaRevision: 1,
+      kind: "scene.entry.set_appearance",
+      tag: selectedTagCurrent,
+      key,
+      value,
+    }, coalesceKey);
+  }, [executeSceneOperation, fitting, selectedTagCurrent]);
 
   const toggleFitting = useCallback((next: boolean): void => {
     setFitting(next);
@@ -677,9 +743,11 @@ export function StudioAppWithAuthoringSessionsV1(
   // scene, the Project Authoring Index picks it up (revision bump), and
   // the cue rebinds to the new id as one undoable draft edit.
   const createMotionForCue = useCallback((cueId: string): void => {
-    const current = session.getSnapshot().draft;
-    const scenePath = session.getSnapshot().path;
-    if (current === null || scenePath === null || creating) return;
+    const operationReceipt = sceneOperations.current();
+    const currentSnapshot = session.getSnapshot();
+    const current = currentSnapshot.draft;
+    const scenePath = currentSnapshot.path;
+    if (current === null || scenePath === null || operationReceipt === null || creating) return;
     const cue = current.cues.find((candidate) => candidate.cueId === cueId);
     if (cue === undefined) return;
     const source = cue.motionId === undefined ? null : (motionSources?.sources ?? []).find(
@@ -704,14 +772,24 @@ export function StudioAppWithAuthoringSessionsV1(
           return;
         }
         setMotionsRevision((revision) => revision + 1);
-        editDraft((plain) => {
-          const target = plain.cues.find((candidate) => candidate.cueId === cueId);
-          if (target !== undefined) target.motionId = plan.motionId;
+        const bindingResult = sceneOperations.execute({
+          documentIdentity: operationReceipt.documentIdentity,
+          expectedDraftRevision: operationReceipt.draftRevision,
+          operation: {
+            schemaRevision: 1,
+            kind: "scene.cue.set_motion",
+            cueId,
+            motionId: plan.motionId,
+          },
         });
-        setNote(`已创建 ${plan.path} 并绑定到 ${cueId}。`);
+        setNote(
+          bindingResult.kind === "applied"
+            ? `已创建 ${plan.path} 并绑定到 ${cueId}。`
+            : `已创建 ${plan.path}，但场景草稿已变化，未自动绑定到 ${cueId}。`,
+        );
       },
     );
-  }, [creating, editDraft, motionIo, motionSources, session]);
+  }, [creating, motionIo, motionSources, sceneOperations, session]);
 
   return (
     <div className={styles["studio"]} data-studio-root="true">
@@ -912,7 +990,7 @@ export function StudioAppWithAuthoringSessionsV1(
           )}
         </nav>
         <main className={styles["stage"]}>
-          {draft === null || compiled === null
+          {draft === null || compiled === null || sceneOperationCurrent === null
             ? <p>选择一个场景开始。</p>
             : compiled.kind === "error"
             ? (
@@ -932,24 +1010,26 @@ export function StudioAppWithAuthoringSessionsV1(
                 accessibleName={`场景预览 ${draft.label}`}
                 showHitRegions={showHitRegions}
                 scale={scale}
-                selectedTag={selectedTag}
+                selectedTag={selectedTagCurrent}
                 onSelectTag={setSelectedTag}
-                onWritePlacement={writeActorPlacement}
+                operationCurrent={sceneOperationCurrent}
+                onWritePlacement={writeActorPlacementAt}
               />
             )}
           {draft === null ? null : (
             <SceneCuesV1
               draft={draft}
               motionIds={motionCatalog.ids}
-              throughCueId={throughCueId}
+              throughCueId={throughCueIdCurrent}
               busy={busy || loading || creating}
-              onToggleThroughCue={(cueId) => setThroughCueId(throughCueId === cueId ? null : cueId)}
+              onToggleThroughCue={(cueId) =>
+                setThroughCueId(throughCueIdCurrent === cueId ? null : cueId)}
               onBindMotion={(cueId, motionId) =>
-                editDraft((plain) => {
-                  const target = plain.cues.find((candidate) => candidate.cueId === cueId);
-                  if (target === undefined) return;
-                  if (motionId === null) delete target.motionId;
-                  else target.motionId = motionId;
+                executeSceneOperation({
+                  schemaRevision: 1,
+                  kind: "scene.cue.set_motion",
+                  cueId,
+                  motionId,
                 })}
               onAddCue={addCue}
               onRemoveCue={removeCue}
@@ -962,40 +1042,39 @@ export function StudioAppWithAuthoringSessionsV1(
           {draft === null ? <p>—</p> : (
             <SceneInspectorV1
               draft={draft}
-              selectedTag={selectedTag}
+              selectedTag={selectedTagCurrent}
               selectedDescriptor={selectedDescriptor}
               effectiveAppearance={selectedEffectiveAppearance}
               fitting={fitting}
               resolution={selectedResolution}
               motionIds={motionCatalog.ids}
+              draftRevision={snapshot.draftRevision}
+              pendingInputScope={`${snapshot.documentIdentity ?? "none"}:${
+                snapshot.saving ? "saving" : "idle"
+              }`}
               busy={busy || loading || creating}
               onSelectTag={setSelectedTag}
               onToggleFitting={toggleFitting}
               onEditSelectedPlacement={editSelectedPlacement}
-              onEditSelectedZOrder={(next) => {
-                if (selectedTag === null) return;
-                editDraft((plain) => {
-                  const entry = plain.entries.find(
-                    (candidate) => candidate.tag === selectedTag,
-                  );
-                  if (entry !== undefined) entry.zOrder = next;
-                }, `field:${selectedTag}:zOrder`);
+              onEditSelectedZOrder={(next, coalesceKey) => {
+                if (selectedTagCurrent === null) return;
+                executeSceneOperation({
+                  schemaRevision: 1,
+                  kind: "scene.entry.set_z_order",
+                  tag: selectedTagCurrent,
+                  zOrder: next,
+                }, coalesceKey);
               }}
               onEditSelectedAppearance={editSelectedAppearance}
               onEditSelectedAmbient={(motionId) => {
-                if (selectedTag === null) return;
+                if (selectedTagCurrent === null) return;
                 // Bind or clear the presence loop as one undoable draft
                 // edit; an explicit phaseMs survives a motion swap.
-                editDraft((plain) => {
-                  const entry = plain.entries.find(
-                    (candidate) => candidate.tag === selectedTag,
-                  );
-                  if (entry === undefined) return;
-                  if (motionId === null) delete entry.ambient;
-                  else {
-                    const phaseMs = entry.ambient?.phaseMs;
-                    entry.ambient = { motionId, ...(phaseMs === undefined ? {} : { phaseMs }) };
-                  }
+                executeSceneOperation({
+                  schemaRevision: 1,
+                  kind: "scene.entry.set_ambient",
+                  tag: selectedTagCurrent,
+                  motionId,
                 });
               }}
               onRemoveSelectedEntry={removeSelectedEntry}

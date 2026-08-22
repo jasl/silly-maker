@@ -149,6 +149,35 @@ retires it after descendant unmount; live publication passes the same owner to
 staging and visible successors, so a rejected or accepted binding candidate
 does not reload ready Flow or discard the shared dirty document session.
 
+### Structured Scene operation workflow
+
+Scene canvas, inspector, construction, and cue/motion edits must use the
+package-private `engine/packages/studio/src/core/scene-operations/` stack. Add or
+change an edit by updating its revisioned contract, getter-free admission, pure
+reducer, and behavior tests together. The reducer must return a completely
+re-admitted Scene document or a stable diagnostic; it must not receive a
+session, path, `FilePort`, save callback, or HMR capability. UI code and non-UI
+local/dev callers use the same executor and document identity/revision receipt.
+Capture the receipt that corresponds to the draft used to build an operation;
+do not sample a newer receipt at dispatch time for an older rendered payload.
+Do not reintroduce Scene clone-and-mutate callbacks beside that path.
+
+`AuthoringDocumentSessionV1` remains the only draft, dirty, coalescing,
+undo/redo, CAS, and saved-digest authority. Use its conditional replacement for
+operation results; stale work, failures, and no-ops leave revision/history
+unchanged. Only placement, z-order, and appearance support coalescing, and their
+keys must identify one focus/gesture run from its starting draft revision.
+Structural and reference edits are separate undo steps. Fitting/try-on previews
+may clone a document only as an explicitly ephemeral render override and must
+never enter the session or save path.
+
+Focused AR2 checks are:
+
+```sh
+deno run -A npm:vitest run engine/packages/studio/src/core/scene-operations engine/packages/ui/src/debug/authoring-session.test.ts engine/packages/studio/src/studio-app.test.tsx
+deno task typecheck
+```
+
 ### GUI startup and module-update baseline
 
 Every maintained runtime Vite entry receives a dependency-free accessible boot

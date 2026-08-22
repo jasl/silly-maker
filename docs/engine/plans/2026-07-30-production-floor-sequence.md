@@ -32,7 +32,10 @@ evidence；它没有宣称 native Desktop launch、Desktop persistence/signing p
 readiness。AR1 progressive activation 与 private extension-runtime selection 也已于
 2026-08-22 交付关闭：Direct 与 Cordis-core-derived backend 的同一 17-case suite 均通过，最终只
 保留 SillyMaker-owned Direct backend；lazy DevDock 与 Studio Flow 是两个真实 GUI consumer。
-后续按 AR2 structured Scene operations → AR3 embeddable Authoring Host/stable sibling → AR4
+AR2 structured Scene operations 也已于 2026-08-22 交付：Scene UI 与 non-UI caller 现在共用
+package-private strict operation、pure reducer、opaque document-successor identity、monotonic draft
+revision、atomic stale rejection 和既有 session/history/CAS authority。后续按 AR3 embeddable
+Authoring Host/stable sibling → AR4
 experimental Agent RPC/UiArtifact seam → AR5 Browser/Deno Desktop GUI/build/performance promotion →
 AR6 closure 顺序执行。目标合同见
 [Application Runtime and Embedded Authoring](../design/application-runtime-and-embedded-authoring.md)。
@@ -42,7 +45,7 @@ ABI、runtime code installation、State Format V2、Effect Broker、具体 OpenU
 production Story State migration；Cordis adapter/vendor/dependency 已删除。ordinary no-extension
 静态游戏 release 仍不得包含 author/source-write、selected Direct extension runtime 或 RPC
 implementation。AR6 后的作品/examples/产品由所有者另行选择和立案，不在本计划预先排序。
-下一项可领取任务只有 AR2。
+下一项可领取任务只有 AR3。
 
 前一条：[Mid-hold Input V1](2026-08-22-mid-hold-input.md)（提案
 [mid-hold-input](../proposals/mid-hold-input.md)，2026-08-22 所有者

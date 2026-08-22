@@ -290,6 +290,11 @@ operation 得到相同结果。unknown kind/schema revision、stale draft revisi
 路径或 `FilePort`。operation 不持有 IO，不保存文件，不执行 HMR，也不是 gameplay command。
 V1 不承诺跨文档事务、任意 TypeScript AST 修改、operation log 持久化或通用命令总线。
 
+实现状态（2026-08-22）：AR2 已按本节交付 package-private Scene operation revision 1、严格
+admission、pure reducer、共用 local executor，以及既有 authoring session 上的 opaque
+document-successor identity、monotonic draft revision 和 conditional replace。Scene UI 与 non-UI
+caller 已共用该路径；它仍未导出为 public ABI、RPC schema 或持久化 operation log。
+
 ## 7. Agent GUI, RPC client, and UiArtifact seam
 
 引擎只定义 transport/provider-neutral client 与 artifact 边界；真实 Agent 产品、后台和 LLM 由

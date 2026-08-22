@@ -11,8 +11,11 @@ import type {
 import type { SemanticStageEntryRendererV1 } from "@sillymaker/ui";
 import { SemanticStageTargetHostV1 } from "@sillymaker/ui";
 
+import type {
+  SceneAuthoringCurrentV1,
+  SceneAuthoringExecutionResultV1,
+} from "../../core/scene-operations/contract.ts";
 import styles from "../../studio-app.module.css";
-import type { defaultPlacementV1 } from "./scene-compile.ts";
 
 /**
  * The scene workspace canvas: the Story's real renderers over the compiled
@@ -73,11 +76,12 @@ interface StudioDragStateV1 {
   readonly pointerId: number;
   readonly tag: string;
   readonly mode: "move" | "scale";
-  readonly gesture: number;
+  readonly coalesceKey: string;
   readonly startClientX: number;
   readonly startClientY: number;
   readonly startPlacement: StagePlacementV1;
   readonly geometry: StageContentGeometryV1;
+  readonly operationCurrent: SceneAuthoringCurrentV1;
 }
 
 export interface SceneCanvasPropsV1 {
@@ -89,19 +93,19 @@ export interface SceneCanvasPropsV1 {
   /** Preview scale (CSS px per logical px). */
   readonly scale: number;
   readonly selectedTag: string | null;
+  readonly operationCurrent: SceneAuthoringCurrentV1;
   onSelectTag(tag: string): void;
   onWritePlacement(
+    current: SceneAuthoringCurrentV1,
     tag: string,
-    mutatePlacement: (placement: ReturnType<typeof defaultPlacementV1>) => void,
+    placement: StagePlacementV1,
     coalesceKey: string,
-  ): void;
+  ): SceneAuthoringExecutionResultV1;
 }
 
 export function SceneCanvasV1(props: SceneCanvasPropsV1): ReactElement {
   const { draft, target, scale } = props;
   const dragRef = useRef<StudioDragStateV1 | null>(null);
-  // One undo step per drag gesture: every pointer-down starts a new run.
-  const gestureRef = useRef(0);
   const [guides, setGuides] = useState<{ readonly x: number | null; readonly y: number | null }>(
     { x: null, y: null },
   );
@@ -131,20 +135,50 @@ export function SceneCanvasV1(props: SceneCanvasPropsV1): ReactElement {
     event.preventDefault();
     event.stopPropagation();
     props.onSelectTag(actor.tag);
-    gestureRef.current += 1;
     dragRef.current = {
       pointerId: event.pointerId,
       tag: actor.tag,
       mode,
-      gesture: gestureRef.current,
+      // The session revision is monotonic across component remounts. A new
+      // gesture therefore cannot accidentally reuse the last history key;
+      // a no-op gesture has no history entry to collide with.
+      coalesceKey: `${mode}:${actor.tag}:${String(props.operationCurrent.draftRevision)}`,
       startClientX: event.clientX,
       startClientY: event.clientY,
       startPlacement: actor.placement,
       geometry: actor.geometry,
+      operationCurrent: props.operationCurrent,
     };
     if (typeof event.currentTarget.setPointerCapture === "function") {
       event.currentTarget.setPointerCapture(event.pointerId);
     }
+  };
+
+  const commitPlacement = (
+    drag: StudioDragStateV1,
+    placement: StagePlacementV1,
+    coalesceKey: string,
+  ): boolean => {
+    const result = props.onWritePlacement(
+      drag.operationCurrent,
+      drag.tag,
+      placement,
+      coalesceKey,
+    );
+    if (result.kind === "applied") {
+      dragRef.current = {
+        ...drag,
+        operationCurrent: Object.freeze({
+          documentIdentity: result.documentIdentity,
+          draftRevision: result.draftRevision,
+        }),
+      };
+      return true;
+    }
+    if (result.diagnostic.code === "scene_authoring.no_change") return true;
+    dragRef.current = null;
+    setGuides({ x: null, y: null });
+    return false;
   };
 
   const onActorPointerMove = (event: ReactPointerEvent<HTMLElement>): void => {
@@ -160,9 +194,11 @@ export function SceneCanvasV1(props: SceneCanvasPropsV1): ReactElement {
           Math.round(((startHeight + deltaUp) / drag.geometry.height) * 1000),
         ),
       );
-      props.onWritePlacement(drag.tag, (placement) => {
-        placement.scalePermille = next;
-      }, `scale:${drag.tag}:${String(drag.gesture)}`);
+      commitPlacement(
+        drag,
+        Object.freeze({ ...drag.startPlacement, scalePermille: next }),
+        drag.coalesceKey,
+      );
       return;
     }
     const threshold = studioSnapThresholdCssPxV1 / scale;
@@ -181,10 +217,11 @@ export function SceneCanvasV1(props: SceneCanvasPropsV1): ReactElement {
     const x = Math.min(draft.canvas.width, Math.max(0, snappedX.value));
     const y = Math.min(draft.canvas.height, Math.max(0, snappedY.value));
     setGuides({ x: snappedX.snapped, y: snappedY.snapped });
-    props.onWritePlacement(drag.tag, (placement) => {
-      placement.x = x;
-      placement.y = y;
-    }, `move:${drag.tag}:${String(drag.gesture)}`);
+    commitPlacement(
+      drag,
+      Object.freeze({ ...drag.startPlacement, x, y }),
+      drag.coalesceKey,
+    );
   };
 
   const onActorPointerEnd = (event: ReactPointerEvent<HTMLElement>): void => {

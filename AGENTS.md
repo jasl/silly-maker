@@ -63,11 +63,14 @@ Read only the documents relevant to the change:
   also delivered 2026-08-22: the same 17-case suite passed for Direct and
   Cordis-core-derived implementations, SillyMaker-owned Direct became the only
   private backend, Cordis adapter/vendor/dependency were deleted, and lazy
-  DevDock plus Studio Flow became the two real GUI consumers. AR2 is the only
-  next task; AR3
-  keeps Authoring stable across application-domain successors, with Game/Session
-  as the first conformance path. Engine capabilities land before any separately
-  accepted follow-on product or work.
+  DevDock plus Studio Flow became the two real GUI consumers. AR2 also delivered
+  2026-08-22: package-private, strictly admitted Scene operations, a pure reducer,
+  an opaque document-successor identity plus monotonic draft revision, atomic
+  stale rejection, and one shared UI/non-UI executor over the existing authoring
+  session/history. AR3 is the only next task; it keeps Authoring stable across
+  application-domain successors, with Game/Session as the first conformance path.
+  Engine capabilities land before any separately accepted follow-on product or
+  work.
   Desktop persistence remains an accepted, unfinished, conditional promotion
   lane while the adapter is preview.
 - `docs/engine/design/application-runtime-and-embedded-authoring.md` — accepted

@@ -88,7 +88,7 @@ export function applyPreviewAppearanceV1(
   draft: SceneDocumentV1,
   overridesByTag: Readonly<Record<string, Readonly<Record<string, string>>>>,
 ): SceneDocumentV1 {
-  return editDocumentV1(draft, (plain) => {
+  return editPreviewDocumentV1(draft, (plain) => {
     for (const entry of plain.entries) {
       const override = overridesByTag[entry.tag];
       if (override === undefined) continue;
@@ -97,8 +97,8 @@ export function applyPreviewAppearanceV1(
   });
 }
 
-/** One draft edit: clone, mutate the plain JSON, and hand back a new doc. */
-export function editDocumentV1(
+/** Ephemeral compile-input copy; never enters the authoring session or save path. */
+function editPreviewDocumentV1(
   draft: SceneDocumentV1,
   mutate: (plain: {
     entries: {

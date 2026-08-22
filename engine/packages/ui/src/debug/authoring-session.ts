@@ -28,6 +28,10 @@ export interface AuthoringDocumentIoV1<TDocument> {
 }
 
 export interface AuthoringSessionSnapshotV1<TDocument> {
+  /** Opaque identity for this installed/opened document successor. */
+  readonly documentIdentity: string | null;
+  /** Monotonic within one session; every successful draft transition advances it. */
+  readonly draftRevision: number;
   readonly path: string | null;
   /** The saved bytes' digest; null until a read supplies one (no CAS save). */
   readonly digest: string | null;
@@ -54,6 +58,13 @@ export type AuthoringSessionSaveResultV1 =
   | { readonly kind: "not_ready" }
   | { readonly kind: "error"; readonly code: string };
 
+export type AuthoringDraftReplaceResultV1 =
+  | { readonly kind: "ok"; readonly draftRevision: number }
+  | { readonly kind: "not_ready" }
+  | { readonly kind: "stale_document" }
+  | { readonly kind: "stale_revision" }
+  | { readonly kind: "unchanged" };
+
 export interface AuthoringDocumentSessionV1<TDocument> {
   getSnapshot(): AuthoringSessionSnapshotV1<TDocument>;
   subscribe(listener: () => void): () => void;
@@ -76,8 +87,10 @@ export interface AuthoringDocumentSessionV1<TDocument> {
   refreshSaved(): Promise<AuthoringSessionOpenResultV1>;
   /**
    * CAS-writes `input.document ?? draft`. Success installs the written
-   * document as both saved and draft (a caller-adjusted payload, e.g. a
-   * human_tuned graduation, lands as one undoable draft step).
+   * document as saved. If no newer draft revision appeared while the write
+   * was pending, it also becomes the draft (a caller-adjusted payload, e.g.
+   * a human_tuned graduation, lands as one undoable draft step); otherwise
+   * the newer draft and its history remain current and dirty.
    */
   save(input?: { readonly document?: TDocument }): Promise<AuthoringSessionSaveResultV1>;
   /** Draft returns to saved; the abandoned draft stays one undo away. */
@@ -88,11 +101,23 @@ export interface AuthoringDocumentSessionV1<TDocument> {
    * typed field edits as one undoable unit.
    */
   replaceDraft(next: TDocument, options?: { readonly coalesceKey?: string }): void;
+  /**
+   * Replaces the draft only while the caller's opaque document identity and
+   * draft revision still name the current value. Rejections publish nothing
+   * and leave draft/history/dirty state byte-for-byte untouched.
+   */
+  replaceDraftIfCurrent(input: {
+    readonly documentIdentity: string;
+    readonly expectedDraftRevision: number;
+    readonly document: TDocument;
+    readonly coalesceKey?: string;
+  }): AuthoringDraftReplaceResultV1;
   undo(): void;
   redo(): void;
 }
 
 const defaultHistoryLimitV1 = 100;
+let nextAuthoringSessionIdentityV1 = 0;
 
 function jsonCloneV1<TDocument>(document: TDocument): TDocument {
   return JSON.parse(JSON.stringify(document)) as TDocument;
@@ -112,7 +137,11 @@ export function createAuthoringDocumentSessionV1<TDocument>(input: {
   const clone = input.clone ?? jsonCloneV1<TDocument>;
   const equals = input.equals ?? jsonEqualsV1<TDocument>;
   const historyLimit = input.historyLimit ?? defaultHistoryLimitV1;
+  const sessionIdentity = ++nextAuthoringSessionIdentityV1;
 
+  let documentIdentity: string | null = null;
+  let documentSuccessor = 0;
+  let draftRevision = 0;
   let path: string | null = null;
   let digest: string | null = null;
   let saved: TDocument | null = null;
@@ -122,12 +151,15 @@ export function createAuthoringDocumentSessionV1<TDocument>(input: {
   let undoStack: TDocument[] = [];
   let redoStack: TDocument[] = [];
   let lastCoalesceKey: string | null = null;
+  let refreshRequest = 0;
   // Monotonic fence: opens and installs bump it; async results from an
   // older generation are discarded instead of overwriting newer state.
   let generation = 0;
 
   const listeners = new Set<() => void>();
   let snapshot: AuthoringSessionSnapshotV1<TDocument> = Object.freeze({
+    documentIdentity: null,
+    draftRevision: 0,
     path: null,
     digest: null,
     saved: null,
@@ -141,6 +173,8 @@ export function createAuthoringDocumentSessionV1<TDocument>(input: {
 
   const publish = (): void => {
     snapshot = Object.freeze({
+      documentIdentity,
+      draftRevision,
       path,
       digest,
       saved,
@@ -160,18 +194,47 @@ export function createAuthoringDocumentSessionV1<TDocument>(input: {
     lastCoalesceKey = null;
   };
 
+  const advanceDraftRevision = (): void => {
+    draftRevision += 1;
+  };
+
+  const advanceDocumentIdentity = (): void => {
+    documentSuccessor += 1;
+    documentIdentity = `authoring-document:${String(sessionIdentity)}:${String(documentSuccessor)}`;
+  };
+
+  const applyDraftReplacement = (
+    next: TDocument,
+    coalesceKey: string | null,
+  ): boolean => {
+    if (draft === null || equals(draft, next)) return false;
+    if (coalesceKey === null || coalesceKey !== lastCoalesceKey) {
+      undoStack.push(draft);
+      if (undoStack.length > historyLimit) undoStack.shift();
+      redoStack = [];
+    }
+    lastCoalesceKey = coalesceKey;
+    draft = next;
+    advanceDraftRevision();
+    publish();
+    return true;
+  };
+
   const install = (
     nextPath: string,
     document: TDocument,
     nextDigest: string | null,
   ): void => {
     generation += 1;
+    refreshRequest += 1;
     path = nextPath;
     digest = nextDigest;
     saved = document;
     draft = clone(document);
     loading = false;
     resetHistory();
+    advanceDocumentIdentity();
+    advanceDraftRevision();
     publish();
   };
 
@@ -189,6 +252,7 @@ export function createAuthoringDocumentSessionV1<TDocument>(input: {
     async open(nextPath: string): Promise<AuthoringSessionOpenResultV1> {
       if (io === null) return { kind: "error", code: "io_missing" };
       const requestGeneration = ++generation;
+      refreshRequest += 1;
       loading = true;
       publish();
       const result = await io.read(nextPath);
@@ -203,18 +267,29 @@ export function createAuthoringDocumentSessionV1<TDocument>(input: {
       saved = result.document;
       draft = clone(result.document);
       resetHistory();
+      advanceDocumentIdentity();
+      advanceDraftRevision();
       publish();
       return { kind: "ok" };
     },
     async refreshSaved(): Promise<AuthoringSessionOpenResultV1> {
       if (io === null || path === null) return { kind: "error", code: "io_missing" };
       const requestGeneration = generation;
-      const result = await io.read(path);
-      if (generation !== requestGeneration) return { kind: "stale" };
+      const requestRefresh = ++refreshRequest;
+      const requestPath = path;
+      const requestDocumentIdentity = documentIdentity;
+      const result = await io.read(requestPath);
+      if (
+        generation !== requestGeneration || refreshRequest !== requestRefresh ||
+        path !== requestPath || documentIdentity !== requestDocumentIdentity
+      ) {
+        return { kind: "stale" };
+      }
       if (result.kind !== "ok") return { kind: "error", code: result.code };
       digest = result.digest;
       saved = result.document;
       lastCoalesceKey = null;
+      advanceDraftRevision();
       publish();
       return { kind: "ok" };
     },
@@ -226,11 +301,16 @@ export function createAuthoringDocumentSessionV1<TDocument>(input: {
         return { kind: "not_ready" };
       }
       const requestGeneration = generation;
+      const requestDocumentIdentity = documentIdentity;
+      const requestDraftRevision = draftRevision;
       const written = saveInput.document ?? draft;
       saving = true;
       publish();
       const result = await io.write({ path, expectedDigest: digest, document: written });
-      if (generation !== requestGeneration) {
+      if (
+        generation !== requestGeneration ||
+        documentIdentity !== requestDocumentIdentity
+      ) {
         // A newer open owns the session now; only the flag is ours to clear.
         saving = false;
         publish();
@@ -241,16 +321,24 @@ export function createAuthoringDocumentSessionV1<TDocument>(input: {
         publish();
         return { kind: "error", code: result.code };
       }
+      refreshRequest += 1;
+      const draftAdvanced = draftRevision !== requestDraftRevision;
+      digest = result.digest;
+      saved = clone(written);
+      if (draftAdvanced) {
+        publish();
+        return { kind: "ok", digest: result.digest };
+      }
       // A caller-adjusted payload replaces the draft as one undoable step.
-      if (draft !== null && !equals(draft, written)) {
+      const draftChanged = draft !== null && !equals(draft, written);
+      if (draftChanged && draft !== null) {
         undoStack.push(draft);
         if (undoStack.length > historyLimit) undoStack.shift();
         redoStack = [];
       }
-      digest = result.digest;
-      saved = clone(written);
       draft = clone(written);
       lastCoalesceKey = null;
+      if (draftChanged) advanceDraftRevision();
       publish();
       return { kind: "ok", digest: result.digest };
     },
@@ -261,19 +349,25 @@ export function createAuthoringDocumentSessionV1<TDocument>(input: {
       redoStack = [];
       lastCoalesceKey = null;
       draft = clone(saved);
+      advanceDraftRevision();
       publish();
     },
     replaceDraft(next: TDocument, options = {}) {
-      if (draft === null) return;
-      const coalesceKey = options.coalesceKey ?? null;
-      if (coalesceKey === null || coalesceKey !== lastCoalesceKey) {
-        undoStack.push(draft);
-        if (undoStack.length > historyLimit) undoStack.shift();
-        redoStack = [];
+      applyDraftReplacement(next, options.coalesceKey ?? null);
+    },
+    replaceDraftIfCurrent(replaceInput) {
+      if (draft === null || documentIdentity === null) return { kind: "not_ready" };
+      if (replaceInput.documentIdentity !== documentIdentity) {
+        return { kind: "stale_document" };
       }
-      lastCoalesceKey = coalesceKey;
-      draft = next;
-      publish();
+      if (replaceInput.expectedDraftRevision !== draftRevision) {
+        return { kind: "stale_revision" };
+      }
+      const applied = applyDraftReplacement(
+        replaceInput.document,
+        replaceInput.coalesceKey ?? null,
+      );
+      return applied ? { kind: "ok", draftRevision } : { kind: "unchanged" };
     },
     undo() {
       const previous = undoStack.pop();
@@ -281,6 +375,7 @@ export function createAuthoringDocumentSessionV1<TDocument>(input: {
       redoStack.push(draft);
       draft = previous;
       lastCoalesceKey = null;
+      advanceDraftRevision();
       publish();
     },
     redo() {
@@ -289,6 +384,7 @@ export function createAuthoringDocumentSessionV1<TDocument>(input: {
       undoStack.push(draft);
       draft = next;
       lastCoalesceKey = null;
+      advanceDraftRevision();
       publish();
     },
   };

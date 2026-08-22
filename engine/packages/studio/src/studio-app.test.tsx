@@ -3,7 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import type { SceneDocumentV1, StageContentCatalogV1 } from "@sillymaker/base";
 import { parseSceneDocumentV1 } from "@sillymaker/base";
@@ -57,6 +57,7 @@ interface FakeSceneIoV1 extends SceneSourceIoV1 {
   }[];
   readonly creates: { path: string; sceneDocument: SceneDocumentV1 }[];
   failNextWriteWith(code: "digest_conflict"): void;
+  deferNextWrite(): () => void;
 }
 
 function fakeIoV1(initial: SceneDocumentV1): FakeSceneIoV1 {
@@ -64,6 +65,8 @@ function fakeIoV1(initial: SceneDocumentV1): FakeSceneIoV1 {
     [scenePathV1, { digest: "sha256:1", doc: initial }],
   ]);
   let failNext: "digest_conflict" | null = null;
+  let deferWrite = false;
+  let releaseWrite: (() => void) | null = null;
   const writes: FakeSceneIoV1["writes"] = [];
   const creates: FakeSceneIoV1["creates"] = [];
   return {
@@ -71,6 +74,13 @@ function fakeIoV1(initial: SceneDocumentV1): FakeSceneIoV1 {
     creates,
     failNextWriteWith(code) {
       failNext = code;
+    },
+    deferNextWrite() {
+      deferWrite = true;
+      return () => {
+        releaseWrite?.();
+        releaseWrite = null;
+      };
     },
     list: () =>
       Promise.resolve({
@@ -92,16 +102,22 @@ function fakeIoV1(initial: SceneDocumentV1): FakeSceneIoV1 {
           sceneDocument: found.doc,
         });
     },
-    write(input) {
+    async write(input) {
+      if (deferWrite) {
+        deferWrite = false;
+        await new Promise<void>((resolve) => {
+          releaseWrite = resolve;
+        });
+      }
       if (failNext !== null) {
         const code = failNext;
         failNext = null;
-        return Promise.resolve({ kind: "error" as const, code });
+        return { kind: "error" as const, code };
       }
       writes.push({ ...input });
       const digest = `sha256:${String(writes.length + 1)}`;
       documents.set(input.path, { digest, doc: input.sceneDocument });
-      return Promise.resolve({ kind: "ok" as const, digest });
+      return { kind: "ok" as const, digest };
     },
     create(input) {
       creates.push({ ...input });
@@ -164,6 +180,7 @@ const bindingV1: StudioBindingV1 = Object.freeze({
 
 interface FakeMotionIoV1 extends MotionSourceIoV1 {
   readonly creates: { path: string; motionDocument: unknown }[];
+  deferNextCreate(): () => void;
 }
 
 /** An index-backed motion port fake: list + read from in-memory documents. */
@@ -173,8 +190,17 @@ function fakeMotionIoV1(
 ): FakeMotionIoV1 {
   const store = [...motions];
   const creates: FakeMotionIoV1["creates"] = [];
+  let deferCreate = false;
+  let deferredCreateResolve: (() => void) | null = null;
   return {
     creates,
+    deferNextCreate() {
+      deferCreate = true;
+      return () => {
+        deferredCreateResolve?.();
+        deferredCreateResolve = null;
+      };
+    },
     list: () =>
       Promise.resolve({
         kind: "ok" as const,
@@ -196,10 +222,16 @@ function fakeMotionIoV1(
       });
     },
     write: () => Promise.resolve({ kind: "error" as const, code: "unavailable" }),
-    create(input) {
+    async create(input) {
       creates.push({ ...input });
+      if (deferCreate) {
+        deferCreate = false;
+        await new Promise<void>((resolve) => {
+          deferredCreateResolve = resolve;
+        });
+      }
       store.push({ path: input.path, motionDocument: input.motionDocument });
-      return Promise.resolve({ kind: "ok" as const, digest: `sha256:c${String(creates.length)}` });
+      return { kind: "ok" as const, digest: `sha256:c${String(creates.length)}` };
     },
   };
 }
@@ -257,6 +289,61 @@ describe("StudioAppV1", () => {
     );
     expect(backdrop?.placement).toBeUndefined();
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("已保存"));
+    expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
+  });
+
+  it("keeps edits made while an older save is pending", async () => {
+    const io = fakeIoV1(sceneDocumentV1());
+    render(<StudioAppV1 binding={bindingV1} io={io} motionIo={fakeMotionIoV1()} />);
+    const user = userEvent.setup();
+
+    await waitFor(() => expect(screen.getByLabelText("条目")).toBeVisible());
+    await user.selectOptions(screen.getByLabelText("条目"), "tag.hero");
+    const xInput = screen.getByLabelText("x");
+    await user.clear(xInput);
+    await user.type(xInput, "640");
+
+    const release = io.deferNextWrite();
+    await user.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "保存中…" })).toBeDisabled());
+
+    const savingYInput = screen.getByLabelText("y");
+    await user.clear(savingYInput);
+    await user.type(savingYInput, "500");
+    expect(savingYInput).toHaveValue(500);
+    release();
+
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("当前仍有未保存修改"));
+    expect(screen.getByRole("button", { name: "保存" })).toBeEnabled();
+    expect(screen.getByLabelText("y")).toHaveValue(500);
+    const writtenHero = io.writes[0]?.sceneDocument.entries.find(
+      (entry) => entry.tag === "tag.hero",
+    );
+    expect(writtenHero?.placement).toMatchObject({ x: 640, y: 600 });
+  });
+
+  it("resets a rejected half-input when its pending save completes", async () => {
+    const io = fakeIoV1(sceneDocumentV1());
+    render(<StudioAppV1 binding={bindingV1} io={io} motionIo={fakeMotionIoV1()} />);
+    const user = userEvent.setup();
+
+    await waitFor(() => expect(screen.getByLabelText("条目")).toBeVisible());
+    await user.selectOptions(screen.getByLabelText("条目"), "tag.hero");
+    await user.clear(screen.getByLabelText("x"));
+    await user.type(screen.getByLabelText("x"), "640");
+
+    const release = io.deferNextWrite();
+    await user.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "保存中…" })).toBeDisabled());
+    await user.clear(screen.getByLabelText("缩放‰"));
+    await user.type(screen.getByLabelText("缩放‰"), "0");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "scene_authoring.operation_payload_invalid",
+    );
+
+    release();
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("已保存"));
+    expect(screen.getByLabelText("缩放‰")).toHaveValue(1000);
     expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
   });
 
@@ -320,6 +407,38 @@ describe("StudioAppV1", () => {
     expect(screen.getByLabelText("y")).toHaveValue(720);
   });
 
+  it("stops an active placement gesture when another edit advances its receipt", async () => {
+    const { container } = render(
+      <StudioAppV1
+        binding={bindingV1}
+        io={fakeIoV1(sceneDocumentV1())}
+        motionIo={fakeMotionIoV1()}
+      />,
+    );
+    const { fireEvent } = await import("@testing-library/react");
+
+    await waitFor(() =>
+      expect(container.querySelector('[data-studio-select="tag.hero"]')).not.toBeNull()
+    );
+    fireEvent.change(screen.getByLabelText("条目"), { target: { value: "tag.hero" } });
+    const heroBox = container.querySelector('[data-studio-select="tag.hero"]') as HTMLElement;
+    fireEvent.pointerDown(heroBox, { button: 0, pointerId: 8, clientX: 400, clientY: 300 });
+    fireEvent.pointerMove(heroBox, { pointerId: 8, clientX: 456.25, clientY: 300 });
+    expect(screen.getByLabelText("x")).toHaveValue(1020);
+
+    // A sibling operation owns the next revision. The gesture must keep its
+    // captured receipt instead of pairing its old startPlacement with a new
+    // receipt and overwriting the sibling edit.
+    fireEvent.click(screen.getByLabelText("镜像"));
+    expect(screen.getByLabelText("镜像")).toBeChecked();
+    fireEvent.pointerMove(heroBox, { pointerId: 8, clientX: 512.5, clientY: 300 });
+    fireEvent.pointerUp(heroBox, { pointerId: 8 });
+
+    expect(screen.getByLabelText("x")).toHaveValue(1020);
+    expect(screen.getByLabelText("镜像")).toBeChecked();
+    expect(screen.getByRole("status")).toHaveTextContent("scene_authoring.revision_stale");
+  });
+
   it("scales the selected actor through the corner handle", async () => {
     const io = fakeIoV1(sceneDocumentV1());
     const { container } = render(
@@ -347,11 +466,12 @@ describe("StudioAppV1", () => {
     expect(screen.getByLabelText("缩放‰")).toHaveValue(1167);
   });
 
-  it("replays through a selected cue and blocks saving on compile errors", async () => {
+  it("replays through a selected cue and atomically rejects invalid numeric operations", async () => {
     const io = fakeIoV1(sceneDocumentV1());
     const { container } = render(
       <StudioAppV1 binding={bindingV1} io={io} motionIo={fakeMotionIoV1()} />,
     );
+    const { fireEvent } = await import("@testing-library/react");
     const user = userEvent.setup();
 
     await waitFor(() =>
@@ -374,28 +494,34 @@ describe("StudioAppV1", () => {
       container.querySelector('[data-stage-key="layer.test.background:tag.backdrop"]'),
     ).not.toBeNull();
 
-    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    try {
-      // A zero scale is inadmissible; the compile error blocks saving.
-      await user.selectOptions(screen.getByLabelText("条目"), "tag.hero");
-      const scaleInput = screen.getByLabelText("缩放‰");
-      await user.clear(scaleInput);
-      await user.type(scaleInput, "0");
-      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("场景无法编译"));
-      expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
-      // The blocking entry is visible in the diagnostics panel, and the
-      // navigation confirm cannot smuggle the non-compilable draft out.
-      expect(container.querySelector('[data-studio-diagnostic="blocking"]')).toHaveTextContent(
-        "场景无法编译",
-      );
-      await user.click(screen.getByRole("button", { name: "重新加载" }));
-      expect(container.querySelector("[data-studio-dirty-confirm]")).not.toBeNull();
-      expect(screen.getByRole("button", { name: "保存并继续" })).toBeDisabled();
-      expect(screen.getByRole("button", { name: "放弃修改" })).toBeEnabled();
-      await user.click(screen.getByRole("button", { name: "取消" }));
-    } finally {
-      spy.mockRestore();
-    }
+    // A zero scale is inadmissible. It remains local pending input and the
+    // operation boundary preserves the valid draft, dirty flag, and history.
+    await user.selectOptions(screen.getByLabelText("条目"), "tag.hero");
+    const scaleInput = screen.getByLabelText("缩放‰");
+    await user.clear(scaleInput);
+    await user.type(scaleInput, "0");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "scene_authoring.operation_payload_invalid",
+    );
+    expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "撤销" })).toBeDisabled();
+    expect(container.querySelector('[data-studio-diagnostic="blocking"]')).toBeNull();
+
+    // A rejected half-input belongs to this entry only. Selection can also
+    // change from a canvas/session update without a browser blur event.
+    fireEvent.change(screen.getByLabelText("条目"), { target: { value: "tag.backdrop" } });
+    expect(screen.getByLabelText("缩放‰")).toHaveValue(1000);
+    fireEvent.change(screen.getByLabelText("条目"), { target: { value: "tag.hero" } });
+    const resetScaleInput = screen.getByLabelText("缩放‰");
+    await user.clear(resetScaleInput);
+    await user.type(resetScaleInput, "0");
+    await user.tab();
+    expect(screen.getByLabelText("缩放‰")).toHaveValue(1000);
+
+    await user.click(screen.getByLabelText("镜像"));
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("button", { name: "保存" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "撤销" })).toBeEnabled();
   });
 
   it("outlines declared hit regions on the canvas until the toggle hides them", async () => {
@@ -668,6 +794,20 @@ describe("StudioAppV1", () => {
     await user.click(redoButton);
     expect(screen.getByLabelText("x")).toHaveValue(640);
 
+    // Returning to the same field starts a fresh coalescing run rather than
+    // merging edits across a blur/focus boundary.
+    await user.click(screen.getByLabelText("x"));
+    await user.clear(screen.getByLabelText("x"));
+    await user.type(screen.getByLabelText("x"), "700");
+    await user.tab();
+    await user.click(screen.getByLabelText("x"));
+    await user.clear(screen.getByLabelText("x"));
+    await user.type(screen.getByLabelText("x"), "800");
+    await user.click(undoButton);
+    expect(screen.getByLabelText("x")).toHaveValue(700);
+    await user.click(undoButton);
+    expect(screen.getByLabelText("x")).toHaveValue(640);
+
     // A whole drag gesture is one undo step back to the pre-drag position.
     const heroBox = container.querySelector('[data-studio-select="tag.hero"]') as HTMLElement;
     fireEvent.pointerDown(heroBox, { button: 0, pointerId: 11, clientX: 400, clientY: 300 });
@@ -679,7 +819,7 @@ describe("StudioAppV1", () => {
     expect(screen.getByLabelText("x")).toHaveValue(640);
   });
 
-  it("binds motions on hide cues and lists the exit preview case", async () => {
+  it("binds and clears motions on hide cues and lists the exit preview case", async () => {
     const leaveMotion = {
       format: "sillymaker.motion",
       version: 1,
@@ -716,6 +856,7 @@ describe("StudioAppV1", () => {
     const { container } = render(
       <StudioAppV1 binding={bindingV1} io={io} motionIo={motionIo} />,
     );
+    const user = userEvent.setup();
 
     // The hide cue gets the same motion selector as show cues.
     await waitFor(() =>
@@ -741,6 +882,14 @@ describe("StudioAppV1", () => {
     expect(
       container.querySelector('[data-motion-workbench-case="cue.test.opening.hero-leaves"]'),
     ).toHaveTextContent("退场");
+
+    const selector = screen.getByLabelText("cue.test.opening.hero-leaves 的 motion");
+    await user.selectOptions(selector, "");
+    expect(selector).toHaveValue("");
+    await user.click(screen.getByRole("button", { name: "撤销" }));
+    expect(selector).toHaveValue("motion.test.leave");
+    await user.click(screen.getByRole("button", { name: "重做" }));
+    expect(selector).toHaveValue("");
   });
 
   it("enumerates motions from the project index and names skipped files (S2)", async () => {
@@ -1065,6 +1214,39 @@ describe("StudioAppV1", () => {
     ).not.toBeNull();
   });
 
+  it("derives valid cue and entry selections when undo removes their targets", async () => {
+    const { container } = render(
+      <StudioAppV1
+        binding={contentsBindingV1}
+        io={fakeIoV1(sceneDocumentV1())}
+        motionIo={fakeMotionIoV1()}
+      />,
+    );
+    const user = userEvent.setup();
+
+    await waitFor(() => expect(screen.getByLabelText("条目")).toBeVisible());
+    await user.selectOptions(screen.getByLabelText("新 cue 目标"), "tag.hero");
+    await user.selectOptions(screen.getByLabelText("新 cue 的类型"), "hide");
+    await user.click(screen.getByRole("button", { name: "新增 cue" }));
+    const addedCue = container.querySelector(
+      '[data-studio-cue="cue.test.opening.hero-hide"]',
+    );
+    await user.click(addedCue?.querySelector("button[aria-pressed]") as HTMLElement);
+    await user.click(screen.getByRole("button", { name: "撤销" }));
+
+    expect(container.querySelector('[data-studio-cue="cue.test.opening.hero-hide"]')).toBeNull();
+    expect(container.querySelector("[data-studio-compile-error]")).toBeNull();
+    expect(container.querySelector('[data-studio-canvas-mode="declared"]')).not.toBeNull();
+
+    await user.click(
+      container.querySelector('[data-studio-add-content="content.test.hero"]') as HTMLElement,
+    );
+    expect(screen.getByLabelText("条目")).toHaveValue("tag.test.hero");
+    await user.click(screen.getByRole("button", { name: "撤销" }));
+    expect(screen.getByLabelText("条目")).toHaveValue("tag.backdrop");
+    expect(container.querySelector("[data-studio-compile-error]")).toBeNull();
+  });
+
   it("edits appearance through the manifest's structured fields (S4)", async () => {
     const io = fakeIoV1(sceneDocumentV1());
     render(<StudioAppV1 binding={contentsBindingV1} io={io} motionIo={fakeMotionIoV1()} />);
@@ -1099,10 +1281,19 @@ describe("StudioAppV1", () => {
     // committed values recompile the canvas through the real compositor.
     const row = screen.getByLabelText("外观 expression");
     expect(row).toHaveValue("calm");
+    fireEvent.focus(row);
     fireEvent.change(row, { target: { value: "happy" } });
+    fireEvent.blur(row);
     await waitFor(() =>
       expect(container.querySelector('[data-test-expression="happy"]')).not.toBeNull()
     );
+
+    // A later focus run on the same field owns a distinct undo step.
+    fireEvent.focus(screen.getByLabelText("外观 expression"));
+    fireEvent.change(screen.getByLabelText("外观 expression"), { target: { value: "sad" } });
+    fireEvent.blur(screen.getByLabelText("外观 expression"));
+    await user.click(screen.getByRole("button", { name: "撤销" }));
+    expect(screen.getByLabelText("外观 expression")).toHaveValue("happy");
 
     // A brand-new key joins through the admission-gated add row.
     await user.type(screen.getByLabelText("新外观键"), "mood");
@@ -1313,6 +1504,55 @@ describe("StudioAppV1", () => {
     // The scene draft is dirty (rebind) — the motion files are already on
     // disk, the binding write persists with the scene save.
     expect(screen.getByRole("button", { name: "保存" })).toBeEnabled();
+  });
+
+  it("does not bind an asynchronously created motion across a newer draft revision", async () => {
+    const indexedMotion = {
+      format: "sillymaker.motion",
+      version: 1,
+      motionId: "motion.test.indexed",
+      label: "已有动效",
+      durationMs: 300,
+      delayMs: 0,
+      tracks: [{
+        channel: "opacityPermille",
+        keyframes: [{ atPermille: 0, value: 0 }, { atPermille: 1000, value: 1000 }],
+      }],
+    };
+    const motionIo = fakeMotionIoV1([{
+      path: "src/scenes/opening/motions/indexed.motion.json",
+      motionDocument: indexedMotion,
+    }]);
+    const releaseCreate = motionIo.deferNextCreate();
+    const { container } = render(
+      <StudioAppV1
+        binding={contentsBindingV1}
+        io={fakeIoV1(sceneDocumentV1())}
+        motionIo={motionIo}
+      />,
+    );
+    const user = userEvent.setup();
+
+    await waitFor(() => expect(screen.getByLabelText("条目")).toBeVisible());
+    await user.selectOptions(screen.getByLabelText("条目"), "tag.hero");
+    await user.click(
+      container.querySelector(
+        '[data-studio-create-motion="cue.test.opening.backdrop"]',
+      ) as HTMLElement,
+    );
+    await waitFor(() => expect(motionIo.creates).toHaveLength(1));
+
+    // The file create is still pending, but an unrelated valid Scene edit
+    // advances the captured revision. Its completion must not overwrite the
+    // newer draft by binding against a freshly sampled receipt.
+    await user.click(screen.getByLabelText("镜像"));
+    releaseCreate();
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("场景草稿已变化，未自动绑定")
+    );
+    expect(screen.getByLabelText("cue.test.opening.backdrop 的 motion")).toHaveValue("");
+    expect(screen.getByLabelText("镜像")).toBeChecked();
   });
 
   it("binds and clears an entry's ambient loop through the inspector (ambient M2)", async () => {

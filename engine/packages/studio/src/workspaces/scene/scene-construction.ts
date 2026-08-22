@@ -1,22 +1,24 @@
 // SPDX-License-Identifier: MIT
-import type { MotionDocumentV1, SceneCanvasV1, SceneDocumentV1 } from "@sillymaker/base";
+import type {
+  MotionDocumentV1,
+  SceneCanvasV1,
+  SceneCueV1,
+  SceneDocumentV1,
+  SceneEntryV1,
+} from "@sillymaker/base";
 
 import type { StudioContentDescriptorV1 } from "../../core/binding.ts";
-import type { defaultPlacementV1, editDocumentV1 } from "./scene-compile.ts";
+import type { defaultPlacementV1 } from "./scene-compile.ts";
 
 /**
- * Scene Construction (Authoring Architecture S4): pure derivations and
- * plain-document commands for building a scene from the Content browser —
- * stable tag/cue/motion id derivation, add/remove entry (an entry removal
- * takes its dependent cues with it, since admission requires every cue tag
- * to resolve), add/remove cue, the blank scene document, and the created
- * or cloned motion-document plan. Everything here edits plain JSON drafts;
- * admission stays the single validator and the documents remain the only
- * authoring authority.
+ * Scene Construction (Authoring Architecture S4): pure payload derivations
+ * for building a scene from the Content browser — stable tag/cue/motion ids,
+ * complete entry/cue operation payloads, the blank scene document, and the
+ * created or cloned motion-document plan. The AR2 operation reducer owns
+ * opened-draft changes; admission stays the single validator and documents
+ * remain the only authoring authority.
  */
 
-type StudioScenePlainV1 = Parameters<Parameters<typeof editDocumentV1>[1]>[0];
-type StudioScenePlainEntryV1 = StudioScenePlainV1["entries"][number];
 type StudioPlacementV1 = ReturnType<typeof defaultPlacementV1>;
 
 /** The final dot-segment of a stable id ("content.a.b" → "b"). */
@@ -59,28 +61,30 @@ export function deriveCueIdV1(
 }
 
 /**
- * Adds one entry for the descriptor and returns its derived tag. Placeable
+ * Derives one complete entry operation payload from the descriptor. Placeable
  * content without a declared default placement starts at the canvas
  * center; backgrounds place nowhere (the show mutation's defaults own it).
  */
-export function addContentEntryV1(
-  plain: StudioScenePlainV1,
+export function deriveContentEntryV1(
+  document: SceneDocumentV1,
   descriptor: StudioContentDescriptorV1,
-  canvas: SceneCanvasV1,
-): string {
-  const tag = deriveEntryTagV1(descriptor.contentId, plain.entries.map((entry) => entry.tag));
+): SceneEntryV1 {
+  const tag = deriveEntryTagV1(
+    descriptor.contentId,
+    document.entries.map((entry) => entry.tag as string),
+  );
   const placement: StudioPlacementV1 | undefined = descriptor.defaultPlacement !== undefined
     ? { ...descriptor.defaultPlacement }
     : descriptor.category === "background"
     ? undefined
     : {
-      x: Math.round(canvas.width / 2),
-      y: Math.round(canvas.height / 2),
+      x: Math.round(document.canvas.width / 2),
+      y: Math.round(document.canvas.height / 2),
       scalePermille: 1000,
       opacityPermille: 1000,
       mirrored: false,
     };
-  const entry: StudioScenePlainEntryV1 = {
+  return Object.freeze({
     layerId: descriptor.defaultLayerId,
     tag,
     contentId: descriptor.contentId,
@@ -89,39 +93,25 @@ export function addContentEntryV1(
     ...(descriptor.defaultAppearance === undefined
       ? {}
       : { appearance: { ...descriptor.defaultAppearance } }),
-  };
-  plain.entries.push(entry);
-  return tag;
+  }) as unknown as SceneEntryV1;
 }
 
-/**
- * Removes the entry and every cue that references it (admission requires
- * cue tags to resolve, so dependent cues cannot outlive their entry).
- * Returns the removed cue ids.
- */
-export function removeEntryV1(plain: StudioScenePlainV1, tag: string): readonly string[] {
-  const removedCueIds = plain.cues
-    .filter((cue) => cue.tag === tag)
-    .map((cue) => cue.cueId);
-  plain.entries = plain.entries.filter((entry) => entry.tag !== tag);
-  plain.cues = plain.cues.filter((cue) => cue.tag !== tag);
-  return Object.freeze(removedCueIds);
-}
-
-/** Appends one show/hide cue for the entry and returns its derived cue id. */
-export function addCueV1(
-  plain: StudioScenePlainV1,
-  sceneId: string,
+/** Derives one complete show/hide cue operation payload for the entry. */
+export function deriveCueV1(
+  document: SceneDocumentV1,
   tag: string,
   kind: "show" | "hide",
-): string {
-  const cueId = deriveCueIdV1(sceneId, tag, kind, plain.cues.map((cue) => cue.cueId));
-  plain.cues.push({ cueId, kind, tag });
-  return cueId;
-}
-
-export function removeCueV1(plain: StudioScenePlainV1, cueId: string): void {
-  plain.cues = plain.cues.filter((cue) => cue.cueId !== cueId);
+): SceneCueV1 {
+  return Object.freeze({
+    cueId: deriveCueIdV1(
+      document.sceneId,
+      tag,
+      kind,
+      document.cues.map((cue) => cue.cueId),
+    ),
+    kind,
+    tag,
+  }) as unknown as SceneCueV1;
 }
 
 /**
