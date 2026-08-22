@@ -641,51 +641,49 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
                       section="state"
                       title={labels.sectionStateLabel}
                     >
-                      {props.savePort === undefined
-                        ? null
-                        : (
-                          <>
-                            <Button
-                              data-debug-dock-action="export_state"
-                              disabled={busy !== null}
-                              onClick={() => {
-                                closeConfirm();
-                                setBusy("export");
-                                setNote(null);
-                                void props.savePort
-                                  ?.exportCurrentSave()
-                                  .then(() => setNote(labels.exportDoneText))
-                                  .catch((error: unknown) => setNote(failureNoteV1(error)))
-                                  .finally(() => setBusy(null));
-                              }}
-                            >
-                              {busy === "export"
-                                ? `${labels.exportStateLabel}${labels.busySuffix}`
-                                : labels.exportStateLabel}
-                            </Button>
-                            <Button
-                              data-debug-dock-action="import_state"
-                              disabled={busy !== null}
-                              onClick={() => {
-                                closeConfirm();
-                                setBusy("import");
-                                setNote(null);
-                                void props.savePort
-                                  ?.importSave()
-                                  .then((result) => {
-                                    const next = sessionMaintenanceImportNoteV1(result, labels);
-                                    if (next !== null) setNote(next);
-                                  })
-                                  .catch((error: unknown) => setNote(failureNoteV1(error)))
-                                  .finally(() => setBusy(null));
-                              }}
-                            >
-                              {busy === "import"
-                                ? `${labels.importStateLabel}${labels.busySuffix}`
-                                : labels.importStateLabel}
-                            </Button>
-                          </>
-                        )}
+                      {props.savePort === undefined ? null : (
+                        <>
+                          <Button
+                            data-debug-dock-action="export_state"
+                            disabled={busy !== null}
+                            onClick={() => {
+                              closeConfirm();
+                              setBusy("export");
+                              setNote(null);
+                              void props.savePort
+                                ?.exportCurrentSave()
+                                .then(() => setNote(labels.exportDoneText))
+                                .catch((error: unknown) => setNote(failureNoteV1(error)))
+                                .finally(() => setBusy(null));
+                            }}
+                          >
+                            {busy === "export"
+                              ? `${labels.exportStateLabel}${labels.busySuffix}`
+                              : labels.exportStateLabel}
+                          </Button>
+                          <Button
+                            data-debug-dock-action="import_state"
+                            disabled={busy !== null}
+                            onClick={() => {
+                              closeConfirm();
+                              setBusy("import");
+                              setNote(null);
+                              void props.savePort
+                                ?.importSave()
+                                .then((result) => {
+                                  const next = sessionMaintenanceImportNoteV1(result, labels);
+                                  if (next !== null) setNote(next);
+                                })
+                                .catch((error: unknown) => setNote(failureNoteV1(error)))
+                                .finally(() => setBusy(null));
+                            }}
+                          >
+                            {busy === "import"
+                              ? `${labels.importStateLabel}${labels.busySuffix}`
+                              : labels.importStateLabel}
+                          </Button>
+                        </>
+                      )}
                       {stateTools.map((tool) =>
                         renderToolButtonV1(
                           tool,
