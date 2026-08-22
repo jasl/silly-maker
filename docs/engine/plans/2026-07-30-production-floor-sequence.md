@@ -34,8 +34,13 @@ readiness。AR1 progressive activation 与 private extension-runtime selection �
 保留 SillyMaker-owned Direct backend；lazy DevDock 与 Studio Flow 是两个真实 GUI consumer。
 AR2 structured Scene operations 也已于 2026-08-22 交付：Scene UI 与 non-UI caller 现在共用
 package-private strict operation、pure reducer、opaque document-successor identity、monotonic draft
-revision、atomic stale rejection 和既有 session/history/CAS authority。后续按 AR3 embeddable
-Authoring Host/stable sibling → AR4
+revision、atomic stale rejection 和既有 session/history/CAS authority。AR3 embeddable Authoring
+Host/stable sibling 同日交付：standalone 与 dev-only embedded shell 共用同一 private Host/
+workspace/session factory，persistent-visible R1 先经 inert/offscreen connected staging，Engine Lab
+真实 Scene/Studio binding 的 Browser R2 在零 page load 下换代 Game/Session 并保留 Authoring
+Host，ordinary release 排除 authoring/real dev-source graph；macOS/Deno 2.9.5 原生 common runtime
+也已证明 GUI ready、同窗口 Game/Session restart 与 close-flush/正常退出，但 native Desktop
+author/source-write/R0–R2、packaged artifact、多平台与 durability 仍 defer。后续按 AR4
 experimental Agent RPC/UiArtifact seam → AR5 Browser/Deno Desktop GUI/build/performance promotion →
 AR6 closure 顺序执行。目标合同见
 [Application Runtime and Embedded Authoring](../design/application-runtime-and-embedded-authoring.md)。
@@ -45,7 +50,7 @@ ABI、runtime code installation、State Format V2、Effect Broker、具体 OpenU
 production Story State migration；Cordis adapter/vendor/dependency 已删除。ordinary no-extension
 静态游戏 release 仍不得包含 author/source-write、selected Direct extension runtime 或 RPC
 implementation。AR6 后的作品/examples/产品由所有者另行选择和立案，不在本计划预先排序。
-下一项可领取任务只有 AR3。
+下一项可领取任务只有 AR4。
 
 前一条：[Mid-hold Input V1](2026-08-22-mid-hold-input.md)（提案
 [mid-hold-input](../proposals/mid-hold-input.md)，2026-08-22 所有者

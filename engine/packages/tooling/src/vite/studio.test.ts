@@ -44,6 +44,14 @@ function studioEntrySourceFromPluginV1(plugin: Plugin): string {
   return source;
 }
 
+function virtualSourceFromPluginV1(plugin: Plugin, id: string): string {
+  if (typeof plugin.load !== "function") throw new TypeError("missing Studio virtual loader");
+  const load = plugin.load as unknown as (moduleId: string) => unknown;
+  const source = load(id);
+  if (typeof source !== "string") throw new TypeError(`missing virtual source ${id}`);
+  return source;
+}
+
 describe("studioPluginV1", () => {
   it("generates a static accessible Author/Browser boot shell", () => {
     const html = createStudioPageHtmlInternalV1();
@@ -72,7 +80,7 @@ describe("studioPluginV1", () => {
     );
   });
 
-  it("advertises the Studio page on the game HTML", () => {
+  it("advertises standalone Studio and installs only the resident embedded launcher", () => {
     const transform = studioHtmlTransformV1(studioPluginV1(studioBindingV1));
     const transformed = transform("<!doctype html><html><head></head><body></body></html>");
     if (typeof transformed === "string") {
@@ -87,7 +95,53 @@ describe("studioPluginV1", () => {
         }),
         injectTo: "head",
       }),
+      Object.freeze({
+        tag: "script",
+        attrs: Object.freeze({
+          type: "module",
+          src: "/__sillymaker/embedded-author-entry.ts",
+        }),
+        injectTo: "body",
+      }),
     ]);
+  });
+
+  it("keeps Studio, source IO, and the binding behind first embedded activation", () => {
+    const plugin = studioPluginV1(studioBindingV1);
+    const launcher = virtualSourceFromPluginV1(
+      plugin,
+      "/__sillymaker/embedded-author-entry.ts",
+    );
+    const runtime = virtualSourceFromPluginV1(
+      plugin,
+      "/__sillymaker/embedded-author-runtime.tsx",
+    );
+
+    expect(launcher).toContain('import("/__sillymaker/embedded-author-runtime.tsx")');
+    expect(launcher).toContain('containerV1.id = "sillymaker-embedded-author-root"');
+    expect(launcher).toContain('mountV1.dataset.sillymakerEmbeddedAuthorMount = "true"');
+    expect(launcher).toContain("moduleV1.mountEmbeddedAuthoringV1(mountV1)");
+    expect(launcher).toContain("openV1.remove();");
+    expect(launcher).toContain("mountV1.replaceChildren();");
+    expect(launcher).toContain("openV1.disabled = false;");
+    expect(launcher.indexOf("openV1.remove();")).toBeGreaterThan(
+      launcher.indexOf("await moduleV1.mountEmbeddedAuthoringV1(mountV1)"),
+    );
+    expect(launcher).not.toContain("@sillymaker/studio");
+    expect(launcher).not.toContain("createDevServerSceneIoV1");
+    expect(launcher).not.toContain("/src/application/studio.ts");
+
+    expect(runtime).toContain("createDevServerSceneIoV1");
+    expect(runtime).toContain("createDevServerMotionIoV1");
+    expect(runtime).toContain("createDevServerRegionsIoV1");
+    expect(runtime).toContain('mode: "embedded"');
+    expect(runtime).toContain('profileId: "sillymaker.authoring-host.embedded.live"');
+    expect(runtime).toContain(
+      'import.meta.hot.accept("/src/application/studio.ts", (moduleV1) => {',
+    );
+    expect(runtime).toContain("publicationV1?.dispose();");
+    expect(runtime).toContain("await compositionV1?.dispose();");
+    expect(runtime).toContain("if (mountedV1 === attemptV1) mountedV1 = null;");
   });
 
   it("does not advertise Studio on the Studio page itself", () => {

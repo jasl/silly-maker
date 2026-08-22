@@ -38,7 +38,7 @@ Stage entrance/exit animations are `src/motions/*.motion.json` assets bound thro
 
 ## Scene collaboration contract
 
-The Engine Lab intentionally stays a low-level rig: it declares no `*.scene.json` today, and its placement literals in the script are the exercised low-level API. If a scene document is ever added, the same contract as `template`/`examples` applies — the document becomes that scene's single authoring authority (stage nodes reference cues; no duplicated placement literals or global enter-edge motion inference), sceneId/cueId stay stable across refactors, and the filename stem matches the sceneId's final segment.
+The Engine Lab intentionally stays a low-level rig except for one minimal authoring conformance path: `src/scenes/procedure/procedure.scene.json` is the single authority for the procedure scene's background, characters, placements, opening appearances, and the Motion cue used by the Authoring Host conformance case. `labStageMutationsForBeginV1` derives its whole-scene open from that document; do not duplicate those declarations in gameplay code or tests. DevDock provenance is read-only and must not grow a second writable Motion session under the Game root. Any further scene document follows the same contract as `template`/`examples` — stage nodes reference cues, sceneId/cueId stay stable across refactors, the filename stem matches the sceneId's final segment, and no global enter-edge motion inference replaces explicit scene bindings.
 
 ## Forbidden
 

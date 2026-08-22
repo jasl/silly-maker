@@ -510,7 +510,7 @@ export function classifyStaticGameDependencyFacetsInternalV1(
   );
   const devSourceImplementation = uniqueModuleIds.filter((moduleId) =>
     moduleId.startsWith("engine/packages/tooling/src/vite/") ||
-    moduleId === "engine/packages/ui/src/debug/motion-sources.ts"
+    moduleId === "engine/packages/ui/src/debug/dev-source-client.ts"
   );
   const dynamicExtensionImplementation = uniqueModuleIds.filter((moduleId) =>
     moduleId.startsWith("engine/packages/composition/src/extension-runtime/") ||

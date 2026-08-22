@@ -7,6 +7,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./authoring": "./src/authoring/index.ts",
+    "./authoring/runtime-schema": "./src/authoring/runtime-schema.ts",
+    "./authoring/scene": "./src/authoring/scene.ts",
+    "./authoring/save-state-migration": "./src/authoring/save-state-migration.ts",
     "./runtime": "./src/runtime/index.ts",
     "./runtime/internal": "./src/runtime/internal.ts",
     "./story": "./src/story/index.ts",

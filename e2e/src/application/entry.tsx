@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 import { startWebGameApplicationV1 } from "@sillymaker/web";
 
-import { labGameApplicationV1 } from "./composition.tsx";
+import { installLabGameApplicationHmrV1, labGameApplicationV1 } from "./composition.tsx";
 
 // The whole Engine Lab web entry: one declaration, one start call. Session,
 // persistence, diagnostics, input, automation, and page lifecycle come from
-// the Web composer; dev-time module changes fall back to a full reload.
+// the Web composer. In Vite development the composition module owns a literal
+// self-accept boundary and hands admitted R2 successors back to that composer.
 if (typeof document !== "undefined") {
-  await startWebGameApplicationV1(labGameApplicationV1);
+  const started = await startWebGameApplicationV1(labGameApplicationV1);
+  if (import.meta.hot !== undefined) installLabGameApplicationHmrV1(started);
 }

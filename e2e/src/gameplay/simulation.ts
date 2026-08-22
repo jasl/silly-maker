@@ -1012,7 +1012,7 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
             phase: "running",
             stepsTaken: state.procedure.stepsTaken,
           });
-          const stageRejection = emitStage(transaction, labStageMutationsForBeginV1());
+          const stageRejection = emitStage(transaction, labStageMutationsForBeginV1(state.stage));
           if (stageRejection !== null) return transaction.reject({ code: stageRejection });
           return transaction.complete();
         }

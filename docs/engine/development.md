@@ -133,21 +133,36 @@ looking up Context or a registry. Remove a published UI consumer before
 retiring its lifecycle. External services remain future typed RPC consumers,
 not local extension bindings.
 
-The generated dev-only Studio entry uses `@sillymaker/studio/composition` for
-that separate live root. A live reload keeps the predecessor snapshot/providers
-current while a detached React epoch reaches a layout-effect commit; only the
-returned acknowledgement swaps the host and lets composition retire the
-predecessor.
-Setup, render, layout, or abort failure rolls the candidate back without
-touching the old UI or its shared dirty document session. HMR teardown unmounts
-React before disposing the provider scope. Do not use the return from
-`root.render()` as publication evidence or move rendering into plugin setup.
-This is not connected-browser geometry evidence; activate a stronger HMR
-contract only with a real layout-sensitive renderer and browser acceptance.
-Flow activation is owned outside individual React epochs. Standalone Studio
-retires it after descendant unmount; live publication passes the same owner to
-staging and visible successors, so a rejected or accepted binding candidate
-does not reload ready Flow or discard the shared dirty document session.
+The generated dev-only standalone Studio entry and embedded author runtime both
+use `@sillymaker/studio/composition` and the same private Authoring Host. The
+Host owns the shared Scene/Regions sessions, Motion store, Flow activation, and
+dirty-close participants; shells render the same closed workspace manifest and
+must not create their own document/undo/save/conflict state machines. The game
+page receives only a lightweight launcher; its embedded implementation and real
+dev-source client load on first open.
+
+The publication retains one connected visible React root. A live R1 candidate
+first renders in an inert, `aria-hidden`, visibility-hidden, offscreen but
+document-connected staging root and acknowledges an exact layout-effect commit;
+only then is it rendered into that same visible root. Connected layout failure
+is rejected before the visible root is touched, so Host identity, DOM,
+selection, compatible component-local state, and document history remain exact.
+A synchronous visible render-factory failure may rerender the predecessor plan
+without replacing that state; if candidate and rollback factories both fail,
+disposal is terminal. Do not generalize that narrow case into a promise that
+arbitrary nondeterministic visible effects are reversible. Never use the return
+from `root.render()` as publication evidence or move rendering into plugin
+setup. Connected staging proves DOM connection and layout-effect success, not
+visible paint or exact screen geometry; stronger workspace readiness still
+needs its own browser evidence.
+
+Embedded close delegates save/discard/cancel to Host participants. Scene,
+Regions, and Motion saves share the same conflict rule: on `digest_conflict`,
+refresh the saved baseline/digest while preserving the dirty draft and history,
+then let the author retry. The embedded shell is an independent application
+focus owner and native-text scope; focused editor keys must not reach gameplay.
+Standalone/embedded teardown unmounts descendants before disposing Flow and the
+Host. Neither shell receives a Game Session writer.
 
 ### Structured Scene operation workflow
 
@@ -209,12 +224,46 @@ accepted active-registry publication, never backend activation alone.
 
 Current R0–R3 characterization:
 
-| Class | Browser                                                                                                                                                                                                                                   | Deno Desktop                                                                                                                                                         |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R0    | Studio Scene/Motion/Regions refresh uses the existing schema/CAS document session. Player source data has no independent R0 update source.                                                                                                | The static Player shell has no author/source update path.                                                                                                            |
-| R1    | Studio binding/workspace HMR has SillyMaker-owned candidate/layout acknowledgement. Eligible component-only Player presentation modules may also use Vite React Fast Refresh, without a SillyMaker atomic-publication guarantee.          | Not wired.                                                                                                                                                           |
-| R2    | `installWebGameApplicationHmrV1` and Game/Session persistence handoff have helper/conformance coverage, but maintained runtime entries do not install a Vite accept boundary.                                                             | Not wired.                                                                                                                                                           |
-| R3    | Application declaration, core/domain, config, Fast Refresh-ineligible, and otherwise unclassified changes use Vite full-page reload. Ordinary persisted Save recovery is available; in-process Session/UI/draft identity is not promised. | Built `dist/` changes require rebuild and Host relaunch. Preview records may recover Save; durable draft, author entry, and production persistence are not promised. |
+| Class | Browser                                                                                                                                                                                                                                        | Deno Desktop                                                                                                                                                         |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R0    | Authoring Scene/Motion/Regions read/refresh and CAS admission update the existing document session. A saved Engine Lab Scene reaches the running domain through the separate R2 path.                                                          | The static Player shell has no author/source update path.                                                                                                            |
+| R1    | Standalone/embedded Authoring binding HMR uses inert/offscreen, document-connected staging and one persistent visible root. Eligible component-only Player modules may also use Vite React Fast Refresh without SillyMaker atomic publication. | Not wired.                                                                                                                                                           |
+| R2    | Engine Lab's Vite identity owner injects current real `BuildIdentity` into a literal-self-accepting composition candidate; the Web composer replaces Game/Session on the same Host/root and preserves the sibling Authoring Host.              | Not wired.                                                                                                                                                           |
+| R3    | Product applications without an admitted R2 boundary, config changes, Fast Refresh-ineligible changes, and otherwise unclassified changes use full-page reload. Persisted Save may recover; in-process identity is not promised.               | Built `dist/` changes require rebuild and Host relaunch. Preview records may recover Save; durable draft, author entry, and production persistence are not promised. |
+
+The focused Chromium/WebKit dev-source cases physically edit the real Engine Lab
+Studio binding, Scene, and Motion. The binding-only R1 update preserves the
+dirty Host DOM/identity, focused input, selection, and undo with zero page loads.
+Scene and Motion CAS each change the Game application epoch through R2, also
+with zero page loads and the sibling Host retained. A shared `presentation.ts`
+edit proves the same physical change can reach the Game composition R2 boundary
+and the loaded Authoring binding R1 boundary without replacing the Host. Every
+teardown waits for the reverse update and restores the source file byte-for-byte.
+The focused matrix is five cases in each browser (10/10).
+
+The AR3 native common-runtime smoke uses the latest Engine Lab static Player on
+macOS arm64 with Deno 2.9.5. It proves GUI ready, authoritative operations, an
+in-window Game/Session restart, post-restart operation, native close
+acknowledgement, autosave flush, and normal process exit. It is not embedded
+authoring, source CAS, Desktop R0–R2/HMR, a packaged-artifact or multi-platform
+launch test, or a persistence durability promotion gate.
+
+The Engine Lab identity owner normally collapses an R2 facet change to the
+composition candidate. If one of the original changed Vite modules also reaches
+the already-loaded Studio binding through the live importer graph, the owner
+returns that exact changed module beside the composition candidate: Vite then
+refreshes its bytes through the Authoring R1 boundary while Game still cuts over
+through R2. Unrelated deep Scene/simulation modules remain filtered. Application-
+only changes retain Vite's ordinary propagation and React Fast Refresh
+opportunities; if an application-only update reaches the composition boundary
+with the same R2 tuple, that boundary requests R3 rather than treating the update
+as an accepted no-op.
+
+The Web R2 helper retires its predecessor before starting the successor. A
+failure before replacement leaves the current Game anchor untouched; a failure
+after retirement uses terminal recovery and does not restore the gameplay
+predecessor. Test Authoring sibling continuity in both cases, but do not call the
+latter a transactional R2 rollback.
 
 [Deno Desktop supports a platform `--hmr` development flag](https://docs.deno.com/runtime/reference/cli/desktop/),
 but SillyMaker's current static staging/packaging command does not pass or
@@ -241,6 +290,20 @@ deno run -A npm:vitest run engine/packages/studio/src/react-publication.test.tsx
 deno run -A npm:vitest run engine/packages/tooling/src/vite/build-dependency-receipt.test.ts
 deno task typecheck
 ```
+
+Focused AR3 Host, R1, R2, release-graph, and browser checks are:
+
+```sh
+deno run -A npm:vitest run engine/packages/studio/src/react-publication.test.tsx engine/packages/studio/src/studio-app.test.tsx
+deno run -A npm:vitest run e2e/src/test/authoring-host-lifetime.test.tsx e2e/src/test/application-hmr.test.tsx e2e/src/test/build-identity-owner.test.ts e2e/src/test/studio-binding.test.ts
+deno run -A npm:vitest run engine/packages/tooling/src/vite/studio.test.ts engine/packages/tooling/src/vite/build-dependency-receipt.test.ts
+deno task story build e2e --profile release
+deno run -A npm:@playwright/test/playwright test --config engine/packages/web/playwright.engine.config.ts engine/packages/web/e2e/engine/embedded-authoring.spec.ts engine/packages/web/e2e/engine/workbench.spec.ts --project=chromium --project=webkit
+```
+
+The Playwright case writes the real Engine Lab Scene through the dev-only CAS
+port and restores its original bytes in teardown. Run it only against a dev
+server and keep its `@dev-source-io` tag out of prebuilt/release projects.
 
 While iterating on this package, run the focused runtime test plus the repository
 typecheck so its consumer type test is included:
@@ -803,8 +866,13 @@ reports raw/gzip bytes for entry, preload, lazy, all JavaScript, all CSS,
 runtime assets, and all files. Schema v2 adds the final chunk/asset dependency
 graph and per-output `contributionIds`, including CSS-only dynamic entries; all
 recorded edges name real final outputs. The Template release build is the
-semantic negative control for absent authoring, dev-source, dynamic-extension,
-and RPC implementations without freezing an exact full-module inventory. The
+semantic negative control for absent authoring, real dev-source,
+dynamic-extension, and RPC implementations without freezing an exact full-module
+inventory. The `@sillymaker/ui/debug/dev-source-client` subpath resolves to the
+fetch/write implementation only under the `development` condition; the default
+and release graph receive a fail-closed unavailable stub. Engine Lab's release
+graph also excludes its dev-only Studio binding plus embedded-author virtual
+entries. The
 measurement receipt and default report stay in OS temp and never enter the
 Player. The task accepts `--application`, `--out-dir`, and `--output`; defaults
 are Engine Lab and OS-temp output. Byte sizes are build facts, while build

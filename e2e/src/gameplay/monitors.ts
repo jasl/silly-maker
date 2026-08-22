@@ -7,7 +7,7 @@ import {
   parseMonitorAccumulatorV1,
   parseMonitorDeclarationsV1,
 } from "@sillymaker/base";
-import { createRuntimeSchemaV1 } from "@sillymaker/base/authoring";
+import { createRuntimeSchemaV1 } from "@sillymaker/base/authoring/runtime-schema";
 
 import type { LabNarrativeStateV1 } from "./narrative.ts";
 import { labDrillChamberNodeIdV1, labDrillDecisionDefinitionIdV1 } from "./narrative.ts";

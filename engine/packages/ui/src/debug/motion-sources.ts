@@ -64,20 +64,3 @@ export function createMotionSourceIndexV1(
     list: () => entries,
   });
 }
-
-/**
- * Asks the dev server to open a Story source file in the local editor via
- * the `sillymaker:dev-sources` middleware. Resolves to false when the
- * endpoint is absent (production preview) or rejects the path.
- */
-export async function openStorySourceInDevServerV1(path: string): Promise<boolean> {
-  try {
-    const response = await fetch(
-      `/__sillymaker/dev-sources/open?path=${encodeURIComponent(path)}`,
-      { method: "POST" },
-    );
-    return response.ok;
-  } catch {
-    return false;
-  }
-}

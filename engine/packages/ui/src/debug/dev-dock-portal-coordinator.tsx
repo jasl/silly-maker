@@ -46,15 +46,6 @@ const missingDevDockPortalSelectionV1 = Object.freeze({
   surface: "base",
 }) satisfies DevDockPortalTargetSelectionV1;
 
-/** Lets an enclosing capture-phase dialog defer Escape to an open nested DevDock rail. */
-export function isDevDockEscapeOwnerTargetV1(target: EventTarget | null): boolean {
-  return (
-    typeof Element !== "undefined" &&
-    target instanceof Element &&
-    target.closest('[data-devdock-escape-owner="true"]') !== null
-  );
-}
-
 function selectDevDockPortalTargetV1(
   registrations: readonly DevDockPortalTargetRegistrationV1[],
   baseTarget: HTMLElement | null,

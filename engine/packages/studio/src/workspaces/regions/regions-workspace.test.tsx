@@ -122,6 +122,7 @@ interface FakeRegionsIoV1 extends RegionsSourceIoV1 {
   }[];
   readonly creates: { path: string; regionsDocument: RegionsDocumentV1 }[];
   failNextWriteWith(code: "digest_conflict"): void;
+  replaceSaved(path: string, regionsDocument: RegionsDocumentV1, digest: string): void;
 }
 
 function fakeRegionsIoV1(
@@ -138,6 +139,9 @@ function fakeRegionsIoV1(
     creates,
     failNextWriteWith(code) {
       failNext = code;
+    },
+    replaceSaved(path, regionsDocument, digest) {
+      documents.set(path, { digest, doc: regionsDocument });
     },
     list: () =>
       Promise.resolve({
@@ -317,6 +321,34 @@ describe("RegionsWorkspaceSectionV1", () => {
     await waitFor(() =>
       expect(container.querySelector("[data-studio-regions-note]")).toHaveTextContent("已保存")
     );
+  });
+
+  it("refreshes a conflicted Regions digest while preserving the dirty draft", async () => {
+    const io = fakeRegionsIoV1([{ path: heroRegionsPathV1, doc: heroRegionsDocumentV1() }]);
+    const { container } = renderStudioV1(io);
+    await waitForRegionsCanvasV1(container);
+    const user = userEvent.setup();
+
+    await user.click(container.querySelector('[data-studio-region-row="0"]') as HTMLElement);
+    await user.clear(screen.getByLabelText("X"));
+    await user.type(screen.getByLabelText("X"), "25");
+    io.replaceSaved(heroRegionsPathV1, heroRegionsDocumentV1(), "sha256:external");
+    io.failNextWriteWith("digest_conflict");
+
+    const save = container.querySelector("[data-studio-regions-save]") as HTMLElement;
+    await user.click(save);
+    await waitFor(() =>
+      expect(container.querySelector("[data-studio-regions-note]")).toHaveTextContent(
+        "已刷新保存基线并保留当前草稿",
+      )
+    );
+    expect(screen.getByLabelText("X")).toHaveValue(25);
+    expect(save).toBeEnabled();
+
+    await user.click(save);
+    await waitFor(() => expect(io.writes).toHaveLength(1));
+    expect(io.writes[0]).toMatchObject({ expectedDigest: "sha256:external" });
+    expect(io.writes[0]?.regionsDocument.regions[0]?.x).toBe(25);
   });
 
   it("edits polygon vertices: seed, insert at a midpoint, drag, and delete", async () => {

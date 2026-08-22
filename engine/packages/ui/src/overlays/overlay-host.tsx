@@ -11,7 +11,7 @@ import {
 } from "react";
 import type { ErrorInfo, KeyboardEvent as ReactKeyboardEvent, ReactElement } from "react";
 import type { DeepReadonly } from "@sillymaker/base";
-import { isDevDockEscapeOwnerTargetV1 } from "../debug/dev-dock-portal-coordinator.tsx";
+import { isIndependentApplicationFocusOwnerTargetInternalV1 } from "../input/application-focus-owner.ts";
 import { inputHandledV1, inputIgnoredV1, systemInputActionIdsV1 } from "../input/contracts.ts";
 import type { InputEventV1, InputRouterV1 } from "../input/contracts.ts";
 import type { ManagedSurfaceHandleV1 } from "../managed-surfaces/managed-surface-coordinator.ts";
@@ -252,7 +252,7 @@ function OverlayDialogEntryV1<TOverlayId extends string>(props: {
               }
               if (
                 event.key === "Escape" &&
-                !isDevDockEscapeOwnerTargetV1(event.target)
+                !isIndependentApplicationFocusOwnerTargetInternalV1(event.target)
               ) {
                 // Radix registers its document-level Escape listener in a
                 // passive effect. A newly committed detail can therefore
@@ -265,7 +265,7 @@ function OverlayDialogEntryV1<TOverlayId extends string>(props: {
             }}
             onEscapeKeyDown={(event) => {
               event.preventDefault();
-              if (!isDevDockEscapeOwnerTargetV1(event.target)) {
+              if (!isIndependentApplicationFocusOwnerTargetInternalV1(event.target)) {
                 requestCurrentEscapeDismissV1();
               }
             }}

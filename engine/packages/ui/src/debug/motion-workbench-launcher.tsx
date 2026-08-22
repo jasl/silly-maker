@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
-import { useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 
 import type { MotionSourceIoV1 } from "./motion-io.ts";
 import type { MotionSourceEntryV1, MotionSourceIndexV1 } from "./motion-sources.ts";
-import type { MotionWorkbenchPreviewV1 } from "./motion-workbench.tsx";
+import type {
+  MotionWorkbenchCloseParticipantV1,
+  MotionWorkbenchPreviewV1,
+} from "./motion-workbench.tsx";
 import { MotionWorkbenchV1 } from "./motion-workbench.tsx";
 import type { StageInspectCaptureV1 } from "./stage-inspect.ts";
 
@@ -46,32 +49,65 @@ export interface MotionWorkbenchStoreV1 {
   close(): void;
 }
 
+type MotionWorkbenchSelectionChangeGateV1 = (
+  next: MotionWorkbenchSelectionV1 | null,
+) => boolean;
+
+interface MotionWorkbenchStoreOwnerV1 {
+  request(next: MotionWorkbenchSelectionV1 | null): void;
+  registerSelectionChangeGate(gate: MotionWorkbenchSelectionChangeGateV1): () => void;
+}
+
+const motionWorkbenchStoreOwnersV1 = new WeakMap<
+  MotionWorkbenchStoreV1,
+  MotionWorkbenchStoreOwnerV1
+>();
+
 /** Editor chrome state shared between the provenance and Workbench panels. */
 export function createMotionWorkbenchStoreV1(): MotionWorkbenchStoreV1 {
   const listeners = new Set<() => void>();
+  const selectionChangeGates = new Set<MotionWorkbenchSelectionChangeGateV1>();
   let current: MotionWorkbenchSelectionV1 | null = null;
   const notify = (): void => {
     for (const listener of [...listeners]) listener();
   };
-  return Object.freeze({
+  const commit = (next: MotionWorkbenchSelectionV1 | null): void => {
+    current = next;
+    notify();
+  };
+  const request = (next: MotionWorkbenchSelectionV1 | null): void => {
+    for (const gate of [...selectionChangeGates]) {
+      if (gate(next)) return;
+    }
+    commit(next);
+  };
+  const store: MotionWorkbenchStoreV1 = Object.freeze({
     observe: () => current,
     subscribe(listener: () => void): () => void {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
     open(source: MotionSourceEntryV1, capture?: StageInspectCaptureV1 | null): void {
-      current = Object.freeze({ source, capture: capture ?? null, caseId: null });
-      notify();
+      request(Object.freeze({ source, capture: capture ?? null, caseId: null }));
     },
     openCase(previewCase: MotionPreviewCaseV1, source: MotionSourceEntryV1): void {
-      current = Object.freeze({ source, capture: null, caseId: previewCase.caseId });
-      notify();
+      request(Object.freeze({ source, capture: null, caseId: previewCase.caseId }));
     },
     close(): void {
-      current = null;
-      notify();
+      request(null);
     },
   });
+  motionWorkbenchStoreOwnersV1.set(
+    store,
+    Object.freeze({
+      request,
+      registerSelectionChangeGate(gate: MotionWorkbenchSelectionChangeGateV1): () => void {
+        selectionChangeGates.add(gate);
+        return () => selectionChangeGates.delete(gate);
+      },
+    }),
+  );
+  return store;
 }
 
 export interface MotionWorkbenchLauncherPropsV1 {
@@ -81,6 +117,66 @@ export interface MotionWorkbenchLauncherPropsV1 {
   readonly fallbackPreview: MotionWorkbenchPreviewV1;
   readonly cases?: readonly MotionPreviewCaseV1[];
   readonly io?: MotionSourceIoV1;
+  readonly registerCloseParticipant?: (
+    participant: MotionWorkbenchCloseParticipantV1,
+  ) => () => void;
+  /** Probe surfaces sharing the store must not own interactive selection changes. */
+  readonly guardSelectionChanges?: boolean;
+}
+
+interface MotionWorkbenchCloseStateV1 {
+  readonly dirty: boolean;
+  readonly busy: boolean;
+  readonly canSave: boolean;
+}
+
+const cleanCloseStateV1: MotionWorkbenchCloseStateV1 = Object.freeze({
+  dirty: false,
+  busy: false,
+  canSave: false,
+});
+
+interface MotionWorkbenchCloseParticipantSlotV1 {
+  getParticipant(): MotionWorkbenchCloseParticipantV1 | null;
+  getSnapshot(): MotionWorkbenchCloseStateV1;
+  subscribe(listener: () => void): () => void;
+  register(participant: MotionWorkbenchCloseParticipantV1): () => void;
+}
+
+function createMotionWorkbenchCloseParticipantSlotV1(): MotionWorkbenchCloseParticipantSlotV1 {
+  const listeners = new Set<() => void>();
+  let participant: MotionWorkbenchCloseParticipantV1 | null = null;
+  let participantUnsubscribe: (() => void) | null = null;
+  let snapshot = cleanCloseStateV1;
+  const publish = (): void => {
+    snapshot = participant?.getState() ?? cleanCloseStateV1;
+    for (const listener of [...listeners]) listener();
+  };
+  return Object.freeze({
+    getParticipant: () => participant,
+    getSnapshot: () => snapshot,
+    subscribe(listener: () => void): () => void {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    register(next: MotionWorkbenchCloseParticipantV1): () => void {
+      participantUnsubscribe?.();
+      participant = next;
+      participantUnsubscribe = next.subscribe(publish);
+      publish();
+      return () => {
+        if (participant !== next) return;
+        participantUnsubscribe?.();
+        participantUnsubscribe = null;
+        participant = null;
+        publish();
+      };
+    },
+  });
+}
+
+interface PendingSelectionChangeV1 {
+  readonly selection: MotionWorkbenchSelectionV1 | null;
 }
 
 function selectionPreviewV1(
@@ -102,8 +198,87 @@ function selectionPreviewV1(
 }
 
 export function MotionWorkbenchLauncherV1(props: MotionWorkbenchLauncherPropsV1): ReactElement {
-  const { store } = props;
+  const { registerCloseParticipant: registerHostCloseParticipant, store } = props;
   const selection = useSyncExternalStore(store.subscribe, store.observe, store.observe);
+  const storeOwner = motionWorkbenchStoreOwnersV1.get(store) ?? null;
+  const participantSlot = useMemo(createMotionWorkbenchCloseParticipantSlotV1, []);
+  const closeState = useSyncExternalStore(
+    participantSlot.subscribe,
+    participantSlot.getSnapshot,
+    participantSlot.getSnapshot,
+  );
+  const [pendingSelectionChange, setPendingSelectionChange] = useState<
+    PendingSelectionChangeV1 | null
+  >(null);
+  const pendingSelectionChangeRef = useRef(pendingSelectionChange);
+  const replacePendingSelectionChange = useCallback(
+    (next: PendingSelectionChangeV1 | null): void => {
+      pendingSelectionChangeRef.current = next;
+      setPendingSelectionChange(next);
+    },
+    [],
+  );
+
+  const registerCloseParticipant = useCallback(
+    (participant: MotionWorkbenchCloseParticipantV1): () => void => {
+      const unregisterSlot = participantSlot.register(participant);
+      const unregisterHost = registerHostCloseParticipant?.(participant) ?? (() => {});
+      return () => {
+        unregisterHost();
+        unregisterSlot();
+      };
+    },
+    [participantSlot, registerHostCloseParticipant],
+  );
+
+  useEffect(() => {
+    if (storeOwner === null || props.guardSelectionChanges === false) return undefined;
+    return storeOwner.registerSelectionChangeGate((next) => {
+      const participant = participantSlot.getParticipant();
+      if (participant === null || !participant.getState().dirty) return false;
+      replacePendingSelectionChange(Object.freeze({ selection: next }));
+      return true;
+    });
+  }, [participantSlot, props.guardSelectionChanges, replacePendingSelectionChange, storeOwner]);
+
+  const commitPendingSelectionChange = useCallback((): void => {
+    const pending = pendingSelectionChangeRef.current;
+    if (pending === null) return;
+    replacePendingSelectionChange(null);
+    if (storeOwner === null) store.close();
+    else storeOwner.request(pending.selection);
+  }, [replacePendingSelectionChange, store, storeOwner]);
+
+  const requestClose = (): void => {
+    if (storeOwner !== null) {
+      store.close();
+      return;
+    }
+    const participant = participantSlot.getParticipant();
+    if (participant !== null && participant.getState().dirty) {
+      replacePendingSelectionChange(Object.freeze({ selection: null }));
+      return;
+    }
+    store.close();
+  };
+
+  const saveAndContinue = async (): Promise<void> => {
+    const participant = participantSlot.getParticipant();
+    if (participant === null) return;
+    const state = participant.getState();
+    if (state.busy || (state.dirty && !state.canSave)) return;
+    if (state.dirty && !(await participant.save())) return;
+    commitPendingSelectionChange();
+  };
+
+  const discardAndContinue = (): void => {
+    const participant = participantSlot.getParticipant();
+    if (participant === null) return;
+    const state = participant.getState();
+    if (state.busy) return;
+    if (state.dirty) participant.discard();
+    commitPendingSelectionChange();
+  };
 
   if (selection === null) {
     return (
@@ -152,14 +327,52 @@ export function MotionWorkbenchLauncherV1(props: MotionWorkbenchLauncherPropsV1)
       data-motion-workbench-context={selection.caseId ??
         (selection.capture === null ? "fallback" : "capture")}
     >
-      <button type="button" data-motion-workbench-close="true" onClick={store.close}>
+      <button type="button" data-motion-workbench-close="true" onClick={requestClose}>
         关闭
       </button>
       <MotionWorkbenchV1
         source={selection.source}
         preview={selectionPreviewV1(selection, props)}
         {...(props.io === undefined ? {} : { io: props.io })}
+        registerCloseParticipant={registerCloseParticipant}
       />
+      {pendingSelectionChange === null ? null : (
+        <dialog
+          open
+          role="alertdialog"
+          aria-modal="true"
+          aria-label="关闭未保存的 Motion"
+          data-blocking-focus-scope="true"
+          data-motion-workbench-close-confirm="true"
+        >
+          <p>Motion 仍有未保存修改。保存、放弃，还是继续编辑？</p>
+          <button
+            type="button"
+            data-motion-workbench-close-save="true"
+            disabled={closeState.busy || !closeState.canSave}
+            onClick={() => void saveAndContinue()}
+          >
+            保存并继续
+          </button>
+          <button
+            type="button"
+            data-motion-workbench-close-discard="true"
+            disabled={closeState.busy}
+            onClick={discardAndContinue}
+          >
+            放弃并继续
+          </button>
+          <button
+            type="button"
+            data-motion-workbench-close-cancel="true"
+            disabled={closeState.busy}
+            autoFocus
+            onClick={() => replacePendingSelectionChange(null)}
+          >
+            取消
+          </button>
+        </dialog>
+      )}
     </div>
   );
 }

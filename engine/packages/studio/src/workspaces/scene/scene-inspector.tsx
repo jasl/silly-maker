@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 
 import type { SceneDocumentV1, StagePlacementV1 } from "@sillymaker/base";
@@ -82,6 +82,7 @@ function SceneNumberFieldV1(props: {
   onValue(next: number, runRevision: number): void;
 }): ReactElement {
   const runRevisionRef = useRef(props.draftRevision);
+  const emittedValueRef = useRef<number | null>(null);
   const [pendingState, setPendingState] = useState(() => ({
     sourceValue: props.value,
     text: String(props.value),
@@ -92,6 +93,18 @@ function SceneNumberFieldV1(props: {
   const resetPending = (): void => {
     setPendingState({ sourceValue: props.value, text: String(props.value) });
   };
+
+  useEffect(() => {
+    if (emittedValueRef.current === props.value) {
+      emittedValueRef.current = null;
+      setPendingState((current) => ({
+        sourceValue: props.value,
+        text: current.text,
+      }));
+      return;
+    }
+    setPendingState({ sourceValue: props.value, text: String(props.value) });
+  }, [props.draftRevision, props.value]);
 
   return (
     <label className={styles["field"]}>
@@ -107,7 +120,10 @@ function SceneNumberFieldV1(props: {
           setPendingState({ sourceValue: props.value, text: nextText });
           if (nextText.trim().length === 0) return;
           const next = Number(nextText);
-          if (Number.isSafeInteger(next)) props.onValue(next, runRevisionRef.current);
+          if (Number.isSafeInteger(next)) {
+            emittedValueRef.current = next;
+            props.onValue(next, runRevisionRef.current);
+          }
         }}
         onBlur={resetPending}
         onKeyDown={(event) => {

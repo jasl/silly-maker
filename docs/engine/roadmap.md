@@ -123,7 +123,12 @@ bootstrap、runtime/author startup 与 recovery signals、final-output dependenc
 并迁入 lazy DevDock 与 Studio Flow；AR2 同日交付 package-private structured Scene operations、
 pure reducer、document-successor identity/draft revision、atomic stale rejection 和共用 UI/non-UI
 executor。三者都没有提升 native Desktop launch、persistence/signing、RPC readiness 或 Desktop
-R0–R2。唯一 next task 是 AR3。排序与交付记录以
+R0–R2。AR3 同日交付 private Authoring Host、standalone/embedded 同源 shell、persistent-visible
+R1 publication、Engine Lab 真实 scene/binding、Browser Game/Session sibling lifetime、dev-only
+composition R2 纵切、ordinary-release exclusion，以及 macOS/Deno 2.9.5 原生 common-runtime 的
+GUI ready、Game/Session restart 与 close-flush/正常退出。它仍未提升 native Desktop
+author/source-write/HMR、packaged artifact、多平台/durability 或 production promotion。唯一 next
+task 是 AR4。排序与交付记录以
 [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md) §1
 为准，live capability 以 [features](features.md) 为准。
 
@@ -152,8 +157,9 @@ journal/reducer transaction；早期 proposal/fact shape 只保留为历史 chec
 为当前默认/core lane：AR0 已建立 Browser/Deno Desktop startup/dependency floor；AR1 已用中立
 17-case suite 比较 direct 与 Cordis-core-derived private lifecycle，选择唯一 SillyMaker-owned
 Direct backend，并删除 Cordis adapter/vendor/dependency。AR2 structured authoring operations 已于
-2026-08-22 交付关闭。当前唯一 next 是 stable-sibling embeddable Authoring Host（AR3）；其后是
-最窄 typed RPC/experimental Agent Host/UiArtifact seam，再做双 GUI Host build/performance promotion。目标合同见
+2026-08-22 交付关闭；AR3 stable-sibling embeddable Authoring Host 也已于同日交付。当前唯一 next
+是最窄 typed RPC/experimental Agent Host/UiArtifact seam（AR4），其后再做双 GUI Host build/
+performance promotion。目标合同见
 [Application Runtime and Embedded Authoring](design/application-runtime-and-embedded-authoring.md)。
 本轮只交付引擎基础设施；AR6 后的作品、examples 或产品由所有者另行讨论和立案，不预设名称或
 顺序。未写入 active plan 的候选不是默认 backlog。已接受但未完成的 Desktop promotion 保持
@@ -382,8 +388,10 @@ workspace；现有独立 Studio route 与未来应用内 author surface 是同�
 
 已交付的外壳统一化、project authoring index、共享文档会话与 Story 包目录 locality 由
 [Authoring Architecture 计划](plans/2026-08-15-authoring-architecture.md) 拥有；workspace
-progressive activation 已由 Application Runtime AR1 交付，可嵌入 Host 与结构化人机共用
-operation 已由 Application Runtime AR2 交付；可嵌入 Host 的下一步仍由当前
+progressive activation 已由 Application Runtime AR1 交付，结构化人机共用 operation 由 AR2
+交付；AR3 已把 standalone Studio 与 dev-only embedded surface 收口到同一 private Authoring
+Host/session/workspace/source-IO owner，并以 Engine Lab 的真实 Scene 与 Game/Session successor
+验证稳定 sibling lifetime。当前下一项 AR4 仍由
 [Application Runtime plan](plans/2026-08-18-application-runtime-embedded-authoring.md) 拥有。
 
 Editor 写普通 TS 或被 TS 引用的稳定数据（JSON 文档经严格 admission），不形成另一

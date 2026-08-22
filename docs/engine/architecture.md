@@ -45,17 +45,17 @@ ordinary no-extension application 会从最终依赖图完全排除它。
 
 ## 2. Package responsibilities
 
-| Package                   | Workspace public entries                                                                                          | Responsibility                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `@sillymaker/base`        | `.`, `./authoring`, `./runtime`, `./story`, `./testkit` + testkit subentries; workspace-only `./runtime/internal` | Contracts, the Story prelude and authoring kit, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, the agent port, and reusable behavior-test helpers.                                                                                                                                                                                                                                                                                                                                                                                            |
-| `@sillymaker/composition` | `.`, `./legacy`, `./state`; workspace-only `./internal/extension-runtime`                                         | Maintained internal cold-path façade for typed plugins, profiles, services, registries, direct-plan compilation, authoritative freezing, live reload, reversible staging-safe in-process lifecycle effects, and the neutral State-module registry bridge. Its selected private Direct extension runtime owns build-known factory activation and disposal for explicit lazy contributions. It is not a stable public Mod SDK, and no dynamic Context is part of a supported entry.                                                                                                                |
-| `@sillymaker/state`       | `.`, `./legacy`                                                                                                   | Experimental neutral State Runtime, StateModule, StateTransaction, and StateWorkflow compatibility façade. Runtime and authoring adapters reuse the exact Base Session and transaction runner; `./legacy` exposes the same raw composition/runtime control for migration equivalence work. It is not a production Story runtime or a second persistence/replay owner.                                                                                                                                                                                                                            |
-| `@sillymaker/tooling`     | `.`, `./project` + subentries, `./vite` + subentries, `./identity/*`                                              | Non-browser project and Story CLI, Vite assembly, build identity, JSONL agent protocol/client, dev-only source/motion/scene write-back ports and the Studio page plugin, and package-internal Desktop preview packaging/local-server tools. Never imported by Base or browser bundles.                                                                                                                                                                                                                                                                                                           |
-| `@sillymaker/studio`      | `.`, `./composition`                                                                                              | The dev-only SillyMaker Studio (VN Scene Workspace): scene navigator, Content browser, real-renderer canvas, placement inspector, cue list, scene/motion construction, package-private structured Scene operations, the progressively activated read-only narrative Flow workspace, and the scene CAS IO client (create is the no-file form of the same port). `./composition` owns its isolated live tooling profile; a publication-level owner retains loaded Flow across React epochs. Served exclusively by the dev-server Studio page; player bundles and runtime packages never import it. |
-| `@sillymaker/ui`          | `.`, `./assets`, `./debug`, `./diagnostics`, `./styles.css`; workspace-only `./internal`                          | React shell, GameViewport, UI composition and default GameRoot, stage, characters, assets, interaction/input, overlays, Narrative/WholeCanvas presentation, settings, semantic/presentation bridges, recovery UI, the progressive DevDock contribution host/lifecycle receipt, and the published global theme stylesheet.                                                                                                                                                                                                                                                                        |
-| `@sillymaker/web`         | `.`; workspace-only `./internal/application-startup`                                                              | Browser Host, IndexedDB record storage, files/images, Desktop-channel HTTP record/file adapters, admitted Browser/Deno Desktop startup, `startWebGameApplicationV1`, mounting, routing, pointer input, capabilities, automation, the unchanged build-known DevDock literal loader seam, and the optional HMR rebootstrap helper.                                                                                                                                                                                                                                                                 |
-| `@sillymaker/story-e2e`   | `.`                                                                                                               | The neutral Engine Conformance Story (Engine Lab, `e2e/`): gameplay modules, narrative script, presentation catalogs, semantic actions, and application composition used to validate engine contracts.                                                                                                                                                                                                                                                                                                                                                                                           |
-| Story packages            | `.` per package                                                                                                   | `template/` (the minimal starter, MIT) and `examples/*` (bookshop, cat-cafe, silly-os) each compose one self-contained application project (`sillymaker.config.ts` + `vite.config.ts`); the root `project.config.ts` only lists their directories for repository-level aggregation.                                                                                                                                                                                                                                                                                                              |
+| Package                   | Workspace public entries                                                                                              | Responsibility                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@sillymaker/base`        | `.`, `./authoring`, `./runtime`, `./story`, `./testkit` + testkit subentries; workspace-only `./runtime/internal`     | Contracts, the Story prelude and authoring kit, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, the agent port, and reusable behavior-test helpers.                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `@sillymaker/composition` | `.`, `./legacy`, `./state`; workspace-only `./internal/extension-runtime`                                             | Maintained internal cold-path façade for typed plugins, profiles, services, registries, direct-plan compilation, authoritative freezing, live reload, reversible staging-safe in-process lifecycle effects, and the neutral State-module registry bridge. Its selected private Direct extension runtime owns build-known factory activation and disposal for explicit lazy contributions. It is not a stable public Mod SDK, and no dynamic Context is part of a supported entry.                                                                                                                                                 |
+| `@sillymaker/state`       | `.`, `./legacy`                                                                                                       | Experimental neutral State Runtime, StateModule, StateTransaction, and StateWorkflow compatibility façade. Runtime and authoring adapters reuse the exact Base Session and transaction runner; `./legacy` exposes the same raw composition/runtime control for migration equivalence work. It is not a production Story runtime or a second persistence/replay owner.                                                                                                                                                                                                                                                             |
+| `@sillymaker/tooling`     | `.`, `./project` + subentries, `./vite` + subentries, `./identity/*`                                                  | Non-browser project and Story CLI, Vite assembly, build identity, JSONL agent protocol/client, dev-only source/motion/scene write-back ports and the Studio page plugin, and package-internal Desktop preview packaging/local-server tools. Never imported by Base or browser bundles.                                                                                                                                                                                                                                                                                                                                            |
+| `@sillymaker/studio`      | `.`, `./composition`                                                                                                  | The dev-only SillyMaker Authoring Host and its standalone/embedded React shells: project navigation, shared Scene/Regions document sessions, Host-owned Motion state, dirty/undo/redo/CAS/conflict coordination, Scene construction, real-renderer preview, and progressively activated read-only Flow. `./composition` owns the isolated live tooling profile and one persistent visible publication root. Vite serves the standalone route and injects only a lightweight embedded launcher into author-enabled dev pages; the implementation loads on first open. Player builds and ordinary runtime packages never import it. |
+| `@sillymaker/ui`          | `.`, `./assets`, `./debug`, `./debug/dev-source-client`, `./diagnostics`, `./styles.css`; workspace-only `./internal` | React shell, GameViewport, UI composition and default GameRoot, stage, characters, assets, interaction/input, overlays, Narrative/WholeCanvas presentation, settings, semantic/presentation bridges, recovery UI, the progressive DevDock contribution host/lifecycle receipt, the development-conditional source client, and the published global theme stylesheet.                                                                                                                                                                                                                                                              |
+| `@sillymaker/web`         | `.`; workspace-only `./internal/application-startup`                                                                  | Browser Host, IndexedDB record storage, files/images, Desktop-channel HTTP record/file adapters, admitted Browser/Deno Desktop startup, `startWebGameApplicationV1`, mounting, routing, pointer input, capabilities, automation, the unchanged build-known DevDock literal loader seam, and the optional HMR rebootstrap helper.                                                                                                                                                                                                                                                                                                  |
+| `@sillymaker/story-e2e`   | `.`                                                                                                                   | The neutral Engine Conformance Story (Engine Lab, `e2e/`): gameplay modules, narrative script, presentation catalogs, semantic actions, and application composition used to validate engine contracts.                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Story packages            | `.` per package                                                                                                       | `template/` (the minimal starter, MIT) and `examples/*` (bookshop, cat-cafe, silly-os) each compose one self-contained application project (`sillymaker.config.ts` + `vite.config.ts`); the root `project.config.ts` only lists their directories for repository-level aggregation.                                                                                                                                                                                                                                                                                                                                               |
 
 Cross-package imports use package exports and declared `workspace:*`
 dependencies. Application-only composition may stay internal to a Story package
@@ -109,25 +109,44 @@ the resident shell keeps only metadata, a launcher, and a literal loader; the
 dynamic facade imports Flow plus the backend on first open. Both failure
 surfaces preserve the core shell and unrelated siblings.
 
-The dev-only Studio Vite entry is the first live consumer. It mounts binding,
-scene IO, and motion IO into an isolated `@sillymaker/studio/composition` root.
-Initial publication and every HMR candidate are acknowledged by a detached
-React layout-effect commit; the synchronous return from `root.render()` is not
-an acknowledgement.
-Each candidate renders in a detached epoch root and replaces the visible host
-only after acknowledgement, so render/layout failure or abort leaves the exact
-old React tree, snapshot, providers, and shared dirty document session intact.
-After a successful host cutover the old React root unmounts while its providers
-are still alive, and only then may composition retire them. HMR teardown follows
-the same consumer-first order; failures are reported and the fire-and-forget
-Vite callback cannot leak a rejected Promise. This root never receives an
-authoritative Session or State writer. This contract does not claim that a
-detached host has connected-browser geometry; a layout-sensitive renderer needs
-a real consumer and browser acceptance before that stronger HMR promise exists.
-The Flow activation owner sits outside individual React epochs: rejected and
-accepted binding successors reuse a ready implementation and the shared dirty
-authoring session. Standalone unmount and publication teardown both remove
-descendant consumers before lifecycle disposal.
+The dev-only Studio Vite entry and embedded author surface consume the same
+private Authoring Host implementation. Each mounted shell has one Host owner;
+separate browser tabs do not pretend to share an in-memory instance. That Host
+owns the shared Scene/Regions document sessions, Motion store, Flow activation,
+and close participants; the workspace manifest is a closed, build-known metadata
+set rather than a plugin registry. The standalone route and embedded shell render
+the same workspace implementation and retain their exact source IO owners across
+R1 candidates. Neither shell receives an authoritative Session or State writer.
+Engine Lab's DevDock provenance panel is read-only; the duplicate writable
+Game-root Motion panel was retired. A real Scene cue supplies the maintained
+Motion case inside this Host, so capability revocation and Game R2/R3 teardown
+cannot bypass the Host's dirty-close authority.
+
+The publication owns one persistent visible React root. Every R1 binding/
+workspace candidate first renders in an inert, `aria-hidden`, visibility-hidden,
+offscreen but document-connected staging root and acknowledges an exact layout-
+effect commit; synchronous `root.render()` is never acceptance. A connected
+layout failure is therefore rejected before the visible root is touched. Only
+an accepted candidate is rendered into that existing visible root, preserving
+its DOM, compatible component-local editor state, Host identity, document
+sessions, selection, and workspace state. A synchronous visible render-factory
+failure can rerender the predecessor plan without replacing that local state;
+candidate plus rollback failure poisons and disposes. This narrow proof does not
+promise that arbitrary nondeterministic visible effects can always be reversed.
+The staging root proves document connection and layout-effect success, not
+user-visible paint or exact on-screen geometry; future geometry-sensitive
+workspaces must still declare and test their stronger readiness. Flow activation
+remains Host-owned across rejected and accepted candidates; standalone/embedded
+teardown removes descendants before lifecycle disposal.
+
+The embedded shell is activated from the resident dev-only launcher and stays
+mounted while merely hidden. Its independent application-focus owner keeps
+editable keyboard/input out of gameplay, and dirty close uses the same Host
+participants for save/discard/cancel across Scene, Regions, and Motion. A CAS
+`digest_conflict` refreshes the saved bytes/digest while preserving the current
+draft and history for explicit retry. This does not add another source writer:
+all saves still use the existing dev-source ports and the source document remains
+the single authoring authority.
 
 Scene editing inside that shared session now passes through Studio's
 package-private structured-operation stack. A getter-free exact admission layer
@@ -559,11 +578,11 @@ a controlled context and disposes with the instance. The testkit harness and
 headless applications compose on it; direct low-level construction remains
 available as an escape hatch.
 
-Maintained applications boot exclusively through `startWebGameApplicationV1`:
+Maintained applications boot through `startWebGameApplicationV1`:
 each supplies one `WebGameApplicationV1` declaration (core definition,
 projector, UI slots, overlays, labels, input maps, DevDock loaders), and their
-entries contain no Session, Persistence, Diagnostics, Input, Automation, or HMR
-construction. The web composer owns the persisted capability session, the
+ordinary product entries contain no Session, Persistence, Diagnostics, Input,
+Automation, or HMR construction. The web composer owns the persisted capability session, the
 pointer/keyboard/gamepad adapters, the capability-gated automation bridge, the
 DebugBundle UI-context binding, startup diagnostics, and disposal. The Vite
 entry producer installs a dependency-free static shell plus one inert serialized
@@ -583,25 +602,49 @@ DevDock readiness is acknowledged only after the still-active consumer validates
 and publishes the contribution registry. These signals are Host/DOM evidence;
 they do not enter State, Save, digest, replay, or CommandLog.
 
-`installWebGameApplicationHmrV1` remains an opt-in helper with conformance
-coverage: it fences a predecessor and hands its persistence disposition to a
-successor. No maintained runtime entry currently installs its Vite accept
-boundary, so it is not a live SillyMaker-owned R2 Player path. Vite's React
-plugin separately provides framework-owned Fast Refresh for eligible
-component-only presentation modules; that path has no SillyMaker atomic
-publication/handoff guarantee. The current module-update classification is:
+`installWebGameApplicationHmrV1` remains an opt-in composer helper: it fences a
+predecessor, transfers its persistence disposition, starts the successor on the
+same Host/root, and installs the successor module's next boundary. Engine Lab is
+the first maintained, deliberately dev-only R2 consumer. Its Vite identity owner
+injects the current real `BuildIdentity` into the composition module. When an
+owned R2 input changes, the plugin refreshes that identity and returns the
+invalidated, literal-self-accepting composition module. If the original changed
+module also reaches the loaded Studio binding through Vite's live importer graph,
+that exact module remains a second propagation root so its new bytes reach the
+Authoring R1 boundary; unrelated deep Scene/simulation modules remain filtered.
+The plugin normalizes every compared and looked-up module path at the Vite
+boundary, so Windows separators cannot bypass injection or candidate lookup.
+The composition resolves the candidate provenance synchronously and hands it to
+the Web composer. Product Stories do not inherit this boundary merely by using
+Vite. Vite React Fast Refresh remains a separate framework-owned path for
+eligible component-only presentation modules, without a SillyMaker atomic
+publication/handoff guarantee. Application-only changes keep Vite's normal
+propagation; if such a change reaches composition with an unchanged R2 tuple,
+the boundary requests R3 instead of silently swallowing it.
+The current module-update classification is:
 
-| Class | Browser                                                                                                                                                                                                                          | Deno Desktop                                                                                                                                                                    |
-| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R0    | Studio Scene/Motion/Regions document refresh uses existing schema/CAS admission without replacing its authoring session. Player source data has no independent R0 source.                                                        | The static Player shell has no author/source update path.                                                                                                                       |
-| R1    | Studio binding/workspace HMR has SillyMaker-owned candidate/layout acknowledgement. Eligible component-only Player presentation modules may also use Vite React Fast Refresh, without a SillyMaker atomic-publication guarantee. | Not wired.                                                                                                                                                                      |
-| R2    | The Web successor helper and Game/Session handoff have conformance evidence, but maintained runtime entries do not install them.                                                                                                 | Not wired.                                                                                                                                                                      |
-| R3    | Application declaration, core/domain, config, Fast Refresh-ineligible, and otherwise unclassified changes use Vite full-page reload. A normal persisted Save may recover; in-process Session/UI/draft identity is not retained.  | Built static `dist/` changes require rebuild and Host relaunch. Preview records may recover Save; durable drafts, an author entry, and production persistence are not promised. |
+| Class | Browser                                                                                                                                                                                                                                        | Deno Desktop                                                                                                                                                                    |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R0    | Authoring Scene/Motion/Regions read/refresh and CAS admission update one existing document session. A saved Engine Lab Scene then reaches the running application through its separate R2 boundary.                                            | The static Player shell has no author/source update path.                                                                                                                       |
+| R1    | Standalone and embedded Authoring binding/workspace HMR use an inert/offscreen, document-connected staging root followed by one persistent visible root. Eligible component-only Player modules may also use Vite React Fast Refresh.          | Not wired.                                                                                                                                                                      |
+| R2    | Engine Lab owns one literal composition self-accept boundary with real owner-injected `BuildIdentity`; the Web composer replaces Game/Session on the same Host/root while its sibling Authoring Host remains mounted.                          | Not wired.                                                                                                                                                                      |
+| R3    | Product applications without an admitted R2 boundary, config changes, Fast Refresh-ineligible changes, and otherwise unclassified changes use Vite full-page reload. A normal persisted Save may recover; in-process identity is not retained. | Built static `dist/` changes require rebuild and Host relaunch. Preview records may recover Save; durable drafts, an author entry, and production persistence are not promised. |
+
+The current Web R2 coordinator invalidates and retires the predecessor before it
+starts the admitted successor. A failure before replacement leaves the existing
+domain/anchor untouched; a start failure after retirement follows terminal
+recovery and does **not** claim to restore the gameplay predecessor. Authoring
+remains a sibling outside that Game root in either case, but this is not a
+transactional predecessor-rollback guarantee for Game R2.
 
 [Deno documents `deno desktop --hmr` as a platform development option](https://docs.deno.com/runtime/reference/cli/desktop/),
 but the current SillyMaker Desktop staging/packaging command does not pass or
 integrate that mode. Platform availability therefore does not promote an R1/R2
-SillyMaker contract.
+SillyMaker contract. A macOS arm64 / Deno 2.9.5 native common-runtime smoke does
+now prove the latest Engine Lab static Player's GUI readiness, authoritative
+operation, same-window Game/Session restart, close acknowledgement, autosave
+flush, and normal process exit; it does not extend the Desktop cells above or
+promote packaging, multi-platform launch, or persistence durability.
 
 Renderer-local hover, animation, focus, overlay, and asset-loading state is
 non-authoritative. It may produce semantic or presentation intents, but it

@@ -15,9 +15,11 @@ import {
   labSemanticAdapterV1,
   labStageContentCatalogV1,
   labStageContentIdsV1,
+  labStageMutationsForBeginV1,
   labStageTagsV1,
   labStoryEntryV1,
 } from "../index.ts";
+import { labProcedureSceneV1 } from "../scenes/procedure/index.ts";
 
 function createLabHarnessV1(seed = 61213) {
   return createGameHarnessV1({
@@ -69,24 +71,24 @@ describe("Engine Lab semantic stage", () => {
       { tag: labStageTagsV1.crate, contentId: labStageContentIdsV1.propCrate },
     ]);
 
-    // Beginning the procedure replaces the background and shows both characters.
+    // Beginning the procedure is the whole-scene open derived from the one
+    // real authoring document; the undeclared props layer remains untouched.
+    expect(labStageMutationsForBeginV1(collected)).toEqual(
+      labProcedureSceneV1.openMutations(collected),
+    );
     await dispatchCommittedV1(harness, "lab.begin_procedure");
     const staged = stageOfV1(harness);
-    expect(entriesOfV1(staged, "layer.e2e.background")).toMatchObject([
-      { tag: labStageTagsV1.background, contentId: labStageContentIdsV1.backgroundStoreroom },
-    ]);
-    expect(entriesOfV1(staged, "layer.e2e.characters")).toMatchObject([
-      {
-        tag: labStageTagsV1.alpha,
-        contentId: labStageContentIdsV1.characterAlpha,
-        appearance: { pose: "standing", expression: "neutral" },
-      },
-      {
-        tag: labStageTagsV1.beta,
-        contentId: labStageContentIdsV1.characterBeta,
-        placement: expect.objectContaining({ mirrored: true }),
-      },
-    ]);
+    for (const layerId of ["layer.e2e.background", "layer.e2e.characters"] as const) {
+      expect(entriesOfV1(staged, layerId)).toMatchObject(
+        labProcedureSceneV1.sceneDocument.entries
+          .filter((entry) => entry.layerId === layerId)
+          .map(({ layerId: _layerId, ...entry }) => entry),
+      );
+    }
+    expect(entriesOfV1(staged, "layer.e2e.props")).toEqual(
+      entriesOfV1(collected, "layer.e2e.props"),
+    );
+    expect(labStageMutationsForBeginV1(staged)).toEqual([]);
 
     // Replace preserved the background entry's identity and placement.
     expect(entriesOfV1(staged, "layer.e2e.background")[0]?.placement).toEqual(

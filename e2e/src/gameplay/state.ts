@@ -7,7 +7,10 @@ import {
   parsePendingInteractionV1,
   parseSemanticStageStateV1,
 } from "@sillymaker/base";
-import { createRuntimeSchemaV1, fromStandardSchemaV1 } from "@sillymaker/base/authoring";
+import {
+  createRuntimeSchemaV1,
+  fromStandardSchemaV1,
+} from "@sillymaker/base/authoring/runtime-schema";
 
 import type { LabMonitorsStateV1 } from "./monitors.ts";
 import { createInitialLabMonitorsStateV1, labMonitorsStateSchemaV1 } from "./monitors.ts";

@@ -27,6 +27,7 @@ node_modules/
 dist/
 dist-web/
 dist-desktop/
+*.app/
 website/.vitepress/cache/
 website/.vitepress/.temp/
 build/

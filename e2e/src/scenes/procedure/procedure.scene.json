@@ -1,0 +1,51 @@
+{
+  "format": "sillymaker.scene",
+  "version": 1,
+  "sceneId": "scene.e2e.procedure",
+  "label": "储藏室实验流程",
+  "canvas": { "width": 1600, "height": 1000 },
+  "entries": [
+    {
+      "layerId": "layer.e2e.background",
+      "tag": "tag.e2e.bg",
+      "contentId": "content.e2e.bg.storeroom",
+      "zOrder": 0
+    },
+    {
+      "layerId": "layer.e2e.characters",
+      "tag": "tag.e2e.alpha",
+      "contentId": "content.e2e.char.alpha",
+      "zOrder": 10,
+      "placement": {
+        "x": 480,
+        "y": 620,
+        "scalePermille": 1000,
+        "opacityPermille": 1000,
+        "mirrored": false
+      },
+      "appearance": { "pose": "standing", "expression": "neutral" }
+    },
+    {
+      "layerId": "layer.e2e.characters",
+      "tag": "tag.e2e.beta",
+      "contentId": "content.e2e.char.beta",
+      "zOrder": 10,
+      "placement": {
+        "x": 1120,
+        "y": 620,
+        "scalePermille": 1000,
+        "opacityPermille": 1000,
+        "mirrored": true
+      },
+      "appearance": { "pose": "standing", "expression": "neutral" }
+    }
+  ],
+  "cues": [
+    {
+      "cueId": "cue.e2e.alpha-enters",
+      "kind": "show",
+      "tag": "tag.e2e.alpha",
+      "motionId": "motion.e2e.char-enter"
+    }
+  ]
+}

@@ -67,10 +67,16 @@ Read only the documents relevant to the change:
   2026-08-22: package-private, strictly admitted Scene operations, a pure reducer,
   an opaque document-successor identity plus monotonic draft revision, atomic
   stale rejection, and one shared UI/non-UI executor over the existing authoring
-  session/history. AR3 is the only next task; it keeps Authoring stable across
-  application-domain successors, with Game/Session as the first conformance path.
-  Engine capabilities land before any separately accepted follow-on product or
-  work.
+  session/history. AR3 also delivered 2026-08-22: one package-private Authoring
+  Host now backs the standalone and dev-only embedded shells, R1 candidates use
+  connected inert staging before the persistent visible root, and Engine Lab
+  proves Scene CAS plus a shared presentation dependency can reach Browser
+  Game/Session R2 without rebuilding the Authoring R1 sibling. A macOS/Deno 2.9.5
+  native common-runtime smoke also proves GUI ready,
+  same-window Game/Session restart, and close-flush/normal exit without promoting
+  Desktop authoring, HMR, packaging, or durability. AR4's typed RPC plus
+  experimental Agent/UiArtifact seam is the only next task. Engine capabilities
+  land before any separately accepted follow-on product or work.
   Desktop persistence remains an accepted, unfinished, conditional promotion
   lane while the adapter is preview.
 - `docs/engine/design/application-runtime-and-embedded-authoring.md` — accepted
@@ -240,10 +246,12 @@ accepted.
 - `@sillymaker/web` owns browser hosting, Browser/Deno Desktop admitted GUI
   bootstrap and startup readiness, IndexedDB persistence adapters, mounting,
   routing, capabilities, automation, pointer input, and the optional development
-  rebootstrap helper. Maintained runtime entries do not install that helper as a
-  live HMR boundary. Vite React Fast Refresh may update boundary-safe
-  presentation-only modules; application/domain changes fall back to full-page
-  reload.
+  rebootstrap helper. Engine Lab's Vite development entry is the maintained R2
+  conformance boundary; it admits simulation/presentation identity changes at
+  the composition owner while preserving the sibling Authoring Host. Vite React
+  Fast Refresh remains available to boundary-safe application UI modules, and
+  refresh-ineligible or equal-R2 application changes request R3 full-page reload.
+  Ordinary static builds do not install this development boundary.
 - Story packages at the repository top level own game-specific state, rules,
   content, projections, application composition, and Story tooling: `e2e/` (the
   neutral Engine Lab conformance Story), `template/` (the minimal starter), and

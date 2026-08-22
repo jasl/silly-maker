@@ -35,7 +35,6 @@ type DebugRuntimeKeysV1 = ExpectV1<
     | "StoryDebugDockV1"
     | "createDevDockContributionSetV1"
     | "createDevDockControlV1"
-    | "createDevServerMotionIoV1"
     | "createMotionSourceIndexV1"
     | "createMotionWorkbenchStoreV1"
     | "createStageInspectControllerV1"
@@ -45,7 +44,12 @@ type DebugRuntimeKeysV1 = ExpectV1<
     | "engineStateTunerPanelIdV1"
     | "EngineStateInspectorPanelV1"
     | "EngineStateTunerPanelV1"
-    | "openStorySourceInDevServerV1"
+  >
+>;
+type DebugDevSourceClientRuntimeKeysV1 = ExpectV1<
+  EqualV1<
+    keyof typeof import("@sillymaker/ui/debug/dev-source-client"),
+    "createDevServerMotionIoV1" | "openStorySourceInDevServerV1"
   >
 >;
 type PanelKeysV1 = ExpectV1<
@@ -94,4 +98,9 @@ export type { PocDebugCommandV1 as ForbiddenPocCommandV1 } from "@sillymaker/ui/
 // @ts-expect-error concrete E2E state never enters the neutral debug UI subpath
 export type { E2eGameStateV1 as ForbiddenE2eStateV1 } from "@sillymaker/ui/debug";
 
-export type { ContributionKeysV1, DebugRuntimeKeysV1, PanelKeysV1 };
+export type {
+  ContributionKeysV1,
+  DebugDevSourceClientRuntimeKeysV1,
+  DebugRuntimeKeysV1,
+  PanelKeysV1,
+};

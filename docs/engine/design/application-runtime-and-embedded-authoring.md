@@ -237,7 +237,8 @@ standalone Studio route      embedded author surface
 
 两种 shell 必须消费同一 Host、同一 workspace implementation、同一文档 session 和同一 source
 IO；不得各自复制 dirty、undo、save 或 conflict 语义。现有 `/__sillymaker/studio/` 保留为迁移
-wrapper，直到 embedded consumer 的 GUI、HMR、dirty draft 和输入/焦点行为达到对等证据。
+wrapper；AR3 已证明 embedded consumer 的 GUI、R1、dirty draft 和输入/焦点行为，standalone
+route 仍作为同一 Host 的有用完整页面保留，不是第二套编辑器。
 
 Authoring Host 与 Application Host 下其他 Application Domain 是相互独立的 sibling。其他领域的
 R1 presentation/tool/workspace successor 与 R2 authoritative Application Domain successor 的
@@ -261,7 +262,51 @@ sibling/client。
 Authoring Host 不接收 `GameSession` writer，不建立第二 Stage reconciler。预览继续消费
 detached/read-only target；保存仍走 source CAS，再由正常 module-update/publication 路径使 runtime
 看到 successor。workspace 对连接后 geometry 有需求时必须提供显式 mounted/readiness 证据；
-detached React layout acknowledgement 不自动证明 connected-browser layout。
+offscreen connected staging 的 layout acknowledgement 不自动证明 user-visible paint 或精确
+on-screen geometry。
+
+实现状态（2026-08-22，AR3）：`@sillymaker/studio` 已抽出一个 package-private Authoring Host，
+统一协调 Project Authoring Index-facing navigation，并拥有 Scene/Regions document sessions、Motion
+store、Flow activation、dirty close participants 和 CAS conflict handling；persistent surface 保留
+scene selection、diagnostics 与兼容的 local workspace state。standalone
+Studio route 与 dev-only embedded shell 渲染同一个 closed workspace manifest 和实现；embedded
+页面只常驻轻量 launcher，首次打开才加载 Host、workspaces 与真实 dev-source client。这里的“同一
+Host/session”是同一 private factory、contract 和状态机；每个 shell mount 拥有自己的 Host lifetime，
+独立 browser tab 不声称共享 in-memory draft instance。
+Engine Lab 不再在 Game root 的 DevDock 中挂第二个可写 Motion Workbench：DevDock 舞台溯源保持
+只读，真实 Scene cue 在 standalone/embedded Authoring Host 内产生唯一受维护的 Motion case。这样
+`debug_tools` 撤销、Game R2 换代或 R3 重启都不能绕过 Host 的 dirty participant 后销毁另一份
+component-local 编辑会话。
+
+R1 publication 现在保留一个 visible React root；candidate 先在 inert、`aria-hidden`、
+visibility-hidden、offscreen 但 document-connected 的 staging root 完成 layout acknowledgement，
+connected layout failure 因而在触碰 visible root 前拒绝。accepted candidate 再进入同一 visible root，
+保留 Host、文档 identity、dirty/history、selection 与兼容的 component-local state；同步 visible
+render-factory failure 可重渲 predecessor plan 而不替换该 state，candidate/rollback factory 双失败才
+terminal dispose。这一窄证明不泛化为“任意 nondeterministic visible effect 都可无损 rollback”；
+connected staging 也不等于 user-visible paint 或精确 on-screen geometry。409/CAS conflict 刷新 saved
+bytes/digest 而保留 draft，embedded dirty close 复用同一 save/discard/cancel participants；独立 focus
+owner 与 pointer/context-menu/wheel fencing 阻止 editor keyboard 和 author chrome 的 secondary input
+泄漏给 gameplay。
+
+Engine Lab 提供一个被 runtime 和 authoring 共同消费的真实
+`src/scenes/procedure/procedure.scene.json` 及对应 Studio binding，不存在隐藏 test-only document。
+它的 Vite owner 把 live collector 产生的真实 `BuildIdentity` 注入 composition self-accept candidate；
+普通 Scene/Motion R2 变化折叠到该 composition module。若同一个原始 changed module 的 live importer
+graph 也到达已加载 Studio binding，则只额外保留该 module 为 Authoring R1 propagation root，其他深层
+Scene/simulation module 仍被过滤。Chromium 与 WebKit 均已证明 page load 为零、Game application
+epoch 换代，同时 exact Authoring Host DOM/identity、selection 和保存值保留；真实物理 Studio-binding
+R1 edit 也在同两浏览器保留 dirty Host、input 与 undo，共享 `presentation.ts` edit 则在一次改动中
+分别到达 Game R2 与 Authoring R1。所有被改 source 的 teardown 都等待 reverse update 后逐字节恢复。
+Browser 的 Game/Session restart 与 composition R2 纵切把 Authoring 作为 Game root 外的 sibling：
+success 与 replacement 前 fault 都不重建 Authoring Host。当前 Web R2 在 predecessor retirement 后
+若 successor start 失败进入 terminal recovery，不承诺恢复 gameplay predecessor；这里不得写成
+transactional Game rollback。macOS arm64 / Deno 2.9.5 的原生 common-runtime smoke 已用最新
+Engine Lab static Player 证明 GUI ready、权威操作、同窗口 Game/Session restart、restart 后继续
+操作，以及 native close acknowledgement 后 autosave flush 与正常退出。它没有装入 embedded
+author、source CAS、R0–R2 update source 或 `deno desktop --hmr`，也不证明 packaged artifact、
+多平台、crash durability 或 Desktop persistence/packaging/signing production readiness；这些仍留给
+AR5 或单独的 Desktop promotion lane。
 
 ## 6. Structured authoring operations
 

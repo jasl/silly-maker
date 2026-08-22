@@ -19,7 +19,6 @@ describe("Lab DevDock contributions", () => {
         "panel.e2e.audio",
         "panel.e2e.graph",
         "panel.e2e.provenance",
-        "panel.e2e.workbench",
       ]);
       expect(contributions.panels.every((panel) => panel.authority === "read_only")).toBe(true);
       expect(
@@ -30,7 +29,6 @@ describe("Lab DevDock contributions", () => {
         ["panel.e2e.audio", "live"],
         ["panel.e2e.graph", "live"],
         ["panel.e2e.provenance", "live"],
-        ["panel.e2e.workbench", "live"],
       ]);
 
       // Drive the narrative to a boundary, then the inspectors must show the

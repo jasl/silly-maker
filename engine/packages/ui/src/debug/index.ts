@@ -47,7 +47,6 @@ export { FixtureBrowserV1 } from "./fixture-browser.tsx";
 export type { FixtureBrowserAnchorResultV1, FixtureBrowserPropsV1 } from "./fixture-browser.tsx";
 export { DebugNarrativeGraphViewV1, DebugValueInspectorV1 } from "./inspector-panels.tsx";
 export type { DebugValueSourceV1, NarrativeGraphDiagnosticViewV1 } from "./inspector-panels.tsx";
-export { createDevServerMotionIoV1 } from "./motion-io.ts";
 export type {
   MotionIoErrorCodeV1,
   MotionIoListEntryV1,
@@ -57,9 +56,13 @@ export type {
   MotionIoWriteResultV1,
   MotionSourceIoV1,
 } from "./motion-io.ts";
-export { createMotionSourceIndexV1, openStorySourceInDevServerV1 } from "./motion-sources.ts";
+export { createMotionSourceIndexV1 } from "./motion-sources.ts";
 export { MotionWorkbenchV1 } from "./motion-workbench.tsx";
-export type { MotionWorkbenchPreviewV1, MotionWorkbenchPropsV1 } from "./motion-workbench.tsx";
+export type {
+  MotionWorkbenchCloseParticipantV1,
+  MotionWorkbenchPreviewV1,
+  MotionWorkbenchPropsV1,
+} from "./motion-workbench.tsx";
 export {
   MotionWorkbenchLauncherV1,
   createMotionWorkbenchStoreV1,

@@ -21,7 +21,6 @@ describe("Lab DevDock extension entry", () => {
         "panel.e2e.audio",
         "panel.e2e.graph",
         "panel.e2e.provenance",
-        "panel.e2e.workbench",
       ]);
 
       const firstDispose = disposeDevDockContributionLifecycleInternalV1(contributions);

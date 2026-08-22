@@ -2496,7 +2496,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     previousOwner.remove();
   });
 
-  it("focuses the ready root shell and keeps a no-tabbable root inside its closed Tab trap", async () => {
+  it("keeps a no-tabbable root trapped while yielding focus to an independent application sibling", async () => {
     const Renderer = () => <output data-testid="root-focus-empty">Dialogue</output>;
     const harness = hostHarnessV1(Renderer);
     expect(harness.bridge.reconcilePendingInternalV1(pendingSayV1())).toMatchObject({
@@ -2523,6 +2523,17 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     expect(document.activeElement).toBe(rootFocusScope);
     fireEvent.keyDown(rootFocusScope, { key: "Tab", shiftKey: true });
     expect(document.activeElement).toBe(rootFocusScope);
+
+    const authoringOwner = document.createElement("div");
+    authoringOwner.dataset.applicationFocusOwner = "authoring";
+    const authoringInput = document.createElement("input");
+    authoringOwner.append(authoringInput);
+    document.body.append(authoringOwner);
+    authoringInput.focus();
+    fireEvent.focusIn(authoringInput);
+    await flushHostMicrotasksV1();
+    expect(document.activeElement).toBe(authoringInput);
+
     const escapedFocus = document.createElement("button");
     escapedFocus.type = "button";
     escapedFocus.textContent = "Escaped focus";
@@ -2535,6 +2546,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     view.unmount();
     await flushHostMicrotasksV1();
     portalContainer.remove();
+    authoringOwner.remove();
     escapedFocus.remove();
   });
 

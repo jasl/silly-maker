@@ -1,9 +1,17 @@
 // SPDX-License-Identifier: MIT
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { ReactElement } from "react";
 
 import { useAuthoringDocumentSessionV1 } from "@sillymaker/ui/debug";
-import type { MotionSourceIoV1 } from "@sillymaker/ui/debug";
+import type { MotionSourceIoV1, MotionWorkbenchCloseParticipantV1 } from "@sillymaker/ui/debug";
 
 import type {
   RegionsDocumentV1,
@@ -15,7 +23,6 @@ import type {
 import type { AuthoringDocumentSessionV1 } from "@sillymaker/ui/debug";
 
 import type { SceneIoListEntryV1, SceneIoListSkipV1, SceneSourceIoV1 } from "./core/scene-io.ts";
-import { createSceneDocumentSessionV1 } from "./core/scene-session.ts";
 import { createSceneAuthoringLocalAdapterV1 } from "./core/scene-operations/local-adapter.ts";
 import type {
   SceneAuthoringCurrentV1,
@@ -25,7 +32,12 @@ import type {
 import { loadStudioMotionSourcesV1 } from "./core/motion-sources.ts";
 import type { StudioMotionSourcesV1 } from "./core/motion-sources.ts";
 import type { RegionsSourceIoV1 } from "./core/regions-io.ts";
-import { createRegionsDocumentSessionV1 } from "./core/regions-session.ts";
+import {
+  createAuthoringHostInternalV1,
+  resolveAuthoringHostOwnerInternalV1,
+} from "./core/authoring-host.ts";
+import type { AuthoringHostInternalV1 } from "./core/authoring-host.ts";
+import { saveWithConflictRefreshInternalV1 } from "./core/save-conflict.ts";
 import { applyPreviewAppearanceV1, compileSceneV1 } from "./workspaces/scene/scene-compile.ts";
 import {
   deriveMotionPlanV1,
@@ -39,19 +51,17 @@ import { SceneCuesV1 } from "./workspaces/scene/scene-cues.tsx";
 import { SceneInspectorV1 } from "./workspaces/scene/scene-inspector.tsx";
 import type { SceneEntryResolutionV1 } from "./workspaces/scene/scene-inspector.tsx";
 import { ContentBrowserV1 } from "./workspaces/content/content-browser.tsx";
-import {
-  createFlowWorkspaceActivationOwnerInternalV1,
-  ProgressiveFlowWorkspaceHostInternalV1,
-  useDisposeFlowWorkspaceActivationOnUnmountInternalV1,
-} from "./workspaces/flow/flow-workspace-activation.tsx";
+import { ProgressiveFlowWorkspaceHostInternalV1 } from "./workspaces/flow/flow-workspace-activation.tsx";
 import type { FlowWorkspaceActivationOwnerInternalV1 } from "./workspaces/flow/flow-workspace-activation.tsx";
 import {
   buildMotionCatalogV1,
   buildMotionWorkbenchModelV1,
 } from "./workspaces/motion/motion-cases.ts";
+import type { StudioMotionWorkbenchModelV1 } from "./workspaces/motion/motion-cases.ts";
 import { MotionWorkspaceSectionV1 } from "./workspaces/motion/motion-workspace.tsx";
 import { RegionsWorkspaceSectionV1 } from "./workspaces/regions/regions-workspace.tsx";
 import type { StudioBindingV1, StudioContentDescriptorV1 } from "./core/binding.ts";
+import { authoringWorkspaceManifestInternalV1 } from "./workspaces/workspace-manifest.ts";
 import styles from "./studio-app.module.css";
 
 export type {
@@ -88,34 +98,140 @@ export interface StudioAppPropsV1 {
 }
 
 interface StudioAppWithAuthoringSessionsPropsV1 extends StudioAppPropsV1 {
+  readonly host: AuthoringHostInternalV1;
   readonly sceneSession: AuthoringDocumentSessionV1<SceneDocumentV1>;
   readonly regionsSession: AuthoringDocumentSessionV1<RegionsDocumentV1> | null;
   readonly flowActivation: FlowWorkspaceActivationOwnerInternalV1;
+  readonly publicationRole: "visible" | "probe";
+  readonly mode: "standalone" | "embedded";
 }
 
 const studioPreviewMaxWidthV1 = 720;
 
 function saveNoteV1(code: string): string {
   return code === "digest_conflict"
-    ? "文件已被其他编辑更改——请重新加载后再改。"
+    ? "文件已被其他编辑更改；已刷新保存基线并保留当前草稿，请检查后再次保存。"
     : `保存失败：${code}`;
 }
 
+/**
+ * Retires a standalone Host only after a real unmount. React StrictMode
+ * replays effect setup/cleanup against the same Host; the later setup advances
+ * that Host's epoch before the cleanup microtask can dispose it. Keeping the
+ * epoch per Host also retires an old Host when admitted IO props replace it.
+ */
+function useDisposeAuthoringHostOnUnmountInternalV1(host: AuthoringHostInternalV1): void {
+  const hostEpochs = useMemo(() => new WeakMap<AuthoringHostInternalV1, number>(), []);
+  useEffect(() => {
+    const expectedEpoch = (hostEpochs.get(host) ?? 0) + 1;
+    hostEpochs.set(host, expectedEpoch);
+    return () => {
+      queueMicrotask(() => {
+        if (hostEpochs.get(host) !== expectedEpoch) return;
+        hostEpochs.delete(host);
+        void host.dispose().catch(() => undefined);
+      });
+    };
+  }, [host, hostEpochs]);
+}
+
 export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
-  const sceneSession = useMemo(() => createSceneDocumentSessionV1(props.io), [props.io]);
-  const regionsSession = useMemo(
-    () => props.regionsIo === undefined ? null : createRegionsDocumentSessionV1(props.regionsIo),
-    [props.regionsIo],
+  const host = useMemo(
+    () =>
+      createAuthoringHostInternalV1({
+        sceneIo: props.io,
+        motionIo: props.motionIo,
+        ...(props.regionsIo === undefined ? {} : { regionsIo: props.regionsIo }),
+      }),
+    [props.io, props.motionIo, props.regionsIo],
   );
-  const flowActivation = useMemo(() => createFlowWorkspaceActivationOwnerInternalV1(), []);
-  useDisposeFlowWorkspaceActivationOnUnmountInternalV1(flowActivation);
+  const viewId = useMemo(() => nextAuthoringHostViewIdInternalV1++, []);
+  useDisposeAuthoringHostOnUnmountInternalV1(host);
   return (
-    <StudioAppWithAuthoringSessionsV1
-      {...props}
-      sceneSession={sceneSession}
-      regionsSession={regionsSession}
-      flowActivation={flowActivation}
+    <AuthoringHostSurfaceInternalV1
+      host={host}
+      binding={props.binding}
+      mode="standalone"
+      publicationRole="visible"
+      viewId={viewId}
     />
+  );
+}
+
+let nextAuthoringHostViewIdInternalV1 = 1;
+
+export interface AuthoringHostSurfacePropsInternalV1 {
+  readonly host: AuthoringHostInternalV1;
+  readonly binding: StudioBindingV1;
+  readonly mode: "standalone" | "embedded";
+  readonly publicationRole: "visible" | "probe";
+  readonly viewId: number;
+}
+
+/** The exact shared Host consumer used by standalone and embedded shells. */
+export function AuthoringHostSurfaceInternalV1(
+  props: AuthoringHostSurfacePropsInternalV1,
+): ReactElement {
+  const owner = resolveAuthoringHostOwnerInternalV1(props.host);
+  const elementRef = useRef<HTMLDivElement>(null);
+  const [connected, setConnected] = useState(false);
+  const hostSnapshot = useSyncExternalStore(
+    props.host.subscribe,
+    props.host.getSnapshot,
+    props.host.getSnapshot,
+  );
+
+  useEffect(() => {
+    if (!hostSnapshot.dirty || props.publicationRole !== "visible") return undefined;
+    const onBeforeUnload = (event: BeforeUnloadEvent): void => {
+      event.preventDefault();
+    };
+    globalThis.addEventListener("beforeunload", onBeforeUnload);
+    return () => globalThis.removeEventListener("beforeunload", onBeforeUnload);
+  }, [hostSnapshot.dirty, props.publicationRole]);
+
+  useEffect(() => {
+    const element = elementRef.current;
+    if (element === null) return undefined;
+    let publishedConnected = false;
+    const publishConnected = (): void => {
+      const next = element.isConnected;
+      if (next === publishedConnected) return;
+      publishedConnected = next;
+      setConnected(next);
+      owner.markViewConnected(props.viewId, next);
+    };
+    publishConnected();
+    const observer = new MutationObserver(publishConnected);
+    observer.observe(element.ownerDocument, { childList: true, subtree: true });
+    return () => {
+      observer.disconnect();
+      if (publishedConnected) owner.markViewConnected(props.viewId, false);
+    };
+  }, [owner, props.viewId]);
+
+  return (
+    <div
+      ref={elementRef}
+      data-authoring-host={String(hostSnapshot.identity)}
+      data-authoring-host-ready={connected ? "connected" : "layout"}
+      data-authoring-host-mode={props.mode}
+      data-native-text="true"
+      className={props.mode === "embedded" ? styles["embedded-host"] : undefined}
+    >
+      <StudioAppWithAuthoringSessionsV1
+        binding={props.binding}
+        io={owner.sceneIo}
+        motionIo={owner.motionIo}
+        {...(owner.regionsIo === undefined ? {} : { regionsIo: owner.regionsIo })}
+        host={props.host}
+        sceneSession={owner.sceneSession}
+        regionsSession={owner.regionsSession}
+        flowActivation={owner.flowActivation}
+        publicationRole={props.publicationRole}
+        mode={props.mode}
+      />
+    </div>
   );
 }
 
@@ -124,6 +240,20 @@ export function StudioAppWithAuthoringSessionsV1(
   props: StudioAppWithAuthoringSessionsPropsV1,
 ): ReactElement {
   const { binding, io, motionIo, regionsIo, regionsSession } = props;
+  const hostOwner = resolveAuthoringHostOwnerInternalV1(props.host);
+  const registerMotionCloseParticipant = useCallback(
+    (participant: MotionWorkbenchCloseParticipantV1): () => void =>
+      hostOwner.registerCloseParticipant("motion", participant),
+    [hostOwner],
+  );
+  const workspaceManifest = useMemo(
+    () =>
+      authoringWorkspaceManifestInternalV1({
+        binding,
+        hasRegionsIo: regionsIo !== undefined,
+      }),
+    [binding, regionsIo],
+  );
   const [scenes, setScenes] = useState<readonly SceneIoListEntryV1[] | null>(null);
   const [sceneSkips, setSceneSkips] = useState<readonly SceneIoListSkipV1[]>(Object.freeze([]));
   // Index-enumerated motion documents (null while loading); registration-free.
@@ -309,20 +439,30 @@ export function StudioAppWithAuthoringSessionsV1(
     openScene(path);
   }, [dirty, openScene]);
 
-  useEffect(() => {
-    if (!dirty) return undefined;
-    const onBeforeUnload = (event: BeforeUnloadEvent): void => {
-      event.preventDefault();
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [dirty]);
-
   const motionCatalog = useMemo(() => buildMotionCatalogV1(motionSources), [motionSources]);
   const workbench = useMemo(
     () => buildMotionWorkbenchModelV1(motionSources, binding, draft),
     [motionSources, binding, draft],
   );
+  const motionSelection = useSyncExternalStore(
+    hostOwner.motionStore.subscribe,
+    hostOwner.motionStore.observe,
+    hostOwner.motionStore.observe,
+  );
+  const retainedReadyWorkbench = useRef<
+    Extract<StudioMotionWorkbenchModelV1, { kind: "ready" }> | null
+  >(null);
+  useLayoutEffect(() => {
+    if (workbench.kind === "ready") retainedReadyWorkbench.current = workbench;
+    else if (motionSelection === null) retainedReadyWorkbench.current = null;
+  }, [motionSelection, workbench]);
+  // Scene/R1 edits can temporarily remove the last preview case. Keep the
+  // committed fixture while an exact Motion selection is still open so its
+  // local document session and Host close participant cannot be unmounted.
+  const renderedWorkbench = workbench.kind === "ready" || motionSelection === null ||
+      retainedReadyWorkbench.current === null
+    ? workbench
+    : retainedReadyWorkbench.current;
 
   // Real art: preload the assets the compiled targets require and re-render
   // as bytes arrive; the Story's renderers resolve URLs from the same
@@ -374,37 +514,60 @@ export function StudioAppWithAuthoringSessionsV1(
     return () => controller.abort();
   }, [assets, requiredAssetIdsKey]);
 
-  const save = useCallback((): void => {
+  const saveSceneDocument = useCallback(async (): Promise<boolean> => {
     setNote(null);
-    void session.save().then((result) => {
-      if (result.kind === "ok") {
-        setNote(
-          session.getSnapshot().dirty
-            ? "已保存先前版本；当前仍有未保存修改。"
-            : "已保存；运行中的游戏会热更新。",
-        );
-      } else if (result.kind === "error") setNote(saveNoteV1(result.code));
-    });
+    const result = await saveWithConflictRefreshInternalV1(session);
+    if (result.save.kind === "ok") {
+      setNote(
+        session.getSnapshot().dirty
+          ? "已保存先前版本；当前仍有未保存修改。"
+          : "已保存；运行中的游戏会热更新。",
+      );
+      return !session.getSnapshot().dirty;
+    }
+    if (result.save.kind === "error") {
+      if (result.save.code === "digest_conflict" && result.refresh?.kind === "error") {
+        setNote(`保存冲突，且刷新保存基线失败：${result.refresh.code}`);
+      } else {
+        setNote(saveNoteV1(result.save.code));
+      }
+    }
+    return false;
   }, [session]);
+
+  const save = useCallback((): void => {
+    void saveSceneDocument();
+  }, [saveSceneDocument]);
+
+  useEffect(() => {
+    if (props.publicationRole !== "visible") return undefined;
+    return hostOwner.registerCloseParticipant(
+      "scene",
+      Object.freeze({
+        getState: () => {
+          const current = session.getSnapshot();
+          return Object.freeze({
+            dirty: current.dirty,
+            busy: current.loading || current.saving || creating,
+            canSave: current.path !== null && current.digest !== null && !compileBlocked,
+          });
+        },
+        subscribe: session.subscribe,
+        save: saveSceneDocument,
+        discard: session.discard,
+      }),
+    );
+  }, [compileBlocked, creating, hostOwner, props.publicationRole, saveSceneDocument, session]);
 
   const confirmSaveAndOpen = useCallback((): void => {
     // The same compile guard as the top-bar save: a non-compilable draft
     // cannot be persisted from the navigation confirm either.
     if (confirmNavigation === null || busy || compileBlocked) return;
     const path = confirmNavigation.path;
-    void session.save().then((result) => {
-      if (result.kind === "ok") {
-        if (session.getSnapshot().dirty) {
-          setNote("已保存先前版本；当前仍有未保存修改。");
-          return;
-        }
-        setNote("已保存；运行中的游戏会热更新。");
-        openScene(path);
-      } else if (result.kind === "error") {
-        setNote(saveNoteV1(result.code));
-      }
+    void saveSceneDocument().then((saved) => {
+      if (saved) openScene(path);
     });
-  }, [busy, compileBlocked, confirmNavigation, openScene, session]);
+  }, [busy, compileBlocked, confirmNavigation, openScene, saveSceneDocument]);
 
   const confirmDiscardAndOpen = useCallback((): void => {
     if (confirmNavigation === null) return;
@@ -792,7 +955,14 @@ export function StudioAppWithAuthoringSessionsV1(
   }, [creating, motionIo, motionSources, sceneOperations, session]);
 
   return (
-    <div className={styles["studio"]} data-studio-root="true">
+    <div
+      className={`${styles["studio"] ?? ""} ${
+        props.mode === "embedded" ? styles["studio-embedded"] ?? "" : ""
+      }`}
+      data-studio-root="true"
+      data-studio-mode={props.mode}
+      data-studio-workspaces={workspaceManifest.map((workspace) => workspace.id).join(" ")}
+    >
       <header className={styles["topbar"]}>
         <strong>SillyMaker Studio</strong>
         <span className={styles["topbar-scene"]}>
@@ -1082,29 +1252,44 @@ export function StudioAppWithAuthoringSessionsV1(
           )}
         </aside>
       </div>
-      {workbench.kind !== "ready"
+      {renderedWorkbench.kind !== "ready" ? null : (
+        <MotionWorkspaceSectionV1
+          workbench={renderedWorkbench}
+          io={motionIo}
+          store={hostOwner.motionStore}
+          guardSelectionChanges={props.publicationRole !== "probe"}
+          {...(props.publicationRole === "probe" ? {} : {
+            registerCloseParticipant: registerMotionCloseParticipant,
+          })}
+        />
+      )}
+      {!workspaceManifest.some((workspace) => workspace.id === "regions") ||
+          regionsIo === undefined || regionsSession === null
         ? null
-        : <MotionWorkspaceSectionV1 workbench={workbench} io={motionIo} />}
-      {regionsIo === undefined || regionsSession === null ? null : (
-        <RegionsWorkspaceSectionV1
-          io={regionsIo}
-          session={regionsSession}
-          renderers={binding.renderers}
-          assets={assets}
-          backdrop={draft !== null && canvasCompiled !== null && canvasCompiled.kind === "ok"
-            ? { canvas: draft.canvas, target: canvasCompiled.target }
-            : null}
-          scale={scale}
-          storyHint={sceneIdPrefix.split(".")[1] ?? null}
-        />
-      )}
-      {binding.flow === undefined ? null : (
-        <ProgressiveFlowWorkspaceHostInternalV1
-          activation={props.flowActivation}
-          flow={binding.flow}
-          {...(binding.resolveText === undefined ? {} : { resolveText: binding.resolveText })}
-        />
-      )}
+        : (
+          <RegionsWorkspaceSectionV1
+            io={regionsIo}
+            session={regionsSession}
+            renderers={binding.renderers}
+            assets={assets}
+            backdrop={draft !== null && canvasCompiled !== null && canvasCompiled.kind === "ok"
+              ? { canvas: draft.canvas, target: canvasCompiled.target }
+              : null}
+            scale={scale}
+            storyHint={sceneIdPrefix.split(".")[1] ?? null}
+            host={props.host}
+            publicationRole={props.publicationRole}
+          />
+        )}
+      {!workspaceManifest.some((workspace) => workspace.id === "flow") || binding.flow === undefined
+        ? null
+        : (
+          <ProgressiveFlowWorkspaceHostInternalV1
+            activation={props.flowActivation}
+            flow={binding.flow}
+            {...(binding.resolveText === undefined ? {} : { resolveText: binding.resolveText })}
+          />
+        )}
     </div>
   );
 }

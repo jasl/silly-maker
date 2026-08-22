@@ -17,7 +17,7 @@ import type {
 } from "react";
 import { createPortal } from "react-dom";
 
-import { isDevDockEscapeOwnerTargetV1 } from "../debug/dev-dock-portal-coordinator.tsx";
+import { isIndependentApplicationFocusOwnerTargetInternalV1 } from "../input/application-focus-owner.ts";
 import {
   inputHandledV1,
   inputIgnoredV1,
@@ -572,7 +572,7 @@ function SystemDialogCandidateEntryInternalV1(props: {
     const containFocus = (event: FocusEvent): void => {
       const target = event.target;
       if (target instanceof Node && shellElement.contains(target)) return;
-      if (isDevDockEscapeOwnerTargetV1(target)) return;
+      if (isIndependentApplicationFocusOwnerTargetInternalV1(target)) return;
       if (readyRoot && deferRootFocusRecoveryRef.current) return;
       focusFirstSystemDialogTargetInternalV1(shellElement);
     };
@@ -622,7 +622,10 @@ function SystemDialogCandidateEntryInternalV1(props: {
         ? (event) => {
           if (event.key === "Tab") {
             routeSystemDialogTrappedTabInternalV1(event);
-          } else if (event.key === "Escape" && !isDevDockEscapeOwnerTargetV1(event.target)) {
+          } else if (
+            event.key === "Escape" &&
+            !isIndependentApplicationFocusOwnerTargetInternalV1(event.target)
+          ) {
             event.preventDefault();
             if (confirmationEntry !== null) {
               confirmationEntry.controller.cancelInternalV1("escape");
@@ -826,7 +829,7 @@ function SystemDialogBlockingFallbackInternalV1(props: {
     const containFocus = (event: FocusEvent): void => {
       const target = event.target;
       if (target instanceof Node && focusElement.contains(target)) return;
-      if (isDevDockEscapeOwnerTargetV1(target)) return;
+      if (isIndependentApplicationFocusOwnerTargetInternalV1(target)) return;
       focusElement.focus({ preventScroll: true });
     };
     ownerDocument.addEventListener("focusin", containFocus, true);
@@ -854,7 +857,10 @@ function SystemDialogBlockingFallbackInternalV1(props: {
         cancel("backdrop");
       }}
       onKeyDown={(event) => {
-        if (event.key === "Escape" && !isDevDockEscapeOwnerTargetV1(event.target)) {
+        if (
+          event.key === "Escape" &&
+          !isIndependentApplicationFocusOwnerTargetInternalV1(event.target)
+        ) {
           event.preventDefault();
           cancel("escape");
           return;

@@ -19,6 +19,9 @@ import type {
   RegionsIoListSkipV1,
   RegionsSourceIoV1,
 } from "../../core/regions-io.ts";
+import type { AuthoringHostInternalV1 } from "../../core/authoring-host.ts";
+import { resolveAuthoringHostOwnerInternalV1 } from "../../core/authoring-host.ts";
+import { saveWithConflictRefreshInternalV1 } from "../../core/save-conflict.ts";
 import type { StudioAssetRegistryPortV1 } from "../../core/binding.ts";
 import {
   addRegionV1,
@@ -68,6 +71,9 @@ export interface RegionsWorkspaceSectionPropsV1 {
   readonly scale: number;
   /** The story segment for new document ids (from the scene id prefix). */
   readonly storyHint: string | null;
+  /** Stable Host close gate; omitted only by focused workspace tests. */
+  readonly host?: AuthoringHostInternalV1;
+  readonly publicationRole?: "visible" | "probe";
 }
 
 interface RegionsDragV1 {
@@ -90,7 +96,7 @@ interface RegionsDragV1 {
 
 function regionsSaveNoteV1(code: string): string {
   return code === "digest_conflict"
-    ? "文件已被其他编辑更改——请重新加载后再改。"
+    ? "文件已被其他编辑更改；已刷新保存基线并保留当前草稿，请检查后再次保存。"
     : `保存失败：${code}`;
 }
 
@@ -178,15 +184,6 @@ export function RegionsWorkspaceSectionV1(props: RegionsWorkspaceSectionPropsV1)
     openDocument(path);
   }, [dirty, openDocument]);
 
-  useEffect(() => {
-    if (!dirty) return undefined;
-    const onBeforeUnload = (event: BeforeUnloadEvent): void => {
-      event.preventDefault();
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [dirty]);
-
   // The save gate is Document admission itself, re-run over the draft.
   const blockingIssue = useMemo(
     () => (draft === null ? null : regionsDraftBlockingIssueV1(draft)),
@@ -205,30 +202,61 @@ export function RegionsWorkspaceSectionV1(props: RegionsWorkspaceSectionPropsV1)
     [session],
   );
 
-  const save = useCallback((): void => {
+  const saveDocument = useCallback(async (): Promise<boolean> => {
     const current = session.getSnapshot().draft;
-    if (current === null) return;
+    if (current === null) return false;
     setNote(null);
-    void session.save({ document: graduateRegionsDocumentV1(current) }).then((result) => {
-      if (result.kind === "ok") setNote("已保存；运行中的游戏会热更新。");
-      else if (result.kind === "error") setNote(regionsSaveNoteV1(result.code));
+    const result = await saveWithConflictRefreshInternalV1(session, {
+      document: graduateRegionsDocumentV1(current),
     });
+    if (result.save.kind === "ok") {
+      setNote("已保存；运行中的游戏会热更新。");
+      return !session.getSnapshot().dirty;
+    }
+    if (result.save.kind === "error") {
+      if (result.save.code === "digest_conflict" && result.refresh?.kind === "error") {
+        setNote(`保存冲突，且刷新保存基线失败：${result.refresh.code}`);
+      } else {
+        setNote(regionsSaveNoteV1(result.save.code));
+      }
+    }
+    return false;
   }, [session]);
+
+  const save = useCallback((): void => {
+    void saveDocument();
+  }, [saveDocument]);
+
+  const hostOwner = props.host === undefined
+    ? null
+    : resolveAuthoringHostOwnerInternalV1(props.host);
+  useEffect(() => {
+    if (hostOwner === null || props.publicationRole === "probe") return undefined;
+    return hostOwner.registerCloseParticipant(
+      "regions",
+      Object.freeze({
+        getState: () => {
+          const current = session.getSnapshot();
+          return Object.freeze({
+            dirty: current.dirty,
+            busy: current.loading || current.saving || creating,
+            canSave: current.path !== null && current.digest !== null && blockingIssue === null,
+          });
+        },
+        subscribe: session.subscribe,
+        save: saveDocument,
+        discard: session.discard,
+      }),
+    );
+  }, [blockingIssue, creating, hostOwner, props.publicationRole, saveDocument, session]);
 
   const confirmSaveAndOpen = useCallback((): void => {
     if (confirmSwitch === null || busy || blockingIssue !== null) return;
     const path = confirmSwitch.path;
-    const current = session.getSnapshot().draft;
-    if (current === null) return;
-    void session.save({ document: graduateRegionsDocumentV1(current) }).then((result) => {
-      if (result.kind === "ok") {
-        setNote("已保存；运行中的游戏会热更新。");
-        openDocument(path);
-      } else if (result.kind === "error") {
-        setNote(regionsSaveNoteV1(result.code));
-      }
+    void saveDocument().then((saved) => {
+      if (saved) openDocument(path);
     });
-  }, [blockingIssue, busy, confirmSwitch, openDocument, session]);
+  }, [blockingIssue, busy, confirmSwitch, openDocument, saveDocument]);
 
   const regionsIdPrefix = useMemo(
     () =>

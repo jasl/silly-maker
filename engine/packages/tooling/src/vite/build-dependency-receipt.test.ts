@@ -163,13 +163,13 @@ describe("build dependency receipt", () => {
     expect(classifyStaticGameDependencyFacetsInternalV1([
       "engine/packages/base/src/index.ts",
       "engine/packages/studio/src/studio-app.tsx",
-      "engine/packages/ui/src/debug/motion-sources.ts",
+      "engine/packages/ui/src/debug/dev-source-client.ts",
       "engine/packages/composition/src/extension-runtime/backend.ts",
       "node_modules/.deno/cordis@4.0.0/node_modules/cordis/lib/index.js",
       "engine/packages/web/src/rpc/client.ts",
     ])).toEqual({
       authoringImplementation: ["engine/packages/studio/src/studio-app.tsx"],
-      devSourceImplementation: ["engine/packages/ui/src/debug/motion-sources.ts"],
+      devSourceImplementation: ["engine/packages/ui/src/debug/dev-source-client.ts"],
       dynamicExtensionImplementation: [
         "engine/packages/composition/src/extension-runtime/backend.ts",
         "node_modules/.deno/cordis@4.0.0/node_modules/cordis/lib/index.js",
@@ -182,6 +182,8 @@ describe("build dependency receipt", () => {
     const directory = await mkdtemp(join(tmpdir(), "sillymaker-template-build-graph-"));
     const receiptPath = join(directory, "receipt.json");
     const previous = process.env[buildDependencyMeasurementEnvironmentKeyInternalV1];
+    const previousNodeEnvironment = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
     process.env[buildDependencyMeasurementEnvironmentKeyInternalV1] =
       serializeBuildDependencyMeasurementRequestInternalV1({
         graphRoot: repositoryRootV1,
@@ -250,14 +252,21 @@ describe("build dependency receipt", () => {
       } else {
         process.env[buildDependencyMeasurementEnvironmentKeyInternalV1] = previous;
       }
+      if (previousNodeEnvironment === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = previousNodeEnvironment;
+      }
       await rm(directory, { force: true, recursive: true });
     }
   });
 
-  it("attributes the Engine Lab extension backend only to its lazy DevDock contribution", async () => {
+  it("keeps Engine Lab authoring out of release while attributing its lazy extension backend", async () => {
     const directory = await mkdtemp(join(tmpdir(), "sillymaker-e2e-build-graph-"));
     const receiptPath = join(directory, "receipt.json");
     const previous = process.env[buildDependencyMeasurementEnvironmentKeyInternalV1];
+    const previousNodeEnvironment = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
     process.env[buildDependencyMeasurementEnvironmentKeyInternalV1] =
       serializeBuildDependencyMeasurementRequestInternalV1({
         graphRoot: repositoryRootV1,
@@ -301,17 +310,28 @@ describe("build dependency receipt", () => {
         expect(chunk.owners.every(({ kind }) => kind === "contribution")).toBe(true);
         expect(chunk.contributionIds).toContain(facadeId);
       }
-      const facets = classifyStaticGameDependencyFacetsInternalV1(
-        receipt.chunks.flatMap(({ moduleIds }) => moduleIds),
-      );
+      const moduleIds = [
+        ...receipt.chunks.flatMap(({ moduleIds: chunkModuleIds }) => chunkModuleIds),
+        ...receipt.assets.flatMap(({ moduleIds: assetModuleIds }) => assetModuleIds),
+      ];
+      const facets = classifyStaticGameDependencyFacetsInternalV1(moduleIds);
       expect(facets.dynamicExtensionImplementation.length).toBeGreaterThan(0);
       expect(facets.authoringImplementation).toEqual([]);
+      expect(facets.devSourceImplementation).toEqual([]);
       expect(facets.rpcImplementation).toEqual([]);
+      expect(moduleIds).not.toContain("e2e/src/tooling/studio-binding.tsx");
+      expect(moduleIds).not.toContain("/__sillymaker/embedded-author-entry.ts");
+      expect(moduleIds).not.toContain("/__sillymaker/embedded-author-runtime.tsx");
     } finally {
       if (previous === undefined) {
         delete process.env[buildDependencyMeasurementEnvironmentKeyInternalV1];
       } else {
         process.env[buildDependencyMeasurementEnvironmentKeyInternalV1] = previous;
+      }
+      if (previousNodeEnvironment === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = previousNodeEnvironment;
       }
       await rm(directory, { force: true, recursive: true });
     }

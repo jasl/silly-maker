@@ -80,11 +80,17 @@ entry contribution IDs carried by each output. Shared and mixed outputs retain
 every contribution instead of duplicating their physical bytes. The
 measurement plugin writes its private receipt only below the OS temporary
 directory; it emits nothing into the Player and ordinary builds do not install
-it. Template is the no-extension negative control: authoring, dev-source,
-dynamic-extension, and RPC implementation facets are all zero. Engine Lab is
-the positive control: the selected backend appears only in lazy DevDock
-contribution outputs and never in entry. These receipts prove placement and
-exclusion, not a fixed bundle or startup number. The first CR3
+it. Template is the no-extension negative control: authoring, real dev-source,
+dynamic-extension, and RPC implementation facets are all zero. The
+`@sillymaker/ui/debug/dev-source-client` subpath selects its fetch/CAS/open-source
+implementation only under the `development` export condition; default/release
+resolution receives a fail-closed unavailable stub. Engine Lab is both a
+development positive control and a release negative control: Vite dev may inject
+the lightweight embedded-author launcher and lazy Host runtime, while its final
+production graph contains neither the Studio binding/Host/workspaces nor
+embedded-author/dev-source virtual entries. The selected Direct backend still
+appears only in lazy DevDock contribution outputs and never in entry. These
+receipts prove placement and exclusion, not a fixed bundle or startup number. The first CR3
 sample measured the largest Engine Lab entry at 922,550 raw / 214,643 gzip
 bytes; that is a visible optimization lead, not a compatibility failure or a
 license to raise the warning threshold.
@@ -261,6 +267,18 @@ then invokes the experimental `deno desktop` command using the current latest
 stable Deno. The engine/tooling compatibility floor remains `>=2.9.0`, but
 Desktop build and promotion deliberately track current stable fixes; promotion
 records the actual version without pinning one patch.
+
+This command stages a static runtime Player only. It does not package an author
+entry, source-write/CAS endpoints, the embedded Authoring Host, or the real
+dev-source client, and it does not pass Deno Desktop's development `--hmr`
+flag. A separate macOS arm64 / Deno 2.9.5 native common-runtime smoke has proved
+the latest Engine Lab static Player's GUI readiness, authoritative operation,
+same-window Game/Session restart, close acknowledgement, autosave flush, and
+normal process exit. It does not establish native Desktop embedded authoring,
+R0–R2 updates, source persistence, the packaged artifact, multi-platform
+launch, or crash durability. Those remain AR5 or separately accepted Desktop
+Module Update Source/persistence lanes; this preview still does not make a
+persistence, packaging, signing, or multi-platform production claim.
 
 The shell adopts Deno Desktop's startup window instead of creating a second
 window. Closing that window first fences renderer mutation ingress, asks the

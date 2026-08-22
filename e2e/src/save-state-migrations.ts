@@ -3,7 +3,7 @@ import type {
   SaveStateContractIdentityV1,
   SaveStateMigrationStepV1,
   StrictJsonValueV1,
-} from "@sillymaker/base";
+} from "@sillymaker/base/authoring/save-state-migration";
 import {
   defineSaveStateMigrationRegistryV1,
   parseDigest,
@@ -11,7 +11,7 @@ import {
   parseSaveStateMigrationIdV1,
   parseSaveStateMigrationNamespaceV1,
   parseSaveStateMigrationReasonCodeV1,
-} from "@sillymaker/base";
+} from "@sillymaker/base/authoring/save-state-migration";
 
 type JsonObjectV1 = Readonly<Record<string, StrictJsonValueV1>>;
 

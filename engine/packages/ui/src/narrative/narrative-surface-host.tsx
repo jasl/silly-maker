@@ -14,7 +14,7 @@ import {
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 
-import { isDevDockEscapeOwnerTargetV1 } from "../debug/dev-dock-portal-coordinator.tsx";
+import { isIndependentApplicationFocusOwnerTargetInternalV1 } from "../input/application-focus-owner.ts";
 import type { InputRouterV1 } from "../input/contracts.ts";
 import type { ManagedSurfaceGestureIdV1 } from "../managed-surfaces/managed-surface-contracts.ts";
 import { useStageInputIsolationV1, useStagePointerGestureFenceV1 } from "../shell/game-stage.tsx";
@@ -931,7 +931,10 @@ function NarrativeSurfaceEntryShellInternalV1(
           trapNarrativeSurfaceTabInternalV1(event);
           return;
         }
-        if (event.key !== "Escape" || isDevDockEscapeOwnerTargetV1(event.target)) return;
+        if (
+          event.key !== "Escape" ||
+          isIndependentApplicationFocusOwnerTargetInternalV1(event.target)
+        ) return;
         event.preventDefault();
         event.stopPropagation();
         if (entry.kind === "history") entry.controller.dismissInternalV1("escape");
@@ -1121,7 +1124,8 @@ function NarrativeSurfaceRuntimeInternalV1(
       const target = event.target;
       if (
         owner === null || !(target instanceof HTMLElement) || owner.shell.contains(target) ||
-        isDevDockEscapeOwnerTargetV1(target) || owner.shell.closest("[inert]") !== null ||
+        isIndependentApplicationFocusOwnerTargetInternalV1(target) ||
+        owner.shell.closest("[inert]") !== null ||
         lifecycle.portalContainer.closest("[inert]") !== null
       ) return;
       const generation = lifecycle.outsideFocusGeneration.current + 1;

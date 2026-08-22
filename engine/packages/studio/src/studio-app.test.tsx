@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 // SPDX-License-Identifier: MIT
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
+import { StrictMode } from "react";
 
-import type { SceneDocumentV1, StageContentCatalogV1 } from "@sillymaker/base";
-import { parseSceneDocumentV1 } from "@sillymaker/base";
+import type { MotionDocumentV1, SceneDocumentV1, StageContentCatalogV1 } from "@sillymaker/base";
+import { parseMotionDocumentV1, parseSceneDocumentV1 } from "@sillymaker/base";
 import type { SemanticStageEntryRendererV1 } from "@sillymaker/ui";
 
 import type { MotionSourceIoV1 } from "@sillymaker/ui/debug";
@@ -57,6 +58,7 @@ interface FakeSceneIoV1 extends SceneSourceIoV1 {
   }[];
   readonly creates: { path: string; sceneDocument: SceneDocumentV1 }[];
   failNextWriteWith(code: "digest_conflict"): void;
+  replaceSaved(sceneDocument: SceneDocumentV1, digest: string): void;
   deferNextWrite(): () => void;
 }
 
@@ -74,6 +76,9 @@ function fakeIoV1(initial: SceneDocumentV1): FakeSceneIoV1 {
     creates,
     failNextWriteWith(code) {
       failNext = code;
+    },
+    replaceSaved(sceneDocument, digest) {
+      documents.set(scenePathV1, { digest, doc: sceneDocument });
     },
     deferNextWrite() {
       deferWrite = true;
@@ -237,6 +242,115 @@ function fakeMotionIoV1(
 }
 
 describe("StudioAppV1", () => {
+  it("keeps the standalone Authoring Host live through StrictMode effect replay", async () => {
+    const motionDocument = parseMotionDocumentV1({
+      format: "sillymaker.motion",
+      version: 1,
+      motionId: "motion.test.strict",
+      label: "StrictMode 登场",
+      durationMs: 300,
+      delayMs: 0,
+      tracks: [{
+        channel: "offsetX",
+        keyframes: [{ atPermille: 0, value: -80 }, { atPermille: 1000, value: 0 }],
+      }],
+    });
+    const strictScene = parseSceneDocumentV1({
+      ...JSON.parse(JSON.stringify(sceneDocumentV1())) as Record<string, unknown>,
+      cues: [
+        { cueId: "cue.test.opening.backdrop", kind: "show", tag: "tag.backdrop" },
+        {
+          cueId: "cue.test.opening.hero-enters",
+          kind: "show",
+          tag: "tag.hero",
+          motionId: motionDocument.motionId,
+        },
+      ],
+    });
+    let digest = "sha256:strict-1";
+    const writes: Array<{
+      readonly path: string;
+      readonly expectedDigest: string;
+      readonly motionDocument: MotionDocumentV1;
+    }> = [];
+    const motionPath = "src/scenes/opening/motions/strict.motion.json";
+    const motionIo: MotionSourceIoV1 = {
+      list: () =>
+        Promise.resolve({
+          kind: "ok",
+          motions: [{
+            path: motionPath,
+            motionId: motionDocument.motionId,
+            label: motionDocument.label,
+          }],
+          skipped: [],
+        }),
+      read: () => Promise.resolve({ kind: "ok", digest, motionDocument }),
+      write(input) {
+        writes.push(input);
+        digest = "sha256:strict-2";
+        return Promise.resolve({ kind: "ok", digest });
+      },
+      create: () => Promise.resolve({ kind: "error", code: "unavailable" }),
+    };
+    const io = fakeIoV1(strictScene);
+    const { container } = render(
+      <StrictMode>
+        <StudioAppV1 binding={bindingV1} io={io} motionIo={motionIo} />
+      </StrictMode>,
+    );
+
+    // Let StrictMode finish setup-cleanup-setup and the stale cleanup's
+    // microtask before proving that the retained Host still publishes.
+    await Promise.resolve();
+    const openMotion = await waitFor(() => {
+      const current = container.querySelector<HTMLElement>(
+        '[data-motion-workbench-case="cue.test.opening.hero-enters"]',
+      );
+      expect(current).not.toBeNull();
+      return current!;
+    });
+    fireEvent.click(openMotion);
+    const duration = await waitFor(() => {
+      const current = container.querySelector<HTMLInputElement>("[data-workbench-duration]");
+      expect(current).not.toBeNull();
+      return current!;
+    });
+    fireEvent.change(duration, { target: { value: "470" } });
+    await waitFor(() => expect(duration).toHaveValue(470));
+
+    // Scene is clean, so this can only come from the Motion participant in
+    // the aggregate Host snapshot that owns the visible beforeunload gate.
+    await waitFor(() => {
+      const beforeUnload = new Event("beforeunload", { cancelable: true });
+      globalThis.dispatchEvent(beforeUnload);
+      expect(beforeUnload.defaultPrevented).toBe(true);
+    });
+
+    fireEvent.click(container.querySelector("[data-motion-workbench-close]") as HTMLElement);
+    await waitFor(() =>
+      expect(container.querySelector("[data-motion-workbench-close-confirm]")).not.toBeNull()
+    );
+    fireEvent.click(
+      container.querySelector("[data-motion-workbench-close-save]") as HTMLElement,
+    );
+    await waitFor(() =>
+      expect(container.querySelector('[data-motion-workbench-launcher="empty"]')).not.toBeNull()
+    );
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject({
+      path: motionPath,
+      expectedDigest: "sha256:strict-1",
+      motionDocument: { durationMs: 470 },
+    });
+
+    await waitFor(() => {
+      const beforeUnload = new Event("beforeunload", { cancelable: true });
+      globalThis.dispatchEvent(beforeUnload);
+      expect(beforeUnload.defaultPrevented).toBe(false);
+    });
+  });
+
   it("lists scenes, opens the first, and renders the real-renderer canvas", async () => {
     const io = fakeIoV1(sceneDocumentV1());
     const { container } = render(
@@ -347,7 +461,7 @@ describe("StudioAppV1", () => {
     expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
   });
 
-  it("surfaces a digest conflict without clearing the draft", async () => {
+  it("refreshes the digest baseline after a conflict without clearing the draft", async () => {
     const io = fakeIoV1(sceneDocumentV1());
     render(<StudioAppV1 binding={bindingV1} io={io} motionIo={fakeMotionIoV1()} />);
     const user = userEvent.setup();
@@ -358,12 +472,19 @@ describe("StudioAppV1", () => {
     await user.clear(xInput);
     await user.type(xInput, "500");
 
+    const external = sceneDocumentV1();
+    io.replaceSaved(external, "sha256:external");
     io.failNextWriteWith("digest_conflict");
     await user.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("已被其他编辑更改"));
     expect(io.writes).toHaveLength(0);
     expect(screen.getByLabelText("x")).toHaveValue(500);
     expect(screen.getByRole("button", { name: "保存" })).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(io.writes).toHaveLength(1));
+    expect(io.writes[0]).toMatchObject({ expectedDigest: "sha256:external" });
+    expect(io.writes[0]?.sceneDocument.entries[1]?.placement?.x).toBe(500);
   });
 
   it("drags an actor on the canvas into snapped, clamped logical coordinates", async () => {
@@ -371,8 +492,6 @@ describe("StudioAppV1", () => {
     const { container } = render(
       <StudioAppV1 binding={bindingV1} io={io} motionIo={fakeMotionIoV1()} />,
     );
-    const { fireEvent } = await import("@testing-library/react");
-
     await waitFor(() =>
       expect(container.querySelector('[data-studio-select="tag.hero"]')).not.toBeNull()
     );
@@ -415,8 +534,6 @@ describe("StudioAppV1", () => {
         motionIo={fakeMotionIoV1()}
       />,
     );
-    const { fireEvent } = await import("@testing-library/react");
-
     await waitFor(() =>
       expect(container.querySelector('[data-studio-select="tag.hero"]')).not.toBeNull()
     );
@@ -444,7 +561,6 @@ describe("StudioAppV1", () => {
     const { container } = render(
       <StudioAppV1 binding={bindingV1} io={io} motionIo={fakeMotionIoV1()} />,
     );
-    const { fireEvent } = await import("@testing-library/react");
     const user = userEvent.setup();
 
     await waitFor(() =>
@@ -471,7 +587,6 @@ describe("StudioAppV1", () => {
     const { container } = render(
       <StudioAppV1 binding={bindingV1} io={io} motionIo={fakeMotionIoV1()} />,
     );
-    const { fireEvent } = await import("@testing-library/react");
     const user = userEvent.setup();
 
     await waitFor(() =>
@@ -774,7 +889,6 @@ describe("StudioAppV1", () => {
     const { container } = render(
       <StudioAppV1 binding={bindingV1} io={io} motionIo={fakeMotionIoV1()} />,
     );
-    const { fireEvent } = await import("@testing-library/react");
     const user = userEvent.setup();
 
     await waitFor(() => expect(screen.getByLabelText("条目")).toBeVisible());
@@ -1271,7 +1385,6 @@ describe("StudioAppV1", () => {
     const { container } = render(
       <StudioAppV1 binding={bindingV1} io={io} motionIo={fakeMotionIoV1()} />,
     );
-    const { fireEvent } = await import("@testing-library/react");
     const user = userEvent.setup();
 
     await waitFor(() => expect(screen.getByLabelText("条目")).toBeVisible());
@@ -1320,7 +1433,6 @@ describe("StudioAppV1", () => {
     const { container } = render(
       <StudioAppV1 binding={bindingV1} io={io} motionIo={fakeMotionIoV1()} />,
     );
-    const { fireEvent } = await import("@testing-library/react");
     const user = userEvent.setup();
 
     await waitFor(() => expect(screen.getByLabelText("条目")).toBeVisible());
@@ -1345,7 +1457,6 @@ describe("StudioAppV1", () => {
     const { container } = render(
       <StudioAppV1 binding={bindingV1} io={io} motionIo={fakeMotionIoV1()} />,
     );
-    const { fireEvent } = await import("@testing-library/react");
     const user = userEvent.setup();
 
     await waitFor(() => expect(screen.getByLabelText("条目")).toBeVisible());

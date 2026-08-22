@@ -1,8 +1,8 @@
 # Application Runtime and Embedded Authoring V1
 
 状态：2026-08-18 由所有者接受为下一条默认/core implementation lane，并在同日以补充 owner
-evidence 收紧产品与平台边界。AR0–AR2 已于 2026-08-22 交付关闭，AR3 是唯一下一项；
-AR3–AR6 尚未启动。引擎能力扩展全部前置；本计划完成后的作品、examples 或产品验证由所有者
+evidence 收紧产品与平台边界。AR0–AR3 已于 2026-08-22 交付关闭，AR4 是唯一下一项；
+AR4–AR6 尚未启动。引擎能力扩展全部前置；本计划完成后的作品、examples 或产品验证由所有者
 另行选择和立案，不是本轮切片或完成 blocker。
 
 目标合同由
@@ -146,7 +146,7 @@ no-extension 的静态 game baseline 中 Studio/dev-source/dynamic-extension/RPC
   contribution owners 与 `contributionIds`，包括 CSS-only dynamic entry；private receipt 和默认报告
   只写 OS temp，不修改 Player。Template 静态 release 的 engine-owned authoring、dev-source、
   dynamic-extension 与 RPC implementation facets 均为零；
-- 当前 reload 边界已如实分类：Browser Studio 的 admitted document/CAS refresh 是 R0，binding/
+- AR0 当时的 reload 边界已如实分类：Browser Studio 的 admitted document/CAS refresh 是 R0，binding/
   workspace candidate 的 detached-layout publication 是 SillyMaker-owned R1；符合组件边界的纯
   Player presentation module 还可走 Vite React Fast Refresh，但没有 SillyMaker atomic-publication/
   handoff 保证。Web 的 Game/Session R2 只有 helper 与 conformance evidence，任何 maintained runtime
@@ -338,14 +338,81 @@ publication，不重写这些内核。
 - 409 刷新 saved/digest 并保留 draft；failed workspace load 不丢 predecessor；
 - embedded surface 的 focus/input 归现有 Host/Surface authority，editable keyboard 不泄漏给
   gameplay；关闭 dirty workspace 仍给 save/discard/cancel；
-- layout-sensitive workspace 必须显式等待 connected mounted/readiness，不把 detached React
-  layout acknowledgement 冒充 connected geometry；
+- layout-sensitive workspace 必须显式等待所需 mounted/readiness；document-connected offscreen
+  staging 的 layout acknowledgement 不得冒充 user-visible paint 或精确 on-screen geometry；
 - Browser 与 Deno Desktop 均验证 GUI Host/lifecycle；Deno 证据不得冒充 Desktop source-write、
   persistence 或 packaging production promotion。
 
 普通静态 game build 中 Authoring Host、workspace implementation、dev endpoint 和 source-write
 IO 必须完全缺席。未来重型 code editor/index worker 可以另立 lazy workspace，但本切片不建设
 通用 IDE、browser TS compiler 或 VS Code extension host。
+
+**AR3 closure（2026-08-22）：**
+
+- `@sillymaker/studio` 已抽出一个 package-private Authoring Host；它唯一拥有共享 Scene/Regions
+  document sessions、Motion store、Flow activation、close participants 与 Host snapshot。closed
+  workspace manifest 只描述 resident Scene/Motion/可选 Regions 和 progressive Flow，不是 public
+  plugin registry。standalone `/__sillymaker/studio/` 与 dev-only embedded shell 由同一 Host
+  factory/contract、workspace/session implementation 和稳定 source IO contract 支撑；每个 shell
+  mount 拥有自己的 Host lifetime，独立浏览器 tab 不伪装成共享内存实例，但没有复制状态机。
+  Agent/RPC 为零时全部创作能力仍可用；
+- R1 publication 不再用替换 visible React root 保存状态。它保留一个 persistent visible root，
+  candidate 先在 inert、`aria-hidden`、visibility-hidden、offscreen 但 document-connected 的 staging
+  root 完成 layout acknowledgement；connected layout failure 在触碰 visible root 前拒绝，accepted
+  candidate 再进入同一 root，保留 exact Host/DOM 和兼容的 component-local editor state。同步
+  visible render-factory failure 可重渲 predecessor plan 而不替换该 state，factory/rollback 双失败
+  才 terminal dispose；该窄证据不宣称任意 nondeterministic visible effect 都可无损 rollback，也不
+  把 connected staging 冒充 user-visible paint/精确 on-screen geometry；
+- embedded surface 由 dev page 的 lightweight resident launcher 首次打开后加载，关闭 dirty
+  Scene/Regions/Motion 统一给 save/discard/cancel；仅隐藏/重开不销毁 Host。Scene、Regions 和 Motion
+  的 409/`digest_conflict` 都刷新 saved bytes/digest 并保留 draft/history 供 retry。独立
+  application-focus owner、native-text scope 与 pointer/context-menu/wheel fencing 使 active Narrative
+  下 focused editor 的 `KeyA` 和 author chrome 的 secondary input 不泄漏给 gameplay；
+- Engine Lab 新增真实 `src/scenes/procedure/procedure.scene.json` 与 Story Studio binding；runtime
+  通过 `sceneFromDocument` 消费同一文档，不存在隐藏 test-only authoring model；其真实
+  `cue.e2e.alpha-enters` 也为 Host Motion workspace 提供 conformance case。原先挂在 Game root 的
+  重复可写 DevDock Workbench 已删除，舞台溯源面板保持只读，避免 `debug_tools` 撤销、Game R2
+  或 R3 unmount 绕过 Host dirty gate。embedded Host 在
+  explicit Game/Session restart 的 success 和 replacement 前 `runtime.anchor_failed` 下均保留 exact
+  Host、document identity、dirty、undo/redo、selection 与 DOM/input identity；
+- Engine Lab Vite identity owner 在 composition module 注入 live collector 的真实 `BuildIdentity`，
+  普通 owned Scene/simulation R2 变化折叠到 invalidated、literal-self-accepting composition
+  candidate；若原始 changed module 的 live importer graph 同时到达已加载 Studio binding，则只额外
+  保留该 exact module 让新 bytes 进入 Authoring R1，其他深层 module 仍被过滤。Web composer 在同一
+  Vite boundary 的 path compare 与 module-graph lookup 统一规范化，Windows separator 不会绕过
+  injection/candidate lookup。Web composer 在同一 Host/root 完成 R2 persistence handoff 与
+  Game/Session successor，再由 successor 安装下一代 boundary。application-only 变化保留
+  Vite/Fast Refresh 的正常传播；若它到达
+  composition 但 R2 tuple 未变，则明确请求 R3，不静默吞掉更新。Chromium 与 WebKit 的真实物理
+  Studio-binding R1 edit 均在零 page load 下保留 dirty Host DOM/identity、selection、input 与 undo；真实
+  Scene/Motion CAS 均在零 page load 下换代 Game application epoch，并保留 sibling Authoring Host；
+  共享 `presentation.ts` edit 在同一次物理变化中分别到达 Game R2 与 Authoring R1，仍保留 exact
+  Host/draft/selection/undo。focused Playwright 为 10/10，teardown 等待 reverse update 后逐字节恢复
+  源 Scene、Motion、binding 与 presentation；
+- 这不是 Game predecessor 的 transactional rollback 承诺：当前 Web R2 在 replacement 前失败会
+  保留现有 anchor，但已 retire predecessor 后若 successor start 失败进入 terminal recovery，不
+  恢复 gameplay predecessor。Authoring 作为 Game root 外 sibling 仍不被重建；文档只记录实际
+  failure boundary，不把它扩大为不存在的 rollback；
+- ordinary production graph 精确排除 Authoring Host/workspaces、Studio binding、embedded-author
+  virtual entries、dev-source endpoints 和真实 source-write client。`@sillymaker/ui/debug/dev-source-client`
+  只有 `development` conditional export 指向 fetch/CAS implementation，default/release 指向
+  fail-closed unavailable stub；Engine Lab release 仍只把 selected Direct backend 归因到 lazy
+  DevDock contribution，而不是 entry；
+- macOS arm64 / Deno 2.9.5 的原生 `deno desktop` common-runtime smoke 已从最新 Engine Lab
+  static Player 证明 GUI ready、权威操作、同窗口 Game/Session restart、restart 后继续操作，以及
+  native close acknowledgement 后 `auto.current` flush 与正常进程退出。该证据没有装入 embedded
+  author、source CAS、R0–R2 update source 或 `deno desktop --hmr`，也没有验证 packaged artifact、
+  多平台或 crash durability；这些留给 AR5 或单独的 Desktop Module Update Source / persistence
+  lane，Desktop packaging、signing 与 production promotion 均未提升；
+- React Doctor `^0.9.12` changed scan 最初确认 Motion close participant 会随每次 draft edit
+  注销再注册，令 Host aggregate dirty 可能瞬时 `true → false → true`；participant 现按 session/source
+  lifetime 稳定注册，实时读取当前 session draft/validation，并由回归测试锁定 dirty 期间零 clean
+  闪烁。复扫为 0 error / 4 warning；剩余 JSON clone 是既有 schema-admitted plain-data test fixture，
+  两个 `prefer-useReducer` 命中既有且生命周期独立的 state cluster，Scene numeric field 命中则是保留
+  half-typed text 与 revision currentness 的受控 buffer，均按代码与既有行为测试判定为非本切片缺陷；
+- 本切片没有新增第二 State/Session/Save/source authority，没有改变 Snapshot、digest、CommandLog
+  或 replay，也没有激活 RPC、Agent、UiArtifact、Mod、code editor 或 Player source editor。AR4
+  experimental typed RPC/UiArtifact seam 成为唯一下一项。
 
 ### AR4 — Experimental Agent RPC and UiArtifact seam
 

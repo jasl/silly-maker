@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { AssetId, MotionDocumentV1, StageContentCatalogV1 } from "@sillymaker/base";
@@ -14,6 +14,7 @@ import {
 import type { MotionIoWriteResultV1, MotionSourceIoV1 } from "./motion-io.ts";
 import { createMotionSourceIndexV1 } from "./motion-sources.ts";
 import { MotionWorkbenchV1 } from "./motion-workbench.tsx";
+import type { MotionWorkbenchCloseParticipantV1 } from "./motion-workbench.tsx";
 import type { SemanticStageEntryRendererV1 } from "../stage/semantic-stage-host.tsx";
 
 const motionJsonV1 = {
@@ -73,7 +74,13 @@ const rendererV1: SemanticStageEntryRendererV1 = ({ entry }) => (
   <span data-test-content={entry.contentId} />
 );
 
-function fixtureV1(io?: MotionSourceIoV1, phase?: "enter" | "exit") {
+function fixtureV1(
+  io?: MotionSourceIoV1,
+  phase?: "enter" | "exit",
+  registerCloseParticipant?: (
+    participant: MotionWorkbenchCloseParticipantV1,
+  ) => () => void,
+) {
   const index = createMotionSourceIndexV1(
     { "./motions/enter.motion.json": motionJsonV1 },
     { sourceRoot: "src" },
@@ -91,6 +98,7 @@ function fixtureV1(io?: MotionSourceIoV1, phase?: "enter" | "exit") {
         ...(phase === undefined ? {} : { phase }),
       }}
       {...(io === undefined ? {} : { io })}
+      {...(registerCloseParticipant === undefined ? {} : { registerCloseParticipant })}
     />,
   );
 }
@@ -108,10 +116,12 @@ function mainEntryV1(container: HTMLElement): HTMLElement {
 function fakeIoV1(): {
   readonly io: MotionSourceIoV1;
   writes(): readonly { path: string; expectedDigest: string; motionDocument: MotionDocumentV1 }[];
+  reads(): number;
   setWriteResult(result: MotionIoWriteResultV1): void;
 } {
   let bytesDigest = "sha256:aaaa";
   let writeResult: MotionIoWriteResultV1 | null = null;
+  let reads = 0;
   const writes: { path: string; expectedDigest: string; motionDocument: MotionDocumentV1 }[] = [];
   return {
     io: {
@@ -127,12 +137,14 @@ function fakeIoV1(): {
           ],
           skipped: [],
         }),
-      read: (path) =>
-        Promise.resolve({
+      read: (path) => {
+        reads += 1;
+        return Promise.resolve({
           kind: "ok",
           digest: bytesDigest,
           motionDocument: parseMotionDocumentV1(motionJsonV1, `/${path}`),
-        }),
+        });
+      },
       write: (input) => {
         writes.push(input);
         if (writeResult !== null) return Promise.resolve(writeResult);
@@ -142,6 +154,7 @@ function fakeIoV1(): {
       create: () => Promise.resolve({ kind: "error", code: "unavailable" }),
     },
     writes: () => writes,
+    reads: () => reads,
     setWriteResult: (result) => {
       writeResult = result;
     },
@@ -363,6 +376,43 @@ describe("MotionWorkbenchV1", () => {
       await Promise.resolve();
     });
     expect(container.querySelector("[data-workbench-reload]")).not.toBeNull();
+    await waitFor(() => expect(fake.reads()).toBe(2));
+    expect(duration.value).toBe("520");
+  });
+
+  it("keeps one close participant registered throughout a dirty edit", async () => {
+    const fake = fakeIoV1();
+    const aggregateDirty: boolean[] = [];
+    let registrationCount = 0;
+    let participant: MotionWorkbenchCloseParticipantV1 | null = null;
+    const registerCloseParticipant = (
+      next: MotionWorkbenchCloseParticipantV1,
+    ): () => void => {
+      registrationCount += 1;
+      participant = next;
+      const publish = (): void => {
+        aggregateDirty.push(participant?.getState().dirty ?? false);
+      };
+      const unsubscribe = next.subscribe(publish);
+      publish();
+      return () => {
+        unsubscribe();
+        if (participant === next) participant = null;
+        publish();
+      };
+    };
+    const { container } = fixtureV1(fake.io, undefined, registerCloseParticipant);
+    await waitFor(() => expect(fake.reads()).toBe(1));
+    await waitFor(() => expect(registrationCount).toBe(1));
+    aggregateDirty.length = 0;
+
+    const duration = container.querySelector("[data-workbench-duration]");
+    if (!(duration instanceof HTMLInputElement)) throw new Error("duration missing");
+    fireEvent.change(duration, { target: { value: "470" } });
+
+    await waitFor(() => expect(participant?.getState().dirty).toBe(true));
+    expect(registrationCount).toBe(1);
+    expect(aggregateDirty).not.toContain(false);
   });
 
   it("edits a frame track as stepped keyframes and previews the swap on the canvas", () => {

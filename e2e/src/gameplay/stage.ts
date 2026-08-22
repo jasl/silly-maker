@@ -12,6 +12,7 @@ import {
   labStageLayerIdsV1,
   labStageTagsV1,
 } from "../stage-ids.ts";
+import { labProcedureSceneV1 } from "../scenes/procedure/index.ts";
 
 /**
  * Engine Lab semantic stage: two backgrounds, two characters, and one prop
@@ -69,34 +70,11 @@ export function labStageMutationsForCollectV1(
   ]);
 }
 
-/** Beginning the procedure moves to the storeroom and brings in both characters. */
-export function labStageMutationsForBeginV1(): readonly StageMutationV1[] {
-  return stageMutationsV1([
-    {
-      kind: "replace",
-      layerId: "layer.e2e.background",
-      tag: labStageTagsV1.background,
-      contentId: labStageContentIdsV1.backgroundStoreroom,
-    },
-    {
-      kind: "show",
-      layerId: "layer.e2e.characters",
-      tag: labStageTagsV1.alpha,
-      contentId: labStageContentIdsV1.characterAlpha,
-      zOrder: 10,
-      placement: { x: 480, y: 620, scalePermille: 1000, opacityPermille: 1000, mirrored: false },
-      appearance: { pose: "standing", expression: "neutral" },
-    },
-    {
-      kind: "show",
-      layerId: "layer.e2e.characters",
-      tag: labStageTagsV1.beta,
-      contentId: labStageContentIdsV1.characterBeta,
-      zOrder: 10,
-      placement: { x: 1120, y: 620, scalePermille: 1000, opacityPermille: 1000, mirrored: true },
-      appearance: { pose: "standing", expression: "neutral" },
-    },
-  ]);
+/** Beginning the procedure opens the one author-managed storeroom scene. */
+export function labStageMutationsForBeginV1(
+  stage: SemanticStageStateV1,
+): readonly StageMutationV1[] {
+  return labProcedureSceneV1.openMutations(stage);
 }
 
 /** The shop's stage effect: whether the purchased banner already hangs. */

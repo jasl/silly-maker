@@ -1,13 +1,22 @@
 // @vitest-environment jsdom
 // SPDX-License-Identifier: MIT
 import "@testing-library/jest-dom/vitest";
-import { useLayoutEffect, useSyncExternalStore } from "react";
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { act, fireEvent, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { parseRegionsDocumentV1, parseSceneDocumentV1 } from "@sillymaker/base";
-import type { RegionsDocumentV1, SceneDocumentV1, StageContentCatalogV1 } from "@sillymaker/base";
+import {
+  parseMotionDocumentV1,
+  parseRegionsDocumentV1,
+  parseSceneDocumentV1,
+} from "@sillymaker/base";
+import type {
+  MotionDocumentV1,
+  RegionsDocumentV1,
+  SceneDocumentV1,
+  StageContentCatalogV1,
+} from "@sillymaker/base";
 import type { SemanticStageEntryRendererV1 } from "@sillymaker/ui";
 import type { MotionSourceIoV1 } from "@sillymaker/ui/debug";
 
@@ -16,10 +25,12 @@ import type { StudioBindingV1 } from "./core/binding.ts";
 import type { RegionsSourceIoV1 } from "./core/regions-io.ts";
 import type { SceneSourceIoV1 } from "./core/scene-io.ts";
 import {
+  createPersistentReactLayoutPublicationInternalV1,
   createReactLayoutPublicationV1,
   createStudioToolingReactPublicationInternalV1,
   createStudioToolingReactPublicationV1,
 } from "./react-publication.tsx";
+import type { PersistentReactLayoutRenderTargetInternalV1 } from "./react-publication.tsx";
 
 interface TestPlanV1 {
   readonly label: string;
@@ -28,6 +39,16 @@ interface TestPlanV1 {
   readonly abortInLayout?: AbortController;
   readonly abortInMicrotask?: AbortController;
   readonly cleanupFailure?: Error;
+}
+
+interface PersistentTestPlanV1 {
+  readonly label: string;
+  readonly failProbeLayout?: boolean;
+  readonly failConnectedLayout?: boolean;
+  readonly abortProbeInLayout?: {
+    readonly controller: AbortController;
+    readonly reason: unknown;
+  };
 }
 
 const mountedPublications: Array<{ dispose(): void }> = [];
@@ -345,6 +366,7 @@ describe("Studio React layout publication", () => {
     await publication.mount({ label: "old" });
     await act(async () => {
       draft.edit("dirty-unsaved");
+      await Promise.resolve();
     });
     const oldHost = container.firstElementChild;
     const oldNode = container.querySelector("[data-draft]");
@@ -365,6 +387,7 @@ describe("Studio React layout publication", () => {
     const container = containerV1();
     const sceneIo = fakeStudioSceneIoV1();
     const motionIo = fakeStudioMotionIoV1();
+    const replacementMotionIo = fakeStudioMotionIoV1();
     const candidateFailure = new Error("candidate renderer rejected dirty draft");
     const flowDispose = vi.fn(() => Promise.resolve());
     const loadFlowWorkspace = vi.fn(() =>
@@ -419,19 +442,25 @@ describe("Studio React layout publication", () => {
     expect(loadFlowWorkspace).toHaveBeenCalledTimes(1);
 
     await expect(publication.publish(
+      studioPlanV1(sceneIo, replacementMotionIo, studioFlowBindingV1()),
+      new AbortController().signal,
+    )).rejects.toThrow("cannot replace its motion IO owner");
+    expect(container.firstElementChild).toBe(oldHost);
+    expect(within(container).getByLabelText("x")).toBe(oldInput);
+    expect(within(container).getByLabelText("x")).toHaveValue(640);
+
+    await expect(publication.publish(
       studioPlanV1(sceneIo, motionIo, studioFlowBindingV1()),
       new AbortController().signal,
     )).resolves.toBeUndefined();
 
-    expect(container.firstElementChild).not.toBe(oldHost);
+    expect(container.firstElementChild).toBe(oldHost);
     expect(container.querySelector("[data-test-flow-implementation=ready]")).not.toBeNull();
     expect(loadFlowWorkspace).toHaveBeenCalledTimes(1);
+    expect(within(container).getByLabelText("x")).toBe(oldInput);
+    expect(within(container).getByLabelText("x")).toHaveValue(640);
     const save = within(container).getByRole("button", { name: "保存" });
     expect(save).toBeEnabled();
-    fireEvent.change(container.querySelector("[data-studio-entry-select]") as HTMLSelectElement, {
-      target: { value: "tag.hero" },
-    });
-    await waitFor(() => expect(within(container).getByLabelText("x")).toHaveValue(640));
     fireEvent.click(save);
     await waitFor(() => expect(sceneIo.writes).toHaveLength(1));
     expect(sceneIo.writes[0]?.sceneDocument.entries[0]?.placement?.x).toBe(640);
@@ -482,16 +511,17 @@ describe("Studio React layout publication", () => {
       new AbortController().signal,
     )).resolves.toBeUndefined();
 
-    expect(container.firstElementChild).not.toBe(oldHost);
+    expect(container.firstElementChild).toBe(oldHost);
     const successorRow = await waitFor(() => {
       const row = container.querySelector('[data-studio-region-row="0"]');
       expect(row).not.toBeNull();
       return row as HTMLElement;
     });
-    fireEvent.click(successorRow);
+    expect(successorRow).toBe(regionRow);
     const successorXInput = container.querySelector(
       '[data-studio-region-field="x"]',
     ) as HTMLInputElement;
+    expect(successorXInput).toBe(xInput);
     expect(successorXInput).toHaveValue(25);
     const save = container.querySelector("[data-studio-regions-save]") as HTMLButtonElement;
     expect(save).toBeEnabled();
@@ -500,7 +530,400 @@ describe("Studio React layout publication", () => {
     expect(regionsIo.writes[0]?.regionsDocument.regions[0]?.x).toBe(25);
     expect(replacementRegionsIo.writes).toHaveLength(0);
   });
+
+  it("mounts the same Host in an input-isolated embedded shell with a dirty close gate", async () => {
+    const container = containerV1();
+    const sceneIo = fakeStudioSceneIoV1();
+    const motionIo = fakeStudioMotionIoV1();
+    const publication = createStudioToolingReactPublicationV1({
+      container,
+      mode: "embedded",
+    });
+    mountedPublications.push(publication);
+    await publication.mount(studioPlanV1(sceneIo, motionIo, studioBindingV1()));
+
+    const host = await waitFor(() => {
+      const current = container.querySelector<HTMLElement>("[data-authoring-host]");
+      expect(current).toHaveAttribute("data-authoring-host-ready", "connected");
+      return current!;
+    });
+    expect(host).toHaveAttribute("data-native-text", "true");
+    expect(container.querySelector("[data-embedded-authoring-shell]")).toHaveAttribute(
+      "data-native-text",
+      "true",
+    );
+    const xInput = await within(container).findByLabelText("x");
+    fireEvent.change(xInput, { target: { value: "640" } });
+    await waitFor(() => expect(xInput).toHaveValue(640));
+
+    fireEvent.click(container.querySelector("[data-embedded-authoring-close]") as HTMLElement);
+    await waitFor(() =>
+      expect(container.querySelector("[data-embedded-authoring-close-confirm]")).not.toBeNull()
+    );
+    fireEvent.click(
+      container.querySelector("[data-embedded-authoring-close-cancel]") as HTMLElement,
+    );
+    expect(container.querySelector("[data-embedded-authoring-panel]")).not.toHaveAttribute(
+      "hidden",
+    );
+    expect(within(container).getByLabelText("x")).toBe(xInput);
+    expect(xInput).toHaveValue(640);
+
+    fireEvent.click(container.querySelector("[data-embedded-authoring-close]") as HTMLElement);
+    fireEvent.click(await within(container).findByRole("button", { name: "放弃并关闭" }));
+    await waitFor(() =>
+      expect(container.querySelector("[data-embedded-authoring-panel]")).toHaveAttribute("hidden")
+    );
+    expect(xInput).toHaveValue(920);
+
+    fireEvent.click(container.querySelector("[data-embedded-authoring-open]") as HTMLElement);
+    expect(container.querySelector("[data-embedded-authoring-panel]")).not.toHaveAttribute(
+      "hidden",
+    );
+    expect(within(container).getByLabelText("x")).toBe(xInput);
+    expect(xInput).toHaveValue(920);
+
+    fireEvent.change(xInput, { target: { value: "700" } });
+    fireEvent.click(container.querySelector("[data-embedded-authoring-close]") as HTMLElement);
+    fireEvent.click(await within(container).findByRole("button", { name: "保存并关闭" }));
+    await waitFor(() => expect(sceneIo.writes).toHaveLength(1));
+    await waitFor(() =>
+      expect(container.querySelector("[data-embedded-authoring-panel]")).toHaveAttribute("hidden")
+    );
+    expect(sceneIo.writes[0]?.sceneDocument.entries[0]?.placement?.x).toBe(700);
+  });
+
+  it("aggregates a Motion-only draft into the Host close and beforeunload gates", async () => {
+    const container = containerV1();
+    const motionDocument = studioMotionDocumentV1();
+    const sceneIo = fakeStudioSceneIoV1(studioSceneDocumentV1(motionDocument.motionId));
+    const motionIo = fakeStudioMotionIoV1(motionDocument);
+    const publication = createStudioToolingReactPublicationV1({
+      container,
+      mode: "embedded",
+    });
+    mountedPublications.push(publication);
+    await publication.mount(studioPlanV1(sceneIo, motionIo, studioBindingV1()));
+
+    const openMotion = await waitFor(() => {
+      const current = container.querySelector<HTMLElement>(
+        '[data-motion-workbench-case="cue.test.hero"]',
+      );
+      expect(current).not.toBeNull();
+      return current!;
+    });
+    fireEvent.click(openMotion);
+    const duration = await waitFor(() => {
+      const current = container.querySelector<HTMLInputElement>("[data-workbench-duration]");
+      expect(current).not.toBeNull();
+      return current!;
+    });
+    fireEvent.change(duration, { target: { value: "470" } });
+    await waitFor(() =>
+      expect(container.querySelector("[data-workbench-save]")).not.toBeDisabled()
+    );
+
+    // Removing the only motion-bearing cue makes the freshly derived preview
+    // model empty. The visible Host must retain the committed Workbench until
+    // its exact dirty selection is explicitly resolved.
+    fireEvent.click(
+      container.querySelector('[data-studio-remove-cue="cue.test.hero"]') as HTMLElement,
+    );
+    await waitFor(() =>
+      expect(container.querySelector('[data-studio-cue="cue.test.hero"]')).toBeNull()
+    );
+    expect(container.querySelector("[data-workbench-duration]")).toBe(duration);
+    expect(duration).toHaveValue(470);
+
+    fireEvent.click(container.querySelector("[data-embedded-authoring-close]") as HTMLElement);
+    await waitFor(() =>
+      expect(container.querySelector("[data-embedded-authoring-close-confirm]")).not.toBeNull()
+    );
+    fireEvent.click(
+      container.querySelector("[data-embedded-authoring-close-cancel]") as HTMLElement,
+    );
+    expect(duration).toHaveValue(470);
+
+    fireEvent.click(container.querySelector("[data-studio-undo]") as HTMLElement);
+    await waitFor(() =>
+      expect(container.querySelector('[data-studio-cue="cue.test.hero"]')).not.toBeNull()
+    );
+    expect(container.querySelector("[data-workbench-duration]")).toBe(duration);
+    expect(duration).toHaveValue(470);
+    expect(container.querySelector("[data-studio-save]")).toBeDisabled();
+
+    const beforeUnload = new Event("beforeunload", { cancelable: true });
+    globalThis.dispatchEvent(beforeUnload);
+    expect(beforeUnload.defaultPrevented).toBe(true);
+
+    fireEvent.click(container.querySelector("[data-embedded-authoring-close]") as HTMLElement);
+    fireEvent.click(await within(container).findByRole("button", { name: "放弃并关闭" }));
+    await waitFor(() =>
+      expect(container.querySelector("[data-embedded-authoring-panel]")).toHaveAttribute("hidden")
+    );
+    expect(duration).toHaveValue(300);
+  });
 });
+
+describe("persistent Studio React layout publication", () => {
+  it("mounts the initial root visibly and identifies visible rendering", async () => {
+    const container = containerV1();
+    const events: string[] = [];
+    const renderTargets: string[] = [];
+    const publication = createPersistentReactLayoutPublicationInternalV1<PersistentTestPlanV1>({
+      container,
+      render(plan, target) {
+        renderTargets.push(`${plan.label}:${target}`);
+        return <PersistentStateProbeV1 plan={plan} target={target} events={events} />;
+      },
+    });
+    mountedPublications.push(publication);
+
+    const mounting = publication.mount({ label: "initial" });
+    expect(container.querySelector("[data-sillymaker-studio-epoch=current]")).not.toBeNull();
+
+    await mounting;
+    expect(renderTargets).toEqual(["initial:visible"]);
+    expect(events).toEqual(["layout:initial:visible:connected"]);
+    expect(container.textContent).toBe("initial:0");
+  });
+
+  it("probes detached, then reuses the visible root and component state", async () => {
+    const container = containerV1();
+    const events: string[] = [];
+    const renderTargets: string[] = [];
+    const publication = createPersistentReactLayoutPublicationInternalV1<PersistentTestPlanV1>({
+      container,
+      render(plan, target) {
+        renderTargets.push(`${plan.label}:${target}`);
+        return <PersistentStateProbeV1 plan={plan} target={target} events={events} />;
+      },
+    });
+    mountedPublications.push(publication);
+    await publication.mount({ label: "old" });
+    const oldHost = container.firstElementChild;
+    const oldButton = container.querySelector("[data-persistent-state]") as HTMLButtonElement;
+    fireEvent.click(oldButton);
+    fireEvent.click(oldButton);
+    expect(oldButton).toHaveTextContent("old:2");
+
+    await publication.publish({ label: "candidate" }, new AbortController().signal);
+
+    expect(container.firstElementChild).toBe(oldHost);
+    expect(container.querySelector("[data-persistent-state]")).toBe(oldButton);
+    expect(oldButton).toHaveTextContent("candidate:2");
+    expect(renderTargets).toEqual([
+      "old:visible",
+      "candidate:probe",
+      "candidate:visible",
+    ]);
+    expect(events).toEqual([
+      "layout:old:visible:connected",
+      "layout:candidate:probe:connected",
+      "cleanup:candidate:probe",
+      "cleanup:old:visible",
+      "layout:candidate:visible:connected",
+    ]);
+  });
+
+  it("leaves the exact current root and state untouched on failed or aborted probes", async () => {
+    const container = containerV1();
+    const events: string[] = [];
+    const renderTargets: string[] = [];
+    const publication = createPersistentReactLayoutPublicationInternalV1<PersistentTestPlanV1>({
+      container,
+      render(plan, target) {
+        renderTargets.push(`${plan.label}:${target}`);
+        return <PersistentStateProbeV1 plan={plan} target={target} events={events} />;
+      },
+    });
+    mountedPublications.push(publication);
+    await publication.mount({ label: "old" });
+    const oldHost = container.firstElementChild;
+    const oldButton = container.querySelector("[data-persistent-state]") as HTMLButtonElement;
+    fireEvent.click(oldButton);
+
+    await expect(publication.publish(
+      { label: "failed", failProbeLayout: true },
+      new AbortController().signal,
+    )).rejects.toThrow("probe layout failed:failed");
+    expect(container.firstElementChild).toBe(oldHost);
+    expect(container.querySelector("[data-persistent-state]")).toBe(oldButton);
+    expect(oldButton).toHaveTextContent("old:1");
+
+    const abort = new AbortController();
+    const abortReason = new DOMException("probe cancelled", "AbortError");
+    await expect(publication.publish(
+      { label: "aborted", abortProbeInLayout: { controller: abort, reason: abortReason } },
+      abort.signal,
+    )).rejects.toBe(abortReason);
+    expect(container.firstElementChild).toBe(oldHost);
+    expect(container.querySelector("[data-persistent-state]")).toBe(oldButton);
+    expect(oldButton).toHaveTextContent("old:1");
+    expect(renderTargets).toEqual([
+      "old:visible",
+      "failed:probe",
+      "aborted:probe",
+    ]);
+  });
+
+  it("rejects a connected-layout candidate before touching the visible root", async () => {
+    const container = containerV1();
+    const events: string[] = [];
+    const publication = createPersistentReactLayoutPublicationInternalV1<PersistentTestPlanV1>({
+      container,
+      render(plan, target) {
+        return <PersistentStateProbeV1 plan={plan} target={target} events={events} />;
+      },
+    });
+    mountedPublications.push(publication);
+    await publication.mount({ label: "old" });
+    const oldHost = container.firstElementChild;
+    const oldButton = container.querySelector("[data-persistent-state]") as HTMLButtonElement;
+    fireEvent.click(oldButton);
+    expect(oldButton).toHaveTextContent("old:1");
+
+    await expect(publication.publish(
+      { label: "bad-connected", failConnectedLayout: true },
+      new AbortController().signal,
+    )).rejects.toThrow("connected layout failed:bad-connected");
+
+    expect(container.firstElementChild).toBe(oldHost);
+    expect(container.querySelector("[data-persistent-state]")).toBe(oldButton);
+    expect(container.textContent).toBe("old:1");
+  });
+
+  it("rolls a visible render-factory failure back without replacing local state", async () => {
+    const container = containerV1();
+    const events: string[] = [];
+    const visibleFailure = new Error("visible render factory failed");
+    const publication = createPersistentReactLayoutPublicationInternalV1<PersistentTestPlanV1>({
+      container,
+      render(plan, target) {
+        if (target === "visible" && plan.label === "bad-visible") throw visibleFailure;
+        return <PersistentStateProbeV1 plan={plan} target={target} events={events} />;
+      },
+    });
+    mountedPublications.push(publication);
+    await publication.mount({ label: "old" });
+    const oldHost = container.firstElementChild;
+    const oldButton = container.querySelector("[data-persistent-state]") as HTMLButtonElement;
+    fireEvent.click(oldButton);
+    expect(oldButton).toHaveTextContent("old:1");
+
+    await expect(publication.publish(
+      { label: "bad-visible" },
+      new AbortController().signal,
+    )).rejects.toBe(visibleFailure);
+
+    expect(container.firstElementChild).toBe(oldHost);
+    expect(container.querySelector("[data-persistent-state]")).toBe(oldButton);
+    expect(container.textContent).toBe("old:1");
+    await expect(publication.publish(
+      { label: "recovered" },
+      new AbortController().signal,
+    )).resolves.toBeUndefined();
+    expect(container.firstElementChild).toBe(oldHost);
+    expect(container.querySelector("[data-persistent-state]")).toBe(oldButton);
+    expect(container.textContent).toBe("recovered:1");
+  });
+
+  it("disposes itself when both a visible candidate and its rollback fail", async () => {
+    const container = containerV1();
+    const candidateFailure = new Error("candidate render failed");
+    const rollbackFailure = new Error("rollback render failed");
+    let oldVisibleRenders = 0;
+    const publication = createPersistentReactLayoutPublicationInternalV1<PersistentTestPlanV1>({
+      container,
+      render(plan, target) {
+        if (target === "visible" && plan.label === "old") {
+          oldVisibleRenders += 1;
+          if (oldVisibleRenders > 1) throw rollbackFailure;
+        }
+        if (target === "visible" && plan.label === "bad") throw candidateFailure;
+        return <div>{plan.label}</div>;
+      },
+    });
+    mountedPublications.push(publication);
+    await publication.mount({ label: "old" });
+
+    let rejection: unknown;
+    try {
+      await publication.publish({ label: "bad" }, new AbortController().signal);
+    } catch (error) {
+      rejection = error;
+    }
+
+    expect(rejection).toBeInstanceOf(AggregateError);
+    expect((rejection as AggregateError).errors).toEqual([candidateFailure, rollbackFailure]);
+    expect(container.childElementCount).toBe(0);
+    await expect(publication.publish(
+      { label: "later" },
+      new AbortController().signal,
+    )).rejects.toMatchObject({ name: "AbortError" });
+    await expect(publication.mount({ label: "later" })).rejects.toMatchObject({
+      name: "AbortError",
+    });
+  });
+
+  it("rejects concurrent publication and aborts in-flight work on dispose", async () => {
+    const container = containerV1();
+    const publication = createPersistentReactLayoutPublicationInternalV1<PersistentTestPlanV1>({
+      container,
+      render: (plan, target) => <PersistentStateProbeV1 plan={plan} target={target} events={[]} />,
+    });
+    mountedPublications.push(publication);
+    await publication.mount({ label: "old" });
+
+    const first = publication.publish({ label: "first" }, new AbortController().signal);
+    await expect(publication.publish(
+      { label: "concurrent" },
+      new AbortController().signal,
+    )).rejects.toThrow("already in progress");
+    await first;
+
+    const inFlight = publication.publish({ label: "disposed" }, new AbortController().signal);
+    publication.dispose();
+    await expect(inFlight).rejects.toMatchObject({ name: "AbortError" });
+    expect(container.childElementCount).toBe(0);
+  });
+});
+
+function PersistentStateProbeV1(props: {
+  readonly plan: PersistentTestPlanV1;
+  readonly target: PersistentReactLayoutRenderTargetInternalV1;
+  readonly events: string[];
+}): ReactElement {
+  const [count, setCount] = useState(0);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    const connected = buttonRef.current?.isConnected === true ? "connected" : "detached";
+    props.events.push(`layout:${props.plan.label}:${props.target}:${connected}`);
+    if (props.target === "probe") {
+      const abort = props.plan.abortProbeInLayout;
+      abort?.controller.abort(abort.reason);
+      if (props.plan.failProbeLayout === true) {
+        throw new Error(`probe layout failed:${props.plan.label}`);
+      }
+    }
+    if (connected === "connected" && props.plan.failConnectedLayout === true) {
+      throw new Error(`connected layout failed:${props.plan.label}`);
+    }
+    return () => {
+      props.events.push(`cleanup:${props.plan.label}:${props.target}`);
+    };
+  }, [props.events, props.plan, props.target]);
+  return (
+    <button
+      ref={buttonRef}
+      data-persistent-state
+      type="button"
+      onClick={() => setCount((value) => value + 1)}
+    >
+      {props.plan.label}:{count}
+    </button>
+  );
+}
 
 function LayoutProbeV1(props: {
   readonly plan: TestPlanV1;
@@ -604,7 +1027,7 @@ interface FakeStudioSceneIoV1 extends SceneSourceIoV1 {
   }>;
 }
 
-function studioSceneDocumentV1(): SceneDocumentV1 {
+function studioSceneDocumentV1(motionId?: string): SceneDocumentV1 {
   return parseSceneDocumentV1({
     format: "sillymaker.scene",
     version: 1,
@@ -624,12 +1047,19 @@ function studioSceneDocumentV1(): SceneDocumentV1 {
         mirrored: false,
       },
     }],
-    cues: [{ cueId: "cue.test.hero", kind: "show", tag: "tag.hero" }],
+    cues: [{
+      cueId: "cue.test.hero",
+      kind: "show",
+      tag: "tag.hero",
+      ...(motionId === undefined ? {} : { motionId }),
+    }],
   });
 }
 
-function fakeStudioSceneIoV1(): FakeStudioSceneIoV1 {
-  let saved = studioSceneDocumentV1();
+function fakeStudioSceneIoV1(
+  initial: SceneDocumentV1 = studioSceneDocumentV1(),
+): FakeStudioSceneIoV1 {
+  let saved = initial;
   let digestRevision = 1;
   const writes: FakeStudioSceneIoV1["writes"] = [];
   return {
@@ -727,10 +1157,41 @@ function fakeStudioRegionsIoV1(): FakeStudioRegionsIoV1 {
   };
 }
 
-function fakeStudioMotionIoV1(): MotionSourceIoV1 {
+function studioMotionDocumentV1(): MotionDocumentV1 {
+  return parseMotionDocumentV1({
+    format: "sillymaker.motion",
+    version: 1,
+    motionId: "motion.test.publication",
+    label: "Publication motion",
+    durationMs: 300,
+    delayMs: 0,
+    tracks: [{
+      channel: "offsetY",
+      keyframes: [
+        { atPermille: 0, value: 120 },
+        { atPermille: 1000, value: 0 },
+      ],
+    }],
+  });
+}
+
+function fakeStudioMotionIoV1(
+  motionDocument?: MotionDocumentV1,
+): MotionSourceIoV1 {
+  const path = "src/scenes/publication/publication.motion.json";
   return {
-    list: () => Promise.resolve({ kind: "ok", motions: [], skipped: [] }),
-    read: () => Promise.resolve({ kind: "error", code: "not_found" }),
+    list: () =>
+      Promise.resolve({
+        kind: "ok",
+        motions: motionDocument === undefined
+          ? []
+          : [{ path, motionId: motionDocument.motionId, label: motionDocument.label }],
+        skipped: [],
+      }),
+    read: (requestedPath) =>
+      requestedPath === path && motionDocument !== undefined
+        ? Promise.resolve({ kind: "ok", digest: "sha256:1", motionDocument })
+        : Promise.resolve({ kind: "error", code: "not_found" }),
     write: () => Promise.resolve({ kind: "error", code: "unavailable" }),
     create: () => Promise.resolve({ kind: "error", code: "unavailable" }),
   };

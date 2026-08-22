@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, ReactElement } from "react";
 
 import type {
@@ -60,6 +60,17 @@ export interface MotionWorkbenchPropsV1 {
   readonly preview: MotionWorkbenchPreviewV1;
   /** The write-back port; omit for a read-only preview (no save). */
   readonly io?: MotionSourceIoV1;
+  /** Optional Host close gate. It receives commands, never the source IO or document session. */
+  readonly registerCloseParticipant?: (
+    participant: MotionWorkbenchCloseParticipantV1,
+  ) => () => void;
+}
+
+export interface MotionWorkbenchCloseParticipantV1 {
+  getState(): { readonly dirty: boolean; readonly busy: boolean; readonly canSave: boolean };
+  subscribe(listener: () => void): () => void;
+  save(): Promise<boolean>;
+  discard(): void;
 }
 
 type WorkbenchSaveStatusV1 =
@@ -197,6 +208,7 @@ interface DotDragStateV1 {
 
 export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
   const { source, preview, io } = props;
+  const registerCloseParticipant = props.registerCloseParticipant;
 
   // The shared authoring session owns saved/draft/dirty, CAS, discard, and
   // undo/redo; the Workbench keeps its edit vocabulary and note texts. The
@@ -441,10 +453,15 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
   const canSave = io !== undefined && savedDigest !== null &&
     parsedDraft.motionDocument !== null && dirty && saveStatus.kind !== "saving";
 
-  const save = (): void => {
-    if (!canSave) return;
-    const validDraft = parsedDraft.motionDocument;
-    if (validDraft === null) return;
+  const saveDocument = useCallback(async (): Promise<boolean> => {
+    const current = session.getSnapshot();
+    const validDraft = current.draft === null
+      ? null
+      : tryParseMotionDocumentV1(current.draft).motionDocument;
+    if (
+      io === undefined || !current.dirty || current.digest === null || current.saving ||
+      validDraft === null
+    ) return false;
     // A Workbench save is a human decision: the asset graduates from
     // "generated" to "human_tuned" so collaboration rules (do not overwrite
     // human-tuned assets) can see it. Locks and notes are preserved.
@@ -453,16 +470,42 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
       authoring: Object.freeze({ ...validDraft.authoring, status: "human_tuned" as const }),
     });
     setSaveStatus({ kind: "saving" });
-    void session.save({ document: motionDocument }).then((result) => {
-      if (result.kind === "ok") {
-        setSaveStatus({ kind: "saved" });
-      } else if (result.kind === "error") {
-        setSaveStatus({ kind: "write_failed", code: result.code as MotionIoErrorCodeV1 });
-      } else {
-        setSaveStatus({ kind: "idle" });
-      }
-    });
-  };
+    const result = await session.save({ document: motionDocument });
+    if (result.kind === "ok") {
+      setSaveStatus({ kind: "saved" });
+      return !session.getSnapshot().dirty;
+    }
+    if (result.kind === "error") {
+      if (result.code === "digest_conflict") await session.refreshSaved();
+      setSaveStatus({ kind: "write_failed", code: result.code as MotionIoErrorCodeV1 });
+    } else {
+      setSaveStatus({ kind: "idle" });
+    }
+    return false;
+  }, [io, session]);
+
+  const save = useCallback((): void => {
+    void saveDocument();
+  }, [saveDocument]);
+
+  useEffect(() => {
+    if (registerCloseParticipant === undefined) return undefined;
+    return registerCloseParticipant(Object.freeze({
+      getState: () => {
+        const current = session.getSnapshot();
+        const validDraft = current.draft !== null &&
+          tryParseMotionDocumentV1(current.draft).motionDocument !== null;
+        return Object.freeze({
+          dirty: current.dirty,
+          busy: current.loading || current.saving,
+          canSave: current.dirty && current.digest !== null && validDraft,
+        });
+      },
+      subscribe: session.subscribe,
+      save: saveDocument,
+      discard: session.discard,
+    }));
+  }, [registerCloseParticipant, saveDocument, session]);
 
   const reload = (): void => {
     if (io === undefined) return;
