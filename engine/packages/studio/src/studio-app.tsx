@@ -39,7 +39,12 @@ import { SceneCuesV1 } from "./workspaces/scene/scene-cues.tsx";
 import { SceneInspectorV1 } from "./workspaces/scene/scene-inspector.tsx";
 import type { SceneEntryResolutionV1 } from "./workspaces/scene/scene-inspector.tsx";
 import { ContentBrowserV1 } from "./workspaces/content/content-browser.tsx";
-import { FlowWorkspaceSectionV1 } from "./workspaces/flow/flow-workspace.tsx";
+import {
+  createFlowWorkspaceActivationOwnerInternalV1,
+  ProgressiveFlowWorkspaceHostInternalV1,
+  useDisposeFlowWorkspaceActivationOnUnmountInternalV1,
+} from "./workspaces/flow/flow-workspace-activation.tsx";
+import type { FlowWorkspaceActivationOwnerInternalV1 } from "./workspaces/flow/flow-workspace-activation.tsx";
 import {
   buildMotionCatalogV1,
   buildMotionWorkbenchModelV1,
@@ -85,6 +90,7 @@ export interface StudioAppPropsV1 {
 interface StudioAppWithAuthoringSessionsPropsV1 extends StudioAppPropsV1 {
   readonly sceneSession: AuthoringDocumentSessionV1<SceneDocumentV1>;
   readonly regionsSession: AuthoringDocumentSessionV1<RegionsDocumentV1> | null;
+  readonly flowActivation: FlowWorkspaceActivationOwnerInternalV1;
 }
 
 const studioPreviewMaxWidthV1 = 720;
@@ -101,11 +107,14 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
     () => props.regionsIo === undefined ? null : createRegionsDocumentSessionV1(props.regionsIo),
     [props.regionsIo],
   );
+  const flowActivation = useMemo(() => createFlowWorkspaceActivationOwnerInternalV1(), []);
+  useDisposeFlowWorkspaceActivationOnUnmountInternalV1(flowActivation);
   return (
     <StudioAppWithAuthoringSessionsV1
       {...props}
       sceneSession={sceneSession}
       regionsSession={regionsSession}
+      flowActivation={flowActivation}
     />
   );
 }
@@ -1011,7 +1020,8 @@ export function StudioAppWithAuthoringSessionsV1(
         />
       )}
       {binding.flow === undefined ? null : (
-        <FlowWorkspaceSectionV1
+        <ProgressiveFlowWorkspaceHostInternalV1
+          activation={props.flowActivation}
           flow={binding.flow}
           {...(binding.resolveText === undefined ? {} : { resolveText: binding.resolveText })}
         />

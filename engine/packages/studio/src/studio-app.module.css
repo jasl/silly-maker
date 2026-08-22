@@ -410,6 +410,18 @@
   padding-block-start: 0.75rem;
 }
 
+.flow-activation-error {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  color: #e8a196;
+}
+
+.flow-activation-error p {
+  margin: 0;
+}
+
 .flow-docs {
   display: flex;
   flex-wrap: wrap;

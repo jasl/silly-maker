@@ -8,6 +8,8 @@ import type { StudioToolingPlanV1 } from "./composition.ts";
 import { createRegionsDocumentSessionV1 } from "./core/regions-session.ts";
 import { createSceneDocumentSessionV1 } from "./core/scene-session.ts";
 import { StudioAppWithAuthoringSessionsV1 } from "./studio-app.tsx";
+import { createFlowWorkspaceActivationOwnerInternalV1 } from "./workspaces/flow/flow-workspace-activation.tsx";
+import type { FlowWorkspaceLoaderInternalV1 } from "./workspaces/flow/flow-workspace-activation.tsx";
 
 interface LayoutCommitV1Props {
   readonly children: ReactNode;
@@ -241,20 +243,30 @@ export interface CreateStudioToolingReactPublicationInputV1 {
   readonly reportFailure?: (error: unknown) => void;
 }
 
+export interface CreateStudioToolingReactPublicationInputInternalV1
+  extends CreateStudioToolingReactPublicationInputV1 {
+  /** Focused-test seam; production always uses the build-known literal loader. */
+  readonly loadFlowWorkspace?: FlowWorkspaceLoaderInternalV1;
+}
+
 /**
  * Owns the dev Studio's epoch roots and its authoring document sessions.
  * Staging and visible epochs receive those exact sessions, so an accepted HMR
  * epoch may remount non-authoritative UI state without discarding unsaved
  * Scene or Regions drafts.
  */
-export function createStudioToolingReactPublicationV1(
-  input: CreateStudioToolingReactPublicationInputV1,
+export function createStudioToolingReactPublicationInternalV1(
+  input: CreateStudioToolingReactPublicationInputInternalV1,
 ): StudioToolingReactPublicationV1 {
   let sceneIo: StudioToolingPlanV1["sceneIo"] | null = null;
   let sceneSession: ReturnType<typeof createSceneDocumentSessionV1> | null = null;
   let regionsIoInitialized = false;
   let regionsIo: StudioToolingPlanV1["regionsIo"];
   let regionsSession: ReturnType<typeof createRegionsDocumentSessionV1> | null = null;
+  const flowActivation = createFlowWorkspaceActivationOwnerInternalV1({
+    ...(input.loadFlowWorkspace === undefined ? {} : { load: input.loadFlowWorkspace }),
+    ...(input.reportFailure === undefined ? {} : { reportFailure: input.reportFailure }),
+  });
   const publication = createReactLayoutPublicationV1<StudioToolingPlanV1>({
     container: input.container,
     ...(input.reportFailure === undefined ? {} : { reportFailure: input.reportFailure }),
@@ -282,6 +294,7 @@ export function createStudioToolingReactPublicationV1(
           {...(plan.regionsIo === undefined ? {} : { regionsIo: plan.regionsIo })}
           sceneSession={sceneSession!}
           regionsSession={regionsSession}
+          flowActivation={flowActivation}
         />
       );
     },
@@ -289,6 +302,21 @@ export function createStudioToolingReactPublicationV1(
   return Object.freeze({
     mount: (plan: StudioToolingPlanV1) => publication.mount(plan),
     publish: (plan: StudioToolingPlanV1, signal: AbortSignal) => publication.publish(plan, signal),
-    dispose: () => publication.dispose(),
+    dispose(): void {
+      publication.dispose();
+      void flowActivation.dispose().catch((error: unknown) => {
+        try {
+          input.reportFailure?.(error);
+        } catch {
+          // Lifecycle diagnostics are observational.
+        }
+      });
+    },
   });
+}
+
+export function createStudioToolingReactPublicationV1(
+  input: CreateStudioToolingReactPublicationInputV1,
+): StudioToolingReactPublicationV1 {
+  return createStudioToolingReactPublicationInternalV1(input);
 }

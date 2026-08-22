@@ -1435,6 +1435,9 @@ describe("StudioAppV1", () => {
         motionIo={fakeMotionIoV1()}
       />,
     );
+    const user = userEvent.setup();
+    expect(withFlow.container.querySelector("[data-studio-flow]")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "打开 Narrative 流程" }));
     await waitFor(() =>
       expect(withFlow.container.querySelector("[data-studio-flow]")).not.toBeNull()
     );

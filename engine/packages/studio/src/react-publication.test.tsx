@@ -17,6 +17,7 @@ import type { RegionsSourceIoV1 } from "./core/regions-io.ts";
 import type { SceneSourceIoV1 } from "./core/scene-io.ts";
 import {
   createReactLayoutPublicationV1,
+  createStudioToolingReactPublicationInternalV1,
   createStudioToolingReactPublicationV1,
 } from "./react-publication.tsx";
 
@@ -360,21 +361,38 @@ describe("Studio React layout publication", () => {
     expect(draft.getSnapshot()).toBe("dirty-unsaved");
   });
 
-  it("keeps the real Studio scene session dirty when a bad binding fails in staging", async () => {
+  it("reuses loaded Flow and the dirty Scene session across rejected and accepted successors", async () => {
     const container = containerV1();
     const sceneIo = fakeStudioSceneIoV1();
     const motionIo = fakeStudioMotionIoV1();
     const candidateFailure = new Error("candidate renderer rejected dirty draft");
-    const publication = createStudioToolingReactPublicationV1({
+    const flowDispose = vi.fn(() => Promise.resolve());
+    const loadFlowWorkspace = vi.fn(() =>
+      Promise.resolve(Object.freeze({
+        consumer: Object.freeze({
+          render() {
+            return <section data-test-flow-implementation="ready">Flow implementation</section>;
+          },
+        }),
+        dispose: flowDispose,
+      }))
+    );
+    const publication = createStudioToolingReactPublicationInternalV1({
       container,
       reportFailure() {},
+      loadFlowWorkspace,
     });
     mountedPublications.push(publication);
-    await publication.mount(studioPlanV1(sceneIo, motionIo, studioBindingV1()));
+    await publication.mount(studioPlanV1(sceneIo, motionIo, studioFlowBindingV1()));
 
     await waitFor(() => {
       expect(within(container).getByLabelText("x")).toHaveValue(920);
     });
+    fireEvent.click(within(container).getByRole("button", { name: "打开 Narrative 流程" }));
+    await waitFor(() => {
+      expect(container.querySelector("[data-test-flow-implementation=ready]")).not.toBeNull();
+    });
+    expect(loadFlowWorkspace).toHaveBeenCalledTimes(1);
     const oldHost = container.firstElementChild;
     const oldInput = within(container).getByLabelText("x");
     fireEvent.change(oldInput, { target: { value: "640" } });
@@ -387,7 +405,7 @@ describe("Studio React layout publication", () => {
       studioPlanV1(
         sceneIo,
         motionIo,
-        studioBindingV1(({ entry }) => {
+        studioFlowBindingV1(({ entry }) => {
           if (entry.placement.x === 640) throw candidateFailure;
           return <span>{entry.contentId}</span>;
         }),
@@ -398,11 +416,28 @@ describe("Studio React layout publication", () => {
     expect(container.firstElementChild).toBe(oldHost);
     expect(within(container).getByLabelText("x")).toBe(oldInput);
     expect(within(container).getByLabelText("x")).toHaveValue(640);
+    expect(loadFlowWorkspace).toHaveBeenCalledTimes(1);
+
+    await expect(publication.publish(
+      studioPlanV1(sceneIo, motionIo, studioFlowBindingV1()),
+      new AbortController().signal,
+    )).resolves.toBeUndefined();
+
+    expect(container.firstElementChild).not.toBe(oldHost);
+    expect(container.querySelector("[data-test-flow-implementation=ready]")).not.toBeNull();
+    expect(loadFlowWorkspace).toHaveBeenCalledTimes(1);
     const save = within(container).getByRole("button", { name: "保存" });
     expect(save).toBeEnabled();
+    fireEvent.change(container.querySelector("[data-studio-entry-select]") as HTMLSelectElement, {
+      target: { value: "tag.hero" },
+    });
+    await waitFor(() => expect(within(container).getByLabelText("x")).toHaveValue(640));
     fireEvent.click(save);
     await waitFor(() => expect(sceneIo.writes).toHaveLength(1));
     expect(sceneIo.writes[0]?.sceneDocument.entries[0]?.placement?.x).toBe(640);
+
+    publication.dispose();
+    await waitFor(() => expect(flowDispose).toHaveBeenCalledTimes(1));
   });
 
   it("keeps the Regions IO owner and dirty session across rejected and accepted successors", async () => {
@@ -722,6 +757,18 @@ function studioBindingV1(
   return Object.freeze({
     catalog,
     renderers: Object.freeze({ "renderer.test.box": renderer }),
+  });
+}
+
+function studioFlowBindingV1(
+  renderer: SemanticStageEntryRendererV1 = ({ entry }) => <span>{entry.contentId}</span>,
+): StudioBindingV1 {
+  return Object.freeze({
+    ...studioBindingV1(renderer),
+    flow: Object.freeze({
+      nodes: Object.freeze([]),
+      edges: Object.freeze([]),
+    }),
   });
 }
 
