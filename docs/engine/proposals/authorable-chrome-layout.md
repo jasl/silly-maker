@@ -1,10 +1,16 @@
 # Authorable chrome layout proposal（铬布局文档、Chrome workspace 与意图绑定）
 
-状态：**已接受（务实 V1）**（2026-08-22 所有者裁决：Open questions 按
-建议定；「不确定这个方案是否能完全解决问题，但可以先这么做，下一轮
-引擎迭代再统筹更系统的方案（如果存在）」——本 lane 是务实分层落地，
-不是场景/物体/交互统一抽象的终局裁决）。M0（Story 侧布局文档）已在
-外部实验仓先行落地，零引擎改动；M1 起的执行顺序与验收见
+状态：**已交付（M0–M2 + 双消费者，2026-08-22 当日闭合）**（同日所有
+者裁决接受：Open questions 按建议定；「不确定这个方案是否能完全解决
+问题，但可以先这么做，下一轮引擎迭代再统筹更系统的方案（如果存
+在）」——本 lane 是务实分层落地，不是场景/物体/交互统一抽象的终局裁
+决）。闭合记录：M0（Story 侧布局文档）在外部实验仓先行落地，零引擎
+改动；M1（`sillymaker.chrome-layout` 家族 + index + story check +
+CAS 端口）与 M2（Studio 界面布局工作区 + `StudioBindingV1.chrome`
+fixture + template HUD 仓内消费者，浏览器验收 = template.spec.ts 拖
+框→保存→落盘毕业）当日合入；外部实验仓 HUD 同日迁移到引擎家族并删
+除本地解析器（第二消费者）。M3（意图绑定 widget）按计划另立证据门，
+未开。执行顺序与验收见
 [Authorable chrome layout 计划](../plans/2026-08-22-authorable-chrome-layout.md)。
 
 创作者需求：「道具栏/状态板的页签热区偏了，我只能报 bug——位置明明是

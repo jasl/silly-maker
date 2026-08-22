@@ -1,15 +1,18 @@
 # Authorable chrome layout V1（铬布局文档与 Chrome workspace）实施计划
 
-状态：**2026-08-22 开启，M1–M2 当日交付**（所有者当日接受提案，open
-questions q1–q3 全按建议采纳；明确定性为务实 V1——「下一轮引擎迭代再
-统筹更系统的方案（如果存在）」，本车道不是场景/物体/交互统一抽象的终
-局裁决）。合同：`docs/engine/proposals/authorable-chrome-layout.md`。
-M0（Story 侧布局文档）已于同日在外部实验仓先行交付，零引擎改动；M1
-（引擎家族 + index + lint + CAS 端口）与 M2（Studio Chrome workspace
-加 `StudioBindingV1.chrome` fixture 加 template HUD 仓内消费者，浏览
-器验收为 template.spec.ts 的 chrome M2 用例：拖框 → 保存 → 落盘毕业
-`human_tuned`）同日合入。剩余：外部实验仓 HUD 从本地解析器迁移到引擎
-家族（第二消费者）。本文只拥有切片顺序、admission 落地与验收；
+状态：**2026-08-22 开启并当日闭合（M0–M2 + 双消费者交付）**（所有者
+当日接受提案，open questions q1–q3 全按建议采纳；明确定性为务实
+V1——「下一轮引擎迭代再统筹更系统的方案（如果存在）」，本车道不是场
+景/物体/交互统一抽象的终局裁决）。合同：
+`docs/engine/proposals/authorable-chrome-layout.md`（闭合记录在提案状
+态段）。M0（Story 侧布局文档）于同日在外部实验仓先行交付，零引擎改
+动；M1（引擎家族 + index + lint + CAS 端口）与 M2（Studio Chrome
+workspace 加 `StudioBindingV1.chrome` fixture 加 template HUD 仓内消
+费者，浏览器验收为 template.spec.ts 的 chrome M2 用例：拖框 → 保存 →
+落盘毕业 `human_tuned`）同日合入；外部实验仓 HUD 同日迁移到引擎家族
+（`main-hud.chrome-layout.json` + 引擎 parser，本地解析器删除，全量
+vitest 绿）。M3 按证据门保持未开。本文只拥有切片顺序、admission 落地
+与验收；
 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 仍是唯一跨计划排序入口。
 
