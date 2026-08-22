@@ -9,6 +9,7 @@ export type {
   StudioAppearanceFieldV1,
   StudioAssetRegistryPortV1,
   StudioBindingV1,
+  StudioChromeFixtureV1,
   StudioContentDescriptorV1,
 } from "./core/binding.ts";
 export { createDevServerSceneIoV1 } from "./core/scene-io.ts";
@@ -31,3 +32,13 @@ export type {
   RegionsIoWriteResultV1,
   RegionsSourceIoV1,
 } from "./core/regions-io.ts";
+export { createDevServerChromeLayoutIoV1 } from "./core/chrome-layout-io.ts";
+export type {
+  ChromeLayoutIoErrorCodeV1,
+  ChromeLayoutIoListEntryV1,
+  ChromeLayoutIoListResultV1,
+  ChromeLayoutIoListSkipV1,
+  ChromeLayoutIoReadResultV1,
+  ChromeLayoutIoWriteResultV1,
+  ChromeLayoutSourceIoV1,
+} from "./core/chrome-layout-io.ts";

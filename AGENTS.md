@@ -122,7 +122,10 @@ Read only the documents relevant to the change:
   a Studio Chrome workspace rendering Story-declared chrome fixtures
   with a wireframe fallback, and dual consumers (template HUD box
   in-repo; the external experiment repo HUD migrating off its M0
-  story-local parser). Layout documents stay zero-authority
+  story-local parser). M1–M2 delivered 2026-08-22 (family + tooling;
+  workspace + `StudioBindingV1.chrome` + template HUD consumer with
+  browser acceptance); the experiment-repo migration is the remaining
+  slice. Layout documents stay zero-authority
   presentation data; behavior booleans and legality stay in Story code.
   Desktop persistence remains an independent promotion gate while the
   adapter is preview.

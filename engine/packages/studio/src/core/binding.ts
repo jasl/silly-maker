@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: MIT
-import type { StageContentCatalogV1, StagePlacementV1 } from "@sillymaker/base";
+import type { ReactNode } from "react";
+
+import type {
+  ChromeLayoutDocumentV1,
+  StageContentCatalogV1,
+  StagePlacementV1,
+} from "@sillymaker/base";
 import type { SemanticStageEntryRendererV1 } from "@sillymaker/ui";
 
 /**
@@ -112,6 +118,26 @@ export interface NarrativeFlowGraphV1 {
   readonly edges: readonly NarrativeFlowGraphEdgeV1[];
 }
 
+/**
+ * One Story-declared chrome preview fixture (authorable-chrome-layout,
+ * accepted 2026-08-22, open question q3: the Story declares what renders,
+ * the engine never guesses a publication shape). `render` receives the
+ * workspace's current draft document and returns the real chrome tree —
+ * the Story component closes over frozen sample data (a representative
+ * publication snapshot, stub intent handlers) and reads its geometry from
+ * the passed document, so dragging a box re-renders the actual HUD. The
+ * returned tree is presentation-only: Studio disables pointer events on
+ * it (drag handles sit above) and isolates render failures (a renamed or
+ * deleted entry a component still reads must not take the workspace
+ * down — the wireframe stays editable).
+ */
+export interface StudioChromeFixtureV1 {
+  /** The chrome-layout document this fixture can render. */
+  readonly layoutId: string;
+  readonly label: string;
+  render(layout: ChromeLayoutDocumentV1): ReactNode;
+}
+
 /** The application's Studio binding, declared in `sillymaker.config.ts`. */
 export interface StudioBindingV1 {
   readonly catalog: StageContentCatalogV1;
@@ -138,4 +164,10 @@ export interface StudioBindingV1 {
    * unknown ids. Presentation-only — never a second text authority.
    */
   readonly resolveText?: (textId: string) => string | null;
+  /**
+   * Chrome preview fixtures for the Chrome workspace, matched to open
+   * documents by layoutId. Omitted (or unmatched): the workspace still
+   * edits every chrome-layout document over a pure wireframe preview.
+   */
+  readonly chrome?: readonly StudioChromeFixtureV1[];
 }

@@ -298,12 +298,12 @@ export function parseChromeLayoutDocumentV1(value: unknown, path = ""): ChromeLa
   const offsets = parseChromeLayoutSectionV1(
     record.offsets,
     `${path}/offsets`,
-    (value, path) =>
+    (entryValue, entryPath) =>
       requireChromeLayoutIntV1(
-        value,
+        entryValue,
         -chromeLayoutMaxCoordinateV1,
         chromeLayoutMaxCoordinateV1,
-        path,
+        entryPath,
         "chrome_layout_offset_invalid",
       ),
   );

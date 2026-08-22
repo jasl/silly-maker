@@ -39,6 +39,8 @@ import {
 } from "./workspaces/motion/motion-cases.ts";
 import { MotionWorkspaceSectionV1 } from "./workspaces/motion/motion-workspace.tsx";
 import { RegionsWorkspaceSectionV1 } from "./workspaces/regions/regions-workspace.tsx";
+import { ChromeWorkspaceSectionV1 } from "./workspaces/chrome/chrome-workspace.tsx";
+import type { ChromeLayoutSourceIoV1 } from "./core/chrome-layout-io.ts";
 import type { StudioBindingV1, StudioContentDescriptorV1 } from "./core/binding.ts";
 import styles from "./studio-app.module.css";
 
@@ -50,6 +52,7 @@ export type {
   StudioAppearanceFieldV1,
   StudioAssetRegistryPortV1,
   StudioBindingV1,
+  StudioChromeFixtureV1,
   StudioContentDescriptorV1,
 } from "./core/binding.ts";
 
@@ -73,6 +76,8 @@ export interface StudioAppPropsV1 {
   readonly motionIo: MotionSourceIoV1;
   /** The regions port; omitted hides the Regions workspace entirely. */
   readonly regionsIo?: RegionsSourceIoV1;
+  /** The chrome-layout port; omitted hides the Chrome workspace entirely. */
+  readonly chromeIo?: ChromeLayoutSourceIoV1;
 }
 
 const studioPreviewMaxWidthV1 = 720;
@@ -84,7 +89,7 @@ function saveNoteV1(code: string): string {
 }
 
 export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
-  const { binding, io, motionIo, regionsIo } = props;
+  const { binding, io, motionIo, regionsIo, chromeIo } = props;
   const [scenes, setScenes] = useState<readonly SceneIoListEntryV1[] | null>(null);
   const [sceneSkips, setSceneSkips] = useState<readonly SceneIoListSkipV1[]>(Object.freeze([]));
   // Index-enumerated motion documents (null while loading); registration-free.
@@ -976,6 +981,13 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
             ? { canvas: draft.canvas, target: canvasCompiled.target }
             : null}
           scale={scale}
+          storyHint={sceneIdPrefix.split(".")[1] ?? null}
+        />
+      )}
+      {chromeIo === undefined ? null : (
+        <ChromeWorkspaceSectionV1
+          io={chromeIo}
+          fixtures={binding.chrome ?? Object.freeze([])}
           storyHint={sceneIdPrefix.split(".")[1] ?? null}
         />
       )}

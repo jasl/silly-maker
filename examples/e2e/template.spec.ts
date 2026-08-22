@@ -130,18 +130,21 @@ test("the starter Studio gates reload behind a dirty-draft confirm (S0.3)", asyn
   await xInput.fill("700");
 
   // Reloading with a dirty draft asks first; cancel keeps the draft.
-  await page.getByRole("button", { name: "重新加载" }).click();
+  // (The scene topbar is the shell banner — the Chrome workspace below
+  // carries same-named session buttons for its own document.)
+  const topbar = page.getByRole("banner");
+  await topbar.getByRole("button", { name: "重新加载" }).click();
   const confirm = page.locator("[data-studio-dirty-confirm]");
   await expect(confirm).toBeVisible();
-  await page.getByRole("button", { name: "取消" }).click();
+  await confirm.getByRole("button", { name: "取消" }).click();
   await expect(confirm).toHaveCount(0);
   await expect(xInput).toHaveValue("700");
 
   // Discarding reloads the saved document; the draft never hit the disk.
   // Reopening resets the entry selection to the first entry — wait for that
   // reset (the reload landing) before reselecting Mei.
-  await page.getByRole("button", { name: "重新加载" }).click();
-  await page.getByRole("button", { name: "放弃修改" }).click();
+  await topbar.getByRole("button", { name: "重新加载" }).click();
+  await confirm.getByRole("button", { name: "放弃修改" }).click();
   await expect(page.getByLabel("条目")).not.toHaveValue("tag.mei");
   await page.getByLabel("条目").selectOption("tag.mei");
   await expect(page.getByLabel("x", { exact: true })).toHaveValue(initialX);
@@ -190,8 +193,8 @@ test("the starter Studio constructs a scene from blank: content, cue, new motion
 
     // Save the constructed scene; both documents now live on disk and no
     // barrel, catalog, binding list, composition, or config was edited.
-    await page.getByRole("button", { name: "保存" }).click();
-    await expect(page.getByRole("status")).toContainText("已保存");
+    await page.getByRole("banner").getByRole("button", { name: "保存" }).click();
+    await expect(page.locator("[data-studio-note]")).toContainText("已保存");
 
     const sceneJson = JSON.parse(
       readFileSync(`${patioDirectory}/patio.scene.json`, "utf8"),
@@ -210,5 +213,65 @@ test("the starter Studio constructs a scene from blank: content, cue, new motion
     expect(motionJson.authoring.status).toBe("generated");
   } finally {
     if (existsSync(patioDirectory)) rmSync(patioDirectory, { recursive: true, force: true });
+  }
+});
+
+test("the starter Studio edits chrome layout: fixture preview, box drag, save to disk (chrome M2)", async ({ page }) => {
+  // The created document is real disk under the starter's chrome tree;
+  // remove it afterwards so reruns (and the next browser project) start
+  // clean. Nothing imports it, so no dev server reloads over HMR.
+  const lobbyPath = fileURLToPath(
+    new URL("../../template/src/chrome/lobby.chrome-layout.json", import.meta.url),
+  );
+  try {
+    await page.goto(templateTargetUrlV1("__sillymaker/studio/"));
+    const chrome = page.locator("[data-studio-chrome]");
+
+    // The shipped HUD document auto-opens; the Story-declared fixture
+    // renders the real HUD strip under the wireframe handles, positioned
+    // by the same document the game reads.
+    await expect(chrome.locator('[data-studio-chrome-doc="layout.template.hud"]'))
+      .toHaveAttribute("aria-pressed", "true");
+    await expect(chrome.locator("[data-studio-chrome-fixture] [data-template-hud]"))
+      .toBeVisible();
+    await expect(chrome.locator('[data-studio-chrome-box="status-strip"]')).toBeVisible();
+
+    // A new document over the dev port: no fixture declared, so the
+    // wireframe alone is the preview — still fully editable.
+    await chrome.locator("[data-studio-chrome-new]").click();
+    await chrome.locator("[data-studio-chrome-new-stem]").fill("lobby");
+    await chrome.locator("[data-studio-chrome-new-create]").click();
+    await expect(chrome.locator('[data-studio-chrome-doc="layout.template.lobby"]'))
+      .toHaveAttribute("aria-pressed", "true");
+
+    // Add a box and drag it on the canvas; the inspector row follows.
+    await chrome.locator("[data-studio-chrome-add-box]").click();
+    const box = chrome.locator('[data-studio-chrome-box="box-1"]');
+    await expect(box).toBeVisible();
+    const xField = chrome.getByLabel("X", { exact: true });
+    await expect(xField).toHaveValue("448");
+    const bounds = await box.boundingBox();
+    if (bounds === null) throw new Error("chrome box has no bounding box");
+    await page.mouse.move(bounds.x + 8, bounds.y + 8);
+    await page.mouse.down();
+    await page.mouse.move(bounds.x + 79, bounds.y + 8, { steps: 3 });
+    await page.mouse.up();
+    const draggedX = Number(await xField.inputValue());
+    expect(draggedX).toBeGreaterThan(448);
+
+    // Save graduates the document and lands it on disk byte-for-byte with
+    // the inspector state.
+    await chrome.locator("[data-studio-chrome-save]").click();
+    await expect(chrome.locator("[data-studio-chrome-note]")).toContainText("已保存");
+    const lobbyJson = JSON.parse(readFileSync(lobbyPath, "utf8")) as {
+      layoutId: string;
+      boxes: Record<string, { x: number }>;
+      authoring: { status: string };
+    };
+    expect(lobbyJson.layoutId).toBe("layout.template.lobby");
+    expect(lobbyJson.boxes["box-1"]?.x).toBe(draggedX);
+    expect(lobbyJson.authoring.status).toBe("human_tuned");
+  } finally {
+    if (existsSync(lobbyPath)) rmSync(lobbyPath, { force: true });
   }
 });

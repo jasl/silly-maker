@@ -4,9 +4,11 @@
 import type { ReactElement } from "react";
 
 import type { DeepReadonly } from "@sillymaker/base";
+import type { ChromeLayoutDocument } from "@sillymaker/base/story";
 import type { NarrativeSurfaceRendererPropsV1 } from "@sillymaker/ui";
 import { Button } from "@sillymaker/ui";
 
+import { templateHudBoxNameV1, templateHudChromeLayoutV1 } from "../chrome/index.ts";
 import type { TemplateActionIdV1 } from "./semantic.ts";
 import type { TemplateApplicationInstanceV1 } from "./core-definition.ts";
 import type { TemplateUiPublicationV1 } from "./composition.tsx";
@@ -168,9 +170,29 @@ export function TemplateNarrativeRendererV1(
 export function TemplateHudV1(props: {
   readonly publication: DeepReadonly<TemplateUiPublicationV1>;
   readonly semantic: TemplateSemanticPortV1;
-}): ReactElement {
+  /** Studio chrome-fixture override: the workspace passes its live draft. */
+  readonly layout?: ChromeLayoutDocument;
+}): ReactElement | null {
+  // Geometry comes from the chrome-layout document (authored data, same
+  // file the Studio Chrome workspace edits); runtime admission guarantees
+  // the box exists, and a fixture draft missing it simply hides the strip.
+  const box = (props.layout ?? templateHudChromeLayoutV1).boxes[templateHudBoxNameV1];
+  if (box === undefined) return null;
   return (
-    <div data-template-hud="true" style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+    <div
+      data-template-hud="true"
+      style={{
+        position: "absolute",
+        insetInlineStart: `${String(box.x)}px`,
+        insetBlockStart: `${String(box.y)}px`,
+        inlineSize: `${String(box.width)}px`,
+        minBlockSize: `${String(box.height)}px`,
+        display: "flex",
+        gap: "12px",
+        alignItems: "center",
+        flexWrap: "wrap",
+      }}
+    >
       <span data-template-coins={String(props.publication.view.coins)}>
         {templateUiTextV1("text.template.hud.coins")}
         {String(props.publication.view.coins)}
