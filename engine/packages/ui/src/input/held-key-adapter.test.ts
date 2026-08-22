@@ -34,11 +34,15 @@ describe("createHeldKeyInputV1", () => {
     expect(heldIdsV1(input)).toEqual([fastForwardV1]);
     expect(listener).toHaveBeenCalledTimes(1);
 
-    // Repeats and unmapped keys neither re-engage nor notify.
+    // Repeats neither re-engage nor notify. An unmapped companion key
+    // cancels the exclusive hold.
     keyV1("keydown", "Control", document, { repeat: true });
-    keyV1("keydown", "Shift");
     expect(listener).toHaveBeenCalledTimes(1);
+    keyV1("keydown", "Shift");
+    expect(heldIdsV1(input)).toEqual([]);
+    expect(listener).toHaveBeenCalledTimes(2);
 
+    keyV1("keyup", "Shift");
     keyV1("keyup", "Control");
     expect(heldIdsV1(input)).toEqual([]);
     expect(listener).toHaveBeenCalledTimes(2);
@@ -110,14 +114,13 @@ describe("createHeldKeyInputV1", () => {
     dock.remove();
 
     keyV1("keydown", "Control");
-    keyV1("keydown", "Shift");
-    expect(heldIdsV1(input)).toHaveLength(2);
+    expect(heldIdsV1(input)).toEqual([fastForwardV1]);
     window.dispatchEvent(new Event("blur"));
     expect(heldIdsV1(input)).toEqual([]);
     uninstall();
   });
 
-  it("reference-counts multiple keys mapped to one action", () => {
+  it("lets either mapped key engage alone, but a second key is a chord", () => {
     const input = createHeldKeyInputV1();
     const uninstall = input.install({
       map: { Control: fastForwardV1, Meta: fastForwardV1 },
@@ -126,17 +129,43 @@ describe("createHeldKeyInputV1", () => {
     input.port.state.subscribe(listener);
 
     keyV1("keydown", "Control");
+    expect(heldIdsV1(input)).toEqual([fastForwardV1]);
     keyV1("keydown", "Meta");
-    expect(heldIdsV1(input)).toEqual([fastForwardV1]);
-    expect(listener).toHaveBeenCalledTimes(1);
-
-    keyV1("keyup", "Control");
-    expect(heldIdsV1(input)).toEqual([fastForwardV1]);
-    expect(listener).toHaveBeenCalledTimes(1);
-
-    keyV1("keyup", "Meta");
     expect(heldIdsV1(input)).toEqual([]);
     expect(listener).toHaveBeenCalledTimes(2);
+
+    keyV1("keyup", "Meta");
+    keyV1("keyup", "Control");
+    keyV1("keydown", "Meta");
+    expect(heldIdsV1(input)).toEqual([fastForwardV1]);
+    keyV1("keyup", "Meta");
+    expect(heldIdsV1(input)).toEqual([]);
+    uninstall();
+  });
+
+  it("engages only an exclusive mapped key; chords never resume mid-hold", () => {
+    const input = createHeldKeyInputV1();
+    const uninstall = input.install({ map: { Control: fastForwardV1 } });
+
+    keyV1("keydown", "Alt");
+    keyV1("keydown", "Control", document, { altKey: true });
+    expect(heldIdsV1(input)).toEqual([]);
+
+    keyV1("keyup", "Alt");
+    expect(heldIdsV1(input)).toEqual([]);
+    keyV1("keyup", "Control");
+
+    keyV1("keydown", "Control");
+    expect(heldIdsV1(input)).toEqual([fastForwardV1]);
+    keyV1("keydown", "Alt");
+    expect(heldIdsV1(input)).toEqual([]);
+    keyV1("keyup", "Alt");
+    expect(heldIdsV1(input)).toEqual([]);
+    keyV1("keyup", "Control");
+
+    keyV1("keydown", "Control");
+    keyV1("keydown", "a");
+    expect(heldIdsV1(input)).toEqual([]);
     uninstall();
   });
 
