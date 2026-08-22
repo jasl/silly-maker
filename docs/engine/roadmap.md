@@ -159,8 +159,14 @@ candidate 保持 package-private、explicit、default-off。首个经 release so
 maintained Desktop dev workflow。这是独立、条件性的 Desktop HMR revalidation defer，只 gate 该
 maintained workflow，没有阻塞 AR5/AR6 closure，也不阻塞其他工作。不为
 2.9.5 建临时 proxy/shim/fork，static R3、Deno `>=2.9.0` floor 与 latest-stable CI 均不变。
-AR6 closure 与 owner checkpoint 也已完成；当前没有自动领取的下一项，不从该 Desktop defer 派生
-默认 backlog，下一条 engine/product lane 交还 owner 选择。
+AR6 closure 与 owner checkpoint 也已完成。2026-08-23 所有者随后指示继续下一项引擎工作；live
+Host/consumer 复查选择
+[Authoring Workspace Focus & Navigation V1](plans/2026-08-23-authoring-workspace-focus-navigation.md)
+为当前车道：让已有 closed workspace manifest 成为 Host-owned focus、accessible rail 与单一可见
+workspace，保持 dirty session、progressive Flow、standalone/embedded 与 Authoring R1 连续性。
+该工作不从 Desktop defer 派生，不等待或启用 Desktop HMR；车道后的下一项仍由 owner checkpoint
+决定。普通 Browser 产品 R2 另有 authoritative Snapshot continuity/Save compatibility 缺口，不能只靠
+Vite wiring promotion。
 排序与交付记录以
 [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md) §1
 为准；稳定 promoted capability 以 [features](features.md) 为准，AR4 private provisional seam
@@ -430,8 +436,9 @@ Host/session/workspace/source-IO owner，并以 Engine Lab 的真实 Scene 与 G
 admitted `UiArtifact` → current `UiIntent` → captured AR2 Scene operation，并证明 unavailable/retry、
 stale/invalid/cancelled-late 拒绝和 Chromium/WebKit ordinary-Player evidence。AR5 已完成 Browser/build/
 lifetime/performance promotion 并交付关闭；AR6 closure/owner checkpoint 也已完成，记录仍由
-[Application Runtime plan](plans/2026-08-18-application-runtime-embedded-authoring.md) 拥有；下一条 lane
-交还 owner 选择。
+[Application Runtime plan](plans/2026-08-18-application-runtime-embedded-authoring.md) 拥有。当前
+[Workspace focus/navigation 计划](plans/2026-08-23-authoring-workspace-focus-navigation.md) 实现本节
+已接受但 live Host 缺失的第一层导航，不改变各 workspace 的领域 authority，也不启用 Desktop HMR。
 
 Editor 写普通 TS 或被 TS 引用的稳定数据（JSON 文档经严格 admission），不形成另一
 种运行时语言。

@@ -116,8 +116,17 @@ Read only the documents relevant to the change:
   version-gate by a presumed 2.9.6.
   AR5 delivered and closed on 2026-08-23 without claiming live Desktop HMR or
   Desktop production promotion; AR6 closure and owner checkpoint also completed
-  that day, so this lane has no automatic next item. The next engine/product lane
-  requires a separate owner decision. The first
+  that day. The owner then instructed the next engine work to begin; the live
+  Host/consumer audit selected
+  `docs/engine/plans/2026-08-23-authoring-workspace-focus-navigation.md` as the
+  current lane. It turns the existing closed workspace manifest into Host-owned
+  session-local focus, an accessible rail, and one visible workspace while
+  preserving dirty sessions, progressive Flow, standalone/embedded shells, and
+  Authoring R1 continuity. It does not build an IDE, WindowManager, or public
+  workspace/plugin ABI, and it neither waits for nor activates Desktop HMR. The
+  same audit found that ordinary Browser product R2 still lacks authoritative
+  Snapshot continuity across its lease-only rebootstrap disposition; treat that
+  as a separate Save/Session contract decision, not as Vite wiring. The first
   stable whose source and behavior contain that path must re-run the same
   acceptance before the maintained Desktop development workflow activates. Until
   then the adapter remains package-private, explicit, and default-off. This

@@ -54,8 +54,15 @@ component/registry export 已通过模块边界拆分修复，并由 Chromium/We
 overlay 保留。AR5 因而于 2026-08-23 交付关闭；该 closure 明确不包含 live/maintained Desktop HMR
 或 Desktop production promotion。AR6 closure 与 owner checkpoint 也已于同日完成：被替代的
 lifecycle/publication/promotion scaffolding 已删除，Direct 选择与 no-extension evidence 保留，live
-文档和未满足边界已同步。Application Runtime AR0–AR6 至此关闭，当前没有自动领取的下一项；下一条
-engine/product lane 由 owner 另行选择和接受。首个经 release
+文档和未满足边界已同步。Application Runtime AR0–AR6 至此关闭。2026-08-23 所有者指示继续下一项
+引擎工作；live Host/consumer 复查选择
+[Authoring Workspace Focus & Navigation V1](2026-08-23-authoring-workspace-focus-navigation.md)
+为当前车道：把已有 closed manifest 的五个纵向 section 收口为 Host-owned focus、accessible rail 与
+单一可见 workspace，保持 standalone/embedded、dirty session、progressive Flow 与 Authoring R1
+连续性。它不建设 IDE/WindowManager/plugin registry，也不等待或启用 Desktop HMR。普通 Browser
+产品 R2 在排序审计中暴露了尚未裁决的 authoritative Snapshot continuity 缺口：现有 rebootstrap
+disposition 只移交 persistence lease，不能把 tooling 接线冒充 product promotion；该问题留待独立
+合同计划。当前 workspace 车道关闭前没有自动排列后继项。首个经 release
 source/行为确认包含目标路径的 stable（2.9.6 只是预期候选）仍须重跑同一分层验收，全部通过后才
 正式打开 maintained Desktop development workflow。此前 adapter 保持 package-private、explicit、
 default-off；这条独立、条件性的 Desktop activation follow-up 没有阻塞 AR5/AR6 closure，也不阻塞
@@ -67,8 +74,9 @@ headless 只作开发/测试辅助，外部后台与 LLM 统一经 RPC。AR1 没
 ABI、runtime code installation、State Format V2、Effect Broker、具体 OpenUI/A2UI adapter 或
 production Story State migration；Cordis adapter/vendor/dependency 已删除。ordinary no-extension
 静态游戏 release 仍不得包含 author/source-write、selected Direct extension runtime 或 RPC
-implementation。AR6 后的作品/examples/产品或下一条 engine lane 由所有者另行选择和立案，不在本
-计划预先排序。stable Deno Desktop revalidation 在满足 release source/行为进入条件后作为独立
+implementation。AR6 后的首条 engine lane 已按上述 owner 指示立案；其后的作品/examples/产品或
+engine lane 不在本计划预先排序。stable Deno Desktop revalidation 在满足 release source/行为进入
+条件后作为独立
 activation follow-up 领取，不占用或阻塞未来 owner-accepted current/next。
 
 最近一条已关闭的能力车道（不形成 active/next）：

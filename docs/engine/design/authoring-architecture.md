@@ -21,6 +21,13 @@ Runtime 能力。2026-08-15 外部评审与所有者结论一致。
 source-write。未来 Desktop/remote author Host 若取得写回能力，须由独立 promotion 复用同一
 CAS contract；普通 runtime/Player 永远不因嵌入 shell 获得 source-write。
 
+2026-08-23 开启的
+[Workspace Focus & Navigation V1](../plans/2026-08-23-authoring-workspace-focus-navigation.md)
+开始补齐本文 §2 已接受、但 live Host 尚未拥有的 workspace focus 第一层：closed manifest 驱动
+Host session-local active/visited state、accessible rail 与单一可见 panel。它不等于 typed
+cross-workspace target、可持久化 IDE layout 或 public workspace ABI；这些仍需真实 consumer
+另行立案。
+
 ## 1. 问题：调校可用，构造与局部性未收敛
 
 live 事实（2026-08-15 立项时快照；计划各切片已于同日交付——统一外壳与
