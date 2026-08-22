@@ -424,7 +424,9 @@ function DefaultDevDockV1(props: {
   }, [launcherState.open, observeOpenState, openWindowCount]);
   const debugTools = capabilities.debugTools;
   const debugToolsRef = useRef(debugTools);
-  debugToolsRef.current = debugTools;
+  useLayoutEffect(() => {
+    debugToolsRef.current = debugTools;
+  }, [debugTools]);
   // The implementation stays outside the resident entry graph until the
   // capability is first needed. A release build may still contain its lazy
   // output when the application declares this loader.

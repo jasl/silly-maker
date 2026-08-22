@@ -4,7 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
-import { StrictMode, useEffect, useState } from "react";
+import { startTransition, StrictMode, Suspense, useEffect, useLayoutEffect, useState } from "react";
 import type { ReactElement } from "react";
 
 import {
@@ -232,6 +232,8 @@ function deferredValueV1<T>() {
   return Object.freeze({ promise, resolve });
 }
 
+const neverSettlesV1 = new Promise<never>(() => undefined);
+
 function devDockPanelV1(id: string): DevDockPanelV1 {
   return Object.freeze({
     id,
@@ -422,6 +424,7 @@ function renderLifecycleRootV1(input: {
     readonly chip?: boolean;
     readonly control?: DevDockControlV1;
   };
+  readonly abandonedCapabilities?: RuntimeCapabilityPortV1;
   readonly stageLifetime?: {
     readonly onMount: () => void;
     readonly onUnmount: () => void;
@@ -483,7 +486,10 @@ function renderLifecycleRootV1(input: {
   });
   const anchorListeners = new Set<() => void>();
 
-  const renderRootV1 = (devDock: typeof input.devDock): ReactElement => (
+  const renderRootV1 = (
+    devDock: typeof input.devDock,
+    capabilities: RuntimeCapabilityPortV1 | undefined = input.capabilities,
+  ): ReactElement => (
     <DefaultGameRootV1
       composition={{
         presentation: Object.freeze({
@@ -510,7 +516,7 @@ function renderLifecycleRootV1(input: {
       applicationId="lifecycle-fixture"
       viewport={undefined as never}
       {...(input.playerProfile === undefined ? {} : { playerProfile: input.playerProfile })}
-      {...(input.capabilities === undefined ? {} : { capabilities: input.capabilities })}
+      {...(capabilities === undefined ? {} : { capabilities })}
       {...(input.labels === undefined ? {} : { labels: input.labels })}
       {...(input.devDockContributions === undefined
         ? {}
@@ -535,7 +541,46 @@ function renderLifecycleRootV1(input: {
       })}
     />
   );
-  const mounted = render(renderRootV1(input.devDock));
+  let attemptAbandonedCapabilitiesRender: (() => void) | null = null;
+  const abandonedCapabilitiesRender = vi.fn();
+
+  function SuspendAbandonedDevDockRenderV1(props: { readonly active: boolean }): null {
+    if (props.active) {
+      abandonedCapabilitiesRender();
+      throw neverSettlesV1;
+    }
+    return null;
+  }
+
+  function LifecycleRootCurrentnessHarnessV1(): ReactElement {
+    const [capabilities, setCapabilities] = useState(input.capabilities);
+    useLayoutEffect(() => {
+      const abandonedCapabilities = input.abandonedCapabilities;
+      if (abandonedCapabilities !== undefined) {
+        attemptAbandonedCapabilitiesRender = () => {
+          startTransition(() => setCapabilities(abandonedCapabilities));
+        };
+      }
+      return () => {
+        attemptAbandonedCapabilitiesRender = null;
+      };
+    }, []);
+    return (
+      <Suspense fallback={null}>
+        {renderRootV1(input.devDock, capabilities)}
+        <SuspendAbandonedDevDockRenderV1
+          active={input.abandonedCapabilities !== undefined &&
+            capabilities === input.abandonedCapabilities}
+        />
+      </Suspense>
+    );
+  }
+
+  const mounted = render(
+    input.abandonedCapabilities === undefined
+      ? renderRootV1(input.devDock)
+      : <LifecycleRootCurrentnessHarnessV1 />,
+  );
 
   return Object.freeze({
     managedSurfaceRuntimeOwner,
@@ -545,6 +590,13 @@ function renderLifecycleRootV1(input: {
     rerenderDevDock(devDock: typeof input.devDock): void {
       mounted.rerender(renderRootV1(devDock));
     },
+    attemptAbandonedCapabilitiesRender(): void {
+      if (attemptAbandonedCapabilitiesRender === null) {
+        throw new TypeError("missing abandoned capabilities render fixture");
+      }
+      attemptAbandonedCapabilitiesRender();
+    },
+    abandonedCapabilitiesRender,
     publishAnchor(next: GameUiPresentationAnchorV1): void {
       anchor = next;
       for (const listener of [...anchorListeners]) listener();
@@ -1359,6 +1411,37 @@ function renderHostedLifecycleRootV1(
 }
 
 describe("DefaultGameRootV1 progressive DevDock host", () => {
+  it("keeps loader currentness on the committed capability during an abandoned render", async () => {
+    const committedCapabilities = mutableCapabilitiesV1();
+    await committedCapabilities.setEnabled("debug_tools", true);
+    const abandonedCapabilities = mutableCapabilitiesV1();
+    const control = createDevDockControlV1();
+    const loaded = deferredValueV1<DevDockContributionSetV1>();
+    const dispose = vi.fn(async () => undefined);
+    const lazyContributions = bindDevDockContributionLifecycleInternalV1(
+      createDevDockContributionSetV1({ panels: [devDockPanelV1("committed.panel")] }),
+      dispose,
+    );
+    const load = vi.fn(() => loaded.promise);
+    const fixture = renderLifecycleRootV1({
+      capabilities: committedCapabilities,
+      abandonedCapabilities,
+      devDock: Object.freeze({ control, load }),
+    });
+
+    await waitFor(() => expect(load).toHaveBeenCalledOnce());
+    act(() => fixture.attemptAbandonedCapabilitiesRender());
+    await waitFor(() => expect(fixture.abandonedCapabilitiesRender).toHaveBeenCalled());
+
+    await act(async () => loaded.resolve(lazyContributions));
+    await waitFor(() => {
+      expect(control.panels.getCurrent().map(({ id }) => id)).toEqual(["committed.panel"]);
+    });
+    expect(dispose).not.toHaveBeenCalled();
+    cleanup();
+    await waitFor(() => expect(dispose).toHaveBeenCalledOnce());
+  });
+
   it("waits for debug_tools, single-flights one open, reuses ready, and preserves static panels", async () => {
     const capabilities = mutableCapabilitiesV1();
     const control = createDevDockControlV1();
