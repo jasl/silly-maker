@@ -22,8 +22,9 @@ Read only the documents relevant to the change:
   implemented yet.
 - `docs/engine/plans/2026-07-30-production-floor-sequence.md` — the only
   cross-plan execution order. PF0–PF7 and the Complexity Reset are complete;
-  PF6 remains evidence-gated and inactive. There is currently no active lane
-  (mid-hold input closed 2026-08-22; the recap below runs oldest to newest).
+  PF6 remains evidence-gated and inactive. The active lane is
+  authorable-chrome-layout (accepted 2026-08-22; the recap below runs oldest
+  to newest).
   Two lanes delivered on 2026-08-15:
   `docs/engine/plans/2026-08-15-authoring-architecture.md` (Studio author-trust
   hardening, the unified authoring shell with workspaces, the project authoring
@@ -52,7 +53,7 @@ Read only the documents relevant to the change:
   invariant, entry-time evaluation, skip cannot pass the catch) via the
   base `settleHoldTimelineV1` stepping helper, with template-kit arms,
   both Engine Lab granularities (tick-driven same-instant, monitor-driven
-  next-settlement t=0), and   the experiment repo's night-room mid-bar
+  next-settlement t=0), and the experiment repo's night-room mid-bar
   wake/disgust cut as the first live abort path. The second abort-path
   candidate (alert catch) was decode-falsified 2026-08-22 (experiment
   repo knife #339: CE249 asks after the window / WAIT 100; CE277 does
@@ -110,9 +111,19 @@ Read only the documents relevant to the change:
   live path (decode-verified: original zone clicks are concurrent state
   writers and the reroute authority stays with the CE20 watchdog arms).
   Regions never gain routing power; input commands never settle time;
-  remaining body zones are per-zone content knives, not engine work. There
-  is no active lane (mid-hold input closed 2026-08-22; awaiting the owner's
-  next order).
+  remaining body zones are per-zone content knives, not engine work. The
+  active lane is authorable-chrome-layout (accepted 2026-08-22, owner-ruled
+  pragmatic V1 with open questions q1–q3 per recommendation):
+  `docs/engine/proposals/authorable-chrome-layout.md` and
+  `docs/engine/plans/2026-08-22-authorable-chrome-layout.md` — the
+  `sillymaker.chrome-layout` document family (boxes/anchors/offsets in
+  logical canvas space) mirroring the regions family end to end
+  (admission, authoring index, story check lints, dev-server CAS port),
+  a Studio Chrome workspace rendering Story-declared chrome fixtures
+  with a wireframe fallback, and dual consumers (template HUD box
+  in-repo; the external experiment repo HUD migrating off its M0
+  story-local parser). Layout documents stay zero-authority
+  presentation data; behavior booleans and legality stay in Story code.
   Desktop persistence remains an independent promotion gate while the
   adapter is preview.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,

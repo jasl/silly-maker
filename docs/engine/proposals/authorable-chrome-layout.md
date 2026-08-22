@@ -1,7 +1,11 @@
 # Authorable chrome layout proposal（铬布局文档、Chrome workspace 与意图绑定）
 
-状态：**草案**（2026-08-22 起草，等待所有者裁决）。M0（Story 侧布局文
-档）已在外部实验仓先行落地，零引擎改动；M1 起才是引擎工作。
+状态：**已接受（务实 V1）**（2026-08-22 所有者裁决：Open questions 按
+建议定；「不确定这个方案是否能完全解决问题，但可以先这么做，下一轮
+引擎迭代再统筹更系统的方案（如果存在）」——本 lane 是务实分层落地，
+不是场景/物体/交互统一抽象的终局裁决）。M0（Story 侧布局文档）已在
+外部实验仓先行落地，零引擎改动；M1 起的执行顺序与验收见
+[Authorable chrome layout 计划](../plans/2026-08-22-authorable-chrome-layout.md)。
 
 创作者需求：「道具栏/状态板的页签热区偏了，我只能报 bug——位置明明是
 数据，编辑器却覆盖不到」「编辑器应该能覆盖所有 UI 与场景交互的摆放，
@@ -116,14 +120,14 @@ Studio 新增 Chrome workspace：挂 fixture publication 渲染**真实 HUD
 - AI 回路：agent 改 JSON → `story check` 校验 → 按诊断码修，全程不碰
   TSX。
 
-## Open questions（建议随 admission 裁决）
+## Open questions（2026-08-22 所有者裁决：均按建议定）
 
-1. 文档粒度：按 surface（一份 HUD）还是按 workspace 聚合——建议按
-   surface，出现真实聚合需求再并；
-2. `anchors`/`offsets` 是否 V1 就要，还是先只 `boxes`——建议三者都
-   要（M0 已证明三类都有真实条目）；
-3. Chrome workspace 的 fixture publication 由谁声明——建议 Story 在
-   config 里声明（与 studio binding 同构），引擎不猜。
+1. 文档粒度：**按 surface**（一份 HUD 一份文档），出现真实聚合需求
+   再并；
+2. `anchors`/`offsets`：**V1 与 `boxes` 三者都要**（M0 已证明三类都
+   有真实条目）；
+3. Chrome workspace 的 fixture publication：**Story 在 config 里声明**
+   （与 studio binding 同构），引擎不猜。
 
 ## 停
 
