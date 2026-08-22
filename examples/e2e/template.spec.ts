@@ -104,8 +104,10 @@ test("the starter Studio opens the opening scene with its cue-bound motion", asy
 test("the starter Studio renders the read-only narrative flow with source jump (S5)", async ({ page }) => {
   await page.goto(templateTargetUrlV1("__sillymaker/studio/"));
 
-  // The Flow workspace lists the compiled interaction document.
+  // The resident Studio shell loads the Flow implementation only on demand.
   const flow = page.locator("[data-studio-flow]");
+  await expect(flow).toHaveCount(0);
+  await page.getByRole("button", { name: "打开 Narrative 流程" }).click();
   await expect(flow).toBeVisible();
   await expect(flow.locator('[data-studio-flow-doc="doc.template.opening"]'))
     .toHaveAttribute("aria-pressed", "true");
