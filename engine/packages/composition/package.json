@@ -6,6 +6,7 @@
   "license": "MIT",
   "exports": {
     ".": "./src/index.ts",
+    "./internal/extension-runtime": "./src/extension-runtime/internal.ts",
     "./legacy": "./src/legacy.ts",
     "./state": "./src/state.ts"
   },
