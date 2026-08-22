@@ -119,10 +119,19 @@ the predecessor publication.
 
 The X1 Cordis wrapper was removed after a retain/remove checkpoint showed that
 it owned no independent Fiber tree, injection, isolation, or publication
-semantics. The composition package now stages and disposes its own records
-directly. Do not reintroduce a lifecycle framework for prospective use; first
-establish a real consumer and an observable behavior that the direct kernel
-cannot represent.
+semantics. That historical result applies to the profile kernel. AR1 later ran
+the private Direct and Cordis-core-derived extension backends through the same
+17-case suite and two real GUI consumers, selected the SillyMaker-owned Direct
+implementation, and deleted the Cordis adapter/vendor/dependency.
+
+Use the workspace-only `@sillymaker/composition/internal/extension-runtime`
+only for build-known in-process domains or contributions that need progressive
+activation and reversible lifecycle. Resident entries keep admitted metadata
+and a literal loader; a dynamic facade imports the implementation and selected
+backend together. After ready, hot consumers retain a direct object rather than
+looking up Context or a registry. Remove a published UI consumer before
+retiring its lifecycle. External services remain future typed RPC consumers,
+not local extension bindings.
 
 The generated dev-only Studio entry uses `@sillymaker/studio/composition` for
 that separate live root. A live reload keeps the predecessor snapshot/providers
@@ -135,6 +144,10 @@ React before disposing the provider scope. Do not use the return from
 `root.render()` as publication evidence or move rendering into plugin setup.
 This is not connected-browser geometry evidence; activate a stronger HMR
 contract only with a real layout-sensitive renderer and browser acceptance.
+Flow activation is owned outside individual React epochs. Standalone Studio
+retires it after descendant unmount; live publication passes the same owner to
+staging and visible successors, so a rejected or accepted binding candidate
+does not reload ready Flow or discard the shared dirty document session.
 
 ### GUI startup and module-update baseline
 
@@ -157,6 +170,14 @@ validated and published its registry. Terminal failures restore the static shell
 with a bounded `SM-STARTUP-*` code and Retry, never the raw error. These are
 Host/test signals, not State or persistence data.
 
+The DevDock progressive host invokes its literal loader only after
+`debug_tools`, single-flights one open, reuses ready, and exposes a bounded
+failure with explicit retry while core/static siblings remain mounted.
+Source-change, revoke, and unmount fence late results. A ready contribution is
+removed from the renderer before lifecycle disposal; a never-published late
+result may be disposed immediately. Keep `optional_capability_ready` tied to
+accepted active-registry publication, never backend activation alone.
+
 Current R0–R3 characterization:
 
 | Class | Browser                                                                                                                                                                                                                                   | Deno Desktop                                                                                                                                                         |
@@ -178,6 +199,18 @@ deno run -A npm:vitest run engine/packages/web/src/application/application-start
 deno run -A npm:vitest run engine/packages/tooling/src/vite/application-entry-bootstrap.test.ts
 deno run -A npm:vitest run engine/packages/tooling/src/vite/studio.test.ts
 deno task story build template --profile release
+```
+
+Focused AR1 activation and placement checks are:
+
+```sh
+deno run -A npm:vitest run engine/packages/composition/src/extension-runtime/extension-runtime.conformance.test.ts
+deno run -A npm:vitest run engine/packages/ui/src/composer/default-game-root.test.tsx
+deno run -A npm:vitest run e2e/src/test/dev-dock-extension.test.tsx
+deno run -A npm:vitest run engine/packages/studio/src/workspaces/flow/flow-workspace-activation.test.tsx
+deno run -A npm:vitest run engine/packages/studio/src/react-publication.test.tsx
+deno run -A npm:vitest run engine/packages/tooling/src/vite/build-dependency-receipt.test.ts
+deno task typecheck
 ```
 
 While iterating on this package, run the focused runtime test plus the repository

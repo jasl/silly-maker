@@ -52,14 +52,19 @@ Read only the documents relevant to the change:
   those delivered capabilities, the current default/core lane remains
   `docs/engine/plans/2026-08-18-application-runtime-embedded-authoring.md`:
   Browser/Deno Desktop startup evidence, build-known progressive activation, an
-  orchestration-neutral domain lifecycle with a bounded direct/Cordis-core A/B,
+  orchestration-neutral domain lifecycle selected through a bounded historical
+  direct/Cordis-core A/B,
   structured authoring operations, an embeddable Authoring Host, and a typed RPC
   plus experimental Agent/UiArtifact seam. AR0 delivered 2026-08-22: neutral
   Application Host capabilities, admitted/frozen runtime and author bootstrap,
   static GUI startup/readiness/recovery evidence, final-output dependency
   attribution, and a truthful Browser/Deno Desktop R0–R3 baseline. It did not
-  promote native Desktop launch, persistence/signing, or RPC readiness. AR1 is
-  the only next task and chooses exactly one private lifecycle backend; AR3
+  promote native Desktop launch, persistence/signing, or RPC readiness. AR1
+  also delivered 2026-08-22: the same 17-case suite passed for Direct and
+  Cordis-core-derived implementations, SillyMaker-owned Direct became the only
+  private backend, Cordis adapter/vendor/dependency were deleted, and lazy
+  DevDock plus Studio Flow became the two real GUI consumers. AR2 is the only
+  next task; AR3
   keeps Authoring stable across application-domain successors, with Game/Session
   as the first conformance path. Engine capabilities land before any separately
   accepted follow-on product or work.
@@ -70,9 +75,10 @@ Read only the documents relevant to the change:
   external RPC, platform Module Update Sources, the private Extension Runtime,
   SillyMaker-owned publication, the single Authoring Host with standalone and
   embedded shells, structured authoring operations, and separated gameplay,
-  authoring, Agent-session, and UiArtifact authorities. It allows the bounded
-  AR1 Cordis-core comparison but does not activate a public Mod ABI, Cordis API,
-  OpenUI/A2UI adapter, Effect Broker, Electron/Node Host, or Player source editor.
+  authoring, Agent-session, and UiArtifact authorities. It records the closed
+  AR1 comparison and selected private Direct backend but does not activate a
+  public Mod ABI, Cordis API, OpenUI/A2UI adapter, Effect Broker, Electron/Node
+  Host, or Player source editor.
 - `docs/engine/plans/2026-08-18-experimental-composition-state-runtime.md` —
   completed external strangler evidence and the curated promotion boundary for
   the maintained internal Composition package plus the still-experimental
@@ -212,14 +218,14 @@ accepted.
   authoritative profiles seal after mount, while a live candidate requires an
   explicit consumer publication acknowledgement. Live effects are installed
   before that acknowledgement and therefore must be staging-safe. Do not add
-  dynamic lifecycle lookup to command/render paths. The active AR1 may compare
-  the current direct lifecycle with a private Cordis-core-derived backend under
-  one neutral conformance suite; the selected backend must remain structurally
-  excludable from products that direct-mount their domains, keep Cordis/Context
-  out of domain and public contracts, exclude Node HMR, and leave SillyMaker
-  publication/State authority unchanged. A domain or local binding may still be
-  required by a product; lifecycle composition does not imply product
-  optionality.
+  dynamic lifecycle lookup to command/render paths. AR1 selected the private
+  SillyMaker-owned Direct extension backend after Direct and a
+  Cordis-core-derived adapter both passed the same 17-case neutral suite; only
+  Direct remains. It must stay structurally excludable from products that
+  direct-mount their domains, keep backend/Context types out of domain and public
+  contracts, exclude Node HMR, and leave SillyMaker publication/State authority
+  unchanged. A domain or local binding may still be required by a product;
+  lifecycle composition does not imply product optionality.
 - `@sillymaker/state` is an experimental neutral façade for authoritative
   transactional State, not a generic React/UI store. It must reuse exactly one
   Base Session and transaction runner; it never owns a second State, digest,

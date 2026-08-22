@@ -29,18 +29,20 @@ active authority；完成里程碑摘要在
 admitted/frozen GUI bootstrap、runtime/author 静态 shell 与 readiness/recovery signals、final
 output contribution attribution，以及 Browser/Deno Desktop 当前 R0–R3 差异均已有 bounded
 evidence；它没有宣称 native Desktop launch、Desktop persistence/signing promotion 或 RPC
-readiness。引擎能力继续全部前置，按 AR1 progressive activation 与 private extension-runtime
-selection → AR2 structured Scene operations → AR3 embeddable Authoring Host/stable sibling → AR4
+readiness。AR1 progressive activation 与 private extension-runtime selection 也已于
+2026-08-22 交付关闭：Direct 与 Cordis-core-derived backend 的同一 17-case suite 均通过，最终只
+保留 SillyMaker-owned Direct backend；lazy DevDock 与 Studio Flow 是两个真实 GUI consumer。
+后续按 AR2 structured Scene operations → AR3 embeddable Authoring Host/stable sibling → AR4
 experimental Agent RPC/UiArtifact seam → AR5 Browser/Deno Desktop GUI/build/performance promotion →
 AR6 closure 顺序执行。目标合同见
 [Application Runtime and Embedded Authoring](../design/application-runtime-and-embedded-authoring.md)。
 Browser 与 Deno Desktop 是当前 GUI product targets；CLI 只提供 Desktop startup config，
-headless 只作开发/测试辅助，外部后台与 LLM 统一经 RPC。AR1 用同一中立 suite 比较 direct 与
-Cordis-core-derived private backend，关闭时只保留一条；这不激活 public Cordis API、Mod ABI、
-runtime code installation、State Format V2、Effect Broker、具体 OpenUI/A2UI adapter 或
-production Story State migration。普通静态游戏 release 仍不得包含 author/source-write、未选
-extension runtime 或 RPC implementation。AR6 后的作品/examples/产品由所有者另行选择和立案，
-不在本计划预先排序。下一项可领取任务只有 AR1。
+headless 只作开发/测试辅助，外部后台与 LLM 统一经 RPC。AR1 没有激活 public Cordis API、Mod
+ABI、runtime code installation、State Format V2、Effect Broker、具体 OpenUI/A2UI adapter 或
+production Story State migration；Cordis adapter/vendor/dependency 已删除。ordinary no-extension
+静态游戏 release 仍不得包含 author/source-write、selected Direct extension runtime 或 RPC
+implementation。AR6 后的作品/examples/产品由所有者另行选择和立案，不在本计划预先排序。
+下一项可领取任务只有 AR2。
 
 前一条：[Mid-hold Input V1](2026-08-22-mid-hold-input.md)（提案
 [mid-hold-input](../proposals/mid-hold-input.md)，2026-08-22 所有者
@@ -161,8 +163,9 @@ State-heavy workload、Cordis 参考实现和明确的中立 State Runtime 目�
 catalog，X6.3 把 concrete registries 收口到 Session 前冻结的 environment/direct plans；实验已通过
 唯一权威、Save/replay 等价、dependency locality 与 `<10%` 稳定 command overhead gates。X1
 最初使用的 Cordis wrapper 经 retain/remove checkpoint 证明当时的平面 wrapper 没有承担独立
-scope/fiber 语义，最终由 package-internal direct lifecycle 取代；该结论不回答未来 editor
-nested ownership/provider recovery 的实现成本，后者由当前 AR1 中立 A/B 重新裁决。X7 的中立
+scope/fiber 语义，最终由 package-internal direct lifecycle 取代；该历史结论没有回答 editor
+nested ownership/provider recovery 的实现成本，后续 AR1 已用同一 17-case suite 与两个真实 GUI
+consumer 完成裁决并选择唯一 Direct backend。X7 的中立
 matrix/隔离 GC 与外部 paired 性能证据已完成，
 源实验历史保留在 `codex/experimental-cordis-state-runtime`，经验证的最终树由
 `codex/promote-composition-state-runtime` 重组为后续主仓开发基线。但这没有激活 State Format

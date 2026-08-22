@@ -17,6 +17,9 @@ workload 已完成 X6.1–X6.3 locality/runtime-plan 验证，主仓也完成 X7
 Format V2、Effect Broker/OpenUI、i18n 或 production Story migration。
 2026-08-22 吸收 parallel-monitors 后，中立 State authoring façade 已与 Base 的唯一 domain-event
 journal/reducer transaction 对齐；早期 proposal/fact public shape 已删除，不作为兼容层保留。
+同日 AR1 完成 private extension-runtime 选型：Direct 与 Cordis-core-derived adapter 的同一
+17-case suite 均通过，最终只保留 SillyMaker-owned Direct backend。它已经服务 lazy DevDock 与
+Studio Flow 两个 GUI consumer，但没有改变 State/Save/replay、RPC、Mod 或 Desktop R0–R2。
 
 ## Internal composition kernel
 
@@ -45,9 +48,15 @@ journal/reducer transaction 对齐；早期 proposal/fact public shape 已删除
   合同。
 - X1 曾以私有 Cordis core 包裹已经由 SillyMaker 拥有的 staging/disposal；retain/remove A/B 证明它
   没有承担独立 Fiber tree、injection、isolation 或 publication 语义后，最终实现改为 package-internal
-  direct lifecycle。公开 exports、State/Save/replay 和维护中 Player 的 JavaScript/CSS application
-  chunks 均未改变；未来只有真实 consumer
-  需要这些层级语义时才重新评估依赖。
+  direct lifecycle。该历史 checkpoint 只裁决 profile wrapper，不等于后续 AR1 extension-runtime
+  selection；公开 exports、State/Save/replay 和维护中 Player 的 JavaScript/CSS application chunks
+  当时均未改变。
+- AR1 的 workspace-only `./internal/extension-runtime` 是与 profile kernel 分开的 private Direct
+  runtime：neutral factory 可 direct mount 或交给 activation controller；required domain/local
+  binding 在 mount 前 admission，optional sibling failure/retry 隔离，nested child/reversible effect、
+  provider loss/recovery、late-result fence、predecessor retention 与幂等 async cleanup 由同一
+  conformance contract 覆盖。historical Direct/Cordis 17-case A/B 后只保留 Direct，Cordis
+  adapter/vendor/dependency 已删除；domain、Story 和 public contracts 不出现 Cordis/Context。
 - 外部 X6.2/X6.3 workload 把 concrete registries 限制在 Session 前的 cold environment，并让
   compiler/runner 只保留冻结 script、一个 runtime node index、choice maps 与 direct gate/effect
   functions。Simulation/semantic hot consumers 不查询 registry 或 lifecycle Context；兼容名称仍是
@@ -115,6 +124,29 @@ journal/reducer transaction 对齐；早期 proposal/fact public shape 已删除
 - Final Player dependency attribution: `deno task bench:player:bundle` records the final Vite chunk/asset graph and per-output contribution IDs, including CSS-only dynamic entries, in an OS-temporary receipt without emitting or mutating Player files. The Template release build is the semantic negative control: authoring, dev-source, dynamic-extension, and RPC engine-owned implementation facets are all absent without freezing an exact module inventory or machine-specific timing budget.
 - External application projects: private/local games (outside-checkout validation applications, personal experiments, and future external checkouts) are ordinary application projects that depend on the engine packages by relative `file:` path (`"nodeModulesDir": "manual"`), with their own `sillymaker.config.ts`, Vite config, tests, and app-local story CLI — no root registration, no engine `src/**` aliases. The former gitignored `project.config.local.ts` overlay is retired.
 - Selective payload materialization (`@sillymaker/tooling/vite/asset-selection`): `materializeAssetSelectionV1` copies an application-computed `AssetSelectionPlanV1` (files reachable from caller-owned selected inputs + scanner warnings) from a larger caller-owned payload into the build output — source roots may be symlinks, output is always regular files (desktop-shell fail-closed semantics), pinned real source/output roots may not overlap, plan paths are contained to the root, and a vanished planned file fails the build. The reachability scanner is application domain knowledge and stays Story-side; the engine's `/assets/**` runtime-asset pipeline remains the default for first-party assets.
+
+## Progressive first-party GUI activation
+
+- Lazy DevDock is the first runtime consumer of the selected private Direct
+  extension backend. The resident Story/Web graph keeps only its build-known
+  literal loader; no load occurs before `debug_tools`. One open is
+  single-flight, a ready contribution is reused, stable failure offers explicit
+  retry, and static panels plus the core shell survive failure. Source change,
+  capability revoke, and unmount fence late results; a published contribution
+  leaves the renderer before its lifecycle is disposed. Startup
+  optional-ready still follows active registry acceptance, not backend mount.
+- Studio Flow is the second GUI consumer. A resident **打开 Narrative 流程**
+  launcher keeps the implementation and Direct backend out of the shell graph
+  until first click; the dynamic facade imports both together. Failure/retry
+  does not unmount Scene, Motion, Regions, or the shared authoring session. The
+  outer Studio publication owns one activation across detached React epochs, so
+  rejected and accepted binding successors reuse a ready Flow implementation
+  and preserve dirty drafts; standalone unmount retires descendants before the
+  lifecycle.
+- Final-output attribution proves both boundaries without freezing a module
+  inventory or machine number: Template's ordinary no-extension build contains
+  no dynamic-extension implementation, while Engine Lab attributes the selected
+  backend only to lazy DevDock contribution outputs and never to entry.
 
 ## Runtime
 

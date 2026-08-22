@@ -1,9 +1,9 @@
 # Application Runtime and Embedded Authoring V1
 
 状态：2026-08-18 由所有者接受为下一条默认/core implementation lane，并在同日以补充 owner
-evidence 收紧产品与平台边界。AR0 已于 2026-08-22 交付关闭，AR1 是唯一下一项；AR2–AR6
-尚未启动。引擎能力扩展全部前置；本计划完成后的作品、examples 或产品验证由所有者另行选择和
-立案，不是本轮切片或完成 blocker。
+evidence 收紧产品与平台边界。AR0 与 AR1 已于 2026-08-22 交付关闭，AR2 是唯一下一项；
+AR2–AR6 尚未启动。引擎能力扩展全部前置；本计划完成后的作品、examples 或产品验证由所有者
+另行选择和立案，不是本轮切片或完成 blocker。
 
 目标合同由
 [Application Runtime and Embedded Authoring](../design/application-runtime-and-embedded-authoring.md)
@@ -12,8 +12,9 @@ evidence 收紧产品与平台边界。AR0 已于 2026-08-22 交付关闭，AR1 
 [场景创作模型和 Studio](../design/scene-authoring-and-studio.md)拥有。
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 仍是唯一跨计划排序入口。
 `codex/promote-composition-state-runtime` 的 curated tree 是实施基线；本计划不继续扩张
-State/Composition，但允许 AR1 对 private extension lifecycle 做一次受限、可删除的 direct 与
-Cordis-core-derived A/B。它不激活 public Cordis API 或 Mod runtime。
+State/Composition。AR1 已用同一 17-case suite 完成 private Direct 与 Cordis-core-derived A/B，
+选择 SillyMaker-owned Direct implementation，并删除 Cordis adapter、vendor 与依赖；它没有激活
+public Cordis API 或 Mod runtime。
 
 ## 1. Evidence and decision
 
@@ -33,16 +34,16 @@ Cordis-core-derived A/B。它不激活 public Cordis API 或 Mod runtime。
 - 后续可能先做小作品、examples 重写或其他产品验证，但具体选择与顺序尚未决定，不能写成本
   计划的隐含 backlog。
 
-live baseline 同时说明缺口位于 Host、activation 和 lifecycle，而不是 State 热路径：
+AR1 进入时的 live baseline 说明缺口位于 Host、activation 和 lifecycle，而不是 State 热路径：
 
 - Composition/State 实验已通过唯一权威、Save/replay、locality 与性能门；没有 production Story
   需要 State Format V2；
 - 实验最初的 Cordis wrapper 只包了平面 mount/dispose，retain/remove checkpoint 只能证明那种
   用法没有价值，不能回答 nested ownership、provider recovery 或大型 editor workspace 的成本；
-- DevDock 已有 `loadDevDockContributions()` 动态 import 的真实 first-party lazy 纵切，但
+- DevDock 当时已有 `loadDevDockContributions()` 动态 import 的真实 first-party lazy 纵切，但
   loader 尚未成为带 single-flight、retry、late-result fence 和 disposal 的一般内部合同；
-- `@sillymaker/studio` 已有 Project Authoring Index、共享 document session、dirty gate、
-  undo/redo、CAS、Scene/Motion/Flow workspaces 与原子 HMR publication，但 shell 静态导入
+- `@sillymaker/studio` 当时已有 Project Authoring Index、共享 document session、dirty gate、
+  undo/redo、CAS、Scene/Motion/Flow workspaces 与原子 HMR publication，但 shell 仍静态导入
   workspaces，产品形态仍是 dev-only 独立页面；
 - `AuthoringDocumentSessionV1` 统一了文档会话，却只公开整文档 `replaceDraft`；Scene UI
   仍以 clone callback 表达编辑，未来 Agent/RPC caller 无法复用同一 typed operation；
@@ -52,12 +53,13 @@ live baseline 同时说明缺口位于 Host、activation 和 lifecycle，而不�
   authoring 或 Artifact port，不能扩成万能接口。
 
 本轮裁决：AR0 先建立 GUI startup/target 地板；AR1 再建立中立 domain factory，并用同一 suite
-比较 direct 与 Cordis-core-derived lifecycle。选定唯一 backend 后依次落 structured operation、
-embedded Authoring Host 和最窄 Agent RPC/UiArtifact seam。Module Update Source、Extension
-Runtime 和 SillyMaker publication/authority 必须分层。Cordis 的 release 标签不是否决理由；实际
-语义覆盖、glue/test 成本、bundle/startup 和 failure recovery 才是选择证据。
+比较 direct 与 Cordis-core-derived lifecycle。Direct 覆盖所需语义且保持最小私有依赖图，因此
+成为唯一 backend；后续依次落 structured operation、embedded Authoring Host 和最窄 Agent
+RPC/UiArtifact seam。Module Update Source、Extension Runtime 和 SillyMaker
+publication/authority 必须继续分层。Cordis 的 release 标签不是选择理由；实际语义覆盖、
+glue/test 成本、bundle placement 和 failure recovery 才是选择证据。
 
-“使用 lifecycle/plugin 机制”不表示能力一定 optional。AR1 会以 package-internal composition
+“使用 lifecycle/plugin 机制”不表示能力一定 optional。AR1 以 package-internal composition
 语义区分 required domain、required local binding 与 optional contribution；它不建立公共
 `Profile`、extension manifest 或 service locator。外部 required service 继续由 AR4 RPC readiness
 表达，不伪装成本地 binding。
@@ -112,8 +114,8 @@ Runtime 和 SillyMaker publication/authority 必须分层。Cordis 的 release �
 - 用可控永不 resolve 的 optional loader 和最小 required Host records failure stimulus 证明：
   optional loader 不阻塞核心产品；required Host capability 失败不谎报依赖 domain ready，但 GUI
   仍提供诊断和 retry。AR0 不验证外部 service readiness，也不定义 required domain/local binding
-  composition、RPC client、transport、fake API 或 service configuration UI；这些分别由 AR1、AR4
-  与 AR5 拥有。
+  composition、RPC client、transport、fake API 或 service configuration UI；required domain/local
+  binding composition 已由 AR1 拥有，外部 RPC 与 service configuration 分别留给 AR4 与 AR5。
 
 验收：信号不进入 State/Save；现有 Story digest/Save/replay 不变；明确选择 no-RPC、
 no-extension 的静态 game baseline 中 Studio/dev-source/dynamic-extension/RPC implementation 为
@@ -201,7 +203,7 @@ interception 合同。
 - Browser/Deno Desktop platform coupling；
 - entry/preload/lazy bytes、startup 与 repeated activate/dispose。
 
-AR1 关闭时必须选择并只保留一个 production backend：
+AR1 selection gate 当时要求并已做到只保留一个 production backend：
 
 - direct 足够简单时保留 direct；
 - Cordis core 语义明显降低长期编排成本时，可采用 pinned vendor；
@@ -215,6 +217,34 @@ HMR、目录扫描、远端 code 与 public Mod resolver 不进入比较。
 同时迁入现有 DevDock lazy contribution 和一个 Studio workspace：metadata 可常驻，
 implementation 第一次进入前 loader 调用为零；failure 不卸载 core、Session、Authoring Host 或
 已加载 sibling。ordinary no-extension game build 必须完全排除 selected dynamic runtime backend。
+
+**AR1 closure（2026-08-22）：**
+
+- `@sillymaker/composition/internal/extension-runtime` 交付 package-internal neutral factory、direct
+  mount、required-domain/local-binding admission、bound owner、activation controller 与 disposable
+  handle；成功后 hot consumer 只持有 direct object，不查询 Context 或 registry；
+- private Direct 与 Cordis-core-derived adapter 曾通过同一 17-case conformance suite。比较覆盖
+  required admission、single-flight、显式 failure/retry、late-result fence、optional sibling
+  isolation、nested child/reversible effect、provider loss/recovery、async/reentrant cleanup、
+  predecessor retention 和 repeated cleanup 资源归零。Direct 已被选为唯一 SillyMaker-owned
+  backend；Cordis adapter、vendor、workspace dependency 与 lock entry 已删除，领域/public contract
+  中没有 Cordis/Context 类型；
+- lazy DevDock 是第一个 GUI consumer：resident Story/Web 图只保留 literal loader；首次
+  `debug_tools` 前调用为零，同一次 open single-flight、ready 复用，失败保留 core/static sibling 并
+  给出 bounded diagnostic 与显式 retry。revoke/source change/unmount fence 迟到结果；已发布
+  contribution 先从 visible consumer 移除，再 retire lifecycle。optional-ready 仍只在 active
+  registry acceptance 后确认，不把 backend ready 冒充产品 ready；
+- Studio Flow 是第二个 GUI consumer：resident Studio shell 只保留 metadata、launcher 和 literal
+  loader，首次点击“打开 Narrative 流程”才加载 dynamic facade；facade 同时引入 Flow
+  implementation 与 selected Direct backend。standalone Studio 在 descendant unmount 后 retire，
+  live publication 的外层 owner 跨 rejected/accepted binding successor 复用已 ready Flow，并保留
+  共享 authoring session、dirty draft 和未受影响的 Scene/Regions sibling；
+- Template 的 ordinary no-extension final graph 中 dynamic-extension implementation 为零；Engine
+  Lab 的 selected backend 只归因到 lazy DevDock contribution outputs，不进入 entry。该证据证明
+  placement/exclusion，不宣称跨机器 timing 或固定 bundle 数字；
+- 本切片没有改变 State、Snapshot、digest、Save、CommandLog、replay、RPC 或 Mod 合同，也没有
+  新增 Desktop Module Update Source。Browser 继续使用 AR0 已记录的 R0–R3 边界；Deno Desktop
+  R0–R2 仍未接线，`--hmr` 仍只是 AR5 候选。AR2 structured Scene operations 是唯一下一项。
 
 ### AR2 — Structured Scene authoring operations
 
@@ -326,8 +356,8 @@ conversation/task/artifact storage、permission UI、Mutation gateway 或 Effect
   reconnect 或重建 Agent；任何 domain-bound late intent 必须针对 current generation 重新
   admission 或稳定拒绝，不能落到 stale domain authority；
 - 两平台都跑通 AR4 fake stream → admitted Artifact → render → intent → AR2 operation；
-- ordinary static game build 精确排除 Authoring Host、selected dynamic extension backend
-  （包括可能的 Cordis/fork）、unrelated RPC client、Node/Electron code 和 author-only graph；
+- ordinary no-extension static game build 精确排除 Authoring Host、selected Direct dynamic
+  extension backend、unrelated RPC client、Node/Electron code 和 author-only graph；
 - auxiliary headless 只补 deterministic/conformance evidence，不替代 GUI acceptance；
 - Engine Lab prebuilt、相关 runtime/author builds、bundle report、Story checks、Save/replay
   corpus 与 canonical `deno task check` 全绿；
@@ -352,8 +382,8 @@ plain-app live patch 或 framework Fast Refresh 的存在本身都不能升格�
 
 - 删除被替代的 lifecycle backend、monolithic shell glue 和重复 adapter；standalone route 若仍
   提供价值则保留，不为“零旧文件”而删；
-- 记录 AR1 最终选择 direct、pinned vendor、owned fork 或 absorbed implementation 的理由、
-  semantic delta、license/notice、no-extension build 与升级策略；
+- 保留 AR1 选择 SillyMaker-owned Direct implementation 的理由、历史 A/B semantic delta、
+  no-extension build 与升级策略；
 - 只更新已经成为 live 的 architecture/features/development/story-authoring/build/quickstart；
 - Engine Lab 手册随真实 consumer 更新；template/examples handbook 只有实际进入后续计划时才
   更新；
@@ -380,7 +410,7 @@ plain-app live patch 或 framework Fast Refresh 的存在本身都不能升格�
   compiler 进入普通 static game release；
 - Module Update Source 需要任意 runtime path、远端 executable code、`references/`、目录或
   `node_modules` 扫描；
-- AR1 只有同时保留 direct 与 Cordis 两套 production backend 才能通过，或 backend 类型泄漏到
+- 未来重新同时保留 direct 与 Cordis 两套 production backend，或 backend 类型泄漏到
   domain/public declaration；
 - 需要 Cordis Loader/Include/Node HMR、Node/Electron implementation、public Mod ABI/SDK/
   distribution、runtime code install 或不可信 sandbox 才能完成；
@@ -394,8 +424,8 @@ plain-app live patch 或 framework Fast Refresh 的存在本身都不能升格�
 - measured baseline 触发 AR5 性能门且最小归因修复仍需扩大范围；
 - bootstrap CLI config 在启动后成为 mutable runtime bus，或改变既有 build profile 含义。
 
-私有 helper/API 命名、文件拆分、状态机内部表示、test decomposition、loader map 生成方式，以及
-AR1 胜出路线的 vendor/fork/absorb 所有权选择不是 stop condition；选择最简单可验证实现继续。
+私有 helper/API 命名、文件拆分、状态机内部表示、test decomposition 与 loader map 生成方式不是
+stop condition；选择最简单可验证实现继续。
 
 ## 4. Deferred and follow-on evidence
 
@@ -418,9 +448,8 @@ AR6 后由 owner 单独讨论候选作品或产品。外部 workload 先保留 p
 明确且 focused behavior/build/performance evidence 成立后，才成为 engine candidate。整件作品、
 商业内容、资产和 fixture 不进入本仓 conformance。
 
-AR1 关闭并完成 private extension backend 的首次选择后，后续作品只验证选择是否继续成立，
-不自动激活 public Mod。public Mod 仍必须满足 roadmap 的独立 activation gates 和新的 active
-plan。
+AR1 已关闭并完成 private Direct backend 的首次选择；后续作品只验证选择是否继续成立，不自动
+激活 public Mod。public Mod 仍必须满足 roadmap 的独立 activation gates 和新的 active plan。
 
 ## 5. Validation entrypoints
 
@@ -433,8 +462,8 @@ plan。
 - auxiliary headless deterministic/conformance tests；
 - affected Story checks、simulate digest 与 Save/replay corpus；
 - runtime/author/no-extension build dependency graph 与 bundle report；
-- AR0/AR5 startup trend、AR1 direct/Cordis A/B evidence、activation cleanup 与 stable-command
-  negative control；
+- AR0/AR5 startup trend、AR1 historical 17-case direct/Cordis A/B evidence、activation cleanup 与
+  stable-command negative control；
 - public declaration closure（不得出现 Cordis/Context、Node HMR、backend 或协议实现类型）。
 
 原始 timing、heap、bundle diagnostics 与 external workload reports 继续只写 OS temp/artifact，不

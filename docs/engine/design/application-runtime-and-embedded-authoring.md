@@ -157,23 +157,23 @@ required RPC service 也不是 required local binding：它允许在进程启动
 child-scope ownership tree 仍由 SillyMaker adapter 显式建立，不从通用 Context 或 isolation label
 自动推导。
 
-AR1 以同一中立 conformance suite 比较：
+AR1 已以同一 17-case 中立 conformance suite 比较 package-internal Direct lifecycle 与只使用
+Cordis core 语义的 private adapter。两者均覆盖 required admission、nested cleanup、provider
+loss/recovery、per-extension restart、failure diagnostics、predecessor retention 与残留资源归零；
+选择依据是 ownership/state-machine、glue/test 成本、build placement 与真实 GUI consumer，而不是
+Cordis 的 RC 标签。
 
-1. 当前 package-internal direct lifecycle baseline；
-2. 只使用 Cordis core 语义的 private adapter。
-
-比较的是 ownership/state-machine 代码、nested cleanup、provider loss/recovery、per-extension
-restart、failure diagnostics、bundle/startup 和残留资源，而不是 Cordis 的 RC 标签。若 Cordis
-路线胜出，可以按实际 semantic delta 选择 pinned vendor、SillyMaker-owned fork，或把少量机制
-吸收到私有实现；若 direct 更简单则保留 direct。最终只保留一个 production backend，删除输家。
-无论选择哪条，领域合同与 public declarations 都不能出现 Cordis/Context 类型；Cordis
-Loader、Include 和 Node HMR 不随 core 一起引入。
+最终选择是 SillyMaker-owned private Direct implementation。它吸收本合同需要的最小机制，保持
+domain consumer 为 direct object，并让 ordinary no-extension application 从依赖图排除整个
+backend。Cordis adapter、vendor 与依赖已删除；领域合同和 public declarations 不出现
+Cordis/Context 类型，Cordis Loader、Include 和 Node HMR 也没有引入。该选择是 implementation
+decision，不把 private Extension Runtime 升格为稳定 public API。
 
 Extension backend 可以在内部使用可逆 notification 或 dispatch primitive，但其派发模式不自动
 成为 SillyMaker 领域合同。已提交的 domain-event journal 仍由 authoritative Session/CommandLog 拥有；
 authoritative intent、tool 或 policy interception 若未来出现，必须另有 typed admission、稳定顺序、
-idempotency 与 queue-front revalidation，不能仅以通用 event 或 `waterfall` 获得写权威。AR1 不冻结
-全局 event taxonomy、plugin priority、plugin ID 排序或 `next()` 语义。
+idempotency 与 queue-front revalidation，不能仅以通用 event 或 `waterfall` 获得写权威。本次选择
+没有冻结全局 event taxonomy、plugin priority、plugin ID 排序或 `next()` 语义。
 
 ### 4.3 SillyMaker publication and reload authority
 
@@ -339,6 +339,6 @@ OpenUI/A2UI adapter、conversation/task persistence 与 tool execution 均后置
   全局 typed event bus、generic content compiler 和 data/UI/timing/save editors；
 - 任何尚未由 owner 单独接受的小作品、examples 重写或商业 workload。
 
-AR1 的 direct/Cordis-core-derived A/B 是本计划内的 private implementation checkpoint，不激活
-public Mod，也不承诺采用 Cordis。若选择 Cordis-derived 路线，vendor/fork/absorb 是源码所有权
-选择，不改变上述中立合同、no-extension build 和 SillyMaker publication authority。
+AR1 的 direct/Cordis-core-derived A/B 是已关闭的 private implementation checkpoint；选定并只保留
+SillyMaker-owned Direct backend 后，仍不激活 public Mod。历史 A/B 不改变上述中立合同、
+no-extension build 和 SillyMaker publication authority。

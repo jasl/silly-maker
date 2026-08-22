@@ -65,8 +65,12 @@ the application's own `vite.config.ts` from its directory — nothing selects a
 build switch. `dist-web/` is deployable static-hosting input; the build command
 does not itself publish it.
 
-Build output policy: dependencies split into `vendor`/`vendor-react` chunks
-while application and engine code stay in the entry chunk. Chunk size is a
+Build output policy: dependencies split into `vendor`/`vendor-react` chunks;
+application and engine modules follow the application's static and literal
+dynamic-import graph rather than being forced into one entry chunk. A product
+that selects a progressive contribution may therefore carry its private Direct
+extension backend in that contribution's lazy outputs; an ordinary
+no-extension application excludes the backend completely. Chunk size is a
 measured product trend, not an assumed 500 kB guarantee; the current release
 workflow does not enforce a bundle budget. Use `deno task bench:player:bundle`
 to fresh-build Engine Lab and report entry/preload/lazy plus aggregate JS/CSS/
@@ -76,7 +80,11 @@ entry contribution IDs carried by each output. Shared and mixed outputs retain
 every contribution instead of duplicating their physical bytes. The
 measurement plugin writes its private receipt only below the OS temporary
 directory; it emits nothing into the Player and ordinary builds do not install
-it. The first CR3
+it. Template is the no-extension negative control: authoring, dev-source,
+dynamic-extension, and RPC implementation facets are all zero. Engine Lab is
+the positive control: the selected backend appears only in lazy DevDock
+contribution outputs and never in entry. These receipts prove placement and
+exclusion, not a fixed bundle or startup number. The first CR3
 sample measured the largest Engine Lab entry at 922,550 raw / 214,643 gzip
 bytes; that is a visible optimization lead, not a compatibility failure or a
 license to raise the warning threshold.

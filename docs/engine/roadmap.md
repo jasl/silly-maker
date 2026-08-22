@@ -119,8 +119,9 @@ locality、Scene Construction 与只读 Flow workspace，目标合同见
 上述补缺 lane 至 2026-08-22 全部交付关闭；合并后当前默认/core lane 回到本文后述的
 Application Runtime AR0–AR6。AR0 已于 2026-08-22 交付中性 Host、admitted/frozen GUI
 bootstrap、runtime/author startup 与 recovery signals、final-output dependency attribution 和
-当前 R0–R3 平台边界；它没有提升 native Desktop launch、persistence/signing 或 RPC readiness。
-唯一 next task 是 AR1。排序与交付记录以
+当前 R0–R3 平台边界；AR1 同日完成 17-case Direct/Cordis A/B、选择唯一 private Direct backend，
+并迁入 lazy DevDock 与 Studio Flow。两者都没有提升 native Desktop launch、persistence/signing、
+RPC readiness 或 Desktop R0–R2。唯一 next task 是 AR2。排序与交付记录以
 [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md) §1
 为准，live capability 以 [features](features.md) 为准。
 
@@ -131,8 +132,9 @@ bootstrap、runtime/author startup 与 recovery signals、final-output dependenc
 唯一 State authority、Save/replay 等价与热路径预算。实验分支已完成 X0–X6.3：X6.2 注入唯一
 Narrative integrity catalog，X6.3 将 concrete registries 收口到 frozen cold environment/direct
 plans；初始 X1 引入的私有 Cordis wrapper 在 retain/remove checkpoint 证明当时的平面 wrapper
-没有承担独立 scope/fiber 语义后已由 package-internal direct lifecycle 取代；它不回答未来
-editor nested ownership/provider recovery 的总成本。X7 的中立 3x3 matrix、隔离 GC
+没有承担独立 scope/fiber 语义后已由 package-internal direct lifecycle 取代；该历史 checkpoint
+没有回答 editor nested ownership/provider recovery 的总成本，后续 AR1 已用两个真实 GUI
+consumer 与同一 17-case suite 完成裁决并选择 Direct。X7 的中立 3x3 matrix、隔离 GC
 trend 与外部两场景 paired evidence 也已完成且通过 stop gate。探索历史保留在
 `codex/experimental-cordis-state-runtime`，经验证的最终树由
 `codex/promote-composition-state-runtime` 重组为后续主仓开发基线；这仍不自动激活 Mod ABI、
@@ -145,9 +147,10 @@ journal/reducer transaction；早期 proposal/fact shape 只保留为历史 chec
 
 2026-08-18 所有者以新的产品方向证据接受
 [Application Runtime and Embedded Authoring V1](plans/2026-08-18-application-runtime-embedded-authoring.md)
-为当前默认/core lane：AR0 已建立 Browser/Deno Desktop startup/dependency floor；当前 AR1 用
-中立合同比较 direct 与 Cordis-core-derived private lifecycle 并只保留一条；随后交付
-structured authoring operations、stable-sibling embeddable Authoring Host 与最窄 typed
+为当前默认/core lane：AR0 已建立 Browser/Deno Desktop startup/dependency floor；AR1 已用中立
+17-case suite 比较 direct 与 Cordis-core-derived private lifecycle，选择唯一 SillyMaker-owned
+Direct backend，并删除 Cordis adapter/vendor/dependency。当前唯一 next AR2 交付 structured
+authoring operations；其后是 stable-sibling embeddable Authoring Host 与最窄 typed
 RPC/experimental Agent Host/UiArtifact seam，再做双 GUI Host build/performance promotion。目标合同见
 [Application Runtime and Embedded Authoring](design/application-runtime-and-embedded-authoring.md)。
 本轮只交付引擎基础设施；AR6 后的作品、examples 或产品由所有者另行讨论和立案，不预设名称或
@@ -376,8 +379,9 @@ workspace；现有独立 Studio route 与未来应用内 author surface 是同�
   check/inspect 无法承载新的修复型诊断时另立。
 
 已交付的外壳统一化、project authoring index、共享文档会话与 Story 包目录 locality 由
-[Authoring Architecture 计划](plans/2026-08-15-authoring-architecture.md) 拥有；可嵌入
-Host、workspace progressive activation 与结构化人机共用 operation 的下一步由当前
+[Authoring Architecture 计划](plans/2026-08-15-authoring-architecture.md) 拥有；workspace
+progressive activation 已由 Application Runtime AR1 交付，可嵌入 Host 与结构化人机共用
+operation 的下一步仍由当前
 [Application Runtime plan](plans/2026-08-18-application-runtime-embedded-authoring.md) 拥有。
 
 Editor 写普通 TS 或被 TS 引用的稳定数据（JSON 文档经严格 admission），不形成另一
@@ -479,9 +483,9 @@ Agent workspace 需要 tab/split/task/approval/artifact/history 等独立领域�
 
 [Mod design](design/mod-system.md) 保留为 accepted direction / incubation，不是当前实现队列。
 
-当前 AR1 的 private Extension Runtime A/B 不等于激活 Mod：它没有 resolver、manifest、public
-ABI、external SDK、post-release install 或 distribution。即使最终采用 vendored/forked Cordis
-core，也只是一项可从普通静态游戏 build 排除的内部 lifecycle backend。
+AR1 已选择的 private Direct Extension Runtime 不等于激活 Mod：它没有 resolver、manifest、
+public ABI、external SDK、post-release install 或 distribution，并且仍可从 ordinary
+no-extension game build 完全排除。历史 Cordis adapter/vendor 已删除。
 
 激活 M0–M2 前必须同时满足：
 
