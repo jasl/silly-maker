@@ -43,12 +43,17 @@ Host，ordinary release 排除 authoring/real dev-source graph；macOS/Deno 2.9.
 author/source-write/R0–R2、packaged artifact、多平台与 durability 仍 defer。AR4 experimental Agent
 RPC/UiArtifact seam 也已于 2026-08-22 交付关闭；AR5 已完成 neutral single-companion split、完整
 Author graph 的 Agent structural exclusion、Browser physical R1/R2/held-Agent lifetime 与 local
-performance evidence。当前/下一项唯一是 AR5 Deno Desktop upstream gate：先用记录 exact SHA 且
-确认包含 Deno PR #36488 merge `98dc759254a90b98f7bbb62ba5361e531d0db6a5` 的隔离 official
-canary 做 characterization，通过后实现最终形状的 package-private、默认关闭 candidate；该 candidate
-在同一 canary 上的完整 Desktop native matrix 通过后才可提交/保留；首个经 release source/
-行为确认包含该路径的 stable（2.9.6 只是预期候选）上逐项复跑同一 matrix 后才正式打开并允许 AR5
-closure。不得为 2.9.5 建 external Vite/proxy、手工 shim 或 runtime fork；
+performance evidence。AR5 Deno Desktop canary gate 也已于 2026-08-23 完成：显式选择的隔离 official
+canary 报告 `98dc759`，参与者将其对应到 Deno PR #36488 merge
+`98dc759254a90b98f7bbb62ba5361e531d0db6a5`；最终形状的 package-private/default-off candidate、
+既有中立合同 tests、约数百行内且只记录该人工选择并核对 binary 报告的七位 revision、使用隔离目录/
+真实 workspace command/direct-child exit-0 的 launch preflight，以及一次人工
+native ready/bootstrap/private-route/HMR 无 reload/正常关闭 characterization 全部通过；preflight
+没有 renderer receipt、probe、report 或 durable evidence。首次 `shell-ui.tsx` 检查暴露的 mixed
+component/registry export 已通过模块边界拆分修复，并由 Chromium/WebKit/native 正反向 HMR 证明状态与
+overlay 保留。当前/下一项唯一是首个经 release source/行为确认包含该路径的 stable（2.9.6 只是预期
+候选）上重跑同一分层验收；通过后才正式打开并允许 AR5 closure。不得为 2.9.5 建 external
+Vite/proxy、手工 shim 或 runtime fork；
 现有 static R3/packaging、public Deno `>=2.9.0` floor 与 latest-stable required CI 不变。其后才进入
 AR6 closure。目标合同见
 [Application Runtime and Embedded Authoring](../design/application-runtime-and-embedded-authoring.md)。

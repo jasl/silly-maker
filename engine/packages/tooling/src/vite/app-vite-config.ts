@@ -24,6 +24,11 @@ import {
 } from "./build-dependency-receipt.ts";
 import { applicationRuntimeBootstrapPluginInternalV1 } from "./application-entry-bootstrap.ts";
 import {
+  createDesktopDevVitePluginInternalV1,
+  desktopDevIntentEnvironmentKeyInternalV1,
+  parseDesktopDevIntentEnvironmentInternalV1,
+} from "./desktop-dev.ts";
+import {
   copyRuntimeAssetsV1,
   parseRuntimeAssetContentTypesV1,
   resolveRuntimeAssetPathV1,
@@ -169,6 +174,14 @@ export async function createSillymakerAppViteConfigV1(
   const runtimeAssetContentTypes = input.runtimeAssetContentTypes === undefined
     ? undefined
     : parseRuntimeAssetContentTypesV1(input.runtimeAssetContentTypes);
+  const desktopDevIntent = parseDesktopDevIntentEnvironmentInternalV1(
+    process.env[desktopDevIntentEnvironmentKeyInternalV1],
+  );
+  const desktopDev = desktopDevIntent === null ? null : createDesktopDevVitePluginInternalV1({
+    applicationId: config.applicationId,
+    applicationLabel: config.label,
+    intent: desktopDevIntent,
+  });
 
   const plugins: PluginOption[] = [];
   if (web.identity !== null && web.identity !== undefined) {
@@ -190,6 +203,9 @@ export async function createSillymakerAppViteConfigV1(
     // Dev-server-only source port for DevTools "open source" actions.
     devSourcesPluginV1(appRoot),
   );
+  if (desktopDev !== null) {
+    plugins.push(desktopDev);
+  }
   if (config.studio !== null && config.studio !== undefined) {
     // Dev-server-only Studio page for scene authoring; never in builds.
     plugins.push(studioPluginV1(config.studio));

@@ -149,8 +149,6 @@ const labUiProjectorDefinitionV1: GameUiProjectorV1<
 
 export const labUiProjectorV1 = Object.freeze(labUiProjectorDefinitionV1);
 
-export { labStageRenderersV1 } from "./shell-ui.tsx";
-
 type LabSemanticPortV1 = LabApplicationInstanceV1["semantic"];
 
 const labUiSlotsDefinitionV1: DefaultGameRootSlotsV1<

@@ -20,6 +20,7 @@ import {
   injectApplicationRuntimeBootstrapHtmlInternalV1,
 } from "./application-entry-bootstrap.ts";
 import { createSillymakerAppViteConfigV1 } from "./app-vite-config.ts";
+import { desktopDevIntentEnvironmentKeyInternalV1 } from "./desktop-dev.ts";
 import { studioPageUrlV1 } from "./studio.ts";
 
 const repositoryRootV1 = resolve(process.cwd());
@@ -144,6 +145,45 @@ describe("runtime application entry bootstrap HTML", () => {
         expect.objectContaining({ name: "sillymaker:application-runtime-bootstrap" }),
       ]),
     );
+    expect(config.plugins).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "sillymaker:desktop-dev" }),
+      ]),
+    );
+  });
+
+  it("fails an explicit Desktop-dev launch when native capability is unavailable", async () => {
+    const previous = process.env[desktopDevIntentEnvironmentKeyInternalV1];
+    process.env[desktopDevIntentEnvironmentKeyInternalV1] = JSON.stringify({
+      revision: 1,
+      runId: "stable-unavailable",
+      recordsDir: join(tmpdir(), "sillymaker-desktop-dev-records"),
+      downloadsDir: join(tmpdir(), "sillymaker-desktop-dev-downloads"),
+      bootstrap: { revision: 1, entry: "runtime", target: "deno_desktop" },
+    });
+    try {
+      await expect(createSillymakerAppViteConfigV1({
+        appRoot: import.meta.dirname,
+        config: {
+          applicationId: "bootstrap-test",
+          label: "Bootstrap test",
+          storyEntry: { module: "src/story.ts", exportName: "storyV1" },
+          assetVerification: false,
+          simulate: null,
+          web: {
+            applicationHtml: "index.html",
+            applicationEntry: "src/entry.tsx",
+            base: "./",
+            sourcemap: false,
+            identity: null,
+            desktop: null,
+          },
+        },
+      })).rejects.toThrow("desktop_dev.runtime.browser_window_unavailable");
+    } finally {
+      if (previous === undefined) delete process.env[desktopDevIntentEnvironmentKeyInternalV1];
+      else process.env[desktopDevIntentEnvironmentKeyInternalV1] = previous;
+    }
   });
 
   it("survives the real Template build and Desktop response boundary", async () => {

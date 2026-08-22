@@ -1,9 +1,26 @@
 // SPDX-License-Identifier: MIT
+import { readFileSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 
 import type { Page } from "@playwright/test";
 
 import { expect, gotoLabV1, test } from "./fixtures.ts";
+
+const shellUiFileV1 = fileURLToPath(
+  new URL("../../../../../e2e/src/application/shell-ui.tsx", import.meta.url),
+);
+const labHudMarkerV1 = '<div data-lab-hud="true">';
+const labHudFastRefreshMarkerV1 =
+  '<div data-lab-hud="true" data-lab-fast-refresh-probe="candidate">';
+
+function replaceExactlyOnceV1(source: string, current: string, replacement: string): string {
+  const first = source.indexOf(current);
+  if (first === -1 || first !== source.lastIndexOf(current)) {
+    throw new Error(`Expected exactly one source marker: ${current}`);
+  }
+  return source.replace(current, replacement);
+}
 
 /**
  * Install a same-slot pending backup from bytes the real Player just saved.
@@ -113,6 +130,61 @@ test.describe("engine default shell", () => {
     await expect(journal).toBeVisible();
     await journal.getByRole("button", { name: "关闭", exact: true }).click();
     await expect(journal).toBeHidden();
+  });
+
+  test("@dev-source-io keeps the component-only shell on Fast Refresh", async ({ page }) => {
+    const originalBytes = readFileSync(shellUiFileV1, "utf8");
+    const candidateBytes = replaceExactlyOnceV1(
+      originalBytes,
+      labHudMarkerV1,
+      labHudFastRefreshMarkerV1,
+    );
+    let pageLoads = 0;
+    let candidateVisible = false;
+    try {
+      await gotoLabV1(page);
+      await page.getByRole("button", { name: "采集样本" }).click();
+      const hud = page.locator('[data-lab-hud="true"]');
+      const hudSummary = hud.locator("p").first();
+      await expect(hudSummary).toContainText(/样本[1-9]/u);
+      const expectedHudSummary = await hudSummary.textContent();
+      if (expectedHudSummary === null) throw new Error("Engine Lab HUD summary is unavailable");
+      await page.getByRole("button", { name: "实验日志" }).click();
+      const journal = page.getByRole("dialog", { name: "实验日志" });
+      await expect(journal).toBeVisible();
+      const expectedJournal = await journal.locator('[data-lab-journal="true"]').textContent();
+      if (expectedJournal === null) throw new Error("Engine Lab journal content is unavailable");
+      page.on("load", () => {
+        pageLoads += 1;
+      });
+
+      writeFileSync(shellUiFileV1, candidateBytes);
+      await expect(hud).toHaveAttribute("data-lab-fast-refresh-probe", "candidate");
+      candidateVisible = true;
+      expect(pageLoads).toBe(0);
+      await expect(hudSummary).toHaveText(expectedHudSummary);
+      await expect(journal).toBeVisible();
+      await expect(journal.locator('[data-lab-journal="true"]')).toHaveText(expectedJournal);
+
+      writeFileSync(shellUiFileV1, originalBytes);
+      await expect(hud).not.toHaveAttribute("data-lab-fast-refresh-probe", "candidate");
+      candidateVisible = false;
+      expect(pageLoads).toBe(0);
+      await expect(hudSummary).toHaveText(expectedHudSummary);
+      await expect(journal).toBeVisible();
+      await expect(journal.locator('[data-lab-journal="true"]')).toHaveText(expectedJournal);
+    } finally {
+      if (readFileSync(shellUiFileV1, "utf8") !== originalBytes) {
+        writeFileSync(shellUiFileV1, originalBytes);
+      }
+      if (candidateVisible && !page.isClosed()) {
+        await expect(page.locator('[data-lab-hud="true"]')).not.toHaveAttribute(
+          "data-lab-fast-refresh-probe",
+          "candidate",
+        );
+      }
+    }
+    expect(readFileSync(shellUiFileV1, "utf8")).toBe(originalBytes);
   });
 
   test("@smoke keeps focus-driven activation working", async ({ page }) => {

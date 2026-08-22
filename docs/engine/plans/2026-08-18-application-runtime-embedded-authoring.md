@@ -506,18 +506,16 @@ conversation/task/artifact storage、permission UI、Mutation gateway 或 Effect
 - required RPC failure 保留 configuration/recovery GUI，依赖 domain 不谎报 ready；
 - Browser 跑通 Vite candidate、activation double-trigger、failure/retry、close/late result、
   input/focus、standalone/embedded parity、dirty draft across HMR 与 connected readiness；
-- Deno Desktop 跑通 bootstrap CLI config、同一 domain factory、selected Extension Runtime、
-  RPC failure/retry 和至少一个真实 build-known candidate flow；若只能 full restart，明确验证
-  R3 handoff，不把它写成 local reload；
-- 两平台都证明 R1 presentation candidate，以及其他 sibling Application Domain 的 R2 candidate，
-  其 success、failure、rollback 均保留 Authoring Host identity、document、dirty、undo 和 selection；
-  游戏 conformance 必须覆盖 Game/Session candidate；
-- 在 in-flight fake Agent session/stream 下，两平台的 R1 presentation 与其他 sibling
-  Application Domain 的 R2 successor，其 success、failure、rollback 都保留 Agent Host/session
-  identity；游戏 conformance 必须覆盖 Game/Session successor。其他领域换代不得 cancel、
-  reconnect 或重建 Agent；任何 domain-bound late intent 必须针对 current generation 重新
-  admission 或稳定拒绝，不能落到 stale domain authority；
-- 两平台都跑通 AR4 fake stream → admitted Artifact → render → intent → AR2 operation；
+- Deno Desktop 的 CLI bootstrap config 由现有 static R3 shell 与其严格 argv admission 负责；官方
+  framework-HMR 不转发 application argv 时不得伪造。Desktop-dev 只从自己的显式、冻结 launch
+  intent 取得等价 bootstrap；
+- 跨平台中立合同 tests 负责 R1 presentation、其他 sibling Application Domain 的 R2 candidate、
+  Game/Session candidate、CAS，以及 success、pre-replacement failure、适用 rollback、terminal
+  post-retirement failure + retry。Browser 保留已经取得的 physical GUI evidence；Desktop native
+  不重复整套领域合同；
+- 同一中立合同层负责 held fake Agent 下的 Host/session/run/RPC connection、Artifact 与 late-intent
+  generation fencing，以及 AR4 fake stream → admitted Artifact → render → intent → AR2 operation。
+  Desktop native characterization 不重演 Agent/RPC/failure matrix；
 - ordinary no-extension static game build 精确排除 Authoring Host、selected Direct dynamic
   extension backend、unrelated RPC client、Node/Electron code 和 author-only graph；
 - 另建 authoring-only/no-Agent build measurement：它必须保留完整 Authoring Host/workspaces 而排除
@@ -545,10 +543,10 @@ production claim；这些继续由独立 Desktop lane 拥有。
 真正 gate 是“首个经 release source 与实际行为确认包含该 in-runtime Vite 路径的 stable”。若名为
 2.9.6 的发布不含该行为，gate 继续关闭并顺延，不按版本字符串猜 capability。
 
-- stable 发布前，先用仓库外隔离安装、记录完整 SHA 且确认包含上述 merge 的 official canary 做
-  platform characterization；优先使用 exact merge SHA，若其 artifact 已过期则使用一个经 ancestry
-  与行为双重确认的后继 exact SHA。独立 binary/`DENO_DIR` 不替换系统 stable，也不进入 lock、
-  required CI、public compatibility floor 或普通开发命令；exact SHA 只是 evidence provenance，不是
+- stable 发布前，先显式选择仓库外隔离安装、经人工确认对应上述 merge 的 official canary 做一次
+  platform characterization；优先选择 merge artifact，若其已过期则选择一个经 ancestry 与行为确认的
+  后继 canary。独立 binary/`DENO_DIR` 不替换系统 stable，也不进入 lock、required
+  CI、public compatibility floor 或普通开发命令；这是一轮候选选择，不建立长期 provenance 或
   runtime pin；
 - platform characterization 通过后直接按最终形状实现：应用目录以 `deno desktop --hmr .` 进入 Deno 官方
   in-runtime Vite server，SillyMaker 的 package-private Desktop-dev adapter 在该 server 上复用现有
@@ -557,24 +555,34 @@ production claim；这些继续由独立 Desktop lane 拥有。
   SillyMaker 自有 explicit launch intent 与实际 Desktop capability fail closed，不依赖
   `DENO_DESKTOP_FRAMEWORK_DEV` 等未文档化 upstream marker，也不把 native API 暴露给 WebView。
   2.9.5 显式实验启动必须稳定报告 unavailable，不能退化成 Browser；
-- 实现后的 inactive integration 只允许由显式传入隔离 canary binary 的 local characterization harness
-  触达，不进入 ordinary task/project config/generated application command/release，也不作为
-  maintained workflow 写入 user-facing development/features/build docs。必须先在该 canary 上跑完
-  下述 native acceptance 并 PASS，才可提交/保留该 private integration；
-  canary PASS 仍不构成 maintained workflow、live capability、AR5 closure 或 Desktop production
-  promotion；
+- 实现后的 inactive integration 只允许由显式传入隔离 canary binary 的一次性 local launch preflight
+  入口触达，不进入 ordinary task/project config/generated application command/release，也不作为 maintained
+  workflow 写入 user-facing development/features/build docs。下述分层 canary acceptance 通过后只
+  允许提交/保留该 private inactive candidate；它不构成 maintained workflow、live capability、AR5
+  closure 或 Desktop production promotion；
 - 不为 2.9.5 建 external Vite/native companion、第二 server/proxy、手工 PR shim 或自维护 Deno fork。
   当前 prebuilt `dist` + staged `main.ts` 的 static staging/packaging/R3 路径保持不变；
-- canary 与首个候选 stable 使用同一完整 Desktop matrix：Vite plugin/runtime placement、source CWD、
-  单一同源 server、唯一 Desktop bootstrap/capability、startup window adoption、CLI bootstrap config、
-  同一 domain factory/selected Extension Runtime、required RPC unavailable + retry、Authoring R1 与
-  Game/Session R2 的 success、pre-replacement failure、适用的 rollback，以及当前合同规定的 terminal
-  post-retirement failure + retry；held Agent 下相同 success/failure/retry 路径必须保留 Host/session/
-  run/RPC connection、Artifact、dirty/undo/selection 且 page load 为零，fake stream → Artifact → AR2
-  operation 仍走通；最后证明 native close/resource cleanup 与既有 static R3 回归。不得把 terminal
-  post-retirement failure 写成 transactional rollback；
-- 首个候选 stable 发布后，先确认 release source 与行为确实包含目标路径，再逐项重跑上述 matrix。
-  全部通过后才打开/记录正式 Desktop dev workflow、领取 Desktop R1/R2/HMR 并允许 AR5 closure；否则
+- acceptance 分成三层，不再建设一个长期自动运行、完整自证明所有领域语义的 native harness：
+  - **现有跨平台中立合同 tests** 是 R1/R2 publication、Agent lifetime、Scene CAS、required RPC
+    unavailable/retry、candidate failure/rollback/retry 与 generation fencing 的唯一详细行为矩阵；
+  - **约数百行内的 Desktop launch preflight** 只接收显式 binary 与参与者选择的完整 upstream commit，
+    核对 `deno --version` 报告的七位 canary revision、创建隔离工作目录、调用真实 workspace command、
+    启动一个 direct child，并以该 direct child 的 exit 0 为唯一自动
+    PASS；它不注入 renderer receipt/probe，不增加 report endpoint，不保存 durable evidence，也不自动
+    声称 ready、private route、HMR 或 native close 已成立。若仍需千行级 validation-only 实现则停止这层
+    自动化，不能换名保留 characterization subsystem；
+  - **一次人工参与的 native characterization** 由参与者确认官方 in-runtime Vite、同一 startup window
+    与同一 origin、真实 GUI ready、唯一 Desktop bootstrap/private route、一次真实 source HMR 且 page
+    reload 为零，以及正常关闭窗口后完成 flush、server/private-exchange drain 并 process exit 0。CLI
+    bootstrap 继续由 static R3 证据承担；这次 native characterization 不重复 R1/R2、Agent、CAS 或
+    failure/retry matrix；
+- 一次性 preflight 失败时，launcher 只管理自己直接创建的 child，不扫描、认领或定向终止 upstream
+  framework 创建的 native descendants。Deno/Laufey 等上游遗留窗口或进程由参与者人工关闭后再重跑；
+  不保留 PID tree、长期 evidence sink、机器 provenance、自动 source-mutation 编排或完整 process-cleanup
+  自证明系统；
+- 首个候选 stable 发布后，先确认 release source 与实际行为包含目标路径，再保持中立合同 tests current，
+  重跑同一个 bounded launch preflight 与一次人工 native characterization。全部通过后才
+  可以另行打开/记录正式 Desktop dev workflow、领取 Desktop HMR 并允许 AR5 closure；否则 candidate
   保持 inactive 并 defer/upstream。
 
 若 canary 无法证明 in-runtime Vite/native lifecycle，或最窄 adapter 仍要求第二 server/proxy、
@@ -611,10 +619,19 @@ PASS 本身都不能升格为 SillyMaker R1/R2 合同。
   `-0.72ms / -1.40%`，判定 `continue`。只有 first actionable 同时回退超过 10% 与 50ms 时才要求
   second independent run；本轮未越线，因而无需第二轮。runner 不自动比较两份报告，raw local
   report 不提交、也不成为 ordinary CI gate；
-- Deno Desktop private Authoring/Agent Host 的 R1/R2 candidate、handoff、failure/retry，以及
-  `deno desktop --hmr` 接线仍未完成。下一项固定为上述 canary characterization → private inactive
-  integration → stable revalidation/activation；gate 通过前 AR5 继续进行，不形成 closure，也不启动
-  AR6。
+- Deno Desktop private inactive adapter、bounded launch preflight 与 selected-canary characterization 已完成。
+  显式选择的 official canary 报告 `98dc759`，参与者将其对应到完整 upstream commit
+  `98dc759254a90b98f7bbb62ba5361e531d0db6a5`；该 binary 通过真实 workspace
+  `deno desktop --hmr .` 启动官方 in-runtime Vite server，并在同一 startup window/origin 完成
+  Desktop bootstrap、隔离 private records route、真实 source HMR/restore、正常 native close、
+  flush/drain 与 direct-child exit 0。首次以 `shell-ui.tsx` 验证时发现其 stage registry 非组件导出使
+  React Fast Refresh 正确 invalidation 并降级 R3；把 registry 拆到 `stage-rendering.tsx` 后，新增的小型
+  Browser dev-server 回归在 Chromium/WebKit 以及人工 native canary 都证明 `LabHudV1` 正反向更新
+  page reload 为零，并保留 exact HUD state 与日志 overlay。equal-R2→R3 fallback、BuildIdentity、
+  Desktop adapter 和约数百行 native preflight 均未放宽或扩张。R1/R2、Authoring/Agent lifetime、CAS
+  与 failure/retry 继续由既有中立合同 tests 拥有，不在 native 重复。candidate 仍 package-private、
+  explicit、default-off；唯一剩余 gate 是首个经 source/行为确认包含目标路径的 stable 上重跑同一
+  分层验收，之前 AR5 不形成 closure，也不启动 AR6。
 
 ### AR6 — Closure and owner checkpoint
 

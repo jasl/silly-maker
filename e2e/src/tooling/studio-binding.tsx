@@ -10,7 +10,7 @@ import type { AgentRpcClientPortInternalV1 } from "@sillymaker/agent/internal";
 import type { StudioBindingV1 } from "@sillymaker/studio";
 import { defineExperimentalEmbeddedAgentBindingInternalV1 } from "@sillymaker/studio/internal/agent";
 
-import { labStageRenderersV1 } from "../application/shell-ui.tsx";
+import { labStageRenderersV1 } from "../application/stage-rendering.tsx";
 import { labStageContentCatalogV1 } from "../presentation.ts";
 
 const labResearcherAppearanceFieldsV1 = Object.freeze([

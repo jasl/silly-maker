@@ -145,12 +145,15 @@ incompatible-configuration R1 rejection + compatible retry 已保留 held Agent 
 headless/jsdom 另覆盖 post-retirement R2 UI-start failure + retry、terminal owner cleanup 与 repeated
 Agent disposal。五组同机交错 local performance evidence 的 first actionable delta 为
 `-4.23ms / -3.54%`、stable command delta 为 `-0.72ms / -1.40%`，判定 `continue`。Deno Desktop
-private Authoring/Agent Host R1/R2 与 `deno desktop --hmr` 仍未接线，AR5 仍在进行且没有 closure。
-owner 已固定下一顺序：用隔离、记录 exact SHA 且确认包含 Deno PR #36488 merge `98dc759…` 的
-official canary 做 characterization，通过后实现 package-private、默认关闭的最终形状 candidate；
-该 candidate 只有在同一 canary 上通过完整 Desktop native matrix 后才可提交/保留；首个经 release
-source/行为确认
-包含该路径的 stable（2.9.6 只是预期候选）再逐项重跑后，才正式打开并允许 AR5 closure。不为
+private inactive adapter、约数百行 bounded preflight 与显式选择的 official canary 人工 native
+characterization 也已完成：binary 报告 `98dc759`，参与者将其对应到完整 upstream commit
+`98dc759254a90b98f7bbb62ba5361e531d0db6a5`；官方 in-runtime Vite、同窗同 origin bootstrap/private route、
+component-only `shell-ui.tsx` 正反向 HMR 零 reload、状态/overlay 保留、正常关闭 flush/drain 与
+direct-child exit 0 均成立。首次 mixed component/registry export 导致的 R3 已拆分修复，并由
+Chromium/WebKit 回归固定；adapter、BuildIdentity、equal-R2 fallback 与 native harness 没有扩张。
+candidate 保持 package-private、explicit、default-off，AR5 仍没有 closure。首个经 release source/
+行为确认包含该路径的 stable（2.9.6 只是预期候选）再重跑相同 bounded acceptance 后，才正式打开并
+允许 AR5 closure。不为
 2.9.5 建临时 proxy/shim/fork，static R3、Deno `>=2.9.0` floor 与 latest-stable CI 均不变。
 排序与交付记录以
 [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md) §1
@@ -522,10 +525,13 @@ GUI Host/build/lifetime/performance evidence，不把上述 defer 偷渡为 live
 AR5 已用 neutral single-companion split 和正/负 Author-entry measurement 完成 authoring-only/no-Agent
 final module/source graph 的 structural exclusion，并取得 Browser physical lifecycle 与同机五组
 `continue` performance evidence；Studio manifest 的 workspace Agent edge 仍服务 private opt-in，
-Deno Desktop private Host R1/R2 与 HMR 接线仍未完成，因而 AR5 没有 closure。下一项只执行已接受
-的 exact-canary characterization → private inactive integration → verified-stable activation gate；
-inactive integration 必须先在 canary 上通过完整 native matrix；该 PASS 仍不构成 live capability、
-maintained workflow 或 Desktop production promotion。
+Deno Desktop private inactive adapter、bounded preflight 与 selected-canary characterization 已完成，但
+AR5 仍没有 closure。下一项只执行已接受的 verified-stable revalidation/activation gate：首个经
+release source/行为确认包含目标路径的 stable 必须重跑中立合同 tests + 约数百行内的 explicit-binary/
+隔离目录/真实 workspace command/direct-child exit-0 launch preflight + 一次人工 native ready/
+bootstrap/private-route/HMR 无 reload/正常关闭 characterization。preflight 不建立 renderer receipt/
+probe/report/durable evidence；native 不重复 R1/R2、Agent、CAS 或 failure/retry matrix；canary PASS
+仍不构成 live capability、maintained workflow 或 Desktop production promotion。
 
 Agent workspace 需要 tab/split/task/approval/artifact/history 等独立领域模型；不要把现有游戏 Overlay 膨胀成桌面 WindowManager。流式半成品是 transient presentation；只有完整验证的 document 可持久化，replay 渲染保存 document 而不是重新调用模型。
 

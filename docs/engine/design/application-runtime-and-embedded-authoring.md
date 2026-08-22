@@ -141,14 +141,19 @@ R1/R2 admission 与 handoff。adapter 由 SillyMaker 明确 launch intent 加实
 fail closed，不以 semver 字符串猜行为，也不把 Deno 未文档化的 framework-dev marker 作为公共或
 唯一 admission authority。现有 static Desktop R3 shell/packaging 是独立路径，不为 HMR 改造。
 
-该路径采用三段 promotion：先由记录 exact SHA、隔离安装且确认包含 Deno PR #36488 merge
-`98dc759254a90b98f7bbb62ba5361e531d0db6a5` 的 official canary 做 provisional platform
-characterization；通过后可以实现 package-private inactive candidate，但它只能由显式传入该隔离
-binary 的 local characterization harness 触达，且只有在 canary 上通过 AR5 完整 Desktop native
-acceptance 后才可提交/保留。它不进入 ordinary task/config/generated command/release，也不作为
-maintained workflow 写入 user-facing development/features/build docs；首个经 release source 与实际
-行为确认包含同一 upstream 语义的 stable 上逐项重跑同一 matrix 后，才成为 maintained Desktop dev
-workflow。2.9.6 是预期候选而不是合同；canary 证据不提升 public Deno `>=2.9.0` floor、latest-stable
+该路径采用三段 promotion：先由人工显式选择隔离安装的 official canary 做 provisional platform
+characterization；该 binary 报告 revision `98dc759`，参与者将其对应到 Deno PR #36488 merge
+`98dc759254a90b98f7bbb62ba5361e531d0db6a5`。通过后可以实现 package-private inactive candidate，
+但它只能由显式传入该隔离 binary 的 bounded local launch preflight 触达。分层 acceptance 由既有中立合同
+tests、一个约数百行内且只记录参与者选择的完整 upstream commit、机械核对 `deno --version` 报告的七位
+revision、使用隔离目录、调用真实 workspace command、接受 direct-child exit 0 的 launch preflight，
+以及一次人工参与的 native ready/bootstrap/private-route/真实 HMR 无 reload/正常关闭 characterization
+组成；preflight 不建立 renderer receipt、probe module、report endpoint 或 durable evidence sink。三层在
+canary 上全部通过后 candidate 才可提交/保留。它不进入 ordinary
+task/config/generated command/release，也不作为 maintained workflow 写入 user-facing
+development/features/build docs；首个经 release source 与实际行为确认包含同一 upstream 语义的
+stable 上重跑同一分层验收后，才成为 maintained Desktop dev workflow。2.9.6 是预期候选而不是合同；
+canary 证据不提升 public Deno `>=2.9.0` floor、latest-stable
 required CI、AR5 状态或任何 Desktop production claim。
 
 ### 4.2 Platform-neutral Extension Runtime
@@ -444,10 +449,20 @@ lifecycle evidence；这些证据不合并为“所有 failure/rollback 都有 p
 AR5 local-only 五组交错 fresh-build/fresh-Chromium-context runner 已实测 first actionable paired
 median delta `-4.23ms / -3.54%`、stable command paired median delta
 `-0.72ms / -1.40%`，判定 `continue`；本轮未触发只有越过 first-actionable 双阈值才要求的 second
-independent run。runner 不自动比较第二份报告，raw report 不提交且不是 CI gate。Deno Desktop
-private Authoring/Agent Host 的 R1/R2 candidate/handoff/failure/retry 与 `deno desktop --hmr` 接线仍
-未完成；owner 已固定 exact-canary characterization → private inactive integration → verified-stable
-activation 的 upstream gate，拒绝 2.9.5 workaround。stable gate 通过前 AR5 继续进行，AR6 未启动。
+independent run。runner 不自动比较第二份报告，raw report 不提交且不是 CI gate。
+
+Deno Desktop private inactive adapter、bounded launch preflight 与 selected-canary characterization 已于
+2026-08-23 完成。显式选择的 official canary 报告 `98dc759`，参与者将其对应到完整 upstream commit
+`98dc759254a90b98f7bbb62ba5361e531d0db6a5`；该 binary 通过真实 workspace
+`deno desktop --hmr .` 启动官方 in-runtime Vite server；同一 startup window/origin
+完成 Desktop bootstrap、隔离 private records route、正向及源码还原 HMR、正常 native close、
+flush/drain 与 direct-child exit 0。首次修改 `shell-ui.tsx` 暴露该 Story 把会重建 identity 的 stage
+registry 与 React 组件混合导出，React Fast Refresh 因而正确降级 R3；registry 拆到独立
+`stage-rendering.tsx` 后，Chromium、WebKit 与 native canary 都证明 component-only `LabHudV1`
+更新保留 exact HUD state 与已打开的日志 overlay，且 page reload 为零。该修复没有改变 Desktop
+adapter、BuildIdentity、equal-R2→R3 fallback 或 native harness。candidate 仍 package-private、explicit、
+default-off；只有首个经 source/行为确认包含目标路径的 stable 上重跑同一分层验收后才可激活并关闭
+AR5，AR6 尚未启动。
 
 ## 8. Promotion and deferred evidence
 

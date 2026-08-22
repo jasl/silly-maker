@@ -92,16 +92,22 @@ Read only the documents relevant to the change:
   while Engine Lab selects the private Agent companion explicitly. The Studio
   manifest keeps a workspace Agent dependency for that opt-in entry, but final
   module/source structural exclusion is proved. AR5 Browser physical R1/R2 held-
-  Agent lifetime and local performance evidence also passed. Deno Desktop private
-  Authoring/Agent Host R1/R2 and HMR remain the only next work: first characterize
-  an isolated exact-SHA official canary confirmed to contain Deno PR #36488 merge
-  `98dc759254a90b98f7bbb62ba5361e531d0db6a5`; if it passes, implement only a
-  package-private, explicitly experimental, default-off candidate using the
-  official in-runtime Vite server. It must remain reachable only through a local
-  characterization harness that receives the isolated canary binary explicitly,
-  and may be landed/retained only after it passes the complete Desktop native
-  matrix on that canary. Do not build a 2.9.5 proxy/shim/fork, depend on
-  undocumented Deno framework-dev markers, or version-gate by a presumed 2.9.6.
+  Agent lifetime and local performance evidence also passed. The package-private,
+  explicitly experimental, default-off Deno Desktop candidate, bounded launch
+  preflight, and explicitly selected official canary characterization also passed:
+  the binary reported revision `98dc759`, which the participant mapped to upstream
+  commit `98dc759254a90b98f7bbb62ba5361e531d0db6a5`; official in-runtime Vite,
+  same-window/origin bootstrap/private route, component-only shell Fast Refresh
+  with retained state/overlay, normal close flush/drain, and direct-child exit 0.
+  The initial mixed component/registry export was split without changing the
+  adapter, BuildIdentity, or equal-R2 fallback. The preflight receives the isolated
+  binary explicitly, records the participant-selected full upstream commit, checks
+  only the seven-character revision reported by `deno --version`, uses isolated
+  directories, invokes the real workspace command, manages only its direct child,
+  and adds no renderer receipts, probe modules, report endpoints, or durable
+  evidence sink. Do not build
+  a 2.9.5 proxy/shim/fork, depend on undocumented Deno framework-dev markers, or
+  version-gate by a presumed 2.9.6.
   The first stable whose source and behavior contain that path must re-run the same
   acceptance before the workflow activates or AR5 closes. AR4/AR5 still do not add
   a real backend or transport, public Agent ABI, OpenUI/A2UI, Agent persistence,
