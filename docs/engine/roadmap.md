@@ -1,7 +1,8 @@
 # SillyMaker engine roadmap
 
-状态：2026-07-19 接受，最近审查修订 2026-08-22。已实现能力以
-[features](features.md) 为准；历史交付见
+状态：2026-07-19 接受，最近审查修订 2026-08-22。已 promotion 的稳定能力以
+[features](features.md) 为准；已交付但仍 provisional/package-private 的实验 seam 以对应 active
+plan closure 与 [architecture](architecture.md) 为准；历史交付见
 [roadmap archive](roadmap-archive.md)。当前执行入口只有
 [Production-floor execution sequence](plans/2026-07-30-production-floor-sequence.md)，它再引用各 focused plan；design/roadmap
 条目本身不等于 live capability。
@@ -127,10 +128,19 @@ R0–R2。AR3 同日交付 private Authoring Host、standalone/embedded 同源 s
 R1 publication、Engine Lab 真实 scene/binding、Browser Game/Session sibling lifetime、dev-only
 composition R2 纵切、ordinary-release exclusion，以及 macOS/Deno 2.9.5 原生 common-runtime 的
 GUI ready、Game/Session restart 与 close-flush/正常退出。它仍未提升 native Desktop
-author/source-write/HMR、packaged artifact、多平台/durability 或 production promotion。唯一 next
-task 是 AR4。排序与交付记录以
+author/source-write/HMR、packaged artifact、多平台/durability 或 production promotion。AR4 同日
+交付 workspace-private `@sillymaker/agent/internal`、bounded typed RPC client/Agent Host、closed
+`UiArtifact`/`UiIntent` seam、deterministic fake 和 Engine Lab dev-only fake → Artifact → AR2 Scene
+operation 纵切；`(sessionId, runId)` identity、submit-response-before-stream adapter obligation、
+failed-connection retirement、`run_failed` draft termination、generation/sequence/cancellation
+fencing、Artifact-before-interaction AR2 pairing 与 invalid-successor predecessor retention 均有行为
+证据，Browser 纵切通过 Chromium 与 WebKit。ordinary Template/Engine Lab Player release 排除
+Agent/RPC implementation；Studio/Agent 仍静态耦合，authoring-only/no-Agent graph 留给 AR5 证明或
+拆分。它没有实现真实 backend/transport/protocol、public Agent ABI、OpenUI/A2UI、Agent persistence
+或 Desktop HMR。唯一 next task 是 AR5 build、双 GUI Host 与 performance promotion。排序与交付记录以
 [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md) §1
-为准，live capability 以 [features](features.md) 为准。
+为准；稳定 promoted capability 以 [features](features.md) 为准，AR4 private provisional seam
+仍以本计划 closure 与 live architecture 记录，不提前进入 features。
 
 2026-08-18 新的外部规模证据激活了一个独立分支实验：
 [Experimental composition kernel and State Runtime](plans/2026-08-18-experimental-composition-state-runtime.md)。
@@ -157,9 +167,9 @@ journal/reducer transaction；早期 proposal/fact shape 只保留为历史 chec
 为当前默认/core lane：AR0 已建立 Browser/Deno Desktop startup/dependency floor；AR1 已用中立
 17-case suite 比较 direct 与 Cordis-core-derived private lifecycle，选择唯一 SillyMaker-owned
 Direct backend，并删除 Cordis adapter/vendor/dependency。AR2 structured authoring operations 已于
-2026-08-22 交付关闭；AR3 stable-sibling embeddable Authoring Host 也已于同日交付。当前唯一 next
-是最窄 typed RPC/experimental Agent Host/UiArtifact seam（AR4），其后再做双 GUI Host build/
-performance promotion。目标合同见
+2026-08-22 交付关闭；AR3 stable-sibling embeddable Authoring Host 与 AR4 private typed RPC/
+experimental Agent Host/UiArtifact fake vertical slice 也已于同日交付。当前唯一 next 是双 GUI
+Host build/performance promotion（AR5）。目标合同见
 [Application Runtime and Embedded Authoring](design/application-runtime-and-embedded-authoring.md)。
 本轮只交付引擎基础设施；AR6 后的作品、examples 或产品由所有者另行讨论和立案，不预设名称或
 顺序。未写入 active plan 的候选不是默认 backlog。已接受但未完成的 Desktop promotion 保持
@@ -391,7 +401,9 @@ workspace；现有独立 Studio route 与未来应用内 author surface 是同�
 progressive activation 已由 Application Runtime AR1 交付，结构化人机共用 operation 由 AR2
 交付；AR3 已把 standalone Studio 与 dev-only embedded surface 收口到同一 private Authoring
 Host/session/workspace/source-IO owner，并以 Engine Lab 的真实 Scene 与 Game/Session successor
-验证稳定 sibling lifetime。当前下一项 AR4 仍由
+验证稳定 sibling lifetime。AR4 又以同一 embedded shell 交付 private deterministic fake RPC →
+admitted `UiArtifact` → current `UiIntent` → captured AR2 Scene operation，并证明 unavailable/retry、
+stale/invalid/cancelled-late 拒绝和 Chromium/WebKit ordinary-Player evidence。当前下一项 AR5 仍由
 [Application Runtime plan](plans/2026-08-18-application-runtime-embedded-authoring.md) 拥有。
 
 Editor 写普通 TS 或被 TS 引用的稳定数据（JSON 文档经严格 admission），不形成另一
@@ -479,13 +491,18 @@ tool/intents、permission、idempotency 与 queue-front revalidation。模型不
 mutable reference、数据库连接、文件系统、任意网络 client、任意 React component 或 HTML/JS
 execution。
 
-当前 active plan 的 AR4 只建立 transport/provider-neutral、package-internal 的 Agent RPC client/
-UiArtifact lifecycle seam，并以 deterministic fake 对本地 revisioned authoring draft 验证；fake
-不保存文件、不提交 authoritative state、不执行 external effect，因此不激活独立 approval/
-receipt subsystem。真实后台/LLM、RPC protocol、`UiArtifact` persistence 与具体 OpenUI/A2UI
-adapter 必须由后续 owner-selected 产品计划单独激活，不能从 Track G 直接领取。required service
-不可用时，依赖 domain 不得谎报 ready，但 GUI 必须保留配置、诊断和 retry；外部 service 不是
-plugin，也不取得 Session/FilePort authority。
+AR4 已交付 transport/provider-neutral、package-internal 的 Agent RPC client/Agent Host/
+`UiArtifact` lifecycle seam，并以 deterministic fake 对本地 revisioned authoring draft 验证；closed
+renderer 只接受 admitted `column`/`text`/`action` data 与 allowlisted actions，late/invalid successor
+保留 predecessor；需要 AR2 receipt 的 action 在 exact pairing 前保持 inert，Scene 稍后 ready 可补配。
+RPC run 以 `(sessionId, runId)` 定位，真实 adapter 必须在对应首条 stream 前交付 submit response。
+fake 不保存文件、不提交 authoritative state、不执行 external effect，因此没有激活独立 approval/
+receipt subsystem。真实后台/LLM、RPC protocol、`UiArtifact` persistence 与具体 OpenUI/A2UI adapter
+必须由后续 owner-selected 产品计划单独激活，不能从 Track G 直接领取。
+required service 不可用时，依赖 domain 不得谎报 ready，但 GUI 必须保留诊断和 retry；外部
+service 不是 plugin，也不取得 Session/FilePort authority。AR5 只 promotion 这份 fake seam 的双
+GUI Host/build/lifetime/performance evidence，并证明或拆分当前静态耦合的 authoring-only/no-Agent
+graph，不把上述 defer 偷渡为 live capability。
 
 Agent workspace 需要 tab/split/task/approval/artifact/history 等独立领域模型；不要把现有游戏 Overlay 膨胀成桌面 WindowManager。流式半成品是 transient presentation；只有完整验证的 document 可持久化，replay 渲染保存 document 而不是重新调用模型。
 

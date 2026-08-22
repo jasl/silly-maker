@@ -9,6 +9,9 @@
   "exclude": ["src/**/*.test.ts", "src/**/*.test-d.ts"],
   "references": [
     {
+      "path": "../engine/packages/agent"
+    },
+    {
       "path": "../engine/packages/base"
     },
     {

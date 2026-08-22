@@ -318,4 +318,128 @@ describe("Engine Lab Authoring Host sibling lifetime", () => {
     expect(successorGameRoot).not.toBe(predecessorGameRoot);
     await expectSameDirtyAuthoringViewV1(sibling, authoringView);
   });
+
+  it("routes the experimental fake RPC Artifact through a captured AR2 Scene operation", async () => {
+    const sibling = await mountAuthoringSiblingV1();
+    const authoringHost = sibling.container.querySelector<HTMLElement>("[data-authoring-host]");
+    const agentHost = sibling.container.querySelector<HTMLElement>(
+      "[data-experimental-agent-host]",
+    );
+    expect(authoringHost).toHaveAttribute("data-authoring-host-ready", "connected");
+    expect(agentHost).not.toBeNull();
+
+    await waitFor(() => {
+      expect(agentHost).toHaveAttribute("data-agent-readiness", "unavailable");
+      expect(agentHost?.querySelector("[data-agent-domain-ready]"))
+        .toHaveAttribute("data-agent-domain-ready", "false");
+    });
+    expect(within(sibling.container).getByLabelText("条目")).toBeEnabled();
+    fireEvent.click(within(agentHost!).getByRole("button", { name: "重试 Agent 服务" }));
+    await waitFor(() => expect(agentHost).toHaveAttribute("data-agent-readiness", "ready"));
+    fireEvent.click(within(agentHost!).getByRole("button", { name: "启动 Agent 会话" }));
+
+    const prompt = await within(agentHost!).findByLabelText("请求");
+    const submit = within(agentHost!).getByRole("button", { name: "生成 Artifact" });
+    const entrySelect = within(sibling.container).getByLabelText("条目") as HTMLSelectElement;
+    fireEvent.change(entrySelect, { target: { value: alphaTagV1 } });
+    const xInput = within(sibling.container).getByLabelText("x") as HTMLInputElement;
+    expect(xInput).toHaveValue(480);
+
+    fireEvent.click(submit);
+    await waitFor(() => {
+      expect(agentHost?.querySelector("[data-agent-draft-status=streaming]"))
+        .toHaveTextContent("正在生成安全的 UiArtifact");
+    });
+    const firstArtifact = await waitFor(() => {
+      const artifact = agentHost?.querySelector<HTMLElement>("[data-ui-artifact-revision='1']");
+      expect(artifact).not.toBeNull();
+      return artifact!;
+    });
+    fireEvent.click(within(firstArtifact).getByRole("button", { name: "应用场景草稿修改" }));
+    await waitFor(() => {
+      expect(xInput).toHaveValue(640);
+      expect(agentHost?.querySelector("[data-agent-action-note]"))
+        .toHaveTextContent("场景草稿已更新（尚未保存）");
+    });
+    expect(sibling.sceneIo.writes).toHaveLength(0);
+    fireEvent.click(sibling.container.querySelector("[data-studio-undo]") as HTMLElement);
+    await waitFor(() => expect(xInput).toHaveValue(480));
+
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.change(prompt, { target: { value: "生成第二个有效 Artifact" } });
+    fireEvent.click(submit);
+    const secondArtifact = await waitFor(() => {
+      const artifact = agentHost?.querySelector<HTMLElement>("[data-ui-artifact-revision='2']");
+      expect(artifact).not.toBeNull();
+      return artifact!;
+    });
+    fireEvent.change(xInput, { target: { value: "555" } });
+    await waitFor(() => expect(xInput).toHaveValue(555));
+    fireEvent.click(
+      within(secondArtifact).getByRole("button", {
+        name: "应用场景草稿修改",
+      }),
+    );
+    await waitFor(() => {
+      expect(agentHost?.querySelector("[data-agent-action-note]"))
+        .toHaveTextContent("scene_authoring.revision_stale");
+      expect(xInput).toHaveValue(555);
+    });
+    expect(sibling.sceneIo.writes).toHaveLength(0);
+    fireEvent.click(sibling.container.querySelector("[data-studio-undo]") as HTMLElement);
+    await waitFor(() => expect(xInput).toHaveValue(480));
+
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.change(prompt, { target: { value: "未知节点" } });
+    fireEvent.click(submit);
+    await waitFor(() => {
+      expect(agentHost?.querySelector("[data-agent-diagnostic='artifact.node_unknown']"))
+        .toBeInTheDocument();
+      expect(agentHost?.querySelector("[data-agent-draft-status=invalid]"))
+        .toHaveTextContent("正在生成安全的 UiArtifact");
+    });
+    expect(agentHost?.querySelector("[data-ui-artifact-revision='2']")).toBe(secondArtifact);
+    expect(xInput).toHaveValue(480);
+
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.change(prompt, { target: { value: "未知动作" } });
+    fireEvent.click(submit);
+    await waitFor(() => {
+      expect(agentHost?.querySelector("[data-agent-diagnostic='artifact.action_unknown']"))
+        .toBeInTheDocument();
+    });
+    expect(agentHost?.querySelector("[data-ui-artifact-revision='2']")).toBe(secondArtifact);
+    expect(xInput).toHaveValue(480);
+
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.change(prompt, { target: { value: "取消晚到" } });
+    fireEvent.click(submit);
+    await waitFor(() => {
+      expect(agentHost?.querySelector("[data-agent-draft-status=streaming]"))
+        .toHaveTextContent("正在等待取消后的迟到结果");
+    });
+    fireEvent.click(within(agentHost!).getByRole("button", { name: "取消本地接收" }));
+    const cancelledDraft = agentHost?.querySelector("[data-agent-draft-status=cancelled]");
+    expect(cancelledDraft).toHaveTextContent("正在等待取消后的迟到结果");
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    expect(agentHost?.querySelector("[data-agent-draft-status=cancelled]")).toBe(cancelledDraft);
+    expect(agentHost?.querySelector("[data-ui-artifact-revision='2']")).toBe(secondArtifact);
+    expect(xInput).toHaveValue(480);
+    expect(sibling.sceneIo.writes).toHaveLength(0);
+
+    const agentIdentity = agentHost?.getAttribute("data-experimental-agent-host");
+    fireEvent.click(
+      sibling.container.querySelector("[data-embedded-authoring-close]") as HTMLElement,
+    );
+    expect(sibling.container.querySelector("[data-embedded-authoring-panel]"))
+      .toHaveAttribute("hidden");
+    fireEvent.click(
+      sibling.container.querySelector("[data-embedded-authoring-open]") as HTMLElement,
+    );
+    expect(sibling.container.querySelector("[data-embedded-authoring-panel]"))
+      .not.toHaveAttribute("hidden");
+    expect(sibling.container.querySelector("[data-experimental-agent-host]"))
+      .toHaveAttribute("data-experimental-agent-host", agentIdentity);
+    expect(agentHost?.querySelector("[data-ui-artifact-revision='2']")).toBe(secondArtifact);
+  });
 });

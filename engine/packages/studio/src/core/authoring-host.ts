@@ -11,6 +11,8 @@ import type {
 import type { RegionsSourceIoV1 } from "./regions-io.ts";
 import { createRegionsDocumentSessionV1 } from "./regions-session.ts";
 import type { SceneSourceIoV1 } from "./scene-io.ts";
+import type { SceneAuthoringLocalAdapterV1 } from "./scene-operations/contract.ts";
+import { createSceneAuthoringLocalAdapterV1 } from "./scene-operations/local-adapter.ts";
 import { createSceneDocumentSessionV1 } from "./scene-session.ts";
 import {
   createFlowWorkspaceActivationOwnerInternalV1,
@@ -75,6 +77,7 @@ interface AuthoringHostOwnerInternalV1 {
   readonly motionIo: MotionSourceIoV1;
   readonly regionsIo: RegionsSourceIoV1 | undefined;
   readonly sceneSession: AuthoringDocumentSessionV1<SceneDocumentV1>;
+  readonly sceneOperations: SceneAuthoringLocalAdapterV1;
   readonly regionsSession: AuthoringDocumentSessionV1<RegionsDocumentV1> | null;
   readonly motionStore: MotionWorkbenchStoreV1;
   readonly flowActivation: FlowWorkspaceActivationOwnerInternalV1;
@@ -113,6 +116,7 @@ export function createAuthoringHostInternalV1(
 ): AuthoringHostInternalV1 {
   const identity = ++nextAuthoringHostIdentityInternalV1;
   const sceneSession = createSceneDocumentSessionV1(input.sceneIo);
+  const sceneOperations = createSceneAuthoringLocalAdapterV1(sceneSession);
   const regionsSession = input.regionsIo === undefined
     ? null
     : createRegionsDocumentSessionV1(input.regionsIo);
@@ -180,6 +184,7 @@ export function createAuthoringHostInternalV1(
     motionIo: input.motionIo,
     regionsIo: input.regionsIo,
     sceneSession,
+    sceneOperations,
     regionsSession,
     motionStore,
     flowActivation,

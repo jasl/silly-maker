@@ -27,6 +27,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@sillymaker/agent": "workspace:*",
     "@sillymaker/studio": "workspace:*",
     "@sillymaker/tooling": "workspace:*",
     "@types/node": "26.2.0",

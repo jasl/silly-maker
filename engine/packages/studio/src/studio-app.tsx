@@ -23,7 +23,6 @@ import type {
 import type { AuthoringDocumentSessionV1 } from "@sillymaker/ui/debug";
 
 import type { SceneIoListEntryV1, SceneIoListSkipV1, SceneSourceIoV1 } from "./core/scene-io.ts";
-import { createSceneAuthoringLocalAdapterV1 } from "./core/scene-operations/local-adapter.ts";
 import type {
   SceneAuthoringCurrentV1,
   SceneAuthoringExecutionResultV1,
@@ -288,7 +287,7 @@ export function StudioAppWithAuthoringSessionsV1(
   // monotonic open fence, and undo/redo; the shell maps its results to
   // notes and confirms.
   const session = props.sceneSession;
-  const sceneOperations = useMemo(() => createSceneAuthoringLocalAdapterV1(session), [session]);
+  const sceneOperations = hostOwner.sceneOperations;
   const snapshot = useAuthoringDocumentSessionV1(session);
   const draft = snapshot.draft;
   const dirty = snapshot.dirty;

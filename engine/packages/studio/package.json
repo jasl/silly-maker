@@ -6,12 +6,14 @@
   "license": "MIT",
   "exports": {
     ".": "./src/index.ts",
-    "./composition": "./src/composition.ts"
+    "./composition": "./src/composition.ts",
+    "./internal/agent": "./src/internal-agent.ts"
   },
   "scripts": {
     "test": "deno run -A npm:vitest run engine/packages/studio/src"
   },
   "dependencies": {
+    "@sillymaker/agent": "workspace:*",
     "@sillymaker/base": "workspace:*",
     "@sillymaker/composition": "workspace:*",
     "@sillymaker/ui": "workspace:*"

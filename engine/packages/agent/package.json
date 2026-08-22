@@ -1,0 +1,23 @@
+{
+  "name": "@sillymaker/agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    "./internal": "./src/internal.ts"
+  },
+  "scripts": {
+    "test": "deno run -A npm:vitest run engine/packages/agent/src"
+  },
+  "dependencies": {
+    "@sillymaker/base": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "19.2.8"
+  },
+  "devDependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  }
+}

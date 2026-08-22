@@ -6,7 +6,8 @@
 后端服务、CLI 产品和 headless 产品不在目标内。实施顺序与验收由
 [Application Runtime and Embedded Authoring V1](../plans/2026-08-18-application-runtime-embedded-authoring.md)
 拥有；[Production-floor sequence](../plans/2026-07-30-production-floor-sequence.md)
-仍是唯一跨计划排序入口。设计存在不等于 live capability。
+仍是唯一跨计划排序入口。AR0–AR4 已于 2026-08-22 交付，AR5 是当前唯一下一项；下文明确标注
+实现状态的部分才是 live capability，其他目标仍不因设计存在而自动生效。
 
 本文扩展[统一创作架构](authoring-architecture.md)与
 [场景创作模型和 Studio](scene-authoring-and-studio.md)：Scene、Motion、Project
@@ -360,6 +361,9 @@ caller 已共用该路径；它仍未导出为 public ABI、RPC schema 或持久
 - Agent 修改作者文档走 §6 operation；Agent 操作游戏继续走现有 player-safe semantic port；
 - renderer 只读消费冻结、完整的 revision；交互产生 admitted `UiIntent`，再由产品 adapter 映射到
   query、semantic command、authoring operation 或受控 Host action；
+- 需要 domain receipt 的 action 只有在 Artifact 与 exact current domain receipt 配对后才可交互；
+  domain 尚未 ready 时 renderer 保持 inert，后续 readiness/revision 可以为同一 Artifact 补配，不能
+  先开放 action 再异步寻找 authority；
 - trusted fake 只改 revisioned in-memory draft，不预建独立 approval subsystem；未来
   authoritative、durable 或 external mutation 必须服从 typed capability/permission、idempotency
   与 queue-front revalidation，只有真实不可逆 external effect 出现时才评估 receipt/Effect Broker。
@@ -369,6 +373,35 @@ caller 已共用该路径；它仍未导出为 public ABI、RPC schema 或持久
 authoritative state、不调用真实网络或 external effect。真实 RPC transport/backend、具体
 OpenUI/A2UI adapter、conversation/task persistence 与 tool execution 均后置。在真实第二消费者前，
 这些形状保持 experimental/package-internal，且不泄漏任何协议实现类型。
+
+实现状态（2026-08-22）：AR4 已按本节交付 workspace-private `@sillymaker/agent/internal`。同一个
+observable RPC client port 和 deterministic fake 覆盖 explicit readiness、start/submit/cancel/
+reconnect/dispose；cross-process request/response/stream record 经过 getter-free canonical 投影、
+exact record admission、65,536-byte/depth/node limits、以 `(sessionId, runId)` 为 identity 的
+contiguous sequence admission，以及 connection-generation/lifecycle-epoch fence；同一 `runId` 可在
+不同 session 重用。raw protocol adapter 必须保证 submit response settle happens-before 对应 tuple 的
+首个 stream record，wire 乱序由 adapter bounded reorder。duplicate/gap/unknown-tuple record、旧连接
+late event 和 cancel/dispose 后完成均不能进入 current Host。request failure 后 replacement connect
+先关闭 predecessor；reconnect 不重提已发送请求，dispose 不声称回滚远端 effect。
+
+同一 private package 的 Agent Host 拥有 observable session/run、transient draft 和最多 16 个本地
+immutable Artifact revisions；invalid completion、unknown node/action、stale/late run 与 cancelled
+completion 保留 exact predecessor，remote `run_failed` 终结 active run 和 streaming draft，重开
+retained revision 不调用 RPC、模型或 tool。
+`UiArtifact` 的 live closed vocabulary 只有 `column`、`text` 和 `action`；renderer 把 text 当普通
+文字并只发出带 current Host/Artifact/node/action identity 的 admitted `UiIntent`。Engine Lab 的
+dev-only Studio adapter 必须在 action 变为 interactive 前让 Artifact 与 exact AR2 Scene receipt
+配对；Artifact 先到而 Scene 尚未 ready 时保持 inert，后续 Authoring revision 可为同一 Artifact 补配。
+human edit 后的旧 action 稳定 stale-reject；有效 action 只改现有 in-memory draft，未保存文件、未改
+Game State、未调用网络。service unavailable/retry、valid successor、invalid successor、late
+cancellation 和隐藏/重开 Host 的 jsdom 与 Chromium/WebKit evidence 已落地。ordinary Template/
+Engine Lab Player release graph 显式排除 Agent/RPC implementation modules；当前 Studio/Agent 仍
+静态耦合，authoring-only/no-Agent build graph 尚待 AR5 证明并在必要时拆分。
+
+这些实现形状仍是 provisional internal seam：没有 root/public Agent export，也没有 real transport、
+backend/LLM、具体 wire protocol、Agent/session/artifact persistence、tool execution、permission UI、
+OpenUI/A2UI adapter、Effect Broker 或 Desktop HMR。它不进入 `features.md`，直到真实第二消费者与
+后续 promotion 证明稳定合同。
 
 ## 8. Promotion and deferred evidence
 

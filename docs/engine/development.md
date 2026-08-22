@@ -41,6 +41,7 @@ Dependency reference rule: engine and Story sources (everything Vite builds or v
 
 ```text
 engine/packages/base     framework-neutral authoring, contracts, and runtime
+engine/packages/agent    experimental workspace-private Agent/RPC/UiArtifact seam
 engine/packages/composition maintained internal cold-path plugin façade
 engine/packages/state    experimental neutral State Runtime facade over Base
 engine/packages/tooling  non-browser CLI, Vite/identity, JSONL, and Desktop preview tools
@@ -192,6 +193,51 @@ Focused AR2 checks are:
 deno run -A npm:vitest run engine/packages/studio/src/core/scene-operations engine/packages/ui/src/debug/authoring-session.test.ts engine/packages/studio/src/studio-app.test.tsx
 deno task typecheck
 ```
+
+### Experimental Agent/RPC vertical slice
+
+AR4 is implemented only through `@sillymaker/agent/internal` and
+`@sillymaker/studio/internal/agent`. These are workspace-private engine seams, not Story-facing
+public APIs. Do not add a root Agent export, provider-specific protocol type, raw Session/
+`FilePort`/document-session writer, or direct source/game mutation to them. A product-side
+binding admits an allowlist of inert action IDs and AR2 Scene operations once; a remote
+Artifact carries only those IDs, and the embedded surface executes an exact captured Scene
+document/revision envelope through the existing Scene executor.
+
+The deterministic fake is the maintained AR4 transport. Extend its controlled mode,
+connection, queued-response, or late-record hooks when a reproducible lifecycle case is
+missing; do not create a second fake-only Agent state machine. Raw records remain untrusted:
+preserve bounded canonical projection, exact response/event shapes, per-run contiguous
+sequence admission keyed by `(sessionId, runId)`, connection/lifecycle generation fencing,
+and atomic rejection. A raw adapter must settle submit before forwarding that tuple's first
+stream event; it owns bounded reordering when wire frames arrive first. Replacement after a
+request-failed connection must close the predecessor. Local cancel must retire the run from
+stream acceptance before awaiting the RPC response, and remote `run_failed` must terminate
+both the active run and streaming draft. Invalid completion, unknown nodes/actions,
+old-run/old-connection records, and cancellation-late completion must leave the predecessor
+Artifact exact.
+
+`UiArtifact` remains closed data, currently `column`, `text`, and `action`. Add a node kind only
+with bounded admission, recursive freezing, inert renderer behavior, intent currentness, and a
+real Engine Lab need; never accept arbitrary HTML, JavaScript, React components, functions, or
+module URLs. Reopening a retained revision is local replay and must not submit, call a model,
+or run a tool. Keep an Artifact action inert until it has an exact AR2 Scene receipt; when Scene
+becomes ready later, an Authoring revision may pair the same Artifact before enabling it. The
+current vertical slice changes only the existing in-memory Scene draft and must keep source IO
+writes, Save/State, network, and external effects at zero.
+
+Focused AR4 checks are:
+
+```sh
+deno run -A npm:vitest run engine/packages/agent/src e2e/src/test/authoring-host-lifetime.test.tsx
+deno run -A npm:@playwright/test/playwright test --config engine/packages/web/playwright.engine.config.ts --project=chromium --project=webkit --grep "experimental Agent and UiArtifact seam"
+deno run -A npm:vitest run engine/packages/tooling/src/vite/build-dependency-receipt.test.ts
+deno task typecheck
+```
+
+The Browser case requires the dev-source fixture and uses only the deterministic fake; it is
+not real-backend, OpenUI/A2UI, persistence, Desktop, or HMR evidence. Keep the private seam out
+of `features.md` until a later promotion has a real second consumer.
 
 ### GUI startup and module-update baseline
 
@@ -865,11 +911,13 @@ directory (or `SILLYMAKER_PERFORMANCE_OUTPUT_DIR`).
 reports raw/gzip bytes for entry, preload, lazy, all JavaScript, all CSS,
 runtime assets, and all files. Schema v2 adds the final chunk/asset dependency
 graph and per-output `contributionIds`, including CSS-only dynamic entries; all
-recorded edges name real final outputs. The Template release build is the
-semantic negative control for absent authoring, real dev-source,
-dynamic-extension, and RPC implementations without freezing an exact full-module
-inventory. The `@sillymaker/ui/debug/dev-source-client` subpath resolves to the
-fetch/write implementation only under the `development` condition; the default
+recorded edges name real final outputs. Template and Engine Lab ordinary release
+Player measurements are the semantic negative controls for absent Agent modules; they also
+classify `engine/packages/agent/src/rpc/**` as RPC implementation and assert that neither
+Agent nor RPC implementation reaches an ordinary release. The Template release additionally
+proves absent authoring, real dev-source, and dynamic-extension implementation without
+freezing an exact full-module inventory. The `@sillymaker/ui/debug/dev-source-client` subpath
+resolves to the fetch/write implementation only under the `development` condition; the default
 and release graph receive a fail-closed unavailable stub. Engine Lab's release
 graph also excludes its dev-only Studio binding plus embedded-author virtual
 entries. The
@@ -879,6 +927,11 @@ are Engine Lab and OS-temp output. Byte sizes are build facts, while build
 duration is machine-specific. None of these tasks adds a normal per-commit CI
 threshold. Review at least three comparable samples before proposing a product
 budget, and never commit raw local reports.
+
+This does not yet prove Agent exclusion from a complete authoring product: Studio currently
+has a static Agent package/source dependency. AR5 must add an authoring-only/no-Agent build
+measurement and split that dependency if the graph cannot otherwise exclude Agent while
+retaining the complete Authoring Host and workspaces.
 
 ## Change workflow
 

@@ -2,6 +2,7 @@
   "files": [],
   "references": [
     { "path": "./packages/base" },
+    { "path": "./packages/agent" },
     { "path": "./packages/composition" },
     { "path": "./packages/state" },
     { "path": "./packages/tooling" },

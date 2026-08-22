@@ -2,6 +2,7 @@
   "nodeModulesDir": "manual",
   "workspace": [
     "./engine/packages/base",
+    "./engine/packages/agent",
     "./engine/packages/composition",
     "./engine/packages/state",
     "./engine/packages/studio",

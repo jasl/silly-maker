@@ -4,10 +4,14 @@ import type { ReactElement, ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 
+import { createAgentHostInternalV1 } from "@sillymaker/agent/internal";
+import type { AgentHostInternalV1 } from "@sillymaker/agent/internal";
+
 import type { StudioToolingPlanV1 } from "./composition.ts";
 import { createAuthoringHostInternalV1 } from "./core/authoring-host.ts";
 import type { AuthoringHostInternalV1 } from "./core/authoring-host.ts";
 import { EmbeddedAuthoringSurfaceInternalV1 } from "./embedded-authoring.tsx";
+import { resolveExperimentalEmbeddedAgentBindingInternalV1 } from "./experimental-agent/binding.ts";
 import { AuthoringHostSurfaceInternalV1 } from "./studio-app.tsx";
 import type { FlowWorkspaceLoaderInternalV1 } from "./workspaces/flow/flow-workspace-activation.tsx";
 
@@ -545,6 +549,10 @@ export function createStudioToolingReactPublicationInternalV1(
   let regionsIoInitialized = false;
   let regionsIo: StudioToolingPlanV1["regionsIo"];
   let host: AuthoringHostInternalV1 | null = null;
+  let agentHost: AgentHostInternalV1 | null = null;
+  let agentConfigurationInitialized = false;
+  let agentConfigurationId: string | null = null;
+  let agentActionSignature: string | null = null;
   const visibleViewId = 1;
   let nextProbeViewId = 2;
   const mode = input.mode ?? "standalone";
@@ -577,6 +585,27 @@ export function createStudioToolingReactPublicationInternalV1(
           : { loadFlowWorkspace: input.loadFlowWorkspace }),
         ...(input.reportFailure === undefined ? {} : { reportFailure: input.reportFailure }),
       });
+      const agentBinding = mode === "embedded"
+        ? resolveExperimentalEmbeddedAgentBindingInternalV1(plan.binding)
+        : null;
+      if (!agentConfigurationInitialized) {
+        agentConfigurationInitialized = true;
+        agentConfigurationId = agentBinding?.configurationId ?? null;
+        agentActionSignature = agentBinding?.actionSignature ?? null;
+        if (agentBinding !== null) {
+          agentHost = createAgentHostInternalV1({
+            client: agentBinding.createClient(),
+            allowedActionIds: agentBinding.allowedActionIds,
+          });
+        }
+      } else if (
+        (agentBinding?.configurationId ?? null) !== agentConfigurationId ||
+        (agentBinding?.actionSignature ?? null) !== agentActionSignature
+      ) {
+        throw new TypeError(
+          "Studio live publication cannot replace its Experimental Agent owner or action set",
+        );
+      }
       const viewId = target === "visible" ? visibleViewId : nextProbeViewId++;
       return mode === "embedded"
         ? (
@@ -585,6 +614,9 @@ export function createStudioToolingReactPublicationInternalV1(
             binding={plan.binding}
             publicationRole={target}
             viewId={viewId}
+            {...(agentBinding === null || agentHost === null
+              ? {}
+              : { agent: Object.freeze({ host: agentHost, binding: agentBinding }) })}
           />
         )
         : (
@@ -603,6 +635,15 @@ export function createStudioToolingReactPublicationInternalV1(
     publish: (plan: StudioToolingPlanV1, signal: AbortSignal) => publication.publish(plan, signal),
     dispose(): void {
       publication.dispose();
+      const mountedAgentHost = agentHost;
+      agentHost = null;
+      void mountedAgentHost?.dispose().catch((error: unknown) => {
+        try {
+          input.reportFailure?.(error);
+        } catch {
+          // Lifecycle diagnostics are observational.
+        }
+      });
       const mountedHost = host;
       host = null;
       void mountedHost?.dispose().catch((error: unknown) => {

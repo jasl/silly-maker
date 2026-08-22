@@ -3794,6 +3794,14 @@
           ]
         }
       },
+      "engine/packages/agent": {
+        "packageJson": {
+          "dependencies": [
+            "npm:react-dom@19.2.8",
+            "npm:react@19.2.8"
+          ]
+        }
+      },
       "engine/packages/base": {
         "packageJson": {
           "dependencies": [

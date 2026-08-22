@@ -518,7 +518,7 @@ export function classifyStaticGameDependencyFacetsInternalV1(
     moduleId.startsWith("vendor/cordis/") || matchesCordisModuleV1(moduleId)
   );
   const rpcImplementation = uniqueModuleIds.filter((moduleId) =>
-    /^engine\/packages\/(?:base|composition|tooling|ui|web)\/src\/(?:rpc|rpc-client)\//u.test(
+    /^engine\/packages\/(?:agent|base|composition|tooling|ui|web)\/src\/(?:rpc|rpc-client)\//u.test(
       moduleId,
     )
   );

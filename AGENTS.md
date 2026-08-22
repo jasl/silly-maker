@@ -74,9 +74,25 @@ Read only the documents relevant to the change:
   Game/Session R2 without rebuilding the Authoring R1 sibling. A macOS/Deno 2.9.5
   native common-runtime smoke also proves GUI ready,
   same-window Game/Session restart, and close-flush/normal exit without promoting
-  Desktop authoring, HMR, packaging, or durability. AR4's typed RPC plus
-  experimental Agent/UiArtifact seam is the only next task. Engine capabilities
-  land before any separately accepted follow-on product or work.
+  Desktop authoring, HMR, packaging, or durability. AR4 also delivered
+  2026-08-22: the only Agent entry is the workspace-private
+  `@sillymaker/agent/internal`; its transport-neutral RPC client, observable Agent
+  Host, bounded `UiArtifact`/`UiIntent` admission, closed renderer, generation/
+  sequence/cancellation fencing, and deterministic fake back Engine Lab's
+  dev-only fake stream → Artifact → admitted intent → AR2 Scene-operation
+  vertical slice in Chromium and WebKit. Run currentness is keyed by
+  `(sessionId, runId)`; raw adapters must settle submit before forwarding that
+  run's first stream record, failed-connection replacement closes the predecessor,
+  and `run_failed` terminates its transient draft. An Artifact remains inert until
+  its exact AR2 receipt is paired, including when Scene becomes ready later.
+  Invalid successors and late cancelled events retain the prior Artifact, and
+  ordinary Template/Engine Lab Player graphs exclude Agent/RPC implementation
+  modules. Studio and Agent are still statically coupled, so AR5 must prove an
+  authoring-only/no-Agent graph and split that dependency if necessary. AR4 did
+  not add a real backend or transport, a public Agent ABI, OpenUI/A2UI, Agent
+  persistence, or Desktop HMR. AR5 build, dual-GUI Host, and performance
+  promotion is the only next task. Engine capabilities land before any separately
+  accepted follow-on product or work.
   Desktop persistence remains an accepted, unfinished, conditional promotion
   lane while the adapter is preview.
 - `docs/engine/design/application-runtime-and-embedded-authoring.md` — accepted
@@ -85,9 +101,10 @@ Read only the documents relevant to the change:
   SillyMaker-owned publication, the single Authoring Host with standalone and
   embedded shells, structured authoring operations, and separated gameplay,
   authoring, Agent-session, and UiArtifact authorities. It records the closed
-  AR1 comparison and selected private Direct backend but does not activate a
-  public Mod ABI, Cordis API, OpenUI/A2UI adapter, Effect Broker, Electron/Node
-  Host, or Player source editor.
+  AR1 comparison, selected private Direct backend, and delivered private AR4
+  fake vertical slice, but does not activate a public Mod or Agent ABI, Cordis
+  API, real RPC backend/protocol, OpenUI/A2UI adapter, Agent persistence, Effect
+  Broker, Electron/Node Host, Desktop HMR, or Player source editor.
 - `docs/engine/plans/2026-08-18-experimental-composition-state-runtime.md` —
   completed external strangler evidence and the curated promotion boundary for
   the maintained internal Composition package plus the still-experimental
@@ -240,6 +257,16 @@ accepted.
   Base Session and transaction runner; it never owns a second State, digest,
   Save, replay, queue, or CommandLog authority. Production Story migration
   remains evidence-gated.
+- `@sillymaker/agent` is an experimental workspace-private GUI/RPC seam. Its only
+  package entry is `./internal`; it owns the transport-neutral client, bounded
+  cross-process admission, Agent GUI/session lifecycle, immutable
+  `UiArtifact` revisions, admitted `UiIntent`, and a closed React renderer. The
+  deterministic fake uses the same client port as a future transport. It is not
+  a public Agent ABI, provider SDK, OpenUI/A2UI adapter, persistence owner, tool
+  executor, or external-effect authority. Ordinary Template/Engine Lab Player
+  graphs exclude it; product-selectable exclusion from an otherwise complete
+  Authoring build is an AR5 obligation because Studio currently has a static Agent
+  package dependency.
 - `@sillymaker/ui` owns reusable React presentation, input, interaction,
   overlays, diagnostics UI, assets, characters, stages, and semantic-publication
   bridges.

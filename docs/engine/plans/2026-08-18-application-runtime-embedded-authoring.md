@@ -1,8 +1,8 @@
 # Application Runtime and Embedded Authoring V1
 
 状态：2026-08-18 由所有者接受为下一条默认/core implementation lane，并在同日以补充 owner
-evidence 收紧产品与平台边界。AR0–AR3 已于 2026-08-22 交付关闭，AR4 是唯一下一项；
-AR4–AR6 尚未启动。引擎能力扩展全部前置；本计划完成后的作品、examples 或产品验证由所有者
+evidence 收紧产品与平台边界。AR0–AR4 已于 2026-08-22 交付关闭，AR5 是唯一下一项；
+AR5–AR6 尚未启动。引擎能力扩展全部前置；本计划完成后的作品、examples 或产品验证由所有者
 另行选择和立案，不是本轮切片或完成 blocker。
 
 目标合同由
@@ -411,8 +411,8 @@ IO 必须完全缺席。未来重型 code editor/index worker 可以另立 lazy 
   两个 `prefer-useReducer` 命中既有且生命周期独立的 state cluster，Scene numeric field 命中则是保留
   half-typed text 与 revision currentness 的受控 buffer，均按代码与既有行为测试判定为非本切片缺陷；
 - 本切片没有新增第二 State/Session/Save/source authority，没有改变 Snapshot、digest、CommandLog
-  或 replay，也没有激活 RPC、Agent、UiArtifact、Mod、code editor 或 Player source editor。AR4
-  experimental typed RPC/UiArtifact seam 成为唯一下一项。
+  或 replay，也没有激活 RPC、Agent、UiArtifact、Mod、code editor 或 Player source editor。AR3
+  交付时 experimental typed RPC/UiArtifact seam 是唯一下一项；它现已由下节 AR4 交付关闭。
 
 ### AR4 — Experimental Agent RPC and UiArtifact seam
 
@@ -445,6 +445,57 @@ effect。
 AG-UI、OpenUI、A2UI、Cordis 或具体 RPC implementation 类型。本切片不实现 backend service、
 conversation/task/artifact storage、permission UI、Mutation gateway 或 Effect Broker。
 
+**AR4 closure（2026-08-22）：**
+
+- 新增 workspace-private `@sillymaker/agent`，且唯一 package entry 是 `./internal`。它以一个
+  observable client port 表达 `connect/status/start/submit/cancel/reconnect/dispose`，同一 port
+  由 deterministic fake transport 实现；fake 的 `unconfigured/slow/offline/failed/ready` 状态、
+  可控 slow settlement、逐连接 late-record injection、请求计数和 close 计数使 lifecycle/failure
+  行为可重复验证。这里没有真实网络 adapter、provider SDK 或 wire-protocol compatibility 承诺；
+- RPC request、response 和 stream record 在边界投影成 getter-free canonical data，并做 exact shape
+  admission。单条投影上限为 65,536 bytes、depth 16、2,048 nodes，identifier 最长 128 chars，
+  submit/chunk text 最长 8,192 chars；每个已提交 run 只接受从 1 开始的连续正安全整数 sequence。
+  run identity 是 `(sessionId, runId)`，不同 session 可以合法复用同一 `runId`；raw protocol adapter
+  必须保证 admitted submit response settle happens-before 该 run 的首个 stream record，若 wire frames
+  反序到达则由 adapter bounded reorder。duplicate、gap、unknown tuple 和非法 record 只产生稳定
+  diagnostic，不交付给 Host。connection generation 加 lifecycle epoch 丢弃旧连接、slow-connect
+  dispose 和 reconnect 后的 late record；request failure 后的 replacement connect 先关闭 predecessor
+  connection，reconnect 不重提既有 request/chunk，本地 dispose 只关闭本地 connection，不声称回滚
+  远端 effect；
+- 一个 observable Agent Host 作为独立 sibling owner 持有 readiness、session、active run、transient
+  draft、diagnostic 与本地 Artifact revision history。取消先把 active run/draft 切为
+  `cancel_requested/cancelled`，随后到达的 stream 不再匹配 active run；旧 run 的迟到 event、
+  dispose 后 event 和非法完成都不能覆盖已接受 predecessor。draft 限 65,536 UTF-8 bytes，最多
+  保留 16 个 immutable Artifact revisions；重开 retained revision 只切换本地指针，不新增 RPC
+  request、模型调用或 tool；remote `run_failed` 同时把 active run 和仍在 streaming 的 transient
+  draft 终结为 `failed`，后续 record 不再被接受；
+- `UiArtifact` admission 先做 65,536-byte/depth-12/1,024-node canonical 投影，再限制封闭树为
+  depth 8、128 nodes、每个 column 32 children、text/label 4,096 chars。唯一 node kinds 是
+  `column`、`text`、`action`，node identity 必须唯一，action ID 必须来自产品 allowlist；任意 accessor、
+  unknown kind/action、duplicate ID、HTML/JS/React/function/module URL 或超限 successor 原子拒绝，
+  不替换上一份有效 revision。closed React renderer 把 payload text 当文字；它只发出带 exact
+  Host identity、Artifact revision、node/action identity 的 `UiIntent`，current revision 再 admission；
+- `@sillymaker/studio/internal/agent` 只为 Engine Lab 的 frozen Studio binding 附加 fake client factory
+  和一组已 admission 的 AR2 Scene operations，没有改变稳定 `StudioBindingV1`。embedded Agent
+  surface 不取得 Scene session、source path、`FilePort`、save、HMR、Game Session 或 State writer；
+  每个 Artifact 只有先与 exact AR2 document identity/draft revision 配对后，其 action 才可交互；
+  Artifact 先到而 Scene 尚未 ready 时保持 inert，后续 Authoring revision 使 Scene ready 后可以补配
+  同一 Artifact。human edit 后的旧 intent 稳定返回 `scene_authoring.revision_stale`，不静默 rebase；
+- Engine Lab 的 dev-only vertical slice 在 Agent service 初始 unavailable 时仍保持 Authoring usable
+  和 retry actionable；随后跑通 fake stream → transient draft → admitted revision → closed render →
+  admitted intent → captured AR2 Scene operation。unit/jsdom 与真实 Chromium + WebKit GUI evidence
+  覆盖两份 valid revisions、stale operation、unknown node/action、cancelled late completion、panel
+  隐藏/重开保留同一 Authoring/Agent Host 与 predecessor Artifact，并证明 source bytes/Scene IO
+  writes、Game application epoch 和 page-load count 不变。Template 与 Engine Lab ordinary Player
+  release measurement 显式断言没有 `engine/packages/agent/**` 或 RPC implementation module；这只证明
+  两个 ordinary Player graph。当前 `@sillymaker/studio` manifest/source 仍静态依赖 Agent/internal
+  surface，尚未证明一个功能完整的 authoring-only/no-Agent product graph 可结构排除 Agent；
+- 本切片没有改变 authoritative State、Snapshot、digest、Save、CommandLog、replay、source CAS 或
+  extension lifecycle，也没有实现真实 Agent/LLM/backend、具体 RPC protocol、Agent/session/artifact
+  persistence、tool execution、permission/approval UI、OpenUI/A2UI adapter、Effect Broker、public Agent
+  ABI、Desktop authoring/HMR 或 production promotion。AR5 build、双 GUI Host 与 performance
+  promotion 成为唯一下一项。
+
 ### AR5 — Build, GUI Host, and performance promotion
 
 把 AR0–AR4 作为 Browser + Deno Desktop 产品依赖图验证，而不是只跑 unit/headless tests：
@@ -468,6 +519,9 @@ conversation/task/artifact storage、permission UI、Mutation gateway 或 Effect
 - 两平台都跑通 AR4 fake stream → admitted Artifact → render → intent → AR2 operation；
 - ordinary no-extension static game build 精确排除 Authoring Host、selected Direct dynamic
   extension backend、unrelated RPC client、Node/Electron code 和 author-only graph；
+- 另建 authoring-only/no-Agent build measurement：它必须保留完整 Authoring Host/workspaces 而排除
+  `@sillymaker/agent`、RPC client/fake 和 experimental Agent surface；当前 Studio/Agent 静态 package/
+  source coupling 若使该 graph 不成立，AR5 在不改变稳定 Authoring contract 的前提下拆分依赖；
 - auxiliary headless 只补 deterministic/conformance evidence，不替代 GUI acceptance；
 - Engine Lab prebuilt、相关 runtime/author builds、bundle report、Story checks、Save/replay
   corpus 与 canonical `deno task check` 全绿；

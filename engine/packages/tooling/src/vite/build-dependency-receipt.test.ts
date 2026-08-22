@@ -166,6 +166,7 @@ describe("build dependency receipt", () => {
       "engine/packages/ui/src/debug/dev-source-client.ts",
       "engine/packages/composition/src/extension-runtime/backend.ts",
       "node_modules/.deno/cordis@4.0.0/node_modules/cordis/lib/index.js",
+      "engine/packages/agent/src/rpc/client.ts",
       "engine/packages/web/src/rpc/client.ts",
     ])).toEqual({
       authoringImplementation: ["engine/packages/studio/src/studio-app.tsx"],
@@ -174,7 +175,10 @@ describe("build dependency receipt", () => {
         "engine/packages/composition/src/extension-runtime/backend.ts",
         "node_modules/.deno/cordis@4.0.0/node_modules/cordis/lib/index.js",
       ],
-      rpcImplementation: ["engine/packages/web/src/rpc/client.ts"],
+      rpcImplementation: [
+        "engine/packages/agent/src/rpc/client.ts",
+        "engine/packages/web/src/rpc/client.ts",
+      ],
     });
   });
 
@@ -233,19 +237,18 @@ describe("build dependency receipt", () => {
         ownership: "contribution",
         contributionIds: ["engine/packages/ui/src/theme/global.css"],
       });
-      expect(
-        classifyStaticGameDependencyFacetsInternalV1(
-          [
-            ...receipt.chunks.flatMap(({ moduleIds }) => moduleIds),
-            ...receipt.assets.flatMap(({ moduleIds }) => moduleIds),
-          ],
-        ),
-      ).toEqual({
+      const moduleIds = [
+        ...receipt.chunks.flatMap(({ moduleIds: chunkModuleIds }) => chunkModuleIds),
+        ...receipt.assets.flatMap(({ moduleIds: assetModuleIds }) => assetModuleIds),
+      ];
+      expect(classifyStaticGameDependencyFacetsInternalV1(moduleIds)).toEqual({
         authoringImplementation: [],
         devSourceImplementation: [],
         dynamicExtensionImplementation: [],
         rpcImplementation: [],
       });
+      expect(moduleIds.some((moduleId) => moduleId.startsWith("engine/packages/agent/")))
+        .toBe(false);
     } finally {
       if (previous === undefined) {
         delete process.env[buildDependencyMeasurementEnvironmentKeyInternalV1];
@@ -319,6 +322,8 @@ describe("build dependency receipt", () => {
       expect(facets.authoringImplementation).toEqual([]);
       expect(facets.devSourceImplementation).toEqual([]);
       expect(facets.rpcImplementation).toEqual([]);
+      expect(moduleIds.some((moduleId) => moduleId.startsWith("engine/packages/agent/")))
+        .toBe(false);
       expect(moduleIds).not.toContain("e2e/src/tooling/studio-binding.tsx");
       expect(moduleIds).not.toContain("/__sillymaker/embedded-author-entry.ts");
       expect(moduleIds).not.toContain("/__sillymaker/embedded-author-runtime.tsx");
