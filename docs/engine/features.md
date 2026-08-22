@@ -23,9 +23,10 @@ Studio Flow 两个 GUI consumer，但没有改变 State/Save/replay、RPC、Mod 
 AR2 随后交付 package-private structured Scene operations；AR3 又把 standalone Studio 与
 dev-only embedded author surface 收口到同一个 private Authoring Host，并以 Engine Lab 的真实
 Scene/Studio binding 和 Game/Session successor 证明 sibling lifetime。AR4 typed RPC/UiArtifact
-seam 与 AR5 Browser/Agent structural-exclusion slice 也已交付；package-private、default-off 的
-Desktop HMR candidate 已通过指定 canary characterization，但在首个包含目标路径的 stable 上重跑
-同一分层验收仍是唯一 active/next。live Desktop HMR 与 production promotion 尚未交付。
+seam 与 AR5 Browser/Agent structural-exclusion 主线也已交付；package-private、explicit、
+default-off 的 Desktop HMR candidate 已通过指定 canary characterization。只有把它激活为
+maintained Desktop workflow 仍独立 defer 到首个包含目标语义的 stable 上重跑分层验收；这不是
+其他 engine/product lane 的 active/next blocker。live Desktop HMR 与 production promotion 尚未交付。
 
 ## Internal composition kernel
 

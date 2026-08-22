@@ -276,9 +276,19 @@ the latest Engine Lab static Player's GUI readiness, authoritative operation,
 same-window Game/Session restart, close acknowledgement, autosave flush, and
 normal process exit. It does not establish native Desktop embedded authoring,
 R0–R2 updates, source persistence, the packaged artifact, multi-platform
-launch, or crash durability. Those remain AR5 or separately accepted Desktop
-Module Update Source/persistence lanes; this preview still does not make a
+launch, or crash durability. Those remain separately accepted Desktop Module
+Update Source/persistence lanes; this preview still does not make a
 persistence, packaging, signing, or multi-platform production claim.
+
+A package-private, explicit, default-off Desktop HMR candidate has separately
+passed its selected-canary characterization, but the ordinary packaging command
+above never activates it. Only the bounded characterization preflight may select
+that candidate; it becomes a maintained development workflow only after the
+first stable containing the target upstream semantics passes the same source-and-
+behavior revalidation. This independent activation defer does not block other
+engine or product work. Do not turn the private intent into a packaging flag or
+substitute an external proxy/companion, shim, Deno fork, undocumented marker, or
+presumed 2.9.6 version gate.
 
 The shell adopts Deno Desktop's startup window instead of creating a second
 window. Closing that window first fences renderer mutation ingress, asks the

@@ -51,7 +51,7 @@ Read only the documents relevant to the change:
   proposals and plans dated 2026-08-19 through 2026-08-22. The separate
   authorable-chrome-layout lane also delivered M0–M2 and both consumers on
   2026-08-22; its detailed closure record appears below. After absorbing those
-  delivered capabilities, the current default/core lane remains
+  delivered capabilities, the most recently completed default/core lane is
   `docs/engine/plans/2026-08-18-application-runtime-embedded-authoring.md`:
   Browser/Deno Desktop startup evidence, build-known progressive activation, an
   orchestration-neutral domain lifecycle selected through a bounded historical
@@ -114,11 +114,17 @@ Read only the documents relevant to the change:
   evidence sink. Do not build
   a 2.9.5 proxy/shim/fork, depend on undocumented Deno framework-dev markers, or
   version-gate by a presumed 2.9.6.
-  The first stable whose source and behavior contain that path must re-run the same
-  acceptance before the workflow activates or AR5 closes. AR4/AR5 still do not add
+  AR5 delivered and closed on 2026-08-23 without claiming live Desktop HMR or
+  Desktop production promotion; AR6 closure and owner checkpoint also completed
+  that day, so this lane has no automatic next item. The next engine/product lane
+  requires a separate owner decision. The first
+  stable whose source and behavior contain that path must re-run the same
+  acceptance before the maintained Desktop development workflow activates. Until
+  then the adapter remains package-private, explicit, and default-off. This
+  independent Desktop activation follow-up did not block AR5/AR6 closure and does
+  not block other owner-accepted work. AR4/AR5 did not add
   a real backend or transport, public Agent ABI, OpenUI/A2UI, Agent persistence,
-  live Desktop HMR, or Desktop production promotion. Engine capabilities land
-  before any separately accepted follow-on product or work.
+  live Desktop HMR, or Desktop production promotion.
   Desktop persistence remains an accepted, unfinished, conditional promotion
   lane while the adapter is preview.
 - `docs/engine/design/application-runtime-and-embedded-authoring.md` — accepted

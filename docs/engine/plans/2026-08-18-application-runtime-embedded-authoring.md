@@ -1,8 +1,10 @@
 # Application Runtime and Embedded Authoring V1
 
 状态：2026-08-18 由所有者接受为下一条默认/core implementation lane，并在同日以补充 owner
-evidence 收紧产品与平台边界。AR0–AR4 已于 2026-08-22 交付关闭；AR5 已于 2026-08-23
-启动且仍在进行，是唯一 active item；AR6 尚未启动。引擎能力扩展全部前置；本计划完成后的
+evidence 收紧产品与平台边界。AR0–AR4 已于 2026-08-22 交付关闭；AR5 与 AR6 closure/owner
+checkpoint 已于 2026-08-23 交付关闭，明确不包含 live/maintained Desktop HMR 或 Desktop production
+promotion。stable Deno Desktop revalidation 是独立、条件性的 activation follow-up，没有阻塞本计划
+closure，也不阻塞其他 owner-accepted work。下一条 engine/product lane 已交还 owner 选择；本计划完成后的
 作品、examples 或产品验证由所有者另行选择和立案，不是本轮切片或完成 blocker。
 
 目标合同由
@@ -491,12 +493,12 @@ conversation/task/artifact storage、permission UI、Mutation gateway 或 Effect
   release measurement 显式断言没有 `engine/packages/agent/**` 或 RPC implementation module；这只证明
   两个 ordinary Player graph。AR4 关闭时 `@sillymaker/studio` manifest/source 仍静态依赖
   Agent/internal surface，尚未证明一个功能完整的 authoring-only/no-Agent product graph 可结构
-  排除 Agent；该缺口不追溯计入 AR4，现由下方 AR5 progress 记录；
+  排除 Agent；该缺口不追溯计入 AR4，现由下方 AR5 delivery record 记录；
 - 本切片没有改变 authoritative State、Snapshot、digest、Save、CommandLog、replay、source CAS 或
   extension lifecycle，也没有实现真实 Agent/LLM/backend、具体 RPC protocol、Agent/session/artifact
   persistence、tool execution、permission/approval UI、OpenUI/A2UI adapter、Effect Broker、public Agent
   ABI、Desktop authoring/HMR 或 production promotion。AR5 build、双 GUI Host 与 performance
-  promotion 在 AR4 关闭时成为唯一下一项；它现已启动并由下节记录进行中证据。
+  promotion 在 AR4 关闭时成为唯一下一项；它现已交付并由下节保存 closure evidence。
 
 ### AR5 — Build, GUI Host, and performance promotion
 
@@ -559,8 +561,8 @@ production claim；这些继续由独立 Desktop lane 拥有。
 - 实现后的 inactive integration 只允许由显式传入隔离 canary binary 的一次性 local launch preflight
   入口触达，不进入 ordinary task/project config/generated application command/release，也不作为 maintained
   workflow 写入 user-facing development/features/build docs。下述分层 canary acceptance 通过后只
-  允许提交/保留该 private inactive candidate；它不构成 maintained workflow、live capability、AR5
-  closure 或 Desktop production promotion；
+  允许提交/保留该 private inactive candidate；它不构成 maintained workflow、live capability 或
+  Desktop production promotion；
 - 不为 2.9.5 建 external Vite/native companion、第二 server/proxy、手工 PR shim 或自维护 Deno fork。
   当前 prebuilt `dist` + staged `main.ts` 的 static staging/packaging/R3 路径保持不变；
 - acceptance 分成三层，不再建设一个长期自动运行、完整自证明所有领域语义的 native harness：
@@ -583,8 +585,9 @@ production claim；这些继续由独立 Desktop lane 拥有。
   自证明系统；
 - 首个候选 stable 发布后，先确认 release source 与实际行为包含目标路径，再保持中立合同 tests current，
   重跑同一个 bounded launch preflight 与一次人工 native characterization。全部通过后才
-  可以另行打开/记录正式 Desktop dev workflow、领取 Desktop HMR 并允许 AR5 closure；否则 candidate
-  保持 inactive 并 defer/upstream。
+  可以另行打开/记录 maintained Desktop dev workflow 并声明 live Desktop HMR；否则 candidate 保持
+  inactive 并 defer/upstream。这是独立 Desktop activation follow-up，不阻塞 AR5 closure、AR6、
+  默认/core 顺序或其他 owner-accepted work。
 
 若 canary 无法证明 in-runtime Vite/native lifecycle，或最窄 adapter 仍要求第二 server/proxy、
 undocumented marker 才能正确、破坏 same-origin admission/identity、既有 R1/R2 admission/handoff/
@@ -592,7 +595,7 @@ failure semantics 或 close-flush，则停止；
 不得转而实现 2.9.5 workaround。平台 flag、plain-app live patch、framework Fast Refresh 或 canary
 PASS 本身都不能升格为 SillyMaker R1/R2 合同。
 
-**AR5 progress（2026-08-23，非 closure）：**
+**AR5 delivery record（2026-08-23，closed；不含 live Desktop HMR）：**
 
 - Studio core publication 与 embedded surface 现在只依赖 package-private、single-companion 的中立
   bridge；Agent client/Host/renderer 只从显式 `@sillymaker/studio/internal/agent` 选择路径进入。
@@ -628,10 +631,11 @@ PASS 本身都不能升格为 SillyMaker R1/R2 合同。
   page reload 为零，并保留 exact HUD state 与日志 overlay。equal-R2→R3 fallback、BuildIdentity、
   Desktop adapter 和约数百行 native preflight 均未放宽或扩张。R1/R2、Authoring/Agent lifetime、CAS
   与 failure/retry 继续由既有中立合同 tests 拥有，不在 native 重复。candidate 仍 package-private、
-  explicit、default-off；唯一剩余 gate 是首个经 source/行为确认包含目标路径的 stable 上重跑同一
-  分层验收，之前 AR5 不形成 closure，也不启动 AR6。
+  explicit、default-off；首个经 source/行为确认包含目标路径的 stable 上重跑同一分层验收仍是它从
+  inactive candidate 升为 maintained Desktop workflow 的唯一 activation gate，但不是 AR5、AR6 或
+  其他工作的全局 gate。
 
-**AR0–AR5 Complexity Reset（2026-08-23，完成；不构成 AR5 closure）：**
+**AR0–AR5 Complexity Reset（2026-08-23，完成；纳入 AR5 closure evidence）：**
 
 - AR3 persistent-visible React publication 已完整取代 AR0 detached path；旧
   `createReactLayoutPublicationV1` 实现、导出、11 个专属测试和辅助代码一起删除，不留 alias、wrapper
@@ -655,7 +659,7 @@ PASS 本身都不能升格为 SillyMaker R1/R2 合同。
   typed data、benchmark 不自行 promotion、测试不保护 evidence scaffold。AR2 CAS、AR4 RPC admission 与
   run fencing、Save/digest/replay/currentness 等真实 exact 边界保持不变。
 
-### AR6 — Closure and owner checkpoint
+### AR6 — Closure and owner checkpoint（2026-08-23 delivered）
 
 - 删除被替代的 lifecycle backend、monolithic shell glue 和重复 adapter；standalone route 若仍
   提供价值则保留，不为“零旧文件”而删；
@@ -667,6 +671,19 @@ PASS 本身都不能升格为 SillyMaker R1/R2 合同。
 - 记录 Browser/Deno Desktop 已验证边界，以及仍未满足的 Desktop production、真实 RPC/
   backend、public Mod、connected geometry 和 source-write 限制；
 - 把下一轮作品、examples 或产品 evidence 的选择交还 owner；本计划不预列名称、数量和顺序。
+
+**AR6 closure record（2026-08-23）：**
+
+- live source 已无 Cordis backend/vendor/dependency、旧 `createReactLayoutPublicationV1` 或一次性
+  `ar5-local-promotion` runner；SillyMaker-owned Direct、其中立合同与 ordinary no-extension build
+  evidence 保留；
+- standalone Authoring route、single-companion bridge 与 package-private Desktop candidate 均有当前
+  consumer/边界，不为追求空目录而删除；
+- architecture/features/development/build/roadmap/design 与 project guidance 已同步已交付能力和未满足
+  边界；live Desktop HMR、Desktop production、真实 RPC/backend、public Mod、OpenUI/A2UI、Agent
+  persistence 与 source-write 仍未激活；
+- stable Desktop revalidation 留作独立、条件性的 platform follow-up。Application Runtime AR0–AR6
+  至此完成且不建立兼容层或新的默认 backlog；下一条 engine/product lane 交还 owner 选择和接受。
 
 本计划完成不自动把 Composition/State/Extension Runtime 变为 public Mod runtime，也不自动激活
 任何 deferred lane。

@@ -15,10 +15,12 @@ package-internal collaboration 并拆出清晰叶模块，没有改变 workspace
 把 Composition 收口为 maintained internal capability，State façade 继续 experimental。它验证了
 本节的 single-authority 和 direct-plan 边界，但没有把 State 接入 production Story flow，也没有
 激活 State Format V2、Effect Broker/OpenUI、i18n 或 production migration。
-Application Runtime AR0–AR4 已于 2026-08-22 交付当前 Host/activation/authoring/Agent fake
-纵切；AR5 已于 2026-08-23 启动但仍在进行。当前已落地 Browser partial lifetime、Author graph
-structural exclusion 与 local performance evidence；Deno Desktop private Authoring/Agent Host 的
-R1/R2 和 `deno desktop --hmr` 仍未交付。
+Application Runtime AR0–AR5 主线已交付当前 Host/activation/authoring/Agent fake、Browser
+lifetime、Author graph structural exclusion 与 local performance evidence。Deno Desktop 已保留
+package-private、explicit、default-off 的 HMR candidate 并通过指定 canary characterization，但
+maintained Desktop HMR workflow 仍独立 defer 到首个包含目标语义的 stable 上重新验收；Desktop
+Authoring/Agent Host 的 R1/R2 也仍未接线。该条件性 Desktop activation defer 不排序或阻塞其他
+engine/product lane。
 
 ## 1. System context
 
@@ -244,7 +246,9 @@ subscriptions, and late publications to zero. These layers do not claim that eve
 rollback has a physical Browser proof. Template and Engine Lab ordinary Player measurements assert
 Agent/RPC absence, while the complete Template Author-entry measurement supplies the stronger
 authoring-product negative control described above. The Deno Desktop adapter remains package-private,
-explicit, default-off, and unpromoted pending stable revalidation, so AR5 is still in progress.
+explicit, default-off, and unpromoted after its selected-canary characterization. Only its activation
+as a maintained Desktop HMR workflow remains deferred to stable source-and-behavior revalidation;
+the AR5 mainline is delivered, and this independent defer does not order unrelated work.
 
 The one-off AR5 paired runner produced dated same-machine evidence, then was
 removed by the AR0–AR5 Complexity Reset together with its fixed ordering,
@@ -730,7 +734,11 @@ transactional predecessor-rollback guarantee for Game R2.
 [Deno documents `deno desktop --hmr` as a platform development option](https://docs.deno.com/runtime/reference/cli/desktop/),
 but the current SillyMaker Desktop staging/packaging command does not pass or
 integrate that mode. Platform availability therefore does not promote an R1/R2
-SillyMaker contract. A macOS arm64 / Deno 2.9.5 native common-runtime smoke does
+SillyMaker contract. The package-private candidate is reachable only through its
+explicit bounded characterization preflight and remains default-off; its canary
+evidence does not change the live matrix above. Do not replace stable revalidation
+with an external proxy/companion, shim, Deno fork, undocumented marker, or a presumed
+2.9.6 version gate. A macOS arm64 / Deno 2.9.5 native common-runtime smoke does
 now prove the latest Engine Lab static Player's GUI readiness, authoritative
 operation, same-window Game/Session restart, close acknowledgement, autosave
 flush, and normal process exit; it does not extend the Desktop cells above or

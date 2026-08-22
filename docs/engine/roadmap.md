@@ -117,7 +117,7 @@ locality、Scene Construction 与只读 Flow workspace，目标合同见
 `pause` 并入 `hold`）、并行监视器（2026-08-20，唯一时间动词 `TimeTickV1`、领域
 事件 + reducer、权威监视器 V1、持久化安全点、监视器节奏环）、可创作帧集/命中区
 形状/hold `when`（均 2026-08-21）、持有中输入（2026-08-22，零新引擎原语）。
-上述补缺 lane 至 2026-08-22 全部交付关闭；合并后当前默认/core lane 回到本文后述的
+上述补缺 lane 至 2026-08-22 全部交付关闭；合并后最近完成的默认/core lane 是本文后述的
 Application Runtime AR0–AR6。AR0 已于 2026-08-22 交付中性 Host、admitted/frozen GUI
 bootstrap、runtime/author startup 与 recovery signals、final-output dependency attribution 和
 当前 R0–R3 平台边界；AR1 同日完成 17-case Direct/Cordis A/B、选择唯一 private Direct backend，
@@ -136,7 +136,7 @@ failed-connection retirement、`run_failed` draft termination、generation/seque
 fencing、Artifact-before-interaction AR2 pairing 与 invalid-successor predecessor retention 均有行为
 证据，Browser 纵切通过 Chromium 与 WebKit。ordinary Template/Engine Lab Player release 排除
 Agent/RPC implementation。它没有实现真实 backend/transport/protocol、public Agent ABI、
-OpenUI/A2UI、Agent persistence 或 Desktop HMR。AR5 已于 2026-08-23 启动：neutral
+OpenUI/A2UI、Agent persistence 或 Desktop HMR。AR5 已于 2026-08-23 交付关闭：neutral
 single-companion split 与 generated Author-entry measurement 已证明 Template 的完整 Author graph
 排除 Agent/RPC/experimental Agent，同时 Engine Lab 显式选择图包含它们；Studio manifest 的
 workspace Agent edge 仍在，因此只形成 final module/source graph structural exclusion。Chromium 与
@@ -154,10 +154,13 @@ characterization 也已完成：binary 报告 `98dc759`，参与者将其对应�
 component-only `shell-ui.tsx` 正反向 HMR 零 reload、状态/overlay 保留、正常关闭 flush/drain 与
 direct-child exit 0 均成立。首次 mixed component/registry export 导致的 R3 已拆分修复，并由
 Chromium/WebKit 回归固定；adapter、BuildIdentity、equal-R2 fallback 与 native harness 没有扩张。
-candidate 保持 package-private、explicit、default-off，AR5 仍没有 closure。首个经 release source/
-行为确认包含该路径的 stable（2.9.6 只是预期候选）再重跑相同 bounded acceptance 后，才正式打开并
-允许 AR5 closure。不为
+candidate 保持 package-private、explicit、default-off。首个经 release source/
+行为确认包含该路径的 stable（2.9.6 只是预期候选）再重跑相同 bounded acceptance 后，才正式打开
+maintained Desktop dev workflow。这是独立、条件性的 Desktop HMR revalidation defer，只 gate 该
+maintained workflow，没有阻塞 AR5/AR6 closure，也不阻塞其他工作。不为
 2.9.5 建临时 proxy/shim/fork，static R3、Deno `>=2.9.0` floor 与 latest-stable CI 均不变。
+AR6 closure 与 owner checkpoint 也已完成；当前没有自动领取的下一项，不从该 Desktop defer 派生
+默认 backlog，下一条 engine/product lane 交还 owner 选择。
 排序与交付记录以
 [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md) §1
 为准；稳定 promoted capability 以 [features](features.md) 为准，AR4 private provisional seam
@@ -183,18 +186,19 @@ authoritative replay 的重复 canonicalization，再讨论改变 State 格式�
 2026-08-22 吸收 parallel-monitors 后，实验 State façade 同步改用 Base 唯一的 domain-event
 journal/reducer transaction；早期 proposal/fact shape 只保留为历史 checkpoint，不建立兼容层。
 
-2026-08-18 所有者以新的产品方向证据接受
+2026-08-18 所有者以新的产品方向证据接受并于 2026-08-23 完成
 [Application Runtime and Embedded Authoring V1](plans/2026-08-18-application-runtime-embedded-authoring.md)
-为当前默认/core lane：AR0 已建立 Browser/Deno Desktop startup/dependency floor；AR1 已用中立
+作为本轮默认/core lane：AR0 已建立 Browser/Deno Desktop startup/dependency floor；AR1 已用中立
 17-case suite 比较 direct 与 Cordis-core-derived private lifecycle，选择唯一 SillyMaker-owned
 Direct backend，并删除 Cordis adapter/vendor/dependency。AR2 structured authoring operations 已于
 2026-08-22 交付关闭；AR3 stable-sibling embeddable Authoring Host 与 AR4 private typed RPC/
-experimental Agent Host/UiArtifact fake vertical slice 也已于同日交付。AR5 build、双 GUI Host 与
-performance promotion 已启动且仍在进行，是当前唯一 active item。目标合同见
+experimental Agent Host/UiArtifact fake vertical slice 也已于同日交付。AR5 build、Browser GUI Host、
+lifetime 与 performance promotion 及 AR6 closure/owner checkpoint 已于 2026-08-23 交付关闭。目标合同见
 [Application Runtime and Embedded Authoring](design/application-runtime-and-embedded-authoring.md)。
-本轮只交付引擎基础设施；AR6 后的作品、examples 或产品由所有者另行讨论和立案，不预设名称或
-顺序。未写入 active plan 的候选不是默认 backlog。已接受但未完成的 Desktop promotion 保持
-独立、条件性且不阻塞 core。
+本轮只交付引擎基础设施；下一条 engine lane、作品、examples 或产品由所有者另行讨论和立案，不预设名称或
+顺序。未写入 active plan 的候选不是默认 backlog。已接受但未完成的 Desktop HMR stable
+revalidation 与 Desktop production promotion 保持独立、条件性，只 gate 各自的 Desktop claim/
+workflow，不阻塞 core 或其他工作。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实
@@ -424,10 +428,10 @@ progressive activation 已由 Application Runtime AR1 交付，结构化人机�
 Host/session/workspace/source-IO owner，并以 Engine Lab 的真实 Scene 与 Game/Session successor
 验证稳定 sibling lifetime。AR4 又以同一 embedded shell 交付 private deterministic fake RPC →
 admitted `UiArtifact` → current `UiIntent` → captured AR2 Scene operation，并证明 unavailable/retry、
-stale/invalid/cancelled-late 拒绝和 Chromium/WebKit ordinary-Player evidence。当前正在进行的唯一
-active item AR5 仍由
-[Application Runtime plan](plans/2026-08-18-application-runtime-embedded-authoring.md) 拥有；其 partial
-Browser/build/performance evidence 不构成 closure。
+stale/invalid/cancelled-late 拒绝和 Chromium/WebKit ordinary-Player evidence。AR5 已完成 Browser/build/
+lifetime/performance promotion 并交付关闭；AR6 closure/owner checkpoint 也已完成，记录仍由
+[Application Runtime plan](plans/2026-08-18-application-runtime-embedded-authoring.md) 拥有；下一条 lane
+交还 owner 选择。
 
 Editor 写普通 TS 或被 TS 引用的稳定数据（JSON 文档经严格 admission），不形成另一
 种运行时语言。
@@ -523,19 +527,20 @@ fake 不保存文件、不提交 authoritative state、不执行 external effect
 receipt subsystem。真实后台/LLM、RPC protocol、`UiArtifact` persistence 与具体 OpenUI/A2UI adapter
 必须由后续 owner-selected 产品计划单独激活，不能从 Track G 直接领取。
 required service 不可用时，依赖 domain 不得谎报 ready，但 GUI 必须保留诊断和 retry；外部
-service 不是 plugin，也不取得 Session/FilePort authority。AR5 只 promotion 这份 fake seam 的双
-GUI Host/build/lifetime/performance evidence，不把上述 defer 偷渡为 live capability。当前 partial
-AR5 已用 neutral single-companion split 和正/负 Author-entry measurement 完成 authoring-only/no-Agent
+service 不是 plugin，也不取得 Session/FilePort authority。AR5 只 promotion 这份 fake seam 的 Browser
+GUI Host/build/lifetime/performance evidence，不把上述 defer 偷渡为 live capability。已关闭的
+AR5 用 neutral single-companion split 和正/负 Author-entry measurement 完成 authoring-only/no-Agent
 final module/source graph 的 structural exclusion，并取得 Browser physical lifecycle 与日期化同机
 performance evidence；该里程碑 runner 已删除，长期 benchmark 只输出原始测量。Studio manifest 的
 workspace Agent edge 仍服务 private opt-in，
-Deno Desktop private inactive adapter、bounded preflight 与 selected-canary characterization 已完成，但
-AR5 仍没有 closure。下一项只执行已接受的 verified-stable revalidation/activation gate：首个经
+Deno Desktop private inactive adapter、bounded preflight 与 selected-canary characterization 也已完成。verified-stable
+revalidation/activation 保持独立、条件性 defer：首个经
 release source/行为确认包含目标路径的 stable 必须重跑中立合同 tests + 约数百行内的 explicit-binary/
 隔离目录/真实 workspace command/direct-child exit-0 launch preflight + 一次人工 native ready/
 bootstrap/private-route/HMR 无 reload/正常关闭 characterization。preflight 不建立 renderer receipt/
 probe/report/durable evidence；native 不重复 R1/R2、Agent、CAS 或 failure/retry matrix；canary PASS
-仍不构成 live capability、maintained workflow 或 Desktop production promotion。
+仍不构成 live capability、maintained workflow 或 Desktop production promotion。该 defer 只 gate maintained
+Desktop workflow，不阻塞 AR6 或其他工作。
 
 Agent workspace 需要 tab/split/task/approval/artifact/history 等独立领域模型；不要把现有游戏 Overlay 膨胀成桌面 WindowManager。流式半成品是 transient presentation；只有完整验证的 document 可持久化，replay 渲染保存 document 而不是重新调用模型。
 

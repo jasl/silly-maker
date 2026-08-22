@@ -22,10 +22,10 @@ active authority；完成里程碑摘要在
 
 ## 1. Current and next
 
-当前：2026-08-19 至 2026-08-22 的六条 engine-gap lane 全部交付关闭后，恢复
+2026-08-19 至 2026-08-22 的六条 engine-gap lane 全部交付关闭后，恢复并完成
 2026-08-18 所有者以新产品方向证据接受的
 [Application Runtime and Embedded Authoring V1](2026-08-18-application-runtime-embedded-authoring.md)
-为当前默认/core lane。AR0 startup/dependency baseline 已于 2026-08-22 交付关闭：中性 Host、
+作为本轮默认/core lane。AR0 startup/dependency baseline 已于 2026-08-22 交付关闭：中性 Host、
 admitted/frozen GUI bootstrap、runtime/author 静态 shell 与 readiness/recovery signals、final
 output contribution attribution，以及 Browser/Deno Desktop 当前 R0–R3 差异均已有 bounded
 evidence；它没有宣称 native Desktop launch、Desktop persistence/signing promotion 或 RPC
@@ -51,19 +51,25 @@ canary 报告 `98dc759`，参与者将其对应到 Deno PR #36488 merge
 native ready/bootstrap/private-route/HMR 无 reload/正常关闭 characterization 全部通过；preflight
 没有 renderer receipt、probe、report 或 durable evidence。首次 `shell-ui.tsx` 检查暴露的 mixed
 component/registry export 已通过模块边界拆分修复，并由 Chromium/WebKit/native 正反向 HMR 证明状态与
-overlay 保留。当前/下一项唯一是首个经 release source/行为确认包含该路径的 stable（2.9.6 只是预期
-候选）上重跑同一分层验收；通过后才正式打开并允许 AR5 closure。不得为 2.9.5 建 external
-Vite/proxy、手工 shim 或 runtime fork；
-现有 static R3/packaging、public Deno `>=2.9.0` floor 与 latest-stable required CI 不变。其后才进入
-AR6 closure。目标合同见
+overlay 保留。AR5 因而于 2026-08-23 交付关闭；该 closure 明确不包含 live/maintained Desktop HMR
+或 Desktop production promotion。AR6 closure 与 owner checkpoint 也已于同日完成：被替代的
+lifecycle/publication/promotion scaffolding 已删除，Direct 选择与 no-extension evidence 保留，live
+文档和未满足边界已同步。Application Runtime AR0–AR6 至此关闭，当前没有自动领取的下一项；下一条
+engine/product lane 由 owner 另行选择和接受。首个经 release
+source/行为确认包含目标路径的 stable（2.9.6 只是预期候选）仍须重跑同一分层验收，全部通过后才
+正式打开 maintained Desktop development workflow。此前 adapter 保持 package-private、explicit、
+default-off；这条独立、条件性的 Desktop activation follow-up 没有阻塞 AR5/AR6 closure，也不阻塞
+其他 owner-accepted work。不得为 2.9.5 建 external Vite/proxy、手工 shim 或 runtime fork；
+现有 static R3/packaging、public Deno `>=2.9.0` floor 与 latest-stable required CI 不变。目标合同见
 [Application Runtime and Embedded Authoring](../design/application-runtime-and-embedded-authoring.md)。
 Browser 与 Deno Desktop 是当前 GUI product targets；CLI 只提供 Desktop startup config，
 headless 只作开发/测试辅助，外部后台与 LLM 统一经 RPC。AR1 没有激活 public Cordis API、Mod
 ABI、runtime code installation、State Format V2、Effect Broker、具体 OpenUI/A2UI adapter 或
 production Story State migration；Cordis adapter/vendor/dependency 已删除。ordinary no-extension
 静态游戏 release 仍不得包含 author/source-write、selected Direct extension runtime 或 RPC
-implementation。AR6 后的作品/examples/产品由所有者另行选择和立案，不在本计划预先排序。
-下一项可领取任务只有上述 AR5 Deno Desktop gate；AR6 尚未启动。
+implementation。AR6 后的作品/examples/产品或下一条 engine lane 由所有者另行选择和立案，不在本
+计划预先排序。stable Deno Desktop revalidation 在满足 release source/行为进入条件后作为独立
+activation follow-up 领取，不占用或阻塞未来 owner-accepted current/next。
 
 最近一条已关闭的能力车道（不形成 active/next）：
 [Authorable Chrome Layout V1](2026-08-22-authorable-chrome-layout.md)
@@ -508,9 +514,10 @@ one-shot setter 与 constructor factory 选择、formatter delta 或历史计划
 - Story-local gameplay/content；
 - 外部商业克隆补齐内容与只读对比证据；它不改变本仓 active contract，也不把商业内容带回；
 - 不改 authority 的文档和示例；
-- Deno upstream release/source 状态的只读核对；不得越过 §1 的 canary characterization →
-  private inactive integration → verified-stable activation 顺序；
-- 与当前 AR0–AR6 文件无重叠的 bug fix。
+- Deno upstream release/source 状态的只读核对；独立 Desktop follow-up 仍不得越过 canary
+  characterization → private inactive integration → verified-stable activation 顺序，但不替代或阻塞
+  未来 owner-accepted current/next；
+- 与未来 owner-accepted lane 无重叠的 bug fix。
 
 继续 defer：
 

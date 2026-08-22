@@ -6,8 +6,10 @@
 后端服务、CLI 产品和 headless 产品不在目标内。实施顺序与验收由
 [Application Runtime and Embedded Authoring V1](../plans/2026-08-18-application-runtime-embedded-authoring.md)
 拥有；[Production-floor sequence](../plans/2026-07-30-production-floor-sequence.md)
-仍是唯一跨计划排序入口。AR0–AR4 已于 2026-08-22 交付；AR5 已于 2026-08-23 启动且仍在
-进行，是当前唯一 active item；下文明确标注实现状态的部分才是 live capability，其他目标仍不因
+仍是唯一跨计划排序入口。AR0–AR4 已于 2026-08-22 交付；AR5 build、Browser GUI Host、
+lifetime/performance promotion 与 AR6 closure 已于 2026-08-23 交付关闭，下一条 lane 交还 owner
+选择；下文明确
+标注实现状态的部分才是 live capability，其他目标仍不因
 设计存在而自动生效。
 
 本文扩展[统一创作架构](authoring-architecture.md)与
@@ -134,7 +136,7 @@ Module Update Source 只负责取得 build-known candidate，不决定 UI public
 两平台可以有不同 update source，但必须产生同一中立 candidate/generation 合同。Deno Desktop
 若当前只能 full restart，就必须如实报告，不能把进程重启冒充局部 successor。
 
-AR5 已接受的 Deno Desktop 开发形状不为旧 stable 建 external Vite/native companion、第二
+AR5 已交付的 Deno Desktop candidate 形状不为旧 stable 建 external Vite/native companion、第二
 server/proxy、手工 shim 或 Deno fork。官方 in-runtime Vite server 只提供 platform update source；
 WebView 仍是 browser realm，native API 不越过 typed Host bridge，SillyMaker publication 继续拥有
 R1/R2 admission 与 handoff。adapter 由 SillyMaker 明确 launch intent 加实际 Desktop capability
@@ -154,7 +156,8 @@ task/config/generated command/release，也不作为 maintained workflow 写入 
 development/features/build docs；首个经 release source 与实际行为确认包含同一 upstream 语义的
 stable 上重跑同一分层验收后，才成为 maintained Desktop dev workflow。2.9.6 是预期候选而不是合同；
 canary 证据不提升 public Deno `>=2.9.0` floor、latest-stable
-required CI、AR5 状态或任何 Desktop production claim。
+required CI 或任何 Desktop production claim。stable revalidation 是独立、条件性 defer，只 gate 该
+maintained Desktop workflow，不阻塞 AR5 closure、AR6 或其他工作。
 
 ### 4.2 Platform-neutral Extension Runtime
 
@@ -332,7 +335,7 @@ Engine Lab static Player 证明 GUI ready、权威操作、同窗口 Game/Sessio
 操作，以及 native close acknowledgement 后 autosave flush 与正常退出。它没有装入 embedded
 author、source CAS、R0–R2 update source 或 `deno desktop --hmr`，也不证明 packaged artifact、
 多平台、crash durability 或 Desktop persistence/packaging/signing production readiness；这些仍留给
-AR5 或单独的 Desktop promotion lane。
+单独的 Desktop HMR revalidation 或 production promotion lane。
 
 ## 6. Structured authoring operations
 
@@ -429,7 +432,7 @@ backend/LLM、具体 wire protocol、Agent/session/artifact persistence、tool e
 OpenUI/A2UI adapter、Effect Broker 或 Desktop HMR。它不进入 `features.md`，直到真实第二消费者与
 后续 promotion 证明稳定合同。
 
-实现状态（2026-08-23，AR5 partial，非 closure）：Studio core publication/embedded surface 已改为
+实现状态（2026-08-23，AR5 已交付关闭）：Studio core publication/embedded surface 已改为
 只依赖 package-private 的 neutral single-companion bridge；Agent client/Host/renderer 只从显式
 `@sillymaker/studio/internal/agent` 选择路径进入。Template 的完整 generated Author-entry measurement
 保留 Authoring Host、workspaces 与 dev-source implementation，同时排除 Agent package、RPC/fake 和
@@ -463,12 +466,13 @@ registry 与 React 组件混合导出，React Fast Refresh 因而正确降级 R3
 `stage-rendering.tsx` 后，Chromium、WebKit 与 native canary 都证明 component-only `LabHudV1`
 更新保留 exact HUD state 与已打开的日志 overlay，且 page reload 为零。该修复没有改变 Desktop
 adapter、BuildIdentity、equal-R2→R3 fallback 或 native harness。candidate 仍 package-private、explicit、
-default-off；只有首个经 source/行为确认包含目标路径的 stable 上重跑同一分层验收后才可激活并关闭
-AR5，AR6 尚未启动。
+default-off；只有首个经 source/行为确认包含目标路径的 stable 上重跑同一分层验收后才可激活
+maintained Desktop workflow。这项 stable revalidation 是独立、条件性 defer，只 gate 该 Desktop
+workflow，没有阻塞已关闭的 AR5/AR6，也不阻塞其他工作。
 
 ## 8. Promotion and deferred evidence
 
-本设计先由 Engine Lab、现有 DevDock 和 Studio 提供中性/开发期消费者。AR6 只把已验证能力、
+本设计先由 Engine Lab、现有 DevDock 和 Studio 提供中性/开发期消费者。已完成的 AR6 把已验证能力、
 唯一 extension backend 选择和未满足边界交还 owner；后续小作品、examples 重做或其他产品压力源
 由 owner 另行讨论、选择和立案，不在本计划预先列清单或排序。外部 workload 只提供匿名需求和
 对比证据；可泛化合同仍需在 Engine Lab 做最小中性复现。
@@ -480,6 +484,7 @@ AR5，AR6 尚未启动。
 - Cordis Loader/Include/Node HMR、Node product Host、Electron adapter 与不可信代码 sandbox；
 - 真实 Agent/LLM/backend 服务、具体 RPC protocol、完整 Agent persistence、OpenUI/A2UI adapter
   和 Effect Broker；
+- Desktop HMR 在首个包含目标路径的 stable 上的 revalidation 与 maintained workflow activation；
 - Desktop source-write/persistence/package/signing production promotion；
 - State Format V2、production Story State migration、通用 WindowManager/IDE、browser TS compiler、
   全局 typed event bus、generic content compiler 和 data/UI/timing/save editors；
