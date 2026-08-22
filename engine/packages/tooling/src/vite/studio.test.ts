@@ -119,6 +119,7 @@ describe("studioPluginV1", () => {
 
     expect(launcher).toContain('import("/__sillymaker/embedded-author-runtime.tsx")');
     expect(launcher).toContain('containerV1.id = "sillymaker-embedded-author-root"');
+    expect(launcher).toContain('openV1.className = "silly-button"');
     expect(launcher).toContain('mountV1.dataset.sillymakerEmbeddedAuthorMount = "true"');
     expect(launcher).toContain("moduleV1.mountEmbeddedAuthoringV1(mountV1)");
     expect(launcher).toContain("openV1.remove();");

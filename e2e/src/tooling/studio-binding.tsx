@@ -87,15 +87,21 @@ function createLabAgentClientV1(): AgentRpcClientPortInternalV1 {
         ? labAgentArtifactV1("engine-lab.scene.unknown")
         : labAgentArtifactV1();
       const late = input.text.includes("取消晚到");
+      const heldForSuccessor = input.text === "换代期间保持流";
       schedule(0, () => {
         fake.emit(Object.freeze({
           kind: "artifact_chunk",
           sessionId: input.sessionId,
           runId,
           sequence: 1,
-          text: late ? "正在等待取消后的迟到结果…" : "正在生成安全的 UiArtifact…",
+          text: heldForSuccessor
+            ? "正在保持换代期间的流式请求…"
+            : late
+            ? "正在等待取消后的迟到结果…"
+            : "正在生成安全的 UiArtifact…",
         }));
       });
+      if (heldForSuccessor) return result;
       schedule(late ? 250 : 80, () => {
         fake.emit(Object.freeze({
           kind: "artifact_complete",

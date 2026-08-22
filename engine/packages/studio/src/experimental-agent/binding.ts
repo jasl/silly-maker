@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 import type { AgentRpcClientPortInternalV1 } from "@sillymaker/agent/internal";
 
-import type { StudioBindingV1 } from "../core/binding.ts";
 import { admitSceneAuthoringOperationV1 } from "../core/scene-operations/admission.ts";
 import type { SceneAuthoringOperationV1 } from "../core/scene-operations/contract.ts";
 
@@ -22,11 +21,6 @@ export interface ExperimentalEmbeddedAgentBindingInternalV1 {
   readonly sceneActions: Readonly<Record<string, SceneAuthoringOperationV1>>;
   readonly createClient: () => AgentRpcClientPortInternalV1;
 }
-
-const agentBindingsInternalV1 = new WeakMap<
-  StudioBindingV1,
-  ExperimentalEmbeddedAgentBindingInternalV1
->();
 
 function admitSceneActionsInternalV1(
   value: Readonly<Record<string, unknown>>,
@@ -73,13 +67,12 @@ function admitSceneActionsInternalV1(
 }
 
 /**
- * Engine-Lab-only selection seam. It decorates the exact frozen Studio binding
- * without adding Agent fields to the stable `StudioBindingV1` contract.
+ * Admits the private Agent-specific half before it is attached through the
+ * neutral embedded Authoring companion bridge.
  */
-export function defineExperimentalEmbeddedAgentBindingInternalV1(
-  binding: StudioBindingV1,
+export function admitExperimentalEmbeddedAgentBindingInternalV1(
   input: ExperimentalEmbeddedAgentBindingInputInternalV1,
-): StudioBindingV1 {
+): ExperimentalEmbeddedAgentBindingInternalV1 {
   if (
     input.configurationId.length > 96 ||
     !configurationIdPatternInternalV1.test(input.configurationId)
@@ -89,25 +82,12 @@ export function defineExperimentalEmbeddedAgentBindingInternalV1(
   if (typeof input.createClient !== "function") {
     throw new TypeError("Experimental Agent client factory is required");
   }
-  if (agentBindingsInternalV1.has(binding)) {
-    throw new TypeError("Studio binding already has an Experimental Agent configuration");
-  }
   const admitted = admitSceneActionsInternalV1(input.sceneActions);
-  agentBindingsInternalV1.set(
-    binding,
-    Object.freeze({
-      configurationId: input.configurationId,
-      actionSignature: admitted.actionIds.join("\u001f"),
-      allowedActionIds: admitted.actionIds,
-      sceneActions: admitted.actions,
-      createClient: input.createClient,
-    }),
-  );
-  return binding;
-}
-
-export function resolveExperimentalEmbeddedAgentBindingInternalV1(
-  binding: StudioBindingV1,
-): ExperimentalEmbeddedAgentBindingInternalV1 | null {
-  return agentBindingsInternalV1.get(binding) ?? null;
+  return Object.freeze({
+    configurationId: input.configurationId,
+    actionSignature: admitted.actionIds.join("\u001f"),
+    allowedActionIds: admitted.actionIds,
+    sceneActions: admitted.actions,
+    createClient: input.createClient,
+  });
 }

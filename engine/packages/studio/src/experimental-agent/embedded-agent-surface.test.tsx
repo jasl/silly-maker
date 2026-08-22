@@ -85,6 +85,11 @@ describe("EmbeddedAgentSurfaceInternalV1", () => {
         publicationRole="visible"
       />,
     );
+    const surface = view.container.querySelector("[data-experimental-agent-host]");
+    expect(surface).toHaveAttribute("data-agent-session-id", "session.1");
+    expect(surface).toHaveAttribute("data-agent-run-id", "run.1");
+    expect(surface).toHaveAttribute("data-agent-run-generation", "2");
+    expect(surface).toHaveAttribute("data-agent-rpc-connection-generation", "1");
 
     act(() => {
       fake.emit(Object.freeze({
@@ -150,6 +155,11 @@ describe("EmbeddedAgentSurfaceInternalV1", () => {
       />,
     );
     const requestCount = fake.getRequests().length;
+    const surface = view.container.querySelector("[data-experimental-agent-host]");
+    expect(surface).toHaveAttribute("data-agent-session-id", "session.1");
+    expect(surface).toHaveAttribute("data-agent-run-id", "run.1");
+    expect(surface).toHaveAttribute("data-agent-run-generation", "2");
+    expect(surface).toHaveAttribute("data-agent-rpc-connection-generation", "1");
     expect(view.getByRole("button", { name: "生成 Artifact" })).toBeDisabled();
     expect(view.getByRole("button", { name: "应用" })).toBeDisabled();
     fireEvent.submit(view.container.querySelector("form")!);

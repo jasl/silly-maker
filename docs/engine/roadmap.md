@@ -135,9 +135,18 @@ operation 纵切；`(sessionId, runId)` identity、submit-response-before-stream
 failed-connection retirement、`run_failed` draft termination、generation/sequence/cancellation
 fencing、Artifact-before-interaction AR2 pairing 与 invalid-successor predecessor retention 均有行为
 证据，Browser 纵切通过 Chromium 与 WebKit。ordinary Template/Engine Lab Player release 排除
-Agent/RPC implementation；Studio/Agent 仍静态耦合，authoring-only/no-Agent graph 留给 AR5 证明或
-拆分。它没有实现真实 backend/transport/protocol、public Agent ABI、OpenUI/A2UI、Agent persistence
-或 Desktop HMR。唯一 next task 是 AR5 build、双 GUI Host 与 performance promotion。排序与交付记录以
+Agent/RPC implementation。它没有实现真实 backend/transport/protocol、public Agent ABI、
+OpenUI/A2UI、Agent persistence 或 Desktop HMR。AR5 已于 2026-08-23 启动：neutral
+single-companion split 与 generated Author-entry measurement 已证明 Template 的完整 Author graph
+排除 Agent/RPC/experimental Agent，同时 Engine Lab 显式选择图包含它们；Studio manifest 的
+workspace Agent edge 仍在，因此只形成 final module/source graph structural exclusion。Chromium 与
+WebKit 的 physical R1 success/restore、shared Game/Session R2 + Authoring R1 success/restore、
+incompatible-configuration R1 rejection + compatible retry 已保留 held Agent 与 Authoring sibling；
+headless/jsdom 另覆盖 post-retirement R2 UI-start failure + retry、terminal owner cleanup 与 repeated
+Agent disposal。五组同机交错 local performance evidence 的 first actionable delta 为
+`-4.23ms / -3.54%`、stable command delta 为 `-0.72ms / -1.40%`，判定 `continue`。Deno Desktop
+private Authoring/Agent Host R1/R2 与 `deno desktop --hmr` 仍未接线，AR5 仍在进行且没有 closure。
+排序与交付记录以
 [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md) §1
 为准；稳定 promoted capability 以 [features](features.md) 为准，AR4 private provisional seam
 仍以本计划 closure 与 live architecture 记录，不提前进入 features。
@@ -168,8 +177,8 @@ journal/reducer transaction；早期 proposal/fact shape 只保留为历史 chec
 17-case suite 比较 direct 与 Cordis-core-derived private lifecycle，选择唯一 SillyMaker-owned
 Direct backend，并删除 Cordis adapter/vendor/dependency。AR2 structured authoring operations 已于
 2026-08-22 交付关闭；AR3 stable-sibling embeddable Authoring Host 与 AR4 private typed RPC/
-experimental Agent Host/UiArtifact fake vertical slice 也已于同日交付。当前唯一 next 是双 GUI
-Host build/performance promotion（AR5）。目标合同见
+experimental Agent Host/UiArtifact fake vertical slice 也已于同日交付。AR5 build、双 GUI Host 与
+performance promotion 已启动且仍在进行，是当前唯一 active item。目标合同见
 [Application Runtime and Embedded Authoring](design/application-runtime-and-embedded-authoring.md)。
 本轮只交付引擎基础设施；AR6 后的作品、examples 或产品由所有者另行讨论和立案，不预设名称或
 顺序。未写入 active plan 的候选不是默认 backlog。已接受但未完成的 Desktop promotion 保持
@@ -403,8 +412,10 @@ progressive activation 已由 Application Runtime AR1 交付，结构化人机�
 Host/session/workspace/source-IO owner，并以 Engine Lab 的真实 Scene 与 Game/Session successor
 验证稳定 sibling lifetime。AR4 又以同一 embedded shell 交付 private deterministic fake RPC →
 admitted `UiArtifact` → current `UiIntent` → captured AR2 Scene operation，并证明 unavailable/retry、
-stale/invalid/cancelled-late 拒绝和 Chromium/WebKit ordinary-Player evidence。当前下一项 AR5 仍由
-[Application Runtime plan](plans/2026-08-18-application-runtime-embedded-authoring.md) 拥有。
+stale/invalid/cancelled-late 拒绝和 Chromium/WebKit ordinary-Player evidence。当前正在进行的唯一
+active item AR5 仍由
+[Application Runtime plan](plans/2026-08-18-application-runtime-embedded-authoring.md) 拥有；其 partial
+Browser/build/performance evidence 不构成 closure。
 
 Editor 写普通 TS 或被 TS 引用的稳定数据（JSON 文档经严格 admission），不形成另一
 种运行时语言。
@@ -501,8 +512,11 @@ receipt subsystem。真实后台/LLM、RPC protocol、`UiArtifact` persistence �
 必须由后续 owner-selected 产品计划单独激活，不能从 Track G 直接领取。
 required service 不可用时，依赖 domain 不得谎报 ready，但 GUI 必须保留诊断和 retry；外部
 service 不是 plugin，也不取得 Session/FilePort authority。AR5 只 promotion 这份 fake seam 的双
-GUI Host/build/lifetime/performance evidence，并证明或拆分当前静态耦合的 authoring-only/no-Agent
-graph，不把上述 defer 偷渡为 live capability。
+GUI Host/build/lifetime/performance evidence，不把上述 defer 偷渡为 live capability。当前 partial
+AR5 已用 neutral single-companion split 和正/负 Author-entry measurement 完成 authoring-only/no-Agent
+final module/source graph 的 structural exclusion，并取得 Browser physical lifecycle 与同机五组
+`continue` performance evidence；Studio manifest 的 workspace Agent edge 仍服务 private opt-in，
+Deno Desktop private Host R1/R2 与 HMR 接线仍未完成，因而 AR5 没有 closure。
 
 Agent workspace 需要 tab/split/task/approval/artifact/history 等独立领域模型；不要把现有游戏 Overlay 膨胀成桌面 WindowManager。流式半成品是 transient presentation；只有完整验证的 document 可持久化，replay 渲染保存 document 而不是重新调用模型。
 

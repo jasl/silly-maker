@@ -17,7 +17,16 @@ import {
   parseBuildDependencyReceiptInternalV1,
   serializeBuildDependencyMeasurementRequestInternalV1,
 } from "./build-dependency-receipt.ts";
-import type { BuildDependencyChunkInputInternalV1 } from "./build-dependency-receipt.ts";
+import type {
+  BuildDependencyChunkInputInternalV1,
+  BuildDependencyReceiptInternalV1,
+} from "./build-dependency-receipt.ts";
+import {
+  embeddedAuthorEntryIdInternalV1,
+  embeddedAuthorRuntimeIdInternalV1,
+  studioAuthoringBuildMeasurementPluginInternalV1,
+  studioEntryIdInternalV1,
+} from "./studio.ts";
 
 const repositoryRootV1 = resolve(fileURLToPath(new URL("../../../../..", import.meta.url)));
 
@@ -37,6 +46,98 @@ function chunkV1(
     importedAssets: Object.freeze([]),
     ...input,
   });
+}
+
+function receiptModuleIdsV1(receipt: BuildDependencyReceiptInternalV1): readonly string[] {
+  return Object.freeze([
+    ...new Set([
+      ...receipt.chunks.flatMap(({ moduleIds }) => moduleIds),
+      ...receipt.assets.flatMap(({ moduleIds }) => moduleIds),
+    ]),
+  ]);
+}
+
+function expectAuthoringEntryGraphV1(receipt: BuildDependencyReceiptInternalV1): void {
+  expect(
+    receipt.chunks.find(({ facadeModuleId }) =>
+      facadeModuleId?.endsWith(studioEntryIdInternalV1) ?? false
+    ),
+  ).toMatchObject({
+    isEntry: true,
+    isDynamicEntry: false,
+  });
+  expect(
+    receipt.chunks.find(({ facadeModuleId }) =>
+      facadeModuleId?.endsWith(embeddedAuthorEntryIdInternalV1) ?? false
+    ),
+  ).toMatchObject({
+    isEntry: true,
+    isDynamicEntry: false,
+  });
+  expect(
+    receipt.chunks.find(({ facadeModuleId }) =>
+      facadeModuleId?.endsWith(embeddedAuthorRuntimeIdInternalV1) ?? false
+    ),
+  ).toMatchObject({
+    isEntry: false,
+    isDynamicEntry: true,
+  });
+}
+
+async function measureAuthoringBuildGraphV1(input: {
+  readonly appDirectory: "template" | "e2e";
+  readonly studio: {
+    readonly module: string;
+    readonly exportName: string;
+  };
+}): Promise<BuildDependencyReceiptInternalV1> {
+  const directory = await mkdtemp(
+    join(tmpdir(), `sillymaker-${input.appDirectory}-authoring-build-graph-`),
+  );
+  const receiptPath = join(directory, "receipt.json");
+  const previous = process.env[buildDependencyMeasurementEnvironmentKeyInternalV1];
+  const previousNodeEnvironment = process.env.NODE_ENV;
+  process.env.NODE_ENV = "development";
+  process.env[buildDependencyMeasurementEnvironmentKeyInternalV1] =
+    serializeBuildDependencyMeasurementRequestInternalV1({
+      graphRoot: repositoryRootV1,
+      receiptPath,
+    });
+  try {
+    const output = await build({
+      configFile: join(repositoryRootV1, input.appDirectory, "vite.config.ts"),
+      mode: "development",
+      logLevel: "silent",
+      plugins: [studioAuthoringBuildMeasurementPluginInternalV1(input.studio)],
+      build: {
+        write: false,
+        outDir: join(directory, "out"),
+        emptyOutDir: true,
+        rollupOptions: {
+          input: {
+            "studio-author": studioEntryIdInternalV1,
+            "embedded-author": embeddedAuthorEntryIdInternalV1,
+          },
+        },
+      },
+    });
+    if (!Array.isArray(output) && !("output" in output)) {
+      throw new TypeError("Authoring measurement unexpectedly returned a build watcher");
+    }
+    return parseBuildDependencyReceiptInternalV1(await readFile(receiptPath, "utf8"));
+  } finally {
+    if (previous === undefined) {
+      delete process.env[buildDependencyMeasurementEnvironmentKeyInternalV1];
+    } else {
+      process.env[buildDependencyMeasurementEnvironmentKeyInternalV1] = previous;
+    }
+    if (previousNodeEnvironment === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = previousNodeEnvironment;
+    }
+    await rm(directory, { force: true, recursive: true });
+  }
 }
 
 describe("build dependency receipt", () => {
@@ -340,5 +441,71 @@ describe("build dependency receipt", () => {
       }
       await rm(directory, { force: true, recursive: true });
     }
+  });
+
+  it("keeps the complete Template Author graph free of unselected Agent implementation", async () => {
+    const receipt = await measureAuthoringBuildGraphV1({
+      appDirectory: "template",
+      studio: Object.freeze({
+        module: "src/tooling/studio-binding.tsx",
+        exportName: "templateStudioBindingV1",
+      }),
+    });
+    expect(receipt.applicationId).toBe("template");
+    expectAuthoringEntryGraphV1(receipt);
+
+    const moduleIds = receiptModuleIdsV1(receipt);
+    const facets = classifyStaticGameDependencyFacetsInternalV1(moduleIds);
+    expect(facets.authoringImplementation.length).toBeGreaterThan(0);
+    expect(facets.devSourceImplementation).toContain(
+      "engine/packages/ui/src/debug/dev-source-client.ts",
+    );
+    expect(facets.rpcImplementation).toEqual([]);
+    expect(moduleIds).toContain("template/src/tooling/studio-binding.tsx");
+    expect(moduleIds).toContain("engine/packages/studio/src/core/authoring-host.ts");
+    expect(moduleIds).toContain("engine/packages/studio/src/studio-app.tsx");
+    expect(moduleIds).toContain(
+      "engine/packages/studio/src/workspaces/flow/flow-workspace-extension.tsx",
+    );
+    expect(moduleIds).not.toContain(
+      "engine/packages/ui/src/debug/dev-source-client-unavailable.ts",
+    );
+    expect(moduleIds.some((moduleId) => moduleId.startsWith("engine/packages/agent/")))
+      .toBe(false);
+    expect(
+      moduleIds.some((moduleId) =>
+        moduleId.startsWith("engine/packages/studio/src/experimental-agent/")
+      ),
+    ).toBe(false);
+  });
+
+  it("includes the explicitly selected Engine Lab Agent in the same Author graph", async () => {
+    const receipt = await measureAuthoringBuildGraphV1({
+      appDirectory: "e2e",
+      studio: Object.freeze({
+        module: "src/tooling/studio-binding.tsx",
+        exportName: "labStudioBindingV1",
+      }),
+    });
+    expect(receipt.applicationId).toBe("e2e");
+    expectAuthoringEntryGraphV1(receipt);
+
+    const moduleIds = receiptModuleIdsV1(receipt);
+    const facets = classifyStaticGameDependencyFacetsInternalV1(moduleIds);
+    expect(facets.authoringImplementation.length).toBeGreaterThan(0);
+    expect(facets.rpcImplementation.length).toBeGreaterThan(0);
+    expect(moduleIds).toContain("e2e/src/tooling/studio-binding.tsx");
+    expect(moduleIds).toContain("engine/packages/agent/src/host/agent-host.ts");
+    expect(moduleIds).toContain("engine/packages/agent/src/artifact/renderer.tsx");
+    expect(moduleIds).toContain("engine/packages/agent/src/rpc/client.ts");
+    expect(moduleIds).toContain(
+      "engine/packages/agent/src/rpc/deterministic-fake-transport.ts",
+    );
+    expect(moduleIds).toContain(
+      "engine/packages/studio/src/experimental-agent/runtime.tsx",
+    );
+    expect(moduleIds).toContain(
+      "engine/packages/studio/src/experimental-agent/embedded-agent-surface.tsx",
+    );
   });
 });

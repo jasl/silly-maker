@@ -18,9 +18,12 @@ export const studioPageUrlV1 = "/__sillymaker/studio/";
 /** HTML contract with the game-page DevDock Studio shortcut. */
 export const studioPageMetaNameV1 = "sillymaker-studio";
 
-const studioEntryIdV1 = "/__sillymaker/studio-entry.tsx";
-const embeddedAuthorEntryIdV1 = "/__sillymaker/embedded-author-entry.ts";
-const embeddedAuthorRuntimeIdV1 = "/__sillymaker/embedded-author-runtime.tsx";
+/** @internal Stable browser-facing IDs consumed by the dev page and build-graph measurement. */
+export const studioEntryIdInternalV1 = "/__sillymaker/studio-entry.tsx";
+export const embeddedAuthorEntryIdInternalV1 = "/__sillymaker/embedded-author-entry.ts";
+export const embeddedAuthorRuntimeIdInternalV1 = "/__sillymaker/embedded-author-runtime.tsx";
+
+const studioAuthoringBuildMeasurementPrefixInternalV1 = "\0sillymaker:studio-authoring-build:";
 
 /** @internal Generated dev-only Author entry document. */
 export function createStudioPageHtmlInternalV1(): string {
@@ -40,7 +43,7 @@ export function createStudioPageHtmlInternalV1(): string {
       bootstrap: Object.freeze({ revision: 1, entry: "author", target: "browser" }),
     }),
     '<div id="sillymaker-studio-root"></div>',
-    `<script type="module" src="${studioEntryIdV1}"></script>`,
+    `<script type="module" src="${studioEntryIdInternalV1}"></script>`,
     "</body>",
     "</html>",
     "",
@@ -160,6 +163,7 @@ function embeddedAuthorEntrySourceV1(): string {
     'const openV1 = document.createElement("button");',
     'const mountV1 = document.createElement("div");',
     'openV1.type = "button";',
+    'openV1.className = "silly-button";',
     'openV1.textContent = "打开内嵌创作";',
     'openV1.dataset.embeddedAuthoringActivate = "true";',
     'openV1.setAttribute("aria-label", "打开内嵌创作");',
@@ -170,7 +174,7 @@ function embeddedAuthorEntrySourceV1(): string {
     'openV1.addEventListener("click", () => {',
     "  if (activationV1 !== null) return;",
     "  openV1.disabled = true;",
-    `  activationV1 = import(${JSON.stringify(embeddedAuthorRuntimeIdV1)})`,
+    `  activationV1 = import(${JSON.stringify(embeddedAuthorRuntimeIdInternalV1)})`,
     "    .then(async (moduleV1) => {",
     "      const mountedV1 = await moduleV1.mountEmbeddedAuthoringV1(mountV1);",
     '      containerV1.dataset.sillymakerEmbeddedAuthor = "mounted";',
@@ -272,22 +276,59 @@ function embeddedAuthorRuntimeSourceV1(studio: ProjectModuleRefV1): string {
   ].join("\n");
 }
 
+function studioVirtualSourceInternalV1(
+  studio: ProjectModuleRefV1,
+  id: string,
+): string | null {
+  if (id === studioEntryIdInternalV1) return studioEntrySourceV1(studio);
+  if (id === embeddedAuthorEntryIdInternalV1) return embeddedAuthorEntrySourceV1();
+  if (id === embeddedAuthorRuntimeIdInternalV1) return embeddedAuthorRuntimeSourceV1(studio);
+  return null;
+}
+
+function isStudioVirtualIdInternalV1(id: string): boolean {
+  return id === studioEntryIdInternalV1 || id === embeddedAuthorEntryIdInternalV1 ||
+    id === embeddedAuthorRuntimeIdInternalV1;
+}
+
+/**
+ * @internal Build-only measurement of the exact generated Author entries.
+ * The NUL-prefixed resolved IDs keep receipt normalization truthful without
+ * treating the browser-facing `/__sillymaker/*` URLs as filesystem paths.
+ */
+export function studioAuthoringBuildMeasurementPluginInternalV1(
+  studio: ProjectModuleRefV1,
+): Plugin {
+  return {
+    name: "sillymaker:studio-authoring-build-measurement",
+    apply: "build",
+    enforce: "pre",
+    resolveId(id) {
+      if (id.startsWith(studioAuthoringBuildMeasurementPrefixInternalV1)) return id;
+      return isStudioVirtualIdInternalV1(id)
+        ? `${studioAuthoringBuildMeasurementPrefixInternalV1}${id}`
+        : null;
+    },
+    load(id) {
+      if (!id.startsWith(studioAuthoringBuildMeasurementPrefixInternalV1)) return null;
+      return studioVirtualSourceInternalV1(
+        studio,
+        id.slice(studioAuthoringBuildMeasurementPrefixInternalV1.length),
+      );
+    },
+  };
+}
+
 /** The `vite dev`-only Studio page plugin; absent when no binding is declared. */
 export function studioPluginV1(studio: ProjectModuleRefV1): Plugin {
   return {
     name: "sillymaker:studio",
     apply: "serve",
     resolveId(id) {
-      return id === studioEntryIdV1 || id === embeddedAuthorEntryIdV1 ||
-          id === embeddedAuthorRuntimeIdV1
-        ? id
-        : null;
+      return isStudioVirtualIdInternalV1(id) ? id : null;
     },
     load(id) {
-      if (id === studioEntryIdV1) return studioEntrySourceV1(studio);
-      if (id === embeddedAuthorEntryIdV1) return embeddedAuthorEntrySourceV1();
-      if (id === embeddedAuthorRuntimeIdV1) return embeddedAuthorRuntimeSourceV1(studio);
-      return null;
+      return studioVirtualSourceInternalV1(studio, id);
     },
     transformIndexHtml: {
       order: "pre",
@@ -309,7 +350,7 @@ export function studioPluginV1(studio: ProjectModuleRefV1): Plugin {
               tag: "script",
               attrs: {
                 type: "module",
-                src: embeddedAuthorEntryIdV1,
+                src: embeddedAuthorEntryIdInternalV1,
               },
               injectTo: "body",
             },

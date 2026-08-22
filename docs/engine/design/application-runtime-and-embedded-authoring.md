@@ -6,8 +6,9 @@
 后端服务、CLI 产品和 headless 产品不在目标内。实施顺序与验收由
 [Application Runtime and Embedded Authoring V1](../plans/2026-08-18-application-runtime-embedded-authoring.md)
 拥有；[Production-floor sequence](../plans/2026-07-30-production-floor-sequence.md)
-仍是唯一跨计划排序入口。AR0–AR4 已于 2026-08-22 交付，AR5 是当前唯一下一项；下文明确标注
-实现状态的部分才是 live capability，其他目标仍不因设计存在而自动生效。
+仍是唯一跨计划排序入口。AR0–AR4 已于 2026-08-22 交付；AR5 已于 2026-08-23 启动且仍在
+进行，是当前唯一 active item；下文明确标注实现状态的部分才是 live capability，其他目标仍不因
+设计存在而自动生效。
 
 本文扩展[统一创作架构](authoring-architecture.md)与
 [场景创作模型和 Studio](scene-authoring-and-studio.md)：Scene、Motion、Project
@@ -395,13 +396,39 @@ dev-only Studio adapter 必须在 action 变为 interactive 前让 Artifact 与 
 human edit 后的旧 action 稳定 stale-reject；有效 action 只改现有 in-memory draft，未保存文件、未改
 Game State、未调用网络。service unavailable/retry、valid successor、invalid successor、late
 cancellation 和隐藏/重开 Host 的 jsdom 与 Chromium/WebKit evidence 已落地。ordinary Template/
-Engine Lab Player release graph 显式排除 Agent/RPC implementation modules；当前 Studio/Agent 仍
-静态耦合，authoring-only/no-Agent build graph 尚待 AR5 证明并在必要时拆分。
+Engine Lab Player release graph 显式排除 Agent/RPC implementation modules；AR4 关闭时 Studio/
+Agent source graph 仍静态耦合，authoring-only/no-Agent build graph 尚未证明，该缺口不追溯计入
+AR4。
 
 这些实现形状仍是 provisional internal seam：没有 root/public Agent export，也没有 real transport、
 backend/LLM、具体 wire protocol、Agent/session/artifact persistence、tool execution、permission UI、
 OpenUI/A2UI adapter、Effect Broker 或 Desktop HMR。它不进入 `features.md`，直到真实第二消费者与
 后续 promotion 证明稳定合同。
+
+实现状态（2026-08-23，AR5 partial，非 closure）：Studio core publication/embedded surface 已改为
+只依赖 package-private 的 neutral single-companion bridge；Agent client/Host/renderer 只从显式
+`@sillymaker/studio/internal/agent` 选择路径进入。Template 的完整 generated Author-entry measurement
+保留 Authoring Host、workspaces 与 dev-source implementation，同时排除 Agent package、RPC/fake 和
+experimental Agent surface；Engine Lab 显式选择图包含这些模块作为 positive control。Studio
+manifest 仍为该 private opt-in entry 保留 `@sillymaker/agent` workspace dependency，因此这项事实只
+是 final module/source graph structural exclusion，不是 public ABI、独立 package installation 或
+Desktop author-build claim。
+
+Browser physical HMR 在 Chromium 与 WebKit 已证明 held Agent 下的 Studio-binding R1 success/restore、
+shared Game/Session R2 + Authoring R1 success/restore，以及合法不兼容 `configurationId` candidate 的
+R1 rejection + compatible retry；exact Authoring dirty/undo/selection 与 Agent Host/session/run/run
+generation/RPC connection generation/stream/Artifact 均保留。独立的 controlled in-window Game/
+Session successor GUI case 还证明当前 Authoring receipt 上的旧 Artifact 可应用，human edit 后稳定
+stale。headless Web R2 的 post-retirement UI-start failure + valid retry、jsdom terminal
+candidate/rollback 双失败 cleanup，以及 10 次 Agent activate/dispose 资源归零分别补足更窄的
+lifecycle evidence；这些证据不合并为“所有 failure/rollback 都有 physical Browser proof”。
+
+AR5 local-only 五组交错 fresh-build/fresh-Chromium-context runner 已实测 first actionable paired
+median delta `-4.23ms / -3.54%`、stable command paired median delta
+`-0.72ms / -1.40%`，判定 `continue`；本轮未触发只有越过 first-actionable 双阈值才要求的 second
+independent run。runner 不自动比较第二份报告，raw report 不提交且不是 CI gate。Deno Desktop
+private Authoring/Agent Host 的 R1/R2 candidate/handoff/failure/retry 与 `deno desktop --hmr` 接线仍
+未完成；AR5 继续进行，AR6 未启动。
 
 ## 8. Promotion and deferred evidence
 

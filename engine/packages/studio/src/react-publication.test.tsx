@@ -22,6 +22,11 @@ import type { MotionSourceIoV1 } from "@sillymaker/ui/debug";
 
 import type { StudioToolingPlanV1 } from "./composition.ts";
 import type { StudioBindingV1 } from "./core/binding.ts";
+import { defineEmbeddedAuthoringCompanionInternalV1 } from "./core/embedded-authoring-companion.ts";
+import type {
+  EmbeddedAuthoringCompanionOwnerInternalV1,
+  EmbeddedAuthoringCompanionRenderInputInternalV1,
+} from "./core/embedded-authoring-companion.ts";
 import type { RegionsSourceIoV1 } from "./core/regions-io.ts";
 import type { SceneSourceIoV1 } from "./core/scene-io.ts";
 import {
@@ -593,6 +598,152 @@ describe("Studio React layout publication", () => {
     expect(sceneIo.writes[0]?.sceneDocument.entries[0]?.placement?.x).toBe(700);
   });
 
+  it("retains one selected companion owner across compatible successors", async () => {
+    const container = containerV1();
+    const sceneIo = fakeStudioSceneIoV1();
+    const motionIo = fakeStudioMotionIoV1();
+    const initialBinding = studioBindingV1();
+    const successorBinding = studioBindingV1();
+    const incompatibleBinding = studioBindingV1();
+    const disposeOwner = vi.fn(() => Promise.resolve());
+    const owner = Object.freeze({
+      identity: "companion.owner.1",
+      dispose: disposeOwner,
+    });
+    const createInitialOwner = vi.fn(() => owner);
+    const createSuccessorOwner = vi.fn(() => {
+      throw new Error("compatible successor must not create a second owner");
+    });
+    const companion = (
+      label: string,
+      contentSignature: string,
+      createOwner: () => EmbeddedAuthoringCompanionOwnerInternalV1,
+    ) =>
+      Object.freeze({
+        compatibilityId: "test.authoring.companion",
+        contentSignature,
+        createOwner,
+        render(selectedOwner: EmbeddedAuthoringCompanionOwnerInternalV1) {
+          expect(selectedOwner).toBe(owner);
+          return <aside data-test-companion={label}>{label}</aside>;
+        },
+      });
+    defineEmbeddedAuthoringCompanionInternalV1(
+      initialBinding,
+      companion("initial", "actions.v1", createInitialOwner),
+    );
+    defineEmbeddedAuthoringCompanionInternalV1(
+      successorBinding,
+      companion("successor", "actions.v1", createSuccessorOwner),
+    );
+    defineEmbeddedAuthoringCompanionInternalV1(
+      incompatibleBinding,
+      companion("incompatible", "actions.v2", createSuccessorOwner),
+    );
+    const publication = createStudioToolingReactPublicationV1({
+      container,
+      mode: "embedded",
+    });
+    mountedPublications.push(publication);
+    await publication.mount(studioPlanV1(sceneIo, motionIo, initialBinding));
+
+    expect(container.querySelector("[data-test-companion=initial]")).not.toBeNull();
+    expect(createInitialOwner).toHaveBeenCalledTimes(1);
+
+    await publication.publish(
+      studioPlanV1(sceneIo, motionIo, successorBinding),
+      new AbortController().signal,
+    );
+    expect(container.querySelector("[data-test-companion=successor]")).not.toBeNull();
+    expect(createInitialOwner).toHaveBeenCalledTimes(1);
+    expect(createSuccessorOwner).not.toHaveBeenCalled();
+
+    await expect(publication.publish(
+      studioPlanV1(sceneIo, motionIo, incompatibleBinding),
+      new AbortController().signal,
+    )).rejects.toThrow("cannot replace its embedded companion owner or contract");
+    expect(container.querySelector("[data-test-companion=successor]")).not.toBeNull();
+    expect(disposeOwner).not.toHaveBeenCalled();
+
+    publication.dispose();
+    await waitFor(() => expect(disposeOwner).toHaveBeenCalledTimes(1));
+  });
+
+  it("retires the selected companion when a visible candidate and rollback both fail", async () => {
+    const container = containerV1();
+    const sceneIo = fakeStudioSceneIoV1();
+    const motionIo = fakeStudioMotionIoV1();
+    const initialBinding = studioBindingV1();
+    const candidateBinding = studioBindingV1();
+    const candidateFailure = new Error("companion candidate render failed");
+    const rollbackFailure = new Error("companion rollback render failed");
+    const disposeOwner = vi.fn(() => Promise.resolve());
+    const owner = Object.freeze({ dispose: disposeOwner });
+    let initialVisibleRenders = 0;
+    defineEmbeddedAuthoringCompanionInternalV1(
+      initialBinding,
+      Object.freeze({
+        compatibilityId: "test.authoring.terminal-companion",
+        contentSignature: "actions.v1",
+        createOwner: () => owner,
+        render(
+          _owner: EmbeddedAuthoringCompanionOwnerInternalV1,
+          input: EmbeddedAuthoringCompanionRenderInputInternalV1,
+        ) {
+          if (input.publicationRole === "visible") {
+            initialVisibleRenders += 1;
+            if (initialVisibleRenders > 1) throw rollbackFailure;
+          }
+          return <aside>initial companion</aside>;
+        },
+      }),
+    );
+    defineEmbeddedAuthoringCompanionInternalV1(
+      candidateBinding,
+      Object.freeze({
+        compatibilityId: "test.authoring.terminal-companion",
+        contentSignature: "actions.v1",
+        createOwner() {
+          throw new Error("candidate must reuse the predecessor owner");
+        },
+        render(
+          _owner: EmbeddedAuthoringCompanionOwnerInternalV1,
+          input: EmbeddedAuthoringCompanionRenderInputInternalV1,
+        ) {
+          if (input.publicationRole === "visible") throw candidateFailure;
+          return <aside>candidate companion probe</aside>;
+        },
+      }),
+    );
+    const publication = createStudioToolingReactPublicationV1({
+      container,
+      mode: "embedded",
+    });
+    mountedPublications.push(publication);
+    await publication.mount(studioPlanV1(sceneIo, motionIo, initialBinding));
+
+    let rejection: unknown;
+    try {
+      await publication.publish(
+        studioPlanV1(sceneIo, motionIo, candidateBinding),
+        new AbortController().signal,
+      );
+    } catch (error) {
+      rejection = error;
+    }
+
+    expect(rejection).toBeInstanceOf(AggregateError);
+    expect((rejection as AggregateError).errors).toEqual([candidateFailure, rollbackFailure]);
+    await waitFor(() => expect(disposeOwner).toHaveBeenCalledTimes(1));
+    expect(container.childElementCount).toBe(0);
+    await expect(publication.publish(
+      studioPlanV1(sceneIo, motionIo, initialBinding),
+      new AbortController().signal,
+    )).rejects.toMatchObject({ name: "AbortError" });
+    publication.dispose();
+    expect(disposeOwner).toHaveBeenCalledTimes(1);
+  });
+
   it("aggregates a Motion-only draft into the Host close and beforeunload gates", async () => {
     const container = containerV1();
     const motionDocument = studioMotionDocumentV1();
@@ -832,9 +983,11 @@ describe("persistent Studio React layout publication", () => {
     const container = containerV1();
     const candidateFailure = new Error("candidate render failed");
     const rollbackFailure = new Error("rollback render failed");
+    const onTerminalFailure = vi.fn();
     let oldVisibleRenders = 0;
     const publication = createPersistentReactLayoutPublicationInternalV1<PersistentTestPlanV1>({
       container,
+      onTerminalFailure,
       render(plan, target) {
         if (target === "visible" && plan.label === "old") {
           oldVisibleRenders += 1;
@@ -856,6 +1009,7 @@ describe("persistent Studio React layout publication", () => {
 
     expect(rejection).toBeInstanceOf(AggregateError);
     expect((rejection as AggregateError).errors).toEqual([candidateFailure, rollbackFailure]);
+    expect(onTerminalFailure).toHaveBeenCalledTimes(1);
     expect(container.childElementCount).toBe(0);
     await expect(publication.publish(
       { label: "later" },
@@ -864,6 +1018,8 @@ describe("persistent Studio React layout publication", () => {
     await expect(publication.mount({ label: "later" })).rejects.toMatchObject({
       name: "AbortError",
     });
+    publication.dispose();
+    expect(onTerminalFailure).toHaveBeenCalledTimes(1);
   });
 
   it("rejects concurrent publication and aborts in-flight work on dispose", async () => {

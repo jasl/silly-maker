@@ -1,9 +1,9 @@
 # Application Runtime and Embedded Authoring V1
 
 状态：2026-08-18 由所有者接受为下一条默认/core implementation lane，并在同日以补充 owner
-evidence 收紧产品与平台边界。AR0–AR4 已于 2026-08-22 交付关闭，AR5 是唯一下一项；
-AR5–AR6 尚未启动。引擎能力扩展全部前置；本计划完成后的作品、examples 或产品验证由所有者
-另行选择和立案，不是本轮切片或完成 blocker。
+evidence 收紧产品与平台边界。AR0–AR4 已于 2026-08-22 交付关闭；AR5 已于 2026-08-23
+启动且仍在进行，是唯一 active item；AR6 尚未启动。引擎能力扩展全部前置；本计划完成后的
+作品、examples 或产品验证由所有者另行选择和立案，不是本轮切片或完成 blocker。
 
 目标合同由
 [Application Runtime and Embedded Authoring](../design/application-runtime-and-embedded-authoring.md)
@@ -488,13 +488,14 @@ conversation/task/artifact storage、permission UI、Mutation gateway 或 Effect
   隐藏/重开保留同一 Authoring/Agent Host 与 predecessor Artifact，并证明 source bytes/Scene IO
   writes、Game application epoch 和 page-load count 不变。Template 与 Engine Lab ordinary Player
   release measurement 显式断言没有 `engine/packages/agent/**` 或 RPC implementation module；这只证明
-  两个 ordinary Player graph。当前 `@sillymaker/studio` manifest/source 仍静态依赖 Agent/internal
-  surface，尚未证明一个功能完整的 authoring-only/no-Agent product graph 可结构排除 Agent；
+  两个 ordinary Player graph。AR4 关闭时 `@sillymaker/studio` manifest/source 仍静态依赖
+  Agent/internal surface，尚未证明一个功能完整的 authoring-only/no-Agent product graph 可结构
+  排除 Agent；该缺口不追溯计入 AR4，现由下方 AR5 progress 记录；
 - 本切片没有改变 authoritative State、Snapshot、digest、Save、CommandLog、replay、source CAS 或
   extension lifecycle，也没有实现真实 Agent/LLM/backend、具体 RPC protocol、Agent/session/artifact
   persistence、tool execution、permission/approval UI、OpenUI/A2UI adapter、Effect Broker、public Agent
   ABI、Desktop authoring/HMR 或 production promotion。AR5 build、双 GUI Host 与 performance
-  promotion 成为唯一下一项。
+  promotion 在 AR4 关闭时成为唯一下一项；它现已启动并由下节记录进行中证据。
 
 ### AR5 — Build, GUI Host, and performance promotion
 
@@ -541,6 +542,37 @@ Desktop baseline 仍只有 R3。AR5 若能在不扩张切片的前提下以真�
 build-known candidate/generation、R1/R2 publication/handoff 与 failure/rollback，可以一并领取；
 否则 AR6 只记录 defer，由 owner 另行接受 Deno Desktop Module Update Source 专项计划。平台 flag、
 plain-app live patch 或 framework Fast Refresh 的存在本身都不能升格为 SillyMaker R1/R2 合同。
+
+**AR5 progress（2026-08-23，非 closure）：**
+
+- Studio core publication 与 embedded surface 现在只依赖 package-private、single-companion 的中立
+  bridge；Agent client/Host/renderer 只从显式 `@sillymaker/studio/internal/agent` 选择路径进入。
+  Template 生成的 standalone + embedded Author entries measurement 保留完整 Authoring Host、
+  workspaces 与 dev-source implementation，同时排除 `engine/packages/agent/**`、RPC/fake 和
+  experimental Agent surface；Engine Lab 的显式 Agent 选择图则包含这些模块作为 positive control。
+  这只证明 final module/source graph 的 structural exclusion；Studio manifest 为服务同一 private
+  opt-in entry 仍保留 `@sillymaker/agent` workspace dependency，不形成 public ABI、独立 package
+  installation 或 Desktop author-build claim；
+- Chromium 与 WebKit 的真实 Browser HMR evidence 已在 held fake Agent stream 下覆盖两条 success/
+  restore 路径：physical Studio-binding R1 candidate，以及同一 shared-presentation source change 同时
+  触发的 Game/Session R2 + Authoring R1 candidate。两次正向 publication 和 source restore 都保留
+  exact Authoring dirty/undo/selection、Agent Host/session/run/run generation/RPC connection generation、
+  streaming draft 与 predecessor Artifact；合法但不兼容 `configurationId` 的 physical R1 candidate
+  在两浏览器稳定拒绝，随后 compatible retry 成功。独立的同窗 Game/Session successor GUI case 还
+  证明 page load 为零、旧 Artifact 在未变 Authoring receipt 上仍可应用，human edit 后稳定 stale，
+  最后 local cancel 收口；
+- headless Web R2 seam 已证明 predecessor retirement 后 successor UI-start failure 与后续 valid retry
+  都不重建或重连 held Agent；jsdom publication 在 candidate 与 rollback 双失败的 terminal poison
+  中只清理一次 companion owner。10 次 Agent activate/dispose 则把 connection、subscription 与 late
+  publication 归零。这些分层证据不得合并夸大为所有 failure/rollback 都有 physical Browser proof；
+- 新增 local-only `deno task bench:ar5:promotion` runner，对两个显式 repository roots 做五组交错
+  fresh release build + fresh Chromium context。首轮真实同机结果的 first actionable paired median
+  delta 为 `-4.23ms / -3.54%`，stable command paired median delta 为
+  `-0.72ms / -1.40%`，判定 `continue`。只有 first actionable 同时回退超过 10% 与 50ms 时才要求
+  second independent run；本轮未越线，因而无需第二轮。runner 不自动比较两份报告，raw local
+  report 不提交、也不成为 ordinary CI gate；
+- Deno Desktop private Authoring/Agent Host 的 R1/R2 candidate、handoff、failure/retry，以及
+  `deno desktop --hmr` 接线仍未完成。AR5 继续进行，不形成 closure，也不启动 AR6。
 
 ### AR6 — Closure and owner checkpoint
 

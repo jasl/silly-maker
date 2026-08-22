@@ -16,7 +16,9 @@ package-internal collaboration 并拆出清晰叶模块，没有改变 workspace
 本节的 single-authority 和 direct-plan 边界，但没有把 State 接入 production Story flow，也没有
 激活 State Format V2、Effect Broker/OpenUI、i18n 或 production migration。
 Application Runtime AR0–AR4 已于 2026-08-22 交付当前 Host/activation/authoring/Agent fake
-纵切；AR5 的双 GUI Host build/lifetime/performance promotion 仍未交付。
+纵切；AR5 已于 2026-08-23 启动但仍在进行。当前已落地 Browser partial lifetime、Author graph
+structural exclusion 与 local performance evidence；Deno Desktop private Authoring/Agent Host 的
+R1/R2 和 `deno desktop --hmr` 仍未交付。
 
 ## 1. System context
 
@@ -44,9 +46,13 @@ Story；UI 和 Web 可以依赖 Base；具体 Story/application 可以依赖三�
 Composition profile/state bridge 尚未进入上图的 Story/application production flow；Composition 的
 workspace-only private extension runtime 只进入产品显式选择的 first-party lazy contribution graph，
 ordinary no-extension application 会从最终依赖图完全排除它。实验性的 `@sillymaker/agent` 只依赖
-Base 和 React peer，只有 workspace-private `./internal` entry；Studio 的 Engine Lab-only adapter
-可以选择它，普通 Template/Engine Lab Player graph 都排除 Agent/RPC implementation。当前 Studio
-仍静态依赖 Agent/internal surface；完整 authoring-only/no-Agent graph 尚待 AR5 证明或拆分。
+Base 和 React peer，只有 workspace-private `./internal` entry。Studio core publication 与 embedded
+surface 只依赖中立的 package-private single-companion bridge；显式
+`@sillymaker/studio/internal/agent` entry 才引入 Agent client/Host/renderer。Template 的完整 generated
+Author-entry graph 保留 Authoring Host、workspaces 与 dev-source implementation，同时排除 Agent/
+RPC/experimental Agent modules；Engine Lab 的 selected graph 包含它们作为 positive control。Studio
+manifest 为该 private opt-in entry 仍声明 `@sillymaker/agent` workspace dependency，因此这项保证是
+final module/source graph structural exclusion，不是 package installation 或 public ABI 保证。
 
 ## 2. Package responsibilities
 
@@ -57,7 +63,7 @@ Base 和 React peer，只有 workspace-private `./internal` entry；Studio 的 E
 | `@sillymaker/composition` | `.`, `./legacy`, `./state`; workspace-only `./internal/extension-runtime`                                             | Maintained internal cold-path façade for typed plugins, profiles, services, registries, direct-plan compilation, authoritative freezing, live reload, reversible staging-safe in-process lifecycle effects, and the neutral State-module registry bridge. Its selected private Direct extension runtime owns build-known factory activation and disposal for explicit lazy contributions. It is not a stable public Mod SDK, and no dynamic Context is part of a supported entry.                                                                                                                                                                                                |
 | `@sillymaker/state`       | `.`, `./legacy`                                                                                                       | Experimental neutral State Runtime, StateModule, StateTransaction, and StateWorkflow compatibility façade. Runtime and authoring adapters reuse the exact Base Session and transaction runner; `./legacy` exposes the same raw composition/runtime control for migration equivalence work. It is not a production Story runtime or a second persistence/replay owner.                                                                                                                                                                                                                                                                                                            |
 | `@sillymaker/tooling`     | `.`, `./project` + subentries, `./vite` + subentries, `./identity/*`                                                  | Non-browser project and Story CLI, Vite assembly, build identity, JSONL agent protocol/client, dev-only source/motion/scene write-back ports and the Studio page plugin, and package-internal Desktop preview packaging/local-server tools. Never imported by Base or browser bundles.                                                                                                                                                                                                                                                                                                                                                                                           |
-| `@sillymaker/studio`      | `.`, `./composition`; workspace-only `./internal/agent`                                                               | The dev-only SillyMaker Authoring Host and its standalone/embedded React shells: project navigation, shared Scene/Regions document sessions, Host-owned Motion state, dirty/undo/redo/CAS/conflict coordination, Scene construction, real-renderer preview, progressively activated read-only Flow, and an Engine Lab-only experimental Agent binding. `./composition` owns the isolated live tooling profile and one persistent visible publication root. Vite serves the standalone route and injects only a lightweight embedded launcher into author-enabled dev pages; the implementation loads on first open. Player builds and ordinary runtime packages never import it. |
+| `@sillymaker/studio`      | `.`, `./composition`; workspace-only `./internal/agent`                                                               | The dev-only Authoring Host and standalone/embedded shells: project navigation, shared Scene/Regions sessions, Host-owned Motion, dirty/undo/redo/CAS/conflict, Scene construction, real-renderer preview, lazy Flow, and a package-private neutral single-companion bridge. `./internal/agent` explicitly selects Engine Lab's experimental Agent and is absent from the core Authoring graph. `./composition` owns live tooling and its persistent visible publication. Vite serves the standalone route and a lazy embedded launcher; Player and ordinary runtime never import Studio. It retains exact source IO owner and loads embedded implementation only on first open. |
 | `@sillymaker/ui`          | `.`, `./assets`, `./debug`, `./debug/dev-source-client`, `./diagnostics`, `./styles.css`; workspace-only `./internal` | React shell, GameViewport, UI composition and default GameRoot, stage, characters, assets, interaction/input, overlays, Narrative/WholeCanvas presentation, settings, semantic/presentation bridges, recovery UI, the progressive DevDock contribution host/lifecycle receipt, the development-conditional source client, and the published global theme stylesheet.                                                                                                                                                                                                                                                                                                             |
 | `@sillymaker/web`         | `.`; workspace-only `./internal/application-startup`                                                                  | Browser Host, IndexedDB record storage, files/images, Desktop-channel HTTP record/file adapters, admitted Browser/Deno Desktop startup, `startWebGameApplicationV1`, mounting, routing, pointer input, capabilities, automation, the unchanged build-known DevDock literal loader seam, and the optional HMR rebootstrap helper.                                                                                                                                                                                                                                                                                                                                                 |
 | `@sillymaker/story-e2e`   | `.`                                                                                                                   | The neutral Engine Conformance Story (Engine Lab, `e2e/`): gameplay modules, narrative script, presentation catalogs, semantic actions, and application composition used to validate engine contracts.                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -145,6 +151,16 @@ workspaces must still declare and test their stronger readiness. Flow activation
 remains Host-owned across rejected and accepted candidates; standalone/embedded
 teardown removes descendants before lifecycle disposal.
 
+Embedded mode may select exactly one package-private companion definition on its
+frozen Studio binding. Core publication sees only a neutral compatibility ID,
+content signature, owner factory, renderer, and async disposer; Agent types stay
+behind the explicit private Agent entry. Compatible R1 candidates reuse the same
+companion owner, while a changed compatibility ID or content signature rejects
+before owner replacement. If candidate and visible rollback rendering both fail,
+the terminal publication poisons once and retires the companion and Authoring
+owners once. This is a single selected sibling seam, not a registry, public plugin
+surface, or Mod ABI.
+
 The embedded shell is activated from the resident dev-only launcher and stays
 mounted while merely hidden. Its independent application-focus owner keeps
 editable keyboard/input out of gameplay, and dirty close uses the same Host
@@ -204,18 +220,39 @@ The current `UiArtifact` vocabulary is closed to recursively frozen `column`, `t
 `action` data with unique node IDs and product-allowlisted action IDs. The React renderer does
 not resolve HTML, JavaScript, arbitrary components, functions, or module URLs. It emits an
 exact Host/Artifact/node/action `UiIntent`, which is re-admitted against the current revision.
-Engine Lab's private Studio adapter decorates its frozen binding with one fake client factory
-and pre-admitted AR2 Scene operations. The embedded surface keeps Artifact actions inert until
-it captures the Scene document identity and draft revision; if Artifact arrives first, a later
+Engine Lab's explicit private Agent companion decorates its frozen Studio binding with one fake
+client factory and pre-admitted AR2 Scene operations. The embedded surface keeps Artifact actions
+inert until it captures the Scene document identity and draft revision; if Artifact arrives first, a later
 Authoring revision may pair that same Artifact before enabling interaction. Applying a current
 intent uses the same Scene executor as human UI, while a later human edit makes the old
 envelope stale rather than rebasing it.
 
 This is a dev-only Engine Lab vertical slice, not a public Agent product surface. It has no
 real transport/backend/LLM, wire-protocol promise, Agent persistence, tool/permission system,
-OpenUI/A2UI adapter, Effect Broker, public Agent ABI, or Desktop HMR. Chromium and WebKit run
-the same Browser proof. Template and Engine Lab ordinary Player measurements assert Agent/RPC
-absence; Studio's static dependency means this is not yet an authoring-product exclusion claim.
+OpenUI/A2UI adapter, Effect Broker, public Agent ABI, or Desktop HMR. Chromium and WebKit physical
+HMR now preserve the exact held Agent Host/session/run/run generation/RPC connection generation,
+streaming draft, predecessor Artifact, and Authoring dirty/undo/selection through Studio-binding
+R1 success/restore and shared Game/Session R2 + Authoring R1 success/restore. A legal incompatible
+companion configuration is rejected at physical R1 and a subsequent compatible retry succeeds.
+The separate controlled in-window Game/Session successor proof keeps page load and RPC connection
+generation unchanged; its retained Artifact applies against the still-current Authoring receipt,
+then stale-rejects after a human edit.
+
+Headless Web R2 separately proves that a post-retirement successor UI-start failure and later valid
+retry do not rebuild or reconnect the Agent; jsdom proves terminal candidate-plus-rollback failure
+retires the companion owner, and ten repeated Agent activate/dispose cycles return connections,
+subscriptions, and late publications to zero. These layers do not claim that every failure or
+rollback has a physical Browser proof. Template and Engine Lab ordinary Player measurements assert
+Agent/RPC absence, while the complete Template Author-entry measurement supplies the stronger
+authoring-product negative control described above. Deno Desktop private Authoring/Agent Host R1/R2
+and `deno desktop --hmr` remain unwired, so AR5 is still in progress.
+
+The local-only AR5 promotion runner alternates five fresh release-build/fresh-Chromium-context
+pairs between explicit baseline and candidate repository roots. The current same-machine run reports
+first-actionable paired median delta `-4.23ms / -3.54%` and stable-command paired median delta
+`-0.72ms / -1.40%`, so its judgment is `continue`; the first-actionable double threshold did not
+require a second independent run. It writes a raw report outside the repository by default, does not
+compare a later report automatically, and is neither a committed artifact nor an ordinary CI gate.
 
 The profile-kernel and extension-runtime lifecycle implementations are private
 to the composition package; no supported public package declaration or Story

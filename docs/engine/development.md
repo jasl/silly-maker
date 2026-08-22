@@ -204,6 +204,13 @@ binding admits an allowlist of inert action IDs and AR2 Scene operations once; a
 Artifact carries only those IDs, and the embedded surface executes an exact captured Scene
 document/revision envelope through the existing Scene executor.
 
+Core Authoring publication and the embedded surface import only the package-private neutral
+single-companion contract. Agent client/Host/renderer imports belong behind the explicit
+`@sillymaker/studio/internal/agent` entry and its experimental runtime leaf. Keep the bridge to
+one selected sibling: compatible R1 candidates reuse its owner, a changed compatibility ID or
+content signature rejects before replacement, and terminal candidate-plus-rollback failure
+retires the owner once. Do not turn this seam into a registry, public plugin surface, or Mod ABI.
+
 The deterministic fake is the maintained AR4 transport. Extend its controlled mode,
 connection, queued-response, or late-record hooks when a reproducible lifecycle case is
 missing; do not create a second fake-only Agent state machine. Raw records remain untrusted:
@@ -235,9 +242,13 @@ deno run -A npm:vitest run engine/packages/tooling/src/vite/build-dependency-rec
 deno task typecheck
 ```
 
-The Browser case requires the dev-source fixture and uses only the deterministic fake; it is
-not real-backend, OpenUI/A2UI, persistence, Desktop, or HMR evidence. Keep the private seam out
-of `features.md` until a later promotion has a real second consumer.
+The Browser cases require the dev-source fixture and use only the deterministic fake. The AR4
+vertical slice is not HMR evidence; AR5 adds physical Studio-binding R1 success/restore, shared
+Game/Session R2 + Authoring R1 success/restore, and incompatible-configuration R1 rejection plus
+compatible retry in Chromium and WebKit. A separate controlled in-window Game/Session successor
+case is real sibling-lifetime evidence but not a physical Vite source update. None of these is
+real-backend, OpenUI/A2UI, persistence, Desktop, or universal physical failure/rollback evidence.
+Keep the private seam out of `features.md` until a later promotion has a real second consumer.
 
 ### GUI startup and module-update baseline
 
@@ -310,6 +321,14 @@ failure before replacement leaves the current Game anchor untouched; a failure
 after retirement uses terminal recovery and does not restore the gameplay
 predecessor. Test Authoring sibling continuity in both cases, but do not call the
 latter a transactional R2 rollback.
+
+The AR5 headless seam keeps an in-flight Agent snapshot, request count, and RPC
+connection exact across a post-retirement successor UI-start failure and later
+valid retry. Studio jsdom tests separately require terminal candidate-plus-rollback
+failure to dispose the companion owner once, and the Agent Host test repeats ten
+activate/dispose cycles with one close per connection and no accepted late
+publication. Keep these failure/resource claims separate from the physical
+Chromium/WebKit success/restore and incompatible-candidate rejection evidence.
 
 [Deno Desktop supports a platform `--hmr` development flag](https://docs.deno.com/runtime/reference/cli/desktop/),
 but SillyMaker's current static staging/packaging command does not pass or
@@ -928,10 +947,30 @@ duration is machine-specific. None of these tasks adds a normal per-commit CI
 threshold. Review at least three comparable samples before proposing a product
 budget, and never commit raw local reports.
 
-This does not yet prove Agent exclusion from a complete authoring product: Studio currently
-has a static Agent package/source dependency. AR5 must add an authoring-only/no-Agent build
-measurement and split that dependency if the graph cannot otherwise exclude Agent while
-retaining the complete Authoring Host and workspaces.
+AR5 adds a generated Author-entry measurement for both standalone Studio and the embedded
+Author runtime. Template is the negative control: its complete measured Author graph retains
+the Authoring Host, all maintained workspaces, and the real development source client while
+excluding `engine/packages/agent/**`, Agent RPC/fake, and Studio's experimental Agent runtime/
+surface. Engine Lab explicitly selects the Agent companion and is the positive control for
+those same modules. This is final module/source graph structural exclusion, not removal of the
+Studio manifest's `@sillymaker/agent` workspace dependency, independent package-installation
+evidence, or a Desktop author build.
+
+`deno task bench:ar5:promotion --baseline-root <repo> --candidate-root <repo>` is the local-only
+AR5 paired runner. It requires at least five pairs, alternates baseline/candidate order, fresh-
+builds the Engine Lab release for every slot, and measures a fresh Chromium context for first
+actionable and one stable command round trip. `--pairs` may increase the pair count and
+`--output` may select the JSON path; otherwise the report is written under OS temp. The runner
+does not require a clean tree, does not compare a later report automatically, and is not an
+ordinary CI gate. Never commit its raw report.
+
+The 2026-08-23 same-machine five-pair run reported first-actionable paired median delta
+`-4.23ms / -3.54%` and stable-command paired median delta `-0.72ms / -1.40%`, producing
+`continue`. A first-actionable regression must exceed both 10% and 50ms before the accepted
+rule requires an independent second run; this result did not, so no second run was required.
+A stable-command paired-median regression over 10% remains an immediate stop. These local
+numbers do not promote Desktop behavior: Deno Desktop private Authoring/Agent Host R1/R2 and
+`deno desktop --hmr` remain unwired, and AR5 remains in progress.
 
 ## Change workflow
 

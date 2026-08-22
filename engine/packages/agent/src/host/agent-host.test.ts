@@ -152,4 +152,40 @@ describe("createAgentHostInternalV1", () => {
     }));
     expect(host.getSnapshot()).toMatchObject({ readiness: "disposed", artifact: { revision: 3 } });
   });
+
+  it("returns RPC connections and subscriptions to zero over repeated activation", async () => {
+    for (let iteration = 0; iteration < 10; iteration += 1) {
+      const fake = createDeterministicFakeAgentRpcTransportInternalV1();
+      const client = createAgentRpcClientInternalV1({ transport: fake.transport });
+      const host = createAgentHostInternalV1({
+        client,
+        allowedActionIds: [actionIdInternalV1],
+      });
+      let publications = 0;
+      const unsubscribe = host.subscribe(() => publications += 1);
+      await host.connect();
+      await host.start();
+      await host.submit(`iteration ${String(iteration)}`);
+      expect(fake.getConnectionCount()).toBe(1);
+      expect(fake.getCloseCount()).toBe(0);
+
+      await host.dispose();
+      const disposedSnapshot = host.getSnapshot();
+      const publicationsAtDispose = publications;
+      expect(disposedSnapshot.readiness).toBe("disposed");
+      expect(fake.getCloseCount()).toBe(1);
+
+      fake.emitToConnection(
+        1,
+        streamInternalV1("artifact_complete", "run.1", 1, {
+          candidate: artifactCandidateInternalV1("late after dispose"),
+        }),
+      );
+      expect(host.getSnapshot()).toBe(disposedSnapshot);
+      expect(publications).toBe(publicationsAtDispose);
+      unsubscribe();
+      await host.dispose();
+      expect(fake.getCloseCount()).toBe(1);
+    }
+  });
 });

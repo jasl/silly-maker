@@ -4,6 +4,12 @@ import "@testing-library/jest-dom/vitest";
 import { waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import {
+  createAgentHostInternalV1,
+  createAgentRpcClientInternalV1,
+  createDeterministicFakeAgentRpcTransportInternalV1,
+} from "@sillymaker/agent/internal";
+import type { AgentHostInternalV1 } from "@sillymaker/agent/internal";
 import { digestBytes } from "@sillymaker/base";
 import type { ResolveCoreGameApplicationOptionsV1 } from "@sillymaker/base/runtime";
 import {
@@ -29,8 +35,10 @@ type BuildIdentityInputV1 = NonNullable<
 >;
 
 const startedApplicationsV1: StartedWebGameApplicationV1[] = [];
+const agentHostsV1: AgentHostInternalV1[] = [];
 
 afterEach(async () => {
+  for (const host of agentHostsV1.splice(0).toReversed()) await host.dispose();
   for (const started of startedApplicationsV1.splice(0).toReversed()) {
     await started.dispose();
   }
@@ -112,6 +120,27 @@ function viteHotFixtureV1(): {
 
 function applicationWithBuildIdentityV1(buildIdentityInput: BuildIdentityInputV1) {
   return Object.freeze({ ...labGameApplicationV1, buildIdentityInput });
+}
+
+async function inFlightAgentV1() {
+  const fake = createDeterministicFakeAgentRpcTransportInternalV1();
+  const client = createAgentRpcClientInternalV1({ transport: fake.transport });
+  const host = createAgentHostInternalV1({
+    client,
+    allowedActionIds: ["engine-lab.scene.move-alpha"],
+  });
+  agentHostsV1.push(host);
+  await host.connect();
+  await host.start();
+  await host.submit("hold through Game R2");
+  fake.emit(Object.freeze({
+    kind: "artifact_chunk",
+    sessionId: "session.1",
+    runId: "run.1",
+    sequence: 1,
+    text: "in flight",
+  }));
+  return Object.freeze({ fake, host });
 }
 
 describe("Engine Lab maintained application HMR boundary", () => {
@@ -249,5 +278,117 @@ describe("Engine Lab maintained application HMR boundary", () => {
     expect(disposeForRebootstrap).not.toHaveBeenCalled();
     expect(nextInstaller).not.toHaveBeenCalled();
     expect(predecessor.isDisposed()).toBe(false);
+  });
+
+  it("keeps an in-flight Agent sibling through failed Game R2 start and valid retry", async () => {
+    const root = document.createElement("div");
+    root.id = "root";
+    document.body.append(root);
+    const webHost = createWebHostV1({ records: createMemoryHostRecordStoreV1() });
+    const predecessor = await startWebGameApplicationV1(
+      applicationWithBuildIdentityV1(buildIdentityV1("simulation:predecessor")),
+      {
+        rootElement: root,
+        host: webHost,
+        gameBootstrapEntropy: createFixedBootstrapEntropyV1({
+          seeds: [20260830],
+          uuids: [],
+        }),
+        registerPageLifecycle: false,
+      },
+    );
+    startedApplicationsV1.push(predecessor);
+    const { fake, host: agentHost } = await inFlightAgentV1();
+    const agentPredecessor = agentHost.getSnapshot();
+    const requestCount = fake.getRequests().length;
+    expect(agentPredecessor).toMatchObject({
+      readiness: "ready",
+      sessionId: "session.1",
+      run: { runId: "run.1", generation: 2, status: "streaming" },
+      rpc: { status: { kind: "ready", connectionGeneration: 1 } },
+    });
+
+    const successorStartFailure = new Error("accepted Game successor failed in UI start");
+    const failingApplication = Object.freeze({
+      ...applicationWithBuildIdentityV1(buildIdentityV1("simulation:failing-successor")),
+      ui() {
+        throw successorStartFailure;
+      },
+    }) as typeof labGameApplicationV1;
+    const nextBoundary: InstalledResolvedGameHmrV1 = Object.freeze({
+      waitForTransition: () => Promise.resolve(),
+    });
+    const installNextBoundary = vi.fn(() => nextBoundary);
+    const failingModule: LabGameApplicationHmrModuleV1 = Object.freeze({
+      labGameApplicationV1: failingApplication,
+      installLabGameApplicationHmrV1: installNextBoundary,
+    });
+    const recoveredModule: LabGameApplicationHmrModuleV1 = Object.freeze({
+      labGameApplicationV1: applicationWithBuildIdentityV1(
+        buildIdentityV1("simulation:recovered-successor"),
+      ),
+      installLabGameApplicationHmrV1: installNextBoundary,
+    });
+    const hot = hotFixtureV1<LabGameApplicationHmrModuleV1>();
+    const failures: unknown[] = [];
+    let successor: StartedWebGameApplicationV1 | undefined;
+    const installation = installLabGameApplicationHmrV1(predecessor, {
+      hot: hot.hot,
+      rootElement: root,
+      onSuccessorStarted(started) {
+        successor = started;
+        startedApplicationsV1.push(started);
+      },
+      reportFailure: (error) => failures.push(error),
+    });
+    expect(installation).toBeDefined();
+
+    hot.emit(failingModule);
+    await installation!.waitForTransition();
+    expect(predecessor.isDisposed()).toBe(true);
+    expect(successor).toBeUndefined();
+    expect(failures).toEqual([successorStartFailure]);
+    expect(agentHost.getSnapshot()).toBe(agentPredecessor);
+    expect(fake.getRequests()).toHaveLength(requestCount);
+    expect(fake.getConnectionCount()).toBe(1);
+    expect(fake.getCloseCount()).toBe(0);
+
+    hot.emit(recoveredModule);
+    await installation!.waitForTransition();
+    await waitFor(() => expect(successor).toBeDefined());
+    expect(successor!.host).toBe(webHost);
+    expect(agentHost.getSnapshot()).toBe(agentPredecessor);
+    expect(fake.getRequests()).toHaveLength(requestCount);
+    expect(fake.getConnectionCount()).toBe(1);
+    expect(fake.getCloseCount()).toBe(0);
+
+    fake.emit(Object.freeze({
+      kind: "artifact_complete",
+      sessionId: "session.1",
+      runId: "run.1",
+      sequence: 2,
+      candidate: Object.freeze({
+        schemaRevision: 1,
+        root: Object.freeze({
+          kind: "action",
+          nodeId: "artifact.apply",
+          label: "应用",
+          actionId: "engine-lab.scene.move-alpha",
+        }),
+      }),
+    }));
+    fake.emit(Object.freeze({
+      kind: "run_completed",
+      sessionId: "session.1",
+      runId: "run.1",
+      sequence: 3,
+    }));
+    expect(agentHost.getSnapshot()).toMatchObject({
+      identity: agentPredecessor.identity,
+      sessionId: "session.1",
+      run: { runId: "run.1", generation: 2, status: "completed" },
+      artifact: { revision: 1, source: { sessionId: "session.1", runId: "run.1" } },
+      rpc: { status: { kind: "ready", connectionGeneration: 1 } },
+    });
   });
 });

@@ -2,13 +2,13 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 
-import type { AgentHostInternalV1 } from "@sillymaker/agent/internal";
-
 import type { StudioBindingV1 } from "./core/binding.ts";
 import type { AuthoringHostInternalV1 } from "./core/authoring-host.ts";
 import { resolveAuthoringHostOwnerInternalV1 } from "./core/authoring-host.ts";
-import { EmbeddedAgentSurfaceInternalV1 } from "./experimental-agent/embedded-agent-surface.tsx";
-import type { ExperimentalEmbeddedAgentBindingInternalV1 } from "./experimental-agent/binding.ts";
+import type {
+  EmbeddedAuthoringCompanionDefinitionInternalV1,
+  EmbeddedAuthoringCompanionOwnerInternalV1,
+} from "./core/embedded-authoring-companion.ts";
 import { AuthoringHostSurfaceInternalV1 } from "./studio-app.tsx";
 import styles from "./studio-app.module.css";
 
@@ -17,9 +17,9 @@ export interface EmbeddedAuthoringSurfacePropsInternalV1 {
   readonly binding: StudioBindingV1;
   readonly publicationRole: "visible" | "probe";
   readonly viewId: number;
-  readonly agent?: {
-    readonly host: AgentHostInternalV1;
-    readonly binding: ExperimentalEmbeddedAgentBindingInternalV1;
+  readonly companion?: {
+    readonly owner: EmbeddedAuthoringCompanionOwnerInternalV1;
+    readonly definition: EmbeddedAuthoringCompanionDefinitionInternalV1;
   };
 }
 
@@ -113,14 +113,12 @@ export function EmbeddedAuthoringSurfaceInternalV1(
           publicationRole={props.publicationRole}
           viewId={props.viewId}
         />
-        {props.agent === undefined ? null : (
-          <EmbeddedAgentSurfaceInternalV1
-            host={props.agent.host}
-            binding={props.agent.binding}
-            sceneOperations={owner.sceneOperations}
-            authoringRevision={snapshot.revision}
-            publicationRole={props.publicationRole}
-          />
+        {props.companion === undefined ? null : (
+          props.companion.definition.render(props.companion.owner, {
+            sceneOperations: owner.sceneOperations,
+            authoringRevision: snapshot.revision,
+            publicationRole: props.publicationRole,
+          })
         )}
       </section>
       {!confirmClose ? null : (
