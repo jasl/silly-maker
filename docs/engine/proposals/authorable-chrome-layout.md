@@ -1,0 +1,134 @@
+# Authorable chrome layout proposal（铬布局文档、Chrome workspace 与意图绑定）
+
+状态：**草案**（2026-08-22 起草，等待所有者裁决）。M0（Story 侧布局文
+档）已在外部实验仓先行落地，零引擎改动；M1 起才是引擎工作。
+
+创作者需求：「道具栏/状态板的页签热区偏了，我只能报 bug——位置明明是
+数据，编辑器却覆盖不到」「编辑器应该能覆盖所有 UI 与场景交互的摆放，
+不然总有改不了的死角」「场景、物体、交互的抽象要系统性设计：对可视化
+编辑友好，对 AI/代码生成也友好」。
+
+证据门：外部实验仓的 imouto HUD——尖尖页签 y 分槽、热区左移 16px、
+返回钮移位、数值统一下移 8px，全是纯几何调参，却每次都要走「报 bug →
+改 TSX 常量 → 跑测试」的代码回路。引擎侧已有三个同构文档家族证明
+「JSON 文档 + admission 一次校验 + Studio 真实渲染编辑 + dev-server
+CAS 写回」的回路成立：scene（Scene Construction）、motion（Motion
+工坊）、regions（Regions workspace）。chrome 几何是唯一还散在组件常量
+里的摆放数据。
+
+## 定性：统一的是「分解」，不是「基类」
+
+舞台热区与 DOM chrome 在语义上真不同（锚点空间 vs 焦点/键盘/无障碍的
+原生按钮），硬并成一个 Interactable 继承树要么把 DOM 语义拖进舞台数
+据，要么把 React 降级成僵硬 widget schema。可编辑性从来不来自共同基
+类，而来自**摆放序列化成编辑器拥有的数据**。本提案把既有的三分解合同
+推广到 chrome：
+
+- **几何**（在哪）：盒/锚点/标量偏移，坐标空间显式声明——数据；
+- **呈现**（长什么样）：资产引用或 renderer 引用——数据；
+- **意图**（点了算什么）：稳定 id，Story 映射到语义调用——id 是数据，
+  合法性与处理留在规则代码。
+
+`StageHitRegionV1` 已经是这个形状（regions 文档可编辑、可 trace）；
+chrome 只缺几何这一半进文档。
+
+## Shape（设计草图；字段名以实现切片的 admission 为准）
+
+### 1. 布局文档家族
+
+新增 `sillymaker.chrome-layout` 文档家族（与 motion/regions 同族的独
+立 JSON）：
+
+```jsonc
+{
+  "format": "sillymaker.chrome-layout",
+  "version": 1,
+  "layoutId": "layout.app.main-hud",
+  "label": "主场景 HUD",
+  "canvas": { "width": 1024, "height": 576 },
+  "boxes": {
+    "board.item.tab.peek": { "x": -16, "y": 240, "width": 40, "height": 100 },
+  },
+  "anchors": { "sheet.back": { "x": 900, "y": 16 } },
+  "offsets": { "board.value-nudge-y": 8 },
+}
+```
+
+- 坐标是逻辑画布空间整数（与 `GameViewport` 声明画布同系），入院校验
+  整数/尺寸为正/名字非空；负 x/y 合法（停靠板露头就是负位）；
+- `boxes` 是带尺寸的命中/摆放框，`anchors` 是只定位不定尺寸的点（自
+  适应尺寸的按钮），`offsets` 是命名标量（字体度量补偿这类）；
+- 文档按 surface 拆小（一份 HUD 一份），不做全局注册大文件——diff 局
+  部、AI 上下文小、冲突少。
+
+### 2. Story 消费：admission 一次，组件读类型化数据
+
+组件从解析后的冻结查表读几何（缺名即抛，模块加载即失败），行为不变：
+互斥/占用门/toggle 语义仍是代码。文档值变化不触碰
+Save/digest/replay——与 geometry/regions 同一纪律，表现数据零权威。
+
+### 3. Studio Chrome workspace
+
+Studio 新增 Chrome workspace：挂 fixture publication 渲染**真实 HUD
+组件**（Motion 工坊 fallbackPreview 的老路），叠拖拽手柄；拖动写回布
+局文档走现成 dev-server CAS 端口（原子改名 + 409 冲突 + 重读恢复）。
+尖尖偏了 = 拖一下、保存、完——不再报 bug。
+
+### 4. 意图绑定 widget（可选，证据门另立）
+
+图标按钮类 chrome（通知/保存/读取/相册/数据）本质是「画布坐标 + 资产
+
+- 意图 id」三元组，可升为声明 widget 由通用 chrome host 渲染。可用性
+  /置灰理由继续走发布投影（今天选项 gate 的形状）；widget 永远只报
+  「intent id 激活」，路由权与合法性留在 Story 规则——与 mid-hold-input
+  钉死的「regions never gain routing power」同一条边界。复杂板体（道具
+  格、状态数值）不 widget 化，留 renderer。
+
+## 边界与限额
+
+- 只有**被人调过的几何**进文档；布尔行为（板互斥、占用门）留代码；
+- 派生几何不进文档（命令插图 Y 从 say 盒反推这类），派生留代码；
+- 坐标空间 V1 只有逻辑画布空间；舞台条目锚点空间已归 regions 文档，
+  不在此重复；
+- 每文档条目数设上限（建议 256）；名字用点分层级便于 lint 与检索。
+
+## 分刀计划
+
+- **M0（Story 侧，已先行）**：外部实验仓把 HUD 手调常量收进
+  `hud-layout.json` + 本地 admission，组件与测试改读文档。零引擎改动
+  ——先证明「几何进文档」的消费形状。
+- **M1（引擎）**：`sillymaker.chrome-layout` 家族进 base（parse +
+  admission 诊断码），dev-server 布局端口（列举/读/CAS 写），story
+  check lint（名字唯一、画布匹配、条目上限）。
+- **M2（Studio）**：Chrome workspace（真实组件渲染 + 拖拽写回 +
+  saved/draft 会话），双消费者：仓内一例（template 或 Engine Lab 极小
+  chrome 盒）+ 外部实验仓 HUD 全量迁移。
+- **M3（可选）**：意图绑定 widget。证据门：出现第二个真实消费者需要
+  声明式图标按钮时再裁决，不预造。
+
+## 验收草案
+
+- M0：文档值与原常量逐项相等，既有 HUD 测试不改语义全绿；
+- M1：非法文档（非整数/零尺寸/重名/超限）按稳定诊断码拒绝；合法文档
+  变更不改任何 Save/digest/replay 字节；
+- M2：Studio 拖尖尖 → 保存 → 运行中的游戏热区实时更新（HMR 回路）；
+  CAS 409 恢复与 motion 端口同构；
+- AI 回路：agent 改 JSON → `story check` 校验 → 按诊断码修，全程不碰
+  TSX。
+
+## Open questions（建议随 admission 裁决）
+
+1. 文档粒度：按 surface（一份 HUD）还是按 workspace 聚合——建议按
+   surface，出现真实聚合需求再并；
+2. `anchors`/`offsets` 是否 V1 就要，还是先只 `boxes`——建议三者都
+   要（M0 已证明三类都有真实条目）；
+3. Chrome workspace 的 fixture publication 由谁声明——建议 Story 在
+   config 里声明（与 studio binding 同构），引擎不猜。
+
+## 停
+
+- 布局文档获得路由权（决定去向而非报告 intent id 激活）；
+- 行为布尔/占用规则/合法性进文档；
+- 第二套 retained-mode UI 系统或全局 UI 场景图（与 React 竞争）；
+- 全局注册大文件；
+- 运行时从 DOM 反测几何写回文档（编辑面只在 Studio/dev-server）。
