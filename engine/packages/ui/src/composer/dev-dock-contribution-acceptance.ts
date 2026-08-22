@@ -1,22 +1,54 @@
 // SPDX-License-Identifier: MIT
 import type { DevDockContributionSetV1 } from "../debug/dev-dock.tsx";
 
-interface DevDockContributionAcceptanceReceiptInternalV1 {
-  accepted: boolean;
-  acknowledge(): void;
+interface DevDockContributionReceiptInternalV1 {
+  acceptance?: {
+    accepted: boolean;
+    acknowledge(): void;
+  };
+  lifecycle?: {
+    dispose(): Promise<void>;
+  };
 }
 
-const acceptanceReceiptsInternalV1 = new WeakMap<
+const contributionReceiptsInternalV1 = new WeakMap<
   DevDockContributionSetV1,
-  DevDockContributionAcceptanceReceiptInternalV1
+  DevDockContributionReceiptInternalV1
 >();
+
+function receiptForV1(
+  contributions: DevDockContributionSetV1,
+): DevDockContributionReceiptInternalV1 {
+  return contributionReceiptsInternalV1.get(contributions) ?? {};
+}
 
 /** @internal Binds one Host readiness acknowledgment to a lazy contribution result. */
 export function bindDevDockContributionAcceptanceInternalV1(
   contributions: DevDockContributionSetV1,
   acknowledge: () => void,
 ): DevDockContributionSetV1 {
-  acceptanceReceiptsInternalV1.set(contributions, { accepted: false, acknowledge });
+  contributionReceiptsInternalV1.set(contributions, {
+    ...receiptForV1(contributions),
+    acceptance: { accepted: false, acknowledge },
+  });
+  return contributions;
+}
+
+/** @internal Binds one idempotent async cleanup to a lazy contribution result. */
+export function bindDevDockContributionLifecycleInternalV1(
+  contributions: DevDockContributionSetV1,
+  dispose: () => void | PromiseLike<void>,
+): DevDockContributionSetV1 {
+  let disposal: Promise<void> | null = null;
+  contributionReceiptsInternalV1.set(contributions, {
+    ...receiptForV1(contributions),
+    lifecycle: {
+      dispose() {
+        disposal ??= Promise.resolve().then(dispose);
+        return disposal;
+      },
+    },
+  });
   return contributions;
 }
 
@@ -25,8 +57,8 @@ export function inheritDevDockContributionAcceptanceInternalV1(
   source: DevDockContributionSetV1,
   admitted: DevDockContributionSetV1,
 ): DevDockContributionSetV1 {
-  const receipt = acceptanceReceiptsInternalV1.get(source);
-  if (receipt !== undefined) acceptanceReceiptsInternalV1.set(admitted, receipt);
+  const receipt = contributionReceiptsInternalV1.get(source);
+  if (receipt !== undefined) contributionReceiptsInternalV1.set(admitted, receipt);
   return admitted;
 }
 
@@ -34,8 +66,16 @@ export function inheritDevDockContributionAcceptanceInternalV1(
 export function acknowledgeDevDockContributionAcceptanceInternalV1(
   contributions: DevDockContributionSetV1,
 ): void {
-  const receipt = acceptanceReceiptsInternalV1.get(contributions);
-  if (receipt === undefined || receipt.accepted) return;
-  receipt.accepted = true;
-  receipt.acknowledge();
+  const acceptance = contributionReceiptsInternalV1.get(contributions)?.acceptance;
+  if (acceptance === undefined || acceptance.accepted) return;
+  acceptance.accepted = true;
+  acceptance.acknowledge();
+}
+
+/** @internal Releases a lazy contribution result after revocation or unmount. */
+export function disposeDevDockContributionLifecycleInternalV1(
+  contributions: DevDockContributionSetV1,
+): Promise<void> {
+  return contributionReceiptsInternalV1.get(contributions)?.lifecycle?.dispose() ??
+    Promise.resolve();
 }

@@ -17,6 +17,7 @@ import {
   type DevDockControlV1,
   type DevDockContributionSetV1,
 } from "@sillymaker/ui/debug";
+import { bindDevDockContributionLifecycleInternalV1 } from "@sillymaker/ui/internal";
 import {
   applicationStartupSignalEventNameInternalV1,
   type ApplicationStartupSignalDetailInternalV1,
@@ -244,6 +245,7 @@ describe("AR0 Web document-entry startup", () => {
     const entry = installDocumentEntryV1();
     const optional = deferredValueV1<DevDockContributionSetV1>();
     const loadOptional = vi.fn(() => optional.promise);
+    const disposeOptional = vi.fn(async () => undefined);
     let capabilities: RuntimeCapabilityPortV1 | null = null;
     let devDockControl: DevDockControlV1 | null = null;
     const application = Object.freeze({
@@ -270,11 +272,19 @@ describe("AR0 Web document-entry startup", () => {
       await act(async () => {
         await capabilities?.setEnabled("debug_tools", false);
       });
-      await act(async () => optional.resolve(optionalDevDockContributionsV1()));
+      await act(async () =>
+        optional.resolve(
+          bindDevDockContributionLifecycleInternalV1(
+            optionalDevDockContributionsV1(),
+            disposeOptional,
+          ),
+        )
+      );
 
       expect(signalCountV1(entry.signals, "optional_capability_ready")).toBe(0);
       expect((devDockControl as DevDockControlV1 | null)?.panels.getCurrent()).toEqual([]);
       expect(screen.queryByText("Accepted optional panel")).not.toBeInTheDocument();
+      await waitFor(() => expect(disposeOptional).toHaveBeenCalledOnce());
     } finally {
       await started.dispose();
     }

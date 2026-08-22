@@ -12,4 +12,8 @@ export type {
   GameUiPresentationSuccessorProducerInternalV1,
 } from "./composer/create-game-ui-composition.ts";
 export { admitSettledSessionAnchorResultInternalV1 } from "./composer/session-anchor-result-admission-internal.ts";
-export { bindDevDockContributionAcceptanceInternalV1 } from "./composer/dev-dock-contribution-acceptance.ts";
+export {
+  bindDevDockContributionAcceptanceInternalV1,
+  bindDevDockContributionLifecycleInternalV1,
+  disposeDevDockContributionLifecycleInternalV1,
+} from "./composer/dev-dock-contribution-acceptance.ts";

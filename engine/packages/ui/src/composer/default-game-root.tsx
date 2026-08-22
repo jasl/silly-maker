@@ -72,7 +72,10 @@ import type {
   GameUiManagedSurfaceCompositionInternalV1,
   GameUiOverlayIdV1,
 } from "./create-game-ui-composition.ts";
-import { inheritDevDockContributionAcceptanceInternalV1 } from "./dev-dock-contribution-acceptance.ts";
+import {
+  disposeDevDockContributionLifecycleInternalV1,
+  inheritDevDockContributionAcceptanceInternalV1,
+} from "./dev-dock-contribution-acceptance.ts";
 import { resolveOptionalGameUiManagedSurfaceCompositionInternalV1 } from "./create-game-ui-composition.ts";
 import { SemanticStageCompositionClaimantProviderInternalV1 } from "../stage/semantic-stage.tsx";
 import styles from "./default-game-root.module.css";
@@ -311,6 +314,41 @@ const openedDevDockStateV1 = Object.freeze({ open: true }) satisfies DevDockOpen
 const emptyDevDockContributionsV1 = createDevDockContributionSetV1({
   panels: [],
 });
+const devDockLoadFailureDiagnosticV1 = "ui.devdock_contribution_load_failed";
+
+type DevDockLazyLoadStateV1 =
+  | { readonly kind: "idle" }
+  | { readonly kind: "loading" }
+  | {
+    readonly kind: "ready";
+    readonly contributions: DevDockContributionSetV1;
+  }
+  | { readonly kind: "error" };
+
+interface DevDockLoadAttemptV1 {
+  readonly generation: number;
+  readonly settled: Promise<void>;
+}
+
+function releaseDevDockContributionsObservationallyV1(
+  contributions: DevDockContributionSetV1,
+): void {
+  void disposeDevDockContributionLifecycleInternalV1(contributions).catch(() => {
+    // Cleanup is best-effort at this React boundary. The lifecycle receipt
+    // remains idempotent, so an owning async boundary may observe it again.
+  });
+}
+
+function releaseDevDockContributionsAfterCommitV1(
+  contributions: readonly DevDockContributionSetV1[],
+): void {
+  if (contributions.length === 0) return;
+  queueMicrotask(() => {
+    for (const contribution of contributions) {
+      releaseDevDockContributionsObservationallyV1(contribution);
+    }
+  });
+}
 
 function createDefaultOverlayResolverV1<TOverlayId extends string>(input: {
   readonly storyResolver: OverlayRendererResolverV1<TOverlayId> | null;
@@ -384,10 +422,118 @@ function DefaultDevDockV1(props: {
     observedOpenRef.current = open;
     observeOpenState?.(open ? openedDevDockStateV1 : closedDevDockStateV1);
   }, [launcherState.open, observeOpenState, openWindowCount]);
-  // Lazy tooling contributions: loaded only once the capability is live, so
-  // debug tooling never enters the player bundle or the resident DOM.
-  const [loaded, setLoaded] = useState<DevDockContributionSetV1 | null>(null);
   const debugTools = capabilities.debugTools;
+  const debugToolsRef = useRef(debugTools);
+  debugToolsRef.current = debugTools;
+  // The implementation stays outside the resident entry graph until the
+  // capability is first needed. A release build may still contain its lazy
+  // output when the application declares this loader.
+  const [lazyLoad, setLazyLoad] = useState<DevDockLazyLoadStateV1>({ kind: "idle" });
+  const mountedRef = useRef(true);
+  const loadGenerationRef = useRef(0);
+  const loadAttemptRef = useRef<DevDockLoadAttemptV1 | null>(null);
+  const readyContributionsRef = useRef<DevDockContributionSetV1 | null>(null);
+  const retiringContributionsRef = useRef<DevDockContributionSetV1[]>([]);
+  const loadSourceRef = useRef({ load, contributions: props.contributions });
+  const activateLazyContributions = useCallback((): void => {
+    if (!mountedRef.current || !debugToolsRef.current || load === undefined) return;
+    const ready = readyContributionsRef.current;
+    if (ready !== null) {
+      setLazyLoad({ kind: "ready", contributions: ready });
+      return;
+    }
+    const generation = loadGenerationRef.current;
+    if (loadAttemptRef.current?.generation === generation) return;
+    setLazyLoad({ kind: "loading" });
+    const attempt: DevDockLoadAttemptV1 = {
+      generation,
+      settled: Promise.resolve()
+        .then(load)
+        .then((loaded) => {
+          let admitted: DevDockContributionSetV1;
+          try {
+            admitted = inheritDevDockContributionAcceptanceInternalV1(
+              loaded,
+              createDevDockContributionSetV1({
+                panels: [...props.contributions.panels, ...loaded.panels],
+              }),
+            );
+          } catch (error) {
+            releaseDevDockContributionsObservationallyV1(loaded);
+            throw error;
+          }
+          if (
+            !mountedRef.current || !debugToolsRef.current ||
+            loadGenerationRef.current !== generation || loadAttemptRef.current !== attempt
+          ) {
+            releaseDevDockContributionsObservationallyV1(admitted);
+            return;
+          }
+          readyContributionsRef.current = admitted;
+          loadAttemptRef.current = null;
+          setLazyLoad({ kind: "ready", contributions: admitted });
+        })
+        .catch(() => {
+          if (
+            !mountedRef.current || !debugToolsRef.current ||
+            loadGenerationRef.current !== generation || loadAttemptRef.current !== attempt
+          ) return;
+          loadAttemptRef.current = null;
+          setLazyLoad({ kind: "error" });
+        }),
+    };
+    loadAttemptRef.current = attempt;
+  }, [load, props.contributions]);
+  const revokeLazyContributions = useCallback((): void => {
+    loadGenerationRef.current += 1;
+    loadAttemptRef.current = null;
+    const ready = readyContributionsRef.current;
+    readyContributionsRef.current = null;
+    if (ready !== null) retiringContributionsRef.current.push(ready);
+    setLazyLoad((current) => current.kind === "idle" ? current : { kind: "idle" });
+  }, []);
+  const retryLazyContributions = useCallback((): void => {
+    if (!debugToolsRef.current || load === undefined) return;
+    loadGenerationRef.current += 1;
+    loadAttemptRef.current = null;
+    activateLazyContributions();
+  }, [activateLazyContributions, load]);
+  useEffect(() => {
+    const mounted = mountedRef;
+    const loadGeneration = loadGenerationRef;
+    const loadAttempt = loadAttemptRef;
+    const readyContributions = readyContributionsRef;
+    const retiringContributions = retiringContributionsRef;
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      loadGeneration.current += 1;
+      loadAttempt.current = null;
+      const ready = readyContributions.current;
+      readyContributions.current = null;
+      const retiring = retiringContributions.current.splice(0);
+      if (ready !== null) retiring.push(ready);
+      releaseDevDockContributionsAfterCommitV1(retiring);
+    };
+  }, []);
+  useEffect(() => {
+    const previousSource = loadSourceRef.current;
+    const sourceChanged = previousSource.load !== load ||
+      previousSource.contributions !== props.contributions;
+    loadSourceRef.current = { load, contributions: props.contributions };
+    if (!debugTools || sourceChanged) revokeLazyContributions();
+    if (debugTools) activateLazyContributions();
+  }, [
+    activateLazyContributions,
+    debugTools,
+    load,
+    props.contributions,
+    revokeLazyContributions,
+  ]);
+  useEffect(() => {
+    const retiring = retiringContributionsRef.current.splice(0);
+    releaseDevDockContributionsAfterCommitV1(retiring);
+  }, [lazyLoad]);
   // A runtime capability grant (a Story dock/tools button) opens the
   // launcher immediately; a boot-time grant (URL/persisted preference)
   // keeps the collapsed chip so tooling never greets the player unasked.
@@ -400,21 +546,9 @@ function DefaultDevDockV1(props: {
     previousDebugToolsRef.current = debugTools;
     if (!was && debugTools && chip) setLauncherState(openedDevDockStateV1);
   }, [chip, debugTools]);
-  useEffect(() => {
-    if (!debugTools || load === undefined) return () => {};
-    let active = true;
-    void load()
-      .then((contributions) => {
-        if (active) setLoaded(contributions);
-      })
-      .catch(() => {
-        if (active) setLoaded(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, [debugTools, load]);
-  const storyContributions = loaded ?? props.contributions;
+  const storyContributions = lazyLoad.kind === "ready"
+    ? lazyLoad.contributions
+    : props.contributions;
   const mergedPanels = useMemo(
     () => mergeEngineStateTunerPanelsV1(storyContributions.panels, props.stateTuner),
     [props.stateTuner, storyContributions],
@@ -450,6 +584,19 @@ function DefaultDevDockV1(props: {
             {...(props.info === undefined ? {} : { info: props.info })}
             {...(props.faultCause === undefined ? {} : { faultCause: props.faultCause })}
           />
+        )
+        : null}
+      {lazyLoad.kind === "error"
+        ? (
+          <div
+            className={styles["default-root__dev-dock-load-failure"]}
+            data-devdock-position={props.position ?? "top_right"}
+            data-dev-dock-load-failure={devDockLoadFailureDiagnosticV1}
+            role="alert"
+          >
+            <span>工具加载失败（{devDockLoadFailureDiagnosticV1}）</span>
+            <button type="button" onClick={retryLazyContributions}>重试工具加载</button>
+          </div>
         )
         : null}
       <DevDockV1

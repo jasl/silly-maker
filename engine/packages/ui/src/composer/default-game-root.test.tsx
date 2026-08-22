@@ -27,11 +27,19 @@ import type {
   StageTransitionCatalogV1,
   TimelineCatalogV1,
 } from "@sillymaker/base";
-import { createPlayerProfileStoreV1, defaultPlayerProfileV1 } from "@sillymaker/base/runtime";
+import {
+  createPlayerProfileStoreV1,
+  createRuntimeCapabilityPortV1,
+  defaultPlayerProfileV1,
+} from "@sillymaker/base/runtime";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 
 import { createInputRouterV1 } from "../input/input-router.ts";
+import { createDevDockContributionSetV1 } from "../debug/dev-dock.tsx";
+import type { DevDockContributionSetV1, DevDockPanelV1 } from "../debug/dev-dock.tsx";
+import { createDevDockControlV1 } from "../debug/dev-dock-control.ts";
+import type { DevDockControlV1 } from "../debug/dev-dock-control.ts";
 import { systemInputActionIdsV1 } from "../input/contracts.ts";
 import {
   createWholeCanvasSurfaceCompositionDefinitionInternalV1,
@@ -85,6 +93,10 @@ import type {
   DefaultGameRootSlotContextV1,
 } from "./default-game-root.tsx";
 import { DefaultGameRootV1 } from "./default-game-root.tsx";
+import {
+  bindDevDockContributionLifecycleInternalV1,
+  disposeDevDockContributionLifecycleInternalV1,
+} from "./dev-dock-contribution-acceptance.ts";
 
 afterEach(cleanup);
 
@@ -210,6 +222,43 @@ function deferredV1() {
     resolve = resolvePromise;
   });
   return Object.freeze({ promise, resolve });
+}
+
+function deferredValueV1<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return Object.freeze({ promise, resolve });
+}
+
+function devDockPanelV1(id: string): DevDockPanelV1 {
+  return Object.freeze({
+    id,
+    title: id,
+    side: "right" as const,
+    authority: "read_only" as const,
+    render: () => <p>{id}</p>,
+  });
+}
+
+function DevDockLifecyclePanelProbeV1(props: {
+  readonly events: string[];
+}): ReactElement {
+  useEffect(() => {
+    props.events.push("renderer:mount");
+    return () => {
+      props.events.push("renderer:unmount");
+    };
+  }, [props.events]);
+  return <p>Lifecycle panel body</p>;
+}
+
+function mutableCapabilitiesV1(): RuntimeCapabilityPortV1 {
+  return createRuntimeCapabilityPortV1({
+    initialState: disabledCapabilityStateV1,
+    persist: async () => Object.freeze({ kind: "committed" as const }),
+  });
 }
 
 function StageLifetimeProbeV1(props: {
@@ -367,6 +416,12 @@ function renderLifecycleRootV1(input: {
   readonly playerProfile?: PlayerProfileStoreV1;
   readonly capabilities?: RuntimeCapabilityPortV1;
   readonly labels?: Partial<DefaultGameRootLabelsV1>;
+  readonly devDockContributions?: DevDockContributionSetV1;
+  readonly devDock?: {
+    load?(): Promise<DevDockContributionSetV1>;
+    readonly chip?: boolean;
+    readonly control?: DevDockControlV1;
+  };
   readonly stageLifetime?: {
     readonly onMount: () => void;
     readonly onUnmount: () => void;
@@ -428,7 +483,7 @@ function renderLifecycleRootV1(input: {
   });
   const anchorListeners = new Set<() => void>();
 
-  render(
+  const renderRootV1 = (devDock: typeof input.devDock): ReactElement => (
     <DefaultGameRootV1
       composition={{
         presentation: Object.freeze({
@@ -457,6 +512,10 @@ function renderLifecycleRootV1(input: {
       {...(input.playerProfile === undefined ? {} : { playerProfile: input.playerProfile })}
       {...(input.capabilities === undefined ? {} : { capabilities: input.capabilities })}
       {...(input.labels === undefined ? {} : { labels: input.labels })}
+      {...(input.devDockContributions === undefined
+        ? {}
+        : { devDockContributions: input.devDockContributions })}
+      {...(devDock === undefined ? {} : { devDock })}
       slots={Object.freeze({
         ...(input.stageLifetime === undefined ? {} : {
           background: () => (
@@ -474,14 +533,18 @@ function renderLifecycleRootV1(input: {
         },
         overlayResolver: () => overlayResolver,
       })}
-    />,
+    />
   );
+  const mounted = render(renderRootV1(input.devDock));
 
   return Object.freeze({
     managedSurfaceRuntimeOwner,
     overlayInternal,
     overlaySession,
     overlayFailures,
+    rerenderDevDock(devDock: typeof input.devDock): void {
+      mounted.rerender(renderRootV1(devDock));
+    },
     publishAnchor(next: GameUiPresentationAnchorV1): void {
       anchor = next;
       for (const listener of [...anchorListeners]) listener();
@@ -1294,6 +1357,193 @@ function renderHostedLifecycleRootV1(
     },
   });
 }
+
+describe("DefaultGameRootV1 progressive DevDock host", () => {
+  it("waits for debug_tools, single-flights one open, reuses ready, and preserves static panels", async () => {
+    const capabilities = mutableCapabilitiesV1();
+    const control = createDevDockControlV1();
+    const loaded = deferredValueV1<DevDockContributionSetV1>();
+    const events: string[] = [];
+    const dispose = vi.fn(async () => {
+      events.push("lifecycle:dispose");
+    });
+    const lazyContributions = bindDevDockContributionLifecycleInternalV1(
+      createDevDockContributionSetV1({
+        panels: [
+          Object.freeze({
+            ...devDockPanelV1("lazy.panel"),
+            render: () => <DevDockLifecyclePanelProbeV1 events={events} />,
+          }),
+        ],
+      }),
+      dispose,
+    );
+    const load = vi.fn(() => loaded.promise);
+    renderLifecycleRootV1({
+      capabilities,
+      devDockContributions: createDevDockContributionSetV1({
+        panels: [devDockPanelV1("static.panel")],
+      }),
+      devDock: Object.freeze({ control, load }),
+    });
+
+    await act(async () => await Promise.resolve());
+    expect(load).not.toHaveBeenCalled();
+    expect(screen.getByRole("application", { name: "Lifecycle fixture" })).toBeInTheDocument();
+
+    await act(async () => {
+      await capabilities.setEnabled("debug_tools", true);
+    });
+    await waitFor(() => expect(load).toHaveBeenCalledOnce());
+    await act(async () => {
+      await capabilities.setEnabled("debug_tools", true);
+    });
+    expect(load).toHaveBeenCalledOnce();
+
+    await act(async () => loaded.resolve(lazyContributions));
+    await waitFor(() => {
+      expect(control.panels.getCurrent().map(({ id }) => id)).toEqual([
+        "static.panel",
+        "lazy.panel",
+      ]);
+    });
+    act(() => control.open("lazy.panel"));
+    await screen.findByText("Lifecycle panel body");
+    expect(events).toEqual(["renderer:mount"]);
+    await act(async () => {
+      await capabilities.setEnabled("debug_tools", true);
+    });
+    expect(load).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      await capabilities.setEnabled("debug_tools", false);
+    });
+    await waitFor(() => expect(dispose).toHaveBeenCalledOnce());
+    expect(control.panels.getCurrent()).toEqual([]);
+    expect(events).toEqual([
+      "renderer:mount",
+      "renderer:unmount",
+      "lifecycle:dispose",
+    ]);
+    await disposeDevDockContributionLifecycleInternalV1(lazyContributions);
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the core and static sibling live while a stable failure offers explicit retry", async () => {
+    const capabilities = mutableCapabilitiesV1();
+    const control = createDevDockControlV1();
+    const retried = deferredValueV1<DevDockContributionSetV1>();
+    const lazyContributions = createDevDockContributionSetV1({
+      panels: [devDockPanelV1("retried.panel")],
+    });
+    const load = vi.fn<() => Promise<DevDockContributionSetV1>>()
+      .mockRejectedValueOnce(new Error("private loader detail"))
+      .mockImplementationOnce(() => retried.promise);
+    renderLifecycleRootV1({
+      capabilities,
+      devDockContributions: createDevDockContributionSetV1({
+        panels: [devDockPanelV1("static.panel")],
+      }),
+      devDock: Object.freeze({ control, load }),
+    });
+
+    await act(async () => {
+      await capabilities.setEnabled("debug_tools", true);
+    });
+    const failure = await screen.findByRole("alert");
+    expect(failure).toHaveTextContent(
+      "工具加载失败（ui.devdock_contribution_load_failed）",
+    );
+    expect(failure).not.toHaveTextContent("private loader detail");
+    expect(screen.getByRole("application", { name: "Lifecycle fixture" })).toBeInTheDocument();
+    expect(control.panels.getCurrent().map(({ id }) => id)).toEqual(["static.panel"]);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "重试工具加载" }));
+    expect(load).toHaveBeenCalledTimes(2);
+    await act(async () => retried.resolve(lazyContributions));
+    await waitFor(() => {
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(control.panels.getCurrent().map(({ id }) => id)).toEqual([
+        "static.panel",
+        "retried.panel",
+      ]);
+    });
+  });
+
+  it("fences an in-flight loader when the declared source changes", async () => {
+    const capabilities = mutableCapabilitiesV1();
+    const control = createDevDockControlV1();
+    const first = deferredValueV1<DevDockContributionSetV1>();
+    const second = deferredValueV1<DevDockContributionSetV1>();
+    const disposeFirst = vi.fn(async () => undefined);
+    const firstContributions = bindDevDockContributionLifecycleInternalV1(
+      createDevDockContributionSetV1({ panels: [devDockPanelV1("first.panel")] }),
+      disposeFirst,
+    );
+    const secondContributions = createDevDockContributionSetV1({
+      panels: [devDockPanelV1("second.panel")],
+    });
+    const firstLoad = vi.fn(() => first.promise);
+    const secondLoad = vi.fn(() => second.promise);
+    const fixture = renderLifecycleRootV1({
+      capabilities,
+      devDock: Object.freeze({ control, load: firstLoad }),
+    });
+    await act(async () => {
+      await capabilities.setEnabled("debug_tools", true);
+    });
+    await waitFor(() => expect(firstLoad).toHaveBeenCalledOnce());
+
+    fixture.rerenderDevDock(Object.freeze({ control, load: secondLoad }));
+    await waitFor(() => expect(secondLoad).toHaveBeenCalledOnce());
+    await act(async () => first.resolve(firstContributions));
+    await waitFor(() => expect(disposeFirst).toHaveBeenCalledOnce());
+    expect(control.panels.getCurrent().some(({ id }) => id === "first.panel")).toBe(false);
+
+    await act(async () => second.resolve(secondContributions));
+    await waitFor(() => {
+      expect(control.panels.getCurrent().map(({ id }) => id)).toEqual(["second.panel"]);
+    });
+    expect(firstLoad).toHaveBeenCalledOnce();
+    expect(secondLoad).toHaveBeenCalledOnce();
+  });
+
+  it.each(["revoke", "unmount"] as const)(
+    "fences a late result after %s and disposes it when it finally arrives",
+    async (boundary) => {
+      const capabilities = mutableCapabilitiesV1();
+      const loaded = deferredValueV1<DevDockContributionSetV1>();
+      const dispose = vi.fn(async () => undefined);
+      const lateContributions = bindDevDockContributionLifecycleInternalV1(
+        createDevDockContributionSetV1({ panels: [devDockPanelV1("late.panel")] }),
+        dispose,
+      );
+      const load = vi.fn(() => loaded.promise);
+      renderLifecycleRootV1({
+        capabilities,
+        devDock: Object.freeze({ load }),
+      });
+      await act(async () => {
+        await capabilities.setEnabled("debug_tools", true);
+      });
+      await waitFor(() => expect(load).toHaveBeenCalledOnce());
+
+      if (boundary === "revoke") {
+        await act(async () => {
+          await capabilities.setEnabled("debug_tools", false);
+        });
+      } else {
+        cleanup();
+      }
+      await act(async () => loaded.resolve(lateContributions));
+
+      await waitFor(() => expect(dispose).toHaveBeenCalledOnce());
+      expect(screen.queryByText("late.panel")).not.toBeInTheDocument();
+      await disposeDevDockContributionLifecycleInternalV1(lateContributions);
+      expect(dispose).toHaveBeenCalledOnce();
+    },
+  );
+});
 
 describe("DefaultGameRootV1 lifecycle result handling", () => {
   it("promotes a saved-session Title after dismissing the package-owned Splash", async () => {
