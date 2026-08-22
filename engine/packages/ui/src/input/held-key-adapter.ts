@@ -19,6 +19,13 @@ import { nativeBehaviorEditableSelectorV1 } from "../shell/native-behavior-reset
  * so Ctrl+A in a form field stays a form shortcut. The generic interactive
  * control selector is deliberately NOT included — a held modifier over a
  * focused stage button has no native meaning and must not block the hold.
+ * A mapped hold is exclusive: it engages only when that key is the sole
+ * currently-down key and no extra modifiers are asserted. Any later
+ * keydown releases the hold and taints the mapped key until its keyup,
+ * so host chords (Ctrl+Alt+A, Ctrl+C) never pin presentation rate.
+ * Releasing the extra keys while the mapped key stays down does not
+ * resume the hold.
+ *
  * Release is unconditional: an engaged key releases wherever its keyup
  * lands, window blur releases everything, and uninstalling releases
  * everything, so a hold can never stick across focus loss.
@@ -60,11 +67,20 @@ function shouldIgnoreHeldKeyEngageV1(event: KeyboardEvent): boolean {
   return closestFromEventTargetV1(event.target, heldKeyIgnoreScopeSelectorV1) !== null;
 }
 
+function extraModifiersOnHeldKeyV1(event: KeyboardEvent, key: string): boolean {
+  return (key !== "Alt" && event.altKey) ||
+    (key !== "Meta" && event.metaKey) ||
+    (key !== "Shift" && event.shiftKey) ||
+    (key !== "Control" && event.ctrlKey);
+}
+
 const emptyHeldStateV1: HeldInputStateV1 = Object.freeze({
   heldActionIds: new Set<InputActionIdV1>() as ReadonlySet<InputActionIdV1>,
 });
 
 export function createHeldKeyInputV1(): HeldKeyInputV1 {
+  const downKeys = new Set<string>();
+  const taintedKeys = new Set<string>();
   const engagedKeys = new Map<string, InputActionIdV1>();
   let current = emptyHeldStateV1;
   const listeners = new Set<() => void>();
@@ -73,14 +89,16 @@ export function createHeldKeyInputV1(): HeldKeyInputV1 {
   const publish = (): void => {
     const next = new Set<InputActionIdV1>(engagedKeys.values());
     const previous = current.heldActionIds;
-    // Two keys mapped to one action collapse by reference count: the set
-    // only changes when the first engages or the last releases.
+    // Exclusive hold means at most one mapped key is engaged. The set
+    // only changes when a hold engages or releases.
     if (next.size === previous.size && [...next].every((id) => previous.has(id))) return;
     current = Object.freeze({ heldActionIds: next as ReadonlySet<InputActionIdV1> });
     for (const listener of [...listeners]) listener();
   };
 
   const releaseAll = (): void => {
+    downKeys.clear();
+    taintedKeys.clear();
     if (engagedKeys.size === 0) return;
     engagedKeys.clear();
     publish();
@@ -108,16 +126,36 @@ export function createHeldKeyInputV1(): HeldKeyInputV1 {
 
       const onKeyDown = (event: Event): void => {
         const keyboardEvent = event as KeyboardEvent;
-        if (keyboardEvent.defaultPrevented || keyboardEvent.repeat) return;
+        downKeys.add(keyboardEvent.key);
+        if (keyboardEvent.defaultPrevented) return;
         const actionId = options.map[keyboardEvent.key];
+        if (downKeys.size > 1 && engagedKeys.size > 0) {
+          for (const heldKey of engagedKeys.keys()) taintedKeys.add(heldKey);
+          if (actionId !== undefined) taintedKeys.add(keyboardEvent.key);
+          engagedKeys.clear();
+          publish();
+          return;
+        }
         if (actionId === undefined) return;
+        if (keyboardEvent.repeat) return;
         if (engagedKeys.has(keyboardEvent.key)) return;
+        if (taintedKeys.has(keyboardEvent.key)) return;
         if (shouldIgnoreHeldKeyEngageV1(keyboardEvent)) return;
+        if (
+          downKeys.size !== 1 ||
+          extraModifiersOnHeldKeyV1(keyboardEvent, keyboardEvent.key)
+        ) {
+          taintedKeys.add(keyboardEvent.key);
+          return;
+        }
         engagedKeys.set(keyboardEvent.key, actionId);
         publish();
       };
       const onKeyUp = (event: Event): void => {
-        if (!engagedKeys.delete((event as KeyboardEvent).key)) return;
+        const key = (event as KeyboardEvent).key;
+        downKeys.delete(key);
+        taintedKeys.delete(key);
+        if (!engagedKeys.delete(key)) return;
         publish();
       };
       const onBlur = (): void => releaseAll();
