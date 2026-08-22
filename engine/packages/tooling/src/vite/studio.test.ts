@@ -52,6 +52,12 @@ function virtualSourceFromPluginV1(plugin: Plugin, id: string): string {
   return source;
 }
 
+function expectStableChromeIoV1(source: string): void {
+  expect(source.match(/const chromeIoV1 = createDevServerChromeLayoutIoV1\(\);/gu))
+    .toHaveLength(1);
+  expect(source.match(/chromeIo: chromeIoV1,/gu)).toHaveLength(2);
+}
+
 describe("studioPluginV1", () => {
   it("generates a static accessible Author/Browser boot shell", () => {
     const html = createStudioPageHtmlInternalV1();
@@ -130,11 +136,14 @@ describe("studioPluginV1", () => {
     );
     expect(launcher).not.toContain("@sillymaker/studio");
     expect(launcher).not.toContain("createDevServerSceneIoV1");
+    expect(launcher).not.toContain("createDevServerChromeLayoutIoV1");
     expect(launcher).not.toContain("/src/application/studio.ts");
 
     expect(runtime).toContain("createDevServerSceneIoV1");
     expect(runtime).toContain("createDevServerMotionIoV1");
     expect(runtime).toContain("createDevServerRegionsIoV1");
+    expect(runtime).toContain("createDevServerChromeLayoutIoV1");
+    expectStableChromeIoV1(runtime);
     expect(runtime).toContain('mode: "embedded"');
     expect(runtime).toContain('profileId: "sillymaker.authoring-host.embedded.live"');
     expect(runtime).toContain(
@@ -163,7 +172,7 @@ describe("studioPluginV1", () => {
       'import { createStudioToolingHmrCoordinatorV1, createStudioToolingLiveCompositionV1, createStudioToolingReactPublicationV1 } from "@sillymaker/studio/composition";',
     );
     expect(source).toContain(
-      'import { createDevServerRegionsIoV1, createDevServerSceneIoV1 } from "@sillymaker/studio";',
+      'import { createDevServerChromeLayoutIoV1, createDevServerRegionsIoV1, createDevServerSceneIoV1 } from "@sillymaker/studio";',
     );
     expect(source).toContain(
       'import { createWebApplicationStartupDiagnosticsControllerInternalV1, readApplicationBootstrapConfigFromDocumentInternalV1 } from "@sillymaker/web/internal/application-startup";',
@@ -174,6 +183,7 @@ describe("studioPluginV1", () => {
     expect(source).toContain('bootstrapConfigV1.target !== "browser"');
     expect(source).toContain("const regionsIoV1 = createDevServerRegionsIoV1();");
     expect(source.match(/regionsIo: regionsIoV1,/gu)).toHaveLength(2);
+    expectStableChromeIoV1(source);
     expect(source).toContain('profileId: "sillymaker.studio.live"');
     expect(source).toContain(
       'import.meta.hot.accept("/src/application/studio.ts", (moduleV1) => {',

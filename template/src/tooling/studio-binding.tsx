@@ -7,11 +7,52 @@
 // no registration here. Loaded only by the dev-server studio entry
 // (`sillymaker.config.ts` `studio`); never part of the player bundle or
 // the application composition.
-import type { StudioBindingV1 } from "@sillymaker/studio";
+import type { DeepReadonly } from "@sillymaker/base";
+import type { ChromeLayoutDocument } from "@sillymaker/base/story";
+import type { StudioBindingV1, StudioChromeFixtureV1 } from "@sillymaker/studio";
 
+import { TemplateHudV1 } from "../application/ui.tsx";
+import type { TemplateUiPublicationV1 } from "../application/composition.tsx";
+import type { TemplateApplicationInstanceV1 } from "../application/core-definition.ts";
 import { templateStageContentCatalogV1, templateTextForLocaleV1 } from "../content/presentation.ts";
 import { templateFlowGraphV1 } from "../story/narrative.ts";
 import { templateStageRenderersV1 } from "../ui/stage-renderers.tsx";
+
+/**
+ * The chrome fixture's frozen sample: exactly the publication fields the
+ * HUD reads (coins, narrative phase, action list), representative values.
+ * The Studio preview is presentation-only — pointer events are disabled
+ * — so the semantic stub can never actually dispatch.
+ */
+const templateHudFixturePublicationV1 = Object.freeze({
+  view: Object.freeze({ coins: 3 }),
+  semantic: Object.freeze({
+    narrative: Object.freeze({ phase: "running" }),
+    actions: Object.freeze([
+      Object.freeze({ actionId: "template.begin_story", enabled: false }),
+      Object.freeze({ actionId: "template.earn_coin", enabled: true }),
+    ]),
+  }),
+}) as unknown as DeepReadonly<TemplateUiPublicationV1>;
+
+const templateHudFixtureSemanticV1 = Object.freeze({
+  dispatch: () => Promise.reject(new Error("template.studio_fixture_semantic_stub")),
+}) as unknown as TemplateApplicationInstanceV1["semantic"];
+
+// Chrome workspace preview: the real HUD component over the frozen sample
+// above, geometry read from the workspace's live draft (q3 — the Story
+// declares what renders; the engine never guesses a publication shape).
+const templateHudChromeFixtureV1: StudioChromeFixtureV1 = Object.freeze({
+  layoutId: "layout.template.hud",
+  label: "模板 HUD",
+  render: (layout: ChromeLayoutDocument) => (
+    <TemplateHudV1
+      publication={templateHudFixturePublicationV1}
+      semantic={templateHudFixtureSemanticV1}
+      layout={layout}
+    />
+  ),
+});
 
 export const templateStudioBindingV1: StudioBindingV1 = Object.freeze({
   catalog: templateStageContentCatalogV1,
@@ -29,6 +70,7 @@ export const templateStudioBindingV1: StudioBindingV1 = Object.freeze({
       return null;
     }
   },
+  chrome: Object.freeze([templateHudChromeFixtureV1]),
   contents: Object.freeze([
     {
       contentId: "content.template.background.courtyard",

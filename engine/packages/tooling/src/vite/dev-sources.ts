@@ -6,6 +6,7 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 import launchEditor from "launch-editor";
 import type { Plugin } from "vite";
 
+import { createChromeLayoutPortMiddlewareV1 } from "./chrome-layout-port.ts";
 import { createMotionPortMiddlewareV1 } from "./motion-port.ts";
 import { createRegionsPortMiddlewareV1 } from "./regions-port.ts";
 import { createScenePortMiddlewareV1 } from "./scene-port.ts";
@@ -154,7 +155,7 @@ export const devSourcesUrlPrefixV1 = "/__sillymaker/dev-sources/";
  * binds to localhost, but any web page open in the developer's browser can
  * still fire requests at it (the classic CSRF shape): without this gate a
  * malicious page could pop the developer's editor or, knowing a digest,
- * write schema-valid scene/motion/regions documents into the project tree.
+ * write schema-valid scene/motion/regions/chrome-layout documents into the project tree.
  * Browsers attach `Sec-Fetch-Site` to every fetch they originate, so
  * anything that is not our own origin (or a direct user navigation) is
  * rejected whole. Requests without the header — curl, scripts, tests,
@@ -220,7 +221,7 @@ export function createDevSourcesMiddlewareV1(
 
 /**
  * The `vite dev`-only plugin registering the origin guard ahead of the
- * dev-sources open, motion, regions, and scene ports.
+ * dev-sources open, motion, regions, chrome-layout, and scene ports.
  */
 export function devSourcesPluginV1(appRoot: string): Plugin {
   return {
@@ -231,6 +232,7 @@ export function devSourcesPluginV1(appRoot: string): Plugin {
       server.middlewares.use(createDevSourcesMiddlewareV1({ appRoot }));
       server.middlewares.use(createMotionPortMiddlewareV1({ appRoot }));
       server.middlewares.use(createRegionsPortMiddlewareV1({ appRoot }));
+      server.middlewares.use(createChromeLayoutPortMiddlewareV1({ appRoot }));
       server.middlewares.use(createScenePortMiddlewareV1({ appRoot }));
     },
   };

@@ -141,6 +141,7 @@ describe("createDevSourcesOriginGuardV1", () => {
         const url of [
           openUrl,
           "/__sillymaker/dev-sources/regions-document",
+          "/__sillymaker/dev-sources/chrome-layout",
           "/__sillymaker/dev-sources/motion",
           "/__sillymaker/dev-sources/scene",
           "/__sillymaker/dev-sources/scenes",

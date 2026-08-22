@@ -14,6 +14,7 @@ import { useAuthoringDocumentSessionV1 } from "@sillymaker/ui/debug";
 import type { MotionSourceIoV1, MotionWorkbenchCloseParticipantV1 } from "@sillymaker/ui/debug";
 
 import type {
+  ChromeLayoutDocumentV1,
   RegionsDocumentV1,
   SceneDocumentV1,
   StageAppearanceV1,
@@ -59,6 +60,8 @@ import {
 import type { StudioMotionWorkbenchModelV1 } from "./workspaces/motion/motion-cases.ts";
 import { MotionWorkspaceSectionV1 } from "./workspaces/motion/motion-workspace.tsx";
 import { RegionsWorkspaceSectionV1 } from "./workspaces/regions/regions-workspace.tsx";
+import { ChromeWorkspaceSectionV1 } from "./workspaces/chrome/chrome-workspace.tsx";
+import type { ChromeLayoutSourceIoV1 } from "./core/chrome-layout-io.ts";
 import type { StudioBindingV1, StudioContentDescriptorV1 } from "./core/binding.ts";
 import { authoringWorkspaceManifestInternalV1 } from "./workspaces/workspace-manifest.ts";
 import styles from "./studio-app.module.css";
@@ -71,6 +74,7 @@ export type {
   StudioAppearanceFieldV1,
   StudioAssetRegistryPortV1,
   StudioBindingV1,
+  StudioChromeFixtureV1,
   StudioContentDescriptorV1,
 } from "./core/binding.ts";
 
@@ -94,12 +98,15 @@ export interface StudioAppPropsV1 {
   readonly motionIo: MotionSourceIoV1;
   /** The regions port; omitted hides the Regions workspace entirely. */
   readonly regionsIo?: RegionsSourceIoV1;
+  /** The chrome-layout port; omitted hides the Chrome workspace entirely. */
+  readonly chromeIo?: ChromeLayoutSourceIoV1;
 }
 
 interface StudioAppWithAuthoringSessionsPropsV1 extends StudioAppPropsV1 {
   readonly host: AuthoringHostInternalV1;
   readonly sceneSession: AuthoringDocumentSessionV1<SceneDocumentV1>;
   readonly regionsSession: AuthoringDocumentSessionV1<RegionsDocumentV1> | null;
+  readonly chromeSession: AuthoringDocumentSessionV1<ChromeLayoutDocumentV1> | null;
   readonly flowActivation: FlowWorkspaceActivationOwnerInternalV1;
   readonly publicationRole: "visible" | "probe";
   readonly mode: "standalone" | "embedded";
@@ -141,8 +148,9 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
         sceneIo: props.io,
         motionIo: props.motionIo,
         ...(props.regionsIo === undefined ? {} : { regionsIo: props.regionsIo }),
+        ...(props.chromeIo === undefined ? {} : { chromeIo: props.chromeIo }),
       }),
-    [props.io, props.motionIo, props.regionsIo],
+    [props.io, props.motionIo, props.regionsIo, props.chromeIo],
   );
   const viewId = useMemo(() => nextAuthoringHostViewIdInternalV1++, []);
   useDisposeAuthoringHostOnUnmountInternalV1(host);
@@ -223,9 +231,11 @@ export function AuthoringHostSurfaceInternalV1(
         io={owner.sceneIo}
         motionIo={owner.motionIo}
         {...(owner.regionsIo === undefined ? {} : { regionsIo: owner.regionsIo })}
+        {...(owner.chromeIo === undefined ? {} : { chromeIo: owner.chromeIo })}
         host={props.host}
         sceneSession={owner.sceneSession}
         regionsSession={owner.regionsSession}
+        chromeSession={owner.chromeSession}
         flowActivation={owner.flowActivation}
         publicationRole={props.publicationRole}
         mode={props.mode}
@@ -238,7 +248,7 @@ export function AuthoringHostSurfaceInternalV1(
 export function StudioAppWithAuthoringSessionsV1(
   props: StudioAppWithAuthoringSessionsPropsV1,
 ): ReactElement {
-  const { binding, io, motionIo, regionsIo, regionsSession } = props;
+  const { binding, io, motionIo, regionsIo, regionsSession, chromeIo, chromeSession } = props;
   const hostOwner = resolveAuthoringHostOwnerInternalV1(props.host);
   const registerMotionCloseParticipant = useCallback(
     (participant: MotionWorkbenchCloseParticipantV1): () => void =>
@@ -250,8 +260,9 @@ export function StudioAppWithAuthoringSessionsV1(
       authoringWorkspaceManifestInternalV1({
         binding,
         hasRegionsIo: regionsIo !== undefined,
+        hasChromeIo: chromeIo !== undefined,
       }),
-    [binding, regionsIo],
+    [binding, chromeIo, regionsIo],
   );
   const [scenes, setScenes] = useState<readonly SceneIoListEntryV1[] | null>(null);
   const [sceneSkips, setSceneSkips] = useState<readonly SceneIoListSkipV1[]>(Object.freeze([]));
@@ -1275,6 +1286,19 @@ export function StudioAppWithAuthoringSessionsV1(
               ? { canvas: draft.canvas, target: canvasCompiled.target }
               : null}
             scale={scale}
+            storyHint={sceneIdPrefix.split(".")[1] ?? null}
+            host={props.host}
+            publicationRole={props.publicationRole}
+          />
+        )}
+      {!workspaceManifest.some((workspace) => workspace.id === "chrome") ||
+          chromeIo === undefined || chromeSession === null
+        ? null
+        : (
+          <ChromeWorkspaceSectionV1
+            io={chromeIo}
+            session={chromeSession}
+            fixtures={binding.chrome ?? Object.freeze([])}
             storyHint={sceneIdPrefix.split(".")[1] ?? null}
             host={props.host}
             publicationRole={props.publicationRole}

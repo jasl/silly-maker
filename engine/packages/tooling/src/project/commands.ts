@@ -23,6 +23,7 @@ import {
 } from "../vite/version-stamp.ts";
 import type { SillymakerProjectConfigV1 } from "./config.ts";
 import { joinAppPathV1, resolveStoryApplicationV1 } from "./config.ts";
+import { collectChromeLayoutSourceDiagnosticsV1 } from "./chrome-layout-diagnostics.ts";
 import { collectMotionSourceDiagnosticsV1 } from "./motion-diagnostics.ts";
 import { collectRegionsSourceDiagnosticsV1 } from "./regions-diagnostics.ts";
 import { collectSceneSourceDiagnosticsV1 } from "./scene-diagnostics.ts";
@@ -215,6 +216,7 @@ export async function checkStoryApplicationV1(
     ? null
     : resolve(options.repositoryRoot, dirname(application.storyEntry.module));
   const sourceDiagnostics = sourceRoot === null ? [] : [
+    ...collectChromeLayoutSourceDiagnosticsV1(sourceRoot),
     ...collectMotionSourceDiagnosticsV1(sourceRoot),
     ...collectRegionsSourceDiagnosticsV1(sourceRoot),
     ...collectSceneSourceDiagnosticsV1(sourceRoot),

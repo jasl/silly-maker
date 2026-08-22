@@ -467,6 +467,60 @@
   cursor: copy;
 }
 
+.chrome-fixture {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.chrome-box {
+  position: absolute;
+  padding: 0;
+  border: 1px dashed rgb(232 179 76 / 65%);
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+
+.chrome-box:active {
+  cursor: grabbing;
+}
+
+.chrome-box[aria-pressed="true"] {
+  border: 2px solid #e8b34c;
+  background: rgb(232 179 76 / 10%);
+}
+
+.chrome-box-label {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  padding: 0 0.25rem;
+  background: rgb(20 22 28 / 80%);
+  color: #e8b34c;
+  font-size: 10px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+.chrome-anchor {
+  position: absolute;
+  inline-size: 12px;
+  block-size: 12px;
+  padding: 0;
+  border: 2px solid #14161c;
+  border-radius: 50%;
+  background: #e8b34c;
+  transform: translate(-50%, -50%);
+  cursor: move;
+  touch-action: none;
+}
+
+.chrome-anchor[aria-pressed="true"] {
+  background: #8fb3d9;
+}
+
 .flow {
   border-block-start: 1px solid #2c303a;
   padding-block-start: 0.75rem;

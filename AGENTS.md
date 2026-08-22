@@ -48,8 +48,10 @@ Read only the documents relevant to the change:
   and reducers, authoritative monitors, persistence safepoints, and Host
   pacing), authorable frame sets, shaped hit regions, hold `when`, and
   mid-hold input. Their contracts and closure records live in the corresponding
-  proposals and plans dated 2026-08-19 through 2026-08-22. After absorbing
-  those delivered capabilities, the current default/core lane remains
+  proposals and plans dated 2026-08-19 through 2026-08-22. The separate
+  authorable-chrome-layout lane also delivered M0–M2 and both consumers on
+  2026-08-22; its detailed closure record appears below. After absorbing those
+  delivered capabilities, the current default/core lane remains
   `docs/engine/plans/2026-08-18-application-runtime-embedded-authoring.md`:
   Browser/Deno Desktop startup evidence, build-known progressive activation, an
   orchestration-neutral domain lifecycle selected through a bounded historical
@@ -211,7 +213,26 @@ Read only the documents relevant to the change:
   live path (decode-verified: original zone clicks are concurrent state
   writers and the reroute authority stays with the CE20 watchdog arms).
   Regions never gain routing power; input commands never settle time;
-  remaining body zones are per-zone content knives, not engine work.
+  remaining body zones are per-zone content knives, not engine work. The
+  authorable-chrome-layout lane (accepted and delivered 2026-08-22,
+  owner-ruled pragmatic V1 with open questions q1–q3 per recommendation —
+  explicitly not the final scene/object/interaction unification) completed
+  M0–M2 plus both consumers the same day:
+  `docs/engine/proposals/authorable-chrome-layout.md` (with the closure
+  record) and `docs/engine/plans/2026-08-22-authorable-chrome-layout.md` —
+  the `sillymaker.chrome-layout` document family (boxes/anchors/offsets in
+  logical canvas space) mirroring the regions family end to end
+  (admission, authoring index, story check lints, dev-server CAS port),
+  the Studio Chrome workspace (界面布局: drag/resize boxes and anchors,
+  offsets inspector, shared authoring session with CAS graduation)
+  rendering Story-declared chrome fixtures (`StudioBindingV1.chrome`,
+  crash-isolated real components) with a wireframe fallback, and dual
+  consumers (the template HUD status strip reads its placement from
+  `src/chrome/hud.chrome-layout.json` at runtime with browser acceptance;
+  the external experiment repo HUD migrated off its M0 story-local parser
+  onto the engine family). The M3 intent-binding widget layer stays behind
+  its own evidence gate. Layout documents stay zero-authority
+  presentation data; behavior booleans and legality stay in Story code.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,
   `docs/engine/plans/2026-07-30-snapshot-commit-performance.md`,
   `docs/engine/plans/2026-07-30-save-migration.md`,

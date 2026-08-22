@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { RegionsDocumentV1, SceneDocumentV1 } from "@sillymaker/base";
+import type { ChromeLayoutDocumentV1, RegionsDocumentV1, SceneDocumentV1 } from "@sillymaker/base";
 import { createMotionWorkbenchStoreV1 } from "@sillymaker/ui/debug";
 import type {
   AuthoringDocumentSessionV1,
@@ -10,6 +10,8 @@ import type {
 
 import type { RegionsSourceIoV1 } from "./regions-io.ts";
 import { createRegionsDocumentSessionV1 } from "./regions-session.ts";
+import type { ChromeLayoutSourceIoV1 } from "./chrome-layout-io.ts";
+import { createChromeLayoutDocumentSessionV1 } from "./chrome-layout-session.ts";
 import type { SceneSourceIoV1 } from "./scene-io.ts";
 import type { SceneAuthoringLocalAdapterV1 } from "./scene-operations/contract.ts";
 import { createSceneAuthoringLocalAdapterV1 } from "./scene-operations/local-adapter.ts";
@@ -41,6 +43,7 @@ export interface AuthoringHostSnapshotInternalV1 {
   readonly dirty: boolean;
   readonly scene: AuthoringHostDocumentSnapshotInternalV1;
   readonly regions: AuthoringHostDocumentSnapshotInternalV1 | null;
+  readonly chrome: AuthoringHostDocumentSnapshotInternalV1 | null;
   readonly activeMotionId: string | null;
 }
 
@@ -55,6 +58,7 @@ export interface CreateAuthoringHostInputInternalV1 {
   readonly sceneIo: SceneSourceIoV1;
   readonly motionIo: MotionSourceIoV1;
   readonly regionsIo?: RegionsSourceIoV1;
+  readonly chromeIo?: ChromeLayoutSourceIoV1;
   readonly loadFlowWorkspace?: FlowWorkspaceLoaderInternalV1;
   readonly reportFailure?: (error: unknown) => void;
 }
@@ -76,9 +80,11 @@ interface AuthoringHostOwnerInternalV1 {
   readonly sceneIo: SceneSourceIoV1;
   readonly motionIo: MotionSourceIoV1;
   readonly regionsIo: RegionsSourceIoV1 | undefined;
+  readonly chromeIo: ChromeLayoutSourceIoV1 | undefined;
   readonly sceneSession: AuthoringDocumentSessionV1<SceneDocumentV1>;
   readonly sceneOperations: SceneAuthoringLocalAdapterV1;
   readonly regionsSession: AuthoringDocumentSessionV1<RegionsDocumentV1> | null;
+  readonly chromeSession: AuthoringDocumentSessionV1<ChromeLayoutDocumentV1> | null;
   readonly motionStore: MotionWorkbenchStoreV1;
   readonly flowActivation: FlowWorkspaceActivationOwnerInternalV1;
   readonly closeParticipants: Map<string, AuthoringCloseParticipantInternalV1>;
@@ -120,6 +126,9 @@ export function createAuthoringHostInternalV1(
   const regionsSession = input.regionsIo === undefined
     ? null
     : createRegionsDocumentSessionV1(input.regionsIo);
+  const chromeSession = input.chromeIo === undefined
+    ? null
+    : createChromeLayoutDocumentSessionV1(input.chromeIo);
   const motionStore = createMotionWorkbenchStoreV1();
   const flowActivation = createFlowWorkspaceActivationOwnerInternalV1({
     ...(input.loadFlowWorkspace === undefined ? {} : { load: input.loadFlowWorkspace }),
@@ -138,6 +147,9 @@ export function createAuthoringHostInternalV1(
     const regions = regionsSession === null
       ? null
       : documentSnapshotInternalV1(regionsSession.getSnapshot());
+    const chrome = chromeSession === null
+      ? null
+      : documentSnapshotInternalV1(chromeSession.getSnapshot());
     const participantDirty = [...closeParticipants.values()].some(
       (participant) => participant.getState().dirty,
     );
@@ -146,9 +158,11 @@ export function createAuthoringHostInternalV1(
       identity,
       revision,
       connected: connectedViews.size > 0,
-      dirty: scene.dirty || (regions?.dirty ?? false) || participantDirty,
+      dirty: scene.dirty || (regions?.dirty ?? false) || (chrome?.dirty ?? false) ||
+        participantDirty,
       scene,
       regions,
+      chrome,
       activeMotionId: motionStore.observe()?.source.motionId ?? null,
     });
   };
@@ -168,6 +182,7 @@ export function createAuthoringHostInternalV1(
     sceneSession.subscribe(publish),
     motionStore.subscribe(publish),
     ...(regionsSession === null ? [] : [regionsSession.subscribe(publish)]),
+    ...(chromeSession === null ? [] : [chromeSession.subscribe(publish)]),
   ];
 
   const getCloseState = (): AuthoringCloseParticipantStateInternalV1 => {
@@ -183,9 +198,11 @@ export function createAuthoringHostInternalV1(
     sceneIo: input.sceneIo,
     motionIo: input.motionIo,
     regionsIo: input.regionsIo,
+    chromeIo: input.chromeIo,
     sceneSession,
     sceneOperations,
     regionsSession,
+    chromeSession,
     motionStore,
     flowActivation,
     closeParticipants,

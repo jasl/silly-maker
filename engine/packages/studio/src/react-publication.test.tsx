@@ -7,11 +7,13 @@ import { fireEvent, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  parseChromeLayoutDocumentV1,
   parseMotionDocumentV1,
   parseRegionsDocumentV1,
   parseSceneDocumentV1,
 } from "@sillymaker/base";
 import type {
+  ChromeLayoutDocumentV1,
   MotionDocumentV1,
   RegionsDocumentV1,
   SceneDocumentV1,
@@ -27,6 +29,7 @@ import type {
   EmbeddedAuthoringCompanionOwnerInternalV1,
   EmbeddedAuthoringCompanionRenderInputInternalV1,
 } from "./core/embedded-authoring-companion.ts";
+import type { ChromeLayoutSourceIoV1 } from "./core/chrome-layout-io.ts";
 import type { RegionsSourceIoV1 } from "./core/regions-io.ts";
 import type { SceneSourceIoV1 } from "./core/scene-io.ts";
 import {
@@ -207,6 +210,116 @@ describe("Studio tooling React publication", () => {
     await waitFor(() => expect(regionsIo.writes).toHaveLength(1));
     expect(regionsIo.writes[0]?.regionsDocument.regions[0]?.x).toBe(25);
     expect(replacementRegionsIo.writes).toHaveLength(0);
+  });
+
+  it("keeps the Chrome IO owner and dirty session across rejected and accepted successors", async () => {
+    const container = containerV1();
+    const sceneIo = fakeStudioSceneIoV1();
+    const motionIo = fakeStudioMotionIoV1();
+    const chromeIo = fakeStudioChromeIoV1();
+    const replacementChromeIo = fakeStudioChromeIoV1();
+    const publication = createStudioToolingReactPublicationV1({ container });
+    mountedPublications.push(publication);
+    await publication.mount(
+      studioPlanV1(sceneIo, motionIo, studioBindingV1(), undefined, chromeIo),
+    );
+
+    const chromeRow = await waitFor(() => {
+      const row = container.querySelector('[data-studio-chrome-row="boxes:chip"]');
+      expect(row).not.toBeNull();
+      return row as HTMLElement;
+    });
+    fireEvent.click(chromeRow);
+    const xInput = container.querySelector(
+      '[data-studio-chrome-field="x"]',
+    ) as HTMLInputElement;
+    fireEvent.change(xInput, { target: { value: "75" } });
+    await waitFor(() => {
+      expect(xInput).toHaveValue(75);
+      expect(container.querySelector("[data-studio-chrome-save]")).toBeEnabled();
+    });
+    const oldHost = container.firstElementChild;
+
+    await expect(publication.publish(
+      studioPlanV1(
+        sceneIo,
+        motionIo,
+        studioBindingV1(),
+        undefined,
+        replacementChromeIo,
+      ),
+      new AbortController().signal,
+    )).rejects.toThrow("cannot replace its chrome IO owner");
+
+    expect(container.firstElementChild).toBe(oldHost);
+    expect(container.querySelector('[data-studio-chrome-field="x"]')).toBe(xInput);
+    expect(xInput).toHaveValue(75);
+
+    await expect(publication.publish(
+      studioPlanV1(sceneIo, motionIo, studioBindingV1(), undefined, chromeIo),
+      new AbortController().signal,
+    )).resolves.toBeUndefined();
+
+    expect(container.firstElementChild).toBe(oldHost);
+    expect(container.querySelector('[data-studio-chrome-row="boxes:chip"]')).toBe(chromeRow);
+    expect(container.querySelector('[data-studio-chrome-field="x"]')).toBe(xInput);
+    expect(xInput).toHaveValue(75);
+    fireEvent.click(container.querySelector("[data-studio-chrome-save]") as HTMLElement);
+    await waitFor(() => expect(chromeIo.writes).toHaveLength(1));
+    expect(chromeIo.writes[0]?.chromeLayoutDocument.boxes["chip"]?.x).toBe(75);
+    expect(replacementChromeIo.writes).toHaveLength(0);
+  });
+
+  it("includes a Chrome-only dirty draft in the embedded close gate", async () => {
+    const container = containerV1();
+    const sceneIo = fakeStudioSceneIoV1();
+    const motionIo = fakeStudioMotionIoV1();
+    const chromeIo = fakeStudioChromeIoV1();
+    const publication = createStudioToolingReactPublicationV1({
+      container,
+      mode: "embedded",
+    });
+    mountedPublications.push(publication);
+    await publication.mount(
+      studioPlanV1(sceneIo, motionIo, studioBindingV1(), undefined, chromeIo),
+    );
+
+    const chromeRow = await waitFor(() => {
+      const row = container.querySelector('[data-studio-chrome-row="boxes:chip"]');
+      expect(row).not.toBeNull();
+      return row as HTMLElement;
+    });
+    fireEvent.click(chromeRow);
+    const xInput = container.querySelector(
+      '[data-studio-chrome-field="x"]',
+    ) as HTMLInputElement;
+    fireEvent.change(xInput, { target: { value: "90" } });
+    const close = container.querySelector("[data-embedded-authoring-close]") as HTMLElement;
+    await waitFor(() =>
+      expect(close).toHaveAttribute("aria-label", "关闭内嵌创作（有未保存修改）")
+    );
+
+    fireEvent.click(close);
+    await waitFor(() =>
+      expect(container.querySelector("[data-embedded-authoring-close-confirm]")).not.toBeNull()
+    );
+    fireEvent.click(
+      container.querySelector("[data-embedded-authoring-close-cancel]") as HTMLElement,
+    );
+    expect(container.querySelector("[data-embedded-authoring-panel]")).not.toHaveAttribute(
+      "hidden",
+    );
+    expect(container.querySelector('[data-studio-chrome-field="x"]')).toBe(xInput);
+    expect(xInput).toHaveValue(90);
+
+    fireEvent.click(close);
+    fireEvent.click(await within(container).findByRole("button", { name: "保存并关闭" }));
+    await waitFor(() => expect(chromeIo.writes).toHaveLength(1));
+    await waitFor(() =>
+      expect(container.querySelector("[data-embedded-authoring-panel]")).toHaveAttribute("hidden")
+    );
+    expect(chromeIo.writes[0]?.chromeLayoutDocument.boxes["chip"]?.x).toBe(90);
+    expect(sceneIo.writes).toHaveLength(0);
   });
 
   it("mounts the same Host in an input-isolated embedded shell with a dirty close gate", async () => {
@@ -756,6 +869,7 @@ function PersistentStateProbeV1(props: {
 
 const studioScenePathV1 = "src/scenes/publication/publication.scene.json";
 const studioRegionsPathV1 = "src/regions/publication.regions.json";
+const studioChromePathV1 = "src/chrome/publication.chrome-layout.json";
 
 interface FakeStudioSceneIoV1 extends SceneSourceIoV1 {
   readonly writes: Array<{
@@ -895,6 +1009,64 @@ function fakeStudioRegionsIoV1(): FakeStudioRegionsIoV1 {
   };
 }
 
+interface FakeStudioChromeIoV1 extends ChromeLayoutSourceIoV1 {
+  readonly writes: Array<{
+    readonly path: string;
+    readonly expectedDigest: string;
+    readonly chromeLayoutDocument: ChromeLayoutDocumentV1;
+  }>;
+}
+
+function studioChromeDocumentV1(): ChromeLayoutDocumentV1 {
+  return parseChromeLayoutDocumentV1({
+    format: "sillymaker.chrome-layout",
+    version: 1,
+    layoutId: "layout.test.publication",
+    label: "Publication chrome",
+    canvas: { width: 1280, height: 720 },
+    boxes: { chip: { x: 40, y: 30, width: 120, height: 48 } },
+    anchors: {},
+    offsets: {},
+  });
+}
+
+function fakeStudioChromeIoV1(): FakeStudioChromeIoV1 {
+  let saved = studioChromeDocumentV1();
+  let digestRevision = 1;
+  const writes: FakeStudioChromeIoV1["writes"] = [];
+  return {
+    writes,
+    list: () =>
+      Promise.resolve({
+        kind: "ok" as const,
+        chromeLayouts: [{
+          path: studioChromePathV1,
+          layoutId: saved.layoutId,
+          label: saved.label,
+        }],
+        skipped: [],
+      }),
+    read: (path) =>
+      path === studioChromePathV1
+        ? Promise.resolve({
+          kind: "ok" as const,
+          digest: `sha256:${String(digestRevision)}`,
+          chromeLayoutDocument: saved,
+        })
+        : Promise.resolve({ kind: "error" as const, code: "not_found" as const }),
+    write(input) {
+      writes.push(input);
+      saved = input.chromeLayoutDocument;
+      digestRevision += 1;
+      return Promise.resolve({
+        kind: "ok" as const,
+        digest: `sha256:${String(digestRevision)}`,
+      });
+    },
+    create: () => Promise.resolve({ kind: "error" as const, code: "unavailable" as const }),
+  };
+}
+
 function studioMotionDocumentV1(): MotionDocumentV1 {
   return parseMotionDocumentV1({
     format: "sillymaker.motion",
@@ -976,11 +1148,13 @@ function studioPlanV1(
   motionIo: MotionSourceIoV1,
   binding: StudioBindingV1,
   regionsIo?: RegionsSourceIoV1,
+  chromeIo?: ChromeLayoutSourceIoV1,
 ): StudioToolingPlanV1 {
   return Object.freeze({
     binding,
     sceneIo,
     motionIo,
     ...(regionsIo === undefined ? {} : { regionsIo }),
+    ...(chromeIo === undefined ? {} : { chromeIo }),
   });
 }

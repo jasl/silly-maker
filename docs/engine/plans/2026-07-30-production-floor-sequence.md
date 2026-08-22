@@ -65,7 +65,26 @@ production Story State migration；Cordis adapter/vendor/dependency 已删除。
 implementation。AR6 后的作品/examples/产品由所有者另行选择和立案，不在本计划预先排序。
 下一项可领取任务只有上述 AR5 Deno Desktop gate；AR6 尚未启动。
 
-前一条：[Mid-hold Input V1](2026-08-22-mid-hold-input.md)（提案
+最近一条已关闭的能力车道（不形成 active/next）：
+[Authorable Chrome Layout V1](2026-08-22-authorable-chrome-layout.md)
+（提案
+[authorable-chrome-layout](../proposals/authorable-chrome-layout.md)，
+2026-08-22 所有者裁决接受，q1–q3 全按建议；定性务实 V1，非场景/物
+体/交互统一抽象的终局裁决，下一轮引擎迭代再统筹）——把 chrome/HUD
+几何从代码常量迁成 Story 拥有的零权威布局文档，Studio 可视编辑。
+**同日 M0–M2 + 双消费者全部交付收口**：M0（实验仓 Story 侧
+`hud-layout.json` + 本地解析器先行，零引擎改动）→ M1
+（`sillymaker.chrome-layout` 第四文档族：boxes/anchors/offsets 逻辑
+画布整数、严格入院、authoring index、story check lint、dev-server
+CAS 端口）→ M2（Studio 界面布局工作区：框/锚点拖拽缩放、offsets 检
+查器、共享文档会话 + CAS 毕业 `human_tuned`；`StudioBindingV1.chrome`
+Story 声明 fixture 崩溃隔离渲染真组件，缺 fixture 落线框；template
+HUD 状态条运行时读 `src/chrome/hud.chrome-layout.json`，浏览器验收
+= template.spec.ts 拖框→保存→落盘）→ 双消费者（template 仓内 +
+实验仓 HUD 同日迁引擎家族删本地解析器，全量 vitest 绿）。M3（意图
+绑定 widget 层）按证据门保持未开；行为布尔与合法性留 Story 代码。
+
+更早一条：[Mid-hold Input V1](2026-08-22-mid-hold-input.md)（提案
 [mid-hold-input](../proposals/mid-hold-input.md)，2026-08-22 所有者
 裁决接受，q1–q3 全按建议：组合而非原语、围栏留 Story 惯例、清除留
 Story 纪律）——认领 hold `when` 唯一输入轴 defer。零新引擎原语：

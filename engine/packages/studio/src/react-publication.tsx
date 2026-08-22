@@ -368,6 +368,8 @@ export function createStudioToolingReactPublicationInternalV1(
   let motionIo: StudioToolingPlanV1["motionIo"] | null = null;
   let regionsIoInitialized = false;
   let regionsIo: StudioToolingPlanV1["regionsIo"];
+  let chromeIoInitialized = false;
+  let chromeIo: StudioToolingPlanV1["chromeIo"];
   let host: AuthoringHostInternalV1 | null = null;
   let companionOwner: EmbeddedAuthoringCompanionOwnerInternalV1 | null = null;
   let companionConfigurationInitialized = false;
@@ -417,10 +419,17 @@ export function createStudioToolingReactPublicationInternalV1(
       } else if (plan.regionsIo !== regionsIo) {
         throw new TypeError("Studio live publication cannot replace its regions IO owner");
       }
+      if (!chromeIoInitialized) {
+        chromeIoInitialized = true;
+        chromeIo = plan.chromeIo;
+      } else if (plan.chromeIo !== chromeIo) {
+        throw new TypeError("Studio live publication cannot replace its chrome IO owner");
+      }
       host ??= createAuthoringHostInternalV1({
         sceneIo: plan.sceneIo,
         motionIo: plan.motionIo,
         ...(plan.regionsIo === undefined ? {} : { regionsIo: plan.regionsIo }),
+        ...(plan.chromeIo === undefined ? {} : { chromeIo: plan.chromeIo }),
         ...(input.loadFlowWorkspace === undefined
           ? {}
           : { loadFlowWorkspace: input.loadFlowWorkspace }),

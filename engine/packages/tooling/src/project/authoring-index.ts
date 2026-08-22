@@ -3,6 +3,7 @@ import { lstatSync, readdirSync, readFileSync } from "node:fs";
 import { relative, resolve, sep } from "node:path";
 
 import {
+  parseChromeLayoutDocumentV1,
   parseMotionDocumentV1,
   parseRegionsDocumentV1,
   parseSceneDocumentV1,
@@ -23,7 +24,11 @@ import {
  * reason instead of silently disappearing.
  */
 
-export type AuthoringSourceSuffixV1 = ".scene.json" | ".motion.json" | ".regions.json";
+export type AuthoringSourceSuffixV1 =
+  | ".scene.json"
+  | ".motion.json"
+  | ".regions.json"
+  | ".chrome-layout.json";
 
 export interface AuthoringSourceFileV1 {
   /** Root-relative posix path (the id every port and lint reports). */
@@ -49,9 +54,15 @@ export interface AuthoringRegionsSourceV1 {
   readonly label: string;
 }
 
+export interface AuthoringChromeLayoutSourceV1 {
+  readonly path: string;
+  readonly layoutId: string;
+  readonly label: string;
+}
+
 export interface AuthoringIndexSkipV1 {
   readonly path: string;
-  readonly kind: "scene" | "motion" | "regions";
+  readonly kind: "scene" | "motion" | "regions" | "chrome-layout";
   readonly reason: string;
 }
 
@@ -59,6 +70,7 @@ export interface AuthoringProjectIndexV1 {
   readonly scenes: readonly AuthoringSceneSourceV1[];
   readonly motions: readonly AuthoringMotionSourceV1[];
   readonly regions: readonly AuthoringRegionsSourceV1[];
+  readonly chromeLayouts: readonly AuthoringChromeLayoutSourceV1[];
   /** Convention-matched files the index could not admit, with the reason. */
   readonly skipped: readonly AuthoringIndexSkipV1[];
 }
@@ -112,11 +124,15 @@ function reasonV1(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** Scans one source root into the unified scene + motion + regions enumeration. */
+/**
+ * Scans one source root into the unified scene + motion + regions +
+ * chrome-layout enumeration.
+ */
 export function buildAuthoringProjectIndexV1(sourceRoot: string): AuthoringProjectIndexV1 {
   const scenes: AuthoringSceneSourceV1[] = [];
   const motions: AuthoringMotionSourceV1[] = [];
   const regions: AuthoringRegionsSourceV1[] = [];
+  const chromeLayouts: AuthoringChromeLayoutSourceV1[] = [];
   const skipped: AuthoringIndexSkipV1[] = [];
 
   for (const file of listAuthoringSourceFilesV1(sourceRoot, ".scene.json")) {
@@ -173,10 +189,31 @@ export function buildAuthoringProjectIndexV1(sourceRoot: string): AuthoringProje
     }
   }
 
+  for (const file of listAuthoringSourceFilesV1(sourceRoot, ".chrome-layout.json")) {
+    try {
+      const layoutDocument = parseChromeLayoutDocumentV1(
+        JSON.parse(readFileSync(file.filePath, "utf8")) as unknown,
+        `/${file.path}`,
+      );
+      chromeLayouts.push(
+        Object.freeze({
+          path: file.path,
+          layoutId: layoutDocument.layoutId,
+          label: layoutDocument.label,
+        }),
+      );
+    } catch (error) {
+      skipped.push(
+        Object.freeze({ path: file.path, kind: "chrome-layout", reason: reasonV1(error) }),
+      );
+    }
+  }
+
   return Object.freeze({
     scenes: Object.freeze(scenes),
     motions: Object.freeze(motions),
     regions: Object.freeze(regions),
+    chromeLayouts: Object.freeze(chromeLayouts),
     skipped: Object.freeze(skipped),
   });
 }

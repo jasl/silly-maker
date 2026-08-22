@@ -11,6 +11,7 @@ import type { CompositionSnapshotV1 } from "@sillymaker/composition";
 import type { MotionSourceIoV1 } from "@sillymaker/ui/debug";
 
 import type { StudioBindingV1 } from "./core/binding.ts";
+import type { ChromeLayoutSourceIoV1 } from "./core/chrome-layout-io.ts";
 import type { RegionsSourceIoV1 } from "./core/regions-io.ts";
 import type { SceneSourceIoV1 } from "./core/scene-io.ts";
 import {
@@ -25,6 +26,7 @@ import type {
 const sceneIoV1 = Object.freeze({}) as SceneSourceIoV1;
 const motionIoV1 = Object.freeze({}) as MotionSourceIoV1;
 const regionsIoV1 = Object.freeze({}) as RegionsSourceIoV1;
+const chromeIoV1 = Object.freeze({}) as ChromeLayoutSourceIoV1;
 
 function bindingV1(label: string): StudioBindingV1 {
   return Object.freeze({ label }) as unknown as StudioBindingV1;
@@ -40,6 +42,7 @@ function rootInputV1(
     sceneIo: sceneIoV1,
     motionIo: motionIoV1,
     regionsIo: regionsIoV1,
+    chromeIo: chromeIoV1,
   });
 }
 
@@ -93,6 +96,8 @@ describe("Studio tooling live composition", () => {
     expect(newPlan.sceneIo).toBe(sceneIoV1);
     expect(newPlan.motionIo).toBe(motionIoV1);
     expect(newPlan.regionsIo).toBe(regionsIoV1);
+    expect(oldPlan.chromeIo).toBe(chromeIoV1);
+    expect(newPlan.chromeIo).toBe(chromeIoV1);
     expect(live.getSnapshot()).not.toBe(oldLiveSnapshot);
     expect(authoritativeKernel.getSnapshot()).toBe(authoritativeSnapshot);
     expect(authoritativePlan).toBe(authority);

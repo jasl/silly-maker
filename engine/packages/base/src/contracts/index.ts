@@ -673,3 +673,16 @@ export type {
   RegionsAuthoringV1,
   RegionsDocumentV1,
 } from "./stage-regions.ts";
+export {
+  chromeLayoutDocumentFormatV1,
+  chromeLayoutDocumentVersionV1,
+  parseChromeLayoutDocumentV1,
+} from "./chrome-layout.ts";
+export type {
+  ChromeLayoutAnchorV1,
+  ChromeLayoutAuthoringStatusV1,
+  ChromeLayoutAuthoringV1,
+  ChromeLayoutBoxV1,
+  ChromeLayoutCanvasV1,
+  ChromeLayoutDocumentV1,
+} from "./chrome-layout.ts";

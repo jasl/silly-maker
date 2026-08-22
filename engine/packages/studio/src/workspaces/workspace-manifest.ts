@@ -2,13 +2,13 @@
 import type { StudioBindingV1 } from "../core/binding.ts";
 
 /** Closed V1 workspace set. This is build-known metadata, not a plugin registry. */
-export type AuthoringWorkspaceIdInternalV1 = "scene" | "motion" | "regions" | "flow";
+export type AuthoringWorkspaceIdInternalV1 = "scene" | "motion" | "regions" | "chrome" | "flow";
 
 export interface AuthoringWorkspaceManifestEntryInternalV1 {
   readonly id: AuthoringWorkspaceIdInternalV1;
   readonly label: string;
   readonly activation: "resident" | "progressive";
-  /** Current workspaces are layout-insensitive; future geometry workspaces must opt in here. */
+  /** Geometry previews that need a connected tree opt in explicitly. */
   readonly readiness: "layout" | "connected";
 }
 
@@ -33,6 +33,13 @@ const regionsWorkspaceInternalV1 = Object.freeze({
   readiness: "layout" as const,
 });
 
+const chromeWorkspaceInternalV1 = Object.freeze({
+  id: "chrome" as const,
+  label: "界面布局",
+  activation: "resident" as const,
+  readiness: "connected" as const,
+});
+
 const flowWorkspaceInternalV1 = Object.freeze({
   id: "flow" as const,
   label: "Narrative 流程",
@@ -43,11 +50,13 @@ const flowWorkspaceInternalV1 = Object.freeze({
 export function authoringWorkspaceManifestInternalV1(input: {
   readonly binding: StudioBindingV1;
   readonly hasRegionsIo: boolean;
+  readonly hasChromeIo: boolean;
 }): readonly AuthoringWorkspaceManifestEntryInternalV1[] {
   return Object.freeze([
     sceneWorkspaceInternalV1,
     motionWorkspaceInternalV1,
     ...(input.hasRegionsIo ? [regionsWorkspaceInternalV1] : []),
+    ...(input.hasChromeIo ? [chromeWorkspaceInternalV1] : []),
     ...(input.binding.flow === undefined ? [] : [flowWorkspaceInternalV1]),
   ]);
 }

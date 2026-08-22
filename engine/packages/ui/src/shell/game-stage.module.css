@@ -73,26 +73,25 @@
   display: grid;
 }
 
+/* The flowed system menu gets an extra gutter. HUD keeps only the common
+   safe-area inset so absolute Story chrome stays on the logical canvas. */
 .game-stage__layer[data-stage-layer="system"] {
   z-index: var(--silly-stage-z-system);
   display: grid;
   place-items: start end;
-}
-
-.game-stage__layer:is([data-stage-layer="hud"], [data-stage-layer="workspace_overlay"], [data-stage-layer="narrative"], [data-stage-layer="system"]) {
   box-sizing: border-box;
-  padding-block: var(--silly-safe-area-block-start) var(--silly-safe-area-block-end);
-  padding-inline: var(--silly-safe-area-inline-start) var(--silly-safe-area-inline-end);
-}
-
-/* Flowed HUD/system chrome gets a default gutter so nothing kisses the
-   stage edge; absolutely-positioned Story HUDs are unaffected (their
-   containing block is the layer's padding box). */
-.game-stage__layer:is([data-stage-layer="hud"], [data-stage-layer="system"]) {
-  padding-block-start: calc(var(--silly-safe-area-block-start) + var(--silly-space-2));
+  padding-block:
+    calc(var(--silly-safe-area-block-start) + var(--silly-space-2))
+    var(--silly-safe-area-block-end);
   padding-inline:
     calc(var(--silly-safe-area-inline-start) + var(--silly-space-2))
     calc(var(--silly-safe-area-inline-end) + var(--silly-space-2));
+}
+
+.game-stage__layer:is([data-stage-layer="hud"], [data-stage-layer="workspace_overlay"], [data-stage-layer="narrative"]) {
+  box-sizing: border-box;
+  padding-block: var(--silly-safe-area-block-start) var(--silly-safe-area-block-end);
+  padding-inline: var(--silly-safe-area-inline-start) var(--silly-safe-area-inline-end);
 }
 
 .game-stage__layer:is([data-stage-layer="workspace_overlay"], [data-stage-layer="narrative"], [data-stage-layer="whole_canvas"]) > * {
