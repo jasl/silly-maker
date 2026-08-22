@@ -575,8 +575,8 @@ export function createLabGameUiDefinitionV1(
         : {}),
     }),
     loadDevDockContributions: () =>
-      import("./dev-dock.tsx").then((module) =>
-        module.createLabDevDockContributionsV1({ instance: input.instance })
+      import("./dev-dock-extension.tsx").then((module) =>
+        module.loadLabDevDockExtensionV1({ instance: input.instance })
       ),
     dispose: createLabUiDisposeV1(
       overlayConformance,

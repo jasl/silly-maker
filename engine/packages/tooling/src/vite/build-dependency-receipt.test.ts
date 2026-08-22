@@ -253,4 +253,67 @@ describe("build dependency receipt", () => {
       await rm(directory, { force: true, recursive: true });
     }
   });
+
+  it("attributes the Engine Lab extension backend only to its lazy DevDock contribution", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "sillymaker-e2e-build-graph-"));
+    const receiptPath = join(directory, "receipt.json");
+    const previous = process.env[buildDependencyMeasurementEnvironmentKeyInternalV1];
+    process.env[buildDependencyMeasurementEnvironmentKeyInternalV1] =
+      serializeBuildDependencyMeasurementRequestInternalV1({
+        graphRoot: repositoryRootV1,
+        receiptPath,
+      });
+    try {
+      const output = await build({
+        configFile: join(repositoryRootV1, "e2e", "vite.config.ts"),
+        logLevel: "silent",
+        build: {
+          write: false,
+          outDir: join(directory, "out"),
+          emptyOutDir: true,
+        },
+      });
+      if (!Array.isArray(output) && !("output" in output)) {
+        throw new TypeError("Engine Lab measurement unexpectedly returned a build watcher");
+      }
+      const receipt = parseBuildDependencyReceiptInternalV1(
+        await readFile(receiptPath, "utf8"),
+      );
+      const facadeId = "e2e/src/application/dev-dock-extension.tsx";
+      expect(receipt.applicationId).toBe("e2e");
+      expect(receipt.chunks).toContainEqual(
+        expect.objectContaining({
+          isDynamicEntry: true,
+          facadeModuleId: facadeId,
+          ownership: "contribution",
+          contributionIds: [facadeId],
+        }),
+      );
+
+      const backendChunks = receipt.chunks.filter(({ moduleIds }) =>
+        moduleIds.some((moduleId) =>
+          moduleId.startsWith("engine/packages/composition/src/extension-runtime/")
+        )
+      );
+      expect(backendChunks.length).toBeGreaterThan(0);
+      for (const chunk of backendChunks) {
+        expect(chunk.isEntry).toBe(false);
+        expect(chunk.owners.every(({ kind }) => kind === "contribution")).toBe(true);
+        expect(chunk.contributionIds).toContain(facadeId);
+      }
+      const facets = classifyStaticGameDependencyFacetsInternalV1(
+        receipt.chunks.flatMap(({ moduleIds }) => moduleIds),
+      );
+      expect(facets.dynamicExtensionImplementation.length).toBeGreaterThan(0);
+      expect(facets.authoringImplementation).toEqual([]);
+      expect(facets.rpcImplementation).toEqual([]);
+    } finally {
+      if (previous === undefined) {
+        delete process.env[buildDependencyMeasurementEnvironmentKeyInternalV1];
+      } else {
+        process.env[buildDependencyMeasurementEnvironmentKeyInternalV1] = previous;
+      }
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
 });
