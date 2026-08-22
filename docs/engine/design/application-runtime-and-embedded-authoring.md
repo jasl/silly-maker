@@ -319,10 +319,11 @@ Engine Lab 提供一个被 runtime 和 authoring 共同消费的真实
 它的 Vite owner 把 live collector 产生的真实 `BuildIdentity` 注入 composition self-accept candidate；
 普通 Scene/Motion R2 变化折叠到该 composition module。若同一个原始 changed module 的 live importer
 graph 也到达已加载 Studio binding，则只额外保留该 module 为 Authoring R1 propagation root，其他深层
-Scene/simulation module 仍被过滤。Chromium 与 WebKit 均已证明 page load 为零、Game application
-epoch 换代，同时 exact Authoring Host DOM/identity、selection 和保存值保留；真实物理 Studio-binding
-R1 edit 也在同两浏览器保留 dirty Host、input 与 undo，共享 `presentation.ts` edit 则在一次改动中
-分别到达 Game R2 与 Authoring R1。所有被改 source 的 teardown 都等待 reverse update 后逐字节恢复。
+Scene/simulation module 仍被过滤。Chromium 与 WebKit 的物理证据只保留用户可观察与架构合同：
+Studio-binding R1 incompatible rejection + compatible retry 期间 dirty Authoring 和显式 Agent 仍可用且
+page load 为零；共享 `presentation.ts` edit 分别到达 Game R2 与 Authoring R1 并保留 dirty draft；
+Application identity edit 走 R3 reload 后 GUI 恢复可操作。Browser 不认证完整 Host/DOM identity inventory；
+被改 source 的 teardown 只负责等待 reverse update 并恢复原始 bytes。
 Browser 的 Game/Session restart 与 composition R2 纵切把 Authoring 作为 Game root 外的 sibling：
 success 与 replacement 前 fault 都不重建 Authoring Host。当前 Web R2 在 predecessor retirement 后
 若 successor start 失败进入 terminal recovery，不承诺恢复 gameplay predecessor；这里不得写成
@@ -437,19 +438,20 @@ manifest 仍为该 private opt-in entry 保留 `@sillymaker/agent` workspace dep
 是 final module/source graph structural exclusion，不是 public ABI、独立 package installation 或
 Desktop author-build claim。
 
-Browser physical HMR 在 Chromium 与 WebKit 已证明 held Agent 下的 Studio-binding R1 success/restore、
-shared Game/Session R2 + Authoring R1 success/restore，以及合法不兼容 `configurationId` candidate 的
-R1 rejection + compatible retry；exact Authoring dirty/undo/selection 与 Agent Host/session/run/run
-generation/RPC connection generation/stream/Artifact 均保留。独立的 controlled in-window Game/
-Session successor GUI case 还证明当前 Authoring receipt 上的旧 Artifact 可应用，human edit 后稳定
-stale。headless Web R2 的 post-retirement UI-start failure + valid retry、jsdom terminal
+Browser physical HMR 在 Chromium 与 WebKit 只保留三组合同级行为：合法不兼容
+`configurationId` 的 Authoring R1 candidate rejection + compatible retry，同时 dirty Authoring sibling
+和显式选择的 held Agent 仍可用；shared presentation change 形成 Player R2 + Authoring R1 且 dirty
+draft 保留；Application identity change 形成 R3 reload 并恢复 actionable GUI。它不再逐项认证
+panel/Host/session/run/connection/Artifact/stream/DOM node identity。headless Web R2 的
+post-retirement UI-start failure + valid retry、jsdom terminal
 candidate/rollback 双失败 cleanup，以及 10 次 Agent activate/dispose 资源归零分别补足更窄的
 lifecycle evidence；这些证据不合并为“所有 failure/rollback 都有 physical Browser proof”。
 
-AR5 local-only 五组交错 fresh-build/fresh-Chromium-context runner 已实测 first actionable paired
+AR5 的一次性五组交错 fresh-build/fresh-Chromium-context runner 曾实测 first actionable paired
 median delta `-4.23ms / -3.54%`、stable command paired median delta
-`-0.72ms / -1.40%`，判定 `continue`；本轮未触发只有越过 first-actionable 双阈值才要求的 second
-independent run。runner 不自动比较第二份报告，raw report 不提交且不是 CI gate。
+`-0.72ms / -1.40%`。该日期化结果继续作为历史 evidence；AR0–AR5 Complexity Reset 已删除 runner、
+固定轮数、threshold 与 decision schema。长期保留的小型 GUI startup benchmark 只测一个显式选择的
+应用，输出原始 readiness/first-interactive 与必要环境信息，不比较 revision、不自行 promotion。
 
 Deno Desktop private inactive adapter、bounded launch preflight 与 selected-canary characterization 已于
 2026-08-23 完成。显式选择的 official canary 报告 `98dc759`，参与者将其对应到完整 upstream commit

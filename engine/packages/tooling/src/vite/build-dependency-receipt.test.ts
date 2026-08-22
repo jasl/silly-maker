@@ -266,7 +266,6 @@ describe("build dependency receipt", () => {
       "engine/packages/studio/src/studio-app.tsx",
       "engine/packages/ui/src/debug/dev-source-client.ts",
       "engine/packages/composition/src/extension-runtime/backend.ts",
-      "node_modules/.deno/cordis@4.0.0/node_modules/cordis/lib/index.js",
       "engine/packages/agent/src/rpc/client.ts",
       "engine/packages/web/src/rpc/client.ts",
     ])).toEqual({
@@ -274,7 +273,6 @@ describe("build dependency receipt", () => {
       devSourceImplementation: ["engine/packages/ui/src/debug/dev-source-client.ts"],
       dynamicExtensionImplementation: [
         "engine/packages/composition/src/extension-runtime/backend.ts",
-        "node_modules/.deno/cordis@4.0.0/node_modules/cordis/lib/index.js",
       ],
       rpcImplementation: [
         "engine/packages/agent/src/rpc/client.ts",

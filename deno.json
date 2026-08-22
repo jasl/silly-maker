@@ -56,7 +56,7 @@
     "bench:surfaces": "deno run -A engine/packages/ui/bench/managed-surface-lifecycle.ts",
     "bench:player:bundle": "deno run -A scripts/performance/player-build-baseline.mts",
     "bench:player": "deno task story build e2e --profile release && deno run -A npm:@playwright/test/playwright test --config engine/packages/web/playwright.performance.config.ts",
-    "bench:ar5:promotion": "deno run -A scripts/performance/ar5-local-promotion.mts",
+    "bench:gui:startup": "deno run -A scripts/performance/gui-startup.mts",
     "check:assets": "deno run -A scripts/assets/verify-runtime-assets.mts",
     "story": "deno run -A scripts/story/cli.mts",
     "author": "deno run -A scripts/story/cli.mts author",

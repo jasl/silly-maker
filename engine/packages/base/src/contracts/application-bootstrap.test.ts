@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { admitApplicationBootstrapConfigV1 } from "./application-bootstrap.ts";
 
@@ -11,7 +11,7 @@ describe("admitApplicationBootstrapConfigV1", () => {
       { revision: 1, entry: "runtime", target: "deno_desktop" },
       { revision: 1, entry: "author", target: "deno_desktop" },
     ] as const,
-  )("admits and freezes the exact $entry/$target receipt", (input) => {
+  )("admits and freezes the supported $entry/$target receipt", (input) => {
     const admitted = admitApplicationBootstrapConfigV1(input);
 
     expect(admitted).toEqual(input);
@@ -51,55 +51,6 @@ describe("admitApplicationBootstrapConfigV1", () => {
     expect(() => admitApplicationBootstrapConfigV1(input)).toThrow(
       "application_bootstrap.invalid_fields",
     );
-  });
-
-  it("rejects symbol and non-enumerable fields", () => {
-    const symbolField = {
-      revision: 1,
-      entry: "runtime",
-      target: "browser",
-      [Symbol("extra")]: true,
-    };
-    const nonEnumerable = Object.defineProperties({}, {
-      revision: { value: 1, enumerable: true },
-      entry: { value: "runtime", enumerable: true },
-      target: { value: "browser", enumerable: false },
-    });
-
-    expect(() => admitApplicationBootstrapConfigV1(symbolField)).toThrow(
-      "application_bootstrap.invalid_fields",
-    );
-    expect(() => admitApplicationBootstrapConfigV1(nonEnumerable)).toThrow(
-      "application_bootstrap.invalid_fields",
-    );
-  });
-
-  it.each([Object.create(null), Object.create({ inherited: true })])(
-    "rejects a non-plain record prototype %#",
-    (prototypeRecord) => {
-      Object.assign(prototypeRecord, {
-        revision: 1,
-        entry: "runtime",
-        target: "browser",
-      });
-      expect(() => admitApplicationBootstrapConfigV1(prototypeRecord)).toThrow(
-        "application_bootstrap.invalid_record",
-      );
-    },
-  );
-
-  it("rejects accessors without evaluating them", () => {
-    const getter = vi.fn(() => "runtime");
-    const input = Object.defineProperties({}, {
-      revision: { value: 1, enumerable: true },
-      entry: { get: getter, enumerable: true },
-      target: { value: "browser", enumerable: true },
-    });
-
-    expect(() => admitApplicationBootstrapConfigV1(input)).toThrow(
-      "application_bootstrap.invalid_fields",
-    );
-    expect(getter).not.toHaveBeenCalled();
   });
 
   it.each(

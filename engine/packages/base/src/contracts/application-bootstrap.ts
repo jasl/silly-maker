@@ -15,58 +15,43 @@ export interface ApplicationBootstrapConfigV1 {
   readonly target: ApplicationBootstrapTargetV1;
 }
 
-const applicationBootstrapFieldsV1 = Object.freeze(["entry", "revision", "target"] as const);
+const applicationBootstrapFieldsV1 = ["entry", "revision", "target"] as const;
 
-function exactDataFieldsV1(
+function requireApplicationBootstrapRecordV1(
   input: unknown,
-): Readonly<Record<(typeof applicationBootstrapFieldsV1)[number], PropertyDescriptor>> {
+): Readonly<Record<string, unknown>> {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
     throw new TypeError("application_bootstrap.invalid_record");
   }
-  if (Object.getPrototypeOf(input) !== Object.prototype) {
-    throw new TypeError("application_bootstrap.invalid_record");
-  }
-  const descriptors = Object.getOwnPropertyDescriptors(input);
-  const ownKeys = Reflect.ownKeys(descriptors);
-  const actualFields = ownKeys.every((field): field is string => typeof field === "string")
-    ? ownKeys.toSorted()
-    : [];
+  const actualFields = Object.keys(input).toSorted();
   if (
-    ownKeys.length !== applicationBootstrapFieldsV1.length ||
     actualFields.length !== applicationBootstrapFieldsV1.length ||
     actualFields.some((field, index) => field !== applicationBootstrapFieldsV1[index])
   ) {
     throw new TypeError("application_bootstrap.invalid_fields");
   }
-  for (const field of applicationBootstrapFieldsV1) {
-    const descriptor = descriptors[field];
-    if (descriptor === undefined || !("value" in descriptor) || descriptor.enumerable !== true) {
-      throw new TypeError("application_bootstrap.invalid_fields");
-    }
-  }
-  return descriptors as Readonly<
-    Record<(typeof applicationBootstrapFieldsV1)[number], PropertyDescriptor>
-  >;
+  return input as Readonly<Record<string, unknown>>;
 }
 
 /**
- * Captures an exact startup record into a new frozen receipt. The input object
- * is never retained, so later source mutation cannot change admitted startup
- * configuration.
+ * Schema-normalizes parsed Strict JSON or a trusted Host-created record into a
+ * new frozen receipt. This function deliberately does not authenticate a
+ * JavaScript object's prototype or property descriptors; untrusted serialized
+ * input must cross its byte/JSON boundary before reaching this admission.
  */
 export function admitApplicationBootstrapConfigV1(
   input: unknown,
 ): DeepReadonly<ApplicationBootstrapConfigV1> {
-  const fields = exactDataFieldsV1(input);
-  const revision: unknown = fields.revision.value;
+  const record = requireApplicationBootstrapRecordV1(input);
+  const revision = record.revision;
   if (revision !== 1) {
     throw new TypeError("application_bootstrap.unsupported_revision");
   }
-  const entry: unknown = fields.entry.value;
+  const entry = record.entry;
   if (entry !== "runtime" && entry !== "author") {
     throw new TypeError("application_bootstrap.invalid_entry");
   }
-  const target: unknown = fields.target.value;
+  const target = record.target;
   if (target !== "browser" && target !== "deno_desktop") {
     throw new TypeError("application_bootstrap.invalid_target");
   }

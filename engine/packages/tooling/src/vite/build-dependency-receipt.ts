@@ -496,10 +496,6 @@ export function parseBuildDependencyReceiptInternalV1(
   });
 }
 
-function matchesCordisModuleV1(moduleId: string): boolean {
-  return /(?:^|\/)(?:cordis(?:@[^/]*)?)(?:\/|$)/u.test(moduleId);
-}
-
 /** @internal Semantic negative-control facets; it deliberately does not freeze a full graph. */
 export function classifyStaticGameDependencyFacetsInternalV1(
   moduleIds: readonly string[],
@@ -513,9 +509,7 @@ export function classifyStaticGameDependencyFacetsInternalV1(
     moduleId === "engine/packages/ui/src/debug/dev-source-client.ts"
   );
   const dynamicExtensionImplementation = uniqueModuleIds.filter((moduleId) =>
-    moduleId.startsWith("engine/packages/composition/src/extension-runtime/") ||
-    moduleId.startsWith("engine/packages/composition/src/cordis/") ||
-    moduleId.startsWith("vendor/cordis/") || matchesCordisModuleV1(moduleId)
+    moduleId.startsWith("engine/packages/composition/src/extension-runtime/")
   );
   const rpcImplementation = uniqueModuleIds.filter((moduleId) =>
     /^engine\/packages\/(?:agent|base|composition|tooling|ui|web)\/src\/(?:rpc|rpc-client)\//u.test(

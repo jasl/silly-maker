@@ -146,8 +146,9 @@ no-extension 的静态 game baseline 中 Studio/dev-source/dynamic-extension/RPC
   contribution owners 与 `contributionIds`，包括 CSS-only dynamic entry；private receipt 和默认报告
   只写 OS temp，不修改 Player。Template 静态 release 的 engine-owned authoring、dev-source、
   dynamic-extension 与 RPC implementation facets 均为零；
-- AR0 当时的 reload 边界已如实分类：Browser Studio 的 admitted document/CAS refresh 是 R0，binding/
-  workspace candidate 的 detached-layout publication 是 SillyMaker-owned R1；符合组件边界的纯
+- AR0 当时的 reload 边界已如实分类：Browser Studio 的 admitted document/CAS refresh 是 R0；当时
+  binding/workspace candidate 使用 detached-layout R1，AR3 随后以 persistent-visible publication
+  完整取代，Complexity Reset 已删除旧实现、导出和专属测试。符合组件边界的纯
   Player presentation module 还可走 Vite React Fast Refresh，但没有 SillyMaker atomic-publication/
   handoff 保证。Web 的 Game/Session R2 只有 helper 与 conformance evidence，任何 maintained runtime
   entry 都尚未安装该 Vite accept boundary；application declaration、core/domain、config、Fast
@@ -524,10 +525,10 @@ conversation/task/artifact storage、permission UI、Mutation gateway 或 Effect
 - auxiliary headless 只补 deterministic/conformance evidence，不替代 GUI acceptance；
 - Engine Lab prebuilt、相关 runtime/author builds、bundle report、Story checks、Save/replay
   corpus 与 canonical `deno task check` 全绿；
-- 同机交错 fresh-context A/B 至少五组；first actionable median 同时回退超过 10% 且超过
-  50ms，并在第二次独立 run 重现时停止；数值仍是本机 promotion evidence，不进普通 CI；
-- stable command paired median 回退超过 10%，或 command/render hot path 出现 lifecycle lookup
-  时停止；
+- 本轮已经取得的同机交错 fresh-context A/B 只作为日期化的里程碑证据；固定轮数、交错顺序、
+  threshold 与 decision 不成为 maintained runner 或普通 CI。后续通用 GUI benchmark 只报告原始
+  readiness/first-interactive 测量与必要环境信息；只有 owner 接受的持续产品预算才能建立阈值；
+- command/render hot path 出现 lifecycle lookup 时停止；
 - repeated activate/dispose 后不得遗留 listener、timer、subscription、RPC connection 或 late
   publication。
 
@@ -601,24 +602,21 @@ PASS 本身都不能升格为 SillyMaker R1/R2 合同。
   这只证明 final module/source graph 的 structural exclusion；Studio manifest 为服务同一 private
   opt-in entry 仍保留 `@sillymaker/agent` workspace dependency，不形成 public ABI、独立 package
   installation 或 Desktop author-build claim；
-- Chromium 与 WebKit 的真实 Browser HMR evidence 已在 held fake Agent stream 下覆盖两条 success/
-  restore 路径：physical Studio-binding R1 candidate，以及同一 shared-presentation source change 同时
-  触发的 Game/Session R2 + Authoring R1 candidate。两次正向 publication 和 source restore 都保留
-  exact Authoring dirty/undo/selection、Agent Host/session/run/run generation/RPC connection generation、
-  streaming draft 与 predecessor Artifact；合法但不兼容 `configurationId` 的 physical R1 candidate
-  在两浏览器稳定拒绝，随后 compatible retry 成功。独立的同窗 Game/Session successor GUI case 还
-  证明 page load 为零、旧 Artifact 在未变 Authoring receipt 上仍可应用，human edit 后稳定 stale，
-  最后 local cancel 收口；
+- Chromium 与 WebKit 的真实 Browser HMR evidence 收缩为三组合同级行为：合法不兼容
+  `configurationId` 的 Authoring R1 candidate 稳定拒绝、随后 compatible retry 成功，同时 dirty
+  Authoring sibling 和显式选择的 held Agent 保持可用；shared-presentation source change 同时触发
+  Player R2 + Authoring R1 且 dirty draft 不丢失；Application identity change 走 R3 page reload 并恢复
+  actionable GUI。Browser 不再逐项认证 panel/Host/entry/input/session/run/connection/Artifact/stream 或
+  DOM node identity；这些更细 currentness/fencing 由下述 unit/headless 合同 tests 拥有；
 - headless Web R2 seam 已证明 predecessor retirement 后 successor UI-start failure 与后续 valid retry
   都不重建或重连 held Agent；jsdom publication 在 candidate 与 rollback 双失败的 terminal poison
   中只清理一次 companion owner。10 次 Agent activate/dispose 则把 connection、subscription 与 late
   publication 归零。这些分层证据不得合并夸大为所有 failure/rollback 都有 physical Browser proof；
-- 新增 local-only `deno task bench:ar5:promotion` runner，对两个显式 repository roots 做五组交错
-  fresh release build + fresh Chromium context。首轮真实同机结果的 first actionable paired median
-  delta 为 `-4.23ms / -3.54%`，stable command paired median delta 为
-  `-0.72ms / -1.40%`，判定 `continue`。只有 first actionable 同时回退超过 10% 与 50ms 时才要求
-  second independent run；本轮未越线，因而无需第二轮。runner 不自动比较两份报告，raw local
-  report 不提交、也不成为 ordinary CI gate；
+- 一次性 local A/B runner 曾对两个显式 repository roots 完成五组交错 fresh release build + fresh
+  Chromium context，取得 first actionable paired median delta `-4.23ms / -3.54%` 与 stable command
+  paired median delta `-0.72ms / -1.40%`。这些数字只保留为 2026-08-23 的历史裁决证据；Complexity
+  Reset 删除该 runner、固定阈值与 `continue` decision，并以只输出原始 GUI startup 测量的小型通用
+  benchmark 取代，不把该次里程碑规则伪装成长期产品预算；
 - Deno Desktop private inactive adapter、bounded launch preflight 与 selected-canary characterization 已完成。
   显式选择的 official canary 报告 `98dc759`，参与者将其对应到完整 upstream commit
   `98dc759254a90b98f7bbb62ba5361e531d0db6a5`；该 binary 通过真实 workspace
@@ -632,6 +630,30 @@ PASS 本身都不能升格为 SillyMaker R1/R2 合同。
   与 failure/retry 继续由既有中立合同 tests 拥有，不在 native 重复。candidate 仍 package-private、
   explicit、default-off；唯一剩余 gate 是首个经 source/行为确认包含目标路径的 stable 上重跑同一
   分层验收，之前 AR5 不形成 closure，也不启动 AR6。
+
+**AR0–AR5 Complexity Reset（2026-08-23，完成；不构成 AR5 closure）：**
+
+- AR3 persistent-visible React publication 已完整取代 AR0 detached path；旧
+  `createReactLayoutPublicationV1` 实现、导出、11 个专属测试和辅助代码一起删除，不留 alias、wrapper
+  或双轨。保留的 persistent primitive 继续覆盖 connected initial commit、inert probe、visible-root
+  state reuse、failure/rollback、terminal poison、abort/dispose；
+- Browser bootstrap bytes 由 Strict JSON parser 统一限制 size/depth/nodes/duplicate keys 和合法 JSON，
+  随后只做一次普通字段/schema/value admission 并冻结 typed receipt。prototype、descriptor、accessor、
+  `Reflect.ownKeys` 防御及其测试已删除；entry/target Host 一致性仍保留；
+- build dependency receipt 删除 Cordis npm/vendor/path 分类和 fixture，只归因当前真实 Direct Extension
+  Runtime 边界。AR1 已接受的 package-private Extension Runtime、DevDock/Studio Flow consumer、17-case
+  neutral contract 与 ordinary no-extension exclusion 均未删除；
+- 727 LOC 的一次性 AR5 baseline/candidate promotion runner、固定轮数/交错顺序、threshold、decision 与
+  report protocol 已删除。长期替代是约 280 LOC 的 `bench:gui:startup` runner + options test，只选择一个
+  workspace application，输出 raw GUI-ready/first-interactive samples 与必要环境信息；
+- Browser physical HMR spec 从 734 LOC/5 cases 收缩到 270 LOC/3 个合同级 cases；只保留 R1
+  rejection/retry、shared-presentation Player R2 + Authoring R1 与 Application R3 reload/recovery，删除
+  内部 DOM/Host/Agent identity inventory。CAS、Agent generation/sequence、failure/retry 等细节继续由
+  AR2/AR4/unit/headless 合同 tests 拥有；
+- root project guidance 与 development workflow 已明确：里程碑 harness 默认临时、replacement 同轮删旧、
+  accepted independent-engine capability 不因仓库内暂缺 consumer 单独删除、boundary admission 后信任
+  typed data、benchmark 不自行 promotion、测试不保护 evidence scaffold。AR2 CAS、AR4 RPC admission 与
+  run fencing、Save/digest/replay/currentness 等真实 exact 边界保持不变。
 
 ### AR6 — Closure and owner checkpoint
 

@@ -243,10 +243,11 @@ deno task typecheck
 ```
 
 The Browser cases require the dev-source fixture and use only the deterministic fake. The AR4
-vertical slice is not HMR evidence; AR5 adds physical Studio-binding R1 success/restore, shared
-Game/Session R2 + Authoring R1 success/restore, and incompatible-configuration R1 rejection plus
-compatible retry in Chromium and WebKit. A separate controlled in-window Game/Session successor
-case is real sibling-lifetime evidence but not a physical Vite source update. None of these is
+vertical slice is not HMR evidence. AR5's bounded Chromium/WebKit physical layer retains only
+incompatible Authoring R1 rejection plus compatible retry, shared-presentation Player R2 +
+Authoring R1, and Application R3 reload/recovery. Dirty Authoring and the explicitly selected
+held Agent are checked as visible behavior; internal Host/session/run/connection/Artifact identity,
+CAS, and detailed failure/currentness stay in the focused unit/headless suites. None of these is
 real-backend, OpenUI/A2UI, persistence, Desktop, or universal physical failure/rollback evidence.
 Keep the private seam out of `features.md` until a later promotion has a real second consumer.
 
@@ -956,21 +957,21 @@ those same modules. This is final module/source graph structural exclusion, not 
 Studio manifest's `@sillymaker/agent` workspace dependency, independent package-installation
 evidence, or a Desktop author build.
 
-`deno task bench:ar5:promotion --baseline-root <repo> --candidate-root <repo>` is the local-only
-AR5 paired runner. It requires at least five pairs, alternates baseline/candidate order, fresh-
-builds the Engine Lab release for every slot, and measures a fresh Chromium context for first
-actionable and one stable command round trip. `--pairs` may increase the pair count and
-`--output` may select the JSON path; otherwise the report is written under OS temp. The runner
-does not require a clean tree, does not compare a later report automatically, and is not an
-ordinary CI gate. Never commit its raw report.
+`deno task bench:gui:startup --application e2e --samples 3` runs the maintained generic GUI
+startup benchmark. It resolves the selected application through the workspace config, builds it
+once, then uses a fresh Chromium context per raw sample. The two measurements are the admitted
+GUI startup shell reaching `ready` and the first visible enabled interaction inside the application
+root. `--application` selects another configured application and `--output` selects the JSON path;
+the default report lives under OS temp. The report includes Deno/V8/TypeScript, OS/arch, browser,
+HEAD/dirty, and individual samples. It does not compare revisions, calculate a decision, or apply a
+promotion threshold, and raw local reports are never committed.
 
-The 2026-08-23 same-machine five-pair run reported first-actionable paired median delta
-`-4.23ms / -3.54%` and stable-command paired median delta `-0.72ms / -1.40%`, producing
-`continue`. A first-actionable regression must exceed both 10% and 50ms before the accepted
-rule requires an independent second run; this result did not, so no second run was required.
-A stable-command paired-median regression over 10% remains an immediate stop. These local
-numbers do not promote Desktop behavior: Deno Desktop private Authoring/Agent Host R1/R2 and
-`deno desktop --hmr` remain unwired, and AR5 remains in progress.
+The retired one-off AR5 runner's 2026-08-23 five-pair result remains only as historical evidence:
+first-actionable paired median delta `-4.23ms / -3.54%` and stable-command paired median delta
+`-0.72ms / -1.40%`. Its baseline/candidate checkout orchestration, fixed ordering and rounds,
+thresholds, decision enum, and report protocol were deleted after that milestone decision. These
+local numbers do not promote Desktop behavior; AR5 remains gated on the accepted stable Deno
+Desktop revalidation.
 
 ## Change workflow
 
@@ -983,6 +984,12 @@ numbers do not promote Desktop behavior: Deno Desktop private Authoring/Agent Ho
 7. Update active docs when the architecture, supported workflow, user-visible behavior, or compatibility promise changes.
 
 Commits can be organized for reviewability, but there is no required Phase-to-commit mapping, checkpoint hash, exact staging contract, or clean-tree admission script.
+
+Cleanup does not remove an accepted independent-engine capability merely because
+the current repository has no consumer. Confirm its accepted contract,
+orthogonality, owner, and maintainable semantics. By contrast, once a contract
+is replaced, remove its old implementation, export, dedicated tests, and live
+documentation together unless a concrete compatibility promise says otherwise.
 
 ## Testing policy
 
@@ -1004,11 +1011,25 @@ Tests and scripts are maintained when they protect product or reusable-engine va
 Avoid tests or fixtures that exist only to prove development choreography, such as:
 
 - Phase completion or a named task commit;
-- exact repository file inventories or task-specific command sequences;
-- one exact host toolchain, browser revision, cache, or machine attestation;
+- exact source replacements, complete DOM identity inventories, repository file
+  inventories, task-specific command sequences, or checkout layouts;
+- one exact host toolchain, browser revision, cache, machine/process attestation,
+  or process-tree cleanup proof;
 - Git cleanliness as application behavior;
 - byte-for-byte snapshots of provisional balance, reference strategies, or disposable calibration reports;
 - copied fixture trees when a small in-memory builder can express the business case.
+
+Milestone characterization, A/B, and promotion harnesses are temporary evidence
+by default. Delete them after the decision, or shrink the genuinely reusable
+part into a small general-purpose tool. Benchmarks publish raw measurements and
+environment facts; they do not make a promotion decision unless an accepted,
+continuing product budget defines the threshold.
+
+Use exact validation for actual boundaries such as untrusted bytes, Save/wire
+formats, digests, CAS, generation/currentness, and observable identity. After a
+boundary has parsed, normalized, and admitted data into a typed representation,
+internal consumers trust it rather than repeating prototype, descriptor,
+accessor, or captured-intrinsic defenses.
 
 A checked-in fixture is justified when its bytes are themselves a maintained external format or compatibility promise—for example, a Save migration sample. Document what compatibility it protects and provide an intentional update path.
 

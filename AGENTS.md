@@ -91,8 +91,12 @@ Read only the documents relevant to the change:
   single-companion bridge: the complete Template Author graph excludes Agent/RPC,
   while Engine Lab selects the private Agent companion explicitly. The Studio
   manifest keeps a workspace Agent dependency for that opt-in entry, but final
-  module/source structural exclusion is proved. AR5 Browser physical R1/R2 held-
-  Agent lifetime and local performance evidence also passed. The package-private,
+  module/source structural exclusion is proved. AR5 Browser physical evidence is
+  intentionally limited to contract-level R1 rejection/retry, shared-presentation
+  Player R2 + Authoring R1, and Application R3 recovery; deeper Agent/currentness
+  details stay in unit/headless contracts. The one-off paired performance runner
+  was deleted after producing dated evidence and replaced by a raw-measurement-only
+  generic GUI startup benchmark. The package-private,
   explicitly experimental, default-off Deno Desktop candidate, bounded launch
   preflight, and explicitly selected official canary characterization also passed:
   the binary reported revision `98dc759`, which the participant mapped to upstream
@@ -352,23 +356,42 @@ documented migration path.
   extensions, exact dependency versions, and the shared `deno.lock` unless an
   intentional tooling change updates them.
 - Tests should protect observable engine behavior, game rules, public data
-  formats, compatibility promises, or real user flows. Do not add fixtures or
-  scripts whose only purpose is to enforce a plan phase, task commit, exact file
-  inventory, command order, clean Git tree, host attestation, or frozen
-  provisional balance output.
+  formats, compatibility promises, or real user flows. Do not protect a plan
+  phase, task commit, implementation shape, evidence scaffold, exact source
+  text, complete DOM identity inventory, repository file inventory, command
+  order, checkout layout, clean Git tree, or machine/process attestation unless
+  a reproduced failure or an actual security boundary requires the narrow check.
+- Milestone characterization, A/B, and promotion harnesses are temporary
+  evidence by default and should be deleted after the decision. Keep one only
+  when it has a clear continuing use, and then shrink it into a general-purpose
+  maintained tool. A benchmark reports stable raw measurements; it does not
+  decide promotion unless an accepted, continuing product budget supplies the
+  threshold.
+- Do not remove an accepted independent-engine capability only because this
+  repository lacks a current consumer: also consider the accepted contract,
+  orthogonality, ownership, and maintainable semantics. Experimental scaffolds,
+  historical compatibility paths, and superseded implementations are not such
+  capabilities. When one contract replaces another, remove the old
+  implementation, export, dedicated tests, and live documentation together;
+  compatibility requires an explicit product promise rather than a default
+  alias or wrapper.
 - Apply defensive validation in proportion to the trust boundary:
   - bytes, files, URLs, HTTP payloads, Save data, cross-process records, and
     other untrusted input keep strict bounds, canonical validation, atomic
     failure, and stable diagnostics;
   - public Story/authoring input is validated and normalized once at admission,
-    then consumed as ordinary typed data;
+    then consumed as ordinary typed data. Strictly parsed JSON receives one
+    schema/value admission; parser, admission, and consumers must not repeat
+    object-authenticity or descriptor defenses;
   - package-internal collaborators are trusted TypeScript construction. Do not
     add WeakMap authenticity brands, exact-claimant tokens, repeated descriptor
     admission, captured language intrinsics, or Proxy/monkey-patch defenses for
     them unless a real stale/ABA, cross-owner, public-boundary, or reproduced bug
     requires it.
 - Use identity tokens and WeakMap proofs for concrete ownership/currentness
-  problems, not as a default object model. Preserve generation fencing, CAS,
+  problems, not as a default object model. Exact checks remain appropriate for
+  real untrusted input, Save/wire formats, digests, CAS, generation/currentness,
+  and other observable identity contracts. Preserve generation fencing, CAS,
   single authority, atomic commit, and deterministic replay where those are
   observable product invariants.
 - Treat the delivered authoritative-determinism checker as scope-frozen. Do not

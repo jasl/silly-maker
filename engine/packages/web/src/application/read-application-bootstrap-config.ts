@@ -93,12 +93,11 @@ export function readApplicationBootstrapConfigFromDocumentInternalV1(
 ): DeepReadonly<ApplicationBootstrapConfigV1> {
   const source = resolveBootstrapScriptInternalV1(document);
   const bytes = new TextEncoder().encode(source.textContent ?? "");
-  if (bytes.byteLength > applicationBootstrapMaximumBytesV1) {
-    return failReadInternalV1("web.application_bootstrap.source_too_large");
-  }
-
   const parsed = parseStrictJson(bytes, applicationBootstrapJsonLimitsV1);
   if (!parsed.ok) {
+    if (parsed.error.code === "limit.bytes") {
+      return failReadInternalV1("web.application_bootstrap.source_too_large");
+    }
     return failReadInternalV1("web.application_bootstrap.malformed_json");
   }
   const config = admitApplicationBootstrapConfigV1(parsed.value);

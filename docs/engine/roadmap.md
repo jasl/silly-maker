@@ -140,11 +140,14 @@ OpenUI/A2UI、Agent persistence 或 Desktop HMR。AR5 已于 2026-08-23 启动�
 single-companion split 与 generated Author-entry measurement 已证明 Template 的完整 Author graph
 排除 Agent/RPC/experimental Agent，同时 Engine Lab 显式选择图包含它们；Studio manifest 的
 workspace Agent edge 仍在，因此只形成 final module/source graph structural exclusion。Chromium 与
-WebKit 的 physical R1 success/restore、shared Game/Session R2 + Authoring R1 success/restore、
-incompatible-configuration R1 rejection + compatible retry 已保留 held Agent 与 Authoring sibling；
+WebKit 的 physical Browser evidence 只保留合同级 R1 rejection/retry、shared-presentation
+Player R2 + Authoring R1、Application R3 reload/recovery，并保留 dirty Authoring sibling 与显式选择的
+held Agent，不再维护内部 DOM/Host/session/run/connection/Artifact 身份库存；
 headless/jsdom 另覆盖 post-retirement R2 UI-start failure + retry、terminal owner cleanup 与 repeated
 Agent disposal。五组同机交错 local performance evidence 的 first actionable delta 为
-`-4.23ms / -3.54%`、stable command delta 为 `-0.72ms / -1.40%`，判定 `continue`。Deno Desktop
+`-4.23ms / -3.54%`、stable command delta 为 `-0.72ms / -1.40%`；一次性 runner 随后的
+AR0–AR5 Complexity Reset 已删除，只保留日期化结果和不作 promotion 裁决的通用 GUI startup
+benchmark。Deno Desktop
 private inactive adapter、约数百行 bounded preflight 与显式选择的 official canary 人工 native
 characterization 也已完成：binary 报告 `98dc759`，参与者将其对应到完整 upstream commit
 `98dc759254a90b98f7bbb62ba5361e531d0db6a5`；官方 in-runtime Vite、同窗同 origin bootstrap/private route、
@@ -523,8 +526,9 @@ required service 不可用时，依赖 domain 不得谎报 ready，但 GUI 必�
 service 不是 plugin，也不取得 Session/FilePort authority。AR5 只 promotion 这份 fake seam 的双
 GUI Host/build/lifetime/performance evidence，不把上述 defer 偷渡为 live capability。当前 partial
 AR5 已用 neutral single-companion split 和正/负 Author-entry measurement 完成 authoring-only/no-Agent
-final module/source graph 的 structural exclusion，并取得 Browser physical lifecycle 与同机五组
-`continue` performance evidence；Studio manifest 的 workspace Agent edge 仍服务 private opt-in，
+final module/source graph 的 structural exclusion，并取得 Browser physical lifecycle 与日期化同机
+performance evidence；该里程碑 runner 已删除，长期 benchmark 只输出原始测量。Studio manifest 的
+workspace Agent edge 仍服务 private opt-in，
 Deno Desktop private inactive adapter、bounded preflight 与 selected-canary characterization 已完成，但
 AR5 仍没有 closure。下一项只执行已接受的 verified-stable revalidation/activation gate：首个经
 release source/行为确认包含目标路径的 stable 必须重跑中立合同 tests + 约数百行内的 explicit-binary/

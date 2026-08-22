@@ -230,13 +230,12 @@ envelope stale rather than rebasing it.
 This is a dev-only Engine Lab vertical slice, not a public Agent product surface. It has no
 real transport/backend/LLM, wire-protocol promise, Agent persistence, tool/permission system,
 OpenUI/A2UI adapter, Effect Broker, public Agent ABI, or Desktop HMR. Chromium and WebKit physical
-HMR now preserve the exact held Agent Host/session/run/run generation/RPC connection generation,
-streaming draft, predecessor Artifact, and Authoring dirty/undo/selection through Studio-binding
-R1 success/restore and shared Game/Session R2 + Authoring R1 success/restore. A legal incompatible
-companion configuration is rejected at physical R1 and a subsequent compatible retry succeeds.
-The separate controlled in-window Game/Session successor proof keeps page load and RPC connection
-generation unchanged; its retained Artifact applies against the still-current Authoring receipt,
-then stale-rejects after a human edit.
+HMR retain three contract-level cases: an incompatible Authoring R1 candidate rejects and a
+compatible retry succeeds while the dirty Authoring sibling and explicitly selected held Agent stay
+usable; a shared presentation change publishes Player R2 plus Authoring R1 without losing the dirty
+draft; and an Application identity change performs R3 reload and recovers an actionable GUI. This
+Browser layer deliberately does not inventory internal panel, Host, run, connection, Artifact, or
+DOM-node identities.
 
 Headless Web R2 separately proves that a post-retirement successor UI-start failure and later valid
 retry do not rebuild or reconnect the Agent; jsdom proves terminal candidate-plus-rollback failure
@@ -244,15 +243,16 @@ retires the companion owner, and ten repeated Agent activate/dispose cycles retu
 subscriptions, and late publications to zero. These layers do not claim that every failure or
 rollback has a physical Browser proof. Template and Engine Lab ordinary Player measurements assert
 Agent/RPC absence, while the complete Template Author-entry measurement supplies the stronger
-authoring-product negative control described above. Deno Desktop private Authoring/Agent Host R1/R2
-and `deno desktop --hmr` remain unwired, so AR5 is still in progress.
+authoring-product negative control described above. The Deno Desktop adapter remains package-private,
+explicit, default-off, and unpromoted pending stable revalidation, so AR5 is still in progress.
 
-The local-only AR5 promotion runner alternates five fresh release-build/fresh-Chromium-context
-pairs between explicit baseline and candidate repository roots. The current same-machine run reports
-first-actionable paired median delta `-4.23ms / -3.54%` and stable-command paired median delta
-`-0.72ms / -1.40%`, so its judgment is `continue`; the first-actionable double threshold did not
-require a second independent run. It writes a raw report outside the repository by default, does not
-compare a later report automatically, and is neither a committed artifact nor an ordinary CI gate.
+The one-off AR5 paired runner produced dated same-machine evidence, then was
+removed by the AR0–AR5 Complexity Reset together with its fixed ordering,
+thresholds, and decision schema. The maintained GUI startup benchmark instead
+measures one selected application and reports raw GUI-readiness and
+first-interactive timings plus environment facts. It neither compares revisions
+nor makes a promotion decision; a threshold requires a separately accepted,
+continuing product budget.
 
 The profile-kernel and extension-runtime lifecycle implementations are private
 to the composition package; no supported public package declaration or Story

@@ -147,7 +147,7 @@ describe("readApplicationBootstrapConfigFromDocumentInternalV1", () => {
     expectReadFailureV1("web.application_bootstrap.malformed_json");
   });
 
-  it("delegates exact config-field admission to Base", () => {
+  it("performs one config schema admission after Strict JSON parsing", () => {
     appendBootstrapScriptV1(
       '{"revision":1,"entry":"runtime","target":"browser","extra":"rejected"}',
     );
