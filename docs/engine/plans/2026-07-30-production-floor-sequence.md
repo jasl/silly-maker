@@ -1,6 +1,6 @@
 # Production-floor execution sequence
 
-状态：持续维护的唯一跨计划排序入口；最近排序修订 2026-08-22。PF0–PF7 与 Complexity
+状态：持续维护的唯一跨计划排序入口；最近排序修订 2026-08-23。PF0–PF7 与 Complexity
 Reset 的 CR0、CR1、CR2.1–CR2.5、CR3、CR4 已于 2026-08-13 完成。CR4 的真实作者纵切没有
 暴露需要通用 PF6 harness 解决的问题，PF6 已重新裁决为
 不激活。同日以真实产品证据接受并完成了
@@ -40,9 +40,17 @@ workspace/session factory，persistent-visible R1 先经 inert/offscreen connect
 真实 Scene/Studio binding 的 Browser R2 在零 page load 下换代 Game/Session 并保留 Authoring
 Host，ordinary release 排除 authoring/real dev-source graph；macOS/Deno 2.9.5 原生 common runtime
 也已证明 GUI ready、同窗口 Game/Session restart 与 close-flush/正常退出，但 native Desktop
-author/source-write/R0–R2、packaged artifact、多平台与 durability 仍 defer。后续按 AR4
-experimental Agent RPC/UiArtifact seam → AR5 Browser/Deno Desktop GUI/build/performance promotion →
-AR6 closure 顺序执行。目标合同见
+author/source-write/R0–R2、packaged artifact、多平台与 durability 仍 defer。AR4 experimental Agent
+RPC/UiArtifact seam 也已于 2026-08-22 交付关闭；AR5 已完成 neutral single-companion split、完整
+Author graph 的 Agent structural exclusion、Browser physical R1/R2/held-Agent lifetime 与 local
+performance evidence。当前/下一项唯一是 AR5 Deno Desktop upstream gate：先用记录 exact SHA 且
+确认包含 Deno PR #36488 merge `98dc759254a90b98f7bbb62ba5361e531d0db6a5` 的隔离 official
+canary 做 characterization，通过后实现最终形状的 package-private、默认关闭 candidate；该 candidate
+在同一 canary 上的完整 Desktop native matrix 通过后才可提交/保留；首个经 release source/
+行为确认包含该路径的 stable（2.9.6 只是预期候选）上逐项复跑同一 matrix 后才正式打开并允许 AR5
+closure。不得为 2.9.5 建 external Vite/proxy、手工 shim 或 runtime fork；
+现有 static R3/packaging、public Deno `>=2.9.0` floor 与 latest-stable required CI 不变。其后才进入
+AR6 closure。目标合同见
 [Application Runtime and Embedded Authoring](../design/application-runtime-and-embedded-authoring.md)。
 Browser 与 Deno Desktop 是当前 GUI product targets；CLI 只提供 Desktop startup config，
 headless 只作开发/测试辅助，外部后台与 LLM 统一经 RPC。AR1 没有激活 public Cordis API、Mod
@@ -50,7 +58,7 @@ ABI、runtime code installation、State Format V2、Effect Broker、具体 OpenU
 production Story State migration；Cordis adapter/vendor/dependency 已删除。ordinary no-extension
 静态游戏 release 仍不得包含 author/source-write、selected Direct extension runtime 或 RPC
 implementation。AR6 后的作品/examples/产品由所有者另行选择和立案，不在本计划预先排序。
-下一项可领取任务只有 AR4。
+下一项可领取任务只有上述 AR5 Deno Desktop gate；AR6 尚未启动。
 
 前一条：[Mid-hold Input V1](2026-08-22-mid-hold-input.md)（提案
 [mid-hold-input](../proposals/mid-hold-input.md)，2026-08-22 所有者
@@ -476,8 +484,8 @@ one-shot setter 与 constructor factory 选择、formatter delta 或历史计划
 - Story-local gameplay/content；
 - 外部商业克隆补齐内容与只读对比证据；它不改变本仓 active contract，也不把商业内容带回；
 - 不改 authority 的文档和示例；
-- 当前 AR5 所需的只读 startup/bundle measurement；
-- 独立 Desktop evidence；
+- Deno upstream release/source 状态的只读核对；不得越过 §1 的 canary characterization →
+  private inactive integration → verified-stable activation 顺序；
 - 与当前 AR0–AR6 文件无重叠的 bug fix。
 
 继续 defer：

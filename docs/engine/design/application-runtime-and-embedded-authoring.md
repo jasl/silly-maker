@@ -125,13 +125,31 @@ Module Update Source 只负责取得 build-known candidate，不决定 UI public
 迁移：
 
 - Browser 使用 Vite/dev HMR boundary 与 literal/generated static loader map；
-- Deno Desktop 使用独立 Host adapter 对接 Deno 支持的 ESM import、watch/HMR 或文件变化机制；
+- Deno Desktop 的 plain-Vite 开发路径使用 Deno 官方 in-runtime Vite HMR server，再由
+  package-private Host adapter 产生同一 candidate/generation；
 - release 中允许的 implementation 必须已在构建/打包图中，不能下载并执行任意远端代码；
 - Electron adapter、Node `require.cache`、chokidar、Node ModuleLoader 和 Cordis Node HMR 不在
   当前合同内。
 
 两平台可以有不同 update source，但必须产生同一中立 candidate/generation 合同。Deno Desktop
 若当前只能 full restart，就必须如实报告，不能把进程重启冒充局部 successor。
+
+AR5 已接受的 Deno Desktop 开发形状不为旧 stable 建 external Vite/native companion、第二
+server/proxy、手工 shim 或 Deno fork。官方 in-runtime Vite server 只提供 platform update source；
+WebView 仍是 browser realm，native API 不越过 typed Host bridge，SillyMaker publication 继续拥有
+R1/R2 admission 与 handoff。adapter 由 SillyMaker 明确 launch intent 加实际 Desktop capability
+fail closed，不以 semver 字符串猜行为，也不把 Deno 未文档化的 framework-dev marker 作为公共或
+唯一 admission authority。现有 static Desktop R3 shell/packaging 是独立路径，不为 HMR 改造。
+
+该路径采用三段 promotion：先由记录 exact SHA、隔离安装且确认包含 Deno PR #36488 merge
+`98dc759254a90b98f7bbb62ba5361e531d0db6a5` 的 official canary 做 provisional platform
+characterization；通过后可以实现 package-private inactive candidate，但它只能由显式传入该隔离
+binary 的 local characterization harness 触达，且只有在 canary 上通过 AR5 完整 Desktop native
+acceptance 后才可提交/保留。它不进入 ordinary task/config/generated command/release，也不作为
+maintained workflow 写入 user-facing development/features/build docs；首个经 release source 与实际
+行为确认包含同一 upstream 语义的 stable 上逐项重跑同一 matrix 后，才成为 maintained Desktop dev
+workflow。2.9.6 是预期候选而不是合同；canary 证据不提升 public Deno `>=2.9.0` floor、latest-stable
+required CI、AR5 状态或任何 Desktop production claim。
 
 ### 4.2 Platform-neutral Extension Runtime
 
@@ -428,7 +446,8 @@ median delta `-4.23ms / -3.54%`、stable command paired median delta
 `-0.72ms / -1.40%`，判定 `continue`；本轮未触发只有越过 first-actionable 双阈值才要求的 second
 independent run。runner 不自动比较第二份报告，raw report 不提交且不是 CI gate。Deno Desktop
 private Authoring/Agent Host 的 R1/R2 candidate/handoff/failure/retry 与 `deno desktop --hmr` 接线仍
-未完成；AR5 继续进行，AR6 未启动。
+未完成；owner 已固定 exact-canary characterization → private inactive integration → verified-stable
+activation 的 upstream gate，拒绝 2.9.5 workaround。stable gate 通过前 AR5 继续进行，AR6 未启动。
 
 ## 8. Promotion and deferred evidence
 

@@ -536,12 +536,52 @@ conversation/task/artifact storage、permission UI、Mutation gateway 或 Effect
 本 gate 不提升 Deno Desktop persistence、packaging、signing、auto-update 或三个 OS 的
 production claim；这些继续由独立 Desktop lane 拥有。
 
-[Deno Desktop `--hmr`](https://docs.deno.com/runtime/desktop/hmr/) 只作为开发期候选 Module
-Update Source。当前 SillyMaker static staging/packaging command 不传入也未集成该模式，AR0 的
-Desktop baseline 仍只有 R3。AR5 若能在不扩张切片的前提下以真实 native dev launch 证明
-build-known candidate/generation、R1/R2 publication/handoff 与 failure/rollback，可以一并领取；
-否则 AR6 只记录 defer，由 owner 另行接受 Deno Desktop Module Update Source 专项计划。平台 flag、
-plain-app live patch 或 framework Fast Refresh 的存在本身都不能升格为 SillyMaker R1/R2 合同。
+**Deno Desktop HMR upstream gate（2026-08-23 accepted，inactive）：**
+
+[Deno PR #36488](https://github.com/denoland/deno/pull/36488) 已把 plain Vite/SvelteKit 的
+`deno desktop --hmr .` dev server 移入 Desktop runtime（merge commit
+`98dc759254a90b98f7bbb62ba5361e531d0db6a5`），但裁决时 latest stable 与 `v2.9` 仍是
+2.9.5，尚无官方 2.9.6 release、milestone 或 backport 承诺。2.9.6 只是 owner 预期的首个候选；
+真正 gate 是“首个经 release source 与实际行为确认包含该 in-runtime Vite 路径的 stable”。若名为
+2.9.6 的发布不含该行为，gate 继续关闭并顺延，不按版本字符串猜 capability。
+
+- stable 发布前，先用仓库外隔离安装、记录完整 SHA 且确认包含上述 merge 的 official canary 做
+  platform characterization；优先使用 exact merge SHA，若其 artifact 已过期则使用一个经 ancestry
+  与行为双重确认的后继 exact SHA。独立 binary/`DENO_DIR` 不替换系统 stable，也不进入 lock、
+  required CI、public compatibility floor 或普通开发命令；exact SHA 只是 evidence provenance，不是
+  runtime pin；
+- platform characterization 通过后直接按最终形状实现：应用目录以 `deno desktop --hmr .` 进入 Deno 官方
+  in-runtime Vite server，SillyMaker 的 package-private Desktop-dev adapter 在该 server 上复用现有
+  bootstrap、所需 same-origin private Host routes 与既有 preview record/download/close primitives
+  （不提升 source-write/durability），再把 candidate 交给既有中立 R1/R2 publication。adapter 由
+  SillyMaker 自有 explicit launch intent 与实际 Desktop capability fail closed，不依赖
+  `DENO_DESKTOP_FRAMEWORK_DEV` 等未文档化 upstream marker，也不把 native API 暴露给 WebView。
+  2.9.5 显式实验启动必须稳定报告 unavailable，不能退化成 Browser；
+- 实现后的 inactive integration 只允许由显式传入隔离 canary binary 的 local characterization harness
+  触达，不进入 ordinary task/project config/generated application command/release，也不作为
+  maintained workflow 写入 user-facing development/features/build docs。必须先在该 canary 上跑完
+  下述 native acceptance 并 PASS，才可提交/保留该 private integration；
+  canary PASS 仍不构成 maintained workflow、live capability、AR5 closure 或 Desktop production
+  promotion；
+- 不为 2.9.5 建 external Vite/native companion、第二 server/proxy、手工 PR shim 或自维护 Deno fork。
+  当前 prebuilt `dist` + staged `main.ts` 的 static staging/packaging/R3 路径保持不变；
+- canary 与首个候选 stable 使用同一完整 Desktop matrix：Vite plugin/runtime placement、source CWD、
+  单一同源 server、唯一 Desktop bootstrap/capability、startup window adoption、CLI bootstrap config、
+  同一 domain factory/selected Extension Runtime、required RPC unavailable + retry、Authoring R1 与
+  Game/Session R2 的 success、pre-replacement failure、适用的 rollback，以及当前合同规定的 terminal
+  post-retirement failure + retry；held Agent 下相同 success/failure/retry 路径必须保留 Host/session/
+  run/RPC connection、Artifact、dirty/undo/selection 且 page load 为零，fake stream → Artifact → AR2
+  operation 仍走通；最后证明 native close/resource cleanup 与既有 static R3 回归。不得把 terminal
+  post-retirement failure 写成 transactional rollback；
+- 首个候选 stable 发布后，先确认 release source 与行为确实包含目标路径，再逐项重跑上述 matrix。
+  全部通过后才打开/记录正式 Desktop dev workflow、领取 Desktop R1/R2/HMR 并允许 AR5 closure；否则
+  保持 inactive 并 defer/upstream。
+
+若 canary 无法证明 in-runtime Vite/native lifecycle，或最窄 adapter 仍要求第二 server/proxy、
+undocumented marker 才能正确、破坏 same-origin admission/identity、既有 R1/R2 admission/handoff/
+failure semantics 或 close-flush，则停止；
+不得转而实现 2.9.5 workaround。平台 flag、plain-app live patch、framework Fast Refresh 或 canary
+PASS 本身都不能升格为 SillyMaker R1/R2 合同。
 
 **AR5 progress（2026-08-23，非 closure）：**
 
@@ -572,7 +612,9 @@ plain-app live patch 或 framework Fast Refresh 的存在本身都不能升格�
   second independent run；本轮未越线，因而无需第二轮。runner 不自动比较两份报告，raw local
   report 不提交、也不成为 ordinary CI gate；
 - Deno Desktop private Authoring/Agent Host 的 R1/R2 candidate、handoff、failure/retry，以及
-  `deno desktop --hmr` 接线仍未完成。AR5 继续进行，不形成 closure，也不启动 AR6。
+  `deno desktop --hmr` 接线仍未完成。下一项固定为上述 canary characterization → private inactive
+  integration → stable revalidation/activation；gate 通过前 AR5 继续进行，不形成 closure，也不启动
+  AR6。
 
 ### AR6 — Closure and owner checkpoint
 

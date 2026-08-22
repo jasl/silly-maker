@@ -87,12 +87,26 @@ Read only the documents relevant to the change:
   its exact AR2 receipt is paired, including when Scene becomes ready later.
   Invalid successors and late cancelled events retain the prior Artifact, and
   ordinary Template/Engine Lab Player graphs exclude Agent/RPC implementation
-  modules. Studio and Agent are still statically coupled, so AR5 must prove an
-  authoring-only/no-Agent graph and split that dependency if necessary. AR4 did
-  not add a real backend or transport, a public Agent ABI, OpenUI/A2UI, Agent
-  persistence, or Desktop HMR. AR5 build, dual-GUI Host, and performance
-  promotion is the only next task. Engine capabilities land before any separately
-  accepted follow-on product or work.
+  modules. AR5 has since split Studio core publication behind a neutral
+  single-companion bridge: the complete Template Author graph excludes Agent/RPC,
+  while Engine Lab selects the private Agent companion explicitly. The Studio
+  manifest keeps a workspace Agent dependency for that opt-in entry, but final
+  module/source structural exclusion is proved. AR5 Browser physical R1/R2 held-
+  Agent lifetime and local performance evidence also passed. Deno Desktop private
+  Authoring/Agent Host R1/R2 and HMR remain the only next work: first characterize
+  an isolated exact-SHA official canary confirmed to contain Deno PR #36488 merge
+  `98dc759254a90b98f7bbb62ba5361e531d0db6a5`; if it passes, implement only a
+  package-private, explicitly experimental, default-off candidate using the
+  official in-runtime Vite server. It must remain reachable only through a local
+  characterization harness that receives the isolated canary binary explicitly,
+  and may be landed/retained only after it passes the complete Desktop native
+  matrix on that canary. Do not build a 2.9.5 proxy/shim/fork, depend on
+  undocumented Deno framework-dev markers, or version-gate by a presumed 2.9.6.
+  The first stable whose source and behavior contain that path must re-run the same
+  acceptance before the workflow activates or AR5 closes. AR4/AR5 still do not add
+  a real backend or transport, public Agent ABI, OpenUI/A2UI, Agent persistence,
+  live Desktop HMR, or Desktop production promotion. Engine capabilities land
+  before any separately accepted follow-on product or work.
   Desktop persistence remains an accepted, unfinished, conditional promotion
   lane while the adapter is preview.
 - `docs/engine/design/application-runtime-and-embedded-authoring.md` — accepted
@@ -264,9 +278,10 @@ accepted.
   deterministic fake uses the same client port as a future transport. It is not
   a public Agent ABI, provider SDK, OpenUI/A2UI adapter, persistence owner, tool
   executor, or external-effect authority. Ordinary Template/Engine Lab Player
-  graphs exclude it; product-selectable exclusion from an otherwise complete
-  Authoring build is an AR5 obligation because Studio currently has a static Agent
-  package dependency.
+  graphs exclude it. AR5's neutral single-companion split and generated negative
+  measurement also prove that a complete Authoring final graph excludes Agent/RPC;
+  the Studio manifest keeps a workspace Agent dependency only to serve its explicit
+  private opt-in entry, not as a final graph requirement or public ABI.
 - `@sillymaker/ui` owns reusable React presentation, input, interaction,
   overlays, diagnostics UI, assets, characters, stages, and semantic-publication
   bridges.
