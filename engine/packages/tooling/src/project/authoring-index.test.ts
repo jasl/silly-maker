@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { buildAuthoringProjectIndexV1 } from "./authoring-index.ts";
+import { collectChromeLayoutSourceDiagnosticsV1 } from "./chrome-layout-diagnostics.ts";
 import { collectMotionSourceDiagnosticsV1 } from "./motion-diagnostics.ts";
 import { collectRegionsSourceDiagnosticsV1 } from "./regions-diagnostics.ts";
 import { collectSceneSourceDiagnosticsV1 } from "./scene-diagnostics.ts";
@@ -58,6 +59,21 @@ function regionsJsonV1(regionsId: string, label = "区域"): string {
   }\n`;
 }
 
+function chromeLayoutJsonV1(layoutId: string, label = "布局"): string {
+  return `${
+    JSON.stringify({
+      format: "sillymaker.chrome-layout",
+      version: 1,
+      layoutId,
+      label,
+      canvas: { width: 1024, height: 576 },
+      boxes: { "hud.icon.stats": { x: 925, y: 510, width: 80, height: 60 } },
+      anchors: {},
+      offsets: {},
+    })
+  }\n`;
+}
+
 let sourceRoot = "";
 
 beforeEach(() => {
@@ -88,6 +104,10 @@ describe("buildAuthoringProjectIndexV1", () => {
       join(sourceRoot, "scenes", "opening", "mei.regions.json"),
       regionsJsonV1("regions.app.mei", "小妹"),
     );
+    writeFileSync(
+      join(sourceRoot, "scenes", "main-hud.chrome-layout.json"),
+      chromeLayoutJsonV1("layout.app.main-hud", "主 HUD"),
+    );
 
     const index = buildAuthoringProjectIndexV1(sourceRoot);
     expect(index.scenes).toEqual([
@@ -108,6 +128,13 @@ describe("buildAuthoringProjectIndexV1", () => {
         label: "小妹",
       },
     ]);
+    expect(index.chromeLayouts).toEqual([
+      {
+        path: "scenes/main-hud.chrome-layout.json",
+        layoutId: "layout.app.main-hud",
+        label: "主 HUD",
+      },
+    ]);
     expect(index.skipped).toEqual([]);
   });
 
@@ -122,6 +149,10 @@ describe("buildAuthoringProjectIndexV1", () => {
       `${JSON.stringify({ format: "sillymaker.regions" })}\n`,
     );
     writeFileSync(
+      join(sourceRoot, "scenes", "bad.chrome-layout.json"),
+      `${JSON.stringify({ format: "sillymaker.chrome-layout" })}\n`,
+    );
+    writeFileSync(
       join(sourceRoot, "scenes", "opening", "opening.scene.json"),
       sceneJsonV1("scene.app.opening"),
     );
@@ -132,10 +163,12 @@ describe("buildAuthoringProjectIndexV1", () => {
     ]);
     expect(index.motions).toEqual([]);
     expect(index.regions).toEqual([]);
+    expect(index.chromeLayouts).toEqual([]);
     expect(index.skipped.map((skip) => `${skip.kind}@${skip.path}`)).toEqual([
       "scene@scenes/broken.scene.json",
       "motion@scenes/opening/motions/bad.motion.json",
       "regions@scenes/opening/bad.regions.json",
+      "chrome-layout@scenes/bad.chrome-layout.json",
     ]);
     for (const skip of index.skipped) expect(skip.reason.length).toBeGreaterThan(0);
   });
@@ -146,10 +179,12 @@ describe("buildAuthoringProjectIndexV1", () => {
     mkdirSync(join(sourceRoot, ".cache"), { recursive: true });
     writeFileSync(join(sourceRoot, ".cache", "y.motion.json"), "{ nope\n");
     writeFileSync(join(sourceRoot, ".cache", "z.regions.json"), "{ nope\n");
+    writeFileSync(join(sourceRoot, ".cache", "w.chrome-layout.json"), "{ nope\n");
     expect(buildAuthoringProjectIndexV1(sourceRoot)).toEqual({
       scenes: [],
       motions: [],
       regions: [],
+      chromeLayouts: [],
       skipped: [],
     });
   });
@@ -173,12 +208,18 @@ describe("buildAuthoringProjectIndexV1", () => {
       regionsJsonV1("regions.app.mei"),
     );
     writeFileSync(join(sourceRoot, "scenes", "opening", "broken.regions.json"), "{ nope\n");
+    writeFileSync(
+      join(sourceRoot, "scenes", "main-hud.chrome-layout.json"),
+      chromeLayoutJsonV1("layout.app.main-hud"),
+    );
+    writeFileSync(join(sourceRoot, "scenes", "broken.chrome-layout.json"), "{ nope\n");
 
     const index = buildAuthoringProjectIndexV1(sourceRoot);
     const indexedPaths = [
       ...index.scenes.map((scene) => scene.path),
       ...index.motions.map((motion) => motion.path),
       ...index.regions.map((entry) => entry.path),
+      ...index.chromeLayouts.map((entry) => entry.path),
       ...index.skipped.map((skip) => skip.path),
     ].toSorted();
 
@@ -188,10 +229,13 @@ describe("buildAuthoringProjectIndexV1", () => {
       ...collectSceneSourceDiagnosticsV1(sourceRoot),
       ...collectMotionSourceDiagnosticsV1(sourceRoot),
       ...collectRegionsSourceDiagnosticsV1(sourceRoot),
+      ...collectChromeLayoutSourceDiagnosticsV1(sourceRoot),
     ].map((diagnostic) => diagnostic.location?.file ?? "");
     for (const skip of index.skipped) expect(lintFlagged).toContain(skip.path);
     expect(indexedPaths).toEqual([
+      "scenes/broken.chrome-layout.json",
       "scenes/broken.scene.json",
+      "scenes/main-hud.chrome-layout.json",
       "scenes/opening/broken.regions.json",
       "scenes/opening/mei.regions.json",
       "scenes/opening/motions/broken.motion.json",

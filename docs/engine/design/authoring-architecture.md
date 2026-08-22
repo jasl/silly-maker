@@ -86,16 +86,22 @@ Studio、`story check` 与内容浏览消费同一份索引：
 ```text
 scenes/**/*.scene.json
 scenes/**/motions/*.motion.json
+src/**/*.regions.json（shaped-hit-regions，2026-08-21 起）
+src/**/*.chrome-layout.json（authorable-chrome-layout，2026-08-22 起）
 content/**（content 声明与 geometry）
 story/**（narrative / interaction 文档）
 ```
 
-概念形状（字段以实施切片的 admission 为准）：
+概念形状（字段以实施切片的 admission 为准；已落地的四个桶是
+scenes / motions / regions / chromeLayouts + skipped，contents 仍从
+studio binding 声明，interactions 未实施）：
 
 ```ts
 interface AuthoringProjectIndexV1 {
   readonly scenes: readonly SceneSourceRef[];
   readonly motions: readonly MotionSourceRef[];
+  readonly regions: readonly RegionsSourceRef[];
+  readonly chromeLayouts: readonly ChromeLayoutSourceRef[];
   readonly contents: readonly StudioContentDescriptorV1[];
   readonly interactions: readonly InteractionSourceRef[];
 }
