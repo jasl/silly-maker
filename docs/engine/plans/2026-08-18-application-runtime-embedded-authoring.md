@@ -245,6 +245,11 @@ implementation 第一次进入前 loader 调用为零；failure 不卸载 core�
 - 本切片没有改变 State、Snapshot、digest、Save、CommandLog、replay、RPC 或 Mod 合同，也没有
   新增 Desktop Module Update Source。Browser 继续使用 AR0 已记录的 R0–R3 边界；Deno Desktop
   R0–R2 仍未接线，`--hmr` 仍只是 AR5 候选。AR2 structured Scene operations 是唯一下一项。
+- 收尾追加 React Doctor `0.9.12` changed scan，以 `de6bea30` 作为 AR1 精确起点。唯一真实 error
+  是 DevDock 在 render 中发布 `debugTools` ref，abandoned successor 可把未提交 capability 泄漏给
+  predecessor loader；现已改为 layout-commit publication，并由 Suspense abandoned-render 回归
+  证明。最终为 0 errors / 3 warnings：两个 warning 是必须保持 LIFO、non-overlap 的串行 cleanup，
+  另一个是既有 Studio shell ownership 重构提示，均不在 AR1 中机械改写。
 
 ### AR2 — Structured Scene authoring operations
 
@@ -457,6 +462,8 @@ AR1 已关闭并完成 private Direct backend 的首次选择；后续作品只�
 计划级关闭至少包括：
 
 - `deno task check`；
+- 每个改变 React/TSX 的切片运行
+  `deno task audit:react --base <slice-start-ref>`，逐条分类新增 findings；
 - Browser 与 Deno Desktop 的 runtime/author GUI flows；
 - Engine Lab prebuilt、现有 Studio representative Chromium + WebKit flows；
 - auxiliary headless deterministic/conformance tests；

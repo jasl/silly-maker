@@ -282,6 +282,13 @@ documented migration path.
 - Use `deno task test` for automated product/engine tests, `deno task test:e2e`
   when browser behavior is affected, and the commands documented in
   `docs/engine/build-and-release.md` for Player builds.
+- At the close of a slice that changes React/TSX behavior, run
+  `deno task audit:react --base <slice-start-ref>` with the exact recorded base.
+  The on-demand React Doctor scan is an advisory audit outside `deno task check`:
+  classify each new finding as confirmed, rejected, or needs-evidence; repair
+  confirmed behavior/currentness defects with focused tests, but do not chase a
+  score or mechanically rewrite ordered cleanup and deliberate ownership. A
+  full scan belongs to a resolved React Doctor version or baseline refresh.
 - Keep ESM, TypeScript project references, explicit `.ts`/`.tsx` import
   extensions, exact dependency versions, and the shared `deno.lock` unless an
   intentional tooling change updates them.

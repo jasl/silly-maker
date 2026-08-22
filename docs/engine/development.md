@@ -235,6 +235,7 @@ deno task typecheck
 | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `deno task dev`                                  | Start the Vite development server (pick an app with `--mode`; inside an app directory it serves that app).                                                 |
 | `deno task check`                                | Canonical local code-quality and product-behavior check.                                                                                                   |
+| `deno task audit:react`                          | Run the advisory React Doctor scan for new findings introduced by one React/TSX slice; pass `--base <slice-start-ref>` when it has commits.                |
 | `deno task test`                                 | Run engine and game behavior tests.                                                                                                                        |
 | `deno task test:coverage`                        | Run unit tests with engine line-coverage reporting.                                                                                                        |
 | `deno task test:composition-state-bench`         | Run the deterministic Composition/State workload, report-schema, and fake-GC behavior tests without recording timing.                                      |
@@ -260,6 +261,27 @@ deno task typecheck
 | `deno task simulate:e2e`                         | Scripted Engine Lab run through the Agent port.                                                                                                            |
 | `deno task test:conformance:headless`            | Engine Lab headless conformance suite.                                                                                                                     |
 | `deno task test:e2e:engine:prebuilt`             | Build the Engine Lab and run the engine suite on the built Player.                                                                                         |
+
+Run `audit:react` after implementing and behavior-testing a slice that changes
+React/TSX, before its final handoff. The task declares React Doctor `^0.9.12`,
+so each on-demand run may take a SemVer-compatible `0.9.x` update. It is not a
+workspace dependency and does not enter the shared lockfile. The task uses
+`doctor.config.json`, defaults to the current worktree (including untracked files)
+against `HEAD`, and disables score, telemetry, supply-chain traversal, and
+automatic blocking. If the slice already contains commits, append
+`--base <slice-start-ref>`; the later argument overrides the task default and
+prevents a long-lived branch from re-reporting unrelated history. Add `--json`
+when a machine-readable report is useful; keep raw reports in OS temp rather
+than the repository.
+
+The result requires review, not score chasing. Classify every new diagnostic as
+`confirmed`, `rejected`, or `needs_evidence`; fix confirmed behavior,
+concurrency, accessibility, or measured-performance defects and rerun affected
+tests. Preserve intentional serial cleanup, deterministic ordering, and clear
+ownership when a heuristic suggests a mechanical rewrite. React Doctor is not
+part of canonical `deno task check`, and docs-only or non-React slices do not
+run it. Refresh the full baseline whenever the resolved React Doctor version
+changes or an explicit baseline refresh is requested.
 
 Every application is a self-contained project: `<app>/sillymaker.config.ts` declares it (paths app-root-relative), `<app>/vite.config.ts` calls the shared `@sillymaker/tooling/vite` assembly, and the root `project.config.ts` only lists the registered directories for repository-level aggregation. Builds are application tasks; the story CLI is the diagnostics and aggregation surface (it also runs app-locally through `<app>/tools/story.mts`, where `.` selects the app):
 
@@ -768,7 +790,8 @@ budget, and never commit raw local reports.
 3. Add or adjust a focused behavior test when it meaningfully reduces regression risk.
 4. Implement the smallest coherent change; keep Story-specific concepts outside generic engine packages.
 5. Run focused tests, then the relevant broader commands.
-6. Update active docs when the architecture, supported workflow, user-visible behavior, or compatibility promise changes.
+6. For a React/TSX slice, run `deno task audit:react --base <slice-start-ref>`, classify every new finding, and rerun affected tests after any repair.
+7. Update active docs when the architecture, supported workflow, user-visible behavior, or compatibility promise changes.
 
 Commits can be organized for reviewability, but there is no required Phase-to-commit mapping, checkpoint hash, exact staging contract, or clean-tree admission script.
 
