@@ -1,6 +1,6 @@
 # Authoring Workspace Focus & Navigation V1 实施计划
 
-状态：**2026-08-23 开启，当前执行中**。Application Runtime AR0–AR6 关闭后，所有者
+状态：**2026-08-23 开启，M0 已交付，M1 当前执行中**。Application Runtime AR0–AR6 关闭后，所有者
 指示继续下一项引擎工作；对 live source、现有消费者与 accepted Authoring Host 合同的复查
 选择本车道。[Production-floor sequence](2026-07-30-production-floor-sequence.md) 仍是唯一
 跨计划排序入口；本计划只拥有 Authoring Host 的 workspace focus/navigation、两个真实 shell
@@ -68,7 +68,7 @@ revalidation 同样只 gate Desktop HMR。
 
 ## 3. 里程碑
 
-### M0 — Host-owned focus state
+### M0 — Host-owned focus state（2026-08-23 delivered）
 
 - 在 `@sillymaker/studio` package-private core 中加入 closed workspace focus owner；manifest 消费同一
   workspace-id 定义，不复制 union，也不新增公共 export。
@@ -80,6 +80,12 @@ revalidation 同样只 gate Desktop HMR。
 - focused tests 固定：默认 Scene、有效切换、重复选择幂等、visited 有界、dirty aggregation、dispose
   后无 mutation/revision publish；新 Host 重置，原 Host hide/reopen 不重置；R1 candidate 的 signature
   不兼容在改动 active/visited/dirty 前拒绝。
+
+交付记录：Host 现已冻结同一 manifest 派生的有序 workspace id/signature，拥有 session-local
+active/visited 与单一 dirty authority；Scene/Regions/Chrome 只读 Host session，Motion 只读其 close
+participant，Flow 固定 clean。standalone/embedded publication 传递同一 candidate manifest，结构不兼容
+的 R1 在 IO owner、companion、viewId 与 React probe mutation 前拒绝。focused Host/publication tests 与
+全量 `deno task check`（361 files / 5561 tests）通过；M0 尚未渲染 rail 或改变 workspace 可见性。
 
 ### M1 — 一个 rail，一个可见 workspace
 

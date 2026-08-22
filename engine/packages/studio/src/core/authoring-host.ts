@@ -23,6 +23,11 @@ import type {
   FlowWorkspaceActivationOwnerInternalV1,
   FlowWorkspaceLoaderInternalV1,
 } from "../workspaces/flow/flow-workspace-activation.tsx";
+import { authoringWorkspaceContractInternalV1 } from "../workspaces/workspace-manifest.ts";
+import type {
+  AuthoringWorkspaceIdInternalV1,
+  AuthoringWorkspaceManifestEntryInternalV1,
+} from "../workspaces/workspace-manifest.ts";
 
 export interface AuthoringHostDocumentSnapshotInternalV1 {
   readonly documentIdentity: string | null;
@@ -41,6 +46,11 @@ export interface AuthoringHostSnapshotInternalV1 {
   readonly revision: number;
   readonly connected: boolean;
   readonly dirty: boolean;
+  readonly workspaceIds: readonly AuthoringWorkspaceIdInternalV1[];
+  readonly workspaceContractSignature: string;
+  readonly activeWorkspaceId: AuthoringWorkspaceIdInternalV1;
+  readonly visitedWorkspaceIds: readonly AuthoringWorkspaceIdInternalV1[];
+  readonly dirtyWorkspaceIds: readonly AuthoringWorkspaceIdInternalV1[];
   readonly scene: AuthoringHostDocumentSnapshotInternalV1;
   readonly regions: AuthoringHostDocumentSnapshotInternalV1 | null;
   readonly chrome: AuthoringHostDocumentSnapshotInternalV1 | null;
@@ -55,6 +65,7 @@ export interface AuthoringHostInternalV1 {
 }
 
 export interface CreateAuthoringHostInputInternalV1 {
+  readonly workspaceManifest: readonly AuthoringWorkspaceManifestEntryInternalV1[];
   readonly sceneIo: SceneSourceIoV1;
   readonly motionIo: MotionSourceIoV1;
   readonly regionsIo?: RegionsSourceIoV1;
@@ -87,10 +98,10 @@ interface AuthoringHostOwnerInternalV1 {
   readonly chromeSession: AuthoringDocumentSessionV1<ChromeLayoutDocumentV1> | null;
   readonly motionStore: MotionWorkbenchStoreV1;
   readonly flowActivation: FlowWorkspaceActivationOwnerInternalV1;
-  readonly closeParticipants: Map<string, AuthoringCloseParticipantInternalV1>;
+  focusWorkspace(id: AuthoringWorkspaceIdInternalV1): boolean;
   markViewConnected(viewId: number, connected: boolean): void;
   registerCloseParticipant(
-    id: string,
+    id: AuthoringWorkspaceIdInternalV1,
     participant: AuthoringCloseParticipantInternalV1,
   ): () => void;
   getCloseState(): AuthoringCloseParticipantStateInternalV1;
@@ -121,6 +132,8 @@ export function createAuthoringHostInternalV1(
   input: CreateAuthoringHostInputInternalV1,
 ): AuthoringHostInternalV1 {
   const identity = ++nextAuthoringHostIdentityInternalV1;
+  const workspaceContract = authoringWorkspaceContractInternalV1(input.workspaceManifest);
+  const workspaceIdSet = new Set(workspaceContract.ids);
   const sceneSession = createSceneDocumentSessionV1(input.sceneIo);
   const sceneOperations = createSceneAuthoringLocalAdapterV1(sceneSession);
   const regionsSession = input.regionsIo === undefined
@@ -136,8 +149,13 @@ export function createAuthoringHostInternalV1(
   });
   const listeners = new Set<() => void>();
   const connectedViews = new Set<number>();
-  const closeParticipants = new Map<string, AuthoringCloseParticipantInternalV1>();
-  const participantUnsubscribes = new Map<string, () => void>();
+  const closeParticipants = new Map<
+    AuthoringWorkspaceIdInternalV1,
+    AuthoringCloseParticipantInternalV1
+  >();
+  const participantUnsubscribes = new Map<AuthoringWorkspaceIdInternalV1, () => void>();
+  const visitedWorkspaceIds = new Set<AuthoringWorkspaceIdInternalV1>(["scene"]);
+  let activeWorkspaceId: AuthoringWorkspaceIdInternalV1 = "scene";
   let disposed = false;
   let revision = 0;
   let snapshot!: AuthoringHostSnapshotInternalV1;
@@ -150,16 +168,30 @@ export function createAuthoringHostInternalV1(
     const chrome = chromeSession === null
       ? null
       : documentSnapshotInternalV1(chromeSession.getSnapshot());
-    const participantDirty = [...closeParticipants.values()].some(
-      (participant) => participant.getState().dirty,
+    const motionDirty = closeParticipants.get("motion")?.getState().dirty ?? false;
+    const dirtyByWorkspace = {
+      scene: scene.dirty,
+      motion: motionDirty,
+      regions: regions?.dirty ?? false,
+      chrome: chrome?.dirty ?? false,
+      flow: false,
+    } satisfies Record<AuthoringWorkspaceIdInternalV1, boolean>;
+    const dirtyWorkspaceIds = Object.freeze(
+      workspaceContract.ids.filter((workspaceId) => dirtyByWorkspace[workspaceId]),
     );
     revision += 1;
     snapshot = Object.freeze({
       identity,
       revision,
       connected: connectedViews.size > 0,
-      dirty: scene.dirty || (regions?.dirty ?? false) || (chrome?.dirty ?? false) ||
-        participantDirty,
+      dirty: dirtyWorkspaceIds.length > 0,
+      workspaceIds: workspaceContract.ids,
+      workspaceContractSignature: workspaceContract.signature,
+      activeWorkspaceId,
+      visitedWorkspaceIds: Object.freeze(
+        workspaceContract.ids.filter((workspaceId) => visitedWorkspaceIds.has(workspaceId)),
+      ),
+      dirtyWorkspaceIds,
       scene,
       regions,
       chrome,
@@ -205,7 +237,14 @@ export function createAuthoringHostInternalV1(
     chromeSession,
     motionStore,
     flowActivation,
-    closeParticipants,
+    focusWorkspace(id): boolean {
+      if (disposed || !workspaceIdSet.has(id)) return false;
+      if (activeWorkspaceId === id) return true;
+      activeWorkspaceId = id;
+      visitedWorkspaceIds.add(id);
+      publish();
+      return true;
+    },
     markViewConnected(viewId, connected): void {
       if (disposed) return;
       const changed = connected ? !connectedViews.has(viewId) : connectedViews.has(viewId);

@@ -64,6 +64,37 @@ function containerV1(): HTMLDivElement {
 }
 
 describe("Studio tooling React publication", () => {
+  it("rejects an incompatible workspace contract before changing the visible Host", async () => {
+    const container = containerV1();
+    const sceneIo = fakeStudioSceneIoV1();
+    const motionIo = fakeStudioMotionIoV1();
+    const publication = createStudioToolingReactPublicationV1({ container });
+    mountedPublications.push(publication);
+    await publication.mount(studioPlanV1(sceneIo, motionIo, studioBindingV1()));
+
+    const oldHost = container.firstElementChild;
+    const oldInput = await waitFor(() => within(container).getByLabelText("x"));
+    fireEvent.change(oldInput, { target: { value: "640" } });
+    await waitFor(() => expect(oldInput).toHaveValue(640));
+
+    await expect(publication.publish(
+      studioPlanV1(sceneIo, motionIo, studioFlowBindingV1()),
+      new AbortController().signal,
+    )).rejects.toThrow("cannot replace its workspace contract");
+
+    expect(container.firstElementChild).toBe(oldHost);
+    expect(within(container).getByLabelText("x")).toBe(oldInput);
+    expect(oldInput).toHaveValue(640);
+
+    await expect(publication.publish(
+      studioPlanV1(sceneIo, motionIo, studioBindingV1(({ entry }) => <b>{entry.contentId}</b>)),
+      new AbortController().signal,
+    )).resolves.toBeUndefined();
+    expect(container.firstElementChild).toBe(oldHost);
+    expect(within(container).getByLabelText("x")).toBe(oldInput);
+    expect(oldInput).toHaveValue(640);
+  });
+
   it("reuses loaded Flow and the dirty Scene session across rejected and accepted successors", async () => {
     const container = containerV1();
     const sceneIo = fakeStudioSceneIoV1();

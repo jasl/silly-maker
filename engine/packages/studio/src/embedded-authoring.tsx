@@ -10,11 +10,13 @@ import type {
   EmbeddedAuthoringCompanionOwnerInternalV1,
 } from "./core/embedded-authoring-companion.ts";
 import { AuthoringHostSurfaceInternalV1 } from "./studio-app.tsx";
+import type { AuthoringWorkspaceManifestEntryInternalV1 } from "./workspaces/workspace-manifest.ts";
 import styles from "./studio-app.module.css";
 
 export interface EmbeddedAuthoringSurfacePropsInternalV1 {
   readonly host: AuthoringHostInternalV1;
   readonly binding: StudioBindingV1;
+  readonly workspaceManifest: readonly AuthoringWorkspaceManifestEntryInternalV1[];
   readonly publicationRole: "visible" | "probe";
   readonly viewId: number;
   readonly companion?: {
@@ -109,6 +111,7 @@ export function EmbeddedAuthoringSurfaceInternalV1(
         <AuthoringHostSurfaceInternalV1
           host={props.host}
           binding={props.binding}
+          workspaceManifest={props.workspaceManifest}
           mode="embedded"
           publicationRole={props.publicationRole}
           viewId={props.viewId}

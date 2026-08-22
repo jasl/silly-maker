@@ -12,6 +12,10 @@ import { resolveEmbeddedAuthoringCompanionInternalV1 } from "./core/embedded-aut
 import type { EmbeddedAuthoringCompanionOwnerInternalV1 } from "./core/embedded-authoring-companion.ts";
 import { AuthoringHostSurfaceInternalV1 } from "./studio-app.tsx";
 import type { FlowWorkspaceLoaderInternalV1 } from "./workspaces/flow/flow-workspace-activation.tsx";
+import {
+  authoringWorkspaceContractInternalV1,
+  authoringWorkspaceManifestInternalV1,
+} from "./workspaces/workspace-manifest.ts";
 
 interface LayoutCommitV1Props {
   readonly children: ReactNode;
@@ -403,6 +407,18 @@ export function createStudioToolingReactPublicationInternalV1(
     ...(input.reportFailure === undefined ? {} : { reportFailure: input.reportFailure }),
     onTerminalFailure: disposeOwners,
     render(plan, target) {
+      const workspaceManifest = authoringWorkspaceManifestInternalV1({
+        hasFlow: plan.binding.flow !== undefined,
+        hasRegionsIo: plan.regionsIo !== undefined,
+        hasChromeIo: plan.chromeIo !== undefined,
+      });
+      if (
+        host !== null &&
+        host.getSnapshot().workspaceContractSignature !==
+          authoringWorkspaceContractInternalV1(workspaceManifest).signature
+      ) {
+        throw new TypeError("Studio live publication cannot replace its workspace contract");
+      }
       if (sceneIo === null) {
         sceneIo = plan.sceneIo;
       } else if (plan.sceneIo !== sceneIo) {
@@ -426,6 +442,7 @@ export function createStudioToolingReactPublicationInternalV1(
         throw new TypeError("Studio live publication cannot replace its chrome IO owner");
       }
       host ??= createAuthoringHostInternalV1({
+        workspaceManifest,
         sceneIo: plan.sceneIo,
         motionIo: plan.motionIo,
         ...(plan.regionsIo === undefined ? {} : { regionsIo: plan.regionsIo }),
@@ -459,6 +476,7 @@ export function createStudioToolingReactPublicationInternalV1(
           <EmbeddedAuthoringSurfaceInternalV1
             host={host}
             binding={plan.binding}
+            workspaceManifest={workspaceManifest}
             publicationRole={target}
             viewId={viewId}
             {...(companionDefinition === null || companionOwner === null ? {} : {
@@ -473,6 +491,7 @@ export function createStudioToolingReactPublicationInternalV1(
           <AuthoringHostSurfaceInternalV1
             host={host}
             binding={plan.binding}
+            workspaceManifest={workspaceManifest}
             mode="standalone"
             publicationRole={target}
             viewId={viewId}

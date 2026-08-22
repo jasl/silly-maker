@@ -64,6 +64,7 @@ import { ChromeWorkspaceSectionV1 } from "./workspaces/chrome/chrome-workspace.t
 import type { ChromeLayoutSourceIoV1 } from "./core/chrome-layout-io.ts";
 import type { StudioBindingV1, StudioContentDescriptorV1 } from "./core/binding.ts";
 import { authoringWorkspaceManifestInternalV1 } from "./workspaces/workspace-manifest.ts";
+import type { AuthoringWorkspaceManifestEntryInternalV1 } from "./workspaces/workspace-manifest.ts";
 import styles from "./studio-app.module.css";
 
 export type {
@@ -103,6 +104,7 @@ export interface StudioAppPropsV1 {
 }
 
 interface StudioAppWithAuthoringSessionsPropsV1 extends StudioAppPropsV1 {
+  readonly workspaceManifest: readonly AuthoringWorkspaceManifestEntryInternalV1[];
   readonly host: AuthoringHostInternalV1;
   readonly sceneSession: AuthoringDocumentSessionV1<SceneDocumentV1>;
   readonly regionsSession: AuthoringDocumentSessionV1<RegionsDocumentV1> | null;
@@ -142,15 +144,28 @@ function useDisposeAuthoringHostOnUnmountInternalV1(host: AuthoringHostInternalV
 }
 
 export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
+  const hasFlow = props.binding.flow !== undefined;
+  const hasRegionsIo = props.regionsIo !== undefined;
+  const hasChromeIo = props.chromeIo !== undefined;
+  const workspaceManifest = useMemo(
+    () =>
+      authoringWorkspaceManifestInternalV1({
+        hasFlow,
+        hasRegionsIo,
+        hasChromeIo,
+      }),
+    [hasChromeIo, hasFlow, hasRegionsIo],
+  );
   const host = useMemo(
     () =>
       createAuthoringHostInternalV1({
+        workspaceManifest,
         sceneIo: props.io,
         motionIo: props.motionIo,
         ...(props.regionsIo === undefined ? {} : { regionsIo: props.regionsIo }),
         ...(props.chromeIo === undefined ? {} : { chromeIo: props.chromeIo }),
       }),
-    [props.io, props.motionIo, props.regionsIo, props.chromeIo],
+    [props.io, props.motionIo, props.regionsIo, props.chromeIo, workspaceManifest],
   );
   const viewId = useMemo(() => nextAuthoringHostViewIdInternalV1++, []);
   useDisposeAuthoringHostOnUnmountInternalV1(host);
@@ -158,6 +173,7 @@ export function StudioAppV1(props: StudioAppPropsV1): ReactElement {
     <AuthoringHostSurfaceInternalV1
       host={host}
       binding={props.binding}
+      workspaceManifest={workspaceManifest}
       mode="standalone"
       publicationRole="visible"
       viewId={viewId}
@@ -170,6 +186,7 @@ let nextAuthoringHostViewIdInternalV1 = 1;
 export interface AuthoringHostSurfacePropsInternalV1 {
   readonly host: AuthoringHostInternalV1;
   readonly binding: StudioBindingV1;
+  readonly workspaceManifest: readonly AuthoringWorkspaceManifestEntryInternalV1[];
   readonly mode: "standalone" | "embedded";
   readonly publicationRole: "visible" | "probe";
   readonly viewId: number;
@@ -228,6 +245,7 @@ export function AuthoringHostSurfaceInternalV1(
     >
       <StudioAppWithAuthoringSessionsV1
         binding={props.binding}
+        workspaceManifest={props.workspaceManifest}
         io={owner.sceneIo}
         motionIo={owner.motionIo}
         {...(owner.regionsIo === undefined ? {} : { regionsIo: owner.regionsIo })}
@@ -255,15 +273,7 @@ export function StudioAppWithAuthoringSessionsV1(
       hostOwner.registerCloseParticipant("motion", participant),
     [hostOwner],
   );
-  const workspaceManifest = useMemo(
-    () =>
-      authoringWorkspaceManifestInternalV1({
-        binding,
-        hasRegionsIo: regionsIo !== undefined,
-        hasChromeIo: chromeIo !== undefined,
-      }),
-    [binding, chromeIo, regionsIo],
-  );
+  const workspaceManifest = props.workspaceManifest;
   const [scenes, setScenes] = useState<readonly SceneIoListEntryV1[] | null>(null);
   const [sceneSkips, setSceneSkips] = useState<readonly SceneIoListSkipV1[]>(Object.freeze([]));
   // Index-enumerated motion documents (null while loading); registration-free.

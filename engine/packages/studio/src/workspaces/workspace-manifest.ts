@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-import type { StudioBindingV1 } from "../core/binding.ts";
 
 /** Closed V1 workspace set. This is build-known metadata, not a plugin registry. */
 export type AuthoringWorkspaceIdInternalV1 = "scene" | "motion" | "regions" | "chrome" | "flow";
@@ -10,6 +9,11 @@ export interface AuthoringWorkspaceManifestEntryInternalV1 {
   readonly activation: "resident" | "progressive";
   /** Geometry previews that need a connected tree opt in explicitly. */
   readonly readiness: "layout" | "connected";
+}
+
+export interface AuthoringWorkspaceContractInternalV1 {
+  readonly ids: readonly AuthoringWorkspaceIdInternalV1[];
+  readonly signature: string;
 }
 
 const sceneWorkspaceInternalV1 = Object.freeze({
@@ -48,7 +52,7 @@ const flowWorkspaceInternalV1 = Object.freeze({
 });
 
 export function authoringWorkspaceManifestInternalV1(input: {
-  readonly binding: StudioBindingV1;
+  readonly hasFlow: boolean;
   readonly hasRegionsIo: boolean;
   readonly hasChromeIo: boolean;
 }): readonly AuthoringWorkspaceManifestEntryInternalV1[] {
@@ -57,6 +61,17 @@ export function authoringWorkspaceManifestInternalV1(input: {
     motionWorkspaceInternalV1,
     ...(input.hasRegionsIo ? [regionsWorkspaceInternalV1] : []),
     ...(input.hasChromeIo ? [chromeWorkspaceInternalV1] : []),
-    ...(input.binding.flow === undefined ? [] : [flowWorkspaceInternalV1]),
+    ...(input.hasFlow ? [flowWorkspaceInternalV1] : []),
   ]);
+}
+
+/** Structural R1 identity; presentation labels deliberately remain replaceable. */
+export function authoringWorkspaceContractInternalV1(
+  manifest: readonly AuthoringWorkspaceManifestEntryInternalV1[],
+): AuthoringWorkspaceContractInternalV1 {
+  const ids = Object.freeze(manifest.map((workspace) => workspace.id));
+  const signature = JSON.stringify(
+    manifest.map((workspace) => [workspace.id, workspace.activation, workspace.readiness]),
+  );
+  return Object.freeze({ ids, signature });
 }
