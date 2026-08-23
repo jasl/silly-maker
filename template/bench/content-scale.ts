@@ -5,13 +5,19 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import { canonicalJsonBytes, digestCanonical, parseTextCatalogSetV1 } from "@sillymaker/base";
-import type { TextCatalogSetV1 } from "@sillymaker/base";
+import {
+  canonicalJsonBytes,
+  createTextContentSessionV1,
+  defineTextContentManifestV1,
+  digestBytes,
+  digestCanonical,
+  parseTextCatalogSetV1,
+  parseTextContentPackIdV1,
+  parseTextId,
+} from "@sillymaker/base";
+import type { TextContentManifestV1, TextContentSessionV1 } from "@sillymaker/base";
 
-import type {
-  TemplateInteractionBlockV1,
-  TemplateInteractionDocV1,
-} from "../src/story/narrative-kit.ts";
+import type { TemplateInteractionDocV1 } from "../src/story/narrative-kit.ts";
 import { compileTemplateInteractionDocV1 } from "../src/story/narrative-kit.ts";
 
 declare const Deno: {
@@ -34,11 +40,18 @@ declare const Deno: {
 
 export type ContentScaleProfileV1 = "content-reference" | "content-scale";
 
+export const contentScaleEntriesPerPackV1 = 1_000;
+export const contentScaleProfilePackCountsV1: Readonly<
+  Record<ContentScaleProfileV1, number>
+> = Object.freeze({
+  "content-reference": 1,
+  "content-scale": 100,
+});
 export const contentScaleProfileEntryCountsV1: Readonly<
   Record<ContentScaleProfileV1, number>
 > = Object.freeze({
-  "content-reference": 1_000,
-  "content-scale": 100_000,
+  "content-reference": contentScaleEntriesPerPackV1,
+  "content-scale": 100 * contentScaleEntriesPerPackV1,
 });
 
 const contentScaleMinimalMutableStateV1 = Object.freeze({
@@ -48,8 +61,25 @@ const contentScaleMinimalMutableStateV1 = Object.freeze({
   }),
 });
 
+const contentScaleControlDocV1: TemplateInteractionDocV1 = Object.freeze({
+  prefix: "scale",
+  docId: "doc.scale.content",
+  entry: "line-000000",
+  blocks: Object.freeze([
+    Object.freeze({
+      kind: "say" as const,
+      name: "line-000000",
+      speaker: null,
+      textId: "text.scale.line.000000",
+      next: "end",
+    }),
+    Object.freeze({ kind: "end" as const, name: "end" }),
+  ]),
+});
+
 export interface ContentScaleFixtureV1 {
   readonly profile: ContentScaleProfileV1;
+  readonly packCount: number;
   readonly entryCount: number;
   readonly doc: TemplateInteractionDocV1;
   readonly mutableState: typeof contentScaleMinimalMutableStateV1;
@@ -57,20 +87,22 @@ export interface ContentScaleFixtureV1 {
 
 export interface ContentScaleCorrectnessV1 {
   readonly runtimeNodeCount: number;
-  readonly textEntryCount: number;
-  readonly flowNodeCount: number;
-  readonly flowEdgeCount: number;
-  readonly catalogEntryCount: number;
+  readonly inlineTextEntryCount: number;
+  readonly manifestPackCount: number;
+  readonly declaredTextEntryCount: number;
+  readonly loadedPackCount: number;
+  readonly loadedTextEntryCount: number;
   readonly firstTextId: string;
   readonly lastTextId: string;
+  readonly firstText: string;
   readonly mutableStateCanonicalBytes: number;
   readonly mutableStateDigest: string;
 }
 
 export interface ContentScaleCompiledV1 {
   readonly fixture: ContentScaleFixtureV1;
-  readonly compiled: ReturnType<typeof compileTemplateInteractionDocV1>;
-  readonly catalog: TextCatalogSetV1;
+  readonly manifest: TextContentManifestV1;
+  readonly session: TextContentSessionV1;
   readonly correctness: ContentScaleCorrectnessV1;
 }
 
@@ -82,8 +114,8 @@ interface ContentScaleOptionsV1 {
 }
 
 interface DurationSampleV1 {
-  readonly compile: number;
-  readonly textCatalogAdmission: number;
+  readonly manifestBuild: number;
+  readonly initialPackAdmission: number;
 }
 
 interface DurationDistributionV1 {
@@ -99,6 +131,11 @@ interface MemoryUsageV1 {
   readonly externalBytes: number;
 }
 
+interface GeneratedContentV1 {
+  readonly manifest: TextContentManifestV1;
+  readonly firstPackBytes: Uint8Array;
+}
+
 const repositoryRootV1 = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const execFile = promisify(execFileCallback);
 const profileNamesV1 = Object.freeze(
@@ -107,59 +144,114 @@ const profileNamesV1 = Object.freeze(
 const usageV1 = "usage: deno run -A --v8-flags=--expose-gc template/bench/content-scale.ts " +
   "--profile <content-reference|content-scale> [--warmup <count>] " +
   "[--samples <count>=5+] [--output <path>]";
+const encoderV1 = new TextEncoder();
+const emptyBootstrapCatalogsV1 = parseTextCatalogSetV1({
+  defaultLocale: "en",
+  catalogs: [{ locale: "en", fallbackLocale: null, entries: [] }],
+});
 
-function lineNameV1(index: number): string {
-  return `line-${String(index).padStart(6, "0")}`;
+function entryIdV1(index: number): string {
+  return `text.scale.line.${String(index).padStart(6, "0")}`;
+}
+
+function packIdV1(index: number): string {
+  return `text-pack.scale.${String(index).padStart(3, "0")}`;
+}
+
+function packBytesV1(packIndex: number): Uint8Array {
+  const firstEntryIndex = packIndex * contentScaleEntriesPerPackV1;
+  const entries = Array.from({ length: contentScaleEntriesPerPackV1 }, (_, offset) => {
+    const index = firstEntryIndex + offset;
+    return Object.freeze({
+      textId: entryIdV1(index),
+      text: `Synthetic content line ${String(index).padStart(6, "0")}`,
+    });
+  });
+  return encoderV1.encode(JSON.stringify({
+    format: "sillymaker.text-content-pack",
+    version: 1,
+    packId: packIdV1(packIndex),
+    textCatalogs: {
+      defaultLocale: "en",
+      catalogs: [{ locale: "en", fallbackLocale: null, entries }],
+    },
+  }));
+}
+
+function generateContentV1(fixture: ContentScaleFixtureV1): GeneratedContentV1 {
+  const descriptors = [];
+  let firstPackBytes: Uint8Array | undefined;
+  for (let packIndex = 0; packIndex < fixture.packCount; packIndex += 1) {
+    const bytes = packBytesV1(packIndex);
+    if (packIndex === 0) firstPackBytes = bytes;
+    descriptors.push(Object.freeze({
+      packId: packIdV1(packIndex),
+      runtimePath: `assets/content/scale-${String(packIndex).padStart(3, "0")}.json`,
+      byteLength: bytes.byteLength,
+      sha256: digestBytes(bytes),
+      entryCount: contentScaleEntriesPerPackV1,
+    }));
+  }
+  if (firstPackBytes === undefined) throw new TypeError("content scale first pack missing");
+  return Object.freeze({
+    manifest: defineTextContentManifestV1({ revision: 1, packs: descriptors }),
+    firstPackBytes,
+  });
+}
+
+function createSessionV1(content: GeneratedContentV1): TextContentSessionV1 {
+  const firstPackId = content.manifest.packs[0]?.packId;
+  if (firstPackId === undefined) throw new TypeError("content scale manifest is empty");
+  return createTextContentSessionV1({
+    manifest: content.manifest,
+    bootstrapCatalogs: emptyBootstrapCatalogsV1,
+    loadPackBytes: (descriptor) =>
+      descriptor.packId === firstPackId
+        ? Promise.resolve(content.firstPackBytes)
+        : Promise.reject(new TypeError(`content scale pack not loaded:${descriptor.packId}`)),
+  });
 }
 
 export function createContentScaleFixtureV1(
   profile: ContentScaleProfileV1,
 ): ContentScaleFixtureV1 {
-  const entryCount = contentScaleProfileEntryCountsV1[profile];
-  const blocks: TemplateInteractionBlockV1[] = [];
-  for (let index = 0; index < entryCount; index += 1) {
-    const name = lineNameV1(index);
-    blocks.push(Object.freeze({
-      kind: "say" as const,
-      name,
-      speaker: null,
-      text: `Synthetic content line ${String(index).padStart(6, "0")}`,
-      next: index + 1 === entryCount ? "end" : lineNameV1(index + 1),
-    }));
-  }
-  blocks.push(Object.freeze({ kind: "end" as const, name: "end" }));
   return Object.freeze({
     profile,
-    entryCount,
-    doc: Object.freeze({
-      prefix: "scale",
-      docId: "doc.scale.content",
-      entry: lineNameV1(0),
-      blocks: Object.freeze(blocks),
-    }),
+    packCount: contentScaleProfilePackCountsV1[profile],
+    entryCount: contentScaleProfileEntryCountsV1[profile],
+    doc: contentScaleControlDocV1,
     mutableState: contentScaleMinimalMutableStateV1,
   });
 }
 
-function requireCountV1(actual: number, expected: number, subject: string): void {
-  if (actual !== expected) {
-    throw new TypeError(`${subject}: expected ${String(expected)}, got ${String(actual)}`);
-  }
-}
-
-export function compileContentScaleFixtureV1(
+export async function compileContentScaleFixtureV1(
   fixture: ContentScaleFixtureV1,
-): ContentScaleCompiledV1 {
+): Promise<ContentScaleCompiledV1> {
   const compiled = compileTemplateInteractionDocV1({ doc: fixture.doc });
-  const catalog = parseTextCatalogSetV1({
-    defaultLocale: "en",
-    catalogs: [{ locale: "en", fallbackLocale: null, entries: compiled.textEntries }],
-  });
+  const content = generateContentV1(fixture);
+  const session = createSessionV1(content);
+  await session.ensure(parseTextContentPackIdV1(packIdV1(0)));
+  const firstTextId = entryIdV1(0);
   return Object.freeze({
     fixture,
-    compiled,
-    catalog,
-    correctness: compileContentScaleFixtureV1FromOutputsV1(fixture, compiled, catalog),
+    manifest: content.manifest,
+    session,
+    correctness: Object.freeze({
+      runtimeNodeCount: compiled.nodes.length,
+      inlineTextEntryCount: compiled.textEntries.length,
+      manifestPackCount: content.manifest.packs.length,
+      declaredTextEntryCount: content.manifest.packs.reduce(
+        (total, pack) => total + pack.entryCount,
+        0,
+      ),
+      loadedPackCount: session.loadedPackIds().length,
+      loadedTextEntryCount: session.loadedEntryCount(),
+      firstTextId,
+      lastTextId: entryIdV1(fixture.entryCount - 1),
+      firstText: session.resolveText(null, parseTextId(firstTextId)),
+      mutableStateCanonicalBytes: canonicalJsonBytes(fixture.mutableState).byteLength,
+      mutableStateDigest: digestCanonical("sillymaker:state:v1", fixture.mutableState),
+    }),
   });
 }
 
@@ -258,22 +350,20 @@ async function repositoryStateV1(): Promise<
   });
 }
 
-function measureDurationSampleV1(fixture: ContentScaleFixtureV1): DurationSampleV1 {
-  const compileStartedAt = performance.now();
-  const compiled = compileTemplateInteractionDocV1({ doc: fixture.doc });
-  const compile = performance.now() - compileStartedAt;
+async function measureDurationSampleV1(
+  fixture: ContentScaleFixtureV1,
+): Promise<DurationSampleV1> {
+  const buildStartedAt = performance.now();
+  const content = generateContentV1(fixture);
+  const manifestBuild = performance.now() - buildStartedAt;
+  const session = createSessionV1(content);
   const admissionStartedAt = performance.now();
-  const catalog = parseTextCatalogSetV1({
-    defaultLocale: "en",
-    catalogs: [{ locale: "en", fallbackLocale: null, entries: compiled.textEntries }],
-  });
-  const textCatalogAdmission = performance.now() - admissionStartedAt;
-  requireCountV1(
-    catalog.catalogs[0]?.entries.length ?? -1,
-    fixture.entryCount,
-    "catalog entry count",
-  );
-  return Object.freeze({ compile, textCatalogAdmission });
+  await session.ensure(parseTextContentPackIdV1(packIdV1(0)));
+  const initialPackAdmission = performance.now() - admissionStartedAt;
+  if (session.loadedPackIds().length !== 1 || session.loadedEntryCount() !== 1_000) {
+    throw new TypeError("content scale initial pack invariant failed");
+  }
+  return Object.freeze({ manifestBuild, initialPackAdmission });
 }
 
 function durationDistributionV1(raw: readonly number[]): DurationDistributionV1 {
@@ -282,8 +372,7 @@ function durationDistributionV1(raw: readonly number[]): DurationDistributionV1 
   }
   const sorted = raw.toSorted((left, right) => left - right);
   const nearestRank = (percentile: number): number => {
-    const index = Math.ceil(percentile * sorted.length) - 1;
-    const value = sorted[index];
+    const value = sorted[Math.ceil(percentile * sorted.length) - 1];
     if (value === undefined) throw new TypeError("duration percentile is unavailable");
     return value;
   };
@@ -310,23 +399,24 @@ async function mainV1(): Promise<void> {
   const afterFixture = readMemoryUsageV1();
 
   for (let index = 0; index < options.warmup; index += 1) {
-    measureDurationSampleV1(fixture);
+    await measureDurationSampleV1(fixture);
   }
-  const durationSamples: DurationSampleV1[] = [];
+  const samples: DurationSampleV1[] = [];
   for (let index = 0; index < options.samples; index += 1) {
     await collectGarbageV1(gc);
-    durationSamples.push(measureDurationSampleV1(fixture));
+    samples.push(await measureDurationSampleV1(fixture));
   }
 
   await collectGarbageV1(gc);
-  const beforeRetainedCompile = readMemoryUsageV1();
-  const retained = compileContentScaleFixtureV1(fixture);
+  const beforeRetainedSession = readMemoryUsageV1();
+  const retained = await compileContentScaleFixtureV1(fixture);
   await collectGarbageV1(gc);
-  const afterAdmission = readMemoryUsageV1();
+  const afterInitialPack = readMemoryUsageV1();
   const report = Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     profile: fixture.profile,
+    packCount: fixture.packCount,
     entryCount: fixture.entryCount,
     repository: await repositoryStateV1(),
     environment: Object.freeze({
@@ -338,28 +428,28 @@ async function mainV1(): Promise<void> {
     }),
     protocol: Object.freeze({
       profilesPerProcess: 1,
+      entriesPerPack: contentScaleEntriesPerPackV1,
+      initiallyLoadedPacks: 1,
       gcPassesPerCheckpoint: 2,
       macrotaskBetweenGcPasses: true,
       warmupSamples: options.warmup,
       measuredSamples: options.samples,
-      retainedHeapCheckpoints: 1,
       status: "trend_only" as const,
     }),
     durationMs: Object.freeze({
-      compile: durationDistributionV1(durationSamples.map((sample) => sample.compile)),
-      textCatalogAdmission: durationDistributionV1(
-        durationSamples.map((sample) => sample.textCatalogAdmission),
+      manifestBuild: durationDistributionV1(samples.map((sample) => sample.manifestBuild)),
+      initialPackAdmission: durationDistributionV1(
+        samples.map((sample) => sample.initialPackAdmission),
       ),
     }),
     retainedMemory: Object.freeze({
       processBaseline,
       afterFixture,
-      beforeRetainedCompile,
-      afterAdmission,
+      beforeRetainedSession,
+      afterInitialPack,
       fixtureHeapDeltaBytes: afterFixture.heapUsedBytes - processBaseline.heapUsedBytes,
-      totalHeapDeltaBytes: afterAdmission.heapUsedBytes - processBaseline.heapUsedBytes,
-      compileAndAdmissionHeapDeltaBytes: afterAdmission.heapUsedBytes -
-        beforeRetainedCompile.heapUsedBytes,
+      sessionHeapDeltaBytes: afterInitialPack.heapUsedBytes - beforeRetainedSession.heapUsedBytes,
+      totalHeapDeltaBytes: afterInitialPack.heapUsedBytes - processBaseline.heapUsedBytes,
     }),
     correctness: retained.correctness,
   });
@@ -367,36 +457,6 @@ async function mainV1(): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(report, null, 2)}\n`, "utf8");
   console.log(path);
-}
-
-function compileContentScaleFixtureV1FromOutputsV1(
-  fixture: ContentScaleFixtureV1,
-  compiled: ReturnType<typeof compileTemplateInteractionDocV1>,
-  catalog: TextCatalogSetV1,
-): ContentScaleCorrectnessV1 {
-  const catalogEntries = catalog.catalogs[0]?.entries;
-  if (catalogEntries === undefined) throw new TypeError("content scale catalog is missing");
-  requireCountV1(compiled.nodes.length, fixture.entryCount + 1, "runtime node count");
-  requireCountV1(compiled.textEntries.length, fixture.entryCount, "text entry count");
-  requireCountV1(compiled.flowGraph.nodes.length, fixture.entryCount + 1, "flow node count");
-  requireCountV1(compiled.flowGraph.edges.length, fixture.entryCount, "flow edge count");
-  requireCountV1(catalogEntries.length, fixture.entryCount, "catalog entry count");
-  const firstTextId = compiled.textEntries[0]?.textId;
-  const lastTextId = compiled.textEntries.at(-1)?.textId;
-  if (firstTextId === undefined || lastTextId === undefined) {
-    throw new TypeError("content scale compiler produced no text entries");
-  }
-  return Object.freeze({
-    runtimeNodeCount: compiled.nodes.length,
-    textEntryCount: compiled.textEntries.length,
-    flowNodeCount: compiled.flowGraph.nodes.length,
-    flowEdgeCount: compiled.flowGraph.edges.length,
-    catalogEntryCount: catalogEntries.length,
-    firstTextId,
-    lastTextId,
-    mutableStateCanonicalBytes: canonicalJsonBytes(fixture.mutableState).byteLength,
-    mutableStateDigest: digestCanonical("sillymaker:state:v1", fixture.mutableState),
-  });
 }
 
 if (import.meta.main) {

@@ -63,20 +63,26 @@ final module/source graph structural exclusion，不是 package installation 或
 
 | Package                   | Workspace public entries                                                                                                    | Responsibility                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@sillymaker/base`        | `.`, `./authoring`, `./runtime`, `./story`, `./testkit` + testkit subentries; workspace-only `./runtime/internal`           | Contracts, the Story prelude and authoring kit, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, the agent port, and reusable behavior-test helpers.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `@sillymaker/base`        | `.`, `./authoring`, `./runtime`, `./story`, `./testkit` + testkit subentries; workspace-only `./runtime/internal`           | Contracts, the Story prelude and authoring kit, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, immutable static-text manifests, strict pack admission and the synchronous loaded-text session, the agent port, and reusable behavior-test helpers.                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `@sillymaker/agent`       | workspace-only `./internal`                                                                                                 | Experimental transport-neutral RPC client and deterministic fake, bounded cross-process admission, observable Agent GUI/session Host, immutable `UiArtifact` revisions, admitted `UiIntent`, and the closed React renderer. It has no root/public entry and owns no real backend/protocol, persistence, tool execution, source/Game writer, OpenUI/A2UI adapter, or external effect.                                                                                                                                                                                                                                                                                                                                             |
 | `@sillymaker/composition` | `.`, `./legacy`, `./state`; workspace-only `./internal/extension-runtime`                                                   | Maintained internal cold-path façade for typed plugins, profiles, services, registries, direct-plan compilation, authoritative freezing, live reload, reversible staging-safe in-process lifecycle effects, and the neutral State-module registry bridge. Its selected private Direct extension runtime owns build-known factory activation and disposal for explicit lazy contributions. It is not a stable public Mod SDK, and no dynamic Context is part of a supported entry.                                                                                                                                                                                                                                                |
 | `@sillymaker/state`       | `.`, `./legacy`                                                                                                             | Experimental neutral State Runtime, StateModule, StateTransaction, and StateWorkflow compatibility façade. Runtime and authoring adapters reuse the exact Base Session and transaction runner; `./legacy` exposes the same raw composition/runtime control for migration equivalence work. It is not a production Story runtime or a second persistence/replay owner.                                                                                                                                                                                                                                                                                                                                                            |
 | `@sillymaker/tooling`     | `.`, `./project` + subentries, `./vite` + subentries, `./identity/*`                                                        | Non-browser project and Story CLI, Vite assembly, build identity, JSONL agent protocol/client, dev-only source/motion/scene write-back ports and the Studio page plugin, and package-internal Desktop preview packaging/local-server tools. Never imported by Base or browser bundles.                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `@sillymaker/studio`      | `.`, `./composition`; workspace-only `./internal/agent`                                                                     | The dev-only Authoring Host and standalone/embedded shells: closed workspace navigation, Host-owned focus/visited state, shared Scene/Regions/Chrome sessions, Host-owned Motion, dirty/undo/redo/CAS/conflict, Scene construction, real-renderer preview, lazy Flow, and a package-private neutral single-companion bridge. `./internal/agent` explicitly selects Engine Lab's experimental Agent and is absent from the core Authoring graph. `./composition` owns live tooling and its persistent visible publication. Vite serves the standalone route and a lazy embedded launcher; Player and ordinary runtime never import Studio. It retains exact source IO owner and loads embedded implementation only on first open. |
 | `@sillymaker/ui`          | `.`, `./assets`, `./debug`, `./debug/dev-source-client`, `./diagnostics`, `./styles.css`; workspace-only `./internal`       | React shell, GameViewport, UI composition and default GameRoot, stage, characters, assets, interaction/input, overlays, Narrative/WholeCanvas presentation, settings, semantic/presentation bridges, recovery UI, the progressive DevDock contribution host/lifecycle receipt, the development-conditional source client, and the published global theme stylesheet.                                                                                                                                                                                                                                                                                                                                                             |
-| `@sillymaker/web`         | `.`; workspace-only `./internal/application-startup`, `./internal/application-build-identity`, `./internal/application-hmr` | Browser Host, IndexedDB record storage, files/images, Desktop-channel HTTP record/file adapters, admitted Browser/Deno Desktop startup, `startWebGameApplicationV1`, mounting, routing, pointer input, capabilities, automation, the unchanged build-known DevDock literal loader seam, and private opt-in BuildIdentity/HMR rebootstrap coordination.                                                                                                                                                                                                                                                                                                                                                                           |
+| `@sillymaker/web`         | `.`; workspace-only `./internal/application-startup`, `./internal/application-build-identity`, `./internal/application-hmr` | Browser Host, IndexedDB record storage, files/images, Desktop-channel HTTP record/file adapters, admitted Browser/Deno Desktop startup, same-origin build-known text-pack loading and pre-dispatch readiness, `startWebGameApplicationV1`, mounting, routing, pointer input, capabilities, automation, the unchanged build-known DevDock literal loader seam, and private opt-in BuildIdentity/HMR rebootstrap coordination.                                                                                                                                                                                                                                                                                                     |
 | `@sillymaker/story-e2e`   | `.`                                                                                                                         | The neutral Engine Conformance Story (Engine Lab, `e2e/`): gameplay modules, narrative script, presentation catalogs, semantic actions, and application composition used to validate engine contracts.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Story packages            | `.` per package                                                                                                             | `template/` (the minimal starter, MIT) and `examples/*` (bookshop, cat-cafe, silly-os) each compose one self-contained application project (`sillymaker.config.ts` + `vite.config.ts`); the root `project.config.ts` only lists their directories for repository-level aggregation.                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 Cross-package imports use package exports and declared `workspace:*`
 dependencies. Application-only composition may stay internal to a Story package
 when no other package should consume it.
+
+Story packages own their static text payload, compact manifest and pack-selection
+boundaries. The starter keeps only bootstrap/UI copy resident, ships dialogue as
+two `assets/content/*.text-pack.json` files, and keeps its source-aware Flow/text
+join under `src/tooling/**`; ordinary Player builds never import that authoring
+projection.
 
 ### Maintained internal composition kernel
 
@@ -389,6 +395,60 @@ A Story package supplies a `GamePackageV1` with two facets:
   rule/value program, queries, and ViewModel projection.
 - **Presentation**: Semantic Stage/content, text and asset catalogs,
   presentation values, and renderer identifiers.
+
+### Static text/content plane
+
+Large immutable text is presentation content, not authoritative State. A Story
+may put a `TextContentManifestV1` in its resolved presentation and declare the
+same manifest plus bootstrap catalogs and build-known initial/required pack IDs
+on `WebGameApplicationV1`. Each descriptor contains one app-root-relative
+`assets/**` runtime path, exact byte length, SHA-256 digest and localized-entry
+count; manifest revision plus the sorted descriptor vector form its digest.
+The wire file is an exact `sillymaker.text-content-pack` V1 object containing
+`format`, `version`, `packId`, and `textCatalogs`.
+
+Base owns this data boundary. `admitTextContentPackV1` checks descriptor length
+and digest, performs one bounded Strict JSON parse, then one shape/catalog/count
+admission. `createTextContentSessionV1` fixes one immutable manifest for the
+runtime session, single-flights each pack, permits retry after a failed flight,
+rejects locale-topology or cross-pack text-ID conflicts before committing its
+private indexes, and exposes only synchronous lookup over bootstrap plus already
+admitted packs. It creates no second State, Save, cache authority, asynchronous
+command path, database, or streaming service.
+
+Web owns the Host seam. Its default loader resolves a descriptor against
+`document.baseURI`, requires the current GUI origin, fetches bytes, and hands
+them to Base. The application declares `initialPackIds` plus deterministic
+`requiredPackIdsForInvocation` and `requiredPackIdsForSnapshot` planners. Web
+binds their preparations through the package-private
+`bindCoreApplicationReadinessOptionsInternalV1` boundary:
+initial packs precede Core instance creation; an admitted semantic invocation
+prepares its packs, in invocation order, before command construction/dispatch;
+a validated persistence load/import candidate prepares its packs before
+bind/commit; an R2 rebootstrap candidate does so before takeover/install. UI and
+automation therefore keep using the same semantic port, while Save-surface
+load/import keep using the same Persistence replacement boundary. A candidate
+whose content preparation fails never replaces the old State. The DevDock State
+tuner may conservatively prepare the whole manifest only after `debug_tools +
+cheats` is current and before patching; execution still rechecks capability.
+Product load/import does not prepare every pack by default. A failure therefore
+leaves the current semantic/Stage publication unchanged instead of allowing a
+command or replacement to commit with unavailable copy. Authoritative execution
+and `resolveText` remain synchronous and I/O-free; Story UI does not own a
+parallel content gate. This is one Web-to-Core readiness binding over the
+existing semantic, Persistence, R2, and debug authorities, not a new facade,
+public Base Host/loading API, or raw Base State dependency.
+
+The complete manifest participates in the resolved presentation digest, while
+pack payload and loaded-session indexes do not enter Snapshot or Save. Changing
+text or a descriptor therefore produces the existing presentation-identity
+digest change (and a rebuilt presentation source may also change the Story
+digest); both use the existing warning-level compatibility classification
+without changing simulation compatibility when the State contract and
+simulation digest are unchanged. There is no additional Save field
+or migration path. During development, `deno task check:assets` resolves each
+opted-in Story and admits all of its declared packs from that application's own
+root; Vite serves and copies them through the existing `/assets/**` pipeline.
 
 Repository applications keep the simulation definition in a dedicated
 simulation-definition module (`src/game/simulation-definition.ts` in the

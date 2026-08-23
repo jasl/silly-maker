@@ -502,7 +502,13 @@ export function classifyStaticGameDependencyFacetsInternalV1(
 ): StaticGameDependencyFacetsInternalV1 {
   const uniqueModuleIds = sortedUniqueV1(moduleIds);
   const authoringImplementation = uniqueModuleIds.filter((moduleId) =>
-    moduleId.startsWith("engine/packages/studio/")
+    moduleId.startsWith("engine/packages/studio/") ||
+    (
+      !moduleId.startsWith("engine/packages/") &&
+      !/(?:^|\/)node_modules\//u.test(moduleId) &&
+      !moduleId.startsWith("virtual:") &&
+      /(?:^|\/)src\/(?:authoring|tooling)\//u.test(moduleId)
+    )
   );
   const devSourceImplementation = uniqueModuleIds.filter((moduleId) =>
     moduleId.startsWith("engine/packages/tooling/src/vite/") ||

@@ -9,8 +9,17 @@ import type {
   DeepReadonly,
   HostFilePortV1,
   RuntimeCapabilityPortV1,
+  TextCatalogSetV1,
+  TextContentManifestV1,
+  TextContentPackDescriptorV1,
+  TextContentPackIdV1,
+  TextContentSessionV1,
 } from "@sillymaker/base";
-import { digestCanonical, engineDebugPatchStateKindV1 } from "@sillymaker/base";
+import {
+  createTextContentSessionV1,
+  digestCanonical,
+  engineDebugPatchStateKindV1,
+} from "@sillymaker/base";
 import type {
   CoreAutosavePolicyV1,
   CoreGameApplicationDefinitionV1,
@@ -24,6 +33,7 @@ import {
   resolveCoreGameApplicationV1,
 } from "@sillymaker/base/runtime";
 import {
+  bindCoreApplicationReadinessOptionsInternalV1,
   clearAllCoreApplicationSavesForMaintenanceInternalV1,
   createCoreGameApplicationInstanceForRebootstrapInternalV1,
   disposeCoreGameApplicationForRebootstrapInternalV1,
@@ -106,6 +116,7 @@ import { createWebGameBootstrapEntropyInternalV1 } from "./create-web-game-boots
 import { installDesktopCloseFlushV1 } from "./install-desktop-close-flush.ts";
 import { createManagedSurfaceApplicationEpochAllocatorInternalV1 } from "./managed-surface-application-epoch.ts";
 import { installPresentationPacingInternalV1 } from "./presentation-pacing.ts";
+import { loadWebTextContentPackBytesInternalV1 } from "./load-web-text-content-pack.ts";
 import {
   createPresentationSuccessorAcknowledgmentBrokerInternalV1,
   type PresentationSuccessorAcknowledgmentBrokerInternalV1,
@@ -340,6 +351,20 @@ export interface WebGameApplicationV1<
     typeof resolveCoreGameApplicationV1
   >[1] extends { readonly buildIdentityInput?: infer TIdentity } | undefined ? TIdentity
     : never;
+  /** Build-known read-only text loaded before the Core and UI boundaries that need it. */
+  readonly textContent?: {
+    readonly manifest: TextContentManifestV1;
+    readonly bootstrapCatalogs: TextCatalogSetV1;
+    readonly initialPackIds: readonly TextContentPackIdV1[];
+    /** Admitted semantic invocation → packs that must be ready before dispatch. */
+    requiredPackIdsForInvocation?(
+      invocation: DeepReadonly<TInvocation>,
+    ): readonly TextContentPackIdV1[];
+    /** Admitted replacement Snapshot → packs that must be ready before install. */
+    requiredPackIdsForSnapshot?(
+      snapshot: DeepReadonly<TTypes["snapshot"]>,
+    ): readonly TextContentPackIdV1[];
+  };
   /**
    * The application's autosave/checkpoint policy. Defaults to a debounced
    * policy so long dialogues never write IndexedDB on every line; explicit
@@ -363,6 +388,8 @@ export interface WebGameApplicationV1<
       TPreview,
       TResult
     >;
+    /** The application-scoped read-only text resolver, or null when undeclared. */
+    readonly textContent: TextContentSessionV1 | null;
     readonly assetLoader: RuntimeAssetLoaderV1;
     /** The player profile (Seen registry, playback preferences): Host data
      * outside every Game Save. */
@@ -436,6 +463,10 @@ export interface StartWebGameApplicationOptionsV1 {
   readonly gameBootstrapEntropy?: BootstrapEntropyV1;
   /** Injectable for tests; defaults to the browser image loader. */
   readonly assetLoader?: RuntimeAssetLoaderV1;
+  /** Injectable pack transport; defaults to a same-origin runtime-path fetch. */
+  readonly loadTextContentPackBytes?: (
+    descriptor: TextContentPackDescriptorV1,
+  ) => Promise<Uint8Array>;
   readonly databaseName?: string;
   readonly capabilitySearch?: string;
   /** Register the pagehide teardown listener; disable in tests. */
@@ -493,6 +524,9 @@ export interface StartedWebGameApplicationV1 {
 interface StartedWebGameApplicationHmrControlInternalV1 {
   invalidate(): void;
   dispose(): Promise<DeepReadonly<CoreRebootstrapHandoffInternalV1>>;
+  readonly loadTextContentPackBytes?: NonNullable<
+    StartWebGameApplicationOptionsV1["loadTextContentPackBytes"]
+  >;
 }
 
 const startedWebGameApplicationHmrControlsInternalV1 = new WeakMap<
@@ -506,6 +540,14 @@ function requireStartedWebGameApplicationHmrControlInternalV1(
   const control = startedWebGameApplicationHmrControlsInternalV1.get(started);
   if (control === undefined) throw new TypeError("web.hmr_started_application_unavailable");
   return control;
+}
+
+/** Reads the injected pack transport so an HMR successor keeps the same Host seam. @internal */
+export function readStartedWebTextContentPackLoaderInternalV1(
+  started: StartedWebGameApplicationV1,
+): StartWebGameApplicationOptionsV1["loadTextContentPackBytes"] {
+  return requireStartedWebGameApplicationHmrControlInternalV1(started)
+    .loadTextContentPackBytes;
 }
 
 /** @internal Fences one live Web application before its HMR handoff. */
@@ -574,6 +616,7 @@ function createEngineStateTunerPortV1(input: {
     readonly semantic: { subscribe(listener: () => void): () => void };
   };
   readonly capabilities: RuntimeCapabilityPortV1;
+  readonly prepareMutation?: () => Promise<void>;
 }): StateTunerPortV1 {
   const { instance, capabilities } = input;
   return Object.freeze({
@@ -586,6 +629,20 @@ function createEngineStateTunerPortV1(input: {
           kind: "rejected" as const,
           message: "需要重新加载后才能写入（启动时未开启开发者工具）",
         });
+      }
+      const capabilityState = capabilities.state.getCurrent();
+      if (!capabilityState.debugTools || !capabilityState.cheats) {
+        return Object.freeze({ kind: "capability_disabled" as const });
+      }
+      if (input.prepareMutation !== undefined) {
+        try {
+          await input.prepareMutation();
+        } catch {
+          return Object.freeze({
+            kind: "rejected" as const,
+            message: "所需文本内容尚未就绪",
+          });
+        }
       }
       const result = await debugControl.execute(
         Object.freeze({
@@ -823,6 +880,73 @@ export async function startWebGameApplicationV1<
     );
   }
 
+  const textContentDeclaration = application.textContent;
+  let textContent: TextContentSessionV1 | null = null;
+  if (textContentDeclaration !== undefined) {
+    try {
+      const resolvedManifest = (resolved.application.resolved as {
+        readonly presentation: {
+          readonly textContentManifest?: TextContentManifestV1 | null;
+        };
+      }).presentation.textContentManifest;
+      if (
+        resolvedManifest === undefined ||
+        resolvedManifest === null ||
+        resolvedManifest.revision !== textContentDeclaration.manifest.revision ||
+        resolvedManifest.digest !== textContentDeclaration.manifest.digest
+      ) {
+        throw new TypeError("web.text_content_manifest_identity_mismatch");
+      }
+      const loadTextContentPackBytes = options.loadTextContentPackBytes ??
+        loadWebTextContentPackBytesInternalV1;
+      textContent = createTextContentSessionV1({
+        manifest: textContentDeclaration.manifest,
+        bootstrapCatalogs: textContentDeclaration.bootstrapCatalogs,
+        loadPackBytes: loadTextContentPackBytes,
+      });
+      for (const packId of textContentDeclaration.initialPackIds) {
+        await textContent.ensure(packId);
+      }
+    } catch (error) {
+      capabilities.dispose();
+      signalStartupFailure("required_domain");
+      throw error;
+    }
+  }
+  const textContentSession = textContent;
+  const ensureRequiredTextContentPacksV1 = async (
+    packIds: readonly TextContentPackIdV1[],
+  ): Promise<void> => {
+    if (textContentSession === null) return;
+    try {
+      for (const packId of packIds) await textContentSession.ensure(packId);
+    } catch (error) {
+      reportFailure("web.text_content_required", error);
+      throw error;
+    }
+  };
+  const textContentReadinessHooks = textContentSession === null ||
+      textContentDeclaration === undefined ||
+      (
+        textContentDeclaration.requiredPackIdsForInvocation === undefined &&
+        textContentDeclaration.requiredPackIdsForSnapshot === undefined
+      )
+    ? null
+    : Object.freeze({
+      ...(textContentDeclaration.requiredPackIdsForInvocation === undefined ? {} : {
+        prepareSemanticInvocation: (invocation: DeepReadonly<TInvocation>) =>
+          ensureRequiredTextContentPacksV1(
+            textContentDeclaration.requiredPackIdsForInvocation!(invocation),
+          ),
+      }),
+      ...(textContentDeclaration.requiredPackIdsForSnapshot === undefined ? {} : {
+        prepareReplacement: (snapshot: DeepReadonly<TTypes["snapshot"]>) =>
+          ensureRequiredTextContentPacksV1(
+            textContentDeclaration.requiredPackIdsForSnapshot!(snapshot),
+          ),
+      }),
+    });
+
   const applicationBuildId = appBuildIdV1(application.buildIdentityInput);
   // One lease identity per started instance: multi-tab/-window mutual
   // exclusion (and the instancePolicy roles) requires distinct owners.
@@ -841,20 +965,38 @@ export async function startWebGameApplicationV1<
     autosave: options.autosave ?? application.autosave ?? defaultWebAutosavePolicyV1,
     ...(applicationBuildId === null ? {} : { appBuildId: applicationBuildId }),
   });
-  const instance =
-    await (rebootstrapStart === undefined
-      ? createCoreGameApplicationInstanceV1(resolved.application, coreStartOptions)
-      : createCoreGameApplicationInstanceForRebootstrapInternalV1(
+  const instance = await (async () => {
+    if (rebootstrapStart === undefined) {
+      if (textContentReadinessHooks !== null) {
+        bindCoreApplicationReadinessOptionsInternalV1<
+          TInvocation,
+          TTypes["snapshot"]
+        >(coreStartOptions, textContentReadinessHooks);
+      }
+      return await createCoreGameApplicationInstanceV1(
         resolved.application,
-        {
-          ...coreStartOptions,
-          handoff: rebootstrapStart.handoff,
-          onRebootstrapStartFailureInternal: notifyRebootstrapStartFailure!,
-        },
-      )).catch((error: unknown) => {
-        signalStartupFailure("required_domain");
-        throw error;
-      });
+        coreStartOptions,
+      );
+    }
+    const rebootstrapOptions = Object.freeze({
+      ...coreStartOptions,
+      handoff: rebootstrapStart.handoff,
+      onRebootstrapStartFailureInternal: notifyRebootstrapStartFailure!,
+    });
+    if (textContentReadinessHooks !== null) {
+      bindCoreApplicationReadinessOptionsInternalV1<
+        TInvocation,
+        TTypes["snapshot"]
+      >(rebootstrapOptions, textContentReadinessHooks);
+    }
+    return await createCoreGameApplicationInstanceForRebootstrapInternalV1(
+      resolved.application,
+      rebootstrapOptions,
+    );
+  })().catch((error: unknown) => {
+    signalStartupFailure("required_domain");
+    throw error;
+  });
 
   let automation: InstalledBrowserAutomationBridgeV1 | undefined;
   let mounted: MountedGameApplicationV1 | undefined;
@@ -1064,6 +1206,7 @@ export async function startWebGameApplicationV1<
     };
     const uiDefinition = application.ui({
       instance,
+      textContent,
       instanceLease: instanceLeaseCoordinator,
       assetLoader: options.assetLoader ??
         createBrowserImageLoaderV1({
@@ -1314,7 +1457,16 @@ export async function startWebGameApplicationV1<
               subscribe: (listener: () => void) => instance.semantic.subscribe(listener),
             }),
           })}
-          stateTuner={createEngineStateTunerPortV1({ instance, capabilities })}
+          stateTuner={createEngineStateTunerPortV1({
+            instance,
+            capabilities,
+            ...(textContentSession === null ? {} : {
+              prepareMutation: () =>
+                ensureRequiredTextContentPacksV1(
+                  textContentSession.manifest.packs.map((pack) => pack.packId),
+                ),
+            }),
+          })}
           {...(uiDefinition.labels === undefined ? {} : { labels: uiDefinition.labels })}
           {...(uiDefinition.slots === undefined ? {} : { slots: uiDefinition.slots })}
           {...(uiDefinition.devDockContributions === undefined
@@ -1442,6 +1594,9 @@ export async function startWebGameApplicationV1<
     Object.freeze({
       invalidate: () => invalidateCoreGameApplicationForHmrInternalV1(instance),
       dispose: disposeForRebootstrap,
+      ...(options.loadTextContentPackBytes === undefined
+        ? {}
+        : { loadTextContentPackBytes: options.loadTextContentPackBytes }),
     }),
   );
   return started;

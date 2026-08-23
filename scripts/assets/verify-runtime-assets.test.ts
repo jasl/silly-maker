@@ -2,7 +2,12 @@
 import { readFile, realpath } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 
-import type { ResolvedAssetManifestV1 } from "../../engine/packages/base/src/index.ts";
+import {
+  defineTextContentManifestV1,
+  digestBytes,
+  parseTextCatalogSetV1,
+  type ResolvedAssetManifestV1,
+} from "../../engine/packages/base/src/index.ts";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -44,9 +49,9 @@ describe("closed runtime asset verification", () => {
       Object.freeze({
         storyId: `story.test.${String(index + 1)}`,
         appDirectory: `stories/${String(index + 1)}`,
-        resolveAssets() {
+        resolve() {
           resolutionCalls.push(this.storyId);
-          return manifest;
+          return Object.freeze({ assets: manifest });
         },
       })
     );
@@ -55,10 +60,10 @@ describe("closed runtime asset verification", () => {
       environmentRoots.push(appRoot);
       return Object.freeze({
         repositoryRoot: appRoot,
-        async readFile(path: string) {
+        readFile(path: string) {
           throw new Error(`unexpected read: ${path}`);
         },
-        async realpath(path: string) {
+        realpath(path: string) {
           throw new Error(`unexpected realpath: ${path}`);
         },
       });
@@ -67,9 +72,9 @@ describe("closed runtime asset verification", () => {
     const verified = await verifyRuntimeAssetStoryChecksV1(
       stories,
       environmentFor,
-      async (manifest) => {
+      (manifest) => {
         validationCalls.push(manifest);
-        return Object.freeze({ errors: Object.freeze([]) });
+        return Promise.resolve(Object.freeze({ errors: Object.freeze([]) }));
       },
     );
 
@@ -81,10 +86,9 @@ describe("closed runtime asset verification", () => {
     expect(Object.isFrozen(verified)).toBe(true);
   });
 
-  it("verifies the live manifests: only cat-cafe declares runtime art", async () => {
-    // e2e/template/bookshop stay code-native (no runtime file access);
-    // the cat-cafe ships a real webp art pack that must exist and match
-    // its declared bytes/digests, so its files are read for real.
+  it("verifies the live Template content packs and cat-cafe runtime art", async () => {
+    // e2e/bookshop stay code-native. Template text packs and cat-cafe art
+    // are both runtime files and pass through their exact byte admissions.
     const reads: string[] = [];
     const root = resolve(import.meta.dirname, "../..");
     await expect(
@@ -109,8 +113,99 @@ describe("closed runtime asset verification", () => {
       "story.example.cat-cafe",
     ]);
     expect(reads.length).toBeGreaterThan(0);
-    expect(reads.every((path) => path.includes(`examples${sep}cat-cafe${sep}assets`))).toBe(true);
+    expect(reads.some((path) => path.includes(`template${sep}assets${sep}content`))).toBe(true);
+    expect(reads.some((path) => path.includes(`examples${sep}cat-cafe${sep}assets`))).toBe(true);
+    expect(
+      reads.every((path) =>
+        path.includes(`template${sep}assets${sep}content`) ||
+        path.includes(`examples${sep}cat-cafe${sep}assets`)
+      ),
+    ).toBe(true);
   }, 30_000);
+
+  it("admits optional text packs through the application-root environment", async () => {
+    const bootstrapCatalogs = parseTextCatalogSetV1({
+      defaultLocale: "en",
+      catalogs: [{ locale: "en", fallbackLocale: null, entries: [] }],
+    });
+    const textCatalogs = parseTextCatalogSetV1({
+      defaultLocale: "en",
+      catalogs: [{
+        locale: "en",
+        fallbackLocale: null,
+        entries: [{ textId: "text.test.line", text: "Line" }],
+      }],
+    });
+    const packId = "text-pack.test.runtime";
+    const runtimePath = "assets/content/test.text-pack.json";
+    const bytes = new TextEncoder().encode(JSON.stringify({
+      format: "sillymaker.text-content-pack",
+      version: 1,
+      packId,
+      textCatalogs,
+    }));
+    const manifest = defineTextContentManifestV1({
+      revision: 1,
+      packs: [{
+        packId,
+        runtimePath,
+        byteLength: bytes.byteLength,
+        sha256: digestBytes(bytes),
+        entryCount: 1,
+      }],
+    });
+    const reads: string[] = [];
+    const story: RuntimeAssetStoryCheckV1 = Object.freeze({
+      storyId: "story.test.content",
+      appDirectory: "stories/content",
+      resolve: () =>
+        Object.freeze({
+          assets: emptyManifestV1(),
+          textContent: Object.freeze({ manifest, bootstrapCatalogs }),
+        }),
+    });
+    const environmentFor = (): RuntimeAssetValidationEnvironmentV1 =>
+      Object.freeze({
+        repositoryRoot: "/repo/content",
+        readFile(path: string) {
+          reads.push(path);
+          return Promise.resolve(bytes);
+        },
+        realpath(path: string) {
+          return Promise.resolve(path);
+        },
+      });
+
+    await expect(
+      verifyRuntimeAssetStoryChecksV1(
+        [story],
+        environmentFor,
+        () => Promise.resolve(Object.freeze({ errors: Object.freeze([]) })),
+      ),
+    ).resolves.toEqual(["story.test.content"]);
+    expect(reads).toEqual([runtimePath]);
+
+    const corrupt = bytes.slice();
+    corrupt[corrupt.length - 2] = corrupt[corrupt.length - 2] === 65 ? 66 : 65;
+    await expect(
+      verifyRuntimeAssetStoryChecksV1(
+        [story],
+        () =>
+          Object.freeze({
+            repositoryRoot: "/repo/content",
+            readFile() {
+              return Promise.resolve(corrupt);
+            },
+            realpath(path: string) {
+              return Promise.resolve(path);
+            },
+          }),
+        () => Promise.resolve(Object.freeze({ errors: Object.freeze([]) })),
+      ),
+    ).rejects.toThrow(
+      "story.test.content:text-pack.test.runtime:text_content.pack_digest_mismatch",
+    );
+  });
 
   it("reports bounded Story and asset identities after checking the closed set", async () => {
     const manifest = emptyManifestV1();
@@ -120,9 +215,9 @@ describe("closed runtime asset verification", () => {
         Object.freeze({
           storyId,
           appDirectory: "stories/test",
-          resolveAssets() {
+          resolve() {
             resolutionCalls.push(storyId);
-            return manifest;
+            return Object.freeze({ assets: manifest });
           },
         }),
     );
@@ -137,15 +232,15 @@ describe("closed runtime asset verification", () => {
         () =>
           Object.freeze({
             repositoryRoot: "/repo/silly-maker",
-            async readFile() {
-              return new Uint8Array();
+            readFile() {
+              return Promise.resolve(new Uint8Array());
             },
-            async realpath(path: string) {
-              return path;
+            realpath(path: string) {
+              return Promise.resolve(path);
             },
           }),
-        async () => {
-          return Object.freeze({ errors: Object.freeze([error]) });
+        () => {
+          return Promise.resolve(Object.freeze({ errors: Object.freeze([error]) }));
         },
       ),
     ).rejects.toThrow(

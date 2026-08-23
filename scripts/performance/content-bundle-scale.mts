@@ -8,11 +8,12 @@ import { promisify } from "node:util";
 
 import { createSillymakerAppViteConfigV1 } from "@sillymaker/tooling/vite";
 import { build } from "vite";
+import { digestBytes } from "@sillymaker/base";
 
 import {
   contentBundleScaleFixtureV1,
-  contentBundleScalePackSourceV1,
-  contentBundleScaleRegistrySourceV1,
+  contentBundleScaleManifestSourceV1,
+  contentBundleScalePackJsonV1,
   initialJavaScriptPathsFromViteManifestV1,
   type ContentBundleScaleProfileV1,
 } from "./content-bundle-scale-helpers.ts";
@@ -107,6 +108,7 @@ async function outputPathV1(requestedPath: string | undefined): Promise<string> 
 async function createFixtureV1(root: string, profile: ContentBundleScaleProfileV1): Promise<void> {
   const fixture = contentBundleScaleFixtureV1(profile);
   const sourceDirectory = join(root, "src");
+  const contentDirectory = join(root, "assets", "content");
   const templateEntryPath = relative(
     sourceDirectory,
     join(repositoryRootV1, "template", "src", "application", "entry.tsx"),
@@ -121,7 +123,10 @@ async function createFixtureV1(root: string, profile: ContentBundleScaleProfileV
   const templateStoryImport = templateStoryPath.startsWith(".")
     ? templateStoryPath
     : `./${templateStoryPath}`;
-  await mkdir(sourceDirectory, { recursive: true });
+  await Promise.all([
+    mkdir(sourceDirectory, { recursive: true }),
+    mkdir(contentDirectory, { recursive: true }),
+  ]);
   await writeFile(
     join(root, "package.json"),
     `${
@@ -141,19 +146,28 @@ async function createFixtureV1(root: string, profile: ContentBundleScaleProfileV
   );
   await writeFile(
     join(sourceDirectory, "entry.ts"),
-    `import { contentPacksV1 } from "./content-registry.ts";
+    `import { contentManifestV1 } from "./content-manifest.ts";
 import ${JSON.stringify(templateEntryImport)};
 
 const requested = Number(new URLSearchParams(location.search).get("pack") ?? "0");
-const packIndex = Number.isSafeInteger(requested) && requested >= 0 && requested < contentPacksV1.length
+const packIndex = Number.isSafeInteger(requested) && requested >= 0 && requested < contentManifestV1.packs.length
   ? requested
   : 0;
-const selectedPack = contentPacksV1[packIndex] ?? contentPacksV1[0];
+const selectedPack = contentManifestV1.packs[packIndex] ?? contentManifestV1.packs[0];
 if (selectedPack === undefined) throw new Error("content fixture has no selected pack");
 
 document.documentElement.dataset.scaleSelectedPack = String(packIndex);
-document.documentElement.dataset.scaleSelectedTextId = selectedPack[0]?.textId ?? "missing";
-document.documentElement.dataset.scaleLogicalPackCount = String(contentPacksV1.length);
+document.documentElement.dataset.scaleSelectedPackId = selectedPack.packId;
+document.documentElement.dataset.scaleLogicalPackCount = String(contentManifestV1.packs.length);
+
+void fetch(selectedPack.runtimePath).then(async (response) => {
+  if (!response.ok) throw new Error("scale content fetch failed: " + String(response.status));
+  const pack = await response.json();
+  document.documentElement.dataset.scaleLoadedPackId = String(pack.packId ?? "missing");
+  document.documentElement.dataset.scaleLoadedEntryCount = String(
+    pack.textCatalogs?.catalogs?.[0]?.entries?.length ?? -1,
+  );
+});
 `,
     "utf8",
   );
@@ -164,22 +178,31 @@ document.documentElement.dataset.scaleLogicalPackCount = String(contentPacksV1.l
     };\n`,
     "utf8",
   );
-  await writeFile(
-    join(sourceDirectory, "content-registry.ts"),
-    contentBundleScaleRegistrySourceV1(fixture.packCount),
-    "utf8",
-  );
+  const descriptors = [];
   for (let packIndex = 0; packIndex < fixture.packCount; packIndex += 1) {
     const suffix = String(packIndex).padStart(3, "0");
+    const source = contentBundleScalePackJsonV1({
+      packIndex,
+      entriesPerPack: fixture.entriesPerPack,
+    });
+    const bytes = new TextEncoder().encode(source);
     await writeFile(
-      join(sourceDirectory, `pack-${suffix}.ts`),
-      contentBundleScalePackSourceV1({
-        packIndex,
-        entriesPerPack: fixture.entriesPerPack,
-      }),
-      "utf8",
+      join(contentDirectory, `pack-${suffix}.json`),
+      bytes,
     );
+    descriptors.push(Object.freeze({
+      packId: `text-pack.scale.${suffix}`,
+      runtimePath: `assets/content/pack-${suffix}.json`,
+      byteLength: bytes.byteLength,
+      sha256: digestBytes(bytes),
+      entryCount: fixture.entriesPerPack,
+    }));
   }
+  await writeFile(
+    join(sourceDirectory, "content-manifest.ts"),
+    contentBundleScaleManifestSourceV1(descriptors),
+    "utf8",
+  );
 }
 
 async function listFilesV1(root: string, directory = root): Promise<readonly string[]> {
@@ -271,8 +294,13 @@ async function mainV1(): Promise<void> {
         .filter((path) => path.endsWith(".js") || path.endsWith(".mjs"))
         .map((path) => measureAssetV1(outDir, path)),
     );
+    const contentPacks = await Promise.all(
+      (await listFilesV1(outDir))
+        .filter((path) => path.startsWith("assets/content/") && path.endsWith(".json"))
+        .map((path) => measureAssetV1(outDir, path)),
+    );
     const report = Object.freeze({
-      schemaVersion: 1,
+      schemaVersion: 2,
       workloadId: `content-bundle-scale-v1/${options.profile}`,
       generatedAt: new Date().toISOString(),
       repository: await repositoryStateV1(),
@@ -288,12 +316,15 @@ async function mainV1(): Promise<void> {
       groups: Object.freeze({
         initialJavaScript: sumV1(initialJavaScript),
         allJavaScript: sumV1(allJavaScript),
+        contentPacks: sumV1(contentPacks),
       }),
       initialJavaScript,
+      contentPacks,
       interpretation: Object.freeze({
-        status: "pre_change_raw_measurement",
-        selectedPackOnly: false,
-        note: "Current module evaluation statically reaches every logical content pack.",
+        status: "external_content_pack_measurement",
+        selectedPackOnly: true,
+        note:
+          "Initial JavaScript carries compact descriptors; fetch selects one external pack payload.",
       }),
     });
     const path = await outputPathV1(options.output);

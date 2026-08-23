@@ -74,6 +74,7 @@ import type {
   CoreSemanticAdapterV1,
 } from "./core-game-application.ts";
 import {
+  bindCoreApplicationReadinessOptionsInternalV1,
   clearAllCoreApplicationSavesForMaintenanceInternalV1,
   createCoreGameApplicationInstanceV1,
   defineCoreGameApplicationV1,
@@ -3984,6 +3985,165 @@ describe("createCoreGameApplicationInstanceV1", () => {
     await instance.dispose();
   });
 
+  it("enters the no-readiness semantic command path before dispatch returns", async () => {
+    const commandForInvocation = vi.fn(adapterV1.commandForInvocation);
+    const definition = defineCoreGameApplicationV1({
+      entry: createSyntheticCounterGamePackageV1(),
+      semantic: Object.freeze({
+        ...adapterV1,
+        commandForInvocation,
+      }) as unknown as CoreSemanticAdapterV1<
+        SyntheticSimulationTypesV1,
+        SyntheticQueriesV1,
+        SyntheticQueriesV1,
+        null,
+        { readonly actionId: string; readonly count: number },
+        SyntheticInvocationV1,
+        { readonly countBefore: number },
+        SyntheticResultV1
+      >,
+    });
+    const resolved = resolveCoreGameApplicationV1(definition, {
+      buildIdentityInput: deterministicBuildIdentityInputV1,
+    });
+    if (resolved.kind !== "resolved") throw new TypeError("synthetic story must resolve");
+    const instance = await createCoreGameApplicationInstanceV1(resolved.application, {
+      host: hostServicesV1(createMemoryHostRecordStoreV1()),
+    });
+    try {
+      const pending = instance.semantic.dispatch(incrementV1);
+      expect(commandForInvocation).toHaveBeenCalledOnce();
+      await expect(pending).resolves.toEqual({ kind: "committed", count: 1 });
+    } finally {
+      await instance.dispose();
+    }
+  });
+
+  it("prepares admitted semantic invocations in dispatch order without committing on failure", async () => {
+    const options = Object.freeze({
+      host: hostServicesV1(createMemoryHostRecordStoreV1()),
+    });
+    const preparationFailure = new Error("synthetic content preparation failure");
+    let releaseFirst!: () => void;
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let markFirstStarted!: () => void;
+    const firstStarted = new Promise<void>((resolve) => {
+      markFirstStarted = resolve;
+    });
+    let releaseSecond!: () => void;
+    const secondGate = new Promise<void>((resolve) => {
+      releaseSecond = resolve;
+    });
+    let markSecondStarted!: () => void;
+    const secondStarted = new Promise<void>((resolve) => {
+      markSecondStarted = resolve;
+    });
+    let callCount = 0;
+    const prepareSemanticInvocation = vi.fn(async (_invocation: SyntheticInvocationV1) => {
+      callCount += 1;
+      if (callCount === 1) {
+        markFirstStarted();
+        await firstGate;
+        throw preparationFailure;
+      }
+      markSecondStarted();
+      await secondGate;
+    });
+    bindCoreApplicationReadinessOptionsInternalV1<SyntheticInvocationV1, never>(
+      options,
+      { prepareSemanticInvocation },
+    );
+    const instance = await createCoreGameApplicationInstanceV1(
+      resolvedApplicationV1(),
+      options,
+    );
+    try {
+      await expect(instance.semantic.dispatch({ kind: "invalid" } as never)).resolves.toEqual({
+        kind: "not_executed",
+        code: "validation_failed",
+      });
+      expect(prepareSemanticInvocation).not.toHaveBeenCalled();
+
+      const snapshotBefore = instance.admin.inspectForTest().snapshot;
+      const logBefore = instance.admin.commandLog();
+      const first = instance.semantic.dispatch(incrementV1);
+      const second = instance.semantic.dispatch(incrementV1);
+      await firstStarted;
+      expect(prepareSemanticInvocation).toHaveBeenCalledOnce();
+      expect(prepareSemanticInvocation.mock.calls[0]?.[0]).not.toBe(incrementV1);
+      expect(prepareSemanticInvocation.mock.calls[0]?.[0]).toEqual(incrementV1);
+      expect(instance.admin.inspectForTest().snapshot).toBe(snapshotBefore);
+      expect(instance.admin.commandLog()).toBe(logBefore);
+
+      releaseFirst();
+      await expect(first).rejects.toBe(preparationFailure);
+      await secondStarted;
+      expect(prepareSemanticInvocation).toHaveBeenCalledTimes(2);
+      expect(instance.admin.inspectForTest().snapshot).toBe(snapshotBefore);
+      expect(instance.admin.commandLog()).toBe(logBefore);
+
+      releaseSecond();
+      await expect(second).resolves.toEqual({ kind: "committed", count: 1 });
+      expect(instance.admin.commandLog()).toHaveLength(1);
+    } finally {
+      releaseFirst();
+      releaseSecond();
+      await instance.dispose();
+    }
+  });
+
+  it.each(["load", "import"] as const)(
+    "prepares a validated %s candidate before replacement and preserves State on failure",
+    async (surface) => {
+      const options = Object.freeze({
+        host: hostServicesV1(createMemoryHostRecordStoreV1()),
+      });
+      const preparationFailure = new Error("synthetic replacement preparation failure");
+      let rejectPreparation = false;
+      const prepareReplacement = vi.fn(async () => {
+        if (rejectPreparation) throw preparationFailure;
+      });
+      bindCoreApplicationReadinessOptionsInternalV1<never, SyntheticSnapshotV1>(
+        options,
+        { prepareReplacement },
+      );
+      const instance = await createCoreGameApplicationInstanceV1(
+        resolvedApplicationV1(),
+        options,
+      );
+      try {
+        await instance.semantic.dispatch(incrementV1);
+        await expect(instance.persistence.save("manual.1")).resolves.toMatchObject({
+          kind: "saved",
+        });
+        const exported = await instance.persistence.exportCurrentSave();
+        await instance.semantic.dispatch(incrementV1);
+        const snapshotBefore = instance.admin.inspectForTest().snapshot;
+        const logBefore = instance.admin.commandLog();
+
+        rejectPreparation = true;
+        const failed = surface === "load"
+          ? await instance.persistence.load("manual.1")
+          : await instance.persistence.importSave(exported.bytes);
+        expect(failed).toEqual({ kind: "faulted", code: "persistence.unexpected" });
+        expect(instance.admin.inspectForTest().snapshot).toBe(snapshotBefore);
+        expect(instance.admin.commandLog()).toBe(logBefore);
+
+        rejectPreparation = false;
+        const recovered = surface === "load"
+          ? await instance.persistence.load("manual.1")
+          : await instance.persistence.importSave(exported.bytes);
+        expect(recovered.kind).toBe(surface === "load" ? "loaded" : "imported");
+        expect(instance.semantic.observe().game).toEqual({ count: 1 });
+        expect(prepareReplacement).toHaveBeenCalledTimes(2);
+      } finally {
+        await instance.dispose();
+      }
+    },
+  );
+
   it("normalizes finalized Core evidence item-by-item before result, log, and replay use", async () => {
     const fixture = evidenceNormalizationFixtureV1();
     const instance = await createCoreGameApplicationInstanceV1(fixture.application, {
@@ -5854,15 +6014,24 @@ describe("createCoreGameApplicationInstanceV1", () => {
       save: { mediaType: "application/json" },
       lease: { ownerId: ownerIdV1, fencingToken: 1 },
     });
+    const prepareReplacement = vi.fn(async (snapshot: DeepReadonly<SyntheticSnapshotV1>) => {
+      expect(canonicalJsonBytes(snapshot)).toEqual(canonicalJsonBytes(predecessorSnapshot));
+    });
+    const successorOptions = Object.freeze({
+      host: hostServicesV1(records, [83]),
+      handoff,
+      onRebootstrapStartFailureInternal: () => undefined,
+    });
+    bindCoreApplicationReadinessOptionsInternalV1<never, SyntheticSnapshotV1>(
+      successorOptions,
+      { prepareReplacement },
+    );
     const successor = await createCoreGameApplicationInstanceForRebootstrapInternalV1(
       resolvedApplicationV1(),
-      {
-        host: hostServicesV1(records, [83]),
-        handoff,
-        onRebootstrapStartFailureInternal: () => undefined,
-      },
+      successorOptions,
     );
     try {
+      expect(prepareReplacement).toHaveBeenCalledOnce();
       const successorSnapshot = successor.admin.inspectForTest().snapshot;
       expect(canonicalJsonBytes(successorSnapshot)).toEqual(
         canonicalJsonBytes(predecessorSnapshot),

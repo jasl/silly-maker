@@ -20,7 +20,6 @@ import {
 
 import type {
   TemplateChoiceOptionV1,
-  TemplateFlowGraphV1,
   TemplateInteractionDocV1,
   TemplateNarrativeNodeV1,
   TemplateSceneBindingV1,
@@ -32,9 +31,9 @@ export type { TemplateChoiceOptionV1, TemplateNarrativeNodeV1 } from "./narrativ
 
 /**
  * The starter narrative: a pure-data interaction document compiled by the
- * kit in `narrative-kit.ts`, not a DSL. Authors edit the document blocks
- * (dialogue inline) and the text catalog in `presentation.ts`; the runner
- * below almost never changes.
+ * kit in `narrative-kit.ts`, not a DSL. Authors edit control and stable text
+ * references here; dialogue copy lives in the build-known content packs and
+ * resident UI copy in `presentation.ts`. The runner below almost never changes.
  *
  * Block kinds:
  * - `say`     one line of dialogue; stops and waits for the player.
@@ -122,17 +121,16 @@ const templateSceneRegistryV1: Readonly<Record<string, TemplateSceneBindingV1>> 
  * by short key (idempotent ensure semantics — re-entry never double-shows
  * content).
  *
- * The document is pure data. Dialogue lives inline: one short name per
- * block derives its node, interaction, and text ids, and the collected
- * default-locale entries merge into the presentation catalog (other
- * locales override by the same textIds). Adding a line touches only this
- * array; admission rejects unknown speakers, duplicate names, unresolved
- * jumps, and bad stage ops at construction time.
+ * The document is pure control data. Dialogue copy lives in build-known
+ * content packs; explicit text IDs keep the runtime plan small and stable
+ * while tooling can join the same IDs back to authoring copy. Admission
+ * still rejects unknown speakers, duplicate names, unresolved jumps, and
+ * bad stage ops at construction time.
  */
-const templateOpeningDocV1: TemplateInteractionDocV1 = {
+export const templateOpeningDocV1: TemplateInteractionDocV1 = {
   prefix: "template",
   docId: "doc.template.opening",
-  speakers: { mei: "小梅" },
+  speakers: { mei: { textId: "text.template.speaker.mei" } },
   entry: "opening",
   blocks: [
     {
@@ -154,19 +152,18 @@ const templateOpeningDocV1: TemplateInteractionDocV1 = {
       kind: "say",
       name: "greeting",
       speaker: "mei",
-      text: "雨停了。院子里的青石板还亮着水光。",
+      textId: "text.template.line.greeting",
       next: "first-choice",
     },
     {
       kind: "choice",
       name: "first-choice",
-      prompt: "接下来做什么？",
       // Keeps the pre-kit textId so existing saves and digests hold.
       promptTextId: "text.template.choice.prompt",
       options: [
         {
           name: "look",
-          text: "去看看檐下的动静",
+          textId: "text.template.choice.look",
           setFlags: [templateCatFlagV1],
           next: "cat-line",
         },
@@ -175,18 +172,21 @@ const templateOpeningDocV1: TemplateInteractionDocV1 = {
           // reroutes the fetch hold at entry, so the off-frame wait never
           // opens and the close-up line plays instead.
           name: "hurry",
-          text: "小跑过去看个究竟",
+          textId: "text.template.choice.hurry",
           setFlags: [templateCatFlagV1, templateHurriedFlagV1],
           next: "cat-line",
         },
-        { name: "inside", text: "先回屋里", next: "inside-line" },
+        {
+          name: "inside",
+          textId: "text.template.choice.inside",
+          next: "inside-line",
+        },
       ],
     },
     {
       kind: "say",
       name: "cat-line",
       speaker: "mei",
-      text: "看，檐角下躲着一只小猫，毛都淋湿了。",
       // Keeps the pre-kit textId so existing saves and digests hold.
       textId: "text.template.line.cat",
       next: "mei-smiles",
@@ -233,14 +233,14 @@ const templateOpeningDocV1: TemplateInteractionDocV1 = {
       kind: "say",
       name: "fetch-line",
       speaker: null,
-      text: "她提起裙角小跑过去，屋檐的影子里传来一阵轻响。",
+      textId: "text.template.line.fetch-line",
       next: "mei-returns",
     },
     {
       kind: "say",
       name: "hurry-line",
       speaker: null,
-      text: "你几乎和她同时到了檐下，正看见她把小猫从影子里捧出来。",
+      textId: "text.template.line.hurry-line",
       next: "mei-returns",
     },
     {
@@ -253,7 +253,6 @@ const templateOpeningDocV1: TemplateInteractionDocV1 = {
       kind: "say",
       name: "inside-line",
       speaker: null,
-      text: "你转身回屋，把伞立在门边。",
       // Keeps the pre-kit textId so existing saves and digests hold.
       textId: "text.template.line.inside",
       next: "ending-gate",
@@ -270,32 +269,26 @@ const templateOpeningDocV1: TemplateInteractionDocV1 = {
       kind: "say",
       name: "ending-warm",
       speaker: "mei",
-      text: "小梅把小猫抱进屋里，朝你眨了眨眼。今天是个好日子。",
+      textId: "text.template.line.ending-warm",
       next: "close",
     },
     {
       kind: "say",
       name: "ending-plain",
       speaker: null,
-      text: "屋里茶还温着。院子里的雨声停了。",
+      textId: "text.template.line.ending-plain",
       next: "close",
     },
     { kind: "end", name: "close" },
   ],
 };
 
-const templateCompiledOpeningV1 = compileTemplateInteractionDocV1({
+export const templateCompiledOpeningV1 = compileTemplateInteractionDocV1({
   doc: templateOpeningDocV1,
   scenes: templateSceneRegistryV1,
 });
 
 export const templateScriptV1: readonly TemplateNarrativeNodeV1[] = templateCompiledOpeningV1.nodes;
-
-/** Default-locale entries the inline script declares; merged by presentation. */
-export const templateScriptTextEntriesV1 = templateCompiledOpeningV1.textEntries;
-
-/** Read-only flow projection (labeled edges, doc grouping); Studio renders it. */
-export const templateFlowGraphV1: TemplateFlowGraphV1 = templateCompiledOpeningV1.flowGraph;
 
 const nodesByIdV1: ReadonlyMap<string, TemplateNarrativeNodeV1> = new Map(
   templateScriptV1.map((node) => [node.nodeId, node]),

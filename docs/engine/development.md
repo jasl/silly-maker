@@ -955,22 +955,32 @@ CI threshold. The existing roughly 3 MiB physical Snapshot workload remains
 the high-node-count evidence and should not be duplicated by inflating this
 Save-locality matrix.
 
-The Scale Lab's static-content axis stays separate from State. Run the current
-starter interaction compiler and TextCatalog admission one profile per process:
+The Scale Lab's static-content axis stays separate from State. Run the compact
+manifest build and first-pack admission one profile per process:
 
 ```sh
 deno task bench:content:compile --profile content-reference
 deno task bench:content:compile --profile content-scale
 ```
 
-The profiles generate 1,000 and 100,000 say entries but share the same minimal
-mutable State. Each process performs one warmup, records five raw compile and
-admission samples with p50/p95, and takes one isolated retained-heap checkpoint
-after the explicit two-pass GC protocol. The generated fixture stays
-process-local and the JSON report lives only in an OS temporary directory;
-timings and heap are trend evidence. The ordinary Template test protects only
-deterministic counts and identical State, not one machine's measurements or the
-current monolithic memory cost.
+The profiles generate 1 and 100 build-known packs of 1,000 text entries while
+sharing the same two-node control plan and minimal mutable State. Each process
+performs one warmup, records five raw manifest-build and first-pack-admission
+samples with p50/p95, and takes isolated retained-heap checkpoints around the
+session after the explicit two-pass GC protocol. Both profiles load only the
+first pack; the scale session therefore retains a larger compact manifest, not
+the other 99 payloads. The generated fixture stays process-local and the JSON
+report lives only in an OS temporary directory; timings and heap remain trend
+evidence. Ordinary tests protect stable counts, one loaded pack/1,000 loaded
+entries, an inline-copy-free control plan, and identical 60-byte State/digest,
+not one machine's measurements.
+
+The 2026-08-24 M1 same-machine five-sample checkpoint used the final modified
+worktree over base HEAD `eb718bcaa6683785634cbfd6efb9ce637efafbd1`. It measured
+manifest-build p50/p95 `0.505/1.970 ms` versus `35.872/37.205 ms`, first-pack
+admission `7.679/8.303 ms` versus `7.227/7.903 ms`, and session retained-heap
+delta `186,864 B` versus `212,264 B` for 1,000/100,000 declared entries. These
+are raw review evidence, not portable thresholds.
 
 `deno task bench:authoring-index` generates 10- and 1,000-document profiles from
 the four current authoring document families. It measures a fresh unified index,
@@ -985,21 +995,39 @@ to OS temp; `--output <path>` selects an artifact location.
 
 The bundle axis uses the real Template Player entry and the maintained
 SillyMaker Vite config, while holding its GUI and selected first 1,000-entry
-logical content group constant:
+pack constant:
 
 ```sh
 deno task bench:content:bundle --profile bundle-reference
 deno task bench:content:bundle --profile bundle-scale
 ```
 
-The scale profile only adds another 99 statically imported logical groups. This
-is intentionally a pre-M1 characterization: every group currently enters the
-initial static JavaScript closure. The task performs one structural release
-build, walks Vite's manifest from the sole entry through static `imports`, and
-reports raw/gzip initial and total JavaScript bytes plus source/environment
-provenance. It does not time builds, compare revisions, or decide promotion.
-Source/build fixtures are deleted from OS temp; the small JSON report remains in
-OS temp unless `--output` is supplied.
+The scale profile adds another 99 compact manifest descriptors and 99 external
+JSON pack assets; none is statically imported into JavaScript. The task performs
+one structural release build, walks Vite's manifest from the sole entry through
+static `imports`, and reports raw/gzip initial and total JavaScript plus separate
+content-asset bytes and source/environment provenance. It does not time builds,
+compare revisions, or decide promotion. Source/build fixtures are deleted from
+OS temp; the small JSON report remains in OS temp unless `--output` is supplied.
+The same final-worktree checkpoint measured initial transitive JavaScript gzip
+`361,312 B` versus `366,431 B` (`+5,119 B`, below the accepted 32 KiB structure budget) and pack
+assets gzip `5,850 B` versus `585,737 B`; unlike M0's `+556,838 B` JavaScript
+gap, payload growth is now visible in the deployable content assets where it
+belongs.
+
+For maintained Story payloads, run the product verifier rather than either
+benchmark:
+
+```sh
+deno task check:assets
+```
+
+It resolves each application that opted into runtime-asset verification, checks
+its ordinary asset manifest, then creates one Base text-content session and
+reads and admits every declared pack from that application's root. Descriptor length,
+SHA, exact V1 wire shape, pack identity, text-catalog topology/IDs, and entry
+count are checked through the runtime contract. Vite development/build serving
+and copying continue to use the existing `assets/**` pipeline.
 
 The CR3 Player baselines follow the same policy. `deno task bench:surfaces`
 runs 1/4/16-target Stable publication workloads with small and medium parameters

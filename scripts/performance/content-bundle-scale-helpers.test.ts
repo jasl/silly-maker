@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  contentBundleScalePackJsonV1,
   contentBundleScaleFixtureV1,
   initialJavaScriptPathsFromViteManifestV1,
 } from "./content-bundle-scale-helpers.ts";
@@ -22,6 +23,25 @@ describe("content bundle scale fixture", () => {
       entryCount: 100_000,
       selectedPackIndex: 0,
     });
+  });
+
+  it("generates one admitted JSON-shaped text pack without executable content", () => {
+    const pack = JSON.parse(contentBundleScalePackJsonV1({
+      packIndex: 2,
+      entriesPerPack: 3,
+    }));
+    expect(pack).toMatchObject({
+      format: "sillymaker.text-content-pack",
+      version: 1,
+      packId: "text-pack.scale.002",
+      textCatalogs: { defaultLocale: "en" },
+    });
+    expect(pack.textCatalogs.catalogs[0].entries.map((entry: { textId: string }) => entry.textId))
+      .toEqual([
+        "text.scale.line.000006",
+        "text.scale.line.000007",
+        "text.scale.line.000008",
+      ]);
   });
 
   it("walks the initial static JavaScript closure once", () => {

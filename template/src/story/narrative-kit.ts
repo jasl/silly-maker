@@ -14,15 +14,17 @@ import { parseStageMutation } from "@sillymaker/base/story";
  * A document is PURE DATA: say/choice/stage/branch/hold/end blocks with
  * short names. Every id the runtime needs derives from one stable short name
  * (`node.<prefix>.<name>`, `interaction.<prefix>.<name>`,
- * `text.<prefix>.line.<name>`, …), the default-locale line lives inline
- * with its block, and every derived id accepts an explicit override, so
- * migrating an existing script keeps its ids (and therefore its saves and
- * digests) byte-identical. The compiler validates everything at admission
- * (unknown speakers, duplicate names, unresolved jumps, bad stage ops fail
- * construction loudly), emits the exact node objects the hand-written
- * script used, collects the text entries the presentation catalog merges,
- * and projects the read-only `NarrativeFlowGraph` (labeled edges, document
- * grouping, no layout) that Studio's Flow workspace renders.
+ * `text.<prefix>.line.<name>`, …), and every derived id accepts an explicit
+ * override, so migrating an existing script keeps its ids (and therefore its
+ * saves and digests) byte-identical. Copy may stay inline for a tiny Story or
+ * be omitted when a build-known content pack owns the explicit text id. The
+ * compiler validates everything at admission (unknown speakers, duplicate
+ * names, unresolved jumps, bad stage ops fail construction loudly), emits the
+ * exact node objects the hand-written script used, and collects only copy the
+ * document actually keeps inline. Studio's read-only Flow projection is a
+ * tooling-only concern in
+ * `../tooling/narrative-flow.ts`; the Player compiler never constructs source
+ * metadata or a graph.
  *
  * Behavior stays in TypeScript: stage composition is referenced through
  * scene documents (open/cue by short key) or a closed mutation vocabulary
@@ -113,7 +115,8 @@ export interface TemplateSayBlockV1 {
   readonly name: string;
   /** A key declared in `speakers`; null narrates without a speaker. */
   readonly speaker: string | null;
-  readonly text: string;
+  /** Inline default-locale copy; omit when `textId` resolves from a content pack. */
+  readonly text?: string;
   /** Override the derived `text.<prefix>.line.<name>` (keeps old saves). */
   readonly textId?: string;
   /** Override the derived `interaction.<prefix>.<name>`. */
@@ -125,7 +128,8 @@ export interface TemplateSayBlockV1 {
 
 export interface TemplateChoiceOptionInputV1 {
   readonly name: string;
-  readonly text: string;
+  /** Inline default-locale copy; omit when `textId` resolves elsewhere. */
+  readonly text?: string;
   readonly textId?: string;
   readonly next: string;
   readonly consumesCoins?: number;
@@ -135,7 +139,8 @@ export interface TemplateChoiceOptionInputV1 {
 export interface TemplateChoiceBlockV1 {
   readonly kind: "choice";
   readonly name: string;
-  readonly prompt: string;
+  /** Inline default-locale prompt; omit when `promptTextId` resolves elsewhere. */
+  readonly prompt?: string;
   readonly promptTextId?: string;
   readonly definitionId?: string;
   readonly options: readonly TemplateChoiceOptionInputV1[];
@@ -236,8 +241,13 @@ export interface TemplateInteractionDocV1 {
   /** The id prefix, e.g. `"template"` → `node.template.<name>`. */
   readonly prefix: string;
   readonly docId: string;
-  /** Speaker key → default-locale display name (`text.<p>.speaker.<key>`). */
-  readonly speakers?: Readonly<Record<string, string>>;
+  /**
+   * Speaker key → inline default-locale name or an explicit text reference.
+   * The object form may omit copy when a content pack owns the text.
+   */
+  readonly speakers?: Readonly<
+    Record<string, string | { readonly textId: string; readonly text?: string }>
+  >;
   readonly entry: string;
   readonly blocks: readonly TemplateInteractionBlockV1[];
 }
@@ -256,58 +266,11 @@ export interface TemplateCompileInputV1 {
   readonly externalTargets?: Readonly<Record<string, string>>;
 }
 
-// ---- Flow-graph projection (shape frozen by the main-repo proposal) ----
-
-export interface TemplateFlowGraphNodeV1 {
-  readonly nodeId: string;
-  readonly kind:
-    | "say"
-    | "menu"
-    | "effect"
-    | "roll"
-    | "stage"
-    | "branch"
-    | "flag"
-    | "barrier"
-    | "hold"
-    | "end";
-  readonly docId: string | null;
-  readonly blockName: string | null;
-  readonly summary: string;
-  readonly source: string;
-}
-
-export type TemplateFlowGraphEdgeLabelV1 =
-  | { readonly kind: "next" }
-  | {
-    readonly kind: "choice";
-    readonly choiceId: string;
-    readonly textId: string;
-    /** Authored option copy when the block inlined it. */
-    readonly text?: string;
-    readonly gates: readonly string[];
-  }
-  | { readonly kind: "roll"; readonly outcome: string }
-  | { readonly kind: "branch"; readonly condition: string }
-  | { readonly kind: "call"; readonly label: string };
-
-export interface TemplateFlowGraphEdgeV1 {
-  readonly from: string;
-  readonly to: string;
-  readonly label: TemplateFlowGraphEdgeLabelV1;
-}
-
-export interface TemplateFlowGraphV1 {
-  readonly nodes: readonly TemplateFlowGraphNodeV1[];
-  readonly edges: readonly TemplateFlowGraphEdgeV1[];
-}
-
 export interface TemplateCompiledInteractionV1 {
   readonly entryNodeId: string;
   readonly nodes: readonly TemplateNarrativeNodeV1[];
   /** Default-locale entries collected from the inline block text. */
   readonly textEntries: readonly { readonly textId: string; readonly text: string }[];
-  readonly flowGraph: TemplateFlowGraphV1;
 }
 
 // ---- Compiler ----
@@ -346,13 +309,31 @@ export function compileTemplateInteractionDocV1(
     textByTextId.set(textId, text);
     return textId;
   };
+  const resolveTextId = (
+    at: string,
+    explicitTextId: string | undefined,
+    derivedTextId: string,
+    text: string | undefined,
+  ): string => {
+    if (text === undefined && explicitTextId === undefined) {
+      failV1(doc, at, "text_id_required_without_inline_text");
+    }
+    const textId = explicitTextId ?? derivedTextId;
+    if (text !== undefined) collectText(at, textId, text);
+    return textId;
+  };
   const speakerTextId = (at: string, key: string | null): string | null => {
     if (key === null) return null;
-    if (input.doc.speakers?.[key] === undefined) failV1(doc, at, `speaker_unknown:${key}`);
-    return `text.${doc.prefix}.speaker.${key}`;
+    const speaker = input.doc.speakers?.[key];
+    if (speaker === undefined) failV1(doc, at, `speaker_unknown:${key}`);
+    return typeof speaker === "string" ? `text.${doc.prefix}.speaker.${key}` : speaker.textId;
   };
-  for (const [key, name] of Object.entries(doc.speakers ?? {})) {
-    collectText(`speakers/${key}`, `text.${doc.prefix}.speaker.${key}`, name);
+  for (const [key, speaker] of Object.entries(doc.speakers ?? {})) {
+    if (typeof speaker === "string") {
+      collectText(`speakers/${key}`, `text.${doc.prefix}.speaker.${key}`, speaker);
+    } else if (speaker.text !== undefined) {
+      collectText(`speakers/${key}`, speaker.textId, speaker.text);
+    }
   }
   const resolveNext = (at: string, next: string): string => {
     if (next.startsWith("@")) {
@@ -385,7 +366,6 @@ export function compileTemplateInteractionDocV1(
           mutations: () => mutations,
           mayShow: Object.freeze([]) as readonly string[],
           dispatches: Object.freeze([]) as readonly StageCueDispatch[],
-          summary: `appearance:${op.setAppearance.tag}`,
         });
       }
       const binding = scenes[op.scene];
@@ -397,7 +377,6 @@ export function compileTemplateInteractionDocV1(
           dispatches: Object.freeze([
             { sceneId: binding.scene.sceneId, open: true as const },
           ]) as readonly StageCueDispatch[],
-          summary: `open:${binding.scene.sceneId}`,
         });
       }
       const cueId = binding.cues?.[op.cue];
@@ -408,37 +387,19 @@ export function compileTemplateInteractionDocV1(
         dispatches: Object.freeze([
           { sceneId: binding.scene.sceneId, cueId },
         ]) as readonly StageCueDispatch[],
-        summary: `cue:${binding.scene.sceneId}/${op.cue}`,
       });
     });
 
   const nodes: TemplateNarrativeNodeV1[] = [];
-  const graphNodes: TemplateFlowGraphNodeV1[] = [];
-  const graphEdges: TemplateFlowGraphEdgeV1[] = [];
-  const edge = (
-    at: string,
-    from: string,
-    next: string,
-    label: TemplateFlowGraphEdgeLabelV1,
-  ): void => {
-    const isExternal = next.startsWith("@");
-    graphEdges.push(Object.freeze({
-      from,
-      to: resolveNext(at, next),
-      label: isExternal && label.kind === "next"
-        ? Object.freeze({ kind: "call" as const, label: next.slice(1) })
-        : label,
-    }));
-  };
 
   for (const block of doc.blocks) {
     const id = nodeId(block.name);
-    const source = `interaction-doc:${doc.docId}#${block.name}`;
     switch (block.kind) {
       case "say": {
-        const textId = collectText(
+        const textId = resolveTextId(
           block.name,
-          block.textId ?? `text.${doc.prefix}.line.${block.name}`,
+          block.textId,
+          `text.${doc.prefix}.line.${block.name}`,
           block.text,
         );
         nodes.push(Object.freeze({
@@ -450,21 +411,13 @@ export function compileTemplateInteractionDocV1(
           textId,
           next: resolveNext(block.name, block.next),
         }));
-        graphNodes.push(Object.freeze({
-          nodeId: id,
-          kind: "say",
-          docId: doc.docId,
-          blockName: block.name,
-          summary: block.text ?? textId,
-          source,
-        }));
-        edge(block.name, id, block.next, Object.freeze({ kind: "next" as const }));
         break;
       }
       case "choice": {
-        const promptTextId = collectText(
+        const promptTextId = resolveTextId(
           block.name,
-          block.promptTextId ?? `text.${doc.prefix}.choice.${block.name}.prompt`,
+          block.promptTextId,
+          `text.${doc.prefix}.choice.${block.name}.prompt`,
           block.prompt,
         );
         // Same-name options inside one choice would silently share their
@@ -479,9 +432,10 @@ export function compileTemplateInteractionDocV1(
           const at = `${block.name}/${option.name}`;
           return Object.freeze({
             choiceId: `choice.${doc.prefix}.${option.name}`,
-            textId: collectText(
+            textId: resolveTextId(
               at,
-              option.textId ?? `text.${doc.prefix}.choice.${option.name}`,
+              option.textId,
+              `text.${doc.prefix}.choice.${option.name}`,
               option.text,
             ),
             consumesCoins: option.consumesCoins ?? 0,
@@ -497,35 +451,6 @@ export function compileTemplateInteractionDocV1(
           promptTextId,
           options: Object.freeze(options),
         }));
-        graphNodes.push(Object.freeze({
-          nodeId: id,
-          kind: "menu",
-          docId: doc.docId,
-          blockName: block.name,
-          summary: [
-            block.prompt ?? promptTextId,
-            ...block.options.map((option) => option.text ?? option.name),
-          ].join(" / "),
-          source,
-        }));
-        for (const [index, option] of block.options.entries()) {
-          const compiled = options[index];
-          if (compiled === undefined) continue;
-          edge(
-            `${block.name}/${option.name}`,
-            id,
-            option.next,
-            Object.freeze({
-              kind: "choice" as const,
-              choiceId: compiled.choiceId,
-              textId: compiled.textId,
-              text: option.text,
-              gates: Object.freeze(
-                compiled.consumesCoins > 0 ? [`coins:${String(compiled.consumesCoins)}`] : [],
-              ),
-            }),
-          );
-        }
         break;
       }
       case "stage": {
@@ -542,15 +467,6 @@ export function compileTemplateInteractionDocV1(
           dispatches: Object.freeze(compiledOps.flatMap((op) => [...op.dispatches])),
           next: resolveNext(block.name, block.next),
         }));
-        graphNodes.push(Object.freeze({
-          nodeId: id,
-          kind: "stage",
-          docId: doc.docId,
-          blockName: block.name,
-          summary: compiledOps.map((op) => op.summary).join(" + "),
-          source,
-        }));
-        edge(block.name, id, block.next, Object.freeze({ kind: "next" as const }));
         break;
       }
       case "branch": {
@@ -586,27 +502,6 @@ export function compileTemplateInteractionDocV1(
             throw new TypeError(`template.narrative_branch_unmatched:${id}`);
           },
         }));
-        graphNodes.push(Object.freeze({
-          nodeId: id,
-          kind: "branch",
-          docId: doc.docId,
-          blockName: block.name,
-          summary: compiledCases
-            .map((branchCase) => branchCase.flag === undefined ? "else" : `flag ${branchCase.flag}`)
-            .join(" | "),
-          source,
-        }));
-        for (const [index, branchCase] of block.cases.entries()) {
-          edge(
-            `${block.name}/case-${String(index)}`,
-            id,
-            branchCase.next,
-            Object.freeze({
-              kind: "branch" as const,
-              condition: branchCase.when === undefined ? "else" : `flag ${branchCase.when.flag}`,
-            }),
-          );
-        }
         break;
       }
       case "hold": {
@@ -638,19 +533,6 @@ export function compileTemplateInteractionDocV1(
             dispatches: Object.freeze(compiledOps.flatMap((op) => [...op.dispatches])),
             next: id,
           }));
-          graphNodes.push(Object.freeze({
-            nodeId: stageId,
-            kind: "stage",
-            docId: doc.docId,
-            blockName: stageName,
-            summary: compiledOps.map((op) => op.summary).join(" + "),
-            source,
-          }));
-          graphEdges.push(Object.freeze({
-            from: stageId,
-            to: id,
-            label: Object.freeze({ kind: "next" as const }),
-          }));
         }
         nodes.push(Object.freeze({
           kind: "hold",
@@ -662,39 +544,10 @@ export function compileTemplateInteractionDocV1(
           when: Object.freeze(whenArms),
           next: resolveNext(block.name, block.next),
         }));
-        graphNodes.push(Object.freeze({
-          nodeId: id,
-          kind: "hold",
-          docId: doc.docId,
-          blockName: block.name,
-          summary: `hold ${String(block.durationMs)}ms${
-            (block.skippable ?? false) ? " skippable" : ""
-          }`,
-          source,
-        }));
-        // Reroute edges first (declaration order is evaluation priority),
-        // then the expiry edge.
-        for (const [index, arm] of (block.when ?? []).entries()) {
-          edge(
-            `${block.name}/when-${String(index)}`,
-            id,
-            arm.next,
-            Object.freeze({ kind: "branch" as const, condition: `when ${arm.when.flag}` }),
-          );
-        }
-        edge(block.name, id, block.next, Object.freeze({ kind: "next" as const }));
         break;
       }
       case "end": {
         nodes.push(Object.freeze({ kind: "end", nodeId: id }));
-        graphNodes.push(Object.freeze({
-          nodeId: id,
-          kind: "end",
-          docId: doc.docId,
-          blockName: block.name,
-          summary: "end",
-          source,
-        }));
         break;
       }
       default: {
@@ -710,9 +563,5 @@ export function compileTemplateInteractionDocV1(
     textEntries: Object.freeze(
       [...textByTextId.entries()].map(([textId, text]) => Object.freeze({ textId, text })),
     ),
-    flowGraph: Object.freeze({
-      nodes: Object.freeze(graphNodes),
-      edges: Object.freeze(graphEdges),
-    }),
   });
 }

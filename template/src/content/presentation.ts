@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { AssetId, TextCatalogSetV1 } from "@sillymaker/base";
+import type { AssetId, TextCatalogSetV1, TextContentManifestV1 } from "@sillymaker/base";
 import { definePresentationPatchSurface, parseTextCatalogSetV1 } from "@sillymaker/base";
 import type {
   StageContentCatalog,
@@ -10,13 +10,13 @@ import type {
 } from "@sillymaker/base/story";
 import { parseStageTransitionDefinition } from "@sillymaker/base/story";
 
-import { templateContentIdsV1, templateScriptTextEntriesV1 } from "../story/narrative.ts";
+import { templateContentIdsV1 } from "../story/narrative.ts";
 import { templateOpeningTransitionBindingsV1 } from "../scenes/opening/index.ts";
+import { templateTextContentManifestV1 } from "./text-content.ts";
 
 /**
- * UI copy lives here, keyed by textId; the script's dialogue entries come
- * inline from `narrative.ts` (builder-derived textIds) and merge below.
- * Other locales override any entry by the same textId.
+ * Small bootstrap/UI copy stays resident. Narrative dialogue lives in
+ * build-known text packs and is loaded through the Host before use.
  */
 export const templateTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
   defaultLocale: "zh-CN",
@@ -39,41 +39,10 @@ export const templateTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.template.playback.history.close", text: "关闭历史" },
         { textId: "text.template.narrative.completed", text: "（本段落已结束）" },
         { textId: "text.template.choice.insufficient-coins", text: "硬币不足" },
-        ...templateScriptTextEntriesV1,
       ],
     },
   ],
 });
-
-const templateTextByLocaleV1: ReadonlyMap<
-  string,
-  { readonly texts: ReadonlyMap<string, string>; readonly fallbackLocale: string | null }
-> = new Map(
-  templateTextCatalogsV1.catalogs.map((catalog) => [
-    catalog.locale,
-    Object.freeze({
-      texts: new Map(catalog.entries.map((entry) => [entry.textId, entry.text])),
-      fallbackLocale: catalog.fallbackLocale,
-    }),
-  ]),
-);
-
-/** Locale-aware Story text with a deterministic fallback to the default catalog. */
-export function templateTextForLocaleV1(locale: string | null, textId: string): string {
-  const visited: string[] = [];
-  let cursor: string | null = locale ?? templateTextCatalogsV1.defaultLocale;
-  while (cursor !== null && !visited.includes(cursor)) {
-    visited.push(cursor);
-    const catalog = templateTextByLocaleV1.get(cursor);
-    const text = catalog?.texts.get(textId);
-    if (text !== undefined) return text;
-    cursor = catalog?.fallbackLocale ?? null;
-  }
-  const fallback = templateTextByLocaleV1.get(templateTextCatalogsV1.defaultLocale);
-  const text = fallback?.texts.get(textId);
-  if (text === undefined) throw new TypeError(`template.text_missing:${textId}`);
-  return text;
-}
 
 /**
  * The stage content catalog: the only place that knows renderer IDs and
@@ -194,8 +163,13 @@ export const templatePresentationPatchSurfaceV1 = definePresentationPatchSurface
 export interface TemplatePresentationProgramV1 {
   readonly kind: "template-presentation";
   readonly textCatalogs: TextCatalogSetV1;
+  readonly textContentManifest: TextContentManifestV1;
 }
 
 export function materializeTemplatePresentationV1(): TemplatePresentationProgramV1 {
-  return Object.freeze({ kind: "template-presentation", textCatalogs: templateTextCatalogsV1 });
+  return Object.freeze({
+    kind: "template-presentation",
+    textCatalogs: templateTextCatalogsV1,
+    textContentManifest: templateTextContentManifestV1,
+  });
 }

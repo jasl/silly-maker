@@ -108,6 +108,46 @@ The presentation facet contains validated Story-owned data:
 
 Story React contributions resolve stable renderer IDs inside the application closure. They receive immutable semantic/presentation projections and send semantic or presentation intents. Scene data that participates in resolution should stay plain and serializable.
 
+For large immutable dialogue, keep stable text IDs in the Story control plan and
+move copy into build-known text packs instead of constructing every localized
+entry during Player module evaluation. Keep only small startup/UI copy in the
+resident `TextCatalogSetV1`. Put each payload under the application's
+`assets/content/` tree as the exact `sillymaker.text-content-pack` V1 wire
+(`format`, `version`, `packId`, `textCatalogs`), and declare its app-relative
+runtime path, byte length, SHA-256 and localized-entry count in one
+`TextContentManifestV1`. The same manifest belongs in the materialized
+presentation and the application's `textContent` declaration, alongside
+bootstrap catalogs and build-known initial/required pack IDs.
+
+Declare `initialPackIds`, `requiredPackIdsForInvocation(admittedInvocation)`,
+and `requiredPackIdsForSnapshot(validatedSnapshot)` next to the application
+composition so Web can bind one readiness hook into the existing Core semantic
+and Persistence authorities. The invocation planner receives Story-admitted
+input before command construction/dispatch; the Snapshot planner receives a
+validated replacement candidate before bind/commit (and before R2
+takeover/install). Do not call `ensure` from a UI callback, and do not fetch or
+await inside a command executor. UI and automation keep using the ordinary
+semantic port; Save-surface load/import keep using Persistence. A candidate is
+not allowed to replace the old State until its required packs are ready;
+ordinary dev-only State-tuner writes may conservatively prepare all declared
+packs after their capability gate. UI text
+resolution is synchronous through the supplied `TextContentSessionV1`. Missing
+or corrupt content must report a Host/application failure and leave the current
+semantic and Stage publication unchanged. Do not build a second content facade
+or couple the planner to raw Base State.
+
+Treat the manifest as presentation identity and its bytes as static payload:
+neither packs nor loaded-session indexes enter State, Snapshot, Save, CommandLog,
+or replay. A text-only change can therefore warn about presentation identity
+while an otherwise simulation-compatible Save still loads. Keep source-aware
+Flow summaries, source maps, and complete authoring copy in a tooling-only
+module; the ordinary Player graph should import only the control plan, compact
+manifest, bootstrap copy, and runtime resolver. The starter template demonstrates
+this split with opening/ending packs and `src/tooling/narrative-flow.ts`. Run
+`deno task check:assets` after changing any pack or descriptor; it reads every
+declared pack from its own application root and exercises the same Base
+admission contract.
+
 Narrative entrance/exit animation is authored as Motion assets: `sillymaker.motion` JSON documents (strictly admitted integer keyframes with per-segment easing), bound to stage edges through `motionStageTransition` in the transition catalog — or, for a scene-managed scene, through its Scene document's cue bindings. Motions compose over the settled placement (layout stays authoritative) and never enter authoritative State, Saves, digests, or replay. They are the human tuning surface — the DevDock provenance panel may locate them from the running picture, while the standalone/embedded Authoring Host owns the maintained Motion Workbench that edits and saves them (a save marks `authoring.status: "human_tuned"`; agents must not overwrite human-tuned or locked assets — see the collaboration contract in `authoring-quickstart.md`). `story check` lints every motion file: admission, unique ids, and filename↔id agreement.
 
 Discrete frame swaps (blinks, breathing sheets, burst frame runs) are the same Motion asset: a `frame` track samples stepwise (no interpolation, no easing) and selects an index into the frame table the content declares via `StageContentResolution.frameAssetIds` (ordered, ≤64; joins asset preloading). The stage host hands the sampled `frameIndex` to the entry renderer — one-shot cue motions override while in flight, an entry's `ambient` loop overrides while settled, otherwise `frameIndex` is `null` and the renderer shows its default appearance. Author frame 0 as the default pose (reduced motion drops the override), and make a one-shot run's last frame equal the settled appearance so the settle is invisible. The runtime clamps out-of-table indices; the Workbench edits frame keyframes like any other track (easing controls replaced by a stepped label).

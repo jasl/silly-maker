@@ -761,6 +761,14 @@ const bootstrapAdmissionHooksV1 = new WeakMap<
   CreateCoreGameApplicationInstanceOptionsV1,
   CanonicalBootstrapAdmissionHooksInternalV1
 >();
+interface CoreApplicationReadinessHooksStoredInternalV1 {
+  readonly prepareSemanticInvocation?: (invocation: unknown) => Promise<void>;
+  readonly prepareReplacement?: (snapshot: unknown) => Promise<void>;
+}
+const coreApplicationReadinessHooksInternalV1 = new WeakMap<
+  CreateCoreGameApplicationInstanceOptionsV1,
+  CoreApplicationReadinessHooksStoredInternalV1
+>();
 interface CoreGameApplicationRebootstrapStartInputInternalV1 {
   readonly handoff: DeepReadonly<CoreRebootstrapHandoffInternalV1>;
   readonly onFailure: (
@@ -816,6 +824,29 @@ export function instrumentCoreApplicationBootstrapAdmissionOptionsInternalV1(
   hooks: CanonicalBootstrapAdmissionHooksInternalV1,
 ): CreateCoreGameApplicationInstanceOptionsV1 {
   bootstrapAdmissionHooksV1.set(options, hooks);
+  return options;
+}
+
+/**
+ * Attaches one package-private Host readiness boundary to a Core construction.
+ * Hooks receive only admitted semantic invocations and replacement Snapshots,
+ * are consumed once, and never enter the Story or public options ABI.
+ *
+ * @internal
+ */
+export function bindCoreApplicationReadinessOptionsInternalV1<TInvocation, TSnapshot>(
+  options: CreateCoreGameApplicationInstanceOptionsV1,
+  hooks: {
+    readonly prepareSemanticInvocation?: (
+      invocation: DeepReadonly<TInvocation>,
+    ) => Promise<void>;
+    readonly prepareReplacement?: (snapshot: DeepReadonly<TSnapshot>) => Promise<void>;
+  },
+): CreateCoreGameApplicationInstanceOptionsV1 {
+  coreApplicationReadinessHooksInternalV1.set(
+    options,
+    hooks as unknown as CoreApplicationReadinessHooksStoredInternalV1,
+  );
   return options;
 }
 
@@ -1135,6 +1166,8 @@ export async function createCoreGameApplicationInstanceV1<
   saveProjectionInstrumentationV1.delete(options);
   const bootstrapAdmissionHooks = bootstrapAdmissionHooksV1.get(options);
   bootstrapAdmissionHooksV1.delete(options);
+  const readinessHooks = coreApplicationReadinessHooksInternalV1.get(options);
+  coreApplicationReadinessHooksInternalV1.delete(options);
   const autosave = normalizeCoreAutosavePolicyV1(options.autosave);
   const scheduler = options.scheduler ?? defaultSchedulerV1;
   const definition = application.definition;
@@ -1495,6 +1528,42 @@ export async function createCoreGameApplicationInstanceV1<
       },
     );
 
+    const dispatchAdmittedSemanticInvocationV1 = async (
+      invocation: TInvocation,
+    ): Promise<TResult> => {
+      const command = definition.semantic.commandForInvocation(
+        invocation as DeepReadonly<TInvocation>,
+      ) as DeepReadonly<TTypes["command"]>;
+      const result = await created.session.dispatch(command);
+      recordRollbackCheckpointV1(command, result);
+      emitTransientEffectsV1(result);
+      return definition.semantic.projectDispatchResult(result);
+    };
+    let semanticDispatchTail: Promise<void> = Promise.resolve();
+    const dispatchSemanticInvocationInOrderV1 = (
+      invocationValue: DeepReadonly<TInvocation>,
+    ): Promise<TResult> => {
+      let invocation: TInvocation;
+      try {
+        invocation = definition.semantic.parseInvocation(invocationValue);
+      } catch {
+        return Promise.resolve(definition.semantic.invalidInvocationResult());
+      }
+      const prepareSemanticInvocation = readinessHooks?.prepareSemanticInvocation;
+      if (prepareSemanticInvocation === undefined) {
+        return dispatchAdmittedSemanticInvocationV1(invocation);
+      }
+      const result = semanticDispatchTail.then(async () => {
+        await prepareSemanticInvocation(invocation);
+        return await dispatchAdmittedSemanticInvocationV1(invocation);
+      });
+      semanticDispatchTail = result.then(
+        () => undefined,
+        () => undefined,
+      );
+      return result;
+    };
+
     const semantic = createSemanticGamePortV1<
       TTypes["state"],
       RuntimeSessionStatusV1,
@@ -1512,21 +1581,7 @@ export async function createCoreGameApplicationInstanceV1<
       projectNarrativeView: (queries) => definition.semantic.projectNarrativeView(queries),
       actions: (queries) => definition.semantic.actions(queries),
       preview: (queries, invocation) => definition.semantic.preview(queries, invocation),
-      dispatch: async (invocationValue) => {
-        let invocation: TInvocation;
-        try {
-          invocation = definition.semantic.parseInvocation(invocationValue);
-        } catch {
-          return definition.semantic.invalidInvocationResult();
-        }
-        const command = definition.semantic.commandForInvocation(
-          invocation as DeepReadonly<TInvocation>,
-        ) as DeepReadonly<TTypes["command"]>;
-        const result = await created.session.dispatch(command);
-        recordRollbackCheckpointV1(command, result);
-        emitTransientEffectsV1(result);
-        return definition.semantic.projectDispatchResult(result);
-      },
+      dispatch: dispatchSemanticInvocationInOrderV1,
     });
 
     // The instance's own FIRST semantic-port subscriber (registration order
@@ -1639,6 +1694,10 @@ export async function createCoreGameApplicationInstanceV1<
       autoSaveCapture: autosave.mode === "every_commit" && safepointPolicy === null
         ? "committed_snapshots"
         : "external",
+      ...(readinessHooks?.prepareReplacement === undefined ? {} : {
+        prepareReplacement: (snapshot: DeepReadonly<TTypes["snapshot"]>) =>
+          readinessHooks.prepareReplacement!(snapshot),
+      }),
       ...(safepointPolicy === null ? {} : {
         classifyWriteCandidate: (state: DeepReadonly<TTypes["state"]>) =>
           inFlightInhibitForfeited ? "safepoint" as const : classifyStateSafepointV1(state),
@@ -2740,6 +2799,8 @@ export function createCoreGameApplicationInstanceForRebootstrapInternalV1<
     TResult
   >
 > {
+  const readinessHooks = coreApplicationReadinessHooksInternalV1.get(options);
+  coreApplicationReadinessHooksInternalV1.delete(options);
   const publicOptions: CreateCoreGameApplicationInstanceOptionsV1 = Object.freeze({
     host: options.host,
     ...(options.capabilities === undefined ? {} : { capabilities: options.capabilities }),
@@ -2748,6 +2809,9 @@ export function createCoreGameApplicationInstanceForRebootstrapInternalV1<
     ...(options.scheduler === undefined ? {} : { scheduler: options.scheduler }),
     ...(options.appBuildId === undefined ? {} : { appBuildId: options.appBuildId }),
   });
+  if (readinessHooks !== undefined) {
+    coreApplicationReadinessHooksInternalV1.set(publicOptions, readinessHooks);
+  }
   coreGameApplicationRebootstrapStartInputsInternalV1.set(
     publicOptions,
     Object.freeze({

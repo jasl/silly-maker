@@ -5,6 +5,7 @@
  * Story or ordinary engine API.
  */
 export {
+  bindCoreApplicationReadinessOptionsInternalV1,
   clearAllCoreApplicationSavesForMaintenanceInternalV1,
   createCoreGameApplicationInstanceForRebootstrapInternalV1,
   type CreateCoreGameApplicationInstanceForRebootstrapOptionsInternalV1,

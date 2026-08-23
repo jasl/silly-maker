@@ -86,7 +86,16 @@ function runtimeAssetsPluginV1(
     configureServer(server) {
       if (!existsSync(assetsDir)) return;
       server.middlewares.use((request, response, next) => {
-        const url = request.url?.split("?")[0] ?? "";
+        const requestUrl = request.url ?? "";
+        // Vite appends `?import` when a source module imports JSON or another
+        // non-JavaScript asset. Let its transform pipeline turn that file into
+        // a JavaScript module; ordinary Host fetches keep receiving the exact
+        // runtime bytes below.
+        if (/(?:\?|&)import=?(?:&|$)/u.test(requestUrl)) {
+          next();
+          return;
+        }
+        const url = requestUrl.split("?")[0] ?? "";
         if (!url.startsWith(urlPrefix)) {
           next();
           return;

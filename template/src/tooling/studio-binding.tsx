@@ -14,9 +14,14 @@ import type { StudioBindingV1, StudioChromeFixtureV1 } from "@sillymaker/studio"
 import { TemplateHudV1 } from "../application/ui.tsx";
 import type { TemplateUiPublicationV1 } from "../application/composition.tsx";
 import type { TemplateApplicationInstanceV1 } from "../application/core-definition.ts";
-import { templateStageContentCatalogV1, templateTextForLocaleV1 } from "../content/presentation.ts";
-import { templateFlowGraphV1 } from "../story/narrative.ts";
+import { templateStageContentCatalogV1 } from "../content/presentation.ts";
 import { templateStageRenderersV1 } from "../ui/stage-renderers.tsx";
+import { templateFlowGraphV1 } from "./narrative-flow.ts";
+import { templateAuthoringTextForLocaleV1 } from "./text-content.ts";
+
+function templateStudioTextV1(textId: string): string | null {
+  return templateAuthoringTextForLocaleV1(null, textId);
+}
 
 /**
  * The chrome fixture's frozen sample: exactly the publication fields the
@@ -63,13 +68,7 @@ export const templateStudioBindingV1: StudioBindingV1 = Object.freeze({
   flow: templateFlowGraphV1,
   // Default-locale copy for Flow displays: summaries and choice labels that
   // reference shared textIds resolve to readable text (null when unknown).
-  resolveText: (textId: string): string | null => {
-    try {
-      return templateTextForLocaleV1(null, textId);
-    } catch {
-      return null;
-    }
-  },
+  resolveText: templateStudioTextV1,
   chrome: Object.freeze([templateHudChromeFixtureV1]),
   contents: Object.freeze([
     {

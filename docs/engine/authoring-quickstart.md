@@ -24,13 +24,15 @@ Ordinary scene work — moving an actor, resizing it, changing which motion play
 
 Use the starter template (`template`, minimally playable) or the Engine Lab (`e2e`, full capability) as the runnable example. Scripts are ordinary TypeScript data, not a DSL:
 
-| What to change                             | Which file                                                                                  |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| Dialogue, narration, option text           | `labTextCatalogsV1` in `src/presentation.ts` (textId → text)                                |
-| Story nodes, branches, stage commands      | `labNarrativeScriptV1` in `src/gameplay/narrative.ts` (node array)                          |
-| Scene composition (placements, cue→motion) | `src/scenes/<scene>/<scene>.scene.json` (Studio or direct edit; scene-managed stories only) |
-| Voice/BGM mapping                          | `src/gameplay/audio.ts`                                                                     |
-| Static annotations for the graph lint      | `mayShow` on stage nodes, `successors` on branch nodes                                      |
+| What to change                              | Which file                                                                                                                                            |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Starter dialogue, narration, option text    | `assets/content/*.text-pack.json`; keep the same stable textId in `src/story/narrative.ts` and update its descriptor in `src/content/text-content.ts` |
+| Starter resident UI/bootstrap copy          | `templateTextCatalogsV1` in `src/content/presentation.ts`                                                                                             |
+| Engine Lab dialogue, narration, option text | `labTextCatalogsV1` in `src/presentation.ts` (textId → text)                                                                                          |
+| Story nodes, branches, stage commands       | starter: `src/story/narrative.ts`; Engine Lab: `src/gameplay/narrative.ts`                                                                            |
+| Scene composition (placements, cue→motion)  | `src/scenes/<scene>/<scene>.scene.json` (Studio or direct edit; scene-managed stories only)                                                           |
+| Voice/BGM mapping                           | `src/gameplay/audio.ts`                                                                                                                               |
+| Static annotations for the graph lint       | `mayShow` on stage nodes, `successors` on branch nodes                                                                                                |
 
 Node kinds: `say` (speakerTextId/textId/next), `choice` (options: choiceId/textId/requiresSamples/consumesSamples/next), `stage` (`mutations(stage)` returns a StageMutation array; `mayShow` statically declares the contentIds it might show), `branch` (`choose(context)` is a pure function picking next, which must land inside `successors`), `hold` (durationMs/skippable, optional ordered `when` reroute arms — branch-vocabulary predicate → target, evaluated as cuts on the hold's own occurrence timeline — plus optional tick machinery, `tickQuantumMs`, and a `pace` hint; the screen holds for an authoritative duration settled through the session time verb, a matching arm cuts at its instant, skip folds the remainder through the same walk, and expiry advances to `next`), `barrier`, `custom`, `end`. Every new say/choice needs a brand-new `definitionId` (`interaction.<story>.<name>`); never reuse one.
 
@@ -40,10 +42,24 @@ Verification loop after every edit (fast enough to run per change):
 deno task typecheck                                # types and contracts
 deno run -A npm:vitest run e2e/src/test/narrative-graph.test.ts   # graph lint clean + honest annotations
 deno task story simulate e2e --scenario calibration   # play the full narrative without a browser, JSON output
+deno task check:assets                              # pack length/SHA/wire/catalog/count + ordinary assets
 deno task test:conformance:headless                # all headless conformance tests
 ```
 
-Edits move occurrence numbers (each interaction boundary is numbered in order): the `calibration` scenario script for `simulate` and several tests step by number, so after inserting a boundary sync them — failure messages state the expected/actual numbers directly. Stories copied from the starter template avoid both taxes: its interaction-document kit (`template/src/story/narrative-kit.ts`) compiles pure-data blocks — one short name derives node/interaction/text ids with the default-locale line inline (other locales override by the same textId) — and its scenarios/tests resolve the current pending interaction, so inserting a line touches only the document's block array. The Engine Lab deliberately stays the numbered low-level rig.
+For a starter pack edit, keep the wire's four exact top-level fields and update
+the corresponding manifest descriptor's `byteLength`, `sha256`, and
+`entryCount`; `check:assets` fails on any mismatch. Keep early and later copy in
+separate build-known packs only when the application can declare which pack a
+startup, semantic invocation, or candidate Snapshot needs through
+`initialPackIds`, `requiredPackIdsForInvocation`, and
+`requiredPackIdsForSnapshot`. Web binds those planners into the existing Core
+semantic/Persistence readiness boundary; do not add an `ensure` call to a
+React/UI callback or create another content facade. Do not
+import the JSON pack into runtime Story/UI code: the Host reads it through `assets/**`, while the
+tooling-only Flow projection may import the same authoring copy under
+`src/tooling/**`.
+
+Edits move occurrence numbers (each interaction boundary is numbered in order): the `calibration` scenario script for `simulate` and several tests step by number, so after inserting a boundary sync them — failure messages state the expected/actual numbers directly. Stories copied from the starter template avoid both taxes: its interaction-document kit (`template/src/story/narrative-kit.ts`) compiles pure-data blocks into a control plan with stable text references, while its scenarios/tests resolve the current pending interaction; adding a line means one control block plus one pack entry with the same textId. The Engine Lab deliberately stays the numbered low-level rig.
 
 ## Tier B: a new gameplay module (medium; the F2-canary-verified path)
 

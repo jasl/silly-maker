@@ -11,6 +11,7 @@ export type DigestDomainV1 =
   | "sillymaker:simulation:v1"
   | "sillymaker:presentation:v1"
   | "sillymaker:asset-pack:v1"
+  | "sillymaker:text-content-manifest:v1"
   | "sillymaker:hotfix:v1"
   | "sillymaker:patch-provider:v1"
   | "sillymaker:patch-set:v1"

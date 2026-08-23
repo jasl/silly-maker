@@ -26,44 +26,49 @@ export function contentBundleScaleFixtureV1(
 }
 
 export function contentBundleScaleEntryIdV1(index: number): string {
-  return `scale-text-${String(index).padStart(6, "0")}`;
+  return `text.scale.line.${String(index).padStart(6, "0")}`;
 }
 
-export function contentBundleScalePackSourceV1(input: {
+export function contentBundleScalePackJsonV1(input: {
   readonly packIndex: number;
   readonly entriesPerPack: number;
 }): string {
-  const exportName = `contentPack${String(input.packIndex).padStart(3, "0")}V1`;
   const firstIndex = input.packIndex * input.entriesPerPack;
   const entries = Array.from({ length: input.entriesPerPack }, (_, offset) => {
     const index = firstIndex + offset;
-    const id = contentBundleScaleEntryIdV1(index);
-    return `  Object.freeze({ textId: ${JSON.stringify(id)}, text: ${
-      JSON.stringify(
-        `Scale Lab line ${String(index).padStart(6, "0")} — deterministic content payload.`,
-      )
-    } }),`;
-  }).join("\n");
-  return `// SPDX-License-Identifier: MIT
-export const ${exportName} = Object.freeze([
-${entries}
-]);
-`;
-}
-
-export function contentBundleScaleRegistrySourceV1(packCount: number): string {
-  const packs = Array.from({ length: packCount }, (_, packIndex) => {
-    const suffix = String(packIndex).padStart(3, "0");
     return Object.freeze({
-      importLine: `import { contentPack${suffix}V1 } from "./pack-${suffix}.ts";`,
-      binding: `  contentPack${suffix}V1,`,
+      textId: contentBundleScaleEntryIdV1(index),
+      text: `Scale Lab line ${String(index).padStart(6, "0")} — deterministic content payload.`,
     });
   });
-  return `${packs.map((pack) => pack.importLine).join("\n")}
+  return `${
+    JSON.stringify({
+      format: "sillymaker.text-content-pack",
+      version: 1,
+      packId: `text-pack.scale.${String(input.packIndex).padStart(3, "0")}`,
+      textCatalogs: {
+        defaultLocale: "en",
+        catalogs: [{ locale: "en", fallbackLocale: null, entries }],
+      },
+    })
+  }\n`;
+}
 
-export const contentPacksV1 = Object.freeze([
-${packs.map((pack) => pack.binding).join("\n")}
-]);
+export interface ContentBundleScalePackDescriptorV1 {
+  readonly packId: string;
+  readonly runtimePath: string;
+  readonly byteLength: number;
+  readonly sha256: string;
+  readonly entryCount: number;
+}
+
+export function contentBundleScaleManifestSourceV1(
+  packs: readonly ContentBundleScalePackDescriptorV1[],
+): string {
+  return `export const contentManifestV1 = Object.freeze({
+  revision: 1,
+  packs: Object.freeze(${JSON.stringify(packs)}.map((pack) => Object.freeze(pack))),
+});
 `;
 }
 

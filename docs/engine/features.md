@@ -38,6 +38,10 @@ Engine Lab 与 Cat Cafe 的 Chromium/WebKit forward/reverse 产品用例通过�
 State、RNG、command sequence、integrity、digest 与 pending progress 连续，每次源码更新只换代一次
 Game epoch、零 page reload，且 successor 可继续提交合法操作。Engine Lab 的 dirty Authoring sibling
 保持可操作；Whole Canvas 标题页等 transient React state 不在该合同内。Desktop HMR 仍未激活。
+2026-08-24 Scale/Scene Object/Modular GUI 轮的 M0 与 M1 已交付：大文本现在可以作为
+build-known packs 移出 initial Player JavaScript 与 Snapshot，由 Base 做一次严格 admission、Web
+渐进加载、Story 选择 interaction boundary。Template 已是真实 consumer；M2 State hot plan 与
+incremental authoring index 仍是下一项，本能力不激活 Desktop HMR、Content DB 替代品或公开 Mod ABI。
 
 ## Internal composition kernel
 
@@ -253,6 +257,28 @@ Game epoch、零 page reload，且 successor 可继续提交合法操作。Engin
 - Production Narrative authoring: a Story freezes the five-key input to `defineNarrativeSurfaceV1` (`selectNarrative`, `dispatchResolution`, `renderer`, `resolveText`, and `replayCurrentVoice`, whose value may be `null`) and receives an opaque `NarrativeSurfaceDefinitionV1`. The renderer observes immutable pending/history/choice availability and the current player profile/view, then invokes bounded public actions; the composition-owned player, clock, Host, Semantic Stage binding, input/focus authority, and completion fences remain private. Engine Lab, the starter template, Bookshop, and Cat Cafe use this seam; SillyOS intentionally omits it. The interim `DialoguePanelV1`, `VnLayerV1`, advance surface, raw text-reveal/playback exports, and `@sillymaker/ui/conformance` entry were removed. Speed/wait sliders remain in default Settings.
 - Production WholeCanvas authoring: `defineWholeCanvasSurfaceV1` accepts one frozen catalog/source/resolver/dispatcher/renderer/preparation/text bundle and returns an opaque definition. Publication-selected surfaces reuse the semantic fanout; navigation-led tools use `createWholeCanvasApplicationSourceV1`, whose only writable intents are replace and close. Renderers receive immutable primary/detail projections and frame-bound actions; the composition owns stable identity, exact-parent detail, readiness, input, focus, and successor fencing. Cat Cafe's `catcafe.ending` is the first consumer, Engine Lab's `whole_canvas_conformance=1` branch is the neutral second, and SillyOS omits the definition.
 - `createPlayerProfileStoreV1`: the per-story player profile (Seen registry keyed by author-controlled `seenRevision`, plus text speed, auto wait, dialogue skip policy, `skipCutscenes`, and volume preferences) persisted in the Host `settings` record namespace — outside every Game Save, so loads never rewind reading progress or player playback choices, and corrupt records fall back to defaults. `skipCutscenes` is a Story-consumed preference for settling skippable presentation dwells; it must not bypass authoritative scheduler time or semantic commands, and older profiles soft-default it to `false`.
+
+## Static text content
+
+- Static text-content packs: `TextContentManifestV1` declares a sorted, immutable revision/digest
+  over build-known descriptors (`packId`, app-root-relative `assets/**` path, byte length, SHA-256,
+  localized-entry count). `admitTextContentPackV1` validates one exact
+  `sillymaker.text-content-pack` V1 byte payload once; `createTextContentSessionV1` single-flights
+  loads, rejects locale-topology/text-ID collisions atomically, retries failed loads explicitly,
+  and resolves bootstrap plus admitted text synchronously. The Web application composer verifies
+  resolved-presentation/declared-manifest identity and fetches from the current GUI origin. Its one
+  readiness binding uses the Story's `initialPackIds`, `requiredPackIdsForInvocation`, and
+  `requiredPackIdsForSnapshot` planners before Core startup, admitted semantic invocation, or
+  validated Snapshot replacement. UI/automation retain the existing semantic port; Save-surface
+  load/import retain the Persistence replacement boundary; R2 prepares before takeover/install. A
+  content failure preserves the old State, while the capability-gated DevDock State tuner may
+  conservatively prepare the whole manifest before patching. No new facade or raw Base State
+  dependency is introduced. Packs and loaded indexes never enter State/Save; the manifest remains
+  presentation identity, so text-only changes use the existing warning-level story/presentation
+  Save compatibility while an unchanged simulation contract remains loadable.
+  `deno task check:assets` admits every declared pack from its application root. Template's opening
+  and ending packs are the first product path; its Flow/source join is tooling-only and absent from
+  the ordinary Player graph.
 
 ## Content database
 

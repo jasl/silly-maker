@@ -6,6 +6,8 @@ import type { Page } from "@playwright/test";
 
 import { expect, templateTargetUrlV1, test } from "./fixtures.ts";
 
+const automationKeyV1 = "__SILLYMAKER_AUTOMATION_V1__";
+
 async function advanceSayV1(page: Page): Promise<void> {
   const dialogue = page.locator("[data-dialogue='say']");
   await expect(dialogue).toHaveAttribute("data-dialogue-reveal", "complete");
@@ -13,11 +15,35 @@ async function advanceSayV1(page: Page): Promise<void> {
 }
 
 test("Template uses the production Narrative renderer through completion", async ({ page }) => {
+  const openingPackRuntimePath = "assets/content/opening.text-pack.json";
+  const endingPackRuntimePath = "assets/content/ending.text-pack.json";
+  const requestedPackRuntimePaths = new Set<string>();
+  page.on("request", (request) => {
+    const pathname = new URL(request.url()).pathname;
+    for (const runtimePath of [openingPackRuntimePath, endingPackRuntimePath]) {
+      if (pathname.endsWith(`/${runtimePath}`)) requestedPackRuntimePaths.add(runtimePath);
+    }
+  });
+
   await page.goto(templateTargetUrlV1());
   await page.getByRole("button", { name: "新游戏" }).click();
   await page.getByRole("button", { name: "开始故事" }).click();
+  await expect(page.locator("[data-dialogue='say']")).toContainText(
+    "雨停了。院子里的青石板还亮着水光。",
+  );
+  expect(requestedPackRuntimePaths).toContain(openingPackRuntimePath);
+  expect(requestedPackRuntimePaths).not.toContain(endingPackRuntimePath);
   await advanceSayV1(page);
-  await page.getByRole("button", { name: "去看看檐下的动静" }).click();
+  const lookChoice = page.getByRole("button", { name: "去看看檐下的动静" });
+  await expect(lookChoice).toBeVisible();
+  expect(requestedPackRuntimePaths).not.toContain(endingPackRuntimePath);
+  await lookChoice.click();
+  await expect.poll(() => requestedPackRuntimePaths.has(endingPackRuntimePath)).toBe(true);
+  const catLine = page.locator("[data-dialogue='say']");
+  await expect(catLine).toHaveAttribute("data-dialogue-reveal", "complete");
+  await expect(catLine).toContainText(
+    "看，檐角下躲着一只小猫，毛都淋湿了。",
+  );
   await advanceSayV1(page);
 
   // The fetch beat (cue identity): Mei darts off-frame through an
@@ -41,6 +67,45 @@ test("Template uses the production Narrative renderer through completion", async
   await expect(page.locator("[data-dialogue]")).toHaveCount(0);
   await expect(page.locator("[data-template-narrative='completed']")).toContainText(
     "本段落已结束",
+  );
+});
+
+test("Template automation dispatch prepares the selected content pack", async ({ page }) => {
+  const endingPackRuntimePath = "assets/content/ending.text-pack.json";
+  let endingPackRequested = false;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.endsWith(`/${endingPackRuntimePath}`)) {
+      endingPackRequested = true;
+    }
+  });
+
+  await page.goto(templateTargetUrlV1("?capability=automation_bridge"));
+  await page.getByRole("button", { name: "新游戏" }).click();
+  await page.getByRole("button", { name: "开始故事" }).click();
+  await advanceSayV1(page);
+  const choice = page.locator("[data-dialogue='choice']");
+  const occurrenceId = await choice.getAttribute("data-dialogue-occurrence");
+  if (occurrenceId === null) throw new TypeError("Template choice occurrence missing");
+  expect(endingPackRequested).toBe(false);
+
+  const result = await page.evaluate(async (input) => {
+    const automation = Reflect.get(globalThis, input.key) as
+      | Readonly<{ dispatch(invocation: unknown): Promise<unknown> }>
+      | undefined;
+    if (automation === undefined) throw new TypeError("automation bridge unavailable");
+    return await automation.dispatch({
+      kind: "resolve",
+      expectedOccurrenceId: input.occurrenceId,
+      resolution: { kind: "choose", choiceId: "choice.template.look" },
+    });
+  }, { key: automationKeyV1, occurrenceId });
+
+  expect(result).toMatchObject({ kind: "ok", value: { kind: "committed" } });
+  expect(endingPackRequested).toBe(true);
+  const catLine = page.locator("[data-dialogue='say']");
+  await expect(catLine).toHaveAttribute("data-dialogue-reveal", "complete");
+  await expect(catLine).toContainText(
+    "看，檐角下躲着一只小猫，毛都淋湿了。",
   );
 });
 

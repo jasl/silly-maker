@@ -19,6 +19,7 @@ import type {
   StartedWebGameApplicationV1,
   StartWebGameApplicationForRebootstrapOptionsInternalV1,
 } from "./start-web-game-application.tsx";
+import { readStartedWebTextContentPackLoaderInternalV1 } from "./start-web-game-application.tsx";
 
 type ApplicationBuildIdentityInputInternalV1 = NonNullable<
   ResolveCoreGameApplicationOptionsV1["buildIdentityInput"]
@@ -162,10 +163,14 @@ export function createWebGameApplicationRebootstrapStartOptionsInternalV1(input:
     outcome: DeepReadonly<CoreRebootstrapStartFailureInternalV1>,
   ) => void;
 }): StartWebGameApplicationForRebootstrapOptionsInternalV1 {
+  const loadTextContentPackBytes = readStartedWebTextContentPackLoaderInternalV1(
+    input.predecessor,
+  );
   return Object.freeze({
     rootElement: input.rootElement,
     host: input.predecessor.host,
     capabilitySearch: input.predecessor.capabilitySearch,
+    ...(loadTextContentPackBytes === undefined ? {} : { loadTextContentPackBytes }),
     handoff: input.handoff,
     onRebootstrapStartFailureInternal: input.onRebootstrapStartFailureInternal,
   });

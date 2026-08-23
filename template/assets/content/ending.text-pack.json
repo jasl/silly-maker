@@ -1,0 +1,34 @@
+{
+  "format": "sillymaker.text-content-pack",
+  "version": 1,
+  "packId": "text-pack.template.ending",
+  "textCatalogs": {
+    "defaultLocale": "zh-CN",
+    "catalogs": [
+      {
+        "locale": "zh-CN",
+        "fallbackLocale": null,
+        "entries": [
+          { "textId": "text.template.line.cat", "text": "看，檐角下躲着一只小猫，毛都淋湿了。" },
+          {
+            "textId": "text.template.line.fetch-line",
+            "text": "她提起裙角小跑过去，屋檐的影子里传来一阵轻响。"
+          },
+          {
+            "textId": "text.template.line.hurry-line",
+            "text": "你几乎和她同时到了檐下，正看见她把小猫从影子里捧出来。"
+          },
+          { "textId": "text.template.line.inside", "text": "你转身回屋，把伞立在门边。" },
+          {
+            "textId": "text.template.line.ending-warm",
+            "text": "小梅把小猫抱进屋里，朝你眨了眨眼。今天是个好日子。"
+          },
+          {
+            "textId": "text.template.line.ending-plain",
+            "text": "屋里茶还温着。院子里的雨声停了。"
+          }
+        ]
+      }
+    ]
+  }
+}

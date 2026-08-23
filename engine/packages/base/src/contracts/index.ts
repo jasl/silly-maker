@@ -3,6 +3,21 @@ export { canonicalJsonBytes, CanonicalJsonError } from "./canonical-json.ts";
 export type { CanonicalJsonErrorCodeV1 } from "./canonical-json.ts";
 export { digestBytes, digestCanonical } from "./digest.ts";
 export type { DigestDomainV1 } from "./digest.ts";
+export {
+  admitTextContentPackV1,
+  createTextContentSessionV1,
+  defineTextContentManifestV1,
+  parseTextContentPackIdV1,
+  TextContentErrorV1,
+} from "./text-content.ts";
+export type {
+  AdmittedTextContentPackV1,
+  TextContentErrorCodeV1,
+  TextContentManifestV1,
+  TextContentPackDescriptorV1,
+  TextContentPackIdV1,
+  TextContentSessionV1,
+} from "./text-content.ts";
 export { commitAttemptV1, faultAttemptV1, rejectAttemptV1 } from "./execution.ts";
 export type {
   AssetPackDigestProjectionV1,

@@ -373,6 +373,12 @@ export interface CreatePersistenceServiceOptionsV1<
   readonly leaseAcquisition?: PersistenceLeaseAcquisitionV1;
   readonly autoSaveCapture?: PersistenceAutoSaveCaptureV1;
   /**
+   * Optional Host preparation after a replacement Save has passed decode,
+   * schema, reference, invariant, and compatibility admission, but before the
+   * candidate can bind or commit. A rejection preserves the current Session.
+   */
+  prepareReplacement?(snapshot: DeepReadonly<TSnapshot>): Promise<void>;
+  /**
    * Optional application projector: summary lines stored in every written
    * record's annotation (custom slot pickers may consume them). Must be deterministic
    * for a given state; a throwing projector fails the capture.
@@ -420,6 +426,8 @@ export interface CreateStandardPersistenceServiceOptionsV1<
   readonly manualSaveSlotCount?: number;
   readonly leaseAcquisition?: PersistenceLeaseAcquisitionV1;
   readonly autoSaveCapture?: PersistenceAutoSaveCaptureV1;
+  /** See CreatePersistenceServiceOptionsV1.prepareReplacement. */
+  prepareReplacement?(snapshot: DeepReadonly<TSnapshot>): Promise<void>;
   /**
    * Optional application projector: summary lines stored in every written
    * record's annotation (custom slot pickers may consume them). Must be deterministic
@@ -1463,6 +1471,11 @@ async function createPersistenceServiceWithDependenciesV1<
             });
           }
           if (outcome.kind === "replace") {
+            if (options.prepareReplacement !== undefined) {
+              await options.prepareReplacement(
+                outcome.snapshot as DeepReadonly<TSnapshot>,
+              );
+            }
             legacyReplacement = Object.freeze({
               simulationLineage: outcome.simulationLineage,
               migration: outcome.migration,
@@ -2587,6 +2600,9 @@ async function createPersistenceServiceWithDependenciesV1<
       const lineage = validation.kind === "adopted"
         ? Object.freeze([...validation.candidate.simulationLineage, validation.adoption])
         : validation.candidate.simulationLineage;
+      if (options.prepareReplacement !== undefined) {
+        await options.prepareReplacement(validation.candidate.snapshot);
+      }
       rebootstrapSave = normalizeRebootstrapCandidateSaveV1(validation.candidate, lineage);
 
       type InstallResultV1 =
@@ -3120,6 +3136,9 @@ function createStandardPersistenceServiceInternalV1<
       ...(options.autoSaveCapture === undefined
         ? {}
         : { autoSaveCapture: options.autoSaveCapture }),
+      ...(options.prepareReplacement === undefined
+        ? {}
+        : { prepareReplacement: options.prepareReplacement.bind(options) }),
       ...(options.summarizeSave === undefined
         ? {}
         : { summarizeSave: options.summarizeSave.bind(options) }),

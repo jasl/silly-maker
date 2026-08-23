@@ -1,0 +1,22 @@
+{
+  "format": "sillymaker.text-content-pack",
+  "version": 1,
+  "packId": "text-pack.template.opening",
+  "textCatalogs": {
+    "defaultLocale": "zh-CN",
+    "catalogs": [
+      {
+        "locale": "zh-CN",
+        "fallbackLocale": null,
+        "entries": [
+          { "textId": "text.template.speaker.mei", "text": "小梅" },
+          { "textId": "text.template.line.greeting", "text": "雨停了。院子里的青石板还亮着水光。" },
+          { "textId": "text.template.choice.prompt", "text": "接下来做什么？" },
+          { "textId": "text.template.choice.look", "text": "去看看檐下的动静" },
+          { "textId": "text.template.choice.hurry", "text": "小跑过去看个究竟" },
+          { "textId": "text.template.choice.inside", "text": "先回屋里" }
+        ]
+      }
+    ]
+  }
+}

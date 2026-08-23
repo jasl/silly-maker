@@ -1,6 +1,6 @@
 # Scale、Scene/Object 与模块化 GUI V1 实施计划
 
-状态：**2026-08-24 经所有者接受并开启；M0 已于同日交付，当前下一项为 M1；
+状态：**2026-08-24 经所有者接受并开启；M0、M1 已于同日交付，当前下一项为 M2；
 M0–M5 必须按序交付，每个里程碑独立复核后再进入下一项。**
 
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 仍是唯一跨计划排序入口；
@@ -218,6 +218,71 @@ scan 四个独立来源。M1 因而按原排序先拆静态内容面；M0 的 St
 
 **M1 验收：** 100 倍 text 不线性进入 initial JS/heap/Snapshot；首 pack 可真实解析、显示、切换到第二
 pack；ordinary Player final-output receipt 的负面对照通过；corrupt/missing pack 原子失败。
+
+**M1 交付记录（2026-08-24）：** 以 base HEAD
+`eb718bcaa6683785634cbfd6efb9ce637efafbd1` 上明确记录为 modified 的最终工作树完成同机复测；
+raw reports 仍只作 owner-review evidence，不进入仓库。
+
+- `@sillymaker/base` 新增了只读 `TextContentManifestV1`/pack/session 合同。manifest
+  descriptor 只包含 build-known `packId`/`runtimePath`/`byteLength`/`sha256`/`entryCount`，
+  revision 与完整 descriptor vector 共同形成 digest。pack wire 严格为
+  `sillymaker.text-content-pack` V1 的 `format + version + packId + textCatalogs`；Host bytes 在边界只做一次长度、
+  SHA、Strict JSON、schema/值域和 entry-count admission。Session 固定一个 immutable
+  manifest，对同 pack single-flight，失败后可显式重试，并对已 admitted 的文本提供同步
+  locale-fallback resolver；内部 consumer 不重复 admission。
+- `@sillymaker/web` 在真实 application start 中对比 resolved presentation 与 application 声明的
+  manifest identity，从当前 GUI origin 的 app-root-relative `assets/**` 路径加载。单一
+  Web composition readiness binding 依 Story 的 `initialPackIds`、`requiredPackIdsForInvocation`
+  与 `requiredPackIdsForSnapshot` 按需准备 packs。semantic invocation 在 Story parse/admission 后、
+  command 构造/dispatch 前按调用顺序准备；validated persistence load/import candidate 在 bind/commit 前准备；
+  R2 candidate 在 takeover/install 前准备。DevDock State tuner 只在 `debug_tools + cheats` 当前启用后、
+  patch 前保守准备全 manifest，execute 仍重检 capability。已验证的候选替换在
+  content 失败时原子保留旧 State；missing/corrupt/unloaded 不把 Promise/fetch 带入 authoritative
+  command，也不改 State/Stage。该接线复用既有 semantic/Persistence/R2/debug authorities，没有新 facade
+  或 raw Base State 耦合。
+- Template 是第一个真实 consumer：小量常驻 UI/bootstrap copy 保留在 presentation，开场与结尾
+  dialogue 分别位于两个 `assets/content/*.text-pack.json`。实际 Story control plan 只保留 stable
+  text IDs，不再常驻 dialogue copy；完整 Flow/source projection 与 authoring copy 移入
+  `src/tooling/**`，ordinary Player final graph 不可达。这是 runtime/authoring 责任分离，不是第二套
+  narrative compiler。
+- manifest 是 resolved presentation identity 的一部分：文本/pack 变更会改变 presentation digest，
+  同步的 presentation source 变更也可改变 story digest。旧 Save 因此得到既有 warning-level
+  story/presentation compatibility 证据，但在 simulation/state contract
+  未变时仍可加载。pack payload、Flow/source graph 和 loaded-pack cache 都不进入 Snapshot/Save，
+  没有新 Save field 或 migration framework。
+- `deno task check:assets` 现在会解析每个启用 runtime-asset verification 的 Story，除既有
+  asset manifest 外，还用同一 Base session 从该 application root 读取并 admission 所有声明的
+  text packs。实际 Template release build 保留两个独立 pack assets；build receipt 同时证明
+  Player 排除 tooling Flow/source，Author graph 仍可显式到达它。
+- 同机五样本 Scale Lab 保持 1/100 packs、1,000/100,000 declared entries 的相同两节点
+  control plan 与相同 60-byte State/digest。manifest build p50/p95 为
+  `0.505/1.970 ms` 与 `35.872/37.205 ms`；两者只加载首个 1,000-entry pack，首 pack
+  admission p50/p95 为 `7.679/8.303 ms` 与 `7.227/7.903 ms`，session retained-heap
+  delta 为 `186,864 B` 与 `212,264 B`。全部未选内容只体现在 compact manifest 和独立
+  pack assets，不在已加载 text index 中。
+- 真实 Vite/Template GUI 的 bundle profiles 将 initial transitive JavaScript gzip 从
+  `361,312 B` 增至 `366,431 B`，100 倍内容的增量仅 `5,119 B`，低于 `32 KiB`
+  结构预算；独立 content-pack assets gzip 从 `5,850 B` 增至 `585,737 B`。这与 M0
+  的 `+556,838 B` initial-JS 缺口相比，证明静态 payload 已移出初始 module graph，
+  没有用另一个 JavaScript chunk 隐藏总量。
+
+收口验证包括 Base/Web/Template focused tests、`deno task check:assets`、Template release
+build/final-output receipt、Template Chromium/WebKit 实际从首 pack 进入第二 pack 的可观察路径，
+以及两组 `bench:content:compile`/`bench:content:bundle` profiles。本里程未添加 Content
+DB/ORM、remote streaming、Worker/SQLite、第二 State/cache authority、异步 command I/O、签名或
+provenance 系统。
+
+统一 readiness 边界的实际 focused 复验命令为：
+
+```sh
+deno task typecheck
+deno task test:unit engine/packages/base/src/runtime/application/core-game-application.test.ts template/src/test/text-content-runtime.test.ts
+deno run -A npm:@playwright/test/playwright test --config examples/e2e/playwright.examples.config.ts --project=chromium examples/e2e/template.spec.ts --grep "Template (uses|automation dispatch)"
+deno run -A npm:@playwright/test/playwright test --config examples/e2e/playwright.examples.config.ts --project=webkit examples/e2e/template.spec.ts --grep "Template (uses|automation dispatch)"
+```
+
+结果为 typecheck 通过，focused unit `2 files / 122 tests`，Chromium/WebKit 各 `2 passed`；
+targeted format/lint 也在修正一处 `no-shadow` 后重跑通过。
 
 ### M2 — State hot plan 与增量 project index
 

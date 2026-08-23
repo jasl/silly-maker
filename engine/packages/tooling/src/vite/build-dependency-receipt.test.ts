@@ -262,14 +262,25 @@ describe("build dependency receipt", () => {
 
   it("classifies semantic static-game facets without freezing the complete graph", () => {
     expect(classifyStaticGameDependencyFacetsInternalV1([
+      "products/neutral-gui/src/tooling/inspector.ts",
+      "products/neutral-gui/src/authoring/flow-source.ts",
+      "products/neutral-gui/src/presentation/tooling.ts",
       "engine/packages/base/src/index.ts",
+      "engine/packages/base/src/authoring/story-resolver.ts",
       "engine/packages/studio/src/studio-app.tsx",
       "engine/packages/ui/src/debug/dev-source-client.ts",
       "engine/packages/composition/src/extension-runtime/backend.ts",
       "engine/packages/agent/src/rpc/client.ts",
       "engine/packages/web/src/rpc/client.ts",
+      "node_modules/dependency/src/tooling/index.ts",
+      "products/neutral-gui/node_modules/dependency/src/authoring/index.ts",
+      "virtual:products/neutral-gui/src/tooling/generated.ts",
     ])).toEqual({
-      authoringImplementation: ["engine/packages/studio/src/studio-app.tsx"],
+      authoringImplementation: [
+        "engine/packages/studio/src/studio-app.tsx",
+        "products/neutral-gui/src/authoring/flow-source.ts",
+        "products/neutral-gui/src/tooling/inspector.ts",
+      ],
       devSourceImplementation: ["engine/packages/ui/src/debug/dev-source-client.ts"],
       dynamicExtensionImplementation: [
         "engine/packages/composition/src/extension-runtime/backend.ts",
@@ -455,6 +466,9 @@ describe("build dependency receipt", () => {
     const moduleIds = receiptModuleIdsV1(receipt);
     const facets = classifyStaticGameDependencyFacetsInternalV1(moduleIds);
     expect(facets.authoringImplementation.length).toBeGreaterThan(0);
+    expect(facets.authoringImplementation).toContain(
+      "template/src/tooling/studio-binding.tsx",
+    );
     expect(facets.devSourceImplementation).toContain(
       "engine/packages/ui/src/debug/dev-source-client.ts",
     );
@@ -491,6 +505,7 @@ describe("build dependency receipt", () => {
     const moduleIds = receiptModuleIdsV1(receipt);
     const facets = classifyStaticGameDependencyFacetsInternalV1(moduleIds);
     expect(facets.authoringImplementation.length).toBeGreaterThan(0);
+    expect(facets.authoringImplementation).toContain("e2e/src/tooling/studio-binding.tsx");
     expect(facets.rpcImplementation.length).toBeGreaterThan(0);
     expect(moduleIds).toContain("e2e/src/tooling/studio-binding.tsx");
     expect(moduleIds).toContain("engine/packages/agent/src/host/agent-host.ts");

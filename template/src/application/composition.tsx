@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Composition layer: assembles the script, rules, and UI into a bootable game
 // application (browser and desktop webview share one declaration); orchestration only, owns no gameplay.
-import type { AssetId, DeepReadonly } from "@sillymaker/base";
+import type {
+  AssetId,
+  DeepReadonly,
+  LocaleId,
+  TextContentSessionV1,
+  TextId,
+} from "@sillymaker/base";
 import type { StageRenderTarget } from "@sillymaker/base/story";
 import { projectStageRenderTarget } from "@sillymaker/base/story";
 import type {
@@ -35,10 +41,16 @@ import type {
 import {
   templateStageContentCatalogV1,
   templateStageTransitionCatalogV1,
-  templateTextForLocaleV1,
   templateTextCatalogsV1,
 } from "../content/presentation.ts";
+import {
+  templateEndingTextPackIdV1,
+  templateOpeningTextPackIdV1,
+  templateTextContentManifestV1,
+} from "../content/text-content.ts";
 import { templateOpeningAmbientCatalogV1 } from "../scenes/opening/index.ts";
+import type { TemplateNarrativeStateV1 } from "../story/narrative.ts";
+import { templateCatFlagV1 } from "../story/narrative.ts";
 import { templateStageRenderersV1 } from "../ui/stage-renderers.tsx";
 
 import { TemplateHudV1, TemplateNarrativeRendererV1 } from "./ui.tsx";
@@ -65,6 +77,31 @@ const noNarrativeChoiceReasonsV1: readonly string[] = Object.freeze([]);
 const templateInsufficientCoinsReasonsV1: readonly string[] = Object.freeze([
   "text.template.choice.insufficient-coins",
 ]);
+const templateEndingTextIdsV1: ReadonlySet<string> = new Set([
+  "text.template.line.cat",
+  "text.template.line.fetch-line",
+  "text.template.line.hurry-line",
+  "text.template.line.inside",
+  "text.template.line.ending-warm",
+  "text.template.line.ending-plain",
+]);
+
+function templateNarrativeNeedsEndingTextV1(
+  narrative: DeepReadonly<TemplateNarrativeStateV1>,
+): boolean {
+  if (narrative.flags.includes(templateCatFlagV1)) return true;
+  if (narrative.history.entries.some((entry) => templateEndingTextIdsV1.has(entry.textId))) {
+    return true;
+  }
+  const pending = narrative.pending;
+  if (pending === null) return false;
+  if (pending.kind === "say") return templateEndingTextIdsV1.has(pending.textId);
+  if (pending.kind === "choice") {
+    return templateEndingTextIdsV1.has(pending.promptTextId) ||
+      pending.options.some((option) => templateEndingTextIdsV1.has(option.textId));
+  }
+  return false;
+}
 
 /** Pure Story projection consumed by the public Narrative definition. */
 export function projectTemplateNarrativeSurfaceSelectionV1(
@@ -303,14 +340,29 @@ export const templateGameApplicationV1: WebGameApplicationV1<
     // Scale up proportionally to fill the window (fit scaling keeps the aspect ratio, letterboxing as needed).
     maxScale: 4,
   }),
+  textContent: Object.freeze({
+    manifest: templateTextContentManifestV1,
+    bootstrapCatalogs: templateTextCatalogsV1,
+    initialPackIds: Object.freeze([templateOpeningTextPackIdV1]),
+    requiredPackIdsForInvocation: (invocation: DeepReadonly<TemplateInvocationV1>) =>
+      invocation.kind === "resolve" && invocation.resolution.kind === "choose"
+        ? Object.freeze([templateEndingTextPackIdV1])
+        : Object.freeze([]),
+    requiredPackIdsForSnapshot: (snapshot: DeepReadonly<TemplateSimulationTypesV1["snapshot"]>) =>
+      templateNarrativeNeedsEndingTextV1(snapshot.state.simulation.narrative)
+        ? Object.freeze([templateOpeningTextPackIdV1, templateEndingTextPackIdV1])
+        : Object.freeze([templateOpeningTextPackIdV1]),
+  }),
   core: templateCoreApplicationDefinitionV1,
   ui: (
-    { instance, presentationFreeze }: {
+    { instance, presentationFreeze, textContent }: {
       readonly instance: TemplateApplicationInstanceV1;
       readonly presentationFreeze: PresentationFreezePortV1;
+      readonly textContent: TextContentSessionV1 | null;
     },
-  ) =>
-    Object.freeze({
+  ) => {
+    if (textContent === null) throw new TypeError("template.text_content_session_missing");
+    return Object.freeze({
       titleScreen: Object.freeze({ title: "SillyMaker Starter" }),
       projector: templateUiProjectorV1,
       narrative: defineNarrativeSurfaceV1<TemplateSemanticPublicationV1>(
@@ -333,7 +385,8 @@ export const templateGameApplicationV1: WebGameApplicationV1<
                 Object.freeze({ kind: "time" as const, tick }) as never,
               ),
             renderer: TemplateNarrativeRendererV1,
-            resolveText: templateTextForLocaleV1,
+            resolveText: (locale, textId) =>
+              textContent.resolveText(locale as LocaleId | null, textId as TextId),
             replayCurrentVoice: null,
           } satisfies DefineNarrativeSurfaceInputV1<TemplateSemanticPublicationV1>,
         ),
@@ -346,5 +399,6 @@ export const templateGameApplicationV1: WebGameApplicationV1<
       // selection, or hover-cursor changes; editable controls and
       // data-native-menu / data-native-text subtrees stay native. Declare
       // `input: { nativeBehavior: false }` only for a browser-native page.
-    }),
+    });
+  },
 });

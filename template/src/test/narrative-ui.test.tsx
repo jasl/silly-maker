@@ -4,7 +4,11 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { cwd } from "node:process";
 
+import { createTextContentSessionV1, type TextId } from "@sillymaker/base";
 import { createPlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 import type { NarrativeSurfaceDialogueRendererPropsV1 } from "@sillymaker/ui";
@@ -15,7 +19,11 @@ import {
 } from "../application/composition.tsx";
 import { createTemplateApplicationInstanceV1 } from "../application/core-application.ts";
 import { TemplateNarrativeRendererV1 } from "../application/ui.tsx";
-import { templateTextForLocaleV1 } from "../content/presentation.ts";
+import { templateTextCatalogsV1 } from "../content/presentation.ts";
+import {
+  templateOpeningTextPackIdV1,
+  templateTextContentManifestV1,
+} from "../content/text-content.ts";
 
 afterEach(cleanup);
 
@@ -25,9 +33,17 @@ it("declares the opaque Narrative surface and mounts a bound passive renderer", 
     records: createMemoryHostRecordStoreV1(),
     storyId: "story.template",
   });
+  const textContent = createTextContentSessionV1({
+    manifest: templateTextContentManifestV1,
+    bootstrapCatalogs: templateTextCatalogsV1,
+    loadPackBytes: (descriptor) => readFile(resolve(cwd(), "template", descriptor.runtimePath)),
+  });
+  await textContent.ensure(templateOpeningTextPackIdV1);
   try {
     const ui = templateGameApplicationV1.ui(
-      { instance, playerProfile } as unknown as Parameters<typeof templateGameApplicationV1.ui>[0],
+      { instance, playerProfile, textContent, reportFailure: vi.fn() } as unknown as Parameters<
+        typeof templateGameApplicationV1.ui
+      >[0],
     );
     expect(Object.hasOwn(ui, "narrative")).toBe(true);
     expect(Object.isFrozen(ui.narrative)).toBe(true);
@@ -61,7 +77,7 @@ it("declares the opaque Narrative surface and mounts a bound passive renderer", 
       pending,
       choiceAvailability: null,
       playerProfile: playerProfile.current(),
-      resolveText: (textId: string) => templateTextForLocaleV1(null, textId),
+      resolveText: (textId: string) => textContent.resolveText(null, textId as TextId),
       ...callbacks,
     });
     const preparingProps = Object.freeze({
