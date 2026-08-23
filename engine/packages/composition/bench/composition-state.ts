@@ -1,16 +1,22 @@
 // SPDX-License-Identifier: MIT
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
+  createNeutralStateCellsV1,
+  createNeutralStateDurationDistributionV1,
   createNeutralStatePerformanceReportV1,
-  neutralStateMatrixCellsV1,
+  neutralStateModuleCountV1,
+  neutralStateModuleCountsV1,
   neutralStateSaveClassesV1,
   neutralStateTouchedModuleCountsV1,
+  readNeutralStateBenchmarkRepositoryV1,
   runNeutralStateColdSampleV1,
   runNeutralStateCorrectnessV1,
   runNeutralStateSteadySampleV1,
   type NeutralStateCorrectnessObservationV1,
+  type NeutralStateModuleCountV1,
   type NeutralStateSaveClassV1,
   type NeutralStateTouchedModuleCountV1,
 } from "./composition-state-workload.ts";
@@ -28,6 +34,7 @@ declare const Deno: {
 };
 
 interface BenchmarkOptionsV1 {
+  readonly moduleCounts: readonly NeutralStateModuleCountV1[];
   readonly saveClasses: readonly NeutralStateSaveClassV1[];
   readonly touchedModuleCounts: readonly NeutralStateTouchedModuleCountV1[];
   readonly warmup: number;
@@ -36,8 +43,10 @@ interface BenchmarkOptionsV1 {
 }
 
 const usageV1 = "usage: deno task bench:composition-state " +
-  "[--save-class <10kib|100kib|1mib>]... [--touched-modules <1|4|16>]... " +
+  "[--module-count <16|160>]... [--save-class <10kib|100kib|1mib>]... " +
+  "[--touched-modules <1|4|16>]... " +
   "[--warmup <non-negative integer>] [--samples <positive integer>] [--output <path>]";
+const repositoryRootV1 = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 
 function argumentErrorV1(message: string): never {
   throw new TypeError(`${message}\n${usageV1}`);
@@ -57,6 +66,15 @@ function parseSaveClassV1(value: string): NeutralStateSaveClassV1 {
   return saveClass;
 }
 
+function parseModuleCountV1(value: string): NeutralStateModuleCountV1 {
+  const parsed = Number(value);
+  const moduleCount = neutralStateModuleCountsV1.find((candidate) => candidate === parsed);
+  if (moduleCount === undefined) {
+    return argumentErrorV1(`unsupported --module-count: ${value}`);
+  }
+  return moduleCount;
+}
+
 function parseTouchedModulesV1(value: string): NeutralStateTouchedModuleCountV1 {
   const parsed = Number(value);
   const touchedModules = neutralStateTouchedModuleCountsV1.find((candidate) =>
@@ -69,6 +87,7 @@ function parseTouchedModulesV1(value: string): NeutralStateTouchedModuleCountV1 
 }
 
 function parseOptionsV1(argv: readonly string[]): BenchmarkOptionsV1 {
+  const moduleCounts = new Set<NeutralStateModuleCountV1>();
   const saveClasses = new Set<NeutralStateSaveClassV1>();
   const touchedModuleCounts = new Set<NeutralStateTouchedModuleCountV1>();
   let warmup = 1;
@@ -88,7 +107,8 @@ function parseOptionsV1(argv: readonly string[]): BenchmarkOptionsV1 {
     if (value === undefined || value.length === 0 || value.startsWith("--")) {
       return argumentErrorV1(`${flag} requires a value`);
     }
-    if (flag === "--save-class") saveClasses.add(parseSaveClassV1(value));
+    if (flag === "--module-count") moduleCounts.add(parseModuleCountV1(value));
+    else if (flag === "--save-class") saveClasses.add(parseSaveClassV1(value));
     else if (flag === "--touched-modules") {
       touchedModuleCounts.add(parseTouchedModulesV1(value));
     } else {
@@ -101,6 +121,9 @@ function parseOptionsV1(argv: readonly string[]): BenchmarkOptionsV1 {
     }
   }
   return {
+    moduleCounts: moduleCounts.size === 0
+      ? [neutralStateModuleCountV1]
+      : neutralStateModuleCountsV1.filter((value) => moduleCounts.has(value)),
     saveClasses: saveClasses.size === 0
       ? neutralStateSaveClassesV1
       : neutralStateSaveClassesV1.filter((value) => saveClasses.has(value)),
@@ -111,22 +134,6 @@ function parseOptionsV1(argv: readonly string[]): BenchmarkOptionsV1 {
     samples,
     ...(output === undefined ? {} : { output }),
   };
-}
-
-function percentileV1(values: readonly number[], percentile: number): number {
-  const ordered = [...values].sort((left, right) => left - right);
-  const index = Math.min(
-    ordered.length - 1,
-    Math.max(0, Math.ceil((percentile / 100) * ordered.length) - 1),
-  );
-  return ordered[index]!;
-}
-
-function distributionV1(values: readonly number[]) {
-  if (values.some((value) => !Number.isFinite(value) || value < 0)) {
-    throw new TypeError("neutral benchmark recorded an invalid duration");
-  }
-  return Object.freeze({ p50: percentileV1(values, 50), p95: percentileV1(values, 95) });
 }
 
 function correctnessSemanticV1(observation: NeutralStateCorrectnessObservationV1) {
@@ -149,32 +156,43 @@ async function outputPathV1(requested: string | undefined): Promise<string> {
 
 async function mainV1(): Promise<void> {
   const options = parseOptionsV1(Deno.args);
-  for (let index = 0; index < options.warmup; index += 1) {
-    await runNeutralStateColdSampleV1();
+  const repository = await readNeutralStateBenchmarkRepositoryV1(repositoryRootV1);
+  const cold = [];
+  for (const moduleCount of options.moduleCounts) {
+    for (let index = 0; index < options.warmup; index += 1) {
+      await runNeutralStateColdSampleV1(moduleCount);
+    }
+    const coldRuns = [];
+    for (let index = 0; index < options.samples; index += 1) {
+      coldRuns.push(await runNeutralStateColdSampleV1(moduleCount));
+    }
+    cold.push(Object.freeze({
+      workloadId: `neutral-composition-state-v1/cold-activation/${String(moduleCount)}-modules`,
+      samples: options.samples,
+      moduleCount: coldRuns[0]!.moduleCount,
+      sessionStatus: coldRuns[0]!.sessionStatus,
+      durationMs: Object.freeze({
+        mount: createNeutralStateDurationDistributionV1(
+          coldRuns.map((run) => run.durationMs.mount),
+        ),
+        directPlanCompile: createNeutralStateDurationDistributionV1(
+          coldRuns.map((run) => run.durationMs.directPlanCompile),
+        ),
+        sessionCreate: createNeutralStateDurationDistributionV1(
+          coldRuns.map((run) => run.durationMs.sessionCreate),
+        ),
+        dispose: createNeutralStateDurationDistributionV1(
+          coldRuns.map((run) => run.durationMs.dispose),
+        ),
+      }),
+    }));
   }
-  const coldRuns = [];
-  for (let index = 0; index < options.samples; index += 1) {
-    coldRuns.push(await runNeutralStateColdSampleV1());
-  }
-  const cold = Object.freeze([Object.freeze({
-    workloadId: "neutral-composition-state-v1/cold-activation/16-modules",
-    samples: options.samples,
-    moduleCount: coldRuns[0]!.moduleCount,
-    sessionStatus: coldRuns[0]!.sessionStatus,
-    durationMs: Object.freeze({
-      mount: distributionV1(coldRuns.map((run) => run.durationMs.mount)),
-      directPlanCompile: distributionV1(
-        coldRuns.map((run) => run.durationMs.directPlanCompile),
-      ),
-      sessionCreate: distributionV1(coldRuns.map((run) => run.durationMs.sessionCreate)),
-      dispose: distributionV1(coldRuns.map((run) => run.durationMs.dispose)),
-    }),
-  })]);
 
-  const selectedCells = neutralStateMatrixCellsV1.filter((cell) =>
-    options.saveClasses.includes(cell.saveClass) &&
-    options.touchedModuleCounts.includes(cell.touchedModules)
-  );
+  const selectedCells = createNeutralStateCellsV1({
+    moduleCounts: options.moduleCounts,
+    saveClasses: options.saveClasses,
+    touchedModuleCounts: options.touchedModuleCounts,
+  });
   const cells = [];
   for (const cell of selectedCells) {
     for (let index = 0; index < options.warmup; index += 1) {
@@ -190,27 +208,31 @@ async function mainV1(): Promise<void> {
       semantic = requireConsistentV1(
         semantic,
         correctnessSemanticV1(correctness),
-        `${cell.saveClass}/${String(cell.touchedModules)} correctness`,
+        `${String(cell.moduleCount)}/${cell.saveClass}/${String(cell.touchedModules)} correctness`,
       );
       steadyRuns.push(await runNeutralStateSteadySampleV1(cell));
     }
     cells.push(Object.freeze({
-      workloadId: `neutral-composition-state-v1/${cell.saveClass}/${String(cell.touchedModules)}`,
+      workloadId: `neutral-composition-state-v1/${
+        String(cell.moduleCount)
+      }-modules/${cell.saveClass}/${String(cell.touchedModules)}`,
       ...cell,
       samples: options.samples,
       correctness: semantic,
       durationMs: Object.freeze({
-        retentionCrossingTranscript: distributionV1(
+        retentionCrossingTranscript: createNeutralStateDurationDistributionV1(
           correctnessRuns.map((run) => run.durationMs.retentionCrossingTranscript),
         ),
-        saveRoundtrip: distributionV1(
+        saveRoundtrip: createNeutralStateDurationDistributionV1(
           correctnessRuns.map((run) => run.durationMs.saveRoundtrip),
         ),
-        authoritativeReplay: distributionV1(
+        authoritativeReplay: createNeutralStateDurationDistributionV1(
           correctnessRuns.map((run) => run.durationMs.authoritativeReplay),
         ),
-        steadyDispatch: distributionV1(steadyRuns.map((run) => run.durationMs)),
-        steadyDispatchPerCommand: distributionV1(
+        steadyDispatch: createNeutralStateDurationDistributionV1(
+          steadyRuns.map((run) => run.durationMs),
+        ),
+        steadyDispatchPerCommand: createNeutralStateDurationDistributionV1(
           steadyRuns.map((run) => run.durationMsPerCommand),
         ),
       }),
@@ -225,6 +247,7 @@ async function mainV1(): Promise<void> {
   }
   const report = createNeutralStatePerformanceReportV1({
     generatedAt: new Date().toISOString(),
+    repository,
     environment: {
       deno: Deno.version.deno,
       v8: Deno.version.v8,
@@ -232,6 +255,9 @@ async function mainV1(): Promise<void> {
       os: Deno.build.os,
       arch: Deno.build.arch,
     },
+    moduleCounts: options.moduleCounts,
+    saveClasses: options.saveClasses,
+    touchedModuleCounts: options.touchedModuleCounts,
     warmup: options.warmup,
     samples: options.samples,
     cold,

@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: MIT
+import { execFile as execFileCallback } from "node:child_process";
+import { promisify } from "node:util";
+
 import {
   createGameSnapshotEnvelopeSchemaV1,
   createPristineRunIntegrityV1,
@@ -54,6 +57,7 @@ import {
 import { compileStateModuleCompositionV1, defineStateCompositionProfileV1 } from "../src/state.ts";
 
 export const neutralStateModuleCountV1 = 16;
+export const neutralStateModuleCountsV1 = Object.freeze([16, 160] as const);
 export const neutralStateTranscriptCommandCountV1 = 256;
 export const neutralStateRetainedCommandCountV1 = 200;
 export const neutralStateSteadyPrefillCommandCountV1 = 256;
@@ -63,9 +67,11 @@ export const neutralStateSaveClassesV1 = Object.freeze(["10kib", "100kib", "1mib
 export const neutralStateTouchedModuleCountsV1 = Object.freeze([1, 4, 16] as const);
 
 export type NeutralStateSaveClassV1 = (typeof neutralStateSaveClassesV1)[number];
+export type NeutralStateModuleCountV1 = (typeof neutralStateModuleCountsV1)[number];
 export type NeutralStateTouchedModuleCountV1 = (typeof neutralStateTouchedModuleCountsV1)[number];
 
 export interface NeutralStateCellV1 {
+  readonly moduleCount: NeutralStateModuleCountV1;
   readonly saveClass: NeutralStateSaveClassV1;
   readonly targetSaveBytes: number;
   readonly touchedModules: NeutralStateTouchedModuleCountV1;
@@ -79,24 +85,56 @@ const targetSaveBytesByClassV1 = Object.freeze(
   } satisfies Record<NeutralStateSaveClassV1, number>,
 );
 
-export const neutralStateMatrixCellsV1: readonly NeutralStateCellV1[] = Object.freeze(
-  neutralStateSaveClassesV1.flatMap((saveClass) =>
-    neutralStateTouchedModuleCountsV1.map((touchedModules) =>
-      Object.freeze({
-        saveClass,
-        targetSaveBytes: targetSaveBytesByClassV1[saveClass],
-        touchedModules,
-      })
-    )
-  ),
-);
+export function createNeutralStateCellsV1(input: {
+  readonly moduleCounts: readonly NeutralStateModuleCountV1[];
+  readonly saveClasses: readonly NeutralStateSaveClassV1[];
+  readonly touchedModuleCounts: readonly NeutralStateTouchedModuleCountV1[];
+}): readonly NeutralStateCellV1[] {
+  return Object.freeze(
+    input.moduleCounts.flatMap((moduleCount) =>
+      input.saveClasses.flatMap((saveClass) =>
+        input.touchedModuleCounts.map((touchedModules) =>
+          Object.freeze({
+            moduleCount,
+            saveClass,
+            targetSaveBytes: targetSaveBytesByClassV1[saveClass],
+            touchedModules,
+          })
+        )
+      )
+    ),
+  );
+}
 
-export const neutralStateGcCellsV1: readonly NeutralStateCellV1[] = Object.freeze([
+export const neutralStateMatrixCellsV1 = createNeutralStateCellsV1({
+  moduleCounts: [neutralStateModuleCountV1],
+  saveClasses: neutralStateSaveClassesV1,
+  touchedModuleCounts: neutralStateTouchedModuleCountsV1,
+});
+
+export const neutralStateScaleCellsV1 = createNeutralStateCellsV1({
+  moduleCounts: neutralStateModuleCountsV1,
+  saveClasses: ["100kib", "1mib"],
+  touchedModuleCounts: [1, 16],
+});
+
+const neutralStateHistoricalGcCellsV1: readonly NeutralStateCellV1[] = Object.freeze([
   neutralStateMatrixCellsV1[0]!,
   neutralStateMatrixCellsV1[2]!,
   neutralStateMatrixCellsV1[4]!,
   neutralStateMatrixCellsV1[6]!,
   neutralStateMatrixCellsV1[8]!,
+]);
+
+export const neutralStateGcCellsV1: readonly NeutralStateCellV1[] = Object.freeze([
+  ...neutralStateHistoricalGcCellsV1,
+  ...neutralStateScaleCellsV1.filter((scaleCell) =>
+    !neutralStateHistoricalGcCellsV1.some((historicalCell) =>
+      historicalCell.moduleCount === scaleCell.moduleCount &&
+      historicalCell.saveClass === scaleCell.saveClass &&
+      historicalCell.touchedModules === scaleCell.touchedModules
+    )
+  ),
 ]);
 
 interface NeutralModuleSliceV1 {
@@ -157,21 +195,12 @@ interface ActivatedNeutralHarnessV1 {
   readonly kernel: CompositionKernelV1;
   readonly lease: LegacyApplicationLeaseV1<NeutralApplicationV1>;
   readonly readTokens: readonly StateCapabilityV1<NeutralModuleReadPortV1>[];
+  readonly shape: NeutralStateShapeV1;
   readonly stateComposition: NeutralStateCompositionV1;
   dispose(): Promise<void>;
 }
 
 const textEncoderV1 = new TextEncoder();
-const moduleKeysV1 = Object.freeze(
-  Array.from(
-    { length: neutralStateModuleCountV1 },
-    (_, index) => `module${String(index).padStart(2, "0")}`,
-  ),
-);
-const moduleIdsV1 = Object.freeze(moduleKeysV1.map((key) => `bench.state.${key}`));
-const moduleEventKindsV1 = Object.freeze(
-  moduleIdsV1.map((moduleId) => `neutral.module_advanced:${moduleId}` as const),
-);
 const neutralCommandV1 = Object.freeze({ kind: "neutral.advance" as const });
 const fixedInstantV1 = "2026-08-18T00:00:00.000Z" as IsoUtcInstant;
 let persistenceIdentityV1 = 0;
@@ -194,28 +223,6 @@ const neutralSliceSchemaV1: RuntimeSchemaV1<NeutralModuleSliceV1> = Object.freez
   },
 });
 
-const neutralStateSchemaV1: RuntimeSchemaV1<NeutralBenchmarkStateV1> = Object.freeze({
-  parse(value: unknown): NeutralBenchmarkStateV1 {
-    if (!isPlainRecordV1(value) || Object.keys(value).join("\0") !== "simulation") {
-      throw new TypeError("invalid neutral benchmark State");
-    }
-    const simulation = value.simulation;
-    if (
-      !isPlainRecordV1(simulation) ||
-      Object.keys(simulation).sort().join("\0") !== [...moduleKeysV1].sort().join("\0")
-    ) {
-      throw new TypeError("invalid neutral benchmark module set");
-    }
-    for (const key of moduleKeysV1) neutralSliceSchemaV1.parse(simulation[key]);
-    return value as unknown as NeutralBenchmarkStateV1;
-  },
-});
-
-const neutralSnapshotSchemaV1 = createGameSnapshotEnvelopeSchemaV1(
-  neutralStateSchemaV1,
-  rngStateV1Schema,
-) as RuntimeSchemaV1<NeutralSnapshotV1>;
-
 const neutralCommandSchemaV1: RuntimeSchemaV1<NeutralBenchmarkCommandV1> = Object.freeze({
   parse(value: unknown): NeutralBenchmarkCommandV1 {
     if (
@@ -228,59 +235,124 @@ const neutralCommandSchemaV1: RuntimeSchemaV1<NeutralBenchmarkCommandV1> = Objec
   },
 });
 
-const neutralEventSchemaV1: RuntimeSchemaV1<NeutralBenchmarkEventV1> = Object.freeze({
-  parse(value: unknown) {
-    if (
-      !isPlainRecordV1(value) ||
-      Object.keys(value).sort().join("\0") !== "counter\0kind" ||
-      typeof value.kind !== "string" ||
-      !moduleEventKindsV1.includes(value.kind as `neutral.module_advanced:${string}`) ||
-      !Number.isSafeInteger(value.counter)
-    ) {
-      throw new TypeError("invalid neutral benchmark event");
-    }
-    return Object.freeze({
-      kind: value.kind as `neutral.module_advanced:${string}`,
-      counter: parseNonNegativeSafeInteger(value.counter),
-    });
-  },
-});
+interface NeutralStateShapeV1 {
+  readonly moduleCount: NeutralStateModuleCountV1;
+  readonly moduleKeys: readonly string[];
+  readonly moduleIds: readonly string[];
+  readonly moduleEventKinds: readonly `neutral.module_advanced:${string}`[];
+  readonly stateSchema: RuntimeSchemaV1<NeutralBenchmarkStateV1>;
+  readonly snapshotSchema: RuntimeSchemaV1<NeutralSnapshotV1>;
+  readonly eventSchema: RuntimeSchemaV1<NeutralBenchmarkEventV1>;
+  readonly provenance: BuildProvenanceV1;
+}
 
-const identityDigestV1 = (label: string): Digest =>
-  digestBytes(textEncoderV1.encode(`neutral-composition-state-workload:${label}`));
+const stateShapesV1 = new Map<NeutralStateModuleCountV1, NeutralStateShapeV1>();
 
-const neutralProvenanceV1: BuildProvenanceV1 = Object.freeze({
-  story: Object.freeze({
-    id: "neutral-composition-state-workload",
-    revision: parsePositiveSafeInteger(1),
-    digest: identityDigestV1("story"),
-  }),
-  engine: Object.freeze({
-    version: "neutral-composition-state-workload-v1",
-    digest: identityDigestV1("engine"),
-  }),
-  resolved: Object.freeze({
-    stateContractRevision: parsePositiveSafeInteger(1),
-    stateContractDigest: identityDigestV1("state-contract"),
-    simulationDigest: identityDigestV1("simulation"),
-    presentationDigest: identityDigestV1("presentation"),
-    patchSet: Object.freeze({
-      digest: identityDigestV1("patch-set"),
-      simulationDigest: identityDigestV1("patch-set-simulation"),
-      presentationDigest: identityDigestV1("patch-set-presentation"),
-      appliedHotfixes: Object.freeze([]),
+function createStateShapeV1(moduleCount: NeutralStateModuleCountV1): NeutralStateShapeV1 {
+  const keyWidth = moduleCount < 100 ? 2 : 3;
+  const moduleKeys = Object.freeze(
+    Array.from(
+      { length: moduleCount },
+      (_, index) => `module${String(index).padStart(keyWidth, "0")}`,
+    ),
+  );
+  const moduleIds = Object.freeze(moduleKeys.map((key) => `bench.state.${key}`));
+  const moduleEventKinds = Object.freeze(
+    moduleIds.map((moduleId) => `neutral.module_advanced:${moduleId}` as const),
+  );
+  const stateSchema: RuntimeSchemaV1<NeutralBenchmarkStateV1> = Object.freeze({
+    parse(value: unknown): NeutralBenchmarkStateV1 {
+      if (!isPlainRecordV1(value) || Object.keys(value).join("\0") !== "simulation") {
+        throw new TypeError("invalid neutral benchmark State");
+      }
+      const simulation = value.simulation;
+      if (
+        !isPlainRecordV1(simulation) ||
+        Object.keys(simulation).sort().join("\0") !== [...moduleKeys].sort().join("\0")
+      ) {
+        throw new TypeError("invalid neutral benchmark module set");
+      }
+      for (const key of moduleKeys) neutralSliceSchemaV1.parse(simulation[key]);
+      return value as unknown as NeutralBenchmarkStateV1;
+    },
+  });
+  const snapshotSchema = createGameSnapshotEnvelopeSchemaV1(
+    stateSchema,
+    rngStateV1Schema,
+  ) as RuntimeSchemaV1<NeutralSnapshotV1>;
+  const eventSchema: RuntimeSchemaV1<NeutralBenchmarkEventV1> = Object.freeze({
+    parse(value: unknown) {
+      if (
+        !isPlainRecordV1(value) ||
+        Object.keys(value).sort().join("\0") !== "counter\0kind" ||
+        typeof value.kind !== "string" ||
+        !moduleEventKinds.includes(value.kind as `neutral.module_advanced:${string}`) ||
+        !Number.isSafeInteger(value.counter)
+      ) {
+        throw new TypeError("invalid neutral benchmark event");
+      }
+      return Object.freeze({
+        kind: value.kind as `neutral.module_advanced:${string}`,
+        counter: parseNonNegativeSafeInteger(value.counter),
+      });
+    },
+  });
+  const identityPrefix = moduleCount === neutralStateModuleCountV1
+    ? "neutral-composition-state-workload"
+    : `neutral-composition-state-workload:${String(moduleCount)}-modules`;
+  const identityDigest = (label: string): Digest =>
+    digestBytes(textEncoderV1.encode(`${identityPrefix}:${label}`));
+  const provenance: BuildProvenanceV1 = Object.freeze({
+    story: Object.freeze({
+      id: identityPrefix,
+      revision: parsePositiveSafeInteger(1),
+      digest: identityDigest("story"),
     }),
-  }),
-});
+    engine: Object.freeze({
+      version: `${identityPrefix}-v1`,
+      digest: identityDigest("engine"),
+    }),
+    resolved: Object.freeze({
+      stateContractRevision: parsePositiveSafeInteger(1),
+      stateContractDigest: identityDigest("state-contract"),
+      simulationDigest: identityDigest("simulation"),
+      presentationDigest: identityDigest("presentation"),
+      patchSet: Object.freeze({
+        digest: identityDigest("patch-set"),
+        simulationDigest: identityDigest("patch-set-simulation"),
+        presentationDigest: identityDigest("patch-set-presentation"),
+        appliedHotfixes: Object.freeze([]),
+      }),
+    }),
+  });
+  return Object.freeze({
+    moduleCount,
+    moduleKeys,
+    moduleIds,
+    moduleEventKinds,
+    stateSchema,
+    snapshotSchema,
+    eventSchema,
+    provenance,
+  });
+}
 
-function payloadsV1(totalBytes: number): readonly string[] {
+function stateShapeV1(moduleCount: NeutralStateModuleCountV1): NeutralStateShapeV1 {
+  const existing = stateShapesV1.get(moduleCount);
+  if (existing !== undefined) return existing;
+  const shape = createStateShapeV1(moduleCount);
+  stateShapesV1.set(moduleCount, shape);
+  return shape;
+}
+
+function payloadsV1(totalBytes: number, shape: NeutralStateShapeV1): readonly string[] {
   if (!Number.isSafeInteger(totalBytes) || totalBytes < 0) {
     throw new TypeError("neutral payload byte count must be a non-negative safe integer");
   }
-  const base = Math.floor(totalBytes / neutralStateModuleCountV1);
-  const remainder = totalBytes % neutralStateModuleCountV1;
+  const base = Math.floor(totalBytes / shape.moduleCount);
+  const remainder = totalBytes % shape.moduleCount;
   const payloads = Object.freeze(
-    moduleKeysV1.map((_key, index) => "x".repeat(base + (index < remainder ? 1 : 0))),
+    shape.moduleKeys.map((_key, index) => "x".repeat(base + (index < remainder ? 1 : 0))),
   );
   const maximum = Math.max(...payloads.map((payload) => textEncoderV1.encode(payload).byteLength));
   if (maximum > 262_144) {
@@ -290,15 +362,16 @@ function payloadsV1(totalBytes: number): readonly string[] {
 }
 
 function initialSnapshotV1(input: {
+  readonly shape: NeutralStateShapeV1;
   readonly payloadBytes: number;
   readonly touchedModules: NeutralStateTouchedModuleCountV1;
   readonly commandSequence?: number;
 }): NeutralSnapshotV1 {
   const commandSequence = input.commandSequence ?? 0;
-  const payloads = payloadsV1(input.payloadBytes);
+  const payloads = payloadsV1(input.payloadBytes, input.shape);
   const simulation: Record<string, NeutralModuleSliceV1> = {};
-  for (let index = 0; index < neutralStateModuleCountV1; index += 1) {
-    simulation[moduleKeysV1[index]!] = Object.freeze({
+  for (let index = 0; index < input.shape.moduleCount; index += 1) {
+    simulation[input.shape.moduleKeys[index]!] = Object.freeze({
       counter: index < input.touchedModules ? commandSequence : 0,
       payload: payloads[index]!,
     });
@@ -314,11 +387,12 @@ function initialSnapshotV1(input: {
 function createModulesV1(
   kit: ReturnType<typeof createStateAuthoringKitV1<NeutralBenchmarkTypesV1>>,
   payloadBytes: number,
+  shape: NeutralStateShapeV1,
 ) {
-  const payloads = payloadsV1(payloadBytes);
-  return Object.freeze(moduleKeysV1.map((key, index) => {
-    const moduleId = moduleIdsV1[index]!;
-    const eventKind = moduleEventKindsV1[index]!;
+  const payloads = payloadsV1(payloadBytes, shape);
+  return Object.freeze(shape.moduleKeys.map((key, index) => {
+    const moduleId = shape.moduleIds[index]!;
+    const eventKind = shape.moduleEventKinds[index]!;
     const read = kit.defineCapability<NeutralModuleReadPortV1>(`${moduleId}.read`);
     const module = kit.defineModule({
       id: moduleId,
@@ -345,6 +419,7 @@ function createModulesV1(
 }
 
 function createAdapterV1(input: {
+  readonly shape: NeutralStateShapeV1;
   readonly stateComposition: NeutralStateCompositionV1;
   readonly readTokens: readonly StateCapabilityV1<NeutralModuleReadPortV1>[];
   readonly touchedModules: NeutralStateTouchedModuleCountV1;
@@ -352,8 +427,8 @@ function createAdapterV1(input: {
   readonly attempts?: StateFinalizedCommandAttemptV1<NeutralBenchmarkTypesV1>[];
 }): NeutralAdapterV1 {
   const workflow = input.stateComposition.createWorkflow({
-    stateSchema: neutralStateSchemaV1,
-    eventSchema: neutralEventSchemaV1,
+    stateSchema: input.shape.stateSchema,
+    eventSchema: input.shape.eventSchema,
     createFault: () => Object.freeze({ code: "neutral.failed" as const }),
     run(transaction) {
       for (let index = 0; index < input.touchedModules; index += 1) {
@@ -361,7 +436,7 @@ function createAdapterV1(input: {
           transaction.read(input.readTokens[index]!).counter() + 1,
         );
         transaction.emit(Object.freeze({
-          kind: moduleEventKindsV1[index]!,
+          kind: input.shape.moduleEventKinds[index]!,
           counter,
         }));
       }
@@ -393,6 +468,7 @@ interface NeutralHarnessBlueprintV1 {
   readonly kit: ReturnType<typeof createStateAuthoringKitV1<NeutralBenchmarkTypesV1>>;
   readonly profile: ReturnType<typeof defineStateCompositionProfileV1>;
   readonly readTokens: readonly StateCapabilityV1<NeutralModuleReadPortV1>[];
+  readonly shape: NeutralStateShapeV1;
   readonly factoryToken: ReturnType<
     typeof createCompositionServiceTokenV1<LegacyApplicationFactoryV1<NeutralApplicationV1>>
   >;
@@ -400,12 +476,14 @@ interface NeutralHarnessBlueprintV1 {
 }
 
 function createHarnessBlueprintV1(input: {
+  readonly moduleCount: NeutralStateModuleCountV1;
   readonly payloadBytes: number;
   readonly touchedModules: NeutralStateTouchedModuleCountV1;
   readonly commandSequence?: number;
 }): NeutralHarnessBlueprintV1 {
+  const shape = stateShapeV1(input.moduleCount);
   const kit = createStateAuthoringKitV1<NeutralBenchmarkTypesV1>();
-  const moduleEntries = createModulesV1(kit, input.payloadBytes);
+  const moduleEntries = createModulesV1(kit, input.payloadBytes, shape);
   const modules = Object.freeze(moduleEntries.map(({ module }) => module));
   const readTokens = Object.freeze(moduleEntries.map(({ read }) => read));
   const factoryToken = createCompositionServiceTokenV1<
@@ -423,10 +501,11 @@ function createHarnessBlueprintV1(input: {
       }
       return Object.freeze({
         adapter: createAdapterV1({
+          shape,
           stateComposition,
           readTokens,
           touchedModules: input.touchedModules,
-          initialSnapshot: initialSnapshotV1(input),
+          initialSnapshot: initialSnapshotV1({ ...input, shape }),
         }),
       });
     },
@@ -441,6 +520,7 @@ function createHarnessBlueprintV1(input: {
     kit,
     profile,
     readTokens,
+    shape,
     factoryToken,
     setStateComposition(composition: NeutralStateCompositionV1) {
       if (stateComposition !== null) throw new TypeError("neutral State plan already compiled");
@@ -450,6 +530,7 @@ function createHarnessBlueprintV1(input: {
 }
 
 async function activateHarnessV1(input: {
+  readonly moduleCount: NeutralStateModuleCountV1;
   readonly payloadBytes: number;
   readonly touchedModules: NeutralStateTouchedModuleCountV1;
   readonly commandSequence?: number;
@@ -467,6 +548,7 @@ async function activateHarnessV1(input: {
     kernel,
     lease,
     readTokens: blueprint.readTokens,
+    shape: blueprint.shape,
     stateComposition,
     async dispose() {
       if (disposed) return;
@@ -477,14 +559,17 @@ async function activateHarnessV1(input: {
   });
 }
 
-async function createPersistenceV1(adapter: NeutralAdapterV1) {
+async function createPersistenceV1(
+  adapter: NeutralAdapterV1,
+  shape: NeutralStateShapeV1,
+) {
   persistenceIdentityV1 += 1;
   const identity = String(persistenceIdentityV1);
   return await createPersistenceServiceV1({
     runtimeControl: adapter.runtimeControl,
     records: createMemoryHostRecordStoreV1(),
-    snapshotSchema: neutralSnapshotSchemaV1,
-    provenance: neutralProvenanceV1,
+    snapshotSchema: shape.snapshotSchema,
+    provenance: shape.provenance,
     adoptionDeclarations: Object.freeze([]),
     saveStateMigrations: null,
     ownerId: `owner.neutral-bench.${identity}` as SessionLeaseOwnerId,
@@ -519,23 +604,25 @@ async function dispatchCommittedV1(
 const calibratedPayloadBytesV1 = new Map<string, Promise<number>>();
 
 async function calibratePayloadBytesV1(
+  moduleCount: NeutralStateModuleCountV1,
   saveClass: NeutralStateSaveClassV1,
   touchedModules: NeutralStateTouchedModuleCountV1,
 ): Promise<number> {
-  const key = `${saveClass}/${String(touchedModules)}`;
+  const key = `${String(moduleCount)}/${saveClass}/${String(touchedModules)}`;
   const existing = calibratedPayloadBytesV1.get(key);
   if (existing !== undefined) return await existing;
   const calibration = (async () => {
     const harness = await activateHarnessV1({
+      moduleCount,
       payloadBytes: 0,
       touchedModules,
       commandSequence: neutralStateTranscriptCommandCountV1,
     });
-    const persistence = await createPersistenceV1(harness.adapter);
+    const persistence = await createPersistenceV1(harness.adapter, harness.shape);
     try {
       const empty = await persistence.port.exportCurrentSave();
       const payloadBytes = targetSaveBytesByClassV1[saveClass] - empty.bytes.byteLength;
-      payloadsV1(payloadBytes);
+      payloadsV1(payloadBytes, harness.shape);
       if (payloadBytes < 0) {
         throw new TypeError(`${saveClass} is smaller than the neutral Save envelope`);
       }
@@ -560,7 +647,7 @@ async function authoritativeReplayV1(
 ): Promise<ReplayComparisonV1> {
   const commandLog = harness.adapter.composition.commandLog.entries();
   const currentSnapshot = harness.adapter.runtime.session.getCurrentSnapshot();
-  const identity = Object.freeze({ provenance: neutralProvenanceV1 });
+  const identity = Object.freeze({ provenance: harness.shape.provenance });
   return await replayAuthoritativelyV1({
     recordedIdentity: identity,
     runtimeIdentity: identity,
@@ -574,6 +661,7 @@ async function authoritativeReplayV1(
     createDriver(replayBase) {
       const attempts: StateFinalizedCommandAttemptV1<NeutralBenchmarkTypesV1>[] = [];
       const adapter = createAdapterV1({
+        shape: harness.shape,
         stateComposition: harness.stateComposition,
         readTokens: harness.readTokens,
         touchedModules,
@@ -601,7 +689,7 @@ async function authoritativeReplayV1(
 }
 
 export interface NeutralStateCorrectnessObservationV1 {
-  readonly moduleCount: number;
+  readonly moduleCount: NeutralStateModuleCountV1;
   readonly committedCommands: number;
   readonly retainedCommands: number;
   readonly replayBaseCommandSequence: number;
@@ -612,6 +700,7 @@ export interface NeutralStateCorrectnessObservationV1 {
   readonly maximumPayloadStringBytes: number;
   readonly saveDigestMatch: boolean;
   readonly stateDigestMatch: boolean;
+  readonly ownerCountersMatch: boolean;
   readonly roundtripBytesMatch: boolean;
   readonly importedCommandSequence: number;
   readonly replay: ReplayComparisonV1;
@@ -625,10 +714,11 @@ export interface NeutralStateCorrectnessObservationV1 {
 export function requireNeutralStateCorrectnessV1(
   observation: NeutralStateCorrectnessObservationV1,
   targetSaveBytes: number,
+  expectedModuleCount: NeutralStateModuleCountV1 = neutralStateModuleCountV1,
 ): void {
   const replay = observation.replay;
   if (
-    observation.moduleCount !== neutralStateModuleCountV1 ||
+    observation.moduleCount !== expectedModuleCount ||
     observation.committedCommands !== neutralStateTranscriptCommandCountV1 ||
     observation.retainedCommands !== neutralStateRetainedCommandCountV1 ||
     observation.replayBaseCommandSequence !==
@@ -640,6 +730,7 @@ export function requireNeutralStateCorrectnessV1(
     observation.maximumPayloadStringBytes > 262_144 ||
     !observation.saveDigestMatch ||
     !observation.stateDigestMatch ||
+    !observation.ownerCountersMatch ||
     !observation.roundtripBytesMatch ||
     observation.importedCommandSequence !== neutralStateTranscriptCommandCountV1 ||
     !replay.authoritative ||
@@ -653,13 +744,20 @@ export function requireNeutralStateCorrectnessV1(
 }
 
 export async function runNeutralStateCorrectnessV1(input: {
+  readonly moduleCount?: NeutralStateModuleCountV1;
   readonly saveClass: NeutralStateSaveClassV1;
   readonly touchedModules: NeutralStateTouchedModuleCountV1;
   readonly now?: () => number;
 }): Promise<NeutralStateCorrectnessObservationV1> {
+  const moduleCount = input.moduleCount ?? neutralStateModuleCountV1;
   const now = input.now ?? (() => performance.now());
-  const payloadBytes = await calibratePayloadBytesV1(input.saveClass, input.touchedModules);
+  const payloadBytes = await calibratePayloadBytesV1(
+    moduleCount,
+    input.saveClass,
+    input.touchedModules,
+  );
   const sourceBlueprint = createHarnessBlueprintV1({
+    moduleCount,
     payloadBytes,
     touchedModules: input.touchedModules,
   });
@@ -678,6 +776,7 @@ export async function runNeutralStateCorrectnessV1(input: {
     kernel: sourceKernel,
     lease: sourceLease,
     readTokens: sourceBlueprint.readTokens,
+    shape: sourceBlueprint.shape,
     stateComposition: sourceComposition,
     async dispose() {
       if (sourceDisposed) return;
@@ -687,11 +786,12 @@ export async function runNeutralStateCorrectnessV1(input: {
     },
   });
   const targetHarness = await activateHarnessV1({
+    moduleCount,
     payloadBytes: 0,
     touchedModules: input.touchedModules,
   });
-  const sourcePersistence = await createPersistenceV1(sourceHarness.adapter);
-  const targetPersistence = await createPersistenceV1(targetHarness.adapter);
+  const sourcePersistence = await createPersistenceV1(sourceHarness.adapter, sourceHarness.shape);
+  const targetPersistence = await createPersistenceV1(targetHarness.adapter, targetHarness.shape);
   try {
     const transcriptStarted = now();
     await dispatchCommittedV1(sourceHarness.adapter, neutralStateTranscriptCommandCountV1);
@@ -744,8 +844,14 @@ export async function runNeutralStateCorrectnessV1(input: {
         entry.commandSequence.after === expectedOrdinal &&
         entry.outcome.kind === "committed";
     });
+    const ownerCountersMatch = [sourceCurrent, importedSnapshot].every((snapshot) =>
+      sourceHarness.shape.moduleKeys.every((key, index) =>
+        snapshot.state.simulation[key]?.counter ===
+          (index < input.touchedModules ? neutralStateTranscriptCommandCountV1 : 0)
+      )
+    );
     const observation: NeutralStateCorrectnessObservationV1 = Object.freeze({
-      moduleCount: neutralStateModuleCountV1,
+      moduleCount,
       committedCommands: neutralStateTranscriptCommandCountV1,
       retainedCommands: entries.length,
       replayBaseCommandSequence: replayBase.commandSequence,
@@ -758,6 +864,7 @@ export async function runNeutralStateCorrectnessV1(input: {
         roundtrip.digest === exported.digest,
       stateDigestMatch: stateDigest === lastEntry.postStateDigest &&
         digestCanonical("sillymaker:state:v1", importedSnapshot) === stateDigest,
+      ownerCountersMatch,
       roundtripBytesMatch: bytesEqualV1(exported.bytes, roundtrip.bytes),
       importedCommandSequence: importedSnapshot.commandSequence,
       replay,
@@ -770,6 +877,7 @@ export async function runNeutralStateCorrectnessV1(input: {
     requireNeutralStateCorrectnessV1(
       observation,
       targetSaveBytesByClassV1[input.saveClass],
+      moduleCount,
     );
     return observation;
   } finally {
@@ -781,7 +889,7 @@ export async function runNeutralStateCorrectnessV1(input: {
 }
 
 export interface NeutralStateColdObservationV1 {
-  readonly moduleCount: 16;
+  readonly moduleCount: NeutralStateModuleCountV1;
   readonly sessionStatus: "ready";
   readonly durationMs: {
     readonly mount: number;
@@ -792,9 +900,14 @@ export interface NeutralStateColdObservationV1 {
 }
 
 export async function runNeutralStateColdSampleV1(
+  moduleCount: NeutralStateModuleCountV1 = neutralStateModuleCountV1,
   now: () => number = () => performance.now(),
 ): Promise<NeutralStateColdObservationV1> {
-  const blueprint = createHarnessBlueprintV1({ payloadBytes: 0, touchedModules: 16 });
+  const blueprint = createHarnessBlueprintV1({
+    moduleCount,
+    payloadBytes: 0,
+    touchedModules: 16,
+  });
   const kernel = createCompositionKernelV1();
   const mountStarted = now();
   const snapshot = await kernel.mount(blueprint.profile);
@@ -817,7 +930,7 @@ export async function runNeutralStateColdSampleV1(
   const disposeDuration = now() - disposeStarted;
   if (status !== "ready") throw new TypeError("neutral cold Session was not ready");
   return Object.freeze({
-    moduleCount: neutralStateModuleCountV1,
+    moduleCount,
     sessionStatus: status,
     durationMs: Object.freeze({
       mount: mountDuration,
@@ -838,13 +951,23 @@ export interface NeutralStateSteadyObservationV1 {
 }
 
 export async function runNeutralStateSteadySampleV1(input: {
+  readonly moduleCount?: NeutralStateModuleCountV1;
   readonly saveClass: NeutralStateSaveClassV1;
   readonly touchedModules: NeutralStateTouchedModuleCountV1;
   readonly now?: () => number;
 }): Promise<NeutralStateSteadyObservationV1> {
+  const moduleCount = input.moduleCount ?? neutralStateModuleCountV1;
   const now = input.now ?? (() => performance.now());
-  const payloadBytes = await calibratePayloadBytesV1(input.saveClass, input.touchedModules);
-  const harness = await activateHarnessV1({ payloadBytes, touchedModules: input.touchedModules });
+  const payloadBytes = await calibratePayloadBytesV1(
+    moduleCount,
+    input.saveClass,
+    input.touchedModules,
+  );
+  const harness = await activateHarnessV1({
+    moduleCount,
+    payloadBytes,
+    touchedModules: input.touchedModules,
+  });
   try {
     await dispatchCommittedV1(harness.adapter, neutralStateSteadyPrefillCommandCountV1);
     const entries = harness.adapter.composition.commandLog.entries();
@@ -919,16 +1042,20 @@ export async function runNeutralStateMemoryCellV1(input: {
 }) {
   if (
     !neutralStateGcCellsV1.some((cell) =>
-      cell.saveClass === input.cell.saveClass && cell.touchedModules === input.cell.touchedModules
+      cell.moduleCount === input.cell.moduleCount &&
+      cell.saveClass === input.cell.saveClass &&
+      cell.touchedModules === input.cell.touchedModules
     )
   ) {
     throw new TypeError("neutral memory benchmark accepts only a declared GC cell");
   }
   const payloadBytes = await calibratePayloadBytesV1(
+    input.cell.moduleCount,
     input.cell.saveClass,
     input.cell.touchedModules,
   );
   const harness = await activateHarnessV1({
+    moduleCount: input.cell.moduleCount,
     payloadBytes,
     touchedModules: input.cell.touchedModules,
   });
@@ -963,15 +1090,61 @@ export interface NeutralStateBenchmarkEnvironmentV1 {
   readonly arch: string;
 }
 
+export interface NeutralStateBenchmarkRepositoryV1 {
+  readonly revision: string;
+  readonly workingTreeModified: boolean;
+}
+
+export interface NeutralStateDurationDistributionV1 {
+  readonly raw: readonly number[];
+  readonly p50: number;
+  readonly p95: number;
+}
+
+export function createNeutralStateDurationDistributionV1(
+  values: readonly number[],
+): NeutralStateDurationDistributionV1 {
+  if (values.length === 0 || values.some((value) => !Number.isFinite(value) || value < 0)) {
+    throw new TypeError("neutral benchmark requires finite non-negative duration samples");
+  }
+  const ordered = values.toSorted((left, right) => left - right);
+  const nearestRank = (percentile: number): number =>
+    ordered[Math.min(ordered.length - 1, Math.ceil(percentile * ordered.length) - 1)]!;
+  return Object.freeze({
+    raw: Object.freeze([...values]),
+    p50: nearestRank(0.5),
+    p95: nearestRank(0.95),
+  });
+}
+
+const execFileV1 = promisify(execFileCallback);
+
+export async function readNeutralStateBenchmarkRepositoryV1(
+  repositoryRoot: string,
+): Promise<NeutralStateBenchmarkRepositoryV1> {
+  const [revision, status] = await Promise.all([
+    execFileV1("git", ["rev-parse", "HEAD"], { cwd: repositoryRoot }),
+    execFileV1("git", ["status", "--porcelain=v1", "--untracked-files=normal"], {
+      cwd: repositoryRoot,
+    }),
+  ]);
+  return Object.freeze({
+    revision: revision.stdout.trim(),
+    workingTreeModified: status.stdout.trim().length > 0,
+  });
+}
+
 export function createNeutralStateMemoryReportV1(input: {
   readonly generatedAt: string;
   readonly environment: NeutralStateBenchmarkEnvironmentV1;
+  readonly repository: NeutralStateBenchmarkRepositoryV1;
   readonly cell: NeutralStateCellV1;
   readonly checkpoints: readonly NeutralStateMemoryCheckpointV1[];
 }) {
   return Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: input.generatedAt,
+    repository: Object.freeze({ ...input.repository }),
     environment: Object.freeze({ ...input.environment }),
     cell: Object.freeze({ ...input.cell }),
     protocol: Object.freeze({
@@ -992,19 +1165,24 @@ export function createNeutralStateMemoryReportV1(input: {
 export function createNeutralStatePerformanceReportV1(input: {
   readonly generatedAt: string;
   readonly environment: NeutralStateBenchmarkEnvironmentV1;
+  readonly repository: NeutralStateBenchmarkRepositoryV1;
+  readonly moduleCounts: readonly NeutralStateModuleCountV1[];
+  readonly saveClasses: readonly NeutralStateSaveClassV1[];
+  readonly touchedModuleCounts: readonly NeutralStateTouchedModuleCountV1[];
   readonly warmup: number;
   readonly samples: number;
   readonly cold: readonly unknown[];
   readonly cells: readonly unknown[];
 }) {
   return Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: input.generatedAt,
+    repository: Object.freeze({ ...input.repository }),
     environment: Object.freeze({ ...input.environment }),
     matrix: Object.freeze({
-      moduleCount: neutralStateModuleCountV1,
-      saveClasses: neutralStateSaveClassesV1,
-      touchedModuleCounts: neutralStateTouchedModuleCountsV1,
+      moduleCounts: Object.freeze([...input.moduleCounts]),
+      saveClasses: Object.freeze([...input.saveClasses]),
+      touchedModuleCounts: Object.freeze([...input.touchedModuleCounts]),
       transcriptCommands: neutralStateTranscriptCommandCountV1,
       retainedCommands: neutralStateRetainedCommandCountV1,
       steadyPrefillCommands: neutralStateSteadyPrefillCommandCountV1,

@@ -189,6 +189,13 @@ Player preset、devtools 与 authoring 收口成单向、可静态排除的边�
 等中立 substrate 保留；旧 workspace shell 不形成兼容层。本轮不激活 State Format V2、ECS、最终
 Blueprint/Timeline editor、public Mod ABI 或 Desktop HMR。
 
+M0 已于 2026-08-24 交付：四条独立 Scale Lab task 分别刻画 content compile/admission、真实 Template
+initial bundle、16/160-module State workload 与 10/1,000-document authoring index；它们保留 raw
+measurement 与 correctness oracle，但不建立聚合 runner 或机器阈值。结果确认当前静态内容在 module
+evaluation 与 initial graph 中线性增长、100 KiB State 可见全 module dispatch、1 MiB stress 主要受
+whole-State 工作支配、四个 list port 重复全量 index。M1 static content plane 与 initial-bundle
+separation 是唯一下一项。
+
 排序与交付记录以
 [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md) §1
 为准；稳定 promoted capability 以 [features](features.md) 为准，AR4 private provisional seam

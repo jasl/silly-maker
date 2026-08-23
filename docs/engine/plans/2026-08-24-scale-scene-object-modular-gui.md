@@ -1,7 +1,7 @@
 # Scale、Scene/Object 与模块化 GUI V1 实施计划
 
-状态：**2026-08-24 经所有者接受并开启，当前从 M0 开始；M0–M5 必须按序交付，
-每个里程碑独立复核后再进入下一项。**
+状态：**2026-08-24 经所有者接受并开启；M0 已于同日交付，当前下一项为 M1；
+M0–M5 必须按序交付，每个里程碑独立复核后再进入下一项。**
 
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 仍是唯一跨计划排序入口；
 本计划接在已关闭的 Browser R2 authoritative handoff 之后。Deno Desktop candidate 继续
@@ -163,6 +163,42 @@ SQLite/Worker、通用 streaming 或新 cache authority。连续同机可比运�
 **M0 验收：** 每个风险都有一条现有或窄增量的文档化命令与正交 fixture；生成目录在 OS temp；没有
 聚合 runner/coordinator。若任何一个 adapter 需要千行级 orchestration，停止自动化并改用既有
 benchmark + 人工检查表。
+
+**M0 交付记录（2026-08-24）：** 基于 `1ea2332581283b8c74b009744685213e6c47b074`
+与明确记录为 modified 的工作树完成同机 pre-change characterization；raw reports 只留在 OS temp，
+没有提交生成数据，也没有把机器数字固化为普通测试阈值。四条风险轴仍是各自独立的小型 task：
+
+- content compiler 的 1,000/100,000-entry profiles 保持相同的 60-byte mutable State 与 exact digest。
+  compile p50/p95 分别约 `0.754/0.786 ms` 与 `62.455/68.872 ms`，TextCatalog admission 分别约
+  `2.938/3.060 ms` 与 `222.239/223.509 ms`；isolated compile + admission retained heap 约从
+  `0.8 MiB` 增至 `69.1 MiB`。这确认风险来自当前完整 runtime/Flow/text 图的构造与 admission，
+  不是 State fixture 随文本膨胀。
+- real Template Player 的 `bundle-reference/bundle-scale` 保持相同 GUI 与首组内容，scale 只增加 99
+  个未选择但静态可达的逻辑组。initial transitive JavaScript gzip 从 `366,873 B` 增至
+  `923,711 B`，差值 `556,838 B`；它刻画 M1 前的静态 reachability 缺口，不是 build-time benchmark
+  或 promotion 裁决。
+- Composition/State 的 100 KiB steady command p50/p95 从 16-module 的约
+  `1.36/1.43 ms` 增至 160-module 的约 `1.90/1.91 ms`；1 MiB 的四个组合约在
+  `15.14–16.04 ms`。因此小 State 已能看见 full-module dispatch，1 MiB stress 则由 whole-State
+  工作主导。400→1,200 commits 的隔离 post-GC heap 趋势没有给出持续线性增长证据。既有 100k-node
+  Snapshot 重跑的 single-field p50/p95 为 `154.409/156.999 ms`，canonical bytes 仍为
+  `2,978,988`。
+- authoring index 的 10/1,000-document cold p50/p95 为 `0.939/0.976 ms` 与
+  `73.341/74.771 ms`；四个真实 list ports 总计为 `3.781/4.502 ms` 与
+  `293.195/303.875 ms`；单 Scene 变化到当前 list 可见为 `1.015/1.064 ms` 与
+  `72.864/73.358 ms`。当前 `4/16/4` 次 walk 与 `N/4N/N` 次 read/admission 只标记为
+  `structural_pre_change_baseline`，M2 必须用真实单 owner counters 替代，测试不保护旧结构。
+- minimal Template GUI 的五次 first-interactive p95 约 `127.02 ms`；现有 bundle、Snapshot、Save/
+  replay correctness 与 focused index/content tests 继续各自承担合同证明。M0 没有复制 Browser 状态机、
+  引入 aggregate report schema，或提前实现 M1 content packs、M2 direct plan/index cache。
+- 复杂度规模（含计划、文档与测试）为 `+1,912/-225 LOC`；新增单数据面 runner 最大为 content
+  `407 LOC`、authoring index `340 LOC`、bundle `313 LOC`，helper 与 tests 独立。保留这些代码是为了
+  M1/M2/M5 可复测的四个正交规模轴；没有 aggregate runner、promotion logic、进程管理或新测试 DSL。
+
+这些结果确认了 module-evaluation content、静态 bundle reachability、full-module dispatch 与重复 index
+scan 四个独立来源。M1 因而按原排序先拆静态内容面；M0 的 State/index 数据留作 M2 同机趋势基线。
+收口验证为 focused content/bundle/index/State tests、canonical `deno task check` 与 `deno task docs:build`；
+本切片没有修改 React/TSX 产品代码，因此不触发 React Doctor advisory audit。
 
 ### M1 — 静态内容平面与初始 bundle
 

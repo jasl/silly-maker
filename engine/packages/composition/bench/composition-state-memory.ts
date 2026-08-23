@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   createNeutralStateMemoryReportV1,
   neutralStateGcCellsV1,
+  neutralStateModuleCountsV1,
   neutralStateSaveClassesV1,
   neutralStateTouchedModuleCountsV1,
+  readNeutralStateBenchmarkRepositoryV1,
   runNeutralStateMemoryCellV1,
+  type NeutralStateModuleCountV1,
   type NeutralStateSaveClassV1,
   type NeutralStateTouchedModuleCountV1,
 } from "./composition-state-workload.ts";
@@ -31,13 +35,16 @@ declare const Deno: {
 };
 
 interface MemoryOptionsV1 {
+  readonly moduleCount: NeutralStateModuleCountV1;
   readonly saveClass: NeutralStateSaveClassV1;
   readonly touchedModules: NeutralStateTouchedModuleCountV1;
   readonly output?: string;
 }
 
-const usageV1 = "usage: deno task bench:composition-state:memory --save-class " +
-  "<10kib|100kib|1mib> --touched-modules <1|4|16> [--output <path>]";
+const usageV1 = "usage: deno task bench:composition-state:memory --module-count " +
+  "<16|160> --save-class <10kib|100kib|1mib> --touched-modules <1|4|16> " +
+  "[--output <path>]";
+const repositoryRootV1 = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 
 function argumentErrorV1(message: string): never {
   throw new TypeError(`${message}\n${usageV1}`);
@@ -47,6 +54,15 @@ function parseSaveClassV1(value: string): NeutralStateSaveClassV1 {
   const saveClass = neutralStateSaveClassesV1.find((candidate) => candidate === value);
   if (saveClass === undefined) return argumentErrorV1(`unsupported --save-class: ${value}`);
   return saveClass;
+}
+
+function parseModuleCountV1(value: string): NeutralStateModuleCountV1 {
+  const parsed = Number(value);
+  const moduleCount = neutralStateModuleCountsV1.find((candidate) => candidate === parsed);
+  if (moduleCount === undefined) {
+    return argumentErrorV1(`unsupported --module-count: ${value}`);
+  }
+  return moduleCount;
 }
 
 function parseTouchedModulesV1(value: string): NeutralStateTouchedModuleCountV1 {
@@ -61,6 +77,7 @@ function parseTouchedModulesV1(value: string): NeutralStateTouchedModuleCountV1 
 }
 
 function parseOptionsV1(argv: readonly string[]): MemoryOptionsV1 {
+  let moduleCount: NeutralStateModuleCountV1 | undefined;
   let saveClass: NeutralStateSaveClassV1 | undefined;
   let touchedModules: NeutralStateTouchedModuleCountV1 | undefined;
   let output: string | undefined;
@@ -80,22 +97,25 @@ function parseOptionsV1(argv: readonly string[]): MemoryOptionsV1 {
     if (value === undefined || value.length === 0 || value.startsWith("--")) {
       return argumentErrorV1(`${flag} requires a value`);
     }
-    if (flag === "--save-class") saveClass = parseSaveClassV1(value);
+    if (flag === "--module-count") moduleCount = parseModuleCountV1(value);
+    else if (flag === "--save-class") saveClass = parseSaveClassV1(value);
     else if (flag === "--touched-modules") touchedModules = parseTouchedModulesV1(value);
     else if (flag === "--output") output = value;
     else return argumentErrorV1(`unknown argument: ${flag}`);
   }
+  if (moduleCount === undefined) return argumentErrorV1("--module-count is required");
   if (saveClass === undefined) return argumentErrorV1("--save-class is required");
   if (touchedModules === undefined) return argumentErrorV1("--touched-modules is required");
   const cell = neutralStateGcCellsV1.find((candidate) =>
-    candidate.saveClass === saveClass && candidate.touchedModules === touchedModules
+    candidate.moduleCount === moduleCount && candidate.saveClass === saveClass &&
+    candidate.touchedModules === touchedModules
   );
   if (cell === undefined) {
     return argumentErrorV1(
-      `${saveClass}/${String(touchedModules)} is not one of the five declared GC cells`,
+      `${String(moduleCount)}/${saveClass}/${String(touchedModules)} is not a declared GC cell`,
     );
   }
-  return { saveClass, touchedModules, ...(output === undefined ? {} : { output }) };
+  return { moduleCount, saveClass, touchedModules, ...(output === undefined ? {} : { output }) };
 }
 
 function requireExplicitGarbageCollectorV1(): () => void {
@@ -117,8 +137,10 @@ async function outputPathV1(requested: string | undefined): Promise<string> {
 
 async function mainV1(): Promise<void> {
   const options = parseOptionsV1(Deno.args);
+  const repository = await readNeutralStateBenchmarkRepositoryV1(repositoryRootV1);
   const gc = requireExplicitGarbageCollectorV1();
   const cell = neutralStateGcCellsV1.find((candidate) =>
+    candidate.moduleCount === options.moduleCount &&
     candidate.saveClass === options.saveClass &&
     candidate.touchedModules === options.touchedModules
   )!;
@@ -142,6 +164,7 @@ async function mainV1(): Promise<void> {
   });
   const report = createNeutralStateMemoryReportV1({
     generatedAt: new Date().toISOString(),
+    repository,
     environment: {
       deno: Deno.version.deno,
       v8: Deno.version.v8,

@@ -142,6 +142,8 @@ Read only the documents relevant to the change:
   Focus, or Browser R2 closure and does not block other owner-accepted work.
   Browser R2 authoritative handoff is closed. On 2026-08-24 the owner accepted
   the Scale/Scene Object/Modular GUI plan listed below as the current engine lane.
+  Its orthogonal M0 scale baselines delivered the same day; M1 static content
+  plane and initial-bundle separation is the only next task.
   This lane does not activate
   State Format V2, ECS, a final Blueprint/Timeline editor, public Mod ABI, or
   Desktop HMR. AR4/AR5 did not add
@@ -173,7 +175,8 @@ Read only the documents relevant to the change:
   state, or add a Save format/migration framework.
 - `docs/engine/proposals/scale-scene-object-and-modular-gui.md` and
   `docs/engine/plans/2026-08-24-scale-scene-object-modular-gui.md` — the accepted
-  target contract and only current execution plan. M0–M5 own scale evidence,
+  target contract and only current execution plan. M0 scale characterization is
+  delivered; M1 is next. M0–M5 own scale evidence,
   content/runtime separation, sparse State hot plans, incremental authoring
   indexing, GUI module boundaries, the first Authoring Scene object hierarchy,
   and the Inspector-first clean replacement of the old Studio shell. External

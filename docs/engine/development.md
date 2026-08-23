@@ -890,9 +890,12 @@ before schema/digest mutation.
 
 `deno task bench:composition-state` measures the neutral Composition/State path
 that the physical Snapshot benchmark does not cover. Its generated fixture has
-16 neutral State modules and runs the complete `10 KiB / 100 KiB / 1 MiB`
-exported-Save by `1 / 4 / 16` atomically touched-module matrix. Save payload is
-ASCII data distributed across all 16 module-owned strings; calibration happens
+16 neutral State modules by default and retains the complete historical
+`10 KiB / 100 KiB / 1 MiB` exported-Save by `1 / 4 / 16` atomically
+touched-module matrix. The same workload accepts `--module-count 160`; M0's
+scale baseline selects 16 and 160 modules, `100kib` and `1mib` Saves, and 1 and
+16 touched owners without creating another runner. Save payload is ASCII data
+distributed across all selected module-owned strings; calibration happens
 before timing, the final export has the declared exact byte size, and every
 string remains below the Save codec's 262,144-byte UTF-8 limit.
 
@@ -906,23 +909,35 @@ to fill the retention window and warm the path, then measures 64 more commits.
 Cold activation is also independent and reports profile mount, direct State
 plan plus application-factory resolution, sole Session creation, and complete
 disposal as four separate distributions. Defaults are one warmup and five
-samples; `--save-class`, `--touched-modules`, `--warmup`, `--samples`, and
-`--output` narrow or customize a run.
-
-`deno task bench:composition-state:memory` accepts exactly one of the five GC
-cells per process: `10kib/1`, `10kib/16`, `100kib/4`, `1mib/1`, or `1mib/16`.
-Pass the two axes explicitly, for example:
+samples; `--module-count`, `--save-class`, `--touched-modules`, `--warmup`,
+`--samples`, and `--output` narrow or customize a run. The M0 scale timing
+matrix is:
 
 ```sh
-deno task bench:composition-state:memory --save-class 100kib --touched-modules 4
+deno task bench:composition-state \
+  --module-count 16 --module-count 160 \
+  --save-class 100kib --save-class 1mib \
+  --touched-modules 1 --touched-modules 16
+```
+
+`deno task bench:composition-state:memory` accepts exactly one declared GC cell
+per process. It retains the five historical 16-module cells and makes all eight
+M0 scale combinations selectable (`16 / 160` modules × `100kib / 1mib` ×
+`1 / 16` touched owners), for 11 unique declared cells in total. Pass all three
+axes explicitly, for example:
+
+```sh
+deno task bench:composition-state:memory \
+  --module-count 160 --save-class 100kib --touched-modules 16
 ```
 
 It samples sequences 0/200/400/800/1,200 after the same explicit
-`gc -> macrotask -> gc` protocol. Run five separate invocations when all five
-points are needed; one report never combines process heaps. Both Composition/
-State CLIs write schema-v1 JSON to an operating-system temporary directory by
+`gc -> macrotask -> gc` protocol. Run separate invocations for each needed
+cell; one report never combines process heaps. Both Composition/State CLIs
+write schema-v2 JSON to an operating-system temporary directory by
 default and print only its path. Reports include Deno/V8/TypeScript and OS/arch,
-but no hostname, current directory, repository path, or machine identifier.
+the source revision, and a `workingTreeModified` boolean, but no hostname,
+current directory, repository path, diff inventory, or machine identifier.
 The focused `deno task test:composition-state-bench` behavior suite is part of
 `deno task test`; it creates no report and locks only the matrix, correctness,
 portable report schema, and fake GC schedule.
@@ -939,6 +954,52 @@ same-resolved-dependency comparisons; it is a review decision, not a portable
 CI threshold. The existing roughly 3 MiB physical Snapshot workload remains
 the high-node-count evidence and should not be duplicated by inflating this
 Save-locality matrix.
+
+The Scale Lab's static-content axis stays separate from State. Run the current
+starter interaction compiler and TextCatalog admission one profile per process:
+
+```sh
+deno task bench:content:compile --profile content-reference
+deno task bench:content:compile --profile content-scale
+```
+
+The profiles generate 1,000 and 100,000 say entries but share the same minimal
+mutable State. Each process performs one warmup, records five raw compile and
+admission samples with p50/p95, and takes one isolated retained-heap checkpoint
+after the explicit two-pass GC protocol. The generated fixture stays
+process-local and the JSON report lives only in an OS temporary directory;
+timings and heap are trend evidence. The ordinary Template test protects only
+deterministic counts and identical State, not one machine's measurements or the
+current monolithic memory cost.
+
+`deno task bench:authoring-index` generates 10- and 1,000-document profiles from
+the four current authoring document families. It measures a fresh unified index,
+one sweep through the four real list ports, and one changed Scene becoming
+visible through the current contract. The M0 report derives the current
+`4 walks + N reads/parses`, `16 walks + 4N reads/parses`, and
+`4 walks + N reads/parses` work respectively and marks those counts as a
+pre-change observation, not a product contract. M2 must replace that observation
+with the real single-owner incremental counters; no normal test protects the
+old repeated scans. Generated documents are removed and the JSON report defaults
+to OS temp; `--output <path>` selects an artifact location.
+
+The bundle axis uses the real Template Player entry and the maintained
+SillyMaker Vite config, while holding its GUI and selected first 1,000-entry
+logical content group constant:
+
+```sh
+deno task bench:content:bundle --profile bundle-reference
+deno task bench:content:bundle --profile bundle-scale
+```
+
+The scale profile only adds another 99 statically imported logical groups. This
+is intentionally a pre-M1 characterization: every group currently enters the
+initial static JavaScript closure. The task performs one structural release
+build, walks Vite's manifest from the sole entry through static `imports`, and
+reports raw/gzip initial and total JavaScript bytes plus source/environment
+provenance. It does not time builds, compare revisions, or decide promotion.
+Source/build fixtures are deleted from OS temp; the small JSON report remains in
+OS temp unless `--output` is supplied.
 
 The CR3 Player baselines follow the same policy. `deno task bench:surfaces`
 runs 1/4/16-target Stable publication workloads with small and medium parameters

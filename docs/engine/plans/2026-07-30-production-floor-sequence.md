@@ -77,7 +77,10 @@ runtime 的第一阶 Authoring Scene object hierarchy，重新划分 core/player
 Inspector-first surface 替换当前 Studio 产品外形。现有 Authoring Host、document session、CAS、
 structured operations 与 source IO substrate 保留；旧 workspace shell 在 replacement parity 后同轮
 删除。本车道不激活 State Format V2、ECS、最终 Blueprint/Timeline editor、public Mod ABI 或 Desktop
-HMR。
+HMR。M0 已于 2026-08-24 以四条独立的 content/bundle/State/index workload 交付 pre-change baseline；
+没有聚合 runner、机器阈值或提前的产品实现。结果确认四类风险来自静态 content 构造、initial graph
+reachability、full-module dispatch/whole-State 工作和重复 index scan；M1 static content plane 与
+initial-bundle separation 是唯一下一项。
 首个经 release
 source/行为确认包含目标路径的 stable（2.9.6 只是预期候选）仍须重跑同一分层验收，全部通过后才
 正式打开 maintained Desktop development workflow。此前 adapter 保持 package-private、explicit、
