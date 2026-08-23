@@ -51,7 +51,12 @@ export function buildMotionWorkbenchModelV1(
   draft: SceneDocumentV1 | null,
 ): StudioMotionWorkbenchModelV1 {
   const motions = loaded?.sources ?? [];
-  if (motions.length === 0 || draft === null) return { kind: "none" };
+  if (motions.length === 0) {
+    return loaded !== null && loaded.warnings.length > 0
+      ? { kind: "unavailable", reasons: loaded.warnings }
+      : { kind: "none" };
+  }
+  if (draft === null) return { kind: "none" };
   try {
     const sources = createMotionSourceIndexV1(
       Object.fromEntries(motions.map((source) => [source.path, source.motionDocument])),

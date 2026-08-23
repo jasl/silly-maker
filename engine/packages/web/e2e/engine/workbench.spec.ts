@@ -34,7 +34,8 @@ test.describe("embedded Motion workspace (AR3)", () => {
       expect(hostIdentity).not.toBeNull();
       await host.evaluate((element) => element.setAttribute("data-ar3-motion-host", "stable"));
 
-      const workbench = host.locator('[aria-label="Motion 工坊"]');
+      await host.getByRole("button", { name: "Motion 工坊", exact: true }).click();
+      const workbench = host.locator('[data-studio-workspace-panel="motion"]');
       await workbench.locator('[data-motion-workbench-case="cue.e2e.alpha-enters"]').click();
       await expect(workbench.locator("[data-motion-workbench]")).toBeVisible();
 
@@ -54,6 +55,18 @@ test.describe("embedded Motion workspace (AR3)", () => {
       const firstValue = workbench
         .locator('[data-workbench-keyframe="offsetY:0"] [data-workbench-kf-value]');
       await firstValue.fill("200");
+
+      // A hidden Motion draft remains in the Host close gate and returns
+      // unchanged after canceling the close.
+      await host.getByRole("button", { name: "Scene Construction", exact: true }).click();
+      await expect(host.getByRole("button", { name: /Motion 工坊/ })).toContainText("未保存");
+      await page.locator("[data-embedded-authoring-close]").click();
+      const closeConfirm = page.locator("[data-embedded-authoring-close-confirm]");
+      await expect(closeConfirm).toBeVisible();
+      await closeConfirm.getByRole("button", { name: "取消" }).click();
+      await host.getByRole("button", { name: /Motion 工坊/ }).click();
+      await expect(duration).toHaveValue("470");
+      await expect(firstValue).toHaveValue("200");
 
       // A/B against saved, then back to draft.
       await workbench.locator('[data-workbench-ab="saved"]').click();

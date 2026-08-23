@@ -136,11 +136,21 @@ not local extension bindings.
 
 The generated dev-only standalone Studio entry and embedded author runtime both
 use `@sillymaker/studio/composition` and the same private Authoring Host. The
-Host owns the shared Scene/Regions sessions, Motion store, Flow activation, and
-dirty-close participants; shells render the same closed workspace manifest and
-must not create their own document/undo/save/conflict state machines. The game
+Host owns the frozen workspace contract, active/visited focus, shared
+Scene/Regions/Chrome sessions, Motion store, Flow activation, and dirty-close
+participants; shells render the same closed workspace manifest and must not
+create their own document/undo/save/conflict state machines. The game
 page receives only a lightweight launcher; its embedded implementation and real
 dev-source client load on first open.
+
+The visible surface is the only workspace-focus transition owner. It renders one
+named panel, leaves an unvisited workspace unmounted, and keeps a visited inactive
+panel `hidden` and inert so local state and dirty-close participation survive a
+switch. A publication probe must render only the existing active panel, inert and
+non-interactive; it must not list/open documents, expand visited, perform Flow's
+first activation, or register a writable close participant. Keep these as
+behavior tests on the Host and maintained Browser shells, not a DOM-inventory or
+publication-inspection harness.
 
 The publication retains one connected visible React root. A live R1 candidate
 first renders in an inert, `aria-hidden`, visibility-hidden, offscreen but

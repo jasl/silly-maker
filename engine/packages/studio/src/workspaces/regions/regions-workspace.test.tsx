@@ -234,7 +234,7 @@ const bindingV1: StudioBindingV1 = Object.freeze({
 });
 
 function renderStudioV1(regionsIo: RegionsSourceIoV1) {
-  return render(
+  const rendered = render(
     <StudioAppV1
       binding={bindingV1}
       io={fakeSceneIoV1()}
@@ -242,6 +242,8 @@ function renderStudioV1(regionsIo: RegionsSourceIoV1) {
       regionsIo={regionsIo}
     />,
   );
+  fireEvent.click(screen.getByRole("button", { name: "Regions" }));
+  return rendered;
 }
 
 async function waitForRegionsCanvasV1(container: HTMLElement): Promise<HTMLElement> {

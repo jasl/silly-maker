@@ -97,7 +97,7 @@ export function FlowWorkspaceSectionV1(props: FlowWorkspaceSectionPropsV1): Reac
   };
 
   return (
-    <section className={styles["flow"]} aria-label="Narrative 流程" data-studio-flow="true">
+    <div className={styles["flow"]} data-studio-flow="true">
       <h2>Narrative 流程（只读投影）</h2>
       <div className={styles["flow-docs"]} role="group" aria-label="交互文档">
         {groups.map((group) => (
@@ -248,6 +248,6 @@ export function FlowWorkspaceSectionV1(props: FlowWorkspaceSectionPropsV1): Reac
           )}
         </aside>
       </div>
-    </section>
+    </div>
   );
 }

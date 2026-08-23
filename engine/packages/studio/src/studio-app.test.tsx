@@ -13,8 +13,10 @@ import type { SemanticStageEntryRendererV1 } from "@sillymaker/ui";
 import type { MotionSourceIoV1 } from "@sillymaker/ui/debug";
 
 import type { SceneSourceIoV1 } from "./core/scene-io.ts";
+import { createAuthoringHostInternalV1 } from "./core/authoring-host.ts";
+import { authoringWorkspaceManifestInternalV1 } from "./workspaces/workspace-manifest.ts";
 import type { StudioBindingV1 } from "./studio-app.tsx";
-import { StudioAppV1 } from "./studio-app.tsx";
+import { AuthoringHostSurfaceInternalV1, StudioAppV1 } from "./studio-app.tsx";
 
 afterEach(cleanup);
 
@@ -303,6 +305,7 @@ describe("StudioAppV1", () => {
     // Let StrictMode finish setup-cleanup-setup and the stale cleanup's
     // microtask before proving that the retained Host still publishes.
     await Promise.resolve();
+    fireEvent.click(screen.getByRole("button", { name: "Motion 工坊" }));
     const openMotion = await waitFor(() => {
       const current = container.querySelector<HTMLElement>(
         '[data-motion-workbench-case="cue.test.opening.hero-enters"]',
@@ -349,6 +352,180 @@ describe("StudioAppV1", () => {
       globalThis.dispatchEvent(beforeUnload);
       expect(beforeUnload.defaultPrevented).toBe(false);
     });
+  });
+
+  it("keeps one workspace visible while visited workspaces retain their state", async () => {
+    const { container } = render(
+      <StudioAppV1
+        binding={bindingV1}
+        io={fakeIoV1(sceneDocumentV1())}
+        motionIo={fakeMotionIoV1()}
+      />,
+    );
+
+    const sceneButton = screen.getByRole("button", { name: "Scene Construction" });
+    const scenePanel = container.querySelector<HTMLElement>(
+      '[data-studio-workspace-panel="scene"]',
+    );
+    expect(scenePanel).not.toBeNull();
+    expect(sceneButton).toHaveAttribute("aria-current", "page");
+    expect(sceneButton).toHaveAttribute("aria-controls", scenePanel?.id);
+    expect(scenePanel).toHaveAttribute("aria-labelledby", sceneButton.id);
+    expect(container.querySelectorAll("[data-studio-workspace-panel]:not([hidden])")).toHaveLength(
+      1,
+    );
+    expect(container.querySelector('[data-studio-workspace-panel="motion"]')).toBeNull();
+
+    const xInput = await screen.findByLabelText("x");
+    fireEvent.change(xInput, { target: { value: "640" } });
+    await waitFor(() => {
+      expect(sceneButton).toHaveTextContent("未保存");
+      expect(sceneButton).toHaveAccessibleName("Scene Construction，有修改");
+      expect(screen.getByRole("button", { name: "撤销" })).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Motion 工坊" }));
+    const motionPanel = await waitFor(() => {
+      const current = container.querySelector<HTMLElement>(
+        '[data-studio-workspace-panel="motion"]',
+      );
+      expect(current).not.toBeNull();
+      return current!;
+    });
+    expect(scenePanel).toHaveAttribute("hidden");
+    expect(scenePanel).toHaveAttribute("inert");
+    expect(motionPanel).not.toHaveAttribute("hidden");
+    expect(motionPanel).not.toHaveAttribute("inert");
+    expect(container.querySelectorAll("[data-studio-workspace-panel]:not([hidden])")).toHaveLength(
+      1,
+    );
+
+    fireEvent.click(sceneButton);
+    await waitFor(() => expect(sceneButton).toHaveAttribute("aria-current", "page"));
+    expect(screen.getByLabelText("x")).toHaveValue(640);
+    expect(screen.getByRole("button", { name: "撤销" })).toBeEnabled();
+  });
+
+  it("renders bounded loading and empty Motion workspace states", async () => {
+    let resolveList!: (
+      result: Awaited<ReturnType<MotionSourceIoV1["list"]>>,
+    ) => void;
+    const baseMotionIo = fakeMotionIoV1();
+    const motionIo: MotionSourceIoV1 = {
+      ...baseMotionIo,
+      list: () =>
+        new Promise((resolve) => {
+          resolveList = resolve;
+        }),
+    };
+    render(
+      <StudioAppV1
+        binding={bindingV1}
+        io={fakeIoV1(sceneDocumentV1())}
+        motionIo={motionIo}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Motion 工坊" }));
+    expect(screen.getByText("正在加载 Motion 文档…")).toBeVisible();
+    resolveList({ kind: "ok", motions: [], skipped: [] });
+    await waitFor(() =>
+      expect(screen.getByText("当前项目没有可预览的 Motion case。")).toBeVisible()
+    );
+  });
+
+  it("renders a bounded unavailable Motion workspace state", async () => {
+    const baseMotionIo = fakeMotionIoV1();
+    const motionIo: MotionSourceIoV1 = {
+      ...baseMotionIo,
+      list: () => Promise.resolve({ kind: "error", code: "unavailable" }),
+    };
+    render(
+      <StudioAppV1
+        binding={bindingV1}
+        io={fakeIoV1(sceneDocumentV1())}
+        motionIo={motionIo}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Motion 工坊" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Motion 工坊暂不可用");
+    expect(screen.getByText("motion 列表不可用：unavailable")).toBeVisible();
+  });
+
+  it("keeps a publication probe inert without starting workspace IO", async () => {
+    const sceneIoOwner = fakeIoV1(sceneDocumentV1());
+    let sceneLists = 0;
+    const sceneIo: SceneSourceIoV1 = {
+      ...sceneIoOwner,
+      list: () => {
+        sceneLists += 1;
+        return sceneIoOwner.list();
+      },
+    };
+    const motionIoOwner = fakeMotionIoV1();
+    let motionLists = 0;
+    const motionIo: MotionSourceIoV1 = {
+      ...motionIoOwner,
+      list: () => {
+        motionLists += 1;
+        return motionIoOwner.list();
+      },
+    };
+    let flowLoads = 0;
+    const workspaceManifest = authoringWorkspaceManifestInternalV1({
+      hasFlow: true,
+      hasRegionsIo: false,
+      hasChromeIo: false,
+    });
+    const host = createAuthoringHostInternalV1({
+      workspaceManifest,
+      sceneIo,
+      motionIo,
+      loadFlowWorkspace: async () => {
+        flowLoads += 1;
+        throw new Error("probe must not load Flow");
+      },
+    });
+    const binding = Object.freeze({
+      ...bindingV1,
+      flow: Object.freeze({ nodes: Object.freeze([]), edges: Object.freeze([]) }),
+    });
+    const rendered = render(
+      <AuthoringHostSurfaceInternalV1
+        host={host}
+        binding={binding}
+        workspaceManifest={workspaceManifest}
+        mode="standalone"
+        publicationRole="probe"
+        viewId={991}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(rendered.container.querySelector("[data-authoring-host]")).toHaveAttribute(
+        "data-authoring-host-ready",
+        "connected",
+      )
+    );
+    expect(sceneLists).toBe(0);
+    expect(motionLists).toBe(0);
+    expect(flowLoads).toBe(0);
+    expect(host.getSnapshot().activeWorkspaceId).toBe("scene");
+    expect(host.getSnapshot().visitedWorkspaceIds).toEqual(["scene"]);
+    const workspaceButtons = [...rendered.container.querySelectorAll<HTMLButtonElement>(
+      "[data-studio-workspace]",
+    )];
+    expect(workspaceButtons).toHaveLength(3);
+    expect(workspaceButtons.every((button) => button.disabled)).toBe(true);
+    expect(
+      rendered.container.querySelector('[data-studio-workspace-panel="scene"]'),
+    ).toHaveAttribute("inert");
+    expect(rendered.container.querySelectorAll("[data-studio-workspace-panel]")).toHaveLength(1);
+
+    rendered.unmount();
+    await host.dispose();
   });
 
   it("lists scenes, opens the first, and renders the real-renderer canvas", async () => {
@@ -986,6 +1163,7 @@ describe("StudioAppV1", () => {
 
     // The workbench lists the exit case built from the scene *before* the
     // hide (where the hero is still present).
+    await user.click(screen.getByRole("button", { name: "Motion 工坊" }));
     await waitFor(() =>
       expect(
         container.querySelector(
@@ -997,6 +1175,7 @@ describe("StudioAppV1", () => {
       container.querySelector('[data-motion-workbench-case="cue.test.opening.hero-leaves"]'),
     ).toHaveTextContent("退场");
 
+    await user.click(screen.getByRole("button", { name: "Scene Construction" }));
     const selector = screen.getByLabelText("cue.test.opening.hero-leaves 的 motion");
     await user.selectOptions(selector, "");
     expect(selector).toHaveValue("");
@@ -1788,7 +1967,7 @@ describe("StudioAppV1", () => {
     );
     const user = userEvent.setup();
     expect(withFlow.container.querySelector("[data-studio-flow]")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "打开 Narrative 流程" }));
+    await user.click(screen.getByRole("button", { name: "Narrative 流程" }));
     await waitFor(() =>
       expect(withFlow.container.querySelector("[data-studio-flow]")).not.toBeNull()
     );

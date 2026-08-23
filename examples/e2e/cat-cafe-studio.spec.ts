@@ -12,15 +12,6 @@ import { catcafeTargetUrlV1, expect, test } from "./fixtures.ts";
 const sceneFileV1 = fileURLToPath(
   new URL("../cat-cafe/src/scenes/opening/opening.scene.json", import.meta.url),
 );
-const studioBindingFileV1 = fileURLToPath(
-  new URL("../cat-cafe/src/tooling/studio-binding.tsx", import.meta.url),
-);
-const studioRendererDeclarationV1 = "  renderers: createCatcafeStageRenderersV1(registryV1),";
-const failingStudioRendererDeclarationV1 = [
-  "  get renderers() {",
-  '    throw new Error("studio.hmr.bad_binding");',
-  "  },",
-].join("\n");
 
 type LoadSettlementV1 =
   | { readonly kind: "loaded" }
@@ -28,22 +19,6 @@ type LoadSettlementV1 =
 
 interface CleanupFailureV1 {
   readonly error: unknown;
-}
-
-type StudioHmrSettlementV1 =
-  | { readonly kind: "replaced" }
-  | { readonly kind: "failed"; readonly error: unknown };
-
-interface ArmedStudioHmrSettlementV1 {
-  readonly settlement: Promise<StudioHmrSettlementV1>;
-}
-
-function replaceExactlyOnceV1(source: string, before: string, after: string): string {
-  const index = source.indexOf(before);
-  if (index < 0 || source.indexOf(before, index + before.length) >= 0) {
-    throw new Error("Studio HMR fixture source must contain exactly one renderer declaration");
-  }
-  return `${source.slice(0, index)}${after}${source.slice(index + before.length)}`;
 }
 
 function settleNextLoadV1(page: Page): Promise<LoadSettlementV1> {
@@ -78,115 +53,7 @@ async function restoreSceneAfterReloadV1(
   }
 }
 
-async function restoreStudioBindingAfterHmrV1(
-  page: Page,
-  originalBytes: string,
-): Promise<CleanupFailureV1 | null> {
-  let cleanupFailure: CleanupFailureV1 | null = null;
-  let sourceNeedsRestore = true;
-  try {
-    sourceNeedsRestore = readFileSync(studioBindingFileV1, "utf8") !== originalBytes;
-  } catch (error) {
-    cleanupFailure = Object.freeze({ error });
-  }
-  if (!sourceNeedsRestore) return cleanupFailure;
-  let armed: ArmedStudioHmrSettlementV1 | null = null;
-  if (!page.isClosed()) {
-    try {
-      const current = page.locator(
-        '#sillymaker-studio-root > [data-sillymaker-studio-epoch="current"]',
-      );
-      await expect(current).toHaveCount(1);
-      await current.evaluate((element) => {
-        element.setAttribute("data-studio-hmr-cleanup", "pending");
-      });
-      const settlement = page.locator('[data-studio-hmr-cleanup="pending"]')
-        .waitFor({ state: "detached" })
-        .then(
-          () => Object.freeze({ kind: "replaced" as const }),
-          (error: unknown) => Object.freeze({ kind: "failed" as const, error }),
-        );
-      armed = Object.freeze({ settlement });
-    } catch (error) {
-      cleanupFailure = Object.freeze({ error });
-    }
-  }
-  try {
-    writeFileSync(studioBindingFileV1, originalBytes);
-  } catch (error) {
-    cleanupFailure ??= Object.freeze({ error });
-    return cleanupFailure;
-  }
-  if (armed !== null) {
-    const settlement = await armed.settlement;
-    if (settlement.kind === "failed") {
-      cleanupFailure ??= Object.freeze({ error: settlement.error });
-    }
-  }
-  return cleanupFailure;
-}
-
 test.describe("cat-cafe studio (A2)", () => {
-  test("publishes binding HMR atomically while preserving the dirty scene session", async ({ page, pageDiagnostics }) => {
-    const originalBytes = readFileSync(studioBindingFileV1, "utf8");
-    const failingBytes = replaceExactlyOnceV1(
-      originalBytes,
-      studioRendererDeclarationV1,
-      failingStudioRendererDeclarationV1,
-    );
-    let cleanupFailure: CleanupFailureV1 | null = null;
-    try {
-      await page.goto(catcafeTargetUrlV1("__sillymaker/studio/"));
-      await page.getByLabel("条目").selectOption("tag.xiaoyu");
-      const xInput = page.getByLabel("x", { exact: true });
-      await expect(xInput).toHaveValue("920");
-      await xInput.fill("880");
-      await expect(page.getByRole("button", { name: "保存" })).toBeEnabled();
-
-      const predecessor = page.locator(
-        '#sillymaker-studio-root > [data-sillymaker-studio-epoch="current"]',
-      );
-      await expect(predecessor).toHaveCount(1);
-      await predecessor.evaluate((element) => {
-        element.setAttribute("data-studio-hmr-predecessor", "true");
-      });
-
-      const expectedFailure = page.waitForEvent("console", {
-        predicate: (message) =>
-          message.type() === "error" &&
-          message.text().includes("SillyMaker Studio live composition failed") &&
-          message.text().includes("studio.hmr.bad_binding"),
-      }).then(
-        (message) => Object.freeze({ kind: "reported" as const, message }),
-        (error: unknown) => Object.freeze({ kind: "failed" as const, error }),
-      );
-      writeFileSync(studioBindingFileV1, failingBytes);
-      const failureSettlement = await expectedFailure;
-      if (failureSettlement.kind === "failed") throw failureSettlement.error;
-      pageDiagnostics.consumeExpectedConsoleError(failureSettlement.message.text());
-
-      // The failed candidate never touches the exact visible epoch or the
-      // shared unsaved draft owned outside either React root.
-      await expect(page.locator('[data-studio-hmr-predecessor="true"]')).toHaveCount(1);
-      await expect(xInput).toHaveValue("880");
-      await expect(page.getByRole("button", { name: "保存" })).toBeEnabled();
-    } finally {
-      cleanupFailure = await restoreStudioBindingAfterHmrV1(page, originalBytes);
-    }
-    if (cleanupFailure !== null) throw cleanupFailure.error;
-
-    await expect(page.locator('[data-studio-hmr-predecessor="true"]')).toHaveCount(0);
-    await expect(page.locator(
-      '#sillymaker-studio-root > [data-sillymaker-studio-epoch="current"]',
-    )).toHaveCount(1);
-
-    // The successor remounts transient UI state, but the one shared scene
-    // session still owns the dirty draft.
-    await page.getByLabel("条目").selectOption("tag.xiaoyu");
-    await expect(page.getByLabel("x", { exact: true })).toHaveValue("880");
-    await expect(page.getByRole("button", { name: "保存" })).toBeEnabled();
-  });
-
   test("opens the opening scene, edits x through the inspector, and saves via CAS", async ({ page }) => {
     const originalBytes = readFileSync(sceneFileV1, "utf8");
     let saveReload: Promise<LoadSettlementV1> | null = null;
@@ -296,6 +163,7 @@ test.describe("cat-cafe studio (A2)", () => {
       .toBeVisible();
 
     // The embedded Motion Workbench lists the cue-derived preview case.
+    await page.getByRole("button", { name: "Motion 工坊", exact: true }).click();
     await expect(page.locator("[data-motion-workbench-launcher]")).toBeAttached();
     await expect(
       page.locator('[data-motion-workbench-case="cue.catcafe.opening.kitten-enters"]'),

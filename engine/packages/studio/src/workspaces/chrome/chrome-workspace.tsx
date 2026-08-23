@@ -145,6 +145,7 @@ export function ChromeWorkspaceSectionV1(props: ChromeWorkspaceSectionPropsV1): 
   const loading = snapshot.loading;
 
   useEffect(() => {
+    if (props.publicationRole === "probe") return undefined;
     let active = true;
     void io.list().then((result) => {
       if (!active) return;
@@ -159,7 +160,7 @@ export function ChromeWorkspaceSectionV1(props: ChromeWorkspaceSectionPropsV1): 
     return () => {
       active = false;
     };
-  }, [io, revision]);
+  }, [io, props.publicationRole, revision]);
 
   const openDocument = useCallback((path: string): void => {
     setNote(null);
@@ -181,6 +182,7 @@ export function ChromeWorkspaceSectionV1(props: ChromeWorkspaceSectionPropsV1): 
   const autoOpenedRef = useRef(false);
   useEffect(() => {
     if (
+      props.publicationRole === "probe" ||
       autoOpenedRef.current || documents === null || documents.length === 0 ||
       snapshot.path !== null || documents[0] === undefined
     ) {
@@ -188,7 +190,7 @@ export function ChromeWorkspaceSectionV1(props: ChromeWorkspaceSectionPropsV1): 
     }
     autoOpenedRef.current = true;
     openDocument(documents[0].path);
-  }, [documents, snapshot.path, openDocument]);
+  }, [documents, snapshot.path, openDocument, props.publicationRole]);
 
   const requestOpenDocument = useCallback((path: string): void => {
     if (dirty) {
@@ -420,7 +422,7 @@ export function ChromeWorkspaceSectionV1(props: ChromeWorkspaceSectionPropsV1): 
     : null;
 
   return (
-    <section className={styles["workbench"]} aria-label="界面布局" data-studio-chrome="true">
+    <div className={styles["workbench"]} data-studio-chrome="true">
       <h2>界面布局文档</h2>
       {note === null
         ? null
@@ -715,7 +717,7 @@ export function ChromeWorkspaceSectionV1(props: ChromeWorkspaceSectionPropsV1): 
             </div>
           )}
       </div>
-    </section>
+    </div>
   );
 }
 

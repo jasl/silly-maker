@@ -155,7 +155,7 @@ function renderStudioV1(
   chromeIo: ChromeLayoutSourceIoV1,
   chrome?: readonly StudioChromeFixtureV1[],
 ) {
-  return render(
+  const rendered = render(
     <StudioAppV1
       binding={bindingV1(chrome)}
       io={fakeSceneIoV1()}
@@ -163,6 +163,8 @@ function renderStudioV1(
       chromeIo={chromeIo}
     />,
   );
+  fireEvent.click(screen.getByRole("button", { name: "界面布局" }));
+  return rendered;
 }
 
 async function waitForChromeCanvasV1(container: HTMLElement): Promise<HTMLElement> {

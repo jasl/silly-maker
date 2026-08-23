@@ -107,7 +107,7 @@ test("the starter Studio renders the read-only narrative flow with source jump (
   // The resident Studio shell loads the Flow implementation only on demand.
   const flow = page.locator("[data-studio-flow]");
   await expect(flow).toHaveCount(0);
-  await page.getByRole("button", { name: "打开 Narrative 流程" }).click();
+  await page.getByRole("button", { name: "Narrative 流程", exact: true }).click();
   await expect(flow).toBeVisible();
   await expect(flow.locator('[data-studio-flow-doc="doc.template.opening"]'))
     .toHaveAttribute("aria-pressed", "true");
@@ -132,10 +132,10 @@ test("the starter Studio gates reload behind a dirty-draft confirm (S0.3)", asyn
   await xInput.fill("700");
 
   // Reloading with a dirty draft asks first; cancel keeps the draft.
-  // (The scene topbar is the shell banner — the Chrome workspace below
-  // carries same-named session buttons for its own document.)
-  const topbar = page.getByRole("banner");
-  await topbar.getByRole("button", { name: "重新加载" }).click();
+  // Scope the action to the named Scene panel; visited workspaces may keep
+  // their own document controls mounted while hidden.
+  const scenePanel = page.locator('[data-studio-workspace-panel="scene"]');
+  await scenePanel.getByRole("button", { name: "重新加载" }).click();
   const confirm = page.locator("[data-studio-dirty-confirm]");
   await expect(confirm).toBeVisible();
   await confirm.getByRole("button", { name: "取消" }).click();
@@ -145,7 +145,7 @@ test("the starter Studio gates reload behind a dirty-draft confirm (S0.3)", asyn
   // Discarding reloads the saved document; the draft never hit the disk.
   // Reopening resets the entry selection to the first entry — wait for that
   // reset (the reload landing) before reselecting Mei.
-  await topbar.getByRole("button", { name: "重新加载" }).click();
+  await scenePanel.getByRole("button", { name: "重新加载" }).click();
   await confirm.getByRole("button", { name: "放弃修改" }).click();
   await expect(page.getByLabel("条目")).not.toHaveValue("tag.mei");
   await page.getByLabel("条目").selectOption("tag.mei");
@@ -195,7 +195,9 @@ test("the starter Studio constructs a scene from blank: content, cue, new motion
 
     // Save the constructed scene; both documents now live on disk and no
     // barrel, catalog, binding list, composition, or config was edited.
-    await page.getByRole("banner").getByRole("button", { name: "保存" }).click();
+    await page.locator('[data-studio-workspace-panel="scene"]')
+      .getByRole("button", { name: "保存", exact: true })
+      .click();
     await expect(page.locator("[data-studio-note]")).toContainText("已保存");
 
     const sceneJson = JSON.parse(
@@ -227,6 +229,20 @@ test("the starter Studio edits chrome layout: fixture preview, box drag, save to
   );
   try {
     await page.goto(templateTargetUrlV1("__sillymaker/studio/"));
+    const sceneWorkspace = page.getByRole("button", { name: /Scene Construction/ });
+    await expect(sceneWorkspace).toHaveAttribute("aria-current", "page");
+    await page.getByLabel("条目").selectOption("tag.mei");
+    const sceneX = page.getByLabel("x", { exact: true });
+    const savedSceneX = await sceneX.inputValue();
+    await sceneX.fill("700");
+    await expect(sceneWorkspace).toContainText("未保存");
+
+    // Native-button navigation works from the keyboard; returning to Scene
+    // below uses a pointer click and preserves its independent draft.
+    const chromeWorkspace = page.getByRole("button", { name: "界面布局", exact: true });
+    await chromeWorkspace.focus();
+    await page.keyboard.press("Enter");
+    await expect(chromeWorkspace).toHaveAttribute("aria-current", "page");
     const chrome = page.locator("[data-studio-chrome]");
 
     // The shipped HUD document auto-opens; the Story-declared fixture
@@ -273,6 +289,14 @@ test("the starter Studio edits chrome layout: fixture preview, box drag, save to
     expect(lobbyJson.layoutId).toBe("layout.template.lobby");
     expect(lobbyJson.boxes["box-1"]?.x).toBe(draggedX);
     expect(lobbyJson.authoring.status).toBe("human_tuned");
+
+    await sceneWorkspace.click();
+    await expect(sceneWorkspace).toHaveAttribute("aria-current", "page");
+    await expect(sceneX).toHaveValue("700");
+    await page.locator('[data-studio-workspace-panel="scene"]')
+      .getByRole("button", { name: "撤销", exact: true })
+      .click();
+    await expect(sceneX).toHaveValue(savedSceneX);
   } finally {
     if (existsSync(lobbyPath)) rmSync(lobbyPath, { force: true });
   }

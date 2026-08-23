@@ -36,7 +36,10 @@ import {
   createAuthoringHostInternalV1,
   resolveAuthoringHostOwnerInternalV1,
 } from "./core/authoring-host.ts";
-import type { AuthoringHostInternalV1 } from "./core/authoring-host.ts";
+import type {
+  AuthoringHostInternalV1,
+  AuthoringHostSnapshotInternalV1,
+} from "./core/authoring-host.ts";
 import { saveWithConflictRefreshInternalV1 } from "./core/save-conflict.ts";
 import { applyPreviewAppearanceV1, compileSceneV1 } from "./workspaces/scene/scene-compile.ts";
 import {
@@ -64,7 +67,10 @@ import { ChromeWorkspaceSectionV1 } from "./workspaces/chrome/chrome-workspace.t
 import type { ChromeLayoutSourceIoV1 } from "./core/chrome-layout-io.ts";
 import type { StudioBindingV1, StudioContentDescriptorV1 } from "./core/binding.ts";
 import { authoringWorkspaceManifestInternalV1 } from "./workspaces/workspace-manifest.ts";
-import type { AuthoringWorkspaceManifestEntryInternalV1 } from "./workspaces/workspace-manifest.ts";
+import type {
+  AuthoringWorkspaceIdInternalV1,
+  AuthoringWorkspaceManifestEntryInternalV1,
+} from "./workspaces/workspace-manifest.ts";
 import styles from "./studio-app.module.css";
 
 export type {
@@ -106,6 +112,8 @@ export interface StudioAppPropsV1 {
 interface StudioAppWithAuthoringSessionsPropsV1 extends StudioAppPropsV1 {
   readonly workspaceManifest: readonly AuthoringWorkspaceManifestEntryInternalV1[];
   readonly host: AuthoringHostInternalV1;
+  readonly hostSnapshot: AuthoringHostSnapshotInternalV1;
+  readonly viewId: number;
   readonly sceneSession: AuthoringDocumentSessionV1<SceneDocumentV1>;
   readonly regionsSession: AuthoringDocumentSessionV1<RegionsDocumentV1> | null;
   readonly chromeSession: AuthoringDocumentSessionV1<ChromeLayoutDocumentV1> | null;
@@ -115,6 +123,14 @@ interface StudioAppWithAuthoringSessionsPropsV1 extends StudioAppPropsV1 {
 }
 
 const studioPreviewMaxWidthV1 = 720;
+
+function workspaceControlIdInternalV1(
+  viewId: number,
+  workspaceId: AuthoringWorkspaceIdInternalV1,
+  kind: "button" | "panel",
+): string {
+  return `sillymaker-authoring-${String(viewId)}-${workspaceId}-${kind}`;
+}
 
 function saveNoteV1(code: string): string {
   return code === "digest_conflict"
@@ -246,6 +262,8 @@ export function AuthoringHostSurfaceInternalV1(
       <StudioAppWithAuthoringSessionsV1
         binding={props.binding}
         workspaceManifest={props.workspaceManifest}
+        hostSnapshot={hostSnapshot}
+        viewId={props.viewId}
         io={owner.sceneIo}
         motionIo={owner.motionIo}
         {...(owner.regionsIo === undefined ? {} : { regionsIo: owner.regionsIo })}
@@ -383,6 +401,7 @@ export function StudioAppWithAuthoringSessionsV1(
   }, [session]);
 
   useEffect(() => {
+    if (props.publicationRole !== "visible") return undefined;
     let active = true;
     void io.list().then((result) => {
       if (!active) return;
@@ -397,12 +416,13 @@ export function StudioAppWithAuthoringSessionsV1(
     return () => {
       active = false;
     };
-  }, [io, scenesRevision]);
+  }, [io, props.publicationRole, scenesRevision]);
 
   // The motion catalog comes from the Project Authoring Index (list) plus
   // per-document reads — no hand-registered source paths anywhere. The
   // revision bumps after a motion create so the new document lists.
   useEffect(() => {
+    if (props.publicationRole !== "visible") return undefined;
     let active = true;
     void loadStudioMotionSourcesV1(motionIo).then((result) => {
       if (active) setMotionSources(result);
@@ -410,7 +430,7 @@ export function StudioAppWithAuthoringSessionsV1(
     return () => {
       active = false;
     };
-  }, [motionIo, motionsRevision]);
+  }, [motionIo, motionsRevision, props.publicationRole]);
 
   // The first listed scene opens automatically so the workspace never
   // greets the author with an empty canvas. A failed first open must not
@@ -420,6 +440,7 @@ export function StudioAppWithAuthoringSessionsV1(
   const autoOpenedRef = useRef(false);
   useEffect(() => {
     if (
+      props.publicationRole !== "visible" ||
       autoOpenedRef.current || scenes === null || scenes.length === 0 ||
       snapshot.path !== null || scenes[0] === undefined
     ) {
@@ -427,7 +448,7 @@ export function StudioAppWithAuthoringSessionsV1(
     }
     autoOpenedRef.current = true;
     openScene(scenes[0].path);
-  }, [scenes, snapshot.path, openScene]);
+  }, [scenes, snapshot.path, openScene, props.publicationRole]);
 
   const compiled = useMemo(
     () => (draft === null ? null : compileSceneV1(draft, throughCueIdCurrent, binding.catalog)),
@@ -974,6 +995,25 @@ export function StudioAppWithAuthoringSessionsV1(
     );
   }, [creating, motionIo, motionSources, sceneOperations, session]);
 
+  const activeWorkspaceId = props.hostSnapshot.activeWorkspaceId;
+  const visitedWorkspaceIds = new Set(props.hostSnapshot.visitedWorkspaceIds);
+  const dirtyWorkspaceIds = new Set(props.hostSnapshot.dirtyWorkspaceIds);
+  const shouldRenderWorkspace = (workspaceId: AuthoringWorkspaceIdInternalV1): boolean => {
+    if (!props.hostSnapshot.workspaceIds.includes(workspaceId)) return false;
+    return props.publicationRole === "probe"
+      ? activeWorkspaceId === workspaceId
+      : visitedWorkspaceIds.has(workspaceId);
+  };
+  const requestWorkspaceFocus = (workspaceId: AuthoringWorkspaceIdInternalV1): void => {
+    if (props.publicationRole !== "visible" || !hostOwner.focusWorkspace(workspaceId)) return;
+    if (
+      workspaceId === "flow" &&
+      hostOwner.flowActivation.getState().kind === "idle"
+    ) {
+      void hostOwner.flowActivation.open().catch(() => undefined);
+    }
+  };
+
   return (
     <div
       className={`${styles["studio"] ?? ""} ${
@@ -983,346 +1023,437 @@ export function StudioAppWithAuthoringSessionsV1(
       data-studio-mode={props.mode}
       data-studio-workspaces={workspaceManifest.map((workspace) => workspace.id).join(" ")}
     >
-      <header className={styles["topbar"]}>
-        <strong>SillyMaker Studio</strong>
-        <span className={styles["topbar-scene"]}>
-          {snapshot.path === null ? "未选择场景" : `${draft?.label ?? ""} · ${snapshot.path}`}
-        </span>
-        <button
-          type="button"
-          data-studio-undo="true"
-          disabled={!snapshot.canUndo || busy || loading}
-          onClick={() => session.undo()}
-        >
-          撤销
-        </button>
-        <button
-          type="button"
-          data-studio-redo="true"
-          disabled={!snapshot.canRedo || busy || loading}
-          onClick={() => session.redo()}
-        >
-          重做
-        </button>
-        <button
-          type="button"
-          data-studio-save="true"
-          disabled={!dirty || busy || loading || compileBlocked}
-          onClick={save}
-        >
-          {busy ? "保存中…" : "保存"}
-        </button>
-        {snapshot.path === null ? null : (
-          <button
-            type="button"
-            data-studio-reload="true"
-            disabled={busy || loading}
-            onClick={() => {
-              const path = snapshot.path;
-              if (path !== null) requestOpenScene(path);
-            }}
-          >
-            重新加载
-          </button>
-        )}
-        <label className={styles["topbar-toggle"]}>
-          <input
-            type="checkbox"
-            data-studio-hit-regions-toggle="true"
-            checked={showHitRegions}
-            onChange={(event) => setShowHitRegions(event.target.checked)}
-          />
-          交互区域
-        </label>
-      </header>
-      {note === null ? null : (
-        <p className={styles["note"]} role="status" data-studio-note="true">
-          {note}
-        </p>
-      )}
-      {confirmNavigation === null ? null : (
-        <div
-          className={styles["confirm"]}
-          role="alertdialog"
-          aria-label="未保存的修改"
-          data-studio-dirty-confirm="true"
-        >
-          <p>当前场景有未保存的修改。先保存，还是放弃这些修改？</p>
-          <div className={styles["confirm-actions"]}>
-            <button
-              type="button"
-              data-studio-confirm-save="true"
-              disabled={busy || compileBlocked}
-              onClick={confirmSaveAndOpen}
-            >
-              保存并继续
-            </button>
-            <button
-              type="button"
-              data-studio-confirm-discard="true"
-              disabled={busy}
-              onClick={confirmDiscardAndOpen}
-            >
-              放弃修改
-            </button>
-            <button
-              type="button"
-              data-studio-confirm-cancel="true"
-              disabled={busy}
-              onClick={() => setConfirmNavigation(null)}
-            >
-              取消
-            </button>
-          </div>
-        </div>
-      )}
-      {authoringWarnings.length === 0 && (compiled === null || compiled.kind !== "error")
-        ? null
-        : (
+      <nav className={styles["workspace-rail"]} aria-label="创作工作区">
+        <strong className={styles["workspace-rail-title"]}>SillyMaker Studio</strong>
+        <ul>
+          {workspaceManifest.map((workspace) => (
+            <li key={workspace.id}>
+              <button
+                id={workspaceControlIdInternalV1(props.viewId, workspace.id, "button")}
+                type="button"
+                aria-label={dirtyWorkspaceIds.has(workspace.id)
+                  ? `${workspace.label}，有修改`
+                  : workspace.label}
+                aria-controls={workspaceControlIdInternalV1(props.viewId, workspace.id, "panel")}
+                aria-current={activeWorkspaceId === workspace.id ? "page" : undefined}
+                disabled={props.publicationRole === "probe"}
+                data-studio-workspace={workspace.id}
+                {...(props.publicationRole === "probe"
+                  ? {}
+                  : { onClick: () => requestWorkspaceFocus(workspace.id) })}
+              >
+                <span>{workspace.label}</span>
+                {dirtyWorkspaceIds.has(workspace.id)
+                  ? (
+                    <span className={styles["workspace-dirty"]} aria-hidden="true">
+                      未保存
+                    </span>
+                  )
+                  : null}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      <div className={styles["workspace-panels"]}>
+        {!shouldRenderWorkspace("scene") ? null : (
           <section
-            className={styles["diagnostics"]}
-            aria-label="创作诊断"
-            data-studio-diagnostics="true"
+            id={workspaceControlIdInternalV1(props.viewId, "scene", "panel")}
+            className={styles["workspace-panel"]}
+            aria-labelledby={workspaceControlIdInternalV1(props.viewId, "scene", "button")}
+            hidden={activeWorkspaceId !== "scene"}
+            inert={props.publicationRole === "probe" || activeWorkspaceId !== "scene"
+              ? true
+              : undefined}
+            data-studio-workspace-panel="scene"
           >
-            {compiled !== null && compiled.kind === "error"
-              ? (
-                <p data-studio-diagnostic="blocking">
-                  阻断：场景无法编译——{compiled.message}（保存已禁用）
-                </p>
-              )
-              : null}
-            {authoringWarnings.map((warning, index) => (
-              <p key={`${warning}:${String(index)}`} data-studio-diagnostic="warning">
-                警告：{warning}
-              </p>
-            ))}
-          </section>
-        )}
-      <div className={styles["columns"]}>
-        <nav className={styles["navigator"]} aria-label="场景">
-          <h2>场景</h2>
-          {scenes === null
-            ? <p>加载中…</p>
-            : scenes.length === 0
-            ? <p>没有 *.scene.json</p>
-            : (
-              <ul data-studio-scenes="true">
-                {scenes.map((scene) => (
-                  <li key={scene.path}>
-                    <button
-                      type="button"
-                      data-studio-scene={scene.sceneId}
-                      aria-pressed={snapshot.path === scene.path}
-                      onClick={() => requestOpenScene(scene.path)}
-                    >
-                      {scene.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          {newSceneStem === null
-            ? (
+            <header className={styles["topbar"]}>
+              <strong>Scene Construction</strong>
+              <span className={styles["topbar-scene"]}>
+                {snapshot.path === null ? "未选择场景" : `${draft?.label ?? ""} · ${snapshot.path}`}
+              </span>
               <button
                 type="button"
-                data-studio-new-scene="true"
-                disabled={creating}
-                onClick={() => setNewSceneStem("")}
+                data-studio-undo="true"
+                disabled={!snapshot.canUndo || busy || loading}
+                onClick={() => session.undo()}
               >
-                新建场景
+                撤销
               </button>
-            )
-            : (
-              <div className={styles["new-scene"]} data-studio-new-scene-form="true">
-                <label className={styles["field"]}>
-                  <span>场景名（{sceneIdPrefix}…）</span>
-                  <input
-                    type="text"
-                    data-studio-new-scene-stem="true"
-                    value={newSceneStem}
-                    onChange={(event) => setNewSceneStem(event.target.value)}
-                  />
-                </label>
-                <label className={styles["field"]}>
-                  <span>标题</span>
-                  <input
-                    type="text"
-                    data-studio-new-scene-label="true"
-                    value={newSceneLabel}
-                    onChange={(event) => setNewSceneLabel(event.target.value)}
-                  />
-                </label>
+              <button
+                type="button"
+                data-studio-redo="true"
+                disabled={!snapshot.canRedo || busy || loading}
+                onClick={() => session.redo()}
+              >
+                重做
+              </button>
+              <button
+                type="button"
+                data-studio-save="true"
+                disabled={!dirty || busy || loading || compileBlocked}
+                onClick={save}
+              >
+                {busy ? "保存中…" : "保存"}
+              </button>
+              {snapshot.path === null ? null : (
                 <button
                   type="button"
-                  data-studio-new-scene-create="true"
-                  disabled={creating || newSceneStem.trim().length === 0}
-                  onClick={createScene}
+                  data-studio-reload="true"
+                  disabled={busy || loading}
+                  onClick={() => {
+                    const path = snapshot.path;
+                    if (path !== null) requestOpenScene(path);
+                  }}
                 >
-                  创建
+                  重新加载
                 </button>
-                <button
-                  type="button"
-                  data-studio-new-scene-cancel="true"
-                  disabled={creating}
-                  onClick={() => setNewSceneStem(null)}
-                >
-                  取消
-                </button>
+              )}
+              <label className={styles["topbar-toggle"]}>
+                <input
+                  type="checkbox"
+                  data-studio-hit-regions-toggle="true"
+                  checked={showHitRegions}
+                  onChange={(event) => setShowHitRegions(event.target.checked)}
+                />
+                交互区域
+              </label>
+            </header>
+            {note === null
+              ? null
+              : (
+                <p className={styles["note"]} role="status" data-studio-note="true">
+                  {note}
+                </p>
+              )}
+            {confirmNavigation === null ? null : (
+              <div
+                className={styles["confirm"]}
+                role="alertdialog"
+                aria-label="未保存的修改"
+                data-studio-dirty-confirm="true"
+              >
+                <p>当前场景有未保存的修改。先保存，还是放弃这些修改？</p>
+                <div className={styles["confirm-actions"]}>
+                  <button
+                    type="button"
+                    data-studio-confirm-save="true"
+                    disabled={busy || compileBlocked}
+                    onClick={confirmSaveAndOpen}
+                  >
+                    保存并继续
+                  </button>
+                  <button
+                    type="button"
+                    data-studio-confirm-discard="true"
+                    disabled={busy}
+                    onClick={confirmDiscardAndOpen}
+                  >
+                    放弃修改
+                  </button>
+                  <button
+                    type="button"
+                    data-studio-confirm-cancel="true"
+                    disabled={busy}
+                    onClick={() => setConfirmNavigation(null)}
+                  >
+                    取消
+                  </button>
+                </div>
               </div>
             )}
-          {contents === null || contents.length === 0 ? null : (
-            <ContentBrowserV1
-              contents={contents}
-              geometryContentIds={geometryContentIds}
-              canAdd={draft !== null && !busy && !loading}
-              onAdd={addContent}
+            {authoringWarnings.length === 0 && (compiled === null || compiled.kind !== "error")
+              ? null
+              : (
+                <section
+                  className={styles["diagnostics"]}
+                  aria-label="创作诊断"
+                  data-studio-diagnostics="true"
+                >
+                  {compiled !== null && compiled.kind === "error"
+                    ? (
+                      <p data-studio-diagnostic="blocking">
+                        阻断：场景无法编译——{compiled.message}（保存已禁用）
+                      </p>
+                    )
+                    : null}
+                  {authoringWarnings.map((warning, index) => (
+                    <p key={`${warning}:${String(index)}`} data-studio-diagnostic="warning">
+                      警告：{warning}
+                    </p>
+                  ))}
+                </section>
+              )}
+            <div className={styles["columns"]}>
+              <nav className={styles["navigator"]} aria-label="场景">
+                <h2>场景</h2>
+                {scenes === null
+                  ? <p>加载中…</p>
+                  : scenes.length === 0
+                  ? <p>没有 *.scene.json</p>
+                  : (
+                    <ul data-studio-scenes="true">
+                      {scenes.map((scene) => (
+                        <li key={scene.path}>
+                          <button
+                            type="button"
+                            data-studio-scene={scene.sceneId}
+                            aria-pressed={snapshot.path === scene.path}
+                            onClick={() => requestOpenScene(scene.path)}
+                          >
+                            {scene.label}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                {newSceneStem === null
+                  ? (
+                    <button
+                      type="button"
+                      data-studio-new-scene="true"
+                      disabled={creating}
+                      onClick={() => setNewSceneStem("")}
+                    >
+                      新建场景
+                    </button>
+                  )
+                  : (
+                    <div className={styles["new-scene"]} data-studio-new-scene-form="true">
+                      <label className={styles["field"]}>
+                        <span>场景名（{sceneIdPrefix}…）</span>
+                        <input
+                          type="text"
+                          data-studio-new-scene-stem="true"
+                          value={newSceneStem}
+                          onChange={(event) => setNewSceneStem(event.target.value)}
+                        />
+                      </label>
+                      <label className={styles["field"]}>
+                        <span>标题</span>
+                        <input
+                          type="text"
+                          data-studio-new-scene-label="true"
+                          value={newSceneLabel}
+                          onChange={(event) => setNewSceneLabel(event.target.value)}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        data-studio-new-scene-create="true"
+                        disabled={creating || newSceneStem.trim().length === 0}
+                        onClick={createScene}
+                      >
+                        创建
+                      </button>
+                      <button
+                        type="button"
+                        data-studio-new-scene-cancel="true"
+                        disabled={creating}
+                        onClick={() => setNewSceneStem(null)}
+                      >
+                        取消
+                      </button>
+                    </div>
+                  )}
+                {contents === null || contents.length === 0 ? null : (
+                  <ContentBrowserV1
+                    contents={contents}
+                    geometryContentIds={geometryContentIds}
+                    canAdd={draft !== null && !busy && !loading}
+                    onAdd={addContent}
+                  />
+                )}
+              </nav>
+              <main className={styles["stage"]}>
+                {draft === null || compiled === null || sceneOperationCurrent === null
+                  ? <p>选择一个场景开始。</p>
+                  : compiled.kind === "error"
+                  ? (
+                    <p className={styles["error"]} role="alert" data-studio-compile-error="true">
+                      场景无法编译：{compiled.message}
+                    </p>
+                  )
+                  : compiled.kind === "empty"
+                  ? <p>这个场景还没有条目。</p>
+                  : (
+                    <SceneCanvasV1
+                      draft={draft}
+                      target={(canvasCompiled !== null && canvasCompiled.kind === "ok"
+                        ? canvasCompiled
+                        : compiled).target}
+                      renderers={binding.renderers}
+                      accessibleName={`场景预览 ${draft.label}`}
+                      showHitRegions={showHitRegions}
+                      scale={scale}
+                      selectedTag={selectedTagCurrent}
+                      onSelectTag={setSelectedTag}
+                      operationCurrent={sceneOperationCurrent}
+                      onWritePlacement={writeActorPlacementAt}
+                    />
+                  )}
+                {draft === null ? null : (
+                  <SceneCuesV1
+                    draft={draft}
+                    motionIds={motionCatalog.ids}
+                    throughCueId={throughCueIdCurrent}
+                    busy={busy || loading || creating}
+                    onToggleThroughCue={(cueId) =>
+                      setThroughCueId(throughCueIdCurrent === cueId ? null : cueId)}
+                    onBindMotion={(cueId, motionId) =>
+                      executeSceneOperation({
+                        schemaRevision: 1,
+                        kind: "scene.cue.set_motion",
+                        cueId,
+                        motionId,
+                      })}
+                    onAddCue={addCue}
+                    onRemoveCue={removeCue}
+                    onCreateMotion={createMotionForCue}
+                  />
+                )}
+              </main>
+              <aside className={styles["inspector"]} aria-label="检视器">
+                <h2>检视器</h2>
+                {draft === null ? <p>—</p> : (
+                  <SceneInspectorV1
+                    draft={draft}
+                    selectedTag={selectedTagCurrent}
+                    selectedDescriptor={selectedDescriptor}
+                    effectiveAppearance={selectedEffectiveAppearance}
+                    fitting={fitting}
+                    resolution={selectedResolution}
+                    motionIds={motionCatalog.ids}
+                    draftRevision={snapshot.draftRevision}
+                    pendingInputScope={`${snapshot.documentIdentity ?? "none"}:${
+                      snapshot.saving ? "saving" : "idle"
+                    }`}
+                    busy={busy || loading || creating}
+                    onSelectTag={setSelectedTag}
+                    onToggleFitting={toggleFitting}
+                    onEditSelectedPlacement={editSelectedPlacement}
+                    onEditSelectedZOrder={(next, coalesceKey) => {
+                      if (selectedTagCurrent === null) return;
+                      executeSceneOperation({
+                        schemaRevision: 1,
+                        kind: "scene.entry.set_z_order",
+                        tag: selectedTagCurrent,
+                        zOrder: next,
+                      }, coalesceKey);
+                    }}
+                    onEditSelectedAppearance={editSelectedAppearance}
+                    onEditSelectedAmbient={(motionId) => {
+                      if (selectedTagCurrent === null) return;
+                      // Bind or clear the presence loop as one undoable draft
+                      // edit; an explicit phaseMs survives a motion swap.
+                      executeSceneOperation({
+                        schemaRevision: 1,
+                        kind: "scene.entry.set_ambient",
+                        tag: selectedTagCurrent,
+                        motionId,
+                      });
+                    }}
+                    onRemoveSelectedEntry={removeSelectedEntry}
+                  />
+                )}
+              </aside>
+            </div>
+          </section>
+        )}
+        {!shouldRenderWorkspace("motion") ? null : (
+          <section
+            id={workspaceControlIdInternalV1(props.viewId, "motion", "panel")}
+            className={styles["workspace-panel"]}
+            aria-labelledby={workspaceControlIdInternalV1(props.viewId, "motion", "button")}
+            hidden={activeWorkspaceId !== "motion"}
+            inert={props.publicationRole === "probe" || activeWorkspaceId !== "motion"
+              ? true
+              : undefined}
+            data-studio-workspace-panel="motion"
+          >
+            <MotionWorkspaceSectionV1
+              workbench={renderedWorkbench}
+              loading={motionSources === null}
+              store={hostOwner.motionStore}
+              guardSelectionChanges={props.publicationRole !== "probe"}
+              {...(props.publicationRole === "probe" ? {} : {
+                io: motionIo,
+                registerCloseParticipant: registerMotionCloseParticipant,
+              })}
             />
-          )}
-        </nav>
-        <main className={styles["stage"]}>
-          {draft === null || compiled === null || sceneOperationCurrent === null
-            ? <p>选择一个场景开始。</p>
-            : compiled.kind === "error"
-            ? (
-              <p className={styles["error"]} role="alert" data-studio-compile-error="true">
-                场景无法编译：{compiled.message}
-              </p>
-            )
-            : compiled.kind === "empty"
-            ? <p>这个场景还没有条目。</p>
-            : (
-              <SceneCanvasV1
-                draft={draft}
-                target={(canvasCompiled !== null && canvasCompiled.kind === "ok"
-                  ? canvasCompiled
-                  : compiled).target}
+          </section>
+        )}
+        {!shouldRenderWorkspace("regions") || regionsIo === undefined || regionsSession === null
+          ? null
+          : (
+            <section
+              id={workspaceControlIdInternalV1(props.viewId, "regions", "panel")}
+              className={styles["workspace-panel"]}
+              aria-labelledby={workspaceControlIdInternalV1(props.viewId, "regions", "button")}
+              hidden={activeWorkspaceId !== "regions"}
+              inert={props.publicationRole === "probe" || activeWorkspaceId !== "regions"
+                ? true
+                : undefined}
+              data-studio-workspace-panel="regions"
+            >
+              <RegionsWorkspaceSectionV1
+                io={regionsIo}
+                session={regionsSession}
                 renderers={binding.renderers}
-                accessibleName={`场景预览 ${draft.label}`}
-                showHitRegions={showHitRegions}
+                assets={assets}
+                backdrop={draft !== null && canvasCompiled !== null && canvasCompiled.kind === "ok"
+                  ? { canvas: draft.canvas, target: canvasCompiled.target }
+                  : null}
                 scale={scale}
-                selectedTag={selectedTagCurrent}
-                onSelectTag={setSelectedTag}
-                operationCurrent={sceneOperationCurrent}
-                onWritePlacement={writeActorPlacementAt}
+                storyHint={sceneIdPrefix.split(".")[1] ?? null}
+                host={props.host}
+                publicationRole={props.publicationRole}
               />
-            )}
-          {draft === null ? null : (
-            <SceneCuesV1
-              draft={draft}
-              motionIds={motionCatalog.ids}
-              throughCueId={throughCueIdCurrent}
-              busy={busy || loading || creating}
-              onToggleThroughCue={(cueId) =>
-                setThroughCueId(throughCueIdCurrent === cueId ? null : cueId)}
-              onBindMotion={(cueId, motionId) =>
-                executeSceneOperation({
-                  schemaRevision: 1,
-                  kind: "scene.cue.set_motion",
-                  cueId,
-                  motionId,
-                })}
-              onAddCue={addCue}
-              onRemoveCue={removeCue}
-              onCreateMotion={createMotionForCue}
-            />
+            </section>
           )}
-        </main>
-        <aside className={styles["inspector"]} aria-label="检视器">
-          <h2>检视器</h2>
-          {draft === null ? <p>—</p> : (
-            <SceneInspectorV1
-              draft={draft}
-              selectedTag={selectedTagCurrent}
-              selectedDescriptor={selectedDescriptor}
-              effectiveAppearance={selectedEffectiveAppearance}
-              fitting={fitting}
-              resolution={selectedResolution}
-              motionIds={motionCatalog.ids}
-              draftRevision={snapshot.draftRevision}
-              pendingInputScope={`${snapshot.documentIdentity ?? "none"}:${
-                snapshot.saving ? "saving" : "idle"
-              }`}
-              busy={busy || loading || creating}
-              onSelectTag={setSelectedTag}
-              onToggleFitting={toggleFitting}
-              onEditSelectedPlacement={editSelectedPlacement}
-              onEditSelectedZOrder={(next, coalesceKey) => {
-                if (selectedTagCurrent === null) return;
-                executeSceneOperation({
-                  schemaRevision: 1,
-                  kind: "scene.entry.set_z_order",
-                  tag: selectedTagCurrent,
-                  zOrder: next,
-                }, coalesceKey);
-              }}
-              onEditSelectedAppearance={editSelectedAppearance}
-              onEditSelectedAmbient={(motionId) => {
-                if (selectedTagCurrent === null) return;
-                // Bind or clear the presence loop as one undoable draft
-                // edit; an explicit phaseMs survives a motion swap.
-                executeSceneOperation({
-                  schemaRevision: 1,
-                  kind: "scene.entry.set_ambient",
-                  tag: selectedTagCurrent,
-                  motionId,
-                });
-              }}
-              onRemoveSelectedEntry={removeSelectedEntry}
-            />
+        {!shouldRenderWorkspace("chrome") || chromeIo === undefined || chromeSession === null
+          ? null
+          : (
+            <section
+              id={workspaceControlIdInternalV1(props.viewId, "chrome", "panel")}
+              className={styles["workspace-panel"]}
+              aria-labelledby={workspaceControlIdInternalV1(props.viewId, "chrome", "button")}
+              hidden={activeWorkspaceId !== "chrome"}
+              inert={props.publicationRole === "probe" || activeWorkspaceId !== "chrome"
+                ? true
+                : undefined}
+              data-studio-workspace-panel="chrome"
+            >
+              <ChromeWorkspaceSectionV1
+                io={chromeIo}
+                session={chromeSession}
+                fixtures={binding.chrome ?? Object.freeze([])}
+                storyHint={sceneIdPrefix.split(".")[1] ?? null}
+                host={props.host}
+                publicationRole={props.publicationRole}
+              />
+            </section>
           )}
-        </aside>
+        {!shouldRenderWorkspace("flow") || binding.flow === undefined ? null : (
+          <section
+            id={workspaceControlIdInternalV1(props.viewId, "flow", "panel")}
+            className={styles["workspace-panel"]}
+            aria-labelledby={workspaceControlIdInternalV1(props.viewId, "flow", "button")}
+            hidden={activeWorkspaceId !== "flow"}
+            inert={props.publicationRole === "probe" || activeWorkspaceId !== "flow"
+              ? true
+              : undefined}
+            data-studio-workspace-panel="flow"
+          >
+            <ProgressiveFlowWorkspaceHostInternalV1
+              activation={props.flowActivation}
+              flow={binding.flow}
+              publicationRole={props.publicationRole}
+              {...(binding.resolveText === undefined ? {} : { resolveText: binding.resolveText })}
+            />
+          </section>
+        )}
       </div>
-      {renderedWorkbench.kind !== "ready" ? null : (
-        <MotionWorkspaceSectionV1
-          workbench={renderedWorkbench}
-          io={motionIo}
-          store={hostOwner.motionStore}
-          guardSelectionChanges={props.publicationRole !== "probe"}
-          {...(props.publicationRole === "probe" ? {} : {
-            registerCloseParticipant: registerMotionCloseParticipant,
-          })}
-        />
-      )}
-      {!workspaceManifest.some((workspace) => workspace.id === "regions") ||
-          regionsIo === undefined || regionsSession === null
-        ? null
-        : (
-          <RegionsWorkspaceSectionV1
-            io={regionsIo}
-            session={regionsSession}
-            renderers={binding.renderers}
-            assets={assets}
-            backdrop={draft !== null && canvasCompiled !== null && canvasCompiled.kind === "ok"
-              ? { canvas: draft.canvas, target: canvasCompiled.target }
-              : null}
-            scale={scale}
-            storyHint={sceneIdPrefix.split(".")[1] ?? null}
-            host={props.host}
-            publicationRole={props.publicationRole}
-          />
-        )}
-      {!workspaceManifest.some((workspace) => workspace.id === "chrome") ||
-          chromeIo === undefined || chromeSession === null
-        ? null
-        : (
-          <ChromeWorkspaceSectionV1
-            io={chromeIo}
-            session={chromeSession}
-            fixtures={binding.chrome ?? Object.freeze([])}
-            storyHint={sceneIdPrefix.split(".")[1] ?? null}
-            host={props.host}
-            publicationRole={props.publicationRole}
-          />
-        )}
-      {!workspaceManifest.some((workspace) => workspace.id === "flow") || binding.flow === undefined
-        ? null
-        : (
-          <ProgressiveFlowWorkspaceHostInternalV1
-            activation={props.flowActivation}
-            flow={binding.flow}
-            {...(binding.resolveText === undefined ? {} : { resolveText: binding.resolveText })}
-          />
-        )}
     </div>
   );
 }

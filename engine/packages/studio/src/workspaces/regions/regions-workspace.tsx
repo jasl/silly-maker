@@ -132,6 +132,7 @@ export function RegionsWorkspaceSectionV1(props: RegionsWorkspaceSectionPropsV1)
   const loading = snapshot.loading;
 
   useEffect(() => {
+    if (props.publicationRole === "probe") return undefined;
     let active = true;
     void io.list().then((result) => {
       if (!active) return;
@@ -146,7 +147,7 @@ export function RegionsWorkspaceSectionV1(props: RegionsWorkspaceSectionPropsV1)
     return () => {
       active = false;
     };
-  }, [io, revision]);
+  }, [io, props.publicationRole, revision]);
 
   const openDocument = useCallback((path: string): void => {
     setNote(null);
@@ -167,6 +168,7 @@ export function RegionsWorkspaceSectionV1(props: RegionsWorkspaceSectionPropsV1)
   const autoOpenedRef = useRef(false);
   useEffect(() => {
     if (
+      props.publicationRole === "probe" ||
       autoOpenedRef.current || documents === null || documents.length === 0 ||
       snapshot.path !== null || documents[0] === undefined
     ) {
@@ -174,7 +176,7 @@ export function RegionsWorkspaceSectionV1(props: RegionsWorkspaceSectionPropsV1)
     }
     autoOpenedRef.current = true;
     openDocument(documents[0].path);
-  }, [documents, snapshot.path, openDocument]);
+  }, [documents, snapshot.path, openDocument, props.publicationRole]);
 
   const requestOpenDocument = useCallback((path: string): void => {
     if (dirty) {
@@ -570,7 +572,7 @@ export function RegionsWorkspaceSectionV1(props: RegionsWorkspaceSectionPropsV1)
   const controlsDisabled = busy || loading || creating;
 
   return (
-    <section className={styles["workbench"]} aria-label="区域" data-studio-regions="true">
+    <div className={styles["workbench"]} data-studio-regions="true">
       <h2>区域文档</h2>
       {note === null
         ? null
@@ -1060,7 +1062,7 @@ export function RegionsWorkspaceSectionV1(props: RegionsWorkspaceSectionPropsV1)
           </div>
         )}
       </div>
-    </section>
+    </div>
   );
 }
 

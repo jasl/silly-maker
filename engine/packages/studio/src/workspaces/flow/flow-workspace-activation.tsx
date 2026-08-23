@@ -212,9 +212,10 @@ export function useDisposeFlowWorkspaceActivationOnUnmountInternalV1(
 export interface ProgressiveFlowWorkspaceHostPropsInternalV1
   extends FlowWorkspaceRenderInputInternalV1 {
   readonly activation: FlowWorkspaceActivationOwnerInternalV1;
+  readonly publicationRole: "visible" | "probe";
 }
 
-/** The resident launcher and bounded failure surface for the lazy workspace. */
+/** Bounded state surface; the visible rail owns initial activation. */
 export function ProgressiveFlowWorkspaceHostInternalV1(
   props: ProgressiveFlowWorkspaceHostPropsInternalV1,
 ): ReactElement | null {
@@ -233,24 +234,13 @@ export function ProgressiveFlowWorkspaceHostInternalV1(
   }
 
   return (
-    <section
+    <div
       className={styles["flow"]}
-      aria-label="Narrative 流程"
       data-studio-flow-activation={state.kind}
     >
       <h2>Narrative 流程</h2>
       {state.kind === "idle"
-        ? (
-          <button
-            type="button"
-            data-studio-flow-open="true"
-            onClick={() => {
-              void props.activation.open().catch(() => undefined);
-            }}
-          >
-            打开 Narrative 流程
-          </button>
-        )
+        ? <p>选择 Narrative 流程后开始加载。</p>
         : state.kind === "loading"
         ? <p role="status">正在加载 Narrative 流程…</p>
         : (
@@ -258,17 +248,21 @@ export function ProgressiveFlowWorkspaceHostInternalV1(
             <p>
               Narrative 流程暂不可用（{flowWorkspaceActivationFailureCodeInternalV1}）。
             </p>
-            <button
-              type="button"
-              data-studio-flow-retry="true"
-              onClick={() => {
-                void props.activation.retry().catch(() => undefined);
-              }}
-            >
-              重试 Narrative 流程
-            </button>
+            {props.publicationRole === "visible"
+              ? (
+                <button
+                  type="button"
+                  data-studio-flow-retry="true"
+                  onClick={() => {
+                    void props.activation.retry().catch(() => undefined);
+                  }}
+                >
+                  重试 Narrative 流程
+                </button>
+              )
+              : null}
           </div>
         )}
-    </section>
+    </div>
   );
 }

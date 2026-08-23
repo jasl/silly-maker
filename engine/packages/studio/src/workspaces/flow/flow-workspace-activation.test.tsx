@@ -62,9 +62,15 @@ describe("progressive Flow workspace activation", () => {
         observerOpen = owner.open();
       }
     });
-    render(<ProgressiveFlowWorkspaceHostInternalV1 activation={owner} flow={flowV1} />);
+    render(
+      <ProgressiveFlowWorkspaceHostInternalV1
+        activation={owner}
+        flow={flowV1}
+        publicationRole="visible"
+      />,
+    );
 
-    expect(screen.getByRole("button", { name: "打开 Narrative 流程" })).toBeVisible();
+    expect(screen.getByText("选择 Narrative 流程后开始加载。")).toBeVisible();
     expect(load).not.toHaveBeenCalled();
 
     const first = owner.open();
@@ -103,11 +109,15 @@ describe("progressive Flow workspace activation", () => {
     render(
       <>
         <div data-testid="resident-scene">Scene remains mounted</div>
-        <ProgressiveFlowWorkspaceHostInternalV1 activation={owner} flow={flowV1} />
+        <ProgressiveFlowWorkspaceHostInternalV1
+          activation={owner}
+          flow={flowV1}
+          publicationRole="visible"
+        />
       </>,
     );
 
-    await user.click(screen.getByRole("button", { name: "打开 Narrative 流程" }));
+    void owner.open().catch(() => undefined);
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(flowWorkspaceActivationFailureCodeInternalV1);
     expect(alert).not.toHaveTextContent(privateFailure.message);
@@ -118,6 +128,25 @@ describe("progressive Flow workspace activation", () => {
     await waitFor(() => expect(screen.getByTestId("flow-recovered")).toBeVisible());
     expect(load).toHaveBeenCalledTimes(2);
     expect(screen.getByTestId("resident-scene")).toBeVisible();
+    await owner.dispose();
+  });
+
+  it("keeps the probe failure surface read-only", async () => {
+    const load = vi.fn(() => Promise.reject(new Error("unavailable")));
+    const owner = createFlowWorkspaceActivationOwnerInternalV1({ load });
+    await expect(owner.open()).rejects.toThrow("unavailable");
+
+    render(
+      <ProgressiveFlowWorkspaceHostInternalV1
+        activation={owner}
+        flow={flowV1}
+        publicationRole="probe"
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "重试 Narrative 流程" })).toBeNull();
+    expect(load).toHaveBeenCalledTimes(1);
     await owner.dispose();
   });
 

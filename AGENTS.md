@@ -117,9 +117,9 @@ Read only the documents relevant to the change:
   AR5 delivered and closed on 2026-08-23 without claiming live Desktop HMR or
   Desktop production promotion; AR6 closure and owner checkpoint also completed
   that day. The owner then instructed the next engine work to begin; the live
-  Host/consumer audit selected
+  Host/consumer audit selected and delivered on 2026-08-23
   `docs/engine/plans/2026-08-23-authoring-workspace-focus-navigation.md` as the
-  current lane. It turns the existing closed workspace manifest into Host-owned
+  first post-AR6 lane. It turned the existing closed workspace manifest into Host-owned
   session-local focus, an accessible rail, and one visible workspace while
   preserving dirty sessions, progressive Flow, standalone/embedded shells, and
   Authoring R1 continuity. It does not build an IDE, WindowManager, or public
@@ -130,8 +130,9 @@ Read only the documents relevant to the change:
   stable whose source and behavior contain that path must re-run the same
   acceptance before the maintained Desktop development workflow activates. Until
   then the adapter remains package-private, explicit, and default-off. This
-  independent Desktop activation follow-up did not block AR5/AR6 closure and does
-  not block other owner-accepted work. AR4/AR5 did not add
+  independent Desktop activation follow-up did not block AR5/AR6 or Workspace
+  Focus closure and does not block other owner-accepted work. No successor is
+  automatically active; the next lane requires an owner checkpoint. AR4/AR5 did not add
   a real backend or transport, public Agent ABI, OpenUI/A2UI, Agent persistence,
   live Desktop HMR, or Desktop production promotion.
   Desktop persistence remains an accepted, unfinished, conditional promotion

@@ -1,6 +1,6 @@
 # Authoring Workspace Focus & Navigation V1 实施计划
 
-状态：**2026-08-23 开启，M0 已交付，M1 当前执行中**。Application Runtime AR0–AR6 关闭后，所有者
+状态：**2026-08-23 开启并关闭，M0–M2 已交付；无自动后继项**。Application Runtime AR0–AR6 关闭后，所有者
 指示继续下一项引擎工作；对 live source、现有消费者与 accepted Authoring Host 合同的复查
 选择本车道。[Production-floor sequence](2026-07-30-production-floor-sequence.md) 仍是唯一
 跨计划排序入口；本计划只拥有 Authoring Host 的 workspace focus/navigation、两个真实 shell
@@ -87,7 +87,7 @@ participant，Flow 固定 clean。standalone/embedded publication 传递同一 c
 的 R1 在 IO owner、companion、viewId 与 React probe mutation 前拒绝。focused Host/publication tests 与
 全量 `deno task check`（361 files / 5561 tests）通过；M0 尚未渲染 rail 或改变 workspace 可见性。
 
-### M1 — 一个 rail，一个可见 workspace
+### M1 — 一个 rail，一个可见 workspace（2026-08-23 delivered）
 
 - `AuthoringHostSurfaceInternalV1`/Studio shell 渲染 accessible nav/button rail 与具名 panel，顺序与
   label 只来自 manifest；button/panel DOM id 包含 `viewId`，避免 connected probe 与 visible surface
@@ -103,7 +103,18 @@ participant，Flow 固定 clean。standalone/embedded publication 传递同一 c
 - Flow 的 loader 只由首次 visible focus 或显式 visible retry 触发；loading/failure/retry UI 留在
   Flow panel。active Flow 下的 probe、hide/reopen 与切走/切回不增加 loader count。
 
-### M2 — 两个真实 shell 消费与收口
+交付记录：standalone/embedded 共用的 visible surface 现由 closed manifest 渲染原生 button rail，
+button/panel id 包含 `viewId`，任一时刻只暴露 active panel；未访问 workspace 不 mount，已访问 sibling
+以 `hidden` + `inert` 保持 connected。probe 只渲染既有 active panel，禁用 rail 与 workspace 首次 IO/
+participant 注册。隐藏 dirty workspace 在 rail 显示“未保存”并提供明确 accessible name，仍参与统一
+close gate。Flow 只在首次 visible 选择时 open，error 只由 visible retry 重试；Motion 始终呈现
+loading/empty/unavailable/ready 中的一种有界状态。focused Studio tests（14 files / 127 tests）以及
+Template、Cat Cafe、Engine Lab 的 Chromium/WebKit 合同用例通过；active Flow 与 dirty Motion 在
+rejected/accepted R1 下保持 focus、owner/session 与 loader 边界。旧 Cat Cafe exact-source replacement/
+visible-root-detach 用例保护的是已被 persistent publication 取代的实现形状，已删除；真实 Browser R1
+拒绝/接受仍由 maintained contract E2E 覆盖。
+
+### M2 — 两个真实 shell 消费与收口（2026-08-23 delivered）
 
 - starter standalone：Scene、Motion、Regions 空态、Chrome、Flow 使用同一 rail；在 Scene 与 Chrome
   各产生真实 draft，切换后值、dirty 与 undo 保留，保存仍写各自原 IO；Flow 未选择前不 activation。
@@ -115,6 +126,18 @@ participant，Flow 固定 clean。standalone/embedded publication 传递同一 c
   focus、closed rail、progressive Flow 和仍未实现的 typed target navigation。
 - 删除被单一可见 workspace 取代的长页锚点/重复 section chrome 及只保护旧长页结构的测试；不以
   本车道为由重写各 workspace editor 或拆新 package。
+
+交付记录：starter standalone 以键盘选择 Chrome、指针返回 Scene，证明两份真实 draft、dirty 标记与
+Scene undo 跨 workspace 保留；Flow 选择前保持冷。Engine Lab embedded 以 dirty Motion 切到 Scene 后
+触发统一 close gate，取消后返回 Motion 保留精确输入值；既有 Authoring R1、Game/Session R2 与显式
+Agent sibling 合同继续由 Chromium/WebKit 覆盖。Cat Cafe 继续使用同一 rail 和 Motion consumer。
+live architecture/features/development/quickstart 已同步 Host focus、visited keep-alive、probe 权限、
+progressive Flow 与未实现的 typed target navigation。最终 `deno task check` 通过 361 files / 5566
+tests；受影响 Browser E2E 共 30 cases（Template 16、Cat Cafe 6、Engine Lab 8）在 Chromium/WebKit
+通过，`deno task docs:build` 通过。React Doctor 从 slice base `31d265da` 报告 3 个既有
+多-`useState` advisory；本车道未新增对应
+state，Chrome/Regions 只改变 probe guard/根 landmark，未发现 currentness 或 lifecycle defect，故以
+高置信度拒绝，不为分数重写 reducer。Desktop adapter、preflight 与 activation 状态均未改变。
 
 ## 4. 验收
 

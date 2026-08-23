@@ -123,11 +123,13 @@ describe("Studio tooling React publication", () => {
     await waitFor(() => {
       expect(within(container).getByLabelText("x")).toHaveValue(920);
     });
-    fireEvent.click(within(container).getByRole("button", { name: "打开 Narrative 流程" }));
+    expect(loadFlowWorkspace).not.toHaveBeenCalled();
+    fireEvent.click(within(container).getByRole("button", { name: "Narrative 流程" }));
     await waitFor(() => {
       expect(container.querySelector("[data-test-flow-implementation=ready]")).not.toBeNull();
     });
     expect(loadFlowWorkspace).toHaveBeenCalledTimes(1);
+    fireEvent.click(within(container).getByRole("button", { name: "Scene Construction" }));
     const oldHost = container.firstElementChild;
     const oldInput = within(container).getByLabelText("x");
     fireEvent.change(oldInput, { target: { value: "640" } });
@@ -153,6 +155,11 @@ describe("Studio tooling React publication", () => {
     expect(within(container).getByLabelText("x")).toHaveValue(640);
     expect(loadFlowWorkspace).toHaveBeenCalledTimes(1);
 
+    fireEvent.click(within(container).getByRole("button", { name: "Narrative 流程" }));
+    expect(within(container).getByRole("button", { name: "Narrative 流程" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
     await expect(publication.publish(
       studioPlanV1(sceneIo, replacementMotionIo, studioFlowBindingV1()),
       new AbortController().signal,
@@ -160,7 +167,10 @@ describe("Studio tooling React publication", () => {
     expect(container.firstElementChild).toBe(oldHost);
     expect(within(container).getByLabelText("x")).toBe(oldInput);
     expect(within(container).getByLabelText("x")).toHaveValue(640);
-
+    expect(within(container).getByRole("button", { name: "Narrative 流程" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
     await expect(publication.publish(
       studioPlanV1(sceneIo, motionIo, studioFlowBindingV1()),
       new AbortController().signal,
@@ -171,6 +181,11 @@ describe("Studio tooling React publication", () => {
     expect(loadFlowWorkspace).toHaveBeenCalledTimes(1);
     expect(within(container).getByLabelText("x")).toBe(oldInput);
     expect(within(container).getByLabelText("x")).toHaveValue(640);
+    expect(within(container).getByRole("button", { name: "Narrative 流程" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    fireEvent.click(within(container).getByRole("button", { name: /Scene Construction/ }));
     const save = within(container).getByRole("button", { name: "保存" });
     expect(save).toBeEnabled();
     fireEvent.click(save);
@@ -193,6 +208,7 @@ describe("Studio tooling React publication", () => {
       studioPlanV1(sceneIo, motionIo, studioBindingV1(), regionsIo),
     );
 
+    fireEvent.click(within(container).getByRole("button", { name: "Regions" }));
     const regionRow = await waitFor(() => {
       const row = container.querySelector('[data-studio-region-row="0"]');
       expect(row).not.toBeNull();
@@ -255,6 +271,7 @@ describe("Studio tooling React publication", () => {
       studioPlanV1(sceneIo, motionIo, studioBindingV1(), undefined, chromeIo),
     );
 
+    fireEvent.click(within(container).getByRole("button", { name: "界面布局" }));
     const chromeRow = await waitFor(() => {
       const row = container.querySelector('[data-studio-chrome-row="boxes:chip"]');
       expect(row).not.toBeNull();
@@ -315,6 +332,7 @@ describe("Studio tooling React publication", () => {
       studioPlanV1(sceneIo, motionIo, studioBindingV1(), undefined, chromeIo),
     );
 
+    fireEvent.click(within(container).getByRole("button", { name: "界面布局" }));
     const chromeRow = await waitFor(() => {
       const row = container.querySelector('[data-studio-chrome-row="boxes:chip"]');
       expect(row).not.toBeNull();
@@ -325,6 +343,10 @@ describe("Studio tooling React publication", () => {
       '[data-studio-chrome-field="x"]',
     ) as HTMLInputElement;
     fireEvent.change(xInput, { target: { value: "90" } });
+    fireEvent.click(within(container).getByRole("button", { name: "Scene Construction" }));
+    expect(within(container).getByRole("button", { name: /界面布局/ })).toHaveTextContent(
+      "未保存",
+    );
     const close = container.querySelector("[data-embedded-authoring-close]") as HTMLElement;
     await waitFor(() =>
       expect(close).toHaveAttribute("aria-label", "关闭内嵌创作（有未保存修改）")
@@ -351,6 +373,14 @@ describe("Studio tooling React publication", () => {
     );
     expect(chromeIo.writes[0]?.chromeLayoutDocument.boxes["chip"]?.x).toBe(90);
     expect(sceneIo.writes).toHaveLength(0);
+
+    fireEvent.click(container.querySelector("[data-embedded-authoring-open]") as HTMLElement);
+    expect(within(container).getByRole("button", { name: "Scene Construction" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(container.querySelector('[data-studio-chrome-field="x"]')).toBe(xInput);
+    expect(xInput).toHaveValue(90);
   });
 
   it("mounts the same Host in an input-isolated embedded shell with a dirty close gate", async () => {
@@ -566,13 +596,15 @@ describe("Studio tooling React publication", () => {
     const motionDocument = studioMotionDocumentV1();
     const sceneIo = fakeStudioSceneIoV1(studioSceneDocumentV1(motionDocument.motionId));
     const motionIo = fakeStudioMotionIoV1(motionDocument);
+    const binding = studioBindingV1();
     const publication = createStudioToolingReactPublicationV1({
       container,
       mode: "embedded",
     });
     mountedPublications.push(publication);
-    await publication.mount(studioPlanV1(sceneIo, motionIo, studioBindingV1()));
+    await publication.mount(studioPlanV1(sceneIo, motionIo, binding));
 
+    fireEvent.click(within(container).getByRole("button", { name: "Motion 工坊" }));
     const openMotion = await waitFor(() => {
       const current = container.querySelector<HTMLElement>(
         '[data-motion-workbench-case="cue.test.hero"]',
@@ -591,9 +623,21 @@ describe("Studio tooling React publication", () => {
       expect(container.querySelector("[data-workbench-save]")).not.toBeDisabled()
     );
 
+    await publication.publish(
+      studioPlanV1(sceneIo, motionIo, binding),
+      new AbortController().signal,
+    );
+    expect(within(container).getByRole("button", { name: /Motion 工坊/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(container.querySelector("[data-workbench-duration]")).toBe(duration);
+    expect(duration).toHaveValue(470);
+
     // Removing the only motion-bearing cue makes the freshly derived preview
     // model empty. The visible Host must retain the committed Workbench until
     // its exact dirty selection is explicitly resolved.
+    fireEvent.click(within(container).getByRole("button", { name: "Scene Construction" }));
     fireEvent.click(
       container.querySelector('[data-studio-remove-cue="cue.test.hero"]') as HTMLElement,
     );
