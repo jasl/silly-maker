@@ -140,8 +140,11 @@ Read only the documents relevant to the change:
   then the adapter remains package-private, explicit, and default-off. This
   independent Desktop activation follow-up did not block AR5/AR6, Workspace
   Focus, or Browser R2 closure and does not block other owner-accepted work.
-  Browser R2 authoritative handoff is closed; no successor task is
-  automatically active. AR4/AR5 did not add
+  Browser R2 authoritative handoff is closed. On 2026-08-24 the owner accepted
+  the Scale/Scene Object/Modular GUI plan listed below as the current engine lane.
+  This lane does not activate
+  State Format V2, ECS, a final Blueprint/Timeline editor, public Mod ABI, or
+  Desktop HMR. AR4/AR5 did not add
   a real backend or transport, public Agent ABI, OpenUI/A2UI, Agent persistence,
   live Desktop HMR, or Desktop production promotion.
   Desktop persistence remains an accepted, unfinished, conditional promotion
@@ -168,6 +171,14 @@ Read only the documents relevant to the change:
   closed stale-fence retry, and added Engine Lab + Cat Cafe Chromium/WebKit
   product evidence. It does not activate Desktop HMR, preserve arbitrary React
   state, or add a Save format/migration framework.
+- `docs/engine/proposals/scale-scene-object-and-modular-gui.md` and
+  `docs/engine/plans/2026-08-24-scale-scene-object-modular-gui.md` — the accepted
+  target contract and only current execution plan. M0–M5 own scale evidence,
+  content/runtime separation, sparse State hot plans, incremental authoring
+  indexing, GUI module boundaries, the first Authoring Scene object hierarchy,
+  and the Inspector-first clean replacement of the old Studio shell. External
+  experiment repositories remain pressure sources only and never become source,
+  fixture, dependency, naming, or validation authority.
 - The plans and proposals dated 2026-08-19 through 2026-08-22 own the detailed
   acceptance and closure evidence for the six engine-gap lanes summarized
   above. The authoritative hold clock lane

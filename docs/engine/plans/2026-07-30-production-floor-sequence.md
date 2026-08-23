@@ -1,6 +1,6 @@
 # Production-floor execution sequence
 
-状态：持续维护的唯一跨计划排序入口；最近排序修订 2026-08-23。PF0–PF7 与 Complexity
+状态：持续维护的唯一跨计划排序入口；最近排序修订 2026-08-24。PF0–PF7 与 Complexity
 Reset 的 CR0、CR1、CR2.1–CR2.5、CR3、CR4 已于 2026-08-13 完成。CR4 的真实作者纵切没有
 暴露需要通用 PF6 harness 解决的问题，PF6 已重新裁决为
 不激活。同日以真实产品证据接受并完成了
@@ -68,7 +68,16 @@ fence currentness 没有成为 publication gate。所有者于 2026-08-23 接受
 stale-fence fail-closed retry、Base/Core 与 Web lifecycle 合同，以及 Engine Lab 和 Cat Cafe 的
 forward/reverse Chromium/WebKit product evidence。两个消费者都以真实 Save 导出证明权威进度连续、
 一次源码更新只换代一次 Game epoch 且零 page reload；该计划现已关闭。不得由本车道派生 Desktop
-activation，也没有后继任务自动成为 current/next。
+activation。2026-08-24 所有者随后接受并开启
+[Scale、Scene/Object 与模块化 GUI V1](2026-08-24-scale-scene-object-modular-gui.md)
+作为当前唯一 engine lane；目标合同见
+[Scale, Scene Object, and Modular GUI](../proposals/scale-scene-object-and-modular-gui.md)。它用仓内
+中性生成 workload 先解决大文本/多模块/authoring index 的规模风险，建立编译到现有 Stage/Timeline
+runtime 的第一阶 Authoring Scene object hierarchy，重新划分 core/player/devtools/authoring，并以
+Inspector-first surface 替换当前 Studio 产品外形。现有 Authoring Host、document session、CAS、
+structured operations 与 source IO substrate 保留；旧 workspace shell 在 replacement parity 后同轮
+删除。本车道不激活 State Format V2、ECS、最终 Blueprint/Timeline editor、public Mod ABI 或 Desktop
+HMR。
 首个经 release
 source/行为确认包含目标路径的 stable（2.9.6 只是预期候选）仍须重跑同一分层验收，全部通过后才
 正式打开 maintained Desktop development workflow。此前 adapter 保持 package-private、explicit、
@@ -82,8 +91,8 @@ ABI、runtime code installation、State Format V2、Effect Broker、具体 OpenU
 production Story State migration；Cordis adapter/vendor/dependency 已删除。ordinary no-extension
 静态游戏 release 仍不得包含 author/source-write、selected Direct extension runtime 或 RPC
 implementation。Workspace Focus 与 Browser R2 authoritative handoff 都已关闭；作品/examples/产品或
-其他 engine lane 仍未预排，必须回到 owner checkpoint。stable Deno Desktop revalidation 只在满足
-release source/行为进入条件后作为独立
+其他 engine lane 不得绕过当前 Scale/Scene Object/Modular GUI 计划。stable Deno Desktop revalidation
+只在满足 release source/行为进入条件后作为独立
 activation follow-up 领取，不占用或阻塞当前 Browser lane。
 
 前一条已关闭的能力车道（不形成 active/next）：

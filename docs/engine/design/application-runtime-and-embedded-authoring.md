@@ -250,6 +250,14 @@ code、安装后修改 build graph、第三方 manifest、resolver 或 distribut
 
 ## 5. One Authoring Host, multiple shells
 
+2026-08-24 接受的
+[Scale, Scene Object, and Modular GUI](../proposals/scale-scene-object-and-modular-gui.md)
+只取代本节的旧 Studio 产品形态，不取代 one Host / standalone-and-embedded placement、document
+session、CAS、dirty/history、selection/navigation 或 R1 continuity。M5 将以一个 Inspector-first
+implementation 同时服务两种 placement；当前五 workspace rail、`StudioAppV1` 与旧 route/bundle 在达到
+M5 accepted replacement surface 后原子删除或替换，不作为 migration wrapper、兼容层或功能 parity
+要求。以下 AR3 implementation status 在 M5 前仍如实描述 live V1。
+
 统一创作架构的“一个外壳”演进为“一个 **Authoring Host**、多个承载方式”：
 
 ```text
@@ -260,13 +268,13 @@ Authoring Host
   preview and publication coordination
         |                         |
         v                         v
-standalone Studio route      embedded author surface
+standalone author surface    embedded author surface
 ```
 
-两种 shell 必须消费同一 Host、同一 workspace implementation、同一文档 session 和同一 source
-IO；不得各自复制 dirty、undo、save 或 conflict 语义。现有 `/__sillymaker/studio/` 保留为迁移
-wrapper；AR3 已证明 embedded consumer 的 GUI、R1、dirty draft 和输入/焦点行为，standalone
-route 仍作为同一 Host 的有用完整页面保留，不是第二套编辑器。
+两种 placement 必须消费同一 Host contract、同一 accepted author surface implementation、同一文档
+session 和同一 source IO；不得各自复制 dirty、undo、save 或 conflict 语义。AR3 已证明 embedded
+consumer 的 GUI、R1、dirty draft 和输入/焦点行为；standalone placement 是同一作者产品的完整页面，
+不是第二套编辑器。
 
 Authoring Host 与 Application Host 下其他 Application Domain 是相互独立的 sibling。其他领域的
 R1 presentation/tool/workspace successor 与 R2 authoritative Application Domain successor 的

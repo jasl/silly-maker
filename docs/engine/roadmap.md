@@ -1,6 +1,6 @@
 # SillyMaker engine roadmap
 
-状态：2026-07-19 接受，最近审查修订 2026-08-23。已 promotion 的稳定能力以
+状态：2026-07-19 接受，最近审查修订 2026-08-24。已 promotion 的稳定能力以
 [features](features.md) 为准；已交付但仍 provisional/package-private 的实验 seam 以对应 active
 plan closure 与 [architecture](architecture.md) 为准；历史交付见
 [roadmap archive](roadmap-archive.md)。当前执行入口只有
@@ -18,7 +18,9 @@ SillyMaker 是面向 **GUI 应用和游戏** 的 React + TypeScript 引擎；游
 - 长期状态的虚拟伴侣；
 - 使用同一语义契约的 Agent/GenUI workspace。
 
-目标不是复制 Unity/Godot 的通用编辑器与 scene tree，而是建立一套可生产、可诊断、可回放、可迁移、适合人类与 Coding Agent 协作的专门平台：
+目标不是复制 Unreal/Unity/Godot 的通用编辑器，而是吸收其对象层级、组件检视、专门 Timeline/
+行为工具与代码扩展的成熟分层，建立一套可生产、可诊断、可回放、可迁移、适合人类与 Coding Agent
+协作的专门平台：
 
 ```text
 stable deterministic core
@@ -175,10 +177,22 @@ authority 缺口；Engine Lab 与 Cat Cafe 的 Chromium/WebKit forward/reverse H
 单次 Game epoch 换代、零 page reload 和 successor command 证明产品 State/Save continuity。该计划已
 关闭，无后继任务自动激活。它不等待或激活 Desktop HMR，不承诺任意 React state 跨代，也不新增
 Save format/framework。
+
+2026-08-24 所有者接受并开启
+[Scale、Scene/Object 与模块化 GUI V1](plans/2026-08-24-scale-scene-object-modular-gui.md)
+作为当前 engine lane，目标合同见
+[Scale, Scene Object, and Modular GUI](proposals/scale-scene-object-and-modular-gui.md)。本轮以中性
+Scale Lab 与持续预算解决静态大文本、稀疏多模块 transaction、initial bundle 和 authoring index 的
+规模风险；增加编译到现有 Stage/Timeline 的第一阶 ordered layer/object hierarchy；把 GUI kernel、
+Player preset、devtools 与 authoring 收口成单向、可静态排除的边界；最后以 Inspector-first surface
+替换现有 Studio 产品外形。Authoring Host、document session、CAS、structured operations 与 source IO
+等中立 substrate 保留；旧 workspace shell 不形成兼容层。本轮不激活 State Format V2、ECS、最终
+Blueprint/Timeline editor、public Mod ABI 或 Desktop HMR。
+
 排序与交付记录以
 [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md) §1
 为准；稳定 promoted capability 以 [features](features.md) 为准，AR4 private provisional seam
-仍以本计划 closure 与 live architecture 记录，不提前进入 features。
+仍以 Application Runtime plan closure 与 live architecture 记录，不提前进入 features。
 
 2026-08-18 新的外部规模证据激活了一个独立分支实验：
 [Experimental composition kernel and State Runtime](plans/2026-08-18-experimental-composition-state-runtime.md)。
@@ -209,8 +223,8 @@ Direct backend，并删除 Cordis adapter/vendor/dependency。AR2 structured aut
 experimental Agent Host/UiArtifact fake vertical slice 也已于同日交付。AR5 build、Browser GUI Host、
 lifetime 与 performance promotion 及 AR6 closure/owner checkpoint 已于 2026-08-23 交付关闭。目标合同见
 [Application Runtime and Embedded Authoring](design/application-runtime-and-embedded-authoring.md)。
-本轮只交付引擎基础设施；下一条 engine lane、作品、examples 或产品由所有者另行讨论和立案，不预设名称或
-顺序。未写入 active plan 的候选不是默认 backlog。已接受但未完成的 Desktop HMR stable
+Application Runtime 本轮只交付引擎基础设施；后继顺序现由 2026-08-24 Scale/Scene Object/Modular
+GUI active plan 接管。未写入 active plan 的候选不是默认 backlog。已接受但未完成的 Desktop HMR stable
 revalidation 与 Desktop production promotion 保持独立、条件性，只 gate 各自的 Desktop claim/
 workflow，不阻塞 core 或其他工作。
 

@@ -1,9 +1,16 @@
 # 场景创作模型与 SillyMaker Studio
 
-状态：2026-08-14 接受的目标设计。产品证据：所有者本人无法用当前工具完成"把小雨向左拖一点、
-入场再快一点"级别的基本场景修改；外部实验仓（真实规模内容项目，外部台账）持续复现同类
-作者痛点。本文固定 Human Authoring Model（Scene 文档、authoring geometry、cue→motion
-绑定）与 SillyMaker Studio 的目标合同；2026-08-14 已交付 V1 的实施顺序与验收记录由
+状态：2026-08-14 接受并已交付的 V1 设计；其 Scene 文档/runtime 编译合同仍描述 live 能力，
+但五 workspace Studio 产品外形已于 2026-08-24 被
+[Scale, Scene Object, and Modular GUI](../proposals/scale-scene-object-and-modular-gui.md)
+取代为当前目标。新 Inspector 达到 M5 accepted replacement surface 前，本文继续如实描述现有实现；
+之后旧 shell、
+旧导出、专属测试与过时产品表述同轮删除，不建立兼容双轨。
+
+产品证据：所有者本人无法用当前工具完成"把小雨向左拖一点、入场再快一点"级别的基本场景修改；
+外部实验仓（真实规模内容项目，外部台账）持续复现同类作者痛点。本文记录 V1 Human Authoring Model
+（Scene 文档、authoring geometry、cue→motion 绑定）与 SillyMaker Studio 合同；2026-08-14 已交付
+V1 的实施顺序与验收记录由
 [VN Scene Workspace 计划](../plans/2026-08-14-vn-scene-workspace.md) 保留，live 实况由
 `features.md` 记录。设计存在不等于 live capability。
 

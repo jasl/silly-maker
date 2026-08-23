@@ -8,6 +8,14 @@
 Studio 完成——这要求创作工具的信任性、结构化编辑操作与工程局部性优先于新增底层
 Runtime 能力。2026-08-15 外部评审与所有者结论一致。
 
+2026-08-24 接受的
+[Scale, Scene Object, and Modular GUI](../proposals/scale-scene-object-and-modular-gui.md)
+保留本文的 Authoring Host、project index、document session、CAS、undo/redo、structured operations、
+source IO 与 standalone/embedded continuity；它撤回五 workspace rail 和 monolithic Studio shell 作为
+长期产品形态，并在达到 M5 accepted replacement surface 后以 Inspector-first surface 原子替换。
+本文以下 workspace
+产品描述在替换完成前仍是 live V1 记录，不是新目标或兼容承诺。
+
 本文固定创作架构的目标合同；2026-08-15 已交付 V1 的实施顺序与验收记录由
 [Authoring Architecture 计划](../plans/2026-08-15-authoring-architecture.md) 保留；
 [场景创作模型与 SillyMaker Studio](scene-authoring-and-studio.md) 继续拥有 Scene
