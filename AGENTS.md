@@ -124,20 +124,22 @@ Read only the documents relevant to the change:
   preserving dirty sessions, progressive Flow, standalone/embedded shells, and
   Authoring R1 continuity. It does not build an IDE, WindowManager, or public
   workspace/plugin ABI, and it neither waits for nor activates Desktop HMR. The
-  same audit found that ordinary Browser product R2 still lacks authoritative
+  same audit found that ordinary Browser product R2 still lacked authoritative
   Snapshot continuity across its lease-only rebootstrap disposition. The owner
   accepted
   `docs/engine/plans/2026-08-23-browser-r2-authoritative-state-handoff.md`
-  as the next engine lane: M0 must first characterize exact Save + lease
-  handoff, writable takeover, and stale-fence retry before Engine Lab and Cat
-  Cafe can promote Browser R2 state continuity. This is a Save/Session contract,
+  as the next engine lane. M0–M2 delivered the package-private exact Save +
+  lease handoff, writable takeover gate, replay-base adoption, current-pair
+  retry, and focused Base/Core/Web contracts on 2026-08-23. M3 is the only next
+  task: Engine Lab and Cat Cafe must prove forward/reverse Chromium/WebKit
+  continuity before Browser R2 state continuity is promoted. This is a Save/Session contract,
   not Vite wiring; it does not activate Desktop HMR. The first
   stable whose source and behavior contain that path must re-run the same
   acceptance before the maintained Desktop development workflow activates. Until
   then the adapter remains package-private, explicit, and default-off. This
   independent Desktop activation follow-up did not block AR5/AR6 or Workspace
   Focus closure and does not block this Browser lane or other owner-accepted
-  work. Browser R2 authoritative handoff M0 is the only current/next task; no
+  work. Browser R2 authoritative handoff M3 is the only current/next task; no
   successor after that plan closes is automatically active. AR4/AR5 did not add
   a real backend or transport, public Agent ABI, OpenUI/A2UI, Agent persistence,
   live Desktop HMR, or Desktop production promotion.
@@ -159,11 +161,12 @@ Read only the documents relevant to the change:
   neutral State façade. It does not activate a public Mod ABI, State Format V2,
   Effect Broker, or production Story migration.
 - `docs/engine/plans/2026-08-23-browser-r2-authoritative-state-handoff.md` —
-  the active post-Workspace-Focus engine lane. It replaces the lease-only
+  the active post-Workspace-Focus engine lane. M0–M2 replaced the lease-only
   Browser R2 disposition with one package-private exact Save + lease handoff,
-  gates publication on writable takeover, preserves replay-base/currentness,
-  and closes stale-fence retry before Engine Lab and Cat Cafe promotion. It
-  does not activate Desktop HMR or add a Save format/migration framework.
+  gated publication on writable takeover, preserved replay-base/currentness,
+  and closed stale-fence retry. M3 is the only next task and owns Engine Lab +
+  Cat Cafe Chromium/WebKit product evidence. It does not activate Desktop HMR
+  or add a Save format/migration framework.
 - The plans and proposals dated 2026-08-19 through 2026-08-22 own the detailed
   acceptance and closure evidence for the six engine-gap lanes summarized
   above. The authoritative hold clock lane

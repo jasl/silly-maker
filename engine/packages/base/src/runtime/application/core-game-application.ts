@@ -94,16 +94,18 @@ import {
 } from "../session/game-session.ts";
 import type {
   CreateStandardPersistenceServiceOptionsV1,
-  PersistenceRebootstrapDisposalV1,
+  PersistenceRebootstrapHandoffInternalV1,
   PersistenceServiceV1,
   SaveSummaryProjectionInstrumentationInternalV1,
 } from "../persistence/persistence-service.ts";
 import {
+  adoptPersistenceRebootstrapHandoffInternalV1,
   admitAdoptionDeclarationsInternalV1,
   bindPersistenceAnchorReplacementInternalV1,
   captureAutoSaveWithReceiptInternalV1,
   createInstrumentedPersistenceServiceV1,
   createPersistenceServiceV1,
+  disposePersistenceForRebootstrapInternalV1,
   fencePersistencePlayerMutationsInternalV1,
   importWithReplacementCommitInternalV1,
   loadWithReplacementCommitInternalV1,
@@ -891,13 +893,24 @@ export interface CreateCoreGameApplicationInstanceOptionsV1 {
   readonly scheduler?: CoreSchedulerV1;
   /** Application build identity digest for diagnostics provenance. */
   readonly appBuildId?: Digest;
-  /**
-   * A persistence disposition handed over from a disposed predecessor
-   * (dev rebootstrap): the successor defers lease acquisition to the
-   * handoff instead of acquiring a fresh initial lease.
-   */
-  readonly rebootstrapDisposition?: DeepReadonly<PersistenceRebootstrapDisposalV1>;
+  /** @internal Exact Save + released lease generation from a fenced predecessor. */
+  readonly rebootstrapHandoff?: DeepReadonly<CoreRebootstrapHandoffInternalV1>;
+  /** @internal Receives the definitive recovery state before a failed successor rejects. */
+  readonly onRebootstrapStartFailureInternal?: (
+    outcome: DeepReadonly<CoreRebootstrapStartFailureInternalV1>,
+  ) => void;
 }
+
+/** @internal Package-private authoritative state and writer-generation handoff. */
+export type CoreRebootstrapHandoffInternalV1 = PersistenceRebootstrapHandoffInternalV1;
+
+/** @internal Definitive recovery state for one failed rebootstrap construction. */
+export type CoreRebootstrapStartFailureInternalV1 =
+  | {
+    readonly kind: "ready";
+    readonly handoff: DeepReadonly<CoreRebootstrapHandoffInternalV1>;
+  }
+  | { readonly kind: "terminal" };
 
 /**
  * The player-rollback policy (R7): an opt-in, bounded checkpoint ring over
@@ -1016,10 +1029,10 @@ export interface CoreGameApplicationInstanceV1<
    */
   invalidateForHmr(): void;
   /**
-   * Disposes the instance and returns the persistence handoff disposition a
-   * successor passes back through `rebootstrapDisposition`.
+   * Disposes the instance and returns the exact Save + released lease handoff a
+   * successor passes back through `rebootstrapHandoff`.
    */
-  disposeForRebootstrap(): Promise<DeepReadonly<PersistenceRebootstrapDisposalV1>>;
+  disposeForRebootstrap(): Promise<DeepReadonly<CoreRebootstrapHandoffInternalV1>>;
 }
 
 function readBootstrapRngSeedV1(
@@ -1595,7 +1608,7 @@ export async function createCoreGameApplicationInstanceV1<
         classifyWriteCandidate: (state: DeepReadonly<TTypes["state"]>) =>
           inFlightInhibitForfeited ? "safepoint" as const : classifyStateSafepointV1(state),
       }),
-      leaseAcquisition: options.rebootstrapDisposition === undefined
+      leaseAcquisition: options.rebootstrapHandoff === undefined
         ? "acquire_initial"
         : "deferred_rebootstrap",
     };
@@ -1610,10 +1623,14 @@ export async function createCoreGameApplicationInstanceV1<
           : { saveSummaryProjectionInstrumentation: saveProjectionInstrumentation },
       );
     const persistence = persistenceService;
-    if (options.rebootstrapDisposition !== undefined) {
-      // Dev rebootstrap: take over the predecessor's released lease through
-      // its explicit handoff disposition instead of a fresh acquisition.
-      await persistence.takeOverForRebootstrap(options.rebootstrapDisposition);
+    if (options.rebootstrapHandoff !== undefined) {
+      // Dev rebootstrap: strict Save admission precedes the exact writable
+      // lease takeover, and the existing atomic replacement participant
+      // installs Session, Persistence, and replay-base authority together.
+      await adoptPersistenceRebootstrapHandoffInternalV1(
+        persistence,
+        options.rebootstrapHandoff,
+      );
     } else if (definition.resumeFromAutosave === true) {
       // Boot-time resume: adopt the previous session's autosave when one
       // is runnable; rejections (empty slot, incompatible record) keep
@@ -2282,29 +2299,66 @@ export async function createCoreGameApplicationInstanceV1<
       cleanups.push(() => disposeExtensions());
     }
 
-    let disposalPromise: Promise<DeepReadonly<PersistenceRebootstrapDisposalV1>> | undefined;
-    const disposeForRebootstrapV1 = (): Promise<DeepReadonly<PersistenceRebootstrapDisposalV1>> => {
-      if (disposalPromise !== undefined) return disposalPromise;
-      const deferred = createDeferredV1<DeepReadonly<PersistenceRebootstrapDisposalV1>>();
-      disposalPromise = deferred.promise;
+    let disposalKind: "ordinary" | "rebootstrap" | null = null;
+    let ordinaryDisposalPromise: Promise<void> | undefined;
+    let rebootstrapDisposalPromise:
+      | Promise<DeepReadonly<CoreRebootstrapHandoffInternalV1>>
+      | undefined;
+    const runDisposalStepV1 = (step: () => void): void => {
+      try {
+        step();
+      } catch (error) {
+        reportObserverFailure(error);
+      }
+    };
+    const beginDisposalV1 = (): void => {
       disposed = true;
-      const runDisposalStepV1 = (step: () => void): void => {
-        try {
-          step();
-        } catch (error) {
-          reportObserverFailure(error);
-        }
-      };
       // Fence both authoritative and persistence mutation ingress before any
       // owned cleanup can reenter disposal or throw.
       invalidateForHmrV1();
       for (const cleanup of cleanups.splice(0)) runDisposalStepV1(cleanup);
+    };
+    const disposeForRebootstrapV1 = (): Promise<
+      DeepReadonly<CoreRebootstrapHandoffInternalV1>
+    > => {
+      if (rebootstrapDisposalPromise !== undefined) return rebootstrapDisposalPromise;
+      if (disposalKind !== null) {
+        return Promise.reject(new TypeError("core.rebootstrap_disposal_unavailable"));
+      }
+      disposalKind = "rebootstrap";
+      const deferred = createDeferredV1<DeepReadonly<CoreRebootstrapHandoffInternalV1>>();
+      rebootstrapDisposalPromise = deferred.promise;
+      beginDisposalV1();
       try {
-        void persistence.disposeForRebootstrap().then(deferred.resolve, deferred.reject);
+        void disposePersistenceForRebootstrapInternalV1(persistence).then(
+          deferred.resolve,
+          deferred.reject,
+        );
       } catch (error) {
         deferred.reject(error);
       }
-      return disposalPromise;
+      return rebootstrapDisposalPromise;
+    };
+    const disposeOrdinarilyV1 = (): Promise<void> => {
+      if (ordinaryDisposalPromise !== undefined) return ordinaryDisposalPromise;
+      if (disposalKind === "rebootstrap") {
+        ordinaryDisposalPromise = Promise.resolve(rebootstrapDisposalPromise).then(
+          () => undefined,
+          (error) => reportObserverFailure(error),
+        );
+        return ordinaryDisposalPromise;
+      }
+      disposalKind = "ordinary";
+      beginDisposalV1();
+      ordinaryDisposalPromise = (async () => {
+        try {
+          await flushAutoSaveV1();
+        } catch (error) {
+          reportObserverFailure(error);
+        }
+        await persistence.dispose();
+      })();
+      return ordinaryDisposalPromise;
     };
 
     const admin: CoreApplicationAdminV1<TTypes> = Object.freeze({
@@ -2536,7 +2590,7 @@ export async function createCoreGameApplicationInstanceV1<
       isDisposed: () => disposed,
       dispose: async () => {
         unregisterInstanceInternalsV1();
-        await disposeForRebootstrapV1();
+        await disposeOrdinarilyV1();
         return Object.freeze({ kind: "disposed" as const });
       },
       invalidateForHmr: () => {
@@ -2565,13 +2619,42 @@ export async function createCoreGameApplicationInstanceV1<
     return instance;
   } catch (error) {
     disposed = true;
-    for (const cleanup of cleanups.splice(0)) cleanup();
+    for (const cleanup of cleanups.splice(0)) {
+      try {
+        cleanup();
+      } catch (cleanupError) {
+        reportObserverFailure(cleanupError);
+      }
+    }
     if (persistenceService !== undefined) {
       fencePersistencePlayerMutationsInternalV1(persistenceService);
     }
     created.invalidationController.invalidateForHmr();
-    if (persistenceService !== undefined) {
-      await persistenceService.disposeForRebootstrap();
+    if (options.rebootstrapHandoff === undefined) {
+      if (persistenceService !== undefined) await persistenceService.dispose();
+    } else {
+      let outcome: DeepReadonly<CoreRebootstrapStartFailureInternalV1>;
+      if (persistenceService === undefined) {
+        // The handoff never crossed into Persistence, so its Save and released
+        // fence are still the exact ready pair supplied by the predecessor.
+        outcome = Object.freeze({
+          kind: "ready" as const,
+          handoff: options.rebootstrapHandoff,
+        });
+      } else {
+        try {
+          const latest = await disposePersistenceForRebootstrapInternalV1(persistenceService);
+          outcome = Object.freeze({ kind: "ready" as const, handoff: latest });
+        } catch (handoffError) {
+          reportObserverFailure(handoffError);
+          outcome = Object.freeze({ kind: "terminal" as const });
+        }
+      }
+      try {
+        options.onRebootstrapStartFailureInternal?.(outcome);
+      } catch (callbackError) {
+        reportObserverFailure(callbackError);
+      }
     }
     throw error;
   }

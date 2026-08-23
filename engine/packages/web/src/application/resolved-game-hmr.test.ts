@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: MIT
 import type { BuildProvenanceV1, Digest, RuntimeInvalidationControllerV1 } from "@sillymaker/base";
 import { digestBytes, parsePositiveSafeInteger } from "@sillymaker/base";
+import type { CoreRebootstrapHandoffInternalV1 } from "@sillymaker/base/runtime/internal";
 import { describe, expect, it, vi } from "vitest";
 
+import { installWebGameApplicationHmrV1 } from "./install-web-game-application-hmr.ts";
 import {
   createResolvedGameHmrIdentityV1,
   installResolvedGameHmrV1,
   type ResolvedGameHmrHotAdapterV1,
   type ResolvedGameHmrRebootstrapInputV1,
 } from "./resolved-game-hmr.ts";
+import type { StartedWebGameApplicationV1 } from "./start-web-game-application.tsx";
 
 function digest(label: string): Digest {
   return digestBytes(new TextEncoder().encode(label));
@@ -129,20 +132,62 @@ function createLifecycleFixtureV1(events: string[] = []) {
   const invalidationController = Object.freeze({
     invalidateForHmr,
   }) as RuntimeInvalidationControllerV1;
-  const disposition = Object.freeze({ kind: "disposed" as const });
+  const handoff = Object.freeze({ kind: "disposed" as const });
   const disposeForRebootstrap = vi.fn(async () => {
     events.push("dispose");
-    return disposition;
+    return handoff;
   });
   return Object.freeze({
     invalidationController,
     invalidateForHmr,
     disposeForRebootstrap,
-    disposition,
+    handoff,
   });
 }
 
 describe("resolved Game HMR", () => {
+  it("retries an untouched handoff after successor pre-Core construction fails", async () => {
+    const current = provenanceV1();
+    const accepted = withProvenanceChangeV1(current, "presentationDigest");
+    const hot = createHotFixtureV1<{ readonly provenance: BuildProvenanceV1 }>();
+    const handoff = Object.freeze({
+      marker: "exact-handoff",
+    }) as unknown as CoreRebootstrapHandoffInternalV1;
+    const predecessor = Object.freeze({
+      provenance: current,
+      invalidateForHmr: vi.fn(),
+      disposeForRebootstrap: vi.fn(async () => handoff),
+    }) as unknown as StartedWebGameApplicationV1;
+    const preCoreFailure = new Error("synthetic pre-Core construction failure");
+    const failures: unknown[] = [];
+    const observedHandoffs: CoreRebootstrapHandoffInternalV1[] = [];
+    const installNextBoundary = vi.fn();
+    let attempts = 0;
+    const installation = installWebGameApplicationHmrV1({
+      hot: hot.hot,
+      started: predecessor,
+      resolveAcceptedProvenance: (module) => module.provenance,
+      async startSuccessor(input) {
+        attempts += 1;
+        observedHandoffs.push(input.handoff as CoreRebootstrapHandoffInternalV1);
+        if (attempts === 1) throw preCoreFailure;
+        return predecessor;
+      },
+      installNextBoundary,
+      reportFailure: (error) => failures.push(error),
+    });
+
+    hot.emit(Object.freeze({ provenance: accepted }));
+    await installation.waitForTransition();
+    expect(failures).toEqual([preCoreFailure]);
+    expect(installNextBoundary).not.toHaveBeenCalled();
+
+    hot.emit(Object.freeze({ provenance: accepted }));
+    await installation.waitForTransition();
+    expect(observedHandoffs).toEqual([handoff, handoff]);
+    expect(installNextBoundary).toHaveBeenCalledOnce();
+  });
+
   it("extracts only the reviewed frozen ResolvedGame identity tuple", () => {
     const provenance = provenanceV1();
     const identity = createResolvedGameHmrIdentityV1(provenance);
@@ -287,6 +332,35 @@ describe("resolved Game HMR", () => {
     expect(rebootstrap).not.toHaveBeenCalled();
   });
 
+  it("keeps the predecessor live when candidate eligibility is not established", async () => {
+    const current = provenanceV1();
+    const changed = withProvenanceChangeV1(current, "simulationDigest");
+    const hot = createHotFixtureV1<{ readonly provenance: BuildProvenanceV1 }>();
+    const lifecycle = createLifecycleFixtureV1();
+    const reportFailure = vi.fn();
+    const rebootstrap = vi.fn(async () => undefined);
+    const installation = installResolvedGameHmrV1({
+      hot: hot.hot,
+      currentProvenance: current,
+      lifecycle,
+      resolveAcceptedProvenance: (module) => module!.provenance,
+      isRebootstrapEligible: () => false,
+      rebootstrap,
+      reportFailure,
+    });
+
+    hot.emit({ provenance: changed });
+    await installation.waitForTransition();
+
+    expect(reportFailure).toHaveBeenCalledOnce();
+    expect(reportFailure.mock.calls[0]?.[0]).toMatchObject({
+      message: "web.hmr_rebootstrap_ineligible",
+    });
+    expect(lifecycle.invalidateForHmr).not.toHaveBeenCalled();
+    expect(lifecycle.disposeForRebootstrap).not.toHaveBeenCalled();
+    expect(rebootstrap).not.toHaveBeenCalled();
+  });
+
   it.each(
     [
       "storyId",
@@ -330,12 +404,12 @@ describe("resolved Game HMR", () => {
         previous: createResolvedGameHmrIdentityV1(current),
         next: createResolvedGameHmrIdentityV1(changed),
       },
-      disposition: lifecycle.disposition,
+      handoff: lifecycle.handoff,
     });
     expect(events).toEqual(["invalidate", "dispose", "rebootstrap"]);
   });
 
-  it("invalidates on resolution failure and reuses the same rebootstrap callback", async () => {
+  it("reports resolution failure without retiring the predecessor", async () => {
     const events: string[] = [];
     const hot = createHotFixtureV1<object>();
     const lifecycle = createLifecycleFixtureV1(events);
@@ -357,16 +431,13 @@ describe("resolved Game HMR", () => {
     });
 
     hot.emit({});
-    expect(lifecycle.invalidateForHmr).toHaveBeenCalledOnce();
     await installation.waitForTransition();
 
     expect(reportFailure).toHaveBeenCalledOnce();
-    expect(rebootstrap).toHaveBeenCalledWith({
-      module: {},
-      reason: { kind: "resolution_failed" },
-      disposition: lifecycle.disposition,
-    });
-    expect(events).toEqual(["invalidate", "report", "dispose", "rebootstrap"]);
+    expect(lifecycle.invalidateForHmr).not.toHaveBeenCalled();
+    expect(lifecycle.disposeForRebootstrap).not.toHaveBeenCalled();
+    expect(rebootstrap).not.toHaveBeenCalled();
+    expect(events).toEqual(["report"]);
   });
 
   it("retries a later accepted module after rebootstrap fails without repeating invalidation or disposal", async () => {
@@ -380,7 +451,7 @@ describe("resolved Game HMR", () => {
     const reportFailure = vi.fn();
     const rebootstrap = vi.fn(
       async (
-        _input: ResolvedGameHmrRebootstrapInputV1<AcceptedModule, typeof lifecycle.disposition>,
+        _input: ResolvedGameHmrRebootstrapInputV1<AcceptedModule, typeof lifecycle.handoff>,
       ) => {
         if (rebootstrap.mock.calls.length === 1) throw firstFailure;
       },
@@ -407,12 +478,12 @@ describe("resolved Game HMR", () => {
     expect(rebootstrap.mock.calls[0]?.[0]).toMatchObject({
       module: { provenance: firstChanged },
       reason: { kind: "identity_changed" },
-      disposition: lifecycle.disposition,
+      handoff: lifecycle.handoff,
     });
     expect(rebootstrap.mock.calls[1]?.[0]).toMatchObject({
       module: { provenance: recovered },
       reason: { kind: "identity_changed" },
-      disposition: lifecycle.disposition,
+      handoff: lifecycle.handoff,
     });
 
     hot.emit({ provenance: firstChanged });
@@ -420,7 +491,41 @@ describe("resolved Game HMR", () => {
     expect(rebootstrap).toHaveBeenCalledTimes(2);
   });
 
-  it("recovers from a failed-resolution transition when a later accepted module is valid", async () => {
+  it("closes a failed boundary when no current handoff remains retryable", async () => {
+    type AcceptedModule = { readonly provenance: BuildProvenanceV1 };
+    const current = provenanceV1();
+    const firstChanged = withProvenanceChangeV1(current, "presentationDigest");
+    const laterChanged = withProvenanceChangeV1(current, "simulationDigest");
+    const hot = createHotFixtureV1<AcceptedModule>();
+    const lifecycle = createLifecycleFixtureV1();
+    const failure = new Error("rebootstrap consumed its last handoff");
+    const reportFailure = vi.fn();
+    const rebootstrap = vi.fn(async () => {
+      throw failure;
+    });
+    const installation = installResolvedGameHmrV1({
+      hot: hot.hot,
+      currentProvenance: current,
+      lifecycle,
+      resolveAcceptedProvenance: (module) => module!.provenance,
+      rebootstrap,
+      canRetryRebootstrap: () => false,
+      reportFailure,
+    });
+
+    hot.emit({ provenance: firstChanged });
+    await installation.waitForTransition();
+    hot.emit({ provenance: laterChanged });
+    await installation.waitForTransition();
+
+    expect(reportFailure).toHaveBeenCalledOnce();
+    expect(reportFailure).toHaveBeenCalledWith(failure);
+    expect(lifecycle.invalidateForHmr).toHaveBeenCalledOnce();
+    expect(lifecycle.disposeForRebootstrap).toHaveBeenCalledOnce();
+    expect(rebootstrap).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the boundary open for a valid candidate after a resolution failure", async () => {
     type AcceptedModule =
       | { readonly kind: "unresolved" }
       | { readonly kind: "resolved"; readonly provenance: BuildProvenanceV1 };
@@ -429,14 +534,11 @@ describe("resolved Game HMR", () => {
     const hot = createHotFixtureV1<AcceptedModule>();
     const lifecycle = createLifecycleFixtureV1();
     const resolutionFailure = new Error("accepted module has no provenance");
-    const rebootstrapFailure = new Error("unresolved module cannot rebootstrap");
     const reportFailure = vi.fn();
     const rebootstrap = vi.fn(
-      async ({
-        module,
-      }: ResolvedGameHmrRebootstrapInputV1<AcceptedModule, typeof lifecycle.disposition>) => {
-        if (module?.kind === "unresolved") throw rebootstrapFailure;
-      },
+      async (
+        _input: ResolvedGameHmrRebootstrapInputV1<AcceptedModule, typeof lifecycle.handoff>,
+      ) => undefined,
     );
     const installation = installResolvedGameHmrV1({
       hot: hot.hot,
@@ -455,52 +557,15 @@ describe("resolved Game HMR", () => {
     hot.emit({ kind: "resolved", provenance: recovered });
     await installation.waitForTransition();
 
-    expect(reportFailure).toHaveBeenNthCalledWith(1, resolutionFailure);
-    expect(reportFailure).toHaveBeenNthCalledWith(2, rebootstrapFailure);
+    expect(reportFailure).toHaveBeenCalledOnce();
+    expect(reportFailure).toHaveBeenCalledWith(resolutionFailure);
     expect(lifecycle.invalidateForHmr).toHaveBeenCalledOnce();
     expect(lifecycle.disposeForRebootstrap).toHaveBeenCalledOnce();
-    expect(rebootstrap).toHaveBeenCalledTimes(2);
+    expect(rebootstrap).toHaveBeenCalledOnce();
     expect(rebootstrap.mock.calls[0]?.[0]).toMatchObject({
-      module: { kind: "unresolved" },
-      reason: { kind: "resolution_failed" },
-      disposition: lifecycle.disposition,
-    });
-    expect(rebootstrap.mock.calls[1]?.[0]).toMatchObject({
       module: { kind: "resolved", provenance: recovered },
       reason: { kind: "identity_changed" },
-      disposition: lifecycle.disposition,
-    });
-  });
-
-  it("passes stable disposal failures to a read-only replacement", async () => {
-    const current = provenanceV1();
-    const hot = createHotFixtureV1<{ readonly provenance: BuildProvenanceV1 }>();
-    const disposition = Object.freeze({
-      kind: "failed" as const,
-      code: "lease_release_failed" as const,
-    });
-    const lifecycle = Object.freeze({
-      invalidationController: Object.freeze({
-        invalidateForHmr: vi.fn(),
-      }) as RuntimeInvalidationControllerV1,
-      disposeForRebootstrap: vi.fn(async () => disposition),
-    });
-    const rebootstrap = vi.fn(async () => undefined);
-    const installation = installResolvedGameHmrV1({
-      hot: hot.hot,
-      currentProvenance: current,
-      lifecycle,
-      resolveAcceptedProvenance: (module) => module!.provenance,
-      rebootstrap,
-    });
-
-    hot.emit({ provenance: withProvenanceChangeV1(current, "simulationDigest") });
-    await installation.waitForTransition();
-
-    expect(rebootstrap).toHaveBeenCalledWith({
-      module: { provenance: withProvenanceChangeV1(current, "simulationDigest") },
-      reason: expect.objectContaining({ kind: "identity_changed" }),
-      disposition,
+      handoff: lifecycle.handoff,
     });
   });
 
@@ -530,6 +595,9 @@ describe("resolved Game HMR", () => {
     expect(() => hot.emit({ provenance: withProvenanceChangeV1(current, "presentationDigest") }))
       .not.toThrow();
     await expect(installation.waitForTransition()).resolves.toBeUndefined();
+    hot.emit({ provenance: withProvenanceChangeV1(current, "simulationDigest") });
+    await expect(installation.waitForTransition()).resolves.toBeUndefined();
+    expect(lifecycle.disposeForRebootstrap).toHaveBeenCalledOnce();
     expect(rebootstrap).not.toHaveBeenCalled();
   });
 

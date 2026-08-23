@@ -17,6 +17,35 @@ function deferredV1<T>() {
 }
 
 describe("Web application terminal supervisor", () => {
+  it("selects ordinary release separately from exact rebootstrap handoff", async () => {
+    const ordinaryRelease = vi.fn(async (mode: "ordinary" | "rebootstrap") => {
+      expect(mode).toBe("ordinary");
+      return undefined;
+    });
+    const ordinary = createWebApplicationTerminalSupervisorInternalV1({
+      fenceSteps: [],
+      cleanupSteps: [],
+      releaseCorePersistence: ordinaryRelease,
+    });
+
+    await expect(ordinary.disposeOrdinarily()).resolves.toBeUndefined();
+    expect(ordinaryRelease).toHaveBeenCalledOnce();
+
+    const handoff = Object.freeze({ kind: "handoff" as const });
+    const rebootstrapRelease = vi.fn(async (mode: "ordinary" | "rebootstrap") => {
+      expect(mode).toBe("rebootstrap");
+      return handoff;
+    });
+    const rebootstrap = createWebApplicationTerminalSupervisorInternalV1({
+      fenceSteps: [],
+      cleanupSteps: [],
+      releaseCorePersistence: rebootstrapRelease,
+    });
+
+    await expect(rebootstrap.disposeForRebootstrap()).resolves.toBe(handoff);
+    expect(rebootstrapRelease).toHaveBeenCalledOnce();
+  });
+
   it("installs one disposal promise before synchronous fence/cleanup reentry", async () => {
     const events: string[] = [];
     const release = deferredV1<"released">();

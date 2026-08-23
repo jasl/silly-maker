@@ -333,17 +333,16 @@ after retirement uses terminal recovery and does not restore the gameplay
 predecessor. Test Authoring sibling continuity in both cases, but do not call the
 latter a transactional R2 rollback.
 
-This is currently lifecycle evidence, not authoritative state-continuity
-promotion. The lease-only rebootstrap disposition does not carry the exact
-predecessor Save, and the Core successor skips autosave resume on that path;
-takeover failure and a stale-fence retry can also be hidden by the current start
-path. The active
+The package-private Browser R2 coordinator now carries one exact encoded Save +
+released lease fence. Core admits it through the existing Save migration/
+adoption pipeline, installs it as the Session/Persistence/CommandLog replay base,
+and publishes only after writable takeover; failed retries retain only a proven
+current Save/fence pair. Focused tests protect that authority contract. This is
+not yet product state-continuity promotion: the active
 [Browser R2 handoff plan](plans/2026-08-23-browser-r2-authoritative-state-handoff.md)
-must replace that shape with one exact encoded Save + released lease fence,
-reuse the existing Save migration/adoption/replay-base pipeline, and gate
-publication on writable ownership before Engine Lab or Cat Cafe claim
-authoritative R2 continuity. Do not use `auto.current` alone as the handoff and
-do not broaden this work into Desktop HMR or predecessor rollback.
+still requires M3 forward/reverse Chromium and WebKit evidence in Engine Lab and
+Cat Cafe. Do not use `auto.current` alone as the handoff and do not broaden this
+work into Desktop HMR or predecessor rollback.
 
 The AR5 headless seam keeps an in-flight Agent snapshot, request count, and RPC
 connection exact across a post-retirement successor UI-start failure and later

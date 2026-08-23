@@ -746,13 +746,15 @@ recovery and does **not** claim to restore the gameplay predecessor. Authoring
 remains a sibling outside that Game root in either case, but this is not a
 transactional predecessor-rollback guarantee for Game R2.
 
-The current lease-only rebootstrap disposition does not yet transfer the
-authoritative Snapshot: the successor also skips autosave resume, and writable
-takeover/current retry fencing are not publication gates. Therefore the matrix's
-Browser R2 cell currently describes lifecycle replacement only, not promoted
-State/Save continuity for product Stories. The active
+The Browser R2 coordinator now transfers one package-private exact encoded Save
+and released lease fence. Core reuses the existing migration/adoption pipeline,
+atomically establishes the Session/Persistence/CommandLog replay base, and gates
+publication on writable `n + 1` takeover; retry can use only a proven-current
+Save/fence pair. Focused Core/Web tests cover those semantics. The matrix's R2
+cell still describes lifecycle replacement rather than promoted product
+State/Save continuity until the active
 [Browser R2 authoritative handoff plan](plans/2026-08-23-browser-r2-authoritative-state-handoff.md)
-owns the exact encoded Save + lease correction and Engine Lab/Cat Cafe evidence;
+finishes M3 forward/reverse Chromium/WebKit evidence in Engine Lab and Cat Cafe.
 Desktop HMR remains independently inactive.
 
 [Deno documents `deno desktop --hmr` as a platform development option](https://docs.deno.com/runtime/reference/cli/desktop/),

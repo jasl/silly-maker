@@ -259,11 +259,11 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
       );
       expect(Number.isSafeInteger(predecessorEpoch)).toBe(true);
 
-      const disposition = await predecessor.disposeForRebootstrap();
+      const handoff = await predecessor.disposeForRebootstrap();
       successor = await startLabV1("", {
         host,
         gameBootstrapEntropy,
-        rebootstrapDisposition: disposition,
+        rebootstrapHandoff: handoff,
       });
       await waitFor(() => expect(screen.getByTestId("overlay-host")).toBeInTheDocument());
       const successorEpoch = Number(

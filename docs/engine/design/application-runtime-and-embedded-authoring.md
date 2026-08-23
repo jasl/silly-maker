@@ -455,10 +455,12 @@ lifecycle evidence；这些证据不合并为“所有 failure/rollback 都有 p
 Snapshot/Save，Core successor 取得 lease 后还会跳过 autosave resume；takeover `read_only` 与
 post-takeover retry 的 fence currentness 也没有成为 publication gate。所有者已接受
 [Browser R2 Authoritative State Handoff V1](../plans/2026-08-23-browser-r2-authoritative-state-handoff.md)
-作为当前 engine lane。目标是 package-private exact encoded Save + released lease fence，复用既有
-Save migration/adoption/replay-base，并只在 writable takeover 后发布；在该计划关闭前不得把 Engine Lab
-lifecycle evidence 推广为普通产品的 authoritative R2。该补口不改变 post-retirement failure 的
-terminal-recovery 边界，不建设 gameplay predecessor rollback，也不等待或激活 Desktop HMR。
+作为当前 engine lane。M0–M2 已实现 package-private exact encoded Save + released lease fence，复用
+既有 Save migration/adoption/replay-base，只在 writable takeover 后发布，并令 retry 只消费可证明
+current 的 Save/fence pair。M3 的 Engine Lab/Cat Cafe forward/reverse Chromium/WebKit evidence 尚未
+交付；在其关闭前不得把 focused authority tests 与既有 lifecycle evidence 推广为普通产品的
+authoritative R2。该补口不改变 post-retirement failure 的 terminal-recovery 边界，不建设 gameplay
+predecessor rollback，也不等待或激活 Desktop HMR。
 
 AR5 的一次性五组交错 fresh-build/fresh-Chromium-context runner 曾实测 first actionable paired
 median delta `-4.23ms / -3.54%`、stable command paired median delta

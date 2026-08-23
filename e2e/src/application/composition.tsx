@@ -766,7 +766,7 @@ function ownViteHotAdapterV1(input: {
 
 /**
  * Installs the Engine Lab's maintained Browser R2 boundary. The Web composer
- * fences and retires the predecessor, transfers its persistence disposition,
+ * fences and retires the predecessor, transfers its exact authoritative handoff,
  * starts the accepted Game/Session on the same Host/root, then asks the new
  * composition module to own the next self-accept generation.
  */
@@ -789,12 +789,18 @@ export function installLabGameApplicationHmrV1(
     hot,
     resolveAcceptedProvenance: (module) =>
       resolveLabGameApplicationProvenanceV1(module.labGameApplicationV1),
-    startSuccessor: ({ module, started: predecessor, disposition }) =>
+    startSuccessor: ({
+      module,
+      started: predecessor,
+      handoff,
+      onRebootstrapStartFailureInternal,
+    }) =>
       startWebGameApplicationV1(module.labGameApplicationV1, {
         rootElement,
         host: predecessor.host,
         capabilitySearch: predecessor.capabilitySearch,
-        rebootstrapDisposition: disposition,
+        rebootstrapHandoff: handoff,
+        onRebootstrapStartFailureInternal,
       }),
     installNextBoundary: ({ module, started: successor }) => {
       const nextBoundary = module.installLabGameApplicationHmrV1(successor, {

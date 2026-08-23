@@ -5,9 +5,14 @@ export interface WebApplicationDisposalStepInternalV1 {
   run(): void;
 }
 
+export type WebApplicationPersistenceReleaseModeInternalV1 =
+  | "ordinary"
+  | "rebootstrap";
+
 export interface WebApplicationTerminalSupervisorInternalV1<TDisposition> {
   isDisposalStarted(): boolean;
   getTerminalError(): Error | null;
+  disposeOrdinarily(): Promise<void>;
   disposeForRebootstrap(): Promise<TDisposition>;
   /** Fences immediately, then preserves the pagehide flush-before-release barrier. */
   disposeForPageHide(flush: () => Promise<void>): Promise<TDisposition>;
@@ -25,7 +30,10 @@ export interface WebApplicationTerminalSupervisorInternalV1<TDisposition> {
 export function createWebApplicationTerminalSupervisorInternalV1<TDisposition>(input: {
   readonly fenceSteps: readonly WebApplicationDisposalStepInternalV1[];
   readonly cleanupSteps: readonly WebApplicationDisposalStepInternalV1[];
-  releaseCorePersistence(): Promise<TDisposition> | TDisposition;
+  releaseCorePersistence(
+    mode: WebApplicationPersistenceReleaseModeInternalV1,
+  ): Promise<TDisposition> | TDisposition;
+  terminalReleaseMode?(): WebApplicationPersistenceReleaseModeInternalV1;
   reportFailure?(step: string, error: unknown): void;
 }): WebApplicationTerminalSupervisorInternalV1<TDisposition> {
   let resolveDisposal!: (value: TDisposition | PromiseLike<TDisposition>) => void;
@@ -39,6 +47,7 @@ export function createWebApplicationTerminalSupervisorInternalV1<TDisposition>(i
   // for explicit disposal callers.
   void disposalPromise.catch(() => undefined);
   let disposalStarted = false;
+  let disposalMode: WebApplicationPersistenceReleaseModeInternalV1 | null = null;
   let fencesRunning = false;
   let fencesCompleted = false;
   let cleanupStarted = false;
@@ -79,7 +88,7 @@ export function createWebApplicationTerminalSupervisorInternalV1<TDisposition>(i
     releaseStarted = true;
     let release: Promise<TDisposition>;
     try {
-      release = Promise.resolve(input.releaseCorePersistence());
+      release = Promise.resolve(input.releaseCorePersistence(disposalMode ?? "ordinary"));
     } catch (error) {
       reportFailure("core_persistence_release", error);
       rejectDisposal(error);
@@ -119,15 +128,19 @@ export function createWebApplicationTerminalSupervisorInternalV1<TDisposition>(i
     cleanupWaitStarted = true;
     void pageHideBarrier.then(requestCleanup);
   };
-  const startOrdinaryDisposal = (): void => {
+  const startDisposal = (mode: WebApplicationPersistenceReleaseModeInternalV1): void => {
     if (disposalStarted) return;
     disposalStarted = true;
+    disposalMode = mode;
     runFences();
     requestCleanup();
   };
   const latchTerminal = (error: Error): Error => {
     terminalError ??= error;
-    disposalStarted = true;
+    if (!disposalStarted) {
+      disposalStarted = true;
+      disposalMode = input.terminalReleaseMode?.() ?? "ordinary";
+    }
     runFences();
     // Terminal presentation failure cannot leave the mounted Root alive until
     // a pagehide flush settles. Core/Persistence release still stays behind
@@ -139,13 +152,18 @@ export function createWebApplicationTerminalSupervisorInternalV1<TDisposition>(i
   return Object.freeze({
     isDisposalStarted: () => disposalStarted,
     getTerminalError: () => terminalError,
+    disposeOrdinarily(): Promise<void> {
+      startDisposal("ordinary");
+      return disposalPromise.then(() => undefined);
+    },
     disposeForRebootstrap(): Promise<TDisposition> {
-      startOrdinaryDisposal();
+      startDisposal("rebootstrap");
       return disposalPromise;
     },
     disposeForPageHide(flush: () => Promise<void>): Promise<TDisposition> {
       if (disposalStarted) return disposalPromise;
       disposalStarted = true;
+      disposalMode = "ordinary";
       let resolveBarrier!: () => void;
       pageHideBarrier = new Promise<void>((resolve) => {
         resolveBarrier = resolve;

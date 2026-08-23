@@ -1,6 +1,6 @@
 # Browser R2 Authoritative State Handoff V1 实施计划
 
-状态：**2026-08-23 经所有者确认开启；M0 是唯一下一项，尚未交付**。
+状态：**2026-08-23 经所有者确认开启；M0–M2 已交付，M3 是唯一下一项**。
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 仍是唯一跨计划排序入口；
 本计划只拥有 Browser R2 的 authoritative Save/Session handoff、失败重试和两个真实 GUI
 消费者。Deno Desktop HMR 继续 package-private、explicit、default-off，只等待包含目标路径的
@@ -105,7 +105,7 @@ Cat Cafe 当前不受影响：它尚未安装 Browser R2，开发变更仍走 R3
 
 ## 4. 里程碑
 
-### M0 — Executable contract characterization（red evidence，不单独提交失败测试）
+### M0 — Executable contract characterization（已交付）
 
 - 用将长期保留的 focused Core/Web product-contract tests 复现三个当前可到达失败并先确认 red：
   有真实 State/RNG/pending 进度的 successor 不得重新 bootstrap；takeover `read_only` 不得发布；
@@ -115,7 +115,7 @@ Cat Cafe 当前不受影响：它尚未安装 Browser R2，开发变更仍走 R3
   simulation change 无 adoption/migration 必须在 predecessor retirement 前拒绝。保留 equal-R2→R3
   与 post-retirement terminal-recovery 边界。
 
-### M1 — Base/Core exact Save adoption 与 writable lease gate
+### M1 — Base/Core exact Save adoption 与 writable lease gate（已交付）
 
 - 以 authoritative handoff contract clean-break 替换 lease-only
   `PersistenceRebootstrapDisposalV1`/`rebootstrapDisposition`，同步删除旧 export、option、测试和文档
@@ -131,7 +131,7 @@ Cat Cafe 当前不受影响：它尚未安装 Browser R2，开发变更仍走 R3
 - focused replay 证明 handoff 后零-entry base 合法；successor 第一条 command 的 pre-state digest、
   committed RNG before 与 sequence 精确接续。rollback ring 只从新 replay base 重新播种。
 
-### M2 — Web coordinator lifecycle 与 retry currentness
+### M2 — Web coordinator lifecycle 与 retry currentness（已交付）
 
 - `resolved-game-hmr`、Web HMR installer、starter 和 terminal supervisor 只传新的 richer handoff；
   successor publication 必须晚于 authoritative adoption + writable ownership。

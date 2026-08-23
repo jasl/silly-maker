@@ -6,6 +6,8 @@
  */
 export {
   clearAllCoreApplicationSavesForMaintenanceInternalV1,
+  type CoreRebootstrapHandoffInternalV1,
+  type CoreRebootstrapStartFailureInternalV1,
   type CorePresentationAnchorEventInternalV1,
   prepareCoreApplicationRestartInternalV1,
   type PreparedCoreApplicationRestartInternalV1,

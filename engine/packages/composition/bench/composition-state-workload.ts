@@ -541,7 +541,7 @@ async function calibratePayloadBytesV1(
       }
       return payloadBytes;
     } finally {
-      await persistence.disposeForRebootstrap();
+      await persistence.dispose();
       await harness.dispose();
     }
   })();
@@ -773,8 +773,8 @@ export async function runNeutralStateCorrectnessV1(input: {
     );
     return observation;
   } finally {
-    await sourcePersistence.disposeForRebootstrap();
-    await targetPersistence.disposeForRebootstrap();
+    await sourcePersistence.dispose();
+    await targetPersistence.dispose();
     await sourceHarness.dispose();
     await targetHarness.dispose();
   }

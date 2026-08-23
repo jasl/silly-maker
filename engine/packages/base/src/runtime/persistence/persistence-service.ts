@@ -172,29 +172,11 @@ type PersistencePortV1 = PlayerPersistencePortV1<
   SaveBackupExportOperationResultV1
 >;
 
-export type PersistenceRebootstrapDisposalV1 =
-  | {
-    readonly ownership: "released";
-    readonly code: null;
-    readonly fence: DeepReadonly<SessionLeaseFenceV1>;
-  }
-  | {
-    readonly ownership: "read_only";
-    readonly code: "lease_release_failed";
-    readonly fence: null;
-  };
-
-export type PersistenceRebootstrapTakeoverV1 =
-  | {
-    readonly ownership: "writable";
-    readonly code: null;
-    readonly fence: DeepReadonly<SessionLeaseFenceV1>;
-  }
-  | {
-    readonly ownership: "read_only";
-    readonly code: "lease_release_failed" | "lease_takeover_failed";
-    readonly fence: null;
-  };
+/** @internal Exact Save and released lease generation carried between Core instances. */
+export interface PersistenceRebootstrapHandoffInternalV1 {
+  readonly save: DeepReadonly<ExportedSaveV1>;
+  readonly lease: DeepReadonly<SessionLeaseFenceV1>;
+}
 
 export interface PersistenceServiceV1<TSnapshot> {
   readonly port: PersistencePortV1;
@@ -210,10 +192,7 @@ export interface PersistenceServiceV1<TSnapshot> {
    */
   captureAutoSave(snapshot: DeepReadonly<TSnapshot>): void;
   autoSaveIdle(): Promise<void>;
-  disposeForRebootstrap(): Promise<PersistenceRebootstrapDisposalV1>;
-  takeOverForRebootstrap(
-    previous: DeepReadonly<PersistenceRebootstrapDisposalV1>,
-  ): Promise<PersistenceRebootstrapTakeoverV1>;
+  dispose(): Promise<void>;
 }
 
 export type PersistenceAutoSaveAttemptReceiptInternalV1 =
@@ -250,6 +229,10 @@ interface PersistenceServiceControlInternalV1 {
     publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
   ): void;
   fencePlayerMutations(): void;
+  disposeForRebootstrap(): Promise<PersistenceRebootstrapHandoffInternalV1>;
+  adoptRebootstrapHandoff(
+    handoff: DeepReadonly<PersistenceRebootstrapHandoffInternalV1>,
+  ): Promise<void>;
 }
 
 const persistenceServiceControlsInternalV1 = new WeakMap<
@@ -276,6 +259,29 @@ export function fencePersistencePlayerMutationsInternalV1<TSnapshot>(
     throw new TypeError("Persistence service does not support mutation fencing");
   }
   control.fencePlayerMutations();
+}
+
+/** @internal Retires one fenced runtime into a ready-only exact Save + lease handoff. */
+export function disposePersistenceForRebootstrapInternalV1<TSnapshot>(
+  service: PersistenceServiceV1<TSnapshot>,
+): Promise<PersistenceRebootstrapHandoffInternalV1> {
+  const control = persistenceServiceControlsInternalV1.get(service);
+  if (control === undefined) {
+    throw new TypeError("Persistence service does not support rebootstrap disposal");
+  }
+  return control.disposeForRebootstrap();
+}
+
+/** @internal Admits one exact Save, takes its released fence, then atomically installs its anchor. */
+export function adoptPersistenceRebootstrapHandoffInternalV1<TSnapshot>(
+  service: PersistenceServiceV1<TSnapshot>,
+  handoff: DeepReadonly<PersistenceRebootstrapHandoffInternalV1>,
+): Promise<void> {
+  const control = persistenceServiceControlsInternalV1.get(service);
+  if (control === undefined) {
+    throw new TypeError("Persistence service does not support rebootstrap adoption");
+  }
+  return control.adoptRebootstrapHandoff(handoff);
 }
 
 /** @internal Binds application presentation attribution to one queued load commit. */
@@ -645,7 +651,11 @@ async function createPersistenceServiceWithDependenciesV1<
   );
   let safelySavedCommandSequence: NonNegativeSafeInteger | null = null;
   let lastFailureCode: string | null = null;
-  let rebootstrapFailureCode: "lease_release_failed" | "lease_takeover_failed" | null = null;
+  let rebootstrapFailureCode:
+    | "rebootstrap_capture_failed"
+    | "lease_release_failed"
+    | "lease_takeover_failed"
+    | null = null;
   let foregroundWrites = 0;
   let autoWrites = 0;
   let physicalTail: Promise<void> = Promise.resolve();
@@ -653,9 +663,12 @@ async function createPersistenceServiceWithDependenciesV1<
   let playerMutationsFenced = false;
   let rebootstrapTransferPending = leaseAcquisition === "deferred_rebootstrap";
   let leaseMutationTail: Promise<void> = Promise.resolve();
-  let publicReleaseFence: DeepReadonly<SessionLeaseFenceV1> | null = null;
-  let disposalPromise: Promise<PersistenceRebootstrapDisposalV1> | null = null;
-  let takeoverPromise: Promise<PersistenceRebootstrapTakeoverV1> | null = null;
+  let disposalPromise: Promise<void> | null = null;
+  let rebootstrapDisposalPromise: Promise<PersistenceRebootstrapHandoffInternalV1> | null = null;
+  let rebootstrapAdoptionPromise: Promise<void> | null = null;
+  let rebootstrapPhase: "none" | "prepared" | "taken_over" | "anchored" = "none";
+  let rebootstrapSave: DeepReadonly<ExportedSaveV1> | null = null;
+  let rebootstrapLease: DeepReadonly<SessionLeaseFenceV1> | null = null;
   let leaseStatus = leaseAcquisition === "acquire_initial"
     ? await options.lease.acquireInitial()
     : await options.lease.getStatus();
@@ -1534,6 +1547,44 @@ async function createPersistenceServiceWithDependenciesV1<
     });
   };
 
+  const admitRebootstrapSaveV1 = (
+    save: DeepReadonly<ExportedSaveV1>,
+  ): ExportedSaveV1 => {
+    if (
+      typeof save.filename !== "string" ||
+      save.filename.length === 0 ||
+      save.mediaType !== "application/json"
+    ) {
+      throw new TypeError("persistence.rebootstrap_save_invalid");
+    }
+    const bytes = Uint8Array.from(save.bytes);
+    const digest = parseDigest(save.digest);
+    if (digestBytes(bytes) !== digest) {
+      throw new TypeError("persistence.rebootstrap_save_digest_mismatch");
+    }
+    return Object.freeze({
+      filename: save.filename,
+      mediaType: "application/json" as const,
+      digest,
+      bytes,
+    });
+  };
+
+  const normalizeRebootstrapCandidateSaveV1 = (
+    candidate: DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
+    simulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[],
+  ): ExportedSaveV1 => {
+    // `finishSaveImportCandidateInternalV1` already admitted this candidate.
+    // Rebuild only the successor-owned provenance/lineage fields, then trust
+    // the typed representation rather than repeating schema/envelope admission.
+    const normalized: DeepReadonly<PersistenceSaveRecordV1<TSnapshot>> = Object.freeze({
+      ...candidate,
+      provenance: options.provenance,
+      simulationLineage: copyLineageV1(simulationLineage),
+    });
+    return makeExportV1(normalized);
+  };
+
   const leaseOperationV1 = async (
     operation: () => Promise<SessionLeaseOperationResultV1>,
   ): Promise<SessionLeaseOperationResultV1> => {
@@ -1550,25 +1601,14 @@ async function createPersistenceServiceWithDependenciesV1<
 
   const publicLeaseMutationV1 = (
     operation: () => Promise<SessionLeaseOperationResultV1>,
-    trackSuccessfulRelease = false,
   ): Promise<SessionLeaseOperationResultV1> => {
     if (lifecycle !== "active" || playerMutationsFenced || rebootstrapTransferPending) {
       return Promise.resolve(
         Object.freeze({ kind: "rejected" as const, code: "conflict" as const }),
       );
     }
-    const acceptedReleaseFence = trackSuccessfulRelease ? options.lease.captureFence() : null;
     const result = Promise.resolve().then(() => leaseOperationV1(operation));
-    const tracked = result.then((settled) => {
-      if (
-        acceptedReleaseFence !== null &&
-        settled.kind === "updated" &&
-        settled.status.kind === "unowned" &&
-        settled.status.fencingToken === acceptedReleaseFence.fencingToken
-      ) {
-        publicReleaseFence = Object.freeze({ ...acceptedReleaseFence });
-      }
-    });
+    const tracked = result.then(() => undefined);
     leaseMutationTail = Promise.all([leaseMutationTail, tracked]).then(() => undefined);
     return result;
   };
@@ -1713,7 +1753,7 @@ async function createPersistenceServiceWithDependenciesV1<
       takeOver: () => publicLeaseMutationV1(() => options.lease.takeOver()),
       takeOverUnowned: (expectedFencingToken: PositiveSafeInteger) =>
         publicLeaseMutationV1(() => options.lease.takeOverUnowned(expectedFencingToken)),
-      release: () => publicLeaseMutationV1(() => options.lease.release(), true),
+      release: () => publicLeaseMutationV1(() => options.lease.release()),
     }),
 
     async listSlots() {
@@ -2381,130 +2421,266 @@ async function createPersistenceServiceWithDependenciesV1<
     importSave: importSaveV1,
   });
 
-  const disposeForRebootstrapV1 = (): Promise<PersistenceRebootstrapDisposalV1> => {
-    if (disposalPromise !== null) return disposalPromise;
-    lifecycle = "disposing";
-    rebootstrapTransferPending = true;
-    const preDrainFence = options.lease.captureFence();
-    disposalPromise = (async () => {
-      await leaseMutationTail;
-      let observedAfterDrain: SessionLeaseStatusV1 | null = null;
-      try {
-        observedAfterDrain = await refreshLeaseStatusV1();
-      } catch {
-        rememberFailureV1("persistence.unexpected");
+  const releaseRebootstrapFenceV1 = async (
+    fence: DeepReadonly<SessionLeaseFenceV1>,
+  ): Promise<DeepReadonly<SessionLeaseFenceV1>> => {
+    try {
+      const result = await options.lease.releaseFence(fence);
+      if (
+        result.kind === "updated" &&
+        result.status.kind === "unowned" &&
+        result.status.fencingToken === fence.fencingToken
+      ) {
+        leaseStatus = result.status;
+        return Object.freeze({ ...fence });
       }
-      const releaseFence = options.lease.captureFence();
-      const releasedFenceCandidate = publicReleaseFence ?? preDrainFence;
-      const alreadyReleasedFence = releaseFence === null &&
-          observedAfterDrain?.kind === "unowned" &&
-          releasedFenceCandidate !== null &&
-          observedAfterDrain.fencingToken === releasedFenceCandidate.fencingToken
-        ? releasedFenceCandidate
-        : null;
+    } catch {
+      // The stable internal failure below intentionally hides Host details.
+    }
+    rebootstrapFailureCode = "lease_release_failed";
+    rememberFailureV1(rebootstrapFailureCode);
+    throw new TypeError("persistence.rebootstrap_lease_release_failed");
+  };
+
+  const captureExactRebootstrapSaveV1 = async (): Promise<{
+    readonly save: ExportedSaveV1;
+    readonly lease: DeepReadonly<SessionLeaseFenceV1>;
+  }> => {
+    await leaseMutationTail;
+    await autoQueue.idle();
+    await physicalTail;
+    const captured = await options.runtimeControl.readAtQueueFront((snapshot) => {
+      if (
+        options.classifyWriteCandidate !== undefined &&
+        options.classifyWriteCandidate(snapshot.state) !== "safepoint"
+      ) {
+        throw new TypeError("persistence.rebootstrap_current_not_safepoint");
+      }
+      const fence = options.lease.captureFence();
+      if (fence === null) {
+        throw new TypeError("persistence.rebootstrap_writer_unavailable");
+      }
+      const exportSlotId = manualSlotCount === 0 ? "quick" : manualSaveSlotIdV1(1);
+      const record = makeRecordV1(captureV1(snapshot), exportSlotId, exportSlotId);
+      const save = makeExportV1(
+        record as DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
+      );
+      return Object.freeze({
+        snapshot,
+        save,
+        lease: Object.freeze({ ...fence }),
+        settled: captureAutoSaveWithReceiptV1(snapshot),
+      });
+    });
+    const receipt = await captured.settled;
+    await autoQueue.idle();
+    await physicalTail;
+    const current = await options.runtimeControl.readAtQueueFront((snapshot) => snapshot);
+    const fence = options.lease.captureFence();
+    if (
+      receipt.kind !== "saved" ||
+      current !== captured.snapshot ||
+      fence === null ||
+      fence.ownerId !== captured.lease.ownerId ||
+      fence.fencingToken !== captured.lease.fencingToken
+    ) {
+      rebootstrapFailureCode = "rebootstrap_capture_failed";
+      rememberFailureV1(rebootstrapFailureCode);
+      throw new TypeError("persistence.rebootstrap_exact_capture_failed");
+    }
+    return Object.freeze({ save: captured.save, lease: captured.lease });
+  };
+
+  const disposeForRebootstrapV1 = (): Promise<PersistenceRebootstrapHandoffInternalV1> => {
+    if (rebootstrapDisposalPromise !== null) return rebootstrapDisposalPromise;
+    playerMutationsFenced = true;
+    rebootstrapTransferPending = true;
+    rebootstrapDisposalPromise = (async () => {
+      let releaseAttempted = false;
       try {
-        const runtime = options.runtimeControl.inspectForRuntime();
-        autoQueue.establishAnchor(
+        let save: DeepReadonly<ExportedSaveV1>;
+        let releaseFence: DeepReadonly<SessionLeaseFenceV1> | null;
+        if (rebootstrapPhase === "none" && leaseAcquisition === "deferred_rebootstrap") {
+          throw new TypeError("persistence.rebootstrap_incoming_save_unavailable");
+        }
+        if (rebootstrapPhase === "none" || rebootstrapPhase === "anchored") {
+          const captured = await captureExactRebootstrapSaveV1();
+          save = captured.save;
+          releaseFence = captured.lease;
+        } else {
+          if (rebootstrapSave === null || rebootstrapLease === null) {
+            throw new TypeError("persistence.rebootstrap_state_invalid");
+          }
+          save = rebootstrapSave;
+          releaseFence = options.lease.captureFence();
+          if (releaseFence === null) {
+            const status = await refreshLeaseStatusV1();
+            if (
+              status.kind !== "unowned" ||
+              status.fencingToken !== rebootstrapLease.fencingToken
+            ) {
+              throw new TypeError("persistence.rebootstrap_lease_currentness_lost");
+            }
+            lifecycle = "disposed";
+            return Object.freeze({ save, lease: rebootstrapLease });
+          }
+        }
+        releaseAttempted = true;
+        const released = await releaseRebootstrapFenceV1(releaseFence);
+        lifecycle = "disposed";
+        return Object.freeze({ save, lease: released });
+      } catch (error) {
+        const ownedFence = options.lease.captureFence();
+        if (ownedFence !== null && !releaseAttempted) {
+          try {
+            await options.lease.releaseFence(ownedFence);
+          } catch {
+            // Cleanup is best-effort after the ready handoff has already failed closed.
+          }
+        }
+        lifecycle = "disposed";
+        throw error;
+      }
+    })();
+    return rebootstrapDisposalPromise;
+  };
+
+  const adoptRebootstrapHandoffV1 = (
+    handoff: DeepReadonly<PersistenceRebootstrapHandoffInternalV1>,
+  ): Promise<void> => {
+    if (rebootstrapAdoptionPromise !== null) return rebootstrapAdoptionPromise;
+    rebootstrapAdoptionPromise = (async () => {
+      if (
+        lifecycle !== "active" ||
+        leaseAcquisition !== "deferred_rebootstrap" ||
+        rebootstrapPhase !== "none"
+      ) {
+        throw new TypeError("persistence.rebootstrap_adoption_unavailable");
+      }
+      const admittedSave = admitRebootstrapSaveV1(handoff.save);
+      const preparation = prepareSaveImportCandidateInternalV1(
+        admittedSave.bytes,
+        options.validation,
+        instrumentation,
+      );
+      if (preparation.kind === "rejected") {
+        throw new TypeError(`persistence.rebootstrap_save_rejected:${preparation.code}`);
+      }
+      // The bytes are now a genuine admitted Save. Candidate-specific
+      // compatibility/migration may still reject before takeover, in which
+      // case this exact predecessor payload remains a valid retry input.
+      rebootstrapSave = admittedSave;
+      rebootstrapLease = Object.freeze({ ...handoff.lease });
+      rebootstrapPhase = "prepared";
+      const prepared = preparation.kind === "migration_pending"
+        ? resumeSaveImportCandidateInternalV1(preparation, options.validation, instrumentation)
+        : preparation;
+      if (prepared.kind !== "prepared") {
+        const code = "code" in prepared ? prepared.code : prepared.kind;
+        throw new TypeError(`persistence.rebootstrap_save_rejected:${code}`);
+      }
+      const validation = finishSaveImportCandidateInternalV1(prepared, options.validation);
+      if (validation.kind !== "exact" && validation.kind !== "adopted") {
+        const code = "code" in validation ? validation.code : validation.kind;
+        throw new TypeError(`persistence.rebootstrap_save_rejected:${code}`);
+      }
+      const lineage = validation.kind === "adopted"
+        ? Object.freeze([...validation.candidate.simulationLineage, validation.adoption])
+        : validation.candidate.simulationLineage;
+      rebootstrapSave = normalizeRebootstrapCandidateSaveV1(validation.candidate, lineage);
+
+      type InstallResultV1 =
+        | { readonly kind: "installed" }
+        | { readonly kind: "failed"; readonly error: unknown };
+      const installed = Object.freeze({ kind: "installed" as const });
+      const outcome = Object.freeze({
+        kind: "replace" as const,
+        snapshot: validation.candidate.snapshot as TSnapshot,
+        result: installed,
+        anchor: "replace_replay_base" as const,
+      });
+      bindReplacementCommitV1<InstallResultV1>(
+        outcome,
+        lineage,
+        validation.migration,
+        authoritativeReplacementOwner,
+        true,
+        (error) => Object.freeze({ kind: "failed" as const, error }),
+        () => {
+          rebootstrapPhase = "anchored";
+        },
+      );
+
+      let takeover;
+      try {
+        takeover = await options.lease.takeOverUnowned(handoff.lease.fencingToken);
+      } catch {
+        takeover = null;
+      }
+      const fence = options.lease.captureFence();
+      if (
+        takeover === null ||
+        takeover.kind !== "updated" ||
+        takeover.status.kind !== "owned" ||
+        fence === null ||
+        fence.ownerId !== takeover.status.ownerId ||
+        fence.fencingToken !== takeover.status.fencingToken ||
+        Number(fence.fencingToken) !== Number(handoff.lease.fencingToken) + 1
+      ) {
+        rebootstrapFailureCode = "lease_takeover_failed";
+        rememberFailureV1(rebootstrapFailureCode);
+        throw new TypeError("persistence.rebootstrap_lease_takeover_failed");
+      }
+      leaseStatus = takeover.status;
+      rebootstrapLease = Object.freeze({ ...fence });
+      rebootstrapPhase = "taken_over";
+
+      const result = await options.runtimeControl.enqueueAuthoritative<InstallResultV1>(
+        async () => outcome,
+        (error) => Object.freeze({ kind: "failed" as const, error }),
+        undefined,
+        () =>
           Object.freeze({
-            snapshot: runtime.snapshot,
-            simulationLineage: currentLineage,
-            fence: releaseFence,
-            attemptIdentity: Object.freeze({}),
+            kind: "failed" as const,
+            error: new TypeError("persistence.rebootstrap_session_invalidated"),
           }),
-        );
-        safelySavedCommandSequence = null;
+      );
+      const anchorInstalledV1 = (): boolean => rebootstrapPhase === "anchored";
+      if (result.kind !== "installed" || !anchorInstalledV1()) {
+        throw result.kind === "failed"
+          ? result.error
+          : new TypeError("persistence.rebootstrap_anchor_not_installed");
+      }
+      rebootstrapTransferPending = false;
+    })();
+    return rebootstrapAdoptionPromise;
+  };
+
+  const disposeV1 = (): Promise<void> => {
+    if (disposalPromise !== null) return disposalPromise;
+    playerMutationsFenced = true;
+    rebootstrapTransferPending = true;
+    disposalPromise = (async () => {
+      try {
+        await leaseMutationTail;
         await autoQueue.idle();
         await physicalTail;
       } catch {
         rememberFailureV1("persistence.unexpected");
       }
-      lifecycle = "disposed";
-
-      if (alreadyReleasedFence !== null) {
-        return Object.freeze({
-          ownership: "released" as const,
-          code: null,
-          fence: Object.freeze({ ...alreadyReleasedFence }),
-        });
-      }
-      if (releaseFence !== null) {
+      lifecycle = "disposing";
+      const fence = options.lease.captureFence();
+      if (fence !== null) {
         try {
-          const result = await options.lease.releaseFence(releaseFence);
-          if (
-            result.kind === "updated" &&
-            result.status.kind === "unowned" &&
-            result.status.fencingToken === releaseFence.fencingToken
-          ) {
-            leaseStatus = result.status;
-            return Object.freeze({
-              ownership: "released" as const,
-              code: null,
-              fence: Object.freeze({ ...releaseFence }),
-            });
-          }
+          const result = await options.lease.releaseFence(fence);
+          if (result.kind === "updated") leaseStatus = result.status;
         } catch {
-          // The stable lifecycle result below intentionally hides Host-specific failures.
+          rememberFailureV1("lease_release_failed");
         }
       }
-      rebootstrapFailureCode = "lease_release_failed";
-      rememberFailureV1(rebootstrapFailureCode);
-      return Object.freeze({
-        ownership: "read_only" as const,
-        code: "lease_release_failed" as const,
-        fence: null,
-      });
+      lifecycle = "disposed";
     })();
     return disposalPromise;
-  };
-
-  const takeOverForRebootstrapV1 = (
-    previous: DeepReadonly<PersistenceRebootstrapDisposalV1>,
-  ): Promise<PersistenceRebootstrapTakeoverV1> => {
-    if (takeoverPromise !== null) return takeoverPromise;
-    takeoverPromise = (async () => {
-      if (lifecycle !== "active" || previous.ownership === "read_only") {
-        const code = previous.ownership === "read_only"
-          ? previous.code
-          : ("lease_takeover_failed" as const);
-        rebootstrapFailureCode = code;
-        rememberFailureV1(code);
-        return Object.freeze({
-          ownership: "read_only" as const,
-          code,
-          fence: null,
-        });
-      }
-      try {
-        const result = await options.lease.takeOverUnowned(previous.fence.fencingToken);
-        const fence = options.lease.captureFence();
-        if (
-          result.kind === "updated" &&
-          result.status.kind === "owned" &&
-          fence !== null &&
-          fence.ownerId === result.status.ownerId &&
-          fence.fencingToken === result.status.fencingToken &&
-          Number(fence.fencingToken) === Number(previous.fence.fencingToken) + 1
-        ) {
-          leaseStatus = result.status;
-          rebootstrapTransferPending = false;
-          return Object.freeze({
-            ownership: "writable" as const,
-            code: null,
-            fence: Object.freeze({ ...fence }),
-          });
-        }
-      } catch {
-        // The stable lifecycle result below intentionally hides Host-specific failures.
-      }
-      rebootstrapFailureCode = "lease_takeover_failed";
-      rememberFailureV1(rebootstrapFailureCode);
-      return Object.freeze({
-        ownership: "read_only" as const,
-        code: "lease_takeover_failed" as const,
-        fence: null,
-      });
-    })();
-    return takeoverPromise;
   };
 
   const service: PersistenceServiceV1<TSnapshot> = Object.freeze({
@@ -2513,8 +2689,7 @@ async function createPersistenceServiceWithDependenciesV1<
     establishAnchor: establishAnchorV1,
     captureAutoSave: captureAutoSaveV1,
     autoSaveIdle: () => autoQueue.idle(),
-    disposeForRebootstrap: disposeForRebootstrapV1,
-    takeOverForRebootstrap: takeOverForRebootstrapV1,
+    dispose: disposeV1,
   });
   persistenceServiceControlsInternalV1.set(
     service,
@@ -2554,6 +2729,8 @@ async function createPersistenceServiceWithDependenciesV1<
       fencePlayerMutations: () => {
         playerMutationsFenced = true;
       },
+      disposeForRebootstrap: disposeForRebootstrapV1,
+      adoptRebootstrapHandoff: adoptRebootstrapHandoffV1,
     }),
   );
   return service;

@@ -303,11 +303,11 @@ describe("Engine Lab Authoring Host sibling lifetime", () => {
       name: "引擎实验室",
     });
 
-    const disposition = await predecessor.disposeForRebootstrap();
+    const handoff = await predecessor.disposeForRebootstrap();
     const successor = await startLabOnRootV1(root, {
       host,
       gameBootstrapEntropy,
-      rebootstrapDisposition: disposition,
+      rebootstrapHandoff: handoff,
     });
     startedApplicationsV1.push(successor);
     const successorGameRoot = await within(root).findByRole("application", {

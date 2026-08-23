@@ -198,7 +198,7 @@ export async function createSnapshotPersistenceWorkloadV1(input: {
       );
     },
     slotSummaries: () => persistence.port.listSlots(),
-    dispose: () => persistence.disposeForRebootstrap(),
+    dispose: () => persistence.dispose(),
   });
 }
 

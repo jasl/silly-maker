@@ -31,7 +31,7 @@ import {
 } from "../../contracts/save-state-migration.ts";
 import type { SaveStateMigrationRegistryV1 } from "../../contracts/save-state-migration.ts";
 import { parseStrictJson } from "../../contracts/strict-json.ts";
-import type { NonZeroUint32, RuntimeSchemaV1 } from "../../contracts/values.ts";
+import type { DeepReadonly, NonZeroUint32, RuntimeSchemaV1 } from "../../contracts/values.ts";
 import {
   parseDigest,
   parseNonNegativeSafeInteger,
@@ -66,6 +66,7 @@ import type {
   CoreApplicationExtensionContextV1,
   CoreApplicationHostServicesV1,
   CoreAutosavePolicyV1,
+  CoreRebootstrapHandoffInternalV1,
   CoreSchedulerV1,
   CoreSemanticAdapterV1,
 } from "./core-game-application.ts";
@@ -2091,6 +2092,22 @@ function resolvedApplicationWithDisposeV1(dispose: () => void) {
   );
   if (result.kind !== "resolved") {
     throw new TypeError("disposal fixture must resolve");
+  }
+  return result.application;
+}
+
+function resolvedApplicationWithExtensionFailureV1(error: Error) {
+  const result = resolveCoreGameApplicationV1(
+    defineCoreGameApplicationV1({
+      ...definitionV1,
+      createExtensions: () => {
+        throw error;
+      },
+    }),
+    { buildIdentityInput: deterministicBuildIdentityInputV1 },
+  );
+  if (result.kind !== "resolved") {
+    throw new TypeError("failing extension fixture must resolve");
   }
   return result.application;
 }
@@ -5325,6 +5342,27 @@ describe("createCoreGameApplicationInstanceV1", () => {
     await instance.dispose();
   });
 
+  it("rejects R2 handoff at an in-flight current Snapshot instead of using the older safepoint", async () => {
+    const records = createMemoryHostRecordStoreV1();
+    const instance = await createSafepointInstanceV1({
+      classify: oddCountsInFlightV1,
+      records,
+    });
+    await instance.semantic.dispatch(incrementV1);
+    await instance.semantic.dispatch(incrementV1); // exact current safepoint
+    await instance.autoSaveIdle();
+    await instance.semantic.dispatch(incrementV1); // current is now in flight
+
+    await expect(instance.disposeForRebootstrap()).rejects.toThrow(
+      "persistence.rebootstrap_current_not_safepoint",
+    );
+    expect((await storedAutoCurrentV1(records))?.snapshot.commandSequence).toBe(2);
+    await expect(instance.persistence.lease.getStatus()).resolves.toMatchObject({
+      kind: "unowned",
+      fencingToken: 1,
+    });
+  });
+
   it("lets an armed pre-span debounce fire mid-span with the retained safepoint candidate", async () => {
     const { counting, autoWrites } = countingRecordsV1();
     const { scheduler, runLast } = manualSchedulerV1();
@@ -5789,6 +5827,116 @@ describe("createCoreGameApplicationInstanceV1", () => {
     await instance.dispose();
   });
 
+  it("continues the exact authoritative Snapshot and replay base across rebootstrap", async () => {
+    const records = createMemoryHostRecordStoreV1();
+    const predecessor = await createInstanceV1({ records, seeds: [77] });
+    await predecessor.semantic.dispatch(incrementV1);
+    await predecessor.semantic.dispatch(incrementV1);
+    const predecessorSnapshot = predecessor.admin.inspectForTest().snapshot;
+    const predecessorDigest = predecessor.admin.stateDigest();
+    expect(predecessorSnapshot).toMatchObject({
+      state: { simulation: { counter: { count: 2 } } },
+      rng: { algorithm: "xorshift32-v1", cursor: 77, rawDrawCount: 0 },
+      commandSequence: 2,
+    });
+
+    const handoff = await predecessor.disposeForRebootstrap();
+    expect(handoff).toMatchObject({
+      save: { mediaType: "application/json" },
+      lease: { ownerId: ownerIdV1, fencingToken: 1 },
+    });
+    const successor = await createCoreGameApplicationInstanceV1(resolvedApplicationV1(), {
+      host: hostServicesV1(records, [83]),
+      rebootstrapHandoff: handoff,
+    });
+    try {
+      const successorSnapshot = successor.admin.inspectForTest().snapshot;
+      expect(canonicalJsonBytes(successorSnapshot)).toEqual(
+        canonicalJsonBytes(predecessorSnapshot),
+      );
+      expect(successor.admin.stateDigest()).toBe(predecessorDigest);
+      expect(successor.admin.commandLog()).toEqual([]);
+      await expect(successor.admin.replayAuthoritatively()).resolves.toMatchObject({
+        authoritative: true,
+        identityMatch: true,
+        matches: true,
+        executedEntries: 0,
+      });
+
+      await expect(successor.semantic.dispatch(incrementV1)).resolves.toEqual({
+        kind: "committed",
+        count: 3,
+      });
+      expect(successor.admin.inspectForTest().snapshot).toMatchObject({
+        rng: predecessorSnapshot.rng,
+        commandSequence: 3,
+      });
+      expect(successor.admin.commandLog()).toMatchObject([
+        {
+          preStateDigest: predecessorDigest,
+          commandSequence: { before: 2, after: 3 },
+          committedRngBefore: predecessorSnapshot.rng,
+        },
+      ]);
+    } finally {
+      await successor.dispose();
+    }
+  });
+
+  it("returns the latest Save and fence when construction fails after authoritative adoption", async () => {
+    const records = createMemoryHostRecordStoreV1();
+    const predecessor = await createInstanceV1({ records, seeds: [77] });
+    await predecessor.semantic.dispatch(incrementV1);
+    await predecessor.semantic.dispatch(incrementV1);
+    const predecessorSnapshot = predecessor.admin.inspectForTest().snapshot;
+    const firstHandoff = await predecessor.disposeForRebootstrap();
+    const constructionFailure = new Error("synthetic post-adoption extension failure");
+    let retryHandoff: DeepReadonly<CoreRebootstrapHandoffInternalV1> | undefined;
+
+    await expect(
+      createCoreGameApplicationInstanceV1(
+        resolvedApplicationWithExtensionFailureV1(constructionFailure),
+        {
+          host: hostServicesV1(records, [83]),
+          rebootstrapHandoff: firstHandoff,
+          onRebootstrapStartFailureInternal(outcome) {
+            if (outcome.kind === "ready") retryHandoff = outcome.handoff;
+          },
+        },
+      ),
+    ).rejects.toBe(constructionFailure);
+    expect(retryHandoff).toMatchObject({
+      save: { mediaType: "application/json" },
+      lease: { fencingToken: 2 },
+    });
+    if (retryHandoff === undefined) throw new TypeError("missing retry handoff");
+
+    const retry = await createCoreGameApplicationInstanceV1(resolvedApplicationV1(), {
+      host: hostServicesV1(records, [89]),
+      rebootstrapHandoff: retryHandoff,
+    });
+    try {
+      expect(canonicalJsonBytes(retry.admin.inspectForTest().snapshot)).toEqual(
+        canonicalJsonBytes(predecessorSnapshot),
+      );
+      await expect(retry.persistence.lease.getStatus()).resolves.toMatchObject({
+        kind: "owned",
+        fencingToken: 3,
+      });
+    } finally {
+      await retry.dispose();
+    }
+  });
+
+  it("rejects rebootstrap disposal when its lease cannot produce a released handoff", async () => {
+    const lease = leaseReleaseRecordsV1({ rejectRelease: true });
+    const predecessor = await createInstanceV1({ records: lease.records });
+    await predecessor.semantic.dispatch(incrementV1);
+    await expect(predecessor.disposeForRebootstrap()).rejects.toThrow(
+      "persistence.rebootstrap_lease_release_failed",
+    );
+  });
+
   it("publishes one disposal Promise before cleanup reentry and still releases persistence", async () => {
     const lease = leaseReleaseRecordsV1();
     const cleanupError = new Error("synthetic extension cleanup failure");
@@ -5811,8 +5959,8 @@ describe("createCoreGameApplicationInstanceV1", () => {
     expect(reentrantDisposal).toBe(disposal);
     expect(instance.disposeForRebootstrap()).toBe(disposal);
     await expect(disposal).resolves.toMatchObject({
-      ownership: "released",
-      code: null,
+      save: { mediaType: "application/json" },
+      lease: { ownerId: ownerIdV1, fencingToken: 1 },
     });
     expect(cleanupCalls).toBe(1);
     expect(lease.releaseAttempts()).toBe(1);
@@ -5823,7 +5971,7 @@ describe("createCoreGameApplicationInstanceV1", () => {
     ).toHaveLength(1);
   });
 
-  it("keeps the Persistence disposal result primary when cleanup and lease release both fail", async () => {
+  it("keeps the Persistence disposal failure primary when cleanup and lease release both fail", async () => {
     const lease = leaseReleaseRecordsV1({ rejectRelease: true });
     const cleanupError = new Error("synthetic extension cleanup failure");
     let cleanupCalls = 0;
@@ -5836,11 +5984,7 @@ describe("createCoreGameApplicationInstanceV1", () => {
     });
 
     const disposal = instance.disposeForRebootstrap();
-    await expect(disposal).resolves.toEqual({
-      ownership: "read_only",
-      code: "lease_release_failed",
-      fence: null,
-    });
+    await expect(disposal).rejects.toThrow("persistence.rebootstrap_lease_release_failed");
     expect(instance.disposeForRebootstrap()).toBe(disposal);
     expect(cleanupCalls).toBe(1);
     expect(lease.releaseAttempts()).toBe(1);
@@ -5898,8 +6042,8 @@ describe("createCoreGameApplicationInstanceV1", () => {
       code: "runtime_disposed",
     });
     await expect(instance.disposeForRebootstrap()).resolves.toMatchObject({
-      ownership: "released",
-      code: null,
+      save: { mediaType: "application/json" },
+      lease: { ownerId: ownerIdV1, fencingToken: 1 },
     });
     expect(cancellationCalls).toBe(1);
     expect(lease.releaseAttempts()).toBe(1);

@@ -15,12 +15,9 @@ import type {
   CoreAutosavePolicyV1,
   CoreGameApplicationDefinitionV1,
   CoreGameApplicationInstanceV1,
-} from "@sillymaker/base/runtime";
-import type { GameSimulationTypeMapV1 } from "@sillymaker/base";
-import type {
-  PersistenceRebootstrapDisposalV1,
   PlayerProfileStoreV1,
 } from "@sillymaker/base/runtime";
+import type { GameSimulationTypeMapV1 } from "@sillymaker/base";
 import {
   createCoreGameApplicationInstanceV1,
   createPlayerProfileStoreV1,
@@ -30,6 +27,10 @@ import {
   clearAllCoreApplicationSavesForMaintenanceInternalV1,
   prepareCoreApplicationRestartInternalV1,
   subscribeCoreApplicationPresentationAnchorEventsInternalV1,
+} from "@sillymaker/base/runtime/internal";
+import type {
+  CoreRebootstrapHandoffInternalV1,
+  CoreRebootstrapStartFailureInternalV1,
 } from "@sillymaker/base/runtime/internal";
 import type {
   DefaultGameRootLabelsV1,
@@ -438,8 +439,12 @@ export interface StartWebGameApplicationOptionsV1 {
   readonly registerPageLifecycle?: boolean;
   /** Host-level autosave override; wins over the application's policy. */
   readonly autosave?: CoreAutosavePolicyV1;
-  /** Dev rebootstrap: adopt a predecessor's persistence handoff. */
-  readonly rebootstrapDisposition?: DeepReadonly<PersistenceRebootstrapDisposalV1>;
+  /** Dev rebootstrap: adopt a predecessor's exact Save + lease handoff. */
+  readonly rebootstrapHandoff?: DeepReadonly<CoreRebootstrapHandoffInternalV1>;
+  /** Package-internal definitive recovery outcome before startup rejects. */
+  readonly onRebootstrapStartFailureInternal?: (
+    outcome: DeepReadonly<CoreRebootstrapStartFailureInternalV1>,
+  ) => void;
 }
 
 /**
@@ -471,10 +476,10 @@ export interface StartedWebGameApplicationV1 {
   invalidateForHmr(): void;
   /**
    * Tears the application down for a dev rebootstrap and returns the
-   * persistence handoff disposition for the successor.
+   * exact authoritative handoff for the successor.
    */
   disposeForRebootstrap(): Promise<
-    DeepReadonly<PersistenceRebootstrapDisposalV1>
+    DeepReadonly<CoreRebootstrapHandoffInternalV1>
   >;
 }
 
@@ -739,6 +744,15 @@ export async function startWebGameApplicationV1<
       // Host diagnostics are best-effort and never participate in runtime precedence.
     }
   };
+  const notifyRebootstrapStartFailure = options.onRebootstrapStartFailureInternal === undefined
+    ? undefined
+    : (outcome: DeepReadonly<CoreRebootstrapStartFailureInternalV1>): void => {
+      try {
+        options.onRebootstrapStartFailureInternal?.(outcome);
+      } catch {
+        // The startup failure remains authoritative over observer failure.
+      }
+    };
 
   const capabilitySearch = options.capabilitySearch ??
     (typeof location === "undefined" ? "" : location.search);
@@ -789,9 +803,12 @@ export async function startWebGameApplicationV1<
       capabilityState: capabilities.state,
       autosave: options.autosave ?? application.autosave ?? defaultWebAutosavePolicyV1,
       ...(applicationBuildId === null ? {} : { appBuildId: applicationBuildId }),
-      ...(options.rebootstrapDisposition === undefined
+      ...(options.rebootstrapHandoff === undefined
         ? {}
-        : { rebootstrapDisposition: options.rebootstrapDisposition }),
+        : { rebootstrapHandoff: options.rebootstrapHandoff }),
+      ...(notifyRebootstrapStartFailure === undefined
+        ? {}
+        : { onRebootstrapStartFailureInternal: notifyRebootstrapStartFailure }),
     },
   ).catch((error: unknown) => {
     signalStartupFailure("required_domain");
@@ -889,7 +906,13 @@ export async function startWebGameApplicationV1<
         run: () => capabilities.dispose(),
       }),
     ]),
-    releaseCorePersistence: () => instance.disposeForRebootstrap(),
+    releaseCorePersistence: async (mode) => {
+      if (mode === "rebootstrap") return await instance.disposeForRebootstrap();
+      await instance.dispose();
+      return undefined;
+    },
+    terminalReleaseMode: () =>
+      options.rebootstrapHandoff !== undefined && !startupAccepted ? "rebootstrap" : "ordinary",
     reportFailure: (step, error) =>
       reportFailure(
         "web.application_disposal_step_failed",
@@ -917,16 +940,21 @@ export async function startWebGameApplicationV1<
     }),
   });
   const disposeForRebootstrap = async (): Promise<
-    DeepReadonly<PersistenceRebootstrapDisposalV1>
+    DeepReadonly<CoreRebootstrapHandoffInternalV1>
   > => {
     try {
-      return await terminalSupervisor.disposeForRebootstrap();
+      const handoff = await terminalSupervisor.disposeForRebootstrap();
+      if (handoff === undefined) {
+        throw new TypeError("web.rebootstrap_handoff_unavailable");
+      }
+      return handoff;
     } finally {
       if (startupAccepted) startupDiagnostics?.dispose();
     }
   };
   const dispose = async (): Promise<void> => {
-    await disposeForRebootstrap();
+    await terminalSupervisor.disposeOrdinarily();
+    if (startupAccepted) startupDiagnostics?.dispose();
   };
 
   try {
@@ -950,7 +978,7 @@ export async function startWebGameApplicationV1<
       policy: application.instancePolicy ?? "take_over",
       selfOwnerId: leaseOwnerId,
       channelScope: instance.storyId as string,
-      claimOnStart: options.rebootstrapDisposition === undefined,
+      claimOnStart: options.rebootstrapHandoff === undefined,
     });
     instanceLease = instanceLeaseCoordinator;
     const devDockControl = createDevDockControlV1();
@@ -1329,8 +1357,18 @@ export async function startWebGameApplicationV1<
     }
   } catch (error) {
     try {
-      await dispose();
+      if (options.rebootstrapHandoff === undefined) {
+        await dispose();
+      } else {
+        const failureHandoff = await disposeForRebootstrap();
+        notifyRebootstrapStartFailure?.(
+          Object.freeze({ kind: "ready" as const, handoff: failureHandoff }),
+        );
+      }
     } catch {
+      if (options.rebootstrapHandoff !== undefined) {
+        notifyRebootstrapStartFailure?.(Object.freeze({ kind: "terminal" as const }));
+      }
       // The construction failure remains primary over release noise.
     }
     signalStartupFailure(startupFailureReason);

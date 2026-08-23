@@ -48,6 +48,7 @@ afterEach(async () => {
 function buildIdentityV1(
   simulationLabel: string,
   applicationLabel = "application",
+  presentationLabel = "presentation",
 ): BuildIdentityInputV1 {
   const digest = (label: string) => digestBytes(new TextEncoder().encode(label));
   return Object.freeze({
@@ -65,7 +66,7 @@ function buildIdentityV1(
     storyPresentation: Object.freeze([{
       path: "e2e/src/presentation.ts",
       facet: "story_presentation" as const,
-      sha256: digest("presentation"),
+      sha256: digest(presentationLabel),
     }]),
     application: Object.freeze([{
       path: "e2e/src/application/composition.tsx",
@@ -144,13 +145,19 @@ async function inFlightAgentV1() {
 }
 
 describe("Engine Lab maintained application HMR boundary", () => {
-  it("hands a live-identity R2 candidate to the Web composer on the same Host and root", async () => {
+  it("hands a compatible presentation-only R2 candidate to the Web composer on the same Host and root", async () => {
     const root = document.createElement("div");
     root.id = "root";
     document.body.append(root);
     const host = createWebHostV1({ records: createMemoryHostRecordStoreV1() });
     const predecessor = await startWebGameApplicationV1(
-      applicationWithBuildIdentityV1(buildIdentityV1("simulation:predecessor")),
+      applicationWithBuildIdentityV1(
+        buildIdentityV1(
+          "simulation:compatible",
+          "application",
+          "presentation:predecessor",
+        ),
+      ),
       {
         rootElement: root,
         host,
@@ -178,7 +185,11 @@ describe("Engine Lab maintained application HMR boundary", () => {
     );
     const acceptedModule: LabGameApplicationHmrModuleV1 = Object.freeze({
       labGameApplicationV1: applicationWithBuildIdentityV1(
-        buildIdentityV1("simulation:successor"),
+        buildIdentityV1(
+          "simulation:compatible",
+          "application",
+          "presentation:successor",
+        ),
       ),
       installLabGameApplicationHmrV1: installNextBoundary,
     });
@@ -219,6 +230,60 @@ describe("Engine Lab maintained application HMR boundary", () => {
     });
     expect(installNextBoundary.mock.calls[0]?.[1]).not.toHaveProperty("hot");
     expect(failures).toEqual([]);
+  });
+
+  it("does not retire the predecessor for a simulation digest change without adoption", async () => {
+    const root = document.createElement("div");
+    root.id = "root";
+    document.body.append(root);
+    const host = createWebHostV1({ records: createMemoryHostRecordStoreV1() });
+    const predecessor = await startWebGameApplicationV1(
+      applicationWithBuildIdentityV1(buildIdentityV1("simulation:predecessor")),
+      {
+        rootElement: root,
+        host,
+        gameBootstrapEntropy: createFixedBootstrapEntropyV1({
+          seeds: [20260831],
+          uuids: [],
+        }),
+        registerPageLifecycle: false,
+      },
+    );
+    startedApplicationsV1.push(predecessor);
+    const predecessorRoot = await within(root).findByRole("application", {
+      name: "引擎实验室",
+    });
+    const installNextBoundary = vi.fn(
+      (): InstalledResolvedGameHmrV1 =>
+        Object.freeze({ waitForTransition: () => Promise.resolve() }),
+    );
+    const acceptedModule: LabGameApplicationHmrModuleV1 = Object.freeze({
+      labGameApplicationV1: applicationWithBuildIdentityV1(
+        buildIdentityV1("simulation:unadopted-successor"),
+      ),
+      installLabGameApplicationHmrV1: installNextBoundary,
+    });
+    const hot = hotFixtureV1<LabGameApplicationHmrModuleV1>();
+    let successor: StartedWebGameApplicationV1 | undefined;
+    const installation = installLabGameApplicationHmrV1(predecessor, {
+      hot: hot.hot,
+      rootElement: root,
+      onSuccessorStarted(started) {
+        successor = started;
+        startedApplicationsV1.push(started);
+      },
+    });
+    expect(installation).toBeDefined();
+
+    hot.emit(acceptedModule);
+    await installation!.waitForTransition();
+
+    expect(predecessor.isDisposed()).toBe(false);
+    expect(successor).toBeUndefined();
+    expect(installNextBoundary).not.toHaveBeenCalled();
+    expect(
+      await within(root).findByRole("application", { name: "引擎实验室" }),
+    ).toBe(predecessorRoot);
   });
 
   it("requests R3 for an equal-R2 composition candidate without fencing the predecessor", async () => {
@@ -280,13 +345,19 @@ describe("Engine Lab maintained application HMR boundary", () => {
     expect(predecessor.isDisposed()).toBe(false);
   });
 
-  it("keeps an in-flight Agent sibling through failed Game R2 start and valid retry", async () => {
+  it("keeps an in-flight Agent sibling and retries with the latest writable Game R2 handoff", async () => {
     const root = document.createElement("div");
     root.id = "root";
     document.body.append(root);
     const webHost = createWebHostV1({ records: createMemoryHostRecordStoreV1() });
     const predecessor = await startWebGameApplicationV1(
-      applicationWithBuildIdentityV1(buildIdentityV1("simulation:predecessor")),
+      applicationWithBuildIdentityV1(
+        buildIdentityV1(
+          "simulation:compatible",
+          "application",
+          "presentation:predecessor",
+        ),
+      ),
       {
         rootElement: root,
         host: webHost,
@@ -310,7 +381,13 @@ describe("Engine Lab maintained application HMR boundary", () => {
 
     const successorStartFailure = new Error("accepted Game successor failed in UI start");
     const failingApplication = Object.freeze({
-      ...applicationWithBuildIdentityV1(buildIdentityV1("simulation:failing-successor")),
+      ...applicationWithBuildIdentityV1(
+        buildIdentityV1(
+          "simulation:compatible",
+          "application",
+          "presentation:failing-successor",
+        ),
+      ),
       ui() {
         throw successorStartFailure;
       },
@@ -323,10 +400,24 @@ describe("Engine Lab maintained application HMR boundary", () => {
       labGameApplicationV1: failingApplication,
       installLabGameApplicationHmrV1: installNextBoundary,
     });
-    const recoveredModule: LabGameApplicationHmrModuleV1 = Object.freeze({
-      labGameApplicationV1: applicationWithBuildIdentityV1(
-        buildIdentityV1("simulation:recovered-successor"),
+    let recoveredInstance:
+      | Parameters<typeof labGameApplicationV1.ui>[0]["instance"]
+      | undefined;
+    const recoveredApplication = Object.freeze({
+      ...applicationWithBuildIdentityV1(
+        buildIdentityV1(
+          "simulation:compatible",
+          "application",
+          "presentation:recovered-successor",
+        ),
       ),
+      ui(input: Parameters<typeof labGameApplicationV1.ui>[0]) {
+        recoveredInstance = input.instance;
+        return labGameApplicationV1.ui(input);
+      },
+    }) as typeof labGameApplicationV1;
+    const recoveredModule: LabGameApplicationHmrModuleV1 = Object.freeze({
+      labGameApplicationV1: recoveredApplication,
       installLabGameApplicationHmrV1: installNextBoundary,
     });
     const hot = hotFixtureV1<LabGameApplicationHmrModuleV1>();
@@ -357,6 +448,15 @@ describe("Engine Lab maintained application HMR boundary", () => {
     await installation!.waitForTransition();
     await waitFor(() => expect(successor).toBeDefined());
     expect(successor!.host).toBe(webHost);
+    expect(successor!.instanceLease.state.getCurrent()).toMatchObject({
+      role: "owner",
+      holderOwnerId: null,
+    });
+    expect(recoveredInstance).toBeDefined();
+    await expect(recoveredInstance!.persistence.save("manual.1")).resolves.toMatchObject({
+      kind: "saved",
+      slotId: "manual.1",
+    });
     expect(agentHost.getSnapshot()).toBe(agentPredecessor);
     expect(fake.getRequests()).toHaveLength(requestCount);
     expect(fake.getConnectionCount()).toBe(1);

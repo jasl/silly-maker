@@ -56,6 +56,7 @@ export {
 } from "./application/resolved-game-hmr.ts";
 export type {
   InstalledResolvedGameHmrV1,
+  ResolvedGameHmrEligibilityInputV1,
   ResolvedGameHmrHotAdapterV1,
   ResolvedGameHmrIdentityV1,
   ResolvedGameHmrReasonV1,

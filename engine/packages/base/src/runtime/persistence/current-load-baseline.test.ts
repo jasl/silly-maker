@@ -694,7 +694,7 @@ async function expectRejectedImportV1(
       safelySavedCommandSequence: null,
     });
   } finally {
-    await fixture.service.disposeForRebootstrap();
+    await fixture.service.dispose();
   }
 }
 
@@ -1055,7 +1055,7 @@ describe("post-DET-A current Save load baseline", () => {
       });
       expect(snapshotSchemaCalls).toBe(1);
     } finally {
-      await stored.service.disposeForRebootstrap();
+      await stored.service.dispose();
     }
   });
 
@@ -1228,7 +1228,7 @@ describe("post-DET-A current Save load baseline", () => {
       });
       expect(snapshotSchemaCalls).toBe(0);
     } finally {
-      await stored.service.disposeForRebootstrap();
+      await stored.service.dispose();
     }
 
     const currentShapeProvenance = Object.freeze({
@@ -1278,7 +1278,7 @@ describe("post-DET-A current Save load baseline", () => {
       expect(await rawSaveRecordsV1(rewritable.store.records)).toEqual(recordsBefore);
       expect(rewritable.store.saveCommitCount()).toBe(0);
     } finally {
-      await rewritable.service.disposeForRebootstrap();
+      await rewritable.service.dispose();
     }
   });
 
@@ -1314,7 +1314,7 @@ describe("post-DET-A current Save load baseline", () => {
         lastFailureCode: null,
       });
     } finally {
-      await loadFixture.service.disposeForRebootstrap();
+      await loadFixture.service.dispose();
     }
 
     const importBytes = currentRecordBytesV1({ metadataRecordId: "summaryAndFullDirtyStamp" });
@@ -1339,7 +1339,7 @@ describe("post-DET-A current Save load baseline", () => {
         lastFailureCode: null,
       });
     } finally {
-      await importFixture.service.disposeForRebootstrap();
+      await importFixture.service.dispose();
     }
   });
 
@@ -1352,7 +1352,7 @@ describe("post-DET-A current Save load baseline", () => {
         code: "invalid_record",
       });
     } finally {
-      await stored.service.disposeForRebootstrap();
+      await stored.service.dispose();
     }
 
     const imported = await fixtureV1();
@@ -1366,7 +1366,7 @@ describe("post-DET-A current Save load baseline", () => {
       expect(imported.session.snapshot().commandSequence).toBe(0);
       expect(imported.store.saveCommitCount()).toBe(0);
     } finally {
-      await imported.service.disposeForRebootstrap();
+      await imported.service.dispose();
     }
   });
 
@@ -1442,7 +1442,7 @@ describe("post-DET-A current Save load baseline", () => {
         code: "invalid_record",
       });
     } finally {
-      await malformedStored.service.disposeForRebootstrap();
+      await malformedStored.service.dispose();
     }
     let referenceCalls = 0;
     let invariantCalls = 0;
@@ -1510,7 +1510,7 @@ describe("post-DET-A current Save load baseline", () => {
         safelySavedCommandSequence: null,
       });
     } finally {
-      await accepted.service.disposeForRebootstrap();
+      await accepted.service.dispose();
     }
 
     const loaded = await fixtureV1({
@@ -1530,7 +1530,7 @@ describe("post-DET-A current Save load baseline", () => {
       expect(await rawSaveRecordsV1(loaded.store.records)).toEqual(rawBefore);
       expect(loaded.store.saveCommitCount()).toBe(0);
     } finally {
-      await loaded.service.disposeForRebootstrap();
+      await loaded.service.dispose();
     }
 
     await expectRejectedImportV1(
@@ -1581,7 +1581,7 @@ describe("post-DET-A current Save load baseline", () => {
       expect(await rawSaveRecordsV1(recovery.store.records)).toEqual(rawBeforeRecovery);
       expect(recovery.store.saveCommitCount()).toBe(0);
     } finally {
-      await recovery.service.disposeForRebootstrap();
+      await recovery.service.dispose();
     }
 
     const inspectBytes = currentRecordBytesV1({
@@ -1607,7 +1607,7 @@ describe("post-DET-A current Save load baseline", () => {
       expect(exported.file.bytes).toEqual(inspectBytes);
       expect(inspect.store.saveCommitCount()).toBe(0);
     } finally {
-      await inspect.service.disposeForRebootstrap();
+      await inspect.service.dispose();
     }
 
     const current = currentProvenanceV1();
@@ -1629,7 +1629,7 @@ describe("post-DET-A current Save load baseline", () => {
       expect(exported.file.bytes).toEqual(limitedBytes);
       expect(limited.store.saveCommitCount()).toBe(0);
     } finally {
-      await limited.service.disposeForRebootstrap();
+      await limited.service.dispose();
     }
   });
 });
@@ -1676,7 +1676,7 @@ describe("M2c staged Save State migration integration", () => {
         digestCanonical("sillymaker:state:v1", freshRecord.snapshot),
       );
     } finally {
-      await loaded.service.disposeForRebootstrap();
+      await loaded.service.dispose();
     }
 
     const imported = await fixtureV1({
@@ -1695,7 +1695,7 @@ describe("M2c staged Save State migration integration", () => {
       expect(await rawSaveRecordsV1(imported.store.records)).toEqual(recordsBefore);
       expect(imported.store.saveCommitCount()).toBe(0);
     } finally {
-      await imported.service.disposeForRebootstrap();
+      await imported.service.dispose();
     }
   });
 
@@ -1827,7 +1827,7 @@ describe("M2c staged Save State migration integration", () => {
       expect(readInstalledSaveStateMigrationReceiptInternalV1(fixture.session.runtimeControl))
         .toBeNull();
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 
@@ -1895,7 +1895,7 @@ describe("M2c staged Save State migration integration", () => {
       expect(fixture.service.getSimulationLineage()).toBe(observedLineage);
       expect(fixture.store.saveCommitCount()).toBe(0);
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 
@@ -1924,7 +1924,7 @@ describe("M2c staged Save State migration integration", () => {
       expect(fixture.session.commandLog()).toEqual([]);
       expect(fixture.session.status()).toBe("ready");
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 
@@ -1963,7 +1963,7 @@ describe("M2c staged Save State migration integration", () => {
       expect(fixture.store.saveCommitCount()).toBe(0);
       expect(fixture.session.status()).toBe("fault_paused");
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 
@@ -2015,7 +2015,7 @@ describe("M2c staged Save State migration integration", () => {
       expect(fixture.store.saveCommitCount()).toBe(0);
       expect(fixture.session.status()).toBe("ready");
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 
@@ -2057,7 +2057,7 @@ describe("M2c staged Save State migration integration", () => {
       });
       expect(migrationCalls).toBe(1);
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 
@@ -2085,7 +2085,7 @@ describe("M2c staged Save State migration integration", () => {
       });
       expect(migrationCalls).toBe(0);
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 
@@ -2235,7 +2235,7 @@ describe("M2c staged Save State migration integration", () => {
       expect(await rawSaveRecordsV1(fixture.store.records)).toEqual(recordsBefore);
       expect(fixture.store.saveCommitCount()).toBe(0);
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 });
@@ -2267,7 +2267,7 @@ describe("PF5 single-slot Save inspection", () => {
       expect(sourceBytes).toEqual(sourceBefore);
       expect(runtimeEvents).toEqual([]);
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 
@@ -2302,7 +2302,7 @@ describe("PF5 single-slot Save inspection", () => {
         ],
       });
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 
@@ -2352,7 +2352,7 @@ describe("PF5 single-slot Save inspection", () => {
       expect(migrationCalls).toBe(2);
       expect(sourceBytes).toEqual(sourceBefore);
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 
@@ -2411,7 +2411,7 @@ describe("PF5 single-slot Save inspection", () => {
       expect(firstCalls).toBe(1);
       expect(secondCalls).toBe(1);
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 
@@ -2447,7 +2447,7 @@ describe("PF5 single-slot Save inspection", () => {
       });
       expect(migrationCalls).toBe(1);
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 
@@ -2491,7 +2491,7 @@ describe("PF5 single-slot Save inspection", () => {
       if (stored.kind !== "exported") throw new TypeError("expected overwritten Save export");
       expect(stored.file.bytes).toEqual(secondBytes);
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 
@@ -2513,7 +2513,7 @@ describe("PF5 single-slot Save inspection", () => {
       expect(fixture.session.status()).toBe("ready");
       expect(fixture.store.saveCommitCount()).toBe(0);
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 
@@ -2571,7 +2571,7 @@ describe("PF5 single-slot Save inspection", () => {
       expect(migrationCalls).toBe(1);
       expect(sourceBytes).toEqual(sourceBefore);
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 
@@ -2598,7 +2598,7 @@ describe("PF5 single-slot Save inspection", () => {
         },
       });
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 
@@ -2631,7 +2631,7 @@ describe("PF5 single-slot Save inspection", () => {
         },
       });
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 
@@ -2660,7 +2660,7 @@ describe("PF5 single-slot Save inspection", () => {
         },
       });
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 
@@ -2702,7 +2702,7 @@ describe("PF5 single-slot Save inspection", () => {
       });
       expect(migrationCalls).toBe(1);
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 
@@ -2743,7 +2743,7 @@ describe("PF5 single-slot Save inspection", () => {
       });
       expect(migrationCalls).toBe(1);
     } finally {
-      await fixture.service.disposeForRebootstrap();
+      await fixture.service.dispose();
     }
   });
 
@@ -2770,7 +2770,7 @@ describe("PF5 single-slot Save inspection", () => {
       expect(referenceCalls).toBeGreaterThan(0);
       expect(invariantCalls).toBe(0);
     } finally {
-      await referenceFailure.service.disposeForRebootstrap();
+      await referenceFailure.service.dispose();
     }
 
     referenceCalls = 0;
@@ -2795,7 +2795,7 @@ describe("PF5 single-slot Save inspection", () => {
       expect(referenceCalls).toBeGreaterThan(0);
       expect(invariantCalls).toBeGreaterThan(0);
     } finally {
-      await invariantFailure.service.disposeForRebootstrap();
+      await invariantFailure.service.dispose();
     }
   });
 
@@ -2816,7 +2816,7 @@ describe("PF5 single-slot Save inspection", () => {
         },
       });
     } finally {
-      await empty.service.disposeForRebootstrap();
+      await empty.service.dispose();
     }
 
     const invalidBytes = textEncoderV1.encode("not-json");
@@ -2840,7 +2840,7 @@ describe("PF5 single-slot Save inspection", () => {
       });
       expect(invalidBytes).toEqual(invalidBefore);
     } finally {
-      await invalid.service.disposeForRebootstrap();
+      await invalid.service.dispose();
     }
   });
 
@@ -2877,7 +2877,7 @@ describe("PF5 single-slot Save inspection", () => {
       await expect(unavailable.service.port.getStatus()).resolves.toEqual(statusBefore);
       await expect(unavailable.service.port.lease.getStatus()).resolves.toEqual(leaseBefore);
     } finally {
-      await unavailable.service.disposeForRebootstrap();
+      await unavailable.service.dispose();
     }
 
     const throwing = await fixtureV1({ throwSaveReads: true });
@@ -2899,7 +2899,7 @@ describe("PF5 single-slot Save inspection", () => {
       expect(throwing.store.saveCommitCount()).toBe(0);
       expect(throwing.metadataClockCalls()).toBe(0);
     } finally {
-      await throwing.service.disposeForRebootstrap();
+      await throwing.service.dispose();
     }
 
     const invalidSlot = await fixtureV1();
@@ -2921,11 +2921,11 @@ describe("PF5 single-slot Save inspection", () => {
       expect(invalidSlot.store.saveCommitCount()).toBe(0);
       expect(invalidSlot.metadataClockCalls()).toBe(0);
     } finally {
-      await invalidSlot.service.disposeForRebootstrap();
+      await invalidSlot.service.dispose();
     }
 
     const disposed = await fixtureV1();
-    await disposed.service.disposeForRebootstrap();
+    await disposed.service.dispose();
     const disposedResult = await disposed.service.port.inspectSave("quick");
     expectDeeplyFrozenV1(disposedResult);
     expect(disposedResult).toEqual({
@@ -2995,7 +2995,7 @@ describe("PF5 single-slot Save inspection", () => {
         await expect(fixture.service.port.getStatus()).resolves.toEqual(statusBefore);
         await expect(fixture.service.port.lease.getStatus()).resolves.toEqual(leaseBefore);
       } finally {
-        await fixture.service.disposeForRebootstrap();
+        await fixture.service.dispose();
       }
     },
     120_000,

@@ -60,10 +60,12 @@ import { createGameSessionV1 } from "../session/game-session.ts";
 import { classifySaveCompatibilityV1 } from "./compatibility.ts";
 import { decodeSaveRecordV1, encodeSaveRecordV1 } from "./save-codec.ts";
 import {
+  adoptPersistenceRebootstrapHandoffInternalV1,
   bindPersistenceAnchorReplacementInternalV1,
   captureAutoSaveWithReceiptInternalV1,
   createInstrumentedPersistenceServiceV1,
   createPersistenceServiceV1,
+  disposePersistenceForRebootstrapInternalV1,
   fencePersistencePlayerMutationsInternalV1,
 } from "./persistence-service.ts";
 import type {
@@ -1171,7 +1173,7 @@ describe("PersistenceServiceV1", () => {
     expect(observed).toEqual(initialLineage);
   });
 
-  it("disposes in-flight Auto state before exact-fence release and transfers once", async () => {
+  it("captures one exact Save and released fence before writable atomic adoption", async () => {
     const delayed = createDelayedSaveStoreV1();
     let releaseFenceCalls = 0;
     const fixture = await fixtureV1({
@@ -1192,8 +1194,8 @@ describe("PersistenceServiceV1", () => {
     await delayed.waitUntilWriteStarts();
     const queuedSave = fixture.service.port.save("quick");
     await fixture.session.dispatch({ kind: "increment" });
-    const firstDisposal = fixture.service.disposeForRebootstrap();
-    const repeatedDisposal = fixture.service.disposeForRebootstrap();
+    const firstDisposal = disposePersistenceForRebootstrapInternalV1(fixture.service);
+    const repeatedDisposal = disposePersistenceForRebootstrapInternalV1(fixture.service);
     let disposed = false;
     void firstDisposal.then(() => {
       disposed = true;
@@ -1206,17 +1208,18 @@ describe("PersistenceServiceV1", () => {
     });
 
     delayed.releaseWrites();
-    const disposition = await firstDisposal;
-    await expect(queuedSave).resolves.toEqual({
-      kind: "faulted",
-      code: "runtime_disposed",
+    const handoff = await firstDisposal;
+    await expect(queuedSave).resolves.toEqual({ kind: "saved", slotId: "quick" });
+    expect(handoff).toMatchObject({
+      save: { mediaType: "application/json" },
+      lease: { ownerId: ownerIdV1, fencingToken: 1 },
     });
-    expect(disposition).toEqual({
-      ownership: "released",
-      code: null,
-      fence: { ownerId: ownerIdV1, fencingToken: 1 },
+    expect(digestBytes(handoff.save.bytes)).toBe(handoff.save.digest);
+    expect(decodeSaveRecordV1(handoff.save.bytes, codecV1)).toMatchObject({
+      kind: "decoded",
+      record: { snapshot: { commandSequence: 2, state: { count: 2 } } },
     });
-    await expect(repeatedDisposal).resolves.toBe(disposition);
+    await expect(repeatedDisposal).resolves.toBe(handoff);
     expect(releaseFenceCalls).toBe(1);
     await expect(fixture.repository.read("auto.current")).resolves.toMatchObject({
       health: "valid",
@@ -1232,6 +1235,7 @@ describe("PersistenceServiceV1", () => {
       records: delayed.records,
       ownerId: "owner.persistence-service-replacement" as SessionLeaseOwnerId,
       leaseAcquisition: "deferred_rebootstrap",
+      initial: snapshotV1(9),
     });
     await expect(replacement.service.port.save("quick")).resolves.toEqual({
       kind: "rejected",
@@ -1241,16 +1245,16 @@ describe("PersistenceServiceV1", () => {
       kind: "rejected",
       code: "conflict",
     });
-    const takeover = await replacement.service.takeOverForRebootstrap(disposition);
-    expect(takeover).toEqual({
-      ownership: "writable",
-      code: null,
-      fence: {
-        ownerId: "owner.persistence-service-replacement",
-        fencingToken: 2,
-      },
+    await adoptPersistenceRebootstrapHandoffInternalV1(replacement.service, handoff);
+    expect(replacement.session.getCurrentSnapshot()).toMatchObject({
+      state: { count: 2 },
+      commandSequence: 2,
     });
-    await expect(replacement.service.takeOverForRebootstrap(disposition)).resolves.toBe(takeover);
+    await expect(replacement.lease.getStatus()).resolves.toMatchObject({
+      kind: "owned",
+      ownerId: "owner.persistence-service-replacement",
+      fencingToken: 2,
+    });
     await expect(replacement.service.port.save("quick")).resolves.toEqual({
       kind: "saved",
       slotId: "quick",
@@ -1278,6 +1282,72 @@ describe("PersistenceServiceV1", () => {
     await expect(fixture.service.port.exportCurrentSave()).resolves.toMatchObject({
       mediaType: "application/json",
     });
+  });
+
+  it("installs a declared State migration through the same handoff admission", async () => {
+    const records = createMemoryHostRecordStoreV1();
+    const sourceProvenance = provenanceV1();
+    const targetProvenance = migrationTargetProvenanceV1();
+    const predecessor = await fixtureV1({ records, provenance: sourceProvenance });
+    await predecessor.session.dispatch({ kind: "increment" });
+    const handoff = await disposePersistenceForRebootstrapInternalV1(predecessor.service);
+    let migrationCalls = 0;
+    const successor = await fixtureV1({
+      records,
+      ownerId: "owner.persistence-service-migrated" as SessionLeaseOwnerId,
+      leaseAcquisition: "deferred_rebootstrap",
+      initial: snapshotV1(9),
+      provenance: targetProvenance,
+      saveStateMigrations: migrationRegistryV1(
+        sourceProvenance,
+        targetProvenance,
+        (state) => {
+          migrationCalls += 1;
+          return Object.freeze({ kind: "migrated" as const, state });
+        },
+      ),
+    });
+
+    await adoptPersistenceRebootstrapHandoffInternalV1(successor.service, handoff);
+    expect(migrationCalls).toBe(1);
+    expect(successor.session.getCurrentSnapshot()).toMatchObject({
+      state: { count: 1 },
+      rng: { cursor: 1 },
+      commandSequence: 1,
+    });
+    expect(successor.service.getSimulationLineage()).toEqual([]);
+    await successor.service.dispose();
+  });
+
+  it("installs a declared simulation adoption and anchors its successor lineage", async () => {
+    const records = createMemoryHostRecordStoreV1();
+    const stored = provenanceV1({ simulation: "simulation.old", patch: "old" });
+    const current = provenanceV1({ simulation: "simulation.new", patch: "new" });
+    const predecessor = await fixtureV1({ records, provenance: stored });
+    await predecessor.session.dispatch({ kind: "increment" });
+    const handoff = await disposePersistenceForRebootstrapInternalV1(predecessor.service);
+    const successor = await fixtureV1({
+      records,
+      ownerId: "owner.persistence-service-adopted" as SessionLeaseOwnerId,
+      leaseAcquisition: "deferred_rebootstrap",
+      initial: snapshotV1(9),
+      provenance: current,
+      adoptionDeclarations: Object.freeze([adoptionDeclarationV1(stored, current)]),
+    });
+
+    await adoptPersistenceRebootstrapHandoffInternalV1(successor.service, handoff);
+    expect(successor.session.getCurrentSnapshot()).toMatchObject({
+      state: { count: 1 },
+      rng: { cursor: 1 },
+      commandSequence: 1,
+    });
+    expect(successor.service.getSimulationLineage()).toEqual([
+      expect.objectContaining({
+        fromSimulationDigest: stored.resolved.simulationDigest,
+        toSimulationDigest: current.resolved.simulationDigest,
+      }),
+    ]);
+    await successor.service.dispose();
   });
 
   it("drains an in-flight public takeover and exact-releases its newly acquired fence", async () => {
@@ -1312,7 +1382,7 @@ describe("PersistenceServiceV1", () => {
 
     const takeover = oldRuntime.service.port.lease.takeOver();
     await takeoverStarted;
-    const disposal = oldRuntime.service.disposeForRebootstrap();
+    const disposal = disposePersistenceForRebootstrapInternalV1(oldRuntime.service);
     await expect(oldRuntime.service.port.lease.takeOver()).resolves.toEqual({
       kind: "rejected",
       code: "conflict",
@@ -1324,11 +1394,10 @@ describe("PersistenceServiceV1", () => {
       kind: "updated",
       status: { kind: "owned", fencingToken: 2 },
     });
-    const disposition = await resolveWithinV1(disposal);
-    expect(disposition).toEqual({
-      ownership: "released",
-      code: null,
-      fence: { ownerId: ownerIdV1, fencingToken: 2 },
+    const handoff = await resolveWithinV1(disposal);
+    expect(handoff).toMatchObject({
+      save: { mediaType: "application/json" },
+      lease: { ownerId: ownerIdV1, fencingToken: 2 },
     });
     await expect(oldRuntime.lease.getStatus()).resolves.toEqual({
       kind: "unowned",
@@ -1341,17 +1410,15 @@ describe("PersistenceServiceV1", () => {
       ownerId: "owner.persistence-service-successor" as SessionLeaseOwnerId,
       leaseAcquisition: "deferred_rebootstrap",
     });
-    await expect(successor.service.takeOverForRebootstrap(disposition)).resolves.toEqual({
-      ownership: "writable",
-      code: null,
-      fence: {
-        ownerId: "owner.persistence-service-successor",
-        fencingToken: 3,
-      },
+    await adoptPersistenceRebootstrapHandoffInternalV1(successor.service, handoff);
+    await expect(successor.lease.getStatus()).resolves.toMatchObject({
+      kind: "owned",
+      ownerId: "owner.persistence-service-successor",
+      fencingToken: 3,
     });
   });
 
-  it("drains an in-flight public release and preserves its strict successor fence", async () => {
+  it("rejects exact handoff after an in-flight public release removed writer authority", async () => {
     let releaseResult: (() => void) | undefined;
     let markReleaseCommitted: (() => void) | undefined;
     const releaseResultGate = new Promise<void>((resolve) => {
@@ -1380,7 +1447,7 @@ describe("PersistenceServiceV1", () => {
 
     const release = oldRuntime.service.port.lease.release();
     await releaseCommitted;
-    const disposal = oldRuntime.service.disposeForRebootstrap();
+    const disposal = disposePersistenceForRebootstrapInternalV1(oldRuntime.service);
     await expect(oldRuntime.service.port.lease.release()).resolves.toEqual({
       kind: "rejected",
       code: "conflict",
@@ -1392,34 +1459,15 @@ describe("PersistenceServiceV1", () => {
       kind: "updated",
       status: { kind: "unowned", fencingToken: 1 },
     });
-    const disposition = await resolveWithinV1(disposal);
-    expect(disposition).toEqual({
-      ownership: "released",
-      code: null,
-      fence: { ownerId: ownerIdV1, fencingToken: 1 },
-    });
+    await expect(disposal).rejects.toThrow("persistence.rebootstrap_writer_unavailable");
     await expect(oldRuntime.lease.getStatus()).resolves.toEqual({
       kind: "unowned",
       ownerId: null,
       fencingToken: 1,
     });
-
-    const successor = await fixtureV1({
-      records,
-      ownerId: "owner.persistence-service-successor" as SessionLeaseOwnerId,
-      leaseAcquisition: "deferred_rebootstrap",
-    });
-    await expect(successor.service.takeOverForRebootstrap(disposition)).resolves.toEqual({
-      ownership: "writable",
-      code: null,
-      fence: {
-        ownerId: "owner.persistence-service-successor",
-        fencingToken: 2,
-      },
-    });
   });
 
-  it("finishes disposal after a rejected stale-write repair instead of waiting for future work", async () => {
+  it("reuses a verified exact Auto write instead of issuing a stale repair", async () => {
     let releaseFirstWrite: (() => void) | undefined;
     let markFirstWriteStarted: (() => void) | undefined;
     const firstWriteGate = new Promise<void>((resolve) => {
@@ -1453,20 +1501,16 @@ describe("PersistenceServiceV1", () => {
     await fixture.session.dispatch({ kind: "increment" });
     await firstWriteStarted;
 
-    const disposal = fixture.service.disposeForRebootstrap();
+    const disposal = disposePersistenceForRebootstrapInternalV1(fixture.service);
     releaseFirstWrite?.();
-    const disposition = await resolveWithinV1(disposal);
-
-    expect(autoWriteCalls).toBe(2);
-    expect(disposition).toEqual({
-      ownership: "released",
-      code: null,
-      fence: { ownerId: ownerIdV1, fencingToken: 1 },
+    await expect(disposal).resolves.toMatchObject({
+      save: { mediaType: "application/json" },
+      lease: { ownerId: ownerIdV1, fencingToken: 1 },
     });
-    await expect(disposal).resolves.toBe(disposition);
+    expect(autoWriteCalls).toBe(1);
   });
 
-  it("keeps both runtimes read-only with stable release failure and skips takeover", async () => {
+  it("fails closed without a handoff when exact lease release fails", async () => {
     const records = createMemoryHostRecordStoreV1();
     const oldRuntime = await fixtureV1({
       records,
@@ -1482,12 +1526,9 @@ describe("PersistenceServiceV1", () => {
         });
       },
     });
-    const disposition = await oldRuntime.service.disposeForRebootstrap();
-    expect(disposition).toEqual({
-      ownership: "read_only",
-      code: "lease_release_failed",
-      fence: null,
-    });
+    await expect(disposePersistenceForRebootstrapInternalV1(oldRuntime.service)).rejects.toThrow(
+      "persistence.rebootstrap_lease_release_failed",
+    );
     await expect(oldRuntime.service.port.getStatus()).resolves.toMatchObject({
       lastFailureCode: "lease_release_failed",
     });
@@ -1498,55 +1539,13 @@ describe("PersistenceServiceV1", () => {
     await expect(oldRuntime.service.port.getStatus()).resolves.toMatchObject({
       lastFailureCode: "lease_release_failed",
     });
-
-    let takeoverCalls = 0;
-    const replacement = await fixtureV1({
-      records,
-      ownerId: "owner.persistence-service-replacement" as SessionLeaseOwnerId,
-      leaseAcquisition: "deferred_rebootstrap",
-      decorateLease(lease) {
-        return Object.freeze({
-          ...lease,
-          async takeOverUnowned(
-            expectedFencingToken: Parameters<SessionLeaseV1["takeOverUnowned"]>[0],
-          ) {
-            takeoverCalls += 1;
-            return lease.takeOverUnowned(expectedFencingToken);
-          },
-        });
-      },
-    });
-    const takeover = await replacement.service.takeOverForRebootstrap(disposition);
-    expect(takeover).toEqual({
-      ownership: "read_only",
-      code: "lease_release_failed",
-      fence: null,
-    });
-    await expect(replacement.service.takeOverForRebootstrap(disposition)).resolves.toBe(takeover);
-    expect(takeoverCalls).toBe(0);
-    await expect(replacement.service.port.getStatus()).resolves.toMatchObject({
-      lastFailureCode: "lease_release_failed",
-    });
-    await expect(replacement.service.port.save("quick")).resolves.toEqual({
-      kind: "rejected",
-      code: "unavailable",
-    });
-    await expect(replacement.service.port.getStatus()).resolves.toMatchObject({
-      lastFailureCode: "lease_release_failed",
-    });
-    await expect(replacement.service.port.lease.takeOver()).resolves.toEqual({
-      kind: "rejected",
-      code: "conflict",
-    });
-    await expect(replacement.service.port.exportCurrentSave()).resolves.toMatchObject({
-      mediaType: "application/json",
-    });
   });
 
-  it("reports a stable takeover failure after a successful release", async () => {
+  it("retains the prepared Save and advances no fence when takeover is rejected", async () => {
     const records = createMemoryHostRecordStoreV1();
     const oldRuntime = await fixtureV1({ records });
-    const disposition = await oldRuntime.service.disposeForRebootstrap();
+    await oldRuntime.session.dispatch({ kind: "increment" });
+    const handoff = await disposePersistenceForRebootstrapInternalV1(oldRuntime.service);
     const replacement = await fixtureV1({
       records,
       ownerId: "owner.persistence-service-replacement" as SessionLeaseOwnerId,
@@ -1564,11 +1563,9 @@ describe("PersistenceServiceV1", () => {
       },
     });
 
-    await expect(replacement.service.takeOverForRebootstrap(disposition)).resolves.toEqual({
-      ownership: "read_only",
-      code: "lease_takeover_failed",
-      fence: null,
-    });
+    await expect(
+      adoptPersistenceRebootstrapHandoffInternalV1(replacement.service, handoff),
+    ).rejects.toThrow("persistence.rebootstrap_lease_takeover_failed");
     await expect(replacement.service.port.getStatus()).resolves.toMatchObject({
       lastFailureCode: "lease_takeover_failed",
     });
@@ -1576,15 +1573,11 @@ describe("PersistenceServiceV1", () => {
       kind: "rejected",
       code: "unavailable",
     });
-    await replacement.session.dispatch({ kind: "increment" });
-    await replacement.service.autoSaveIdle();
-    expect(replacement.session.getCurrentSnapshot().state.count).toBe(1);
-    await expect(replacement.service.port.getStatus()).resolves.toMatchObject({
-      lastFailureCode: "lease_takeover_failed",
-    });
-    await expect(replacement.service.port.exportCurrentSave()).resolves.toMatchObject({
-      mediaType: "application/json",
-    });
+    expect(replacement.session.getCurrentSnapshot().state.count).toBe(0);
+    const retry = await disposePersistenceForRebootstrapInternalV1(replacement.service);
+    expect(retry.lease).toEqual(handoff.lease);
+    expect(retry.save.digest).toBe(handoff.save.digest);
+    expect(retry.save.bytes).toEqual(handoff.save.bytes);
   });
 
   it.each(["load", "import"] as const)(
@@ -2042,9 +2035,10 @@ describe("PersistenceServiceV1", () => {
     });
     await first.session.dispatch({ kind: "increment" });
     await first.service.autoSaveIdle();
-    const released = await first.service.disposeForRebootstrap();
-    expect(released).toMatchObject({
-      ownership: "released",
+    const handoff = await disposePersistenceForRebootstrapInternalV1(first.service);
+    expect(handoff).toMatchObject({
+      save: { mediaType: "application/json" },
+      lease: { fencingToken: 1 },
     });
 
     const second = await fixtureV1({
@@ -2056,9 +2050,7 @@ describe("PersistenceServiceV1", () => {
         return stampB;
       },
     });
-    await expect(second.service.takeOverForRebootstrap(released)).resolves.toMatchObject({
-      ownership: "writable",
-    });
+    await adoptPersistenceRebootstrapHandoffInternalV1(second.service, handoff);
     await expect(second.service.port.annotateSave("quick", "kept origin")).resolves.toEqual({
       kind: "saved",
       slotId: "quick",
@@ -2488,7 +2480,7 @@ describe("PersistenceServiceV1", () => {
       });
 
       const disposed = await fixtureV1();
-      await disposed.service.disposeForRebootstrap();
+      await disposed.service.dispose();
       const disposedResult = await disposed.service.port.inspectBackup("quick");
       expectDeeplyFrozenV1(disposedResult);
       expect(disposedResult).toEqual({

@@ -138,8 +138,6 @@ export { createPersistenceServiceV1 } from "./persistence/persistence-service.ts
 export type {
   PersistenceAutoSaveCaptureV1,
   PersistenceLeaseAcquisitionV1,
-  PersistenceRebootstrapDisposalV1,
-  PersistenceRebootstrapTakeoverV1,
   PersistenceServiceV1,
 } from "./persistence/persistence-service.ts";
 export { createSemanticGamePortV1 } from "./application/semantic-game-port.ts";
