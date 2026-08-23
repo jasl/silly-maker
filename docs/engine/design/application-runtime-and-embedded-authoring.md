@@ -450,6 +450,16 @@ post-retirement UI-start failure + valid retry、jsdom terminal
 candidate/rollback 双失败 cleanup，以及 10 次 Agent activate/dispose 资源归零分别补足更窄的
 lifecycle evidence；这些证据不合并为“所有 failure/rollback 都有 physical Browser proof”。
 
+2026-08-23 的 post-AR6 排序复查确认，上述 live Browser R2 只证明 Host/root 与 sibling lifecycle，
+尚未满足本设计 §4.3 的 authoritative continuity：lease-only disposition 不携带本次 predecessor 的
+Snapshot/Save，Core successor 取得 lease 后还会跳过 autosave resume；takeover `read_only` 与
+post-takeover retry 的 fence currentness 也没有成为 publication gate。所有者已接受
+[Browser R2 Authoritative State Handoff V1](../plans/2026-08-23-browser-r2-authoritative-state-handoff.md)
+作为当前 engine lane。目标是 package-private exact encoded Save + released lease fence，复用既有
+Save migration/adoption/replay-base，并只在 writable takeover 后发布；在该计划关闭前不得把 Engine Lab
+lifecycle evidence 推广为普通产品的 authoritative R2。该补口不改变 post-retirement failure 的
+terminal-recovery 边界，不建设 gameplay predecessor rollback，也不等待或激活 Desktop HMR。
+
 AR5 的一次性五组交错 fresh-build/fresh-Chromium-context runner 曾实测 first actionable paired
 median delta `-4.23ms / -3.54%`、stable command paired median delta
 `-0.72ms / -1.40%`。该日期化结果继续作为历史 evidence；AR0–AR5 Complexity Reset 已删除 runner、

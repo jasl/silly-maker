@@ -60,9 +60,14 @@ lifecycle/publication/promotion scaffolding 已删除，Direct 选择与 no-exte
 ：已有 closed manifest 的五个纵向 section 已收口为 Host-owned focus、accessible rail 与
 单一可见 workspace，保持 standalone/embedded、dirty session、progressive Flow 与 Authoring R1
 连续性。它没有建设 IDE/WindowManager/plugin registry，也没有等待或启用 Desktop HMR。普通 Browser
-产品 R2 在排序审计中暴露了尚未裁决的 authoritative Snapshot continuity 缺口：现有 rebootstrap
-disposition 只移交 persistence lease，不能把 tooling 接线冒充 product promotion；该问题留待独立
-合同计划。Workspace Focus 关闭后仍没有自动排列后继项，下一项需要 owner checkpoint。首个经 release
+产品 R2 在排序审计中暴露了 authoritative Snapshot continuity 缺口：现有 rebootstrap disposition
+只移交 persistence lease，successor 还会跳过 autosave resume，并且 takeover/read-only 与失败重试的
+fence currentness 没有成为 publication gate。所有者于 2026-08-23 接受
+[Browser R2 Authoritative State Handoff V1](2026-08-23-browser-r2-authoritative-state-handoff.md)
+作为当前唯一 engine lane；M0 是唯一下一项，先用 executable characterization 固定 exact Save + lease
+handoff、writable takeover 与 stale-fence retry，再进入 Base/Core、Web lifecycle、Engine Lab 和 Cat Cafe
+实现。不得把 lease-only tooling 接线冒充 product promotion，也不得由本车道派生 Desktop activation。
+首个经 release
 source/行为确认包含目标路径的 stable（2.9.6 只是预期候选）仍须重跑同一分层验收，全部通过后才
 正式打开 maintained Desktop development workflow。此前 adapter 保持 package-private、explicit、
 default-off；这条独立、条件性的 Desktop activation follow-up 没有阻塞 AR5/AR6 closure，也不阻塞
@@ -74,10 +79,10 @@ headless 只作开发/测试辅助，外部后台与 LLM 统一经 RPC。AR1 没
 ABI、runtime code installation、State Format V2、Effect Broker、具体 OpenUI/A2UI adapter 或
 production Story State migration；Cordis adapter/vendor/dependency 已删除。ordinary no-extension
 静态游戏 release 仍不得包含 author/source-write、selected Direct extension runtime 或 RPC
-implementation。AR6 后的首条 engine lane 已按上述 owner 指示交付关闭；其后的作品/examples/产品或
-engine lane 仍未在本计划预先排序。stable Deno Desktop revalidation 在满足 release source/行为进入
-条件后作为独立
-activation follow-up 领取，不占用或阻塞未来 owner-accepted current/next。
+implementation。Workspace Focus 是 AR6 后第一条已关闭 engine lane；Browser R2 authoritative handoff
+现在独占 current/next。该计划关闭后的作品/examples/产品或其他 engine lane 仍未预排，必须回到 owner
+checkpoint。stable Deno Desktop revalidation 只在满足 release source/行为进入条件后作为独立
+activation follow-up 领取，不占用或阻塞当前 Browser lane。
 
 前一条已关闭的能力车道（不形成 active/next）：
 [Authorable Chrome Layout V1](2026-08-22-authorable-chrome-layout.md)

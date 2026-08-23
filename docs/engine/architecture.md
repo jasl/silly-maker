@@ -746,6 +746,15 @@ recovery and does **not** claim to restore the gameplay predecessor. Authoring
 remains a sibling outside that Game root in either case, but this is not a
 transactional predecessor-rollback guarantee for Game R2.
 
+The current lease-only rebootstrap disposition does not yet transfer the
+authoritative Snapshot: the successor also skips autosave resume, and writable
+takeover/current retry fencing are not publication gates. Therefore the matrix's
+Browser R2 cell currently describes lifecycle replacement only, not promoted
+State/Save continuity for product Stories. The active
+[Browser R2 authoritative handoff plan](plans/2026-08-23-browser-r2-authoritative-state-handoff.md)
+owns the exact encoded Save + lease correction and Engine Lab/Cat Cafe evidence;
+Desktop HMR remains independently inactive.
+
 [Deno documents `deno desktop --hmr` as a platform development option](https://docs.deno.com/runtime/reference/cli/desktop/),
 but the current SillyMaker Desktop staging/packaging command does not pass or
 integrate that mode. Platform availability therefore does not promote an R1/R2

@@ -164,9 +164,14 @@ Host/consumer 复查选择并于同日交付关闭
 [Authoring Workspace Focus & Navigation V1](plans/2026-08-23-authoring-workspace-focus-navigation.md)
 ：已有 closed workspace manifest 现已成为 Host-owned focus、accessible rail 与单一可见
 workspace，保持 dirty session、progressive Flow、standalone/embedded 与 Authoring R1 连续性。
-该工作没有从 Desktop defer 派生、等待或启用 Desktop HMR；关闭后的下一项仍由 owner checkpoint
-决定。普通 Browser 产品 R2 另有 authoritative Snapshot continuity/Save compatibility 缺口，不能只靠
-Vite wiring promotion。
+该工作没有从 Desktop defer 派生、等待或启用 Desktop HMR。随后复查确认普通 Browser 产品 R2 的
+lease-only disposition 不移交 authoritative Snapshot，Core successor 还会跳过 autosave resume；
+takeover `read_only` 与 post-takeover retry 的 stale fence 也未阻止 publication。所有者于
+2026-08-23 接受
+[Browser R2 Authoritative State Handoff V1](plans/2026-08-23-browser-r2-authoritative-state-handoff.md)
+作为当前唯一 engine lane：以 exact encoded Save + lease fence、既有 Save migration/adoption/replay-base
+和 writable takeover 补齐合同，再用 Engine Lab 与 Cat Cafe 的 Chromium/WebKit forward/reverse HMR
+证明真实进度连续。M0 是唯一下一项；该工作不等待或激活 Desktop HMR，也不新增 Save format/framework。
 排序与交付记录以
 [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md) §1
 为准；稳定 promoted capability 以 [features](features.md) 为准，AR4 private provisional seam
