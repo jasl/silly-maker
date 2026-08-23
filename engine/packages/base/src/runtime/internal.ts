@@ -6,9 +6,13 @@
  */
 export {
   clearAllCoreApplicationSavesForMaintenanceInternalV1,
+  createCoreGameApplicationInstanceForRebootstrapInternalV1,
+  type CreateCoreGameApplicationInstanceForRebootstrapOptionsInternalV1,
   type CoreRebootstrapHandoffInternalV1,
   type CoreRebootstrapStartFailureInternalV1,
   type CorePresentationAnchorEventInternalV1,
+  disposeCoreGameApplicationForRebootstrapInternalV1,
+  invalidateCoreGameApplicationForHmrInternalV1,
   prepareCoreApplicationRestartInternalV1,
   type PreparedCoreApplicationRestartInternalV1,
   subscribeCoreApplicationPresentationAnchorEventsInternalV1,

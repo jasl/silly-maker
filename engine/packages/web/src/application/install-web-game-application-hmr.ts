@@ -12,6 +12,10 @@ import type {
 } from "./resolved-game-hmr.ts";
 import { installResolvedGameHmrV1 } from "./resolved-game-hmr.ts";
 import type { StartedWebGameApplicationV1 } from "./start-web-game-application.tsx";
+import {
+  disposeStartedWebGameApplicationForRebootstrapInternalV1,
+  invalidateStartedWebGameApplicationForHmrInternalV1,
+} from "./start-web-game-application.tsx";
 
 /**
  * Composer-owned dev HMR for `startWebGameApplicationV1` applications. A
@@ -81,9 +85,10 @@ export function installWebGameApplicationHmrV1<TModule>(
     currentProvenance: input.started.provenance,
     lifecycle: Object.freeze({
       invalidationController: Object.freeze({
-        invalidateForHmr: () => input.started.invalidateForHmr(),
+        invalidateForHmr: () => invalidateStartedWebGameApplicationForHmrInternalV1(input.started),
       }),
-      disposeForRebootstrap: () => input.started.disposeForRebootstrap(),
+      disposeForRebootstrap: () =>
+        disposeStartedWebGameApplicationForRebootstrapInternalV1(input.started),
     }),
     resolveAcceptedProvenance(module) {
       return input.resolveAcceptedProvenance(requireAcceptedModuleV1(module));
@@ -123,7 +128,7 @@ export function installWebGameApplicationHmrV1<TModule>(
           try {
             failureOutcome = Object.freeze({
               kind: "ready" as const,
-              handoff: await successor.disposeForRebootstrap(),
+              handoff: await disposeStartedWebGameApplicationForRebootstrapInternalV1(successor),
             });
           } catch {
             failureOutcome = Object.freeze({ kind: "terminal" as const });

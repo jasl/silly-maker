@@ -57,6 +57,9 @@ import {
 } from "../diagnostics/debug-bundle.ts";
 import { decodeSessionLeaseRecordV1 } from "../persistence/session-lease.ts";
 import {
+  createCoreGameApplicationInstanceForRebootstrapInternalV1,
+  disposeCoreGameApplicationForRebootstrapInternalV1,
+  invalidateCoreGameApplicationForHmrInternalV1,
   prepareCoreApplicationRestartInternalV1,
   subscribeCoreApplicationPresentationAnchorEventsInternalV1,
   type CorePresentationAnchorEventInternalV1,
@@ -3372,10 +3375,10 @@ describe("createCoreGameApplicationInstanceV1", () => {
         counter.reset();
 
         if (mode === "preflight") {
-          instance.invalidateForHmr();
+          invalidateCoreGameApplicationForHmrInternalV1(instance);
         } else if (mode === "post_operation") {
           fixture.useNextBootstrap((entropy) => {
-            instance.invalidateForHmr();
+            invalidateCoreGameApplicationForHmrInternalV1(instance);
             return canonicalBootstrapCandidateV1(entropy);
           });
         } else {
@@ -3384,7 +3387,7 @@ describe("createCoreGameApplicationInstanceV1", () => {
               { rngSeed: entropy.nextNonZeroUint32() },
               {
                 getPrototypeOf() {
-                  instance.invalidateForHmr();
+                  invalidateCoreGameApplicationForHmrInternalV1(instance);
                   throw projectionFailure;
                 },
               },
@@ -4131,7 +4134,9 @@ describe("createCoreGameApplicationInstanceV1", () => {
       | undefined;
     const fixture = evidenceNormalizationFixtureV1({
       zeroRngWithMalformedEvent: true,
-      beforeGameAttemptReturns: () => instance?.invalidateForHmr(),
+      beforeGameAttemptReturns: () => {
+        if (instance !== undefined) invalidateCoreGameApplicationForHmrInternalV1(instance);
+      },
     });
     const counter = createPurposeTaggedSnapshotWorkCounterV1();
     instance = await createCoreGameApplicationInstanceV1(
@@ -4182,7 +4187,9 @@ describe("createCoreGameApplicationInstanceV1", () => {
         | undefined;
       const fixture = evidenceNormalizationFixtureV1({
         beforeEvidenceSchemaReturns: (kind) => {
-          if (kind === target) instance?.invalidateForHmr();
+          if (kind === target && instance !== undefined) {
+            invalidateCoreGameApplicationForHmrInternalV1(instance);
+          }
         },
       });
       instance = await createCoreGameApplicationInstanceV1(fixture.application, {
@@ -5059,7 +5066,7 @@ describe("createCoreGameApplicationInstanceV1", () => {
       (event) => events.push(event),
     );
     const prepared = prepareCoreApplicationRestartInternalV1(instance);
-    await instance.disposeForRebootstrap();
+    await disposeCoreGameApplicationForRebootstrapInternalV1(instance);
 
     expect(() => prepareCoreApplicationRestartInternalV1(instance)).toThrowError(
       "core.application_internal_unavailable",
@@ -5353,7 +5360,7 @@ describe("createCoreGameApplicationInstanceV1", () => {
     await instance.autoSaveIdle();
     await instance.semantic.dispatch(incrementV1); // current is now in flight
 
-    await expect(instance.disposeForRebootstrap()).rejects.toThrow(
+    await expect(disposeCoreGameApplicationForRebootstrapInternalV1(instance)).rejects.toThrow(
       "persistence.rebootstrap_current_not_safepoint",
     );
     expect((await storedAutoCurrentV1(records))?.snapshot.commandSequence).toBe(2);
@@ -5830,6 +5837,8 @@ describe("createCoreGameApplicationInstanceV1", () => {
   it("continues the exact authoritative Snapshot and replay base across rebootstrap", async () => {
     const records = createMemoryHostRecordStoreV1();
     const predecessor = await createInstanceV1({ records, seeds: [77] });
+    expect(predecessor).not.toHaveProperty("invalidateForHmr");
+    expect(predecessor).not.toHaveProperty("disposeForRebootstrap");
     await predecessor.semantic.dispatch(incrementV1);
     await predecessor.semantic.dispatch(incrementV1);
     const predecessorSnapshot = predecessor.admin.inspectForTest().snapshot;
@@ -5840,15 +5849,19 @@ describe("createCoreGameApplicationInstanceV1", () => {
       commandSequence: 2,
     });
 
-    const handoff = await predecessor.disposeForRebootstrap();
+    const handoff = await disposeCoreGameApplicationForRebootstrapInternalV1(predecessor);
     expect(handoff).toMatchObject({
       save: { mediaType: "application/json" },
       lease: { ownerId: ownerIdV1, fencingToken: 1 },
     });
-    const successor = await createCoreGameApplicationInstanceV1(resolvedApplicationV1(), {
-      host: hostServicesV1(records, [83]),
-      rebootstrapHandoff: handoff,
-    });
+    const successor = await createCoreGameApplicationInstanceForRebootstrapInternalV1(
+      resolvedApplicationV1(),
+      {
+        host: hostServicesV1(records, [83]),
+        handoff,
+        onRebootstrapStartFailureInternal: () => undefined,
+      },
+    );
     try {
       const successorSnapshot = successor.admin.inspectForTest().snapshot;
       expect(canonicalJsonBytes(successorSnapshot)).toEqual(
@@ -5889,16 +5902,16 @@ describe("createCoreGameApplicationInstanceV1", () => {
     await predecessor.semantic.dispatch(incrementV1);
     await predecessor.semantic.dispatch(incrementV1);
     const predecessorSnapshot = predecessor.admin.inspectForTest().snapshot;
-    const firstHandoff = await predecessor.disposeForRebootstrap();
+    const firstHandoff = await disposeCoreGameApplicationForRebootstrapInternalV1(predecessor);
     const constructionFailure = new Error("synthetic post-adoption extension failure");
     let retryHandoff: DeepReadonly<CoreRebootstrapHandoffInternalV1> | undefined;
 
     await expect(
-      createCoreGameApplicationInstanceV1(
+      createCoreGameApplicationInstanceForRebootstrapInternalV1(
         resolvedApplicationWithExtensionFailureV1(constructionFailure),
         {
           host: hostServicesV1(records, [83]),
-          rebootstrapHandoff: firstHandoff,
+          handoff: firstHandoff,
           onRebootstrapStartFailureInternal(outcome) {
             if (outcome.kind === "ready") retryHandoff = outcome.handoff;
           },
@@ -5911,10 +5924,14 @@ describe("createCoreGameApplicationInstanceV1", () => {
     });
     if (retryHandoff === undefined) throw new TypeError("missing retry handoff");
 
-    const retry = await createCoreGameApplicationInstanceV1(resolvedApplicationV1(), {
-      host: hostServicesV1(records, [89]),
-      rebootstrapHandoff: retryHandoff,
-    });
+    const retry = await createCoreGameApplicationInstanceForRebootstrapInternalV1(
+      resolvedApplicationV1(),
+      {
+        host: hostServicesV1(records, [89]),
+        handoff: retryHandoff,
+        onRebootstrapStartFailureInternal: () => undefined,
+      },
+    );
     try {
       expect(canonicalJsonBytes(retry.admin.inspectForTest().snapshot)).toEqual(
         canonicalJsonBytes(predecessorSnapshot),
@@ -5932,7 +5949,7 @@ describe("createCoreGameApplicationInstanceV1", () => {
     const lease = leaseReleaseRecordsV1({ rejectRelease: true });
     const predecessor = await createInstanceV1({ records: lease.records });
     await predecessor.semantic.dispatch(incrementV1);
-    await expect(predecessor.disposeForRebootstrap()).rejects.toThrow(
+    await expect(disposeCoreGameApplicationForRebootstrapInternalV1(predecessor)).rejects.toThrow(
       "persistence.rebootstrap_lease_release_failed",
     );
   });
@@ -5942,22 +5959,22 @@ describe("createCoreGameApplicationInstanceV1", () => {
     const cleanupError = new Error("synthetic extension cleanup failure");
     let cleanupCalls = 0;
     let reentrantDisposal:
-      | ReturnType<Awaited<ReturnType<typeof createInstanceV1>>["disposeForRebootstrap"]>
+      | Promise<DeepReadonly<CoreRebootstrapHandoffInternalV1>>
       | undefined;
     let instance: Awaited<ReturnType<typeof createInstanceV1>> | undefined;
     const application = resolvedApplicationWithDisposeV1(() => {
       cleanupCalls += 1;
       if (instance === undefined) throw new TypeError("disposal fixture instance missing");
-      reentrantDisposal = instance.disposeForRebootstrap();
+      reentrantDisposal = disposeCoreGameApplicationForRebootstrapInternalV1(instance);
       throw cleanupError;
     });
     instance = await createCoreGameApplicationInstanceV1(application, {
       host: hostServicesV1(lease.records),
     });
 
-    const disposal = instance.disposeForRebootstrap();
+    const disposal = disposeCoreGameApplicationForRebootstrapInternalV1(instance);
     expect(reentrantDisposal).toBe(disposal);
-    expect(instance.disposeForRebootstrap()).toBe(disposal);
+    expect(disposeCoreGameApplicationForRebootstrapInternalV1(instance)).toBe(disposal);
     await expect(disposal).resolves.toMatchObject({
       save: { mediaType: "application/json" },
       lease: { ownerId: ownerIdV1, fencingToken: 1 },
@@ -5983,9 +6000,9 @@ describe("createCoreGameApplicationInstanceV1", () => {
       host: hostServicesV1(lease.records),
     });
 
-    const disposal = instance.disposeForRebootstrap();
+    const disposal = disposeCoreGameApplicationForRebootstrapInternalV1(instance);
     await expect(disposal).rejects.toThrow("persistence.rebootstrap_lease_release_failed");
-    expect(instance.disposeForRebootstrap()).toBe(disposal);
+    expect(disposeCoreGameApplicationForRebootstrapInternalV1(instance)).toBe(disposal);
     expect(cleanupCalls).toBe(1);
     expect(lease.releaseAttempts()).toBe(1);
     expect(
@@ -6024,7 +6041,7 @@ describe("createCoreGameApplicationInstanceV1", () => {
     timerInstance = instance;
     await instance.semantic.dispatch(incrementV1);
 
-    expect(() => instance.invalidateForHmr()).not.toThrow();
+    expect(() => invalidateCoreGameApplicationForHmrInternalV1(instance)).not.toThrow();
     await expect(reentrantDispatch).resolves.toEqual({
       kind: "not_executed",
       code: "hmr_invalidated",
@@ -6041,10 +6058,11 @@ describe("createCoreGameApplicationInstanceV1", () => {
       kind: "faulted",
       code: "runtime_disposed",
     });
-    await expect(instance.disposeForRebootstrap()).resolves.toMatchObject({
-      save: { mediaType: "application/json" },
-      lease: { ownerId: ownerIdV1, fencingToken: 1 },
-    });
+    await expect(disposeCoreGameApplicationForRebootstrapInternalV1(instance)).resolves
+      .toMatchObject({
+        save: { mediaType: "application/json" },
+        lease: { ownerId: ownerIdV1, fencingToken: 1 },
+      });
     expect(cancellationCalls).toBe(1);
     expect(lease.releaseAttempts()).toBe(1);
     expect(
@@ -6095,7 +6113,7 @@ describe("createCoreGameApplicationInstanceV1", () => {
       autosave: { mode: "debounced", delayMs: 60_000 },
     });
 
-    instance.invalidateForHmr();
+    invalidateCoreGameApplicationForHmrInternalV1(instance);
     await expect(instance.semantic.dispatch(incrementV1)).resolves.toEqual({
       kind: "not_executed",
       code: "hmr_invalidated",

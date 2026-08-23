@@ -22,6 +22,11 @@ import type {
   StartedWebGameApplicationV1,
   StartWebGameApplicationOptionsV1,
 } from "@sillymaker/web";
+import {
+  createWebGameApplicationRebootstrapStartOptionsInternalV1,
+  disposeStartedWebGameApplicationForRebootstrapInternalV1,
+  startWebGameApplicationForRebootstrapInternalV1,
+} from "@sillymaker/web/internal/application-hmr";
 
 import { labGameApplicationV1 } from "../application/composition.tsx";
 import procedureSceneSourceV1 from "../scenes/procedure/procedure.scene.json" with {
@@ -303,12 +308,20 @@ describe("Engine Lab Authoring Host sibling lifetime", () => {
       name: "引擎实验室",
     });
 
-    const handoff = await predecessor.disposeForRebootstrap();
-    const successor = await startLabOnRootV1(root, {
-      host,
-      gameBootstrapEntropy,
-      rebootstrapHandoff: handoff,
-    });
+    const handoff = await disposeStartedWebGameApplicationForRebootstrapInternalV1(predecessor);
+    const successor = await startWebGameApplicationForRebootstrapInternalV1(
+      labGameApplicationV1,
+      Object.freeze({
+        ...createWebGameApplicationRebootstrapStartOptionsInternalV1({
+          predecessor,
+          rootElement: root,
+          handoff,
+          onRebootstrapStartFailureInternal: () => undefined,
+        }),
+        gameBootstrapEntropy,
+        registerPageLifecycle: false,
+      }),
+    );
     startedApplicationsV1.push(successor);
     const successorGameRoot = await within(root).findByRole("application", {
       name: "引擎实验室",

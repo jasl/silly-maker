@@ -15,6 +15,11 @@ import type {
   StartedWebGameApplicationV1,
   StartWebGameApplicationOptionsV1,
 } from "@sillymaker/web";
+import {
+  createWebGameApplicationRebootstrapStartOptionsInternalV1,
+  disposeStartedWebGameApplicationForRebootstrapInternalV1,
+  startWebGameApplicationForRebootstrapInternalV1,
+} from "@sillymaker/web/internal/application-hmr";
 
 import { labGameApplicationV1 } from "../application/composition.tsx";
 
@@ -259,12 +264,22 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
       );
       expect(Number.isSafeInteger(predecessorEpoch)).toBe(true);
 
-      const handoff = await predecessor.disposeForRebootstrap();
-      successor = await startLabV1("", {
-        host,
-        gameBootstrapEntropy,
-        rebootstrapHandoff: handoff,
-      });
+      const rootElement = document.querySelector<HTMLElement>("#root");
+      if (rootElement === null) throw new TypeError("Engine Lab root is unavailable");
+      const handoff = await disposeStartedWebGameApplicationForRebootstrapInternalV1(predecessor);
+      successor = await startWebGameApplicationForRebootstrapInternalV1(
+        labGameApplicationV1,
+        Object.freeze({
+          ...createWebGameApplicationRebootstrapStartOptionsInternalV1({
+            predecessor,
+            rootElement,
+            handoff,
+            onRebootstrapStartFailureInternal: () => undefined,
+          }),
+          gameBootstrapEntropy,
+          registerPageLifecycle: false,
+        }),
+      );
       await waitFor(() => expect(screen.getByTestId("overlay-host")).toBeInTheDocument());
       const successorEpoch = Number(
         screen.getByTestId("overlay-host").getAttribute("data-overlay-application-epoch"),

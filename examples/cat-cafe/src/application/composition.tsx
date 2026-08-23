@@ -24,8 +24,17 @@ import {
   systemInputActionIdsV1,
 } from "@sillymaker/ui";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
-import type { WebGameApplicationV1 } from "@sillymaker/web";
+import type { StartedWebGameApplicationV1, WebGameApplicationV1 } from "@sillymaker/web";
 import { createWebAudioHostV1 } from "@sillymaker/web";
+import { applicationBuildIdentityInputInternalV1 } from "@sillymaker/web/internal/application-build-identity";
+import type { InstalledResolvedGameHmrV1 } from "@sillymaker/web/internal/application-hmr";
+import {
+  createWebGameApplicationRebootstrapStartOptionsInternalV1,
+  createWebGameApplicationViteHotAdapterInternalV1,
+  installWebGameApplicationHmrV1,
+  resolveWebGameApplicationHmrProvenanceInternalV1,
+  startWebGameApplicationForRebootstrapInternalV1,
+} from "@sillymaker/web/internal/application-hmr";
 
 import type {
   CatcafeActionDescriptorV1,
@@ -375,6 +384,9 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
     maxScale: 4,
   }),
   core: catcafeCoreApplicationDefinitionV1,
+  ...(applicationBuildIdentityInputInternalV1 === undefined
+    ? {}
+    : { buildIdentityInput: applicationBuildIdentityInputInternalV1 }),
   ui: ({
     instance,
     playerProfile,
@@ -485,3 +497,86 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
     });
   },
 });
+
+export interface CatcafeApplicationHmrModuleV1 {
+  readonly catcafeGameApplicationV1: typeof catcafeGameApplicationV1;
+  installCatcafeGameApplicationHmrV1(
+    started: StartedWebGameApplicationV1,
+    options?: InstallCatcafeGameApplicationHmrOptionsV1,
+  ): InstalledResolvedGameHmrV1 | undefined;
+}
+
+export interface InstallCatcafeGameApplicationHmrOptionsV1 {
+  /** The maintained Browser entry supplies its existing root to every successor. */
+  readonly rootElement?: HTMLElement;
+}
+
+function resolveCatcafeApplicationV1(
+  module: CatcafeApplicationHmrModuleV1,
+): typeof catcafeGameApplicationV1 {
+  return module.catcafeGameApplicationV1;
+}
+
+/** Install Cat Cafe's thin Story-owned literal Vite boundary over the neutral Web coordinator. */
+export function installCatcafeGameApplicationHmrV1(
+  started: StartedWebGameApplicationV1,
+  options: InstallCatcafeGameApplicationHmrOptionsV1 = {},
+): InstalledResolvedGameHmrV1 | undefined {
+  if (import.meta.hot === undefined) return undefined;
+  const rootElement = options.rootElement ?? document.querySelector("#root");
+  if (!(rootElement instanceof HTMLElement)) {
+    throw new TypeError("catcafe.hmr_application_root_missing");
+  }
+  const hot = createWebGameApplicationViteHotAdapterInternalV1({
+    currentApplication: catcafeGameApplicationV1,
+    currentProvenance: started.provenance,
+    applicationFromModule: resolveCatcafeApplicationV1,
+    resolveApplicationProvenance: resolveWebGameApplicationHmrProvenanceInternalV1,
+    registration: Object.freeze({
+      accept(handler: (module: CatcafeApplicationHmrModuleV1 | undefined) => void): void {
+        if (import.meta.hot === undefined) {
+          throw new TypeError("catcafe.hmr_hot_context_unavailable");
+        }
+        import.meta.hot.accept((module) => {
+          handler(module as CatcafeApplicationHmrModuleV1 | undefined);
+        });
+      },
+      invalidate(message?: string): void {
+        if (import.meta.hot === undefined) {
+          throw new TypeError("catcafe.hmr_hot_context_unavailable");
+        }
+        import.meta.hot.invalidate(message);
+      },
+    }),
+    r3InvalidationMessage: "catcafe.hmr_application_identity_changed",
+  });
+
+  return installWebGameApplicationHmrV1<CatcafeApplicationHmrModuleV1>({
+    started,
+    hot,
+    resolveAcceptedProvenance: (module) =>
+      resolveWebGameApplicationHmrProvenanceInternalV1(module.catcafeGameApplicationV1),
+    startSuccessor: ({
+      module,
+      started: predecessor,
+      handoff,
+      onRebootstrapStartFailureInternal,
+    }) =>
+      startWebGameApplicationForRebootstrapInternalV1(
+        module.catcafeGameApplicationV1,
+        createWebGameApplicationRebootstrapStartOptionsInternalV1({
+          predecessor,
+          rootElement,
+          handoff,
+          onRebootstrapStartFailureInternal,
+        }),
+      ),
+    installNextBoundary: ({ module, started: successor }) => {
+      const nextBoundary = module.installCatcafeGameApplicationHmrV1(successor, { rootElement });
+      if (nextBoundary === undefined) {
+        throw new TypeError("catcafe.hmr_next_boundary_unavailable");
+      }
+      return nextBoundary;
+    },
+  });
+}

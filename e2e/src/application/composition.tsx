@@ -10,8 +10,6 @@ import type {
   TransientEffectV1,
 } from "@sillymaker/base";
 import { projectStageRenderTargetV1 } from "@sillymaker/base";
-import type { ResolveCoreGameApplicationOptionsV1 } from "@sillymaker/base/runtime";
-import { resolveCoreGameApplicationV1 } from "@sillymaker/base/runtime";
 import type {
   AudioHostV1,
   DefaultGameRootLabelsV1,
@@ -29,18 +27,20 @@ import {
   playerInputActionIdsV1,
   systemInputActionIdsV1,
 } from "@sillymaker/ui";
+import type { StartedWebGameApplicationV1, WebGameApplicationV1 } from "@sillymaker/web";
+import { createWebAudioHostV1 } from "@sillymaker/web";
+import { applicationBuildIdentityInputInternalV1 } from "@sillymaker/web/internal/application-build-identity";
 import type {
   InstalledResolvedGameHmrV1,
   ResolvedGameHmrHotAdapterV1,
-  StartedWebGameApplicationV1,
-  WebGameApplicationV1,
-} from "@sillymaker/web";
+} from "@sillymaker/web/internal/application-hmr";
 import {
-  createResolvedGameHmrIdentityV1,
-  createWebAudioHostV1,
+  createWebGameApplicationRebootstrapStartOptionsInternalV1,
+  createWebGameApplicationViteHotAdapterInternalV1,
   installWebGameApplicationHmrV1,
-  startWebGameApplicationV1,
-} from "@sillymaker/web";
+  resolveWebGameApplicationHmrProvenanceInternalV1,
+  startWebGameApplicationForRebootstrapInternalV1,
+} from "@sillymaker/web/internal/application-hmr";
 
 import type {
   LabActionDescriptorV1,
@@ -604,17 +604,6 @@ export function createLabGameUiDefinitionV1(
  * no Session/Persistence/Diagnostics/Input/Automation wiring. The separate
  * development-only installer below delegates HMR lifecycle to the Web composer.
  */
-type LabBuildIdentityInputV1 = NonNullable<
-  ResolveCoreGameApplicationOptionsV1["buildIdentityInput"]
->;
-
-// The E2E BuildIdentity owner plugin replaces this exact initializer with its
-// live collector result before Browser evaluation. Vitest and other non-owner
-// environments leave it undefined and therefore cannot accidentally present
-// the composer's synthetic validation identity as HMR evidence.
-const labBuildIdentityInputV1: LabBuildIdentityInputV1 | undefined =
-  undefined /* __SILLYMAKER_E2E_BUILD_IDENTITY_V1__ */;
-
 export const labGameApplicationV1: WebGameApplicationV1<
   unknown,
   unknown,
@@ -639,7 +628,9 @@ export const labGameApplicationV1: WebGameApplicationV1<
     fallbackSize: Object.freeze({ width: 1600, height: 1000 }),
   }),
   core: labCoreApplicationDefinitionV1,
-  ...(labBuildIdentityInputV1 === undefined ? {} : { buildIdentityInput: labBuildIdentityInputV1 }),
+  ...(applicationBuildIdentityInputInternalV1 === undefined
+    ? {}
+    : { buildIdentityInput: applicationBuildIdentityInputInternalV1 }),
   ui: ({ instance }: { readonly instance: LabApplicationInstanceV1 }) =>
     createLabGameUiDefinitionV1({ instance }),
 });
@@ -673,38 +664,7 @@ export interface InstallLabGameApplicationHmrOptionsV1 {
 function resolveLabGameApplicationProvenanceV1(
   application: typeof labGameApplicationV1,
 ): DeepReadonly<BuildProvenanceV1> {
-  if (application.buildIdentityInput === undefined) {
-    throw new TypeError("e2e.hmr_build_identity_unavailable");
-  }
-  const resolved = resolveCoreGameApplicationV1(application.core, {
-    buildIdentityInput: application.buildIdentityInput,
-  });
-  if (resolved.kind === "failed") {
-    throw new TypeError(`e2e.hmr_application_resolution_failed:${resolved.failure.code}`);
-  }
-  return resolved.application.provenance as DeepReadonly<BuildProvenanceV1>;
-}
-
-function sameResolvedGameHmrIdentityV1(
-  left: DeepReadonly<BuildProvenanceV1>,
-  right: DeepReadonly<BuildProvenanceV1>,
-): boolean {
-  return JSON.stringify(createResolvedGameHmrIdentityV1(left)) ===
-    JSON.stringify(createResolvedGameHmrIdentityV1(right));
-}
-
-function changedApplicationFacetV1(
-  current: typeof labGameApplicationV1,
-  accepted: typeof labGameApplicationV1,
-): boolean {
-  if (
-    current.buildIdentityInput === undefined ||
-    accepted.buildIdentityInput === undefined
-  ) {
-    return false;
-  }
-  return JSON.stringify(current.buildIdentityInput.application) !==
-    JSON.stringify(accepted.buildIdentityInput.application);
+  return resolveWebGameApplicationHmrProvenanceInternalV1(application);
 }
 
 function ownViteHotAdapterV1(input: {
@@ -717,50 +677,37 @@ function ownViteHotAdapterV1(input: {
   >
   | undefined {
   if (input.hot === undefined && import.meta.hot === undefined) return undefined;
-  return Object.freeze({
-    accept(handler: (module: LabGameApplicationHmrModuleV1 | undefined) => void): void {
-      // Literal self-accept: deep scene/simulation changes propagate to this
-      // composition boundary, whose freshly evaluated module carries the
-      // owner-plugin-injected BuildIdentity for synchronous R2 admission.
-      const accept = (module: unknown): void => {
-        const accepted = module as LabGameApplicationHmrModuleV1 | undefined;
-        if (
-          accepted !== undefined &&
-          changedApplicationFacetV1(input.currentApplication, accepted.labGameApplicationV1)
-        ) {
-          let acceptedProvenance: DeepReadonly<BuildProvenanceV1>;
-          try {
-            acceptedProvenance = resolveLabGameApplicationProvenanceV1(
-              accepted.labGameApplicationV1,
-            );
-          } catch {
-            // Let the Web coordinator own resolution failure and retry policy.
-            handler(accepted);
-            return;
-          }
-          if (sameResolvedGameHmrIdentityV1(input.currentProvenance, acceptedProvenance)) {
-            if (input.hot !== undefined) {
-              input.hot.invalidate("e2e.hmr_application_identity_changed");
-            } else {
-              if (import.meta.hot === undefined) {
-                throw new TypeError("e2e.hmr_hot_context_unavailable");
-              }
-              import.meta.hot.invalidate("e2e.hmr_application_identity_changed");
-            }
-            return;
-          }
+  return createWebGameApplicationViteHotAdapterInternalV1({
+    currentApplication: input.currentApplication,
+    currentProvenance: input.currentProvenance,
+    applicationFromModule: (module) => module.labGameApplicationV1,
+    resolveApplicationProvenance: resolveLabGameApplicationProvenanceV1,
+    r3InvalidationMessage: "e2e.hmr_application_identity_changed",
+    registration: Object.freeze({
+      accept(handler: (module: LabGameApplicationHmrModuleV1 | undefined) => void): void {
+        if (input.hot !== undefined) {
+          input.hot.accept(handler as (module: unknown) => void);
+          return;
         }
-        handler(accepted);
-      };
-      if (input.hot !== undefined) {
-        input.hot.accept(accept);
-        return;
-      }
-      if (import.meta.hot === undefined) {
-        throw new TypeError("e2e.hmr_hot_context_unavailable");
-      }
-      import.meta.hot.accept(accept);
-    },
+        if (import.meta.hot === undefined) {
+          throw new TypeError("e2e.hmr_hot_context_unavailable");
+        }
+        // Vite requires this exact literal call in the Story boundary.
+        import.meta.hot.accept((module: unknown) =>
+          handler(module as LabGameApplicationHmrModuleV1 | undefined)
+        );
+      },
+      invalidate(message?: string): void {
+        if (input.hot !== undefined) {
+          input.hot.invalidate(message);
+          return;
+        }
+        if (import.meta.hot === undefined) {
+          throw new TypeError("e2e.hmr_hot_context_unavailable");
+        }
+        import.meta.hot.invalidate(message);
+      },
+    }),
   });
 }
 
@@ -795,13 +742,15 @@ export function installLabGameApplicationHmrV1(
       handoff,
       onRebootstrapStartFailureInternal,
     }) =>
-      startWebGameApplicationV1(module.labGameApplicationV1, {
-        rootElement,
-        host: predecessor.host,
-        capabilitySearch: predecessor.capabilitySearch,
-        rebootstrapHandoff: handoff,
-        onRebootstrapStartFailureInternal,
-      }),
+      startWebGameApplicationForRebootstrapInternalV1(
+        module.labGameApplicationV1,
+        createWebGameApplicationRebootstrapStartOptionsInternalV1({
+          predecessor,
+          rootElement,
+          handoff,
+          onRebootstrapStartFailureInternal,
+        }),
+      ),
     installNextBoundary: ({ module, started: successor }) => {
       const nextBoundary = module.installLabGameApplicationHmrV1(successor, {
         rootElement,

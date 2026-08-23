@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: MIT
 import type { BuildProvenanceV1, Digest, RuntimeInvalidationControllerV1 } from "@sillymaker/base";
 import { digestBytes, parsePositiveSafeInteger } from "@sillymaker/base";
-import type { CoreRebootstrapHandoffInternalV1 } from "@sillymaker/base/runtime/internal";
 import { describe, expect, it, vi } from "vitest";
 
-import { installWebGameApplicationHmrV1 } from "./install-web-game-application-hmr.ts";
 import {
   createResolvedGameHmrIdentityV1,
   installResolvedGameHmrV1,
   type ResolvedGameHmrHotAdapterV1,
   type ResolvedGameHmrRebootstrapInputV1,
 } from "./resolved-game-hmr.ts";
-import type { StartedWebGameApplicationV1 } from "./start-web-game-application.tsx";
 
 function digest(label: string): Digest {
   return digestBytes(new TextEncoder().encode(label));
@@ -146,48 +143,6 @@ function createLifecycleFixtureV1(events: string[] = []) {
 }
 
 describe("resolved Game HMR", () => {
-  it("retries an untouched handoff after successor pre-Core construction fails", async () => {
-    const current = provenanceV1();
-    const accepted = withProvenanceChangeV1(current, "presentationDigest");
-    const hot = createHotFixtureV1<{ readonly provenance: BuildProvenanceV1 }>();
-    const handoff = Object.freeze({
-      marker: "exact-handoff",
-    }) as unknown as CoreRebootstrapHandoffInternalV1;
-    const predecessor = Object.freeze({
-      provenance: current,
-      invalidateForHmr: vi.fn(),
-      disposeForRebootstrap: vi.fn(async () => handoff),
-    }) as unknown as StartedWebGameApplicationV1;
-    const preCoreFailure = new Error("synthetic pre-Core construction failure");
-    const failures: unknown[] = [];
-    const observedHandoffs: CoreRebootstrapHandoffInternalV1[] = [];
-    const installNextBoundary = vi.fn();
-    let attempts = 0;
-    const installation = installWebGameApplicationHmrV1({
-      hot: hot.hot,
-      started: predecessor,
-      resolveAcceptedProvenance: (module) => module.provenance,
-      async startSuccessor(input) {
-        attempts += 1;
-        observedHandoffs.push(input.handoff as CoreRebootstrapHandoffInternalV1);
-        if (attempts === 1) throw preCoreFailure;
-        return predecessor;
-      },
-      installNextBoundary,
-      reportFailure: (error) => failures.push(error),
-    });
-
-    hot.emit(Object.freeze({ provenance: accepted }));
-    await installation.waitForTransition();
-    expect(failures).toEqual([preCoreFailure]);
-    expect(installNextBoundary).not.toHaveBeenCalled();
-
-    hot.emit(Object.freeze({ provenance: accepted }));
-    await installation.waitForTransition();
-    expect(observedHandoffs).toEqual([handoff, handoff]);
-    expect(installNextBoundary).toHaveBeenCalledOnce();
-  });
-
   it("extracts only the reviewed frozen ResolvedGame identity tuple", () => {
     const provenance = provenanceV1();
     const identity = createResolvedGameHmrIdentityV1(provenance);

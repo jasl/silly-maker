@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { readFileSync, writeFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import type { Locator, Page } from "@playwright/test";
 
@@ -32,6 +33,14 @@ interface HeldAgentViewV1 {
   readonly predecessorAction: Locator;
 }
 
+interface AuthoritativeSaveAxesV1 {
+  readonly state: Readonly<Record<string, unknown>>;
+  readonly rng: Readonly<Record<string, unknown>>;
+  readonly commandSequence: number;
+  readonly integrity: Readonly<Record<string, unknown>>;
+  readonly stateDigest: string;
+}
+
 function requireSourceMutationV1(
   source: string,
   candidate: string,
@@ -43,6 +52,59 @@ function requireSourceMutationV1(
 
 function restoreSourceV1(path: string, originalBytes: string): void {
   if (readFileSync(path, "utf8") !== originalBytes) writeFileSync(path, originalBytes);
+}
+
+function requireRecordV1(value: unknown, description: string): Readonly<Record<string, unknown>> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError(`${description} is unavailable`);
+  }
+  return value as Readonly<Record<string, unknown>>;
+}
+
+async function exportAuthoritativeSaveAxesV1(page: Page): Promise<AuthoritativeSaveAxesV1> {
+  await page.getByTestId("stage-system").getByRole("button", { name: "保存", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "保存" });
+  const downloadPromise = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "导出当前进度", exact: true }).click();
+  const download = await downloadPromise;
+  const bytes = await readFile(await download.path());
+  await dialog.getByRole("button", { name: "关闭", exact: true }).click();
+
+  const envelope = requireRecordV1(JSON.parse(bytes.toString("utf8")), "exported Save");
+  const snapshot = requireRecordV1(envelope.snapshot, "exported Save Snapshot");
+  const state = requireRecordV1(snapshot.state, "exported Save State");
+  const rng = requireRecordV1(snapshot.rng, "exported Save RNG");
+  const integrity = requireRecordV1(snapshot.integrity, "exported Save integrity");
+  const commandSequence = snapshot.commandSequence;
+  const stateDigest = envelope.stateDigest;
+  if (
+    typeof commandSequence !== "number" ||
+    !Number.isSafeInteger(commandSequence) ||
+    commandSequence < 0 ||
+    typeof stateDigest !== "string"
+  ) {
+    throw new TypeError("exported Save authoritative identity is unavailable");
+  }
+  return Object.freeze({ state, rng, commandSequence, integrity, stateDigest });
+}
+
+function pendingOccurrenceFromSaveV1(save: AuthoritativeSaveAxesV1): string {
+  const simulation = requireRecordV1(save.state.simulation, "exported simulation State");
+  const narrative = requireRecordV1(simulation.narrative, "exported narrative State");
+  const pending = requireRecordV1(narrative.pending, "exported pending interaction");
+  if (typeof pending.occurrenceId !== "string") {
+    throw new TypeError("exported pending occurrence is unavailable");
+  }
+  return pending.occurrenceId;
+}
+
+function rngDrawCountFromSaveV1(save: AuthoritativeSaveAxesV1): number {
+  const rawDrawCount = save.rng.rawDrawCount;
+  if (typeof rawDrawCount !== "number" || !Number.isSafeInteger(rawDrawCount)) {
+    throw new TypeError("exported RNG draw count is unavailable");
+  }
+  return rawDrawCount;
 }
 
 async function openDirtyAuthoringV1(page: Page): Promise<DirtyAuthoringViewV1> {
@@ -188,6 +250,7 @@ test.describe("Engine Lab Browser module updates", () => {
   });
 
   test("@dev-source-io publishes a shared presentation change as Player R2 plus Authoring R1", async ({ page }) => {
+    test.setTimeout(60_000);
     const originalBytes = readFileSync(presentationFileV1, "utf8");
     const candidateBytes = requireSourceMutationV1(
       originalBytes,
@@ -201,37 +264,90 @@ test.describe("Engine Lab Browser module updates", () => {
 
     try {
       await gotoLabV1(page);
-      const authoring = await openDirtyAuthoringV1(page);
+      // The ordinary collect action consumes one real transactional RNG draw;
+      // calibration then leaves a real authoritative interaction pending.
+      await page.getByRole("button", { name: "采集样本" }).click();
+      await page.getByRole("button", { name: "开始校准" }).click();
+      const pending = page.locator("[data-lab-interaction='say']");
+      await expect(pending).toBeVisible();
+      const predecessorOccurrence = await pending.getAttribute("data-lab-occurrence");
+      expect(predecessorOccurrence).not.toBeNull();
+      const predecessorSave = await exportAuthoritativeSaveAxesV1(page);
+      expect(rngDrawCountFromSaveV1(predecessorSave)).toBeGreaterThan(0);
+      expect(pendingOccurrenceFromSaveV1(predecessorSave)).toBe(predecessorOccurrence);
+
+      const forwardAuthoring = await openDirtyAuthoringV1(page);
       const gameHost = page.getByTestId("overlay-host");
-      const predecessorEpoch = await gameHost.getAttribute("data-overlay-application-epoch");
-      expect(predecessorEpoch).not.toBeNull();
+      const predecessorEpochText = await gameHost.getAttribute(
+        "data-overlay-application-epoch",
+      );
+      expect(predecessorEpochText).not.toBeNull();
+      const predecessorEpoch = Number(predecessorEpochText);
+      expect(Number.isSafeInteger(predecessorEpoch)).toBe(true);
+      expect(predecessorEpoch).toBeGreaterThanOrEqual(1);
+      const forwardEpoch = predecessorEpoch + 1;
       page.on("load", () => {
         pageLoads += 1;
       });
 
       writeFileSync(presentationFileV1, candidateBytes);
-      await expect(authoring.panel.locator('[aria-label="研究员甲 R2"]').first()).toBeVisible();
-      await expect(gameHost).not.toHaveAttribute(
+      await expect(forwardAuthoring.panel.locator('[aria-label="研究员甲 R2"]').first())
+        .toBeVisible();
+      await expect(gameHost).toHaveAttribute(
         "data-overlay-application-epoch",
-        predecessorEpoch!,
+        String(forwardEpoch),
       );
-      await expect(authoring.xInput).toHaveValue(String(authoring.editedX));
-      await expect(authoring.undo).toBeEnabled();
+      await expect(pending).toHaveAttribute("data-lab-occurrence", predecessorOccurrence!);
+      await expect(forwardAuthoring.xInput).toHaveValue(String(forwardAuthoring.editedX));
+      await expect(forwardAuthoring.undo).toBeEnabled();
+      await expect(forwardAuthoring.save).toBeEnabled();
+      await finishAuthoringV1(forwardAuthoring);
+      const forwardSave = await exportAuthoritativeSaveAxesV1(page);
+      expect(forwardSave).toEqual(predecessorSave);
+      await expect(gameHost).toHaveAttribute(
+        "data-overlay-application-epoch",
+        String(forwardEpoch),
+      );
 
-      const candidateEpoch = await gameHost.getAttribute("data-overlay-application-epoch");
-      expect(candidateEpoch).not.toBeNull();
+      // A legal command must continue from the adopted Session, not merely
+      // leave a visually preserved but inert projection behind.
+      await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
+      await page.getByRole("button", { name: "继续" }).click();
+      await expect(page.getByText("样本读数稳定，可以开始校准。")).toBeVisible();
+      const reverseBaselineOccurrence = await pending.getAttribute("data-lab-occurrence");
+      expect(reverseBaselineOccurrence).not.toBe(predecessorOccurrence);
+      const reverseBaselineSave = await exportAuthoritativeSaveAxesV1(page);
+      expect(reverseBaselineSave.commandSequence).toBeGreaterThan(forwardSave.commandSequence);
+      const reverseAuthoring = await openDirtyAuthoringV1(page);
+
+      const reverseEpoch = forwardEpoch + 1;
       writeFileSync(presentationFileV1, originalBytes);
-      await expect(authoring.panel.locator('[aria-label="研究员甲 R2"]')).toHaveCount(0);
-      await expect(authoring.panel.locator('[aria-label="研究员甲"]').first()).toBeVisible();
-      await expect(gameHost).not.toHaveAttribute(
+      await expect(reverseAuthoring.panel.locator('[aria-label="研究员甲 R2"]')).toHaveCount(0);
+      await expect(reverseAuthoring.panel.locator('[aria-label="研究员甲"]').first())
+        .toBeVisible();
+      await expect(gameHost).toHaveAttribute(
         "data-overlay-application-epoch",
-        candidateEpoch!,
+        String(reverseEpoch),
       );
-      await expect(authoring.xInput).toHaveValue(String(authoring.editedX));
-      await expect(authoring.undo).toBeEnabled();
-      expect(pageLoads).toBe(0);
+      await expect(pending).toHaveAttribute(
+        "data-lab-occurrence",
+        reverseBaselineOccurrence!,
+      );
+      await expect(reverseAuthoring.xInput).toHaveValue(String(reverseAuthoring.editedX));
+      await expect(reverseAuthoring.undo).toBeEnabled();
+      await expect(reverseAuthoring.save).toBeEnabled();
+      await finishAuthoringV1(reverseAuthoring);
+      const reverseSave = await exportAuthoritativeSaveAxesV1(page);
+      expect(reverseSave).toEqual(reverseBaselineSave);
+      await expect(gameHost).toHaveAttribute(
+        "data-overlay-application-epoch",
+        String(reverseEpoch),
+      );
 
-      await finishAuthoringV1(authoring);
+      await expect(page.locator("[data-lab-say-reveal='complete']")).toBeAttached();
+      await page.getByRole("button", { name: "继续" }).click();
+      await expect(page.locator("[data-lab-interaction='choice']")).toBeVisible();
+      expect(pageLoads).toBe(0);
     } finally {
       restoreSourceV1(presentationFileV1, originalBytes);
     }

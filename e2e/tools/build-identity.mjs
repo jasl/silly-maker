@@ -4,21 +4,17 @@ import { fileURLToPath } from "node:url";
 
 import { createStoryBuildIdentityOwnerV1 } from "@sillymaker/tooling/identity/story-build-identity";
 
-export const e2eBuildIdentityVirtualSpecifierV1 = "virtual:sillymaker/e2e-build-identity";
+export const e2eBuildIdentityVirtualSpecifierV1 =
+  "@sillymaker/web/internal/application-build-identity";
+const e2eBuildIdentityResolvedVirtualIdV1 = `\0${e2eBuildIdentityVirtualSpecifierV1}`;
 
 const repositoryRootV1 = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 // Match Vite's forward-slash module-graph keys without importing Vite into the
 // deterministic BuildIdentity collector closure.
 const normalizeViteModulePathV1 = (path) => posix.normalize(path.replaceAll("\\", "/"));
-const compositionModulePathV1 = normalizeViteModulePathV1(
-  resolve(repositoryRootV1, "e2e/src/application/composition.tsx"),
-);
 const studioBindingModulePathV1 = normalizeViteModulePathV1(
   resolve(repositoryRootV1, "e2e/src/tooling/studio-binding.tsx"),
 );
-const buildIdentityInjectionMarkerV1 = "undefined /* __SILLYMAKER_E2E_BUILD_IDENTITY_V1__ */";
-const transformedBuildIdentityBindingV1 = "const labBuildIdentityInputV1 = undefined;";
-const injectedBuildIdentityBindingPrefixV1 = "const labBuildIdentityInputV1 = Object.freeze(";
 
 function reachesLoadedModuleV1(module, targets, visited = new Set()) {
   if (targets.has(module)) return true;
@@ -51,7 +47,7 @@ const ownerV1 = createStoryBuildIdentityOwnerV1({
   ],
   virtual: {
     specifier: e2eBuildIdentityVirtualSpecifierV1,
-    exportName: "e2eBuildIdentityV1",
+    exportName: "applicationBuildIdentityInputInternalV1",
     pluginName: "sillymaker-e2e-build-identity",
   },
 });
@@ -71,12 +67,17 @@ export function createE2eBuildIdentityVirtualPluginV1(input) {
   const collectIdentity = typeof input.collectIdentity === "function"
     ? input.collectIdentity
     : collectE2eBuildIdentityV1;
+  let currentIdentity = input.initialIdentity;
+  let refreshedIdentity = currentIdentity;
+  let refreshTail = Promise.resolve();
   const identityPlugin = ownerV1.createVirtualPluginV1({
     root: repositoryRootV1,
     initialIdentity: input.initialIdentity,
+    collectIdentity: async () => {
+      refreshedIdentity = await collectIdentity();
+      return refreshedIdentity;
+    },
   });
-  let currentIdentity = input.initialIdentity;
-  let refreshTail = Promise.resolve();
 
   const r2IdentityV1 = (identity) =>
     JSON.stringify({
@@ -86,93 +87,32 @@ export function createE2eBuildIdentityVirtualPluginV1(input) {
       storyPresentation: identity.storyPresentation,
     });
 
-  const transformCompositionV1 = (source) => {
-    const markerIndex = source.indexOf(buildIdentityInjectionMarkerV1);
-    if (markerIndex !== -1) {
-      if (markerIndex !== source.lastIndexOf(buildIdentityInjectionMarkerV1)) {
-        throw new TypeError("E2E composition BuildIdentity injection marker is invalid");
-      }
-      return source.replace(
-        buildIdentityInjectionMarkerV1,
-        `Object.freeze(${JSON.stringify(currentIdentity)})`,
-      );
-    }
-
-    // Rolldown presents TypeScript-transformed source to build plugins, after
-    // stripping the comment marker but before changing this stable binding.
-    const transformedBindingIndex = source.indexOf(transformedBuildIdentityBindingV1);
-    if (transformedBindingIndex !== -1) {
-      if (
-        transformedBindingIndex !== source.lastIndexOf(transformedBuildIdentityBindingV1)
-      ) {
-        throw new TypeError("E2E composition BuildIdentity injection marker is invalid");
-      }
-      return source.replace(
-        transformedBuildIdentityBindingV1,
-        `${injectedBuildIdentityBindingPrefixV1}${JSON.stringify(currentIdentity)});`,
-      );
-    }
-
-    const injectedBindingIndex = source.indexOf(injectedBuildIdentityBindingPrefixV1);
-    if (
-      injectedBindingIndex !== -1 &&
-      injectedBindingIndex === source.lastIndexOf(injectedBuildIdentityBindingPrefixV1)
-    ) {
-      return null;
-    }
-    throw new TypeError("E2E composition BuildIdentity injection marker is invalid");
-  };
-
   return Object.freeze({
     ...identityPlugin,
-    transform(source, id) {
-      const modulePath = normalizeViteModulePathV1(id.split("?", 1)[0]);
-      if (modulePath !== compositionModulePathV1) return null;
-      const code = transformCompositionV1(source);
-      return code === null ? null : Object.freeze({ code, map: null });
-    },
     handleHotUpdate(context) {
       const refresh = refreshTail.then(async () => {
         const identityModules = await identityPlugin.handleHotUpdate?.(context);
-        const nextIdentity = await collectIdentity();
+        const nextIdentity = refreshedIdentity;
         const r2IdentityChanged = r2IdentityV1(nextIdentity) !== r2IdentityV1(currentIdentity);
         currentIdentity = nextIdentity;
-        if (!r2IdentityChanged) {
-          return identityModules;
+        if (!r2IdentityChanged) return identityModules;
+
+        const identityModule = context.server.moduleGraph.getModuleById(
+          e2eBuildIdentityResolvedVirtualIdV1,
+        );
+        if (identityModule === undefined) {
+          throw new TypeError("E2E BuildIdentity HMR candidate is unavailable");
         }
-        const compositionModules = context.server.moduleGraph.getModulesByFile(
-          compositionModulePathV1,
-        ) ?? new Set();
-        if (compositionModules.size === 0) {
-          throw new TypeError("E2E composition HMR candidate is unavailable");
-        }
+        // Engine Lab alone has a sibling Authoring Host. Its R2 path starts at
+        // the virtual identity while the shared changed module is retained only
+        // when its live importer graph reaches the Studio binding.
         const studioBindingModules = context.server.moduleGraph.getModulesByFile(
           studioBindingModulePathV1,
         ) ?? new Set();
         const authoringPropagationModules = studioBindingModules.size === 0
           ? []
           : context.modules.filter((module) => reachesLoadedModuleV1(module, studioBindingModules));
-        const candidateModules = new Set([
-          ...compositionModules,
-          ...authoringPropagationModules,
-        ]);
-        for (const module of candidateModules) {
-          context.server.moduleGraph.invalidateModule(
-            module,
-            new Set(),
-            context.timestamp,
-            true,
-          );
-        }
-        // Vite treats every returned module as an HMR propagation root. Once
-        // live identity changes, starting again from every deep changed module
-        // can hit an unaccepted branch and force a full reload. Return the
-        // invalidated, literal-self-accepting composition R2 root plus only a
-        // changed module whose live importer graph reaches the Studio binding.
-        // Keeping that original propagation root lets Vite refresh its changed
-        // bytes before the binding's private R1 publication, while unrelated
-        // Scene/simulation modules remain behind the composition boundary.
-        return [...candidateModules];
+        return [...new Set([identityModule, ...authoringPropagationModules])];
       });
       refreshTail = refresh.then(
         () => undefined,

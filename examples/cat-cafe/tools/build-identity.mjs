@@ -4,7 +4,8 @@ import { fileURLToPath } from "node:url";
 
 import { createStoryBuildIdentityOwnerV1 } from "@sillymaker/tooling/identity/story-build-identity";
 
-export const catcafeBuildIdentityVirtualSpecifierV1 = "virtual:sillymaker/catcafe-build-identity";
+export const catcafeBuildIdentityVirtualSpecifierV1 =
+  "@sillymaker/web/internal/application-build-identity";
 
 const repositoryRootV1 = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const ownerV1 = createStoryBuildIdentityOwnerV1({
@@ -28,12 +29,12 @@ const ownerV1 = createStoryBuildIdentityOwnerV1({
   ],
   virtual: {
     specifier: catcafeBuildIdentityVirtualSpecifierV1,
-    exportName: "catcafeBuildIdentityV1",
+    exportName: "applicationBuildIdentityInputInternalV1",
     pluginName: "sillymaker-catcafe-build-identity",
   },
 });
 
-/** Collects the starter template BuildIdentity input from live source bytes. */
+/** Collects the Cat Cafe BuildIdentity input from live source bytes. */
 export async function collectCatcafeBuildIdentityV1(root = repositoryRootV1) {
   return await ownerV1.collectBuildIdentityV1(root);
 }

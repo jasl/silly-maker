@@ -761,6 +761,16 @@ const bootstrapAdmissionHooksV1 = new WeakMap<
   CreateCoreGameApplicationInstanceOptionsV1,
   CanonicalBootstrapAdmissionHooksInternalV1
 >();
+interface CoreGameApplicationRebootstrapStartInputInternalV1 {
+  readonly handoff: DeepReadonly<CoreRebootstrapHandoffInternalV1>;
+  readonly onFailure: (
+    outcome: DeepReadonly<CoreRebootstrapStartFailureInternalV1>,
+  ) => void;
+}
+const coreGameApplicationRebootstrapStartInputsInternalV1 = new WeakMap<
+  CreateCoreGameApplicationInstanceOptionsV1,
+  CoreGameApplicationRebootstrapStartInputInternalV1
+>();
 
 /**
  * Attaches a one-shot, observational construction probe for same-package tests.
@@ -893,10 +903,13 @@ export interface CreateCoreGameApplicationInstanceOptionsV1 {
   readonly scheduler?: CoreSchedulerV1;
   /** Application build identity digest for diagnostics provenance. */
   readonly appBuildId?: Digest;
-  /** @internal Exact Save + released lease generation from a fenced predecessor. */
-  readonly rebootstrapHandoff?: DeepReadonly<CoreRebootstrapHandoffInternalV1>;
-  /** @internal Receives the definitive recovery state before a failed successor rejects. */
-  readonly onRebootstrapStartFailureInternal?: (
+}
+
+/** @internal Package-private construction input for one authoritative successor. */
+export interface CreateCoreGameApplicationInstanceForRebootstrapOptionsInternalV1
+  extends CreateCoreGameApplicationInstanceOptionsV1 {
+  readonly handoff: DeepReadonly<CoreRebootstrapHandoffInternalV1>;
+  readonly onRebootstrapStartFailureInternal: (
     outcome: DeepReadonly<CoreRebootstrapStartFailureInternalV1>,
   ) => void;
 }
@@ -1023,16 +1036,36 @@ export interface CoreGameApplicationInstanceV1<
   readonly admin: CoreApplicationAdminV1<TTypes>;
   isDisposed(): boolean;
   dispose(): Promise<{ readonly kind: "disposed" }>;
-  /**
-   * Fences authoritative session and player-persistence mutation ingress for a
-   * dev rebootstrap without releasing the persistence lease.
-   */
-  invalidateForHmr(): void;
-  /**
-   * Disposes the instance and returns the exact Save + released lease handoff a
-   * successor passes back through `rebootstrapHandoff`.
-   */
-  disposeForRebootstrap(): Promise<DeepReadonly<CoreRebootstrapHandoffInternalV1>>;
+}
+
+interface CoreGameApplicationRebootstrapControlInternalV1 {
+  invalidate(): void;
+  dispose(): Promise<DeepReadonly<CoreRebootstrapHandoffInternalV1>>;
+}
+
+const coreGameApplicationRebootstrapControlsInternalV1 = new WeakMap<
+  object,
+  CoreGameApplicationRebootstrapControlInternalV1
+>();
+
+function requireCoreGameApplicationRebootstrapControlInternalV1(
+  instance: object,
+): CoreGameApplicationRebootstrapControlInternalV1 {
+  const control = coreGameApplicationRebootstrapControlsInternalV1.get(instance);
+  if (control === undefined) throw new TypeError("core.rebootstrap_instance_unavailable");
+  return control;
+}
+
+/** @internal Fences one live Core application before authoritative handoff. */
+export function invalidateCoreGameApplicationForHmrInternalV1(instance: object): void {
+  requireCoreGameApplicationRebootstrapControlInternalV1(instance).invalidate();
+}
+
+/** @internal Retires one live Core application into its exact Save + lease handoff. */
+export function disposeCoreGameApplicationForRebootstrapInternalV1(
+  instance: object,
+): Promise<DeepReadonly<CoreRebootstrapHandoffInternalV1>> {
+  return requireCoreGameApplicationRebootstrapControlInternalV1(instance).dispose();
 }
 
 function readBootstrapRngSeedV1(
@@ -1092,6 +1125,8 @@ export async function createCoreGameApplicationInstanceV1<
     TResult
   >
 > {
+  const rebootstrapStart = coreGameApplicationRebootstrapStartInputsInternalV1.get(options);
+  coreGameApplicationRebootstrapStartInputsInternalV1.delete(options);
   const constructionInstrumentation = constructionInstrumentationV1.get(options);
   constructionInstrumentationV1.delete(options);
   const snapshotWorkInstrumentation = snapshotWorkInstrumentationV1.get(options);
@@ -1608,9 +1643,7 @@ export async function createCoreGameApplicationInstanceV1<
         classifyWriteCandidate: (state: DeepReadonly<TTypes["state"]>) =>
           inFlightInhibitForfeited ? "safepoint" as const : classifyStateSafepointV1(state),
       }),
-      leaseAcquisition: options.rebootstrapHandoff === undefined
-        ? "acquire_initial"
-        : "deferred_rebootstrap",
+      leaseAcquisition: rebootstrapStart === undefined ? "acquire_initial" : "deferred_rebootstrap",
     };
     persistenceService = snapshotWorkInstrumentation === undefined &&
         saveProjectionInstrumentation === undefined
@@ -1623,13 +1656,13 @@ export async function createCoreGameApplicationInstanceV1<
           : { saveSummaryProjectionInstrumentation: saveProjectionInstrumentation },
       );
     const persistence = persistenceService;
-    if (options.rebootstrapHandoff !== undefined) {
+    if (rebootstrapStart !== undefined) {
       // Dev rebootstrap: strict Save admission precedes the exact writable
       // lease takeover, and the existing atomic replacement participant
       // installs Session, Persistence, and replay-base authority together.
       await adoptPersistenceRebootstrapHandoffInternalV1(
         persistence,
-        options.rebootstrapHandoff,
+        rebootstrapStart.handoff,
       );
     } else if (definition.resumeFromAutosave === true) {
       // Boot-time resume: adopt the previous session's autosave when one
@@ -2593,16 +2626,21 @@ export async function createCoreGameApplicationInstanceV1<
         await disposeOrdinarilyV1();
         return Object.freeze({ kind: "disposed" as const });
       },
-      invalidateForHmr: () => {
-        unregisterInstanceInternalsV1();
-        invalidateForHmrV1();
-      },
-      disposeForRebootstrap: () => {
-        unregisterInstanceInternalsV1();
-        return disposeForRebootstrapV1();
-      },
     });
     maintenanceInstance = instance;
+    coreGameApplicationRebootstrapControlsInternalV1.set(
+      instance,
+      Object.freeze({
+        invalidate: () => {
+          unregisterInstanceInternalsV1();
+          invalidateForHmrV1();
+        },
+        dispose: () => {
+          unregisterInstanceInternalsV1();
+          return disposeForRebootstrapV1();
+        },
+      }),
+    );
     coreSaveMaintenanceOperationsV1.set(instance, clearAllSavesForMaintenanceV1);
     coreApplicationCompositionControlsInternalV1.set(
       instance,
@@ -2630,7 +2668,7 @@ export async function createCoreGameApplicationInstanceV1<
       fencePersistencePlayerMutationsInternalV1(persistenceService);
     }
     created.invalidationController.invalidateForHmr();
-    if (options.rebootstrapHandoff === undefined) {
+    if (rebootstrapStart === undefined) {
       if (persistenceService !== undefined) await persistenceService.dispose();
     } else {
       let outcome: DeepReadonly<CoreRebootstrapStartFailureInternalV1>;
@@ -2639,7 +2677,7 @@ export async function createCoreGameApplicationInstanceV1<
         // fence are still the exact ready pair supplied by the predecessor.
         outcome = Object.freeze({
           kind: "ready" as const,
-          handoff: options.rebootstrapHandoff,
+          handoff: rebootstrapStart.handoff,
         });
       } else {
         try {
@@ -2651,11 +2689,71 @@ export async function createCoreGameApplicationInstanceV1<
         }
       }
       try {
-        options.onRebootstrapStartFailureInternal?.(outcome);
+        rebootstrapStart.onFailure(outcome);
       } catch (callbackError) {
         reportObserverFailure(callbackError);
       }
     }
     throw error;
   }
+}
+
+/**
+ * Creates one authoritative successor while keeping its exact handoff outside
+ * the ordinary Core construction options.
+ *
+ * @internal
+ */
+export function createCoreGameApplicationInstanceForRebootstrapInternalV1<
+  TSimulationFacet,
+  TPresentationFacet,
+  TTypes extends GameSimulationTypeMapV1,
+  TQueries,
+  TGameView,
+  TNarrativeView,
+  TActionDescriptor,
+  TInvocation,
+  TPreview,
+  TResult,
+>(
+  application: ResolvedCoreGameApplicationV1<
+    TSimulationFacet,
+    TPresentationFacet,
+    TTypes,
+    TQueries,
+    TGameView,
+    TNarrativeView,
+    TActionDescriptor,
+    TInvocation,
+    TPreview,
+    TResult
+  >,
+  options: CreateCoreGameApplicationInstanceForRebootstrapOptionsInternalV1,
+): Promise<
+  CoreGameApplicationInstanceV1<
+    TTypes,
+    TGameView,
+    TNarrativeView,
+    TActionDescriptor,
+    TInvocation,
+    TPreview,
+    TResult
+  >
+> {
+  const publicOptions: CreateCoreGameApplicationInstanceOptionsV1 = Object.freeze({
+    host: options.host,
+    ...(options.capabilities === undefined ? {} : { capabilities: options.capabilities }),
+    ...(options.capabilityState === undefined ? {} : { capabilityState: options.capabilityState }),
+    ...(options.autosave === undefined ? {} : { autosave: options.autosave }),
+    ...(options.scheduler === undefined ? {} : { scheduler: options.scheduler }),
+    ...(options.appBuildId === undefined ? {} : { appBuildId: options.appBuildId }),
+  });
+  coreGameApplicationRebootstrapStartInputsInternalV1.set(
+    publicOptions,
+    Object.freeze({
+      handoff: options.handoff,
+      onFailure: options.onRebootstrapStartFailureInternal,
+    }),
+  );
+  return createCoreGameApplicationInstanceV1(application, publicOptions);
 }

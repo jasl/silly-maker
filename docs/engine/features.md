@@ -31,6 +31,13 @@ maintained Desktop workflow 仍独立 defer 到首个包含目标语义的 stabl
 workspace 的 active/visited focus，以 accessible rail 保证任一时刻只有一个可见 panel，同时保留
 visited draft/history、隐藏 dirty close gate、progressive Flow 与兼容 R1 continuity；它没有新增
 workspace/plugin ABI 或 typed cross-workspace target navigation。
+同日 Browser R2 Authoritative State Handoff V1 完成 M0–M3：package-private Web coordinator 在
+predecessor ingress 关闭后移交 exact encoded Save + released lease fence，Core 复用既有 migration/
+adoption/replay-base 并只在 writable takeover 后发布；失败重试只消费 current Save/fence pair。
+Engine Lab 与 Cat Cafe 的 Chromium/WebKit forward/reverse 产品用例通过真实 Player Save export 证明
+State、RNG、command sequence、integrity、digest 与 pending progress 连续，每次源码更新只换代一次
+Game epoch、零 page reload，且 successor 可继续提交合法操作。Engine Lab 的 dirty Authoring sibling
+保持可操作；Whole Canvas 标题页等 transient React state 不在该合同内。Desktop HMR 仍未激活。
 
 ## Internal composition kernel
 

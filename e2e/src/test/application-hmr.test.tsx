@@ -17,11 +17,17 @@ import {
   createMemoryHostRecordStoreV1,
 } from "@sillymaker/base/testkit";
 import { createWebHostV1, startWebGameApplicationV1 } from "@sillymaker/web";
+import type { StartedWebGameApplicationV1 } from "@sillymaker/web";
 import type {
   InstalledResolvedGameHmrV1,
   ResolvedGameHmrHotAdapterV1,
-  StartedWebGameApplicationV1,
-} from "@sillymaker/web";
+} from "@sillymaker/web/internal/application-hmr";
+import {
+  createWebGameApplicationRebootstrapStartOptionsInternalV1,
+  installWebGameApplicationHmrV1,
+  resolveWebGameApplicationHmrProvenanceInternalV1,
+  startWebGameApplicationForRebootstrapInternalV1,
+} from "@sillymaker/web/internal/application-hmr";
 
 import {
   installLabGameApplicationHmrV1,
@@ -145,6 +151,98 @@ async function inFlightAgentV1() {
 }
 
 describe("Engine Lab maintained application HMR boundary", () => {
+  it("retries an untouched exact handoff after successor construction rejects before Core", async () => {
+    const root = document.createElement("div");
+    root.id = "root";
+    document.body.append(root);
+    const host = createWebHostV1({ records: createMemoryHostRecordStoreV1() });
+    const predecessorApplication = applicationWithBuildIdentityV1(
+      buildIdentityV1(
+        "simulation:compatible",
+        "application",
+        "presentation:predecessor",
+      ),
+    );
+    const acceptedApplication = applicationWithBuildIdentityV1(
+      buildIdentityV1(
+        "simulation:compatible",
+        "application",
+        "presentation:accepted",
+      ),
+    );
+    const predecessor = await startWebGameApplicationV1(predecessorApplication, {
+      rootElement: root,
+      host,
+      gameBootstrapEntropy: createFixedBootstrapEntropyV1({
+        seeds: [20260901],
+        uuids: [],
+      }),
+      registerPageLifecycle: false,
+    });
+    startedApplicationsV1.push(predecessor);
+    const nextBoundary: InstalledResolvedGameHmrV1 = Object.freeze({
+      waitForTransition: () => Promise.resolve(),
+    });
+    const installNextBoundary = vi.fn(() => nextBoundary);
+    const acceptedModule = Object.freeze({ application: acceptedApplication });
+    const hot = hotFixtureV1<typeof acceptedModule>();
+    const preCoreFailure = new Error("synthetic pre-Core construction failure");
+    const failures: unknown[] = [];
+    const observedHandoffs: unknown[] = [];
+    let attempts = 0;
+    let successor: StartedWebGameApplicationV1 | undefined;
+    const installation = installWebGameApplicationHmrV1({
+      started: predecessor,
+      hot: hot.hot,
+      resolveAcceptedProvenance: (module) =>
+        resolveWebGameApplicationHmrProvenanceInternalV1(module.application),
+      async startSuccessor({
+        module,
+        started,
+        handoff,
+        onRebootstrapStartFailureInternal,
+      }) {
+        attempts += 1;
+        observedHandoffs.push(handoff);
+        if (attempts === 1) throw preCoreFailure;
+        successor = await startWebGameApplicationForRebootstrapInternalV1(
+          module.application,
+          Object.freeze({
+            ...createWebGameApplicationRebootstrapStartOptionsInternalV1({
+              predecessor: started,
+              rootElement: root,
+              handoff,
+              onRebootstrapStartFailureInternal,
+            }),
+            registerPageLifecycle: false,
+          }),
+        );
+        startedApplicationsV1.push(successor);
+        return successor;
+      },
+      installNextBoundary,
+      reportFailure: (error) => failures.push(error),
+    });
+
+    hot.emit(acceptedModule);
+    await installation.waitForTransition();
+    expect(predecessor.isDisposed()).toBe(true);
+    expect(failures).toEqual([preCoreFailure]);
+    expect(installNextBoundary).not.toHaveBeenCalled();
+
+    hot.emit(acceptedModule);
+    await installation.waitForTransition();
+    expect(observedHandoffs).toHaveLength(2);
+    expect(observedHandoffs[1]).toBe(observedHandoffs[0]);
+    expect(successor).toBeDefined();
+    expect(successor!.host).toBe(host);
+    expect(installNextBoundary).toHaveBeenCalledOnce();
+    expect(successor!.instanceLease.state.getCurrent()).toMatchObject({
+      role: "owner",
+      holderOwnerId: null,
+    });
+  });
+
   it("hands a compatible presentation-only R2 candidate to the Web composer on the same Host and root", async () => {
     const root = document.createElement("div");
     root.id = "root";
@@ -304,19 +402,6 @@ describe("Engine Lab maintained application HMR boundary", () => {
       registerPageLifecycle: false,
     });
     startedApplicationsV1.push(predecessor);
-    const invalidateForHmr = vi.fn();
-    const disposeForRebootstrap = vi.fn(() => predecessor.disposeForRebootstrap());
-    const observedPredecessor: StartedWebGameApplicationV1 = Object.freeze({
-      applicationId: predecessor.applicationId,
-      host: predecessor.host,
-      provenance: predecessor.provenance,
-      capabilitySearch: predecessor.capabilitySearch,
-      instanceLease: predecessor.instanceLease,
-      isDisposed: () => predecessor.isDisposed(),
-      dispose: () => predecessor.dispose(),
-      invalidateForHmr,
-      disposeForRebootstrap,
-    });
     const nextInstaller = vi.fn((): InstalledResolvedGameHmrV1 =>
       Object.freeze({ waitForTransition: () => Promise.resolve() })
     );
@@ -327,7 +412,7 @@ describe("Engine Lab maintained application HMR boundary", () => {
       installLabGameApplicationHmrV1: nextInstaller,
     });
     const viteHot = viteHotFixtureV1();
-    const installation = installLabGameApplicationHmrV1(observedPredecessor, {
+    const installation = installLabGameApplicationHmrV1(predecessor, {
       viteHot: viteHot.hot,
       currentApplication,
       rootElement: root,
@@ -339,8 +424,6 @@ describe("Engine Lab maintained application HMR boundary", () => {
 
     expect(viteHot.invalidate).toHaveBeenCalledOnce();
     expect(viteHot.invalidate).toHaveBeenCalledWith("e2e.hmr_application_identity_changed");
-    expect(invalidateForHmr).not.toHaveBeenCalled();
-    expect(disposeForRebootstrap).not.toHaveBeenCalled();
     expect(nextInstaller).not.toHaveBeenCalled();
     expect(predecessor.isDisposed()).toBe(false);
   });

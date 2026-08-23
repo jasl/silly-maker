@@ -64,10 +64,11 @@ lifecycle/publication/promotion scaffolding 已删除，Direct 选择与 no-exte
 只移交 persistence lease，successor 还会跳过 autosave resume，并且 takeover/read-only 与失败重试的
 fence currentness 没有成为 publication gate。所有者于 2026-08-23 接受
 [Browser R2 Authoritative State Handoff V1](2026-08-23-browser-r2-authoritative-state-handoff.md)
-作为当前唯一 engine lane。M0–M2 已于同日交付 exact Save + lease handoff、writable takeover、
-stale-fence fail-closed retry 以及 Base/Core 与 Web lifecycle 合同；M3 是唯一下一项，以 Engine Lab 和
-Cat Cafe 的 forward/reverse Chromium/WebKit evidence 完成产品 promotion。不得把 focused authority
-tests 冒充 product promotion，也不得由本车道派生 Desktop activation。
+作为当时唯一 engine lane。M0–M3 已于同日交付 exact Save + lease handoff、writable takeover、
+stale-fence fail-closed retry、Base/Core 与 Web lifecycle 合同，以及 Engine Lab 和 Cat Cafe 的
+forward/reverse Chromium/WebKit product evidence。两个消费者都以真实 Save 导出证明权威进度连续、
+一次源码更新只换代一次 Game epoch 且零 page reload；该计划现已关闭。不得由本车道派生 Desktop
+activation，也没有后继任务自动成为 current/next。
 首个经 release
 source/行为确认包含目标路径的 stable（2.9.6 只是预期候选）仍须重跑同一分层验收，全部通过后才
 正式打开 maintained Desktop development workflow。此前 adapter 保持 package-private、explicit、
@@ -80,9 +81,9 @@ headless 只作开发/测试辅助，外部后台与 LLM 统一经 RPC。AR1 没
 ABI、runtime code installation、State Format V2、Effect Broker、具体 OpenUI/A2UI adapter 或
 production Story State migration；Cordis adapter/vendor/dependency 已删除。ordinary no-extension
 静态游戏 release 仍不得包含 author/source-write、selected Direct extension runtime 或 RPC
-implementation。Workspace Focus 是 AR6 后第一条已关闭 engine lane；Browser R2 authoritative handoff
-现在独占 current/next。该计划关闭后的作品/examples/产品或其他 engine lane 仍未预排，必须回到 owner
-checkpoint。stable Deno Desktop revalidation 只在满足 release source/行为进入条件后作为独立
+implementation。Workspace Focus 与 Browser R2 authoritative handoff 都已关闭；作品/examples/产品或
+其他 engine lane 仍未预排，必须回到 owner checkpoint。stable Deno Desktop revalidation 只在满足
+release source/行为进入条件后作为独立
 activation follow-up 领取，不占用或阻塞当前 Browser lane。
 
 前一条已关闭的能力车道（不形成 active/next）：

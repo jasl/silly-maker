@@ -1,6 +1,6 @@
 # Browser R2 Authoritative State Handoff V1 实施计划
 
-状态：**2026-08-23 经所有者确认开启；M0–M2 已交付，M3 是唯一下一项**。
+状态：**2026-08-23 经所有者确认开启并完成 M0–M3；计划已关闭，无后继任务自动激活**。
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 仍是唯一跨计划排序入口；
 本计划只拥有 Browser R2 的 authoritative Save/Session handoff、失败重试和两个真实 GUI
 消费者。Deno Desktop HMR 继续 package-private、explicit、default-off，只等待包含目标路径的
@@ -143,7 +143,7 @@ Cat Cafe 当前不受影响：它尚未安装 Browser R2，开发变更仍走 R3
   UI-start failure + valid retry 最终是唯一 writer；cleanup/retry 双失败进入 terminal recovery；
   Agent/Authoring sibling 保持既有边界，不扩大 identity inventory。
 
-### M3 — 两个真实 Browser GUI 消费者与收口
+### M3 — 两个真实 Browser GUI 消费者与收口（已交付）
 
 - 扩展 Engine Lab 现有 Chromium/WebKit shared-presentation forward/reverse R2 case，不另建 harness：
   更新前消费真实 RNG、进入 pending并保留 dirty Authoring draft；通过真实 Save export
@@ -161,6 +161,15 @@ Cat Cafe 当前不受影响：它尚未安装 Browser R2，开发变更仍走 R3
 - 更新 design、architecture、features、development、roadmap/sequence 与 `AGENTS.md`，明确 Browser
   R2 已覆盖/仍不覆盖的语义。运行 focused tests、受影响 Chromium/WebKit E2E、`deno task check`、
   `deno task docs:build`；若修改 React/TSX，按 slice-start ref 运行 React Doctor advisory audit。
+
+交付记录（2026-08-23）：Engine Lab 与 Cat Cafe 均通过同一 package-private Web coordinator、
+Story-owned literal Vite boundary 和 owner-injected BuildIdentity 完成 forward/reverse Browser R2。
+两者都从真实 Player Save 导出比较 decoded `state`、`rng`、`commandSequence`、`integrity` 与
+`stateDigest`，并证明 pending occurrence、合法 successor command、单次 Game epoch 换代和零 page
+reload；Engine Lab 另证明 dirty Authoring sibling 保持可操作。Cat Cafe 的 Whole Canvas 标题页是
+每个 React successor 新建的瞬态 shell state，按本计划明确不跨 R2 搬运；测试通过普通“继续”仅关闭
+标题页后回到已接管 Session，不把该 shell state 误写成权威连续性合同。原有 R3 reload + Continue
+recovery evidence 保留。Desktop adapter、activation 与 stable revalidation 条件均未改变。
 
 ## 5. 验收
 

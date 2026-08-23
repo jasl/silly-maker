@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: MIT
-export { installWebGameApplicationHmrV1 } from "./application/install-web-game-application-hmr.ts";
-export type { InstallWebGameApplicationHmrInputV1 } from "./application/install-web-game-application-hmr.ts";
 export { mountGameApplicationV1 } from "./application/mount-game-application.tsx";
 export type { MountedGameApplicationV1 } from "./application/mount-game-application.tsx";
 export {
@@ -50,19 +48,6 @@ export type {
   PlayerUiPersistenceSourceV1,
   PlayerUiPortsV1,
 } from "./application/create-player-ui-ports.ts";
-export {
-  createResolvedGameHmrIdentityV1,
-  installResolvedGameHmrV1,
-} from "./application/resolved-game-hmr.ts";
-export type {
-  InstalledResolvedGameHmrV1,
-  ResolvedGameHmrEligibilityInputV1,
-  ResolvedGameHmrHotAdapterV1,
-  ResolvedGameHmrIdentityV1,
-  ResolvedGameHmrReasonV1,
-  ResolvedGameHmrRebootstrapInputV1,
-  WebRuntimeRebootstrapLifecycleV1,
-} from "./application/resolved-game-hmr.ts";
 export { createWebHostV1 } from "./host/create-web-host.ts";
 export { createHttpHostRecordStoreV1 } from "./host/http-record-store.ts";
 export type { CreateHttpHostRecordStoreOptionsV1 } from "./host/http-record-store.ts";

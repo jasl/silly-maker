@@ -1,9 +1,140 @@
 // SPDX-License-Identifier: MIT
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 
 import type { Page } from "@playwright/test";
 
 import { catcafeTargetUrlV1, expect, test } from "./fixtures.ts";
+
+const catcafePresentationFileV1 = fileURLToPath(
+  new URL("../cat-cafe/src/content/presentation.ts", import.meta.url),
+);
+
+interface CatCafeAuthoritativeSaveAxesV1 {
+  readonly stateDigest: string;
+  readonly state: Readonly<Record<string, unknown>>;
+  readonly rng: Readonly<Record<string, unknown>>;
+  readonly commandSequence: number;
+  readonly integrity: Readonly<Record<string, unknown>>;
+}
+
+function requireRecordV1(value: unknown, description: string): Readonly<Record<string, unknown>> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError(`${description} is unavailable`);
+  }
+  return value as Readonly<Record<string, unknown>>;
+}
+
+/** Export the live Session through the real Player surface, then keep only authoritative axes. */
+async function exportCatCafeAuthoritativeSaveAxesV1(
+  page: Page,
+): Promise<CatCafeAuthoritativeSaveAxesV1> {
+  await page.getByTestId("stage-system").getByRole("button", { name: "保存", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "保存" });
+  const downloadPromise = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "导出当前进度", exact: true }).click();
+  const download = await downloadPromise;
+  const bytes = await readFile(await download.path());
+  await dialog.getByRole("button", { name: "关闭", exact: true }).click();
+
+  const envelope = requireRecordV1(JSON.parse(bytes.toString("utf8")), "exported Cat Cafe Save");
+  const snapshot = requireRecordV1(envelope.snapshot, "exported Cat Cafe Snapshot");
+  const state = requireRecordV1(snapshot.state, "exported Cat Cafe State");
+  const rng = requireRecordV1(snapshot.rng, "exported Cat Cafe RNG");
+  const integrity = requireRecordV1(snapshot.integrity, "exported Cat Cafe integrity");
+  const commandSequence = snapshot.commandSequence;
+  const stateDigest = envelope.stateDigest;
+  if (
+    typeof commandSequence !== "number" ||
+    !Number.isSafeInteger(commandSequence) ||
+    commandSequence < 0 ||
+    typeof stateDigest !== "string"
+  ) {
+    throw new TypeError("exported Cat Cafe authoritative identity is unavailable");
+  }
+  return Object.freeze({ state, rng, commandSequence, integrity, stateDigest });
+}
+
+function pendingOccurrenceFromCatCafeSaveV1(
+  save: CatCafeAuthoritativeSaveAxesV1,
+): string {
+  const simulation = requireRecordV1(save.state.simulation, "exported Cat Cafe simulation State");
+  const narrative = requireRecordV1(
+    simulation.narrative,
+    "exported Cat Cafe narrative State",
+  );
+  const pending = requireRecordV1(narrative.pending, "exported Cat Cafe pending interaction");
+  if (typeof pending.occurrenceId !== "string") {
+    throw new TypeError("exported Cat Cafe pending occurrence is unavailable");
+  }
+  return pending.occurrenceId;
+}
+
+function rngDrawCountFromCatCafeSaveV1(save: CatCafeAuthoritativeSaveAxesV1): number {
+  const rawDrawCount = save.rng.rawDrawCount;
+  if (typeof rawDrawCount !== "number" || !Number.isSafeInteger(rawDrawCount)) {
+    throw new TypeError("exported Cat Cafe RNG draw count is unavailable");
+  }
+  return rawDrawCount;
+}
+
+async function catCafeGameApplicationEpochV1(page: Page): Promise<number> {
+  const value = await page.getByTestId("overlay-host")
+    .getAttribute("data-overlay-application-epoch");
+  if (value === null) {
+    throw new TypeError("Cat Cafe Game application epoch is unavailable");
+  }
+  const epoch = Number(value);
+  if (!Number.isSafeInteger(epoch) || epoch < 0) {
+    throw new TypeError("Cat Cafe Game application epoch is unavailable");
+  }
+  return epoch;
+}
+
+/** Mutate one catalog row by its semantic textId, without a test-only source marker. */
+function mutateCatCafeCatalogTextV1(
+  source: string,
+  locale: string,
+  textId: string,
+  mutate: (current: string) => string,
+): { readonly source: string; readonly previous: string; readonly next: string } {
+  const localeKey = `locale: "${locale}"`;
+  const localeIndex = source.indexOf(localeKey);
+  if (localeIndex === -1 || localeIndex !== source.lastIndexOf(localeKey)) {
+    throw new Error(`Expected one Cat Cafe catalog for ${locale}`);
+  }
+  const nextLocaleIndex = source.indexOf("locale:", localeIndex + localeKey.length);
+  const catalogEnd = nextLocaleIndex === -1 ? source.length : nextLocaleIndex;
+  const semanticKey = `textId: "${textId}"`;
+  const keyIndex = source.indexOf(semanticKey, localeIndex + localeKey.length);
+  if (keyIndex === -1 || keyIndex >= catalogEnd) {
+    throw new Error(`Expected a Cat Cafe ${locale} catalog row for ${textId}`);
+  }
+  const duplicateIndex = source.indexOf(semanticKey, keyIndex + semanticKey.length);
+  if (duplicateIndex !== -1 && duplicateIndex < catalogEnd) {
+    throw new Error(`Expected one Cat Cafe ${locale} catalog row for ${textId}`);
+  }
+  const valuePrefix = 'text: "';
+  const valueIndex = source.indexOf(valuePrefix, keyIndex + semanticKey.length);
+  const nextKeyIndex = source.indexOf("textId:", keyIndex + semanticKey.length);
+  if (valueIndex === -1 || (nextKeyIndex !== -1 && valueIndex > nextKeyIndex)) {
+    throw new Error(`Cat Cafe catalog row ${textId} has no inline text value`);
+  }
+  const valueStart = valueIndex + valuePrefix.length;
+  const valueEnd = source.indexOf('"', valueStart);
+  if (valueEnd === -1) throw new Error(`Cat Cafe catalog row ${textId} is unterminated`);
+  const previous = source.slice(valueStart, valueEnd);
+  const next = mutate(previous);
+  if (next === previous || next.includes('"')) {
+    throw new Error(`Cat Cafe catalog row ${textId} mutation is invalid`);
+  }
+  return Object.freeze({
+    source: `${source.slice(0, valueStart)}${next}${source.slice(valueEnd)}`,
+    previous,
+    next,
+  });
+}
 
 /**
  * Stage hit regions in a real browser, proven on the cat-cafe example:
@@ -111,10 +242,14 @@ async function seedCatCafePendingBackupV1(page: Page, slotId: string): Promise<U
   return Uint8Array.from(expectedBackupBytes);
 }
 
-async function advanceRevealedSayV1(page: Page): Promise<void> {
+async function advanceRevealedSayV1(page: Page, timeout = 5_000): Promise<void> {
   // The typewriter turns the first click into reveal-all; waiting for the
   // completed reveal keeps one click = one advance.
-  await expect(page.locator("[data-dialogue]")).toHaveAttribute("data-dialogue-reveal", "complete");
+  await expect(page.locator("[data-dialogue]")).toHaveAttribute(
+    "data-dialogue-reveal",
+    "complete",
+    { timeout },
+  );
   await page.locator("[data-dialogue-advance]").click();
 }
 
@@ -744,6 +879,115 @@ test("the album overlay masks locked entries and shows unlocked meta progress", 
     page.locator("[data-cc-album-entry='album.trophy.week3'][data-cc-album-unlocked='false']"),
   ).toBeVisible();
 });
+
+test(
+  "@dev-source-io preserves Cat Cafe authority across forward and reverse Browser R2",
+  async ({ page }) => {
+    test.slow();
+    const originalSource = await readFile(catcafePresentationFileV1, "utf8");
+    const mutation = mutateCatCafeCatalogTextV1(
+      originalSource,
+      "zh-CN",
+      "text.cc.line.rain",
+      (text) => `${text}（R2 更新）`,
+    );
+    const candidateText = mutation.next;
+    const candidateSource = mutation.source;
+    let pageLoads = 0;
+
+    try {
+      await clearCatCafeRecordsV1(page);
+      await page.reload();
+      await dismissSplashV1(page);
+      await page.getByRole("button", { name: "新游戏" }).click();
+
+      const dialogue = page.locator("[data-dialogue]");
+      await expect(dialogue).toHaveAttribute("data-dialogue-reveal", "complete");
+      await expect(dialogue).toContainText(mutation.previous);
+      const openingOccurrence = await dialogue.getAttribute("data-dialogue-occurrence");
+      if (openingOccurrence === null) throw new Error("Cat Cafe opening occurrence is unavailable");
+
+      const initialEpoch = await catCafeGameApplicationEpochV1(page);
+      const beforeForward = await exportCatCafeAuthoritativeSaveAxesV1(page);
+      expect(pendingOccurrenceFromCatCafeSaveV1(beforeForward)).toBe(openingOccurrence);
+      page.on("load", () => {
+        pageLoads += 1;
+      });
+
+      await writeFile(catcafePresentationFileV1, candidateSource);
+      await expect.poll(() => catCafeGameApplicationEpochV1(page), { timeout: 15_000 })
+        .toBe(initialEpoch + 1);
+      const forwardEpoch = initialEpoch + 1;
+      // Whole-canvas React state is intentionally not part of the R2 handoff:
+      // the successor presents its ordinary front door. Continue only closes
+      // that door; it does not load another Save over the adopted Session.
+      await dismissSplashV1(page);
+      await expectContinueAvailabilityV1(page, true);
+      await page.locator("[data-title-continue]").click();
+      await expect(dialogue).toContainText(candidateText, { timeout: 15_000 });
+      const afterForward = await exportCatCafeAuthoritativeSaveAxesV1(page);
+
+      expect(pageLoads).toBe(0);
+      expect(await catCafeGameApplicationEpochV1(page)).toBe(forwardEpoch);
+      expect(await dialogue.getAttribute("data-dialogue-occurrence")).toBe(openingOccurrence);
+      expect(pendingOccurrenceFromCatCafeSaveV1(afterForward)).toBe(openingOccurrence);
+      expect(afterForward).toEqual(beforeForward);
+
+      // Finish the exact opening occurrence under the successor, then enter
+      // the noon shop path and perform the real encounter-pool RNG draw.
+      for (let index = 0; index < 3; index += 1) await advanceRevealedSayV1(page, 15_000);
+      await page.getByRole("button", { name: "就叫「小雨」" }).click();
+      await advanceRevealedSayV1(page, 15_000);
+      await advanceRevealedSayV1(page, 15_000);
+      await expect(dialogue).toHaveCount(0);
+      await page.locator("[data-cc-action-id='cc.advance_slot']").click();
+      await expect(page.locator("[data-cc-calendar='1.0.1']")).toBeVisible();
+      const beforeBusiness = await exportCatCafeAuthoritativeSaveAxesV1(page);
+      const walletBeforeBusiness = await page.locator("[data-cc-wallet='true']").textContent();
+      await page.locator("[data-cc-activity='activity.business']").click();
+      await expect(page.locator("[data-cc-wallet='true']")).not.toHaveText(
+        walletBeforeBusiness ?? "",
+      );
+      const afterBusiness = await exportCatCafeAuthoritativeSaveAxesV1(page);
+      expect(rngDrawCountFromCatCafeSaveV1(afterBusiness)).toBeGreaterThan(
+        rngDrawCountFromCatCafeSaveV1(beforeBusiness),
+      );
+      expect(afterBusiness.commandSequence).toBeGreaterThan(beforeBusiness.commandSequence);
+
+      await writeFile(catcafePresentationFileV1, originalSource);
+      await expect.poll(() => catCafeGameApplicationEpochV1(page), { timeout: 15_000 })
+        .toBe(forwardEpoch + 1);
+      await dismissSplashV1(page);
+      await expectContinueAvailabilityV1(page, true);
+      await page.locator("[data-title-continue]").click();
+      const afterReverse = await exportCatCafeAuthoritativeSaveAxesV1(page);
+
+      expect(pageLoads).toBe(0);
+      expect(await catCafeGameApplicationEpochV1(page)).toBe(forwardEpoch + 1);
+      expect(afterReverse).toEqual(afterBusiness);
+
+      // The reverse successor remains the sole writable Player: a normal
+      // activity commits and advances the exported authoritative state.
+      await expect(page.locator("[data-cc-activity='activity.clean']")).toBeEnabled();
+      const shopBeforeClean = await page.locator("[data-cc-shop-stats='true']").textContent();
+      await page.locator("[data-cc-activity='activity.clean']").click();
+      await expect(page.locator("[data-cc-shop-stats='true']")).not.toHaveText(
+        shopBeforeClean ?? "",
+      );
+      const afterSuccessorCommand = await exportCatCafeAuthoritativeSaveAxesV1(page);
+      expect(afterSuccessorCommand.commandSequence).toBeGreaterThan(afterReverse.commandSequence);
+      expect(afterSuccessorCommand.stateDigest).not.toBe(afterReverse.stateDigest);
+      expect(pageLoads).toBe(0);
+    } finally {
+      if (await readFile(catcafePresentationFileV1, "utf8") !== originalSource) {
+        await writeFile(catcafePresentationFileV1, originalSource);
+        if (!page.isClosed()) {
+          await page.waitForTimeout(1_000).catch(() => {});
+        }
+      }
+    }
+  },
+);
 
 test("Continue stays unavailable until an autosave exists", async ({ page }) => {
   await clearCatCafeRecordsV1(page);

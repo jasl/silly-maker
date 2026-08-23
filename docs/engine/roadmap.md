@@ -169,10 +169,11 @@ lease-only disposition 不移交 authoritative Snapshot，Core successor 还会�
 takeover `read_only` 与 post-takeover retry 的 stale fence 也未阻止 publication。所有者于
 2026-08-23 接受
 [Browser R2 Authoritative State Handoff V1](plans/2026-08-23-browser-r2-authoritative-state-handoff.md)
-作为当前唯一 engine lane。M0–M2 已于同日交付：package-private exact encoded Save + released lease
+作为当时唯一 engine lane。M0–M3 已于同日交付：package-private exact encoded Save + released lease
 fence 复用既有 Save migration/adoption/replay-base，并以 writable takeover 和 current-pair retry 关闭
-authority 缺口。M3 是唯一下一项，用 Engine Lab 与 Cat Cafe 的 Chromium/WebKit forward/reverse HMR
-证明真实进度连续后才推广产品 State/Save continuity。该工作不等待或激活 Desktop HMR，也不新增
+authority 缺口；Engine Lab 与 Cat Cafe 的 Chromium/WebKit forward/reverse HMR 又以真实 Save 导出、
+单次 Game epoch 换代、零 page reload 和 successor command 证明产品 State/Save continuity。该计划已
+关闭，无后继任务自动激活。它不等待或激活 Desktop HMR，不承诺任意 React state 跨代，也不新增
 Save format/framework。
 排序与交付记录以
 [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md) §1

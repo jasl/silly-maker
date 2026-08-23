@@ -337,12 +337,15 @@ The package-private Browser R2 coordinator now carries one exact encoded Save +
 released lease fence. Core admits it through the existing Save migration/
 adoption pipeline, installs it as the Session/Persistence/CommandLog replay base,
 and publishes only after writable takeover; failed retries retain only a proven
-current Save/fence pair. Focused tests protect that authority contract. This is
-not yet product state-continuity promotion: the active
+current Save/fence pair. Focused tests protect that authority contract. Engine
+Lab and Cat Cafe now add the completed forward/reverse Chromium and WebKit
+product evidence through real Player Save exports, one Game epoch change per
+source update, zero page reload, and a legal successor command. The
 [Browser R2 handoff plan](plans/2026-08-23-browser-r2-authoritative-state-handoff.md)
-still requires M3 forward/reverse Chromium and WebKit evidence in Engine Lab and
-Cat Cafe. Do not use `auto.current` alone as the handoff and do not broaden this
-work into Desktop HMR or predecessor rollback.
+is closed. R2 does not preserve arbitrary React state; a product shell may show
+its ordinary title screen again while the adopted Session remains exact. Do not
+use `auto.current` alone as the handoff and do not broaden this work into
+Desktop HMR or predecessor rollback.
 
 The AR5 headless seam keeps an in-flight Agent snapshot, request count, and RPC
 connection exact across a post-retirement successor UI-start failure and later

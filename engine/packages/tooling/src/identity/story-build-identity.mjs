@@ -280,13 +280,17 @@ export function createStoryBuildIdentityOwnerV1(input) {
     }
     const root = resolve(inputRoot);
     const initialIdentity = Reflect.get(pluginInput, "initialIdentity");
+    const inputCollectIdentity = Reflect.get(pluginInput, "collectIdentity");
+    const collectIdentity = typeof inputCollectIdentity === "function"
+      ? inputCollectIdentity
+      : () => collectBuildIdentityV1(root);
     let source = renderVirtualModuleV1(initialIdentity);
     const initialWatchPaths = collectIdentityWatchPathsV1(root, initialIdentity, config.label);
     const resolvedId = `\0${config.virtual.specifier}`;
     let refreshTail = Promise.resolve();
 
     async function refreshForHotUpdateV1(context) {
-      const identity = await collectBuildIdentityV1(root);
+      const identity = await collectIdentity();
       context.server.watcher.add(collectIdentityWatchPathsV1(root, identity, config.label));
       const nextSource = renderVirtualModuleV1(identity);
       if (nextSource === source) return undefined;
@@ -300,11 +304,19 @@ export function createStoryBuildIdentityOwnerV1(input) {
         context.timestamp,
         true,
       );
-      return [...new Set([...context.modules, virtualModule])];
+      // Preserve Vite's one real changed-module path. When that path reaches a
+      // Story's literal accept boundary, the accepted composition imports the
+      // already-invalidated current identity. Returning the virtual module as
+      // a second root would evaluate the same boundary twice.
+      return context.modules;
     }
 
     return Object.freeze({
       name: config.virtual.pluginName,
+      // Intercept the physical package fallback before Vite's package
+      // resolver turns it into an /@fs/ URL. The fallback remains available
+      // to Vitest, static analysis, and every non-Vite environment.
+      enforce: "pre",
       resolveId(id) {
         return id === config.virtual.specifier ? resolvedId : null;
       },

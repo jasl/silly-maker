@@ -25,6 +25,9 @@ import {
 } from "@sillymaker/base/runtime";
 import {
   clearAllCoreApplicationSavesForMaintenanceInternalV1,
+  createCoreGameApplicationInstanceForRebootstrapInternalV1,
+  disposeCoreGameApplicationForRebootstrapInternalV1,
+  invalidateCoreGameApplicationForHmrInternalV1,
   prepareCoreApplicationRestartInternalV1,
   subscribeCoreApplicationPresentationAnchorEventsInternalV1,
 } from "@sillymaker/base/runtime/internal";
@@ -439,13 +442,29 @@ export interface StartWebGameApplicationOptionsV1 {
   readonly registerPageLifecycle?: boolean;
   /** Host-level autosave override; wins over the application's policy. */
   readonly autosave?: CoreAutosavePolicyV1;
-  /** Dev rebootstrap: adopt a predecessor's exact Save + lease handoff. */
-  readonly rebootstrapHandoff?: DeepReadonly<CoreRebootstrapHandoffInternalV1>;
-  /** Package-internal definitive recovery outcome before startup rejects. */
-  readonly onRebootstrapStartFailureInternal?: (
+}
+
+export interface StartWebGameApplicationForRebootstrapOptionsInternalV1
+  extends StartWebGameApplicationOptionsV1 {
+  /** Exact predecessor Save + lease pair. @internal */
+  readonly handoff: DeepReadonly<CoreRebootstrapHandoffInternalV1>;
+  /** Definitive recovery outcome reported before startup rejects. @internal */
+  readonly onRebootstrapStartFailureInternal: (
     outcome: DeepReadonly<CoreRebootstrapStartFailureInternalV1>,
   ) => void;
 }
+
+interface WebGameApplicationRebootstrapStartInputInternalV1 {
+  readonly handoff: DeepReadonly<CoreRebootstrapHandoffInternalV1>;
+  readonly onFailure: (
+    outcome: DeepReadonly<CoreRebootstrapStartFailureInternalV1>,
+  ) => void;
+}
+
+const webGameApplicationRebootstrapStartInputsInternalV1 = new WeakMap<
+  StartWebGameApplicationOptionsV1,
+  WebGameApplicationRebootstrapStartInputInternalV1
+>();
 
 /**
  * The browser default: committed Snapshots stay saveable at any time, but
@@ -469,18 +488,38 @@ export interface StartedWebGameApplicationV1 {
   readonly instanceLease: WebInstanceLeasePortV1;
   isDisposed(): boolean;
   dispose(): Promise<void>;
-  /**
-   * Fences authoritative session and player-persistence mutation ingress for a
-   * dev rebootstrap without releasing the persistence lease.
-   */
-  invalidateForHmr(): void;
-  /**
-   * Tears the application down for a dev rebootstrap and returns the
-   * exact authoritative handoff for the successor.
-   */
-  disposeForRebootstrap(): Promise<
-    DeepReadonly<CoreRebootstrapHandoffInternalV1>
-  >;
+}
+
+interface StartedWebGameApplicationHmrControlInternalV1 {
+  invalidate(): void;
+  dispose(): Promise<DeepReadonly<CoreRebootstrapHandoffInternalV1>>;
+}
+
+const startedWebGameApplicationHmrControlsInternalV1 = new WeakMap<
+  StartedWebGameApplicationV1,
+  StartedWebGameApplicationHmrControlInternalV1
+>();
+
+function requireStartedWebGameApplicationHmrControlInternalV1(
+  started: StartedWebGameApplicationV1,
+): StartedWebGameApplicationHmrControlInternalV1 {
+  const control = startedWebGameApplicationHmrControlsInternalV1.get(started);
+  if (control === undefined) throw new TypeError("web.hmr_started_application_unavailable");
+  return control;
+}
+
+/** @internal Fences one live Web application before its HMR handoff. */
+export function invalidateStartedWebGameApplicationForHmrInternalV1(
+  started: StartedWebGameApplicationV1,
+): void {
+  requireStartedWebGameApplicationHmrControlInternalV1(started).invalidate();
+}
+
+/** @internal Retires one live Web application and captures its exact handoff. */
+export function disposeStartedWebGameApplicationForRebootstrapInternalV1(
+  started: StartedWebGameApplicationV1,
+): Promise<DeepReadonly<CoreRebootstrapHandoffInternalV1>> {
+  return requireStartedWebGameApplicationHmrControlInternalV1(started).dispose();
 }
 
 function appBuildIdV1(
@@ -628,6 +667,7 @@ export async function startWebGameApplicationV1<
   >,
   options: StartWebGameApplicationOptionsV1 = {},
 ): Promise<StartedWebGameApplicationV1> {
+  const rebootstrapStart = webGameApplicationRebootstrapStartInputsInternalV1.get(options);
   const usesDocumentEntry = options.rootElement === undefined && typeof document !== "undefined";
   let startupDiagnostics: WebApplicationStartupDiagnosticsControllerInternalV1 | null = null;
   let bootstrapTarget: "browser" | "deno_desktop" | null = null;
@@ -744,11 +784,11 @@ export async function startWebGameApplicationV1<
       // Host diagnostics are best-effort and never participate in runtime precedence.
     }
   };
-  const notifyRebootstrapStartFailure = options.onRebootstrapStartFailureInternal === undefined
+  const notifyRebootstrapStartFailure = rebootstrapStart === undefined
     ? undefined
     : (outcome: DeepReadonly<CoreRebootstrapStartFailureInternalV1>): void => {
       try {
-        options.onRebootstrapStartFailureInternal?.(outcome);
+        rebootstrapStart.onFailure(outcome);
       } catch {
         // The startup failure remains authoritative over observer failure.
       }
@@ -788,32 +828,33 @@ export async function startWebGameApplicationV1<
   // exclusion (and the instancePolicy roles) requires distinct owners.
   const leaseOwnerId =
     `owner.sillymaker.web.${application.applicationId}.${nextApplicationUuidV4()}`;
-  const instance = await createCoreGameApplicationInstanceV1(
-    resolved.application,
-    {
-      host: Object.freeze({
-        entropy: gameBootstrapEntropy,
-        records: host.records,
-        now: () => host.metadataClock.now(),
-        ownerId: leaseOwnerId as never,
-        nextHandoffRequestId: () =>
-          `handoff.${application.applicationId}.${nextApplicationUuidV4()}`,
-      }),
-      capabilities: { debugTools: capabilities.state.getCurrent().debugTools },
-      capabilityState: capabilities.state,
-      autosave: options.autosave ?? application.autosave ?? defaultWebAutosavePolicyV1,
-      ...(applicationBuildId === null ? {} : { appBuildId: applicationBuildId }),
-      ...(options.rebootstrapHandoff === undefined
-        ? {}
-        : { rebootstrapHandoff: options.rebootstrapHandoff }),
-      ...(notifyRebootstrapStartFailure === undefined
-        ? {}
-        : { onRebootstrapStartFailureInternal: notifyRebootstrapStartFailure }),
-    },
-  ).catch((error: unknown) => {
-    signalStartupFailure("required_domain");
-    throw error;
+  const coreStartOptions = Object.freeze({
+    host: Object.freeze({
+      entropy: gameBootstrapEntropy,
+      records: host.records,
+      now: () => host.metadataClock.now(),
+      ownerId: leaseOwnerId as never,
+      nextHandoffRequestId: () => `handoff.${application.applicationId}.${nextApplicationUuidV4()}`,
+    }),
+    capabilities: { debugTools: capabilities.state.getCurrent().debugTools },
+    capabilityState: capabilities.state,
+    autosave: options.autosave ?? application.autosave ?? defaultWebAutosavePolicyV1,
+    ...(applicationBuildId === null ? {} : { appBuildId: applicationBuildId }),
   });
+  const instance =
+    await (rebootstrapStart === undefined
+      ? createCoreGameApplicationInstanceV1(resolved.application, coreStartOptions)
+      : createCoreGameApplicationInstanceForRebootstrapInternalV1(
+        resolved.application,
+        {
+          ...coreStartOptions,
+          handoff: rebootstrapStart.handoff,
+          onRebootstrapStartFailureInternal: notifyRebootstrapStartFailure!,
+        },
+      )).catch((error: unknown) => {
+        signalStartupFailure("required_domain");
+        throw error;
+      });
 
   let automation: InstalledBrowserAutomationBridgeV1 | undefined;
   let mounted: MountedGameApplicationV1 | undefined;
@@ -859,7 +900,10 @@ export async function startWebGameApplicationV1<
       }),
       // Core invalidation can synchronously notify cancellation observers. It
       // runs only after every held Host/UI ingress has become inert.
-      Object.freeze({ name: "core", run: () => instance.invalidateForHmr() }),
+      Object.freeze({
+        name: "core",
+        run: () => invalidateCoreGameApplicationForHmrInternalV1(instance),
+      }),
     ]),
     cleanupSteps: Object.freeze([
       Object.freeze({
@@ -907,12 +951,14 @@ export async function startWebGameApplicationV1<
       }),
     ]),
     releaseCorePersistence: async (mode) => {
-      if (mode === "rebootstrap") return await instance.disposeForRebootstrap();
+      if (mode === "rebootstrap") {
+        return await disposeCoreGameApplicationForRebootstrapInternalV1(instance);
+      }
       await instance.dispose();
       return undefined;
     },
     terminalReleaseMode: () =>
-      options.rebootstrapHandoff !== undefined && !startupAccepted ? "rebootstrap" : "ordinary",
+      rebootstrapStart !== undefined && !startupAccepted ? "rebootstrap" : "ordinary",
     reportFailure: (step, error) =>
       reportFailure(
         "web.application_disposal_step_failed",
@@ -960,7 +1006,7 @@ export async function startWebGameApplicationV1<
   try {
     removeDesktopCloseFlush = installDesktopCloseFlushV1({
       enabled: usesDesktopShell,
-      fence: () => instance.invalidateForHmr(),
+      fence: () => invalidateCoreGameApplicationForHmrInternalV1(instance),
       flush: () => instance.flushAutoSave(),
       reportFailure: (error) => reportFailure("web.desktop_close_flush_failed", error),
     });
@@ -978,7 +1024,7 @@ export async function startWebGameApplicationV1<
       policy: application.instancePolicy ?? "take_over",
       selfOwnerId: leaseOwnerId,
       channelScope: instance.storyId as string,
-      claimOnStart: options.rebootstrapHandoff === undefined,
+      claimOnStart: rebootstrapStart === undefined,
     });
     instanceLease = instanceLeaseCoordinator;
     const devDockControl = createDevDockControlV1();
@@ -1357,7 +1403,7 @@ export async function startWebGameApplicationV1<
     }
   } catch (error) {
     try {
-      if (options.rebootstrapHandoff === undefined) {
+      if (rebootstrapStart === undefined) {
         await dispose();
       } else {
         const failureHandoff = await disposeForRebootstrap();
@@ -1366,7 +1412,7 @@ export async function startWebGameApplicationV1<
         );
       }
     } catch {
-      if (options.rebootstrapHandoff !== undefined) {
+      if (rebootstrapStart !== undefined) {
         notifyRebootstrapStartFailure?.(Object.freeze({ kind: "terminal" as const }));
       }
       // The construction failure remains primary over release noise.
@@ -1381,7 +1427,7 @@ export async function startWebGameApplicationV1<
   }
   startupDiagnostics?.signalRequiredDomainReady();
   startupAccepted = true;
-  return Object.freeze({
+  const started: StartedWebGameApplicationV1 = Object.freeze({
     applicationId: application.applicationId,
     host,
     provenance: resolved.application
@@ -1390,7 +1436,67 @@ export async function startWebGameApplicationV1<
     instanceLease,
     isDisposed: terminalSupervisor.isDisposalStarted,
     dispose,
-    invalidateForHmr: () => instance.invalidateForHmr(),
-    disposeForRebootstrap,
   });
+  startedWebGameApplicationHmrControlsInternalV1.set(
+    started,
+    Object.freeze({
+      invalidate: () => invalidateCoreGameApplicationForHmrInternalV1(instance),
+      dispose: disposeForRebootstrap,
+    }),
+  );
+  return started;
+}
+
+/**
+ * Starts an HMR successor through the same Web composer while keeping its
+ * exact handoff and recovery observer outside the public startup options.
+ *
+ * @internal
+ */
+export function startWebGameApplicationForRebootstrapInternalV1<
+  TSimulationFacet,
+  TPresentationFacet,
+  TTypes extends GameSimulationTypeMapV1,
+  TQueries,
+  TGameView,
+  TNarrativeView,
+  TActionDescriptor,
+  TInvocation,
+  TPreview,
+  TResult,
+  TResolvedCatalog,
+  TStoryUiState,
+  TView,
+  TAssetId,
+  TOverlayId extends string,
+>(
+  application: WebGameApplicationV1<
+    TSimulationFacet,
+    TPresentationFacet,
+    TTypes,
+    TQueries,
+    TGameView,
+    TNarrativeView,
+    TActionDescriptor,
+    TInvocation,
+    TPreview,
+    TResult,
+    TResolvedCatalog,
+    TStoryUiState,
+    TView,
+    TAssetId,
+    TOverlayId
+  >,
+  options: StartWebGameApplicationForRebootstrapOptionsInternalV1,
+): Promise<StartedWebGameApplicationV1> {
+  const { handoff, onRebootstrapStartFailureInternal, ...ordinaryOptions } = options;
+  const publicOptions: StartWebGameApplicationOptionsV1 = Object.freeze(ordinaryOptions);
+  webGameApplicationRebootstrapStartInputsInternalV1.set(
+    publicOptions,
+    Object.freeze({
+      handoff,
+      onFailure: onRebootstrapStartFailureInternal,
+    }),
+  );
+  return startWebGameApplicationV1(application, publicOptions);
 }
