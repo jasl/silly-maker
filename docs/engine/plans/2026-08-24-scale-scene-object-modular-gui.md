@@ -1,6 +1,6 @@
 # Scale、Scene/Object 与模块化 GUI V1 实施计划
 
-状态：**2026-08-24 经所有者接受并开启；M0–M2 已于同日交付，当前下一项为 M3；
+状态：**2026-08-24 经所有者接受并开启；M0–M3 已于同日交付，当前下一项为 M4；
 M0–M5 必须按序交付，每个里程碑独立复核后再进入下一项。**
 
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 仍是唯一跨计划排序入口；
@@ -404,6 +404,39 @@ oracle 等价。build/simulation metadata 的预期变化不伪装成 Save byte-
 semantic facets 与正负 reachability；不创建四个合成应用或新 matrix coordinator。minimal 满足 M0
 据实接受的 initial transitive gzip 预算，选择外圈能力后功能可达；无 import cycle、无第二 lifecycle/
 State authority。
+
+**M3 交付记录（2026-08-24）：** owner 在实现前基于 M1 的 `361,006 B` initial-transitive
+JavaScript gzip baseline 接受了 minimal Template `<= 360 KiB` 的持续绝对预算。本里程碑没有新增 package、
+registry、plugin system 或 lifecycle authority，而是在现有 package 内完成单向边界：
+
+- `DefaultGameRootV1` 只保留必要 Stage、generic System/Saves/Settings Host 与一个中立
+  `auxiliarySurface` slot；core `@sillymaker/ui`/`@sillymaker/web` 不再 import DevDock、state tuner、
+  session-maintenance、preset settings、Studio 或 Agent 实现。`@sillymaker/ui/reference` 显式导出
+  copy/eject-friendly DevDock 与 preset settings；`@sillymaker/web/reference` 只在产品选择
+  `createReferencePlayerOuterUiV1` 时绑定这些能力及其 lazy Direct contribution。
+- Template 的普通 `/` entry 是真实 minimal negative control，`/reference.html` 是可运行的 reference/full
+  positive control；Engine Lab 与 Cat Cafe 显式选择 reference outer UI，SillyOS 继续使用 custom/minimal
+  shell。Template 的 `composition.tsx -> ui.tsx -> composition.tsx` runtime cycle 通过把 UI 文案下沉到
+  content leaf 消除，没有新增 adapter 层。已无引用的 UI `lucide-react` 与 Web `idb`/
+  `react-router-dom` manifest dependencies 同步删除。
+- 现有 final-output receipt 增加 Inspector/authoring、DevDock、preset settings、Agent semantic facets，复用
+  Template minimal/reference、Engine Lab Player、Template Author 与 Engine Lab Author 的真实构建做正负
+  reachability；没有冻结完整 module inventory。Template minimal 实测 `343` 个 runtime modules、all JS
+  `349,611 B gzip`，比拆分前 `354` modules / `363,008 B` 少 `11` modules / `13,397 B`，且 DevDock、
+  preset settings 与 Agent facets 均为空；initial static JS 同为 `349,611 B`，低于 `368,640 B` 预算
+  `19,029 B`。100,000-entry bundle-scale 相对 reference 的 initial JS 增量为 `713 B gzip`，继续低于
+  32 KiB 结构预算。独立收口审查还复现了 bundle runner 在只传 `--application` 时沿用 Engine Lab
+  `outDir` 的伪混合报告；runner 现在从所选应用的真实 Web target 派生默认输出目录，显式
+  `--out-dir` 仍可覆盖，focused regression 与无覆盖参数的 Template 实跑均通过。
+- Deno 2.9.5 / Chromium 151 同机五次 minimal Template raw first-interactive 为
+  `140.892/127.379/127.327/128.369/85.976 ms`，nearest-rank p95 `140.892 ms`，低于 `<250 ms`
+  owner-review 目标。四个真实 Player release build、focused receipt/startup/UI/integration tests、
+  `deno task check`（`367 files / 5617 tests`）、Engine Browser E2E（`135 passed`）与 Examples Browser
+  E2E（`88 passed / 2 skipped`）全绿；React Doctor changed-scope advisory 为 no findings。
+- 本切片最终约为 source/config `+1,318/-1,162 LOC`、tests `+787/-613 LOC`、docs/rules
+  `+130/-56 LOC`，总计 `+2,235/-1,831 LOC`（net `+404`）。保留下来的复杂度只有一个 build-known outer binding、一个
+  neutral auxiliary portal、两个 focused reference subpath 与扩展后的既有 semantic receipt；删除量主要是
+  core 内重复的 DevDock/settings wiring、被替代的 exports/tests 与旧 portal 命名。
 
 ### M4 — Scene/Object/Layer 渐进模型
 

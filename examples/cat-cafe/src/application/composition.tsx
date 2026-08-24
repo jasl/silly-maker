@@ -1,4 +1,9 @@
-import type { AssetId, DeepReadonly, AudioIntentV1 } from "@sillymaker/base";
+import type {
+  AssetId,
+  AudioIntentV1,
+  DeepReadonly,
+  RuntimeCapabilityPortV1,
+} from "@sillymaker/base";
 import { projectStageRenderTarget } from "@sillymaker/base/story";
 import type {
   DefaultGameRootSlotsV1,
@@ -10,6 +15,8 @@ import type {
   AudioHostV1,
   RuntimeAssetLoaderV1,
   PointerActionMapV1,
+  PresentationFreezePortV1,
+  PresentationRatePortV1,
   WholeCanvasSurfaceActionDispatchRequestV1,
   WholeCanvasSurfaceRendererPropsV1,
   WholeCanvasSurfaceResolveTargetRequestV1,
@@ -26,6 +33,7 @@ import {
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import type { StartedWebGameApplicationV1, WebGameApplicationV1 } from "@sillymaker/web";
 import { createWebAudioHostV1 } from "@sillymaker/web";
+import { createReferencePlayerOuterUiV1 } from "@sillymaker/web/reference";
 import { applicationBuildIdentityInputInternalV1 } from "@sillymaker/web/internal/application-build-identity";
 import type { InstalledResolvedGameHmrV1 } from "@sillymaker/web/internal/application-hmr";
 import {
@@ -391,11 +399,17 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
     instance,
     playerProfile,
     assetLoader,
+    capabilities,
+    presentationFreeze,
+    presentationRate,
     reportFailure,
   }: {
     readonly instance: CatcafeApplicationInstanceV1;
     readonly playerProfile: PlayerProfileStoreV1;
     readonly assetLoader?: RuntimeAssetLoaderV1;
+    readonly capabilities: RuntimeCapabilityPortV1;
+    readonly presentationFreeze: PresentationFreezePortV1;
+    readonly presentationRate: PresentationRatePortV1;
     reportFailure?(code: string, error: unknown): void;
   }) => {
     // Asset registry: the resolved manifest arrives through the extensions facet (observe, never take over).
@@ -490,10 +504,20 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
         };
       })(),
       input: Object.freeze({ keyboard: catcafeKeyboardMapV1, pointer: catcafePointerMapV1 }),
-      loadDevDockContributions: () =>
-        import("./dev-dock.tsx").then((module) =>
-          module.createCatcafeDevDockContributionsV1({ instance, playerProfile, registry })
-        ),
+      outerUi: createReferencePlayerOuterUiV1({
+        instance,
+        capabilities,
+        playerProfile,
+        presentationFreeze,
+        presentationRate,
+        settingsLabels: catcafeChromeForLocaleV1(
+          playerProfile.current().preferences.locale,
+        ).settingsLabels,
+        loadContributions: () =>
+          import("./dev-dock.tsx").then((module) =>
+            module.createCatcafeDevDockContributionsV1({ instance, playerProfile, registry })
+          ),
+      }),
     });
   },
 });

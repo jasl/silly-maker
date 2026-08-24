@@ -29,7 +29,7 @@ interface PlayerSaveMaintenanceV1 {
 }
 
 export interface PlayerSaveSurfacesV1 {
-  /** Always available to the capability-gated built-in DevDock panel. */
+  /** Neutral maintenance port consumed only by an explicitly selected outer UI. */
   readonly maintenance: PlayerSaveMaintenanceV1;
   /** Present only when the Story opts into the default player Save dialog. */
   readonly saveUi?: PlayerSaveUiV1;
@@ -39,7 +39,7 @@ export interface PlayerSaveSurfacesV1 {
 
 /**
  * Creates one player-safe persistence adapter and projects it into the
- * optional default Save UI plus the always-wired DevDock maintenance path.
+ * optional default Save UI plus a neutral maintenance path for outer UI.
  */
 export function createPlayerSaveSurfacesV1(input: {
   readonly files: HostFilePortV1;

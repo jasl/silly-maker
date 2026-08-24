@@ -10,6 +10,7 @@ import {
   playerBuildAssetRoleV1,
   referencedPlayerBuildAssetsV1,
   repositoryRelativePlayerBuildPathV1,
+  selectPlayerBuildOutDirV1,
 } from "./player-build-baseline-helpers.ts";
 
 describe("player build baseline helpers", () => {
@@ -30,6 +31,15 @@ describe("player build baseline helpers", () => {
     expect(() =>
       repositoryRelativePlayerBuildPathV1(repositoryRoot, join(dirname(repositoryRoot), "outside"))
     ).toThrow("must be inside the repository");
+  });
+
+  it("uses the selected application's output unless the CLI explicitly overrides it", () => {
+    expect(selectPlayerBuildOutDirV1(undefined, "template/dist-web")).toBe(
+      "template/dist-web",
+    );
+    expect(selectPlayerBuildOutDirV1("tmp/custom-player", "template/dist-web")).toBe(
+      "tmp/custom-player",
+    );
   });
 
   it("classifies entry, preload, lazy, and runtime assets from final HTML", () => {

@@ -286,9 +286,12 @@ validated and published its registry. Terminal failures restore the static shell
 with a bounded `SM-STARTUP-*` code and Retry, never the raw error. These are
 Host/test signals, not State or persistence data.
 
-The DevDock progressive host invokes its literal loader only after
-`debug_tools`, single-flights one open, reuses ready, and exposes a bounded
-failure with explicit retry while core/static siblings remain mounted.
+The explicitly selected reference DevDock host invokes its literal loader only
+after `debug_tools`, single-flights one open, reuses ready, and exposes a bounded
+failure with explicit retry while core/static siblings remain mounted. Core
+`@sillymaker/ui` and `@sillymaker/web` do not import this implementation;
+products opt in through `createReferencePlayerOuterUiV1` or compose their own
+auxiliary surface.
 Source-change, revoke, and unmount fence late results. A ready contribution is
 removed from the renderer before lifecycle disposal; a never-published late
 result may be disposed immediately. Keep `optional_capability_ready` tied to
@@ -1068,11 +1071,15 @@ reports raw/gzip bytes for entry, preload, lazy, all JavaScript, all CSS,
 runtime assets, and all files. Schema v2 adds the final chunk/asset dependency
 graph and per-output `contributionIds`, including CSS-only dynamic entries; all
 recorded edges name real final outputs. Template and Engine Lab ordinary release
-Player measurements are the semantic negative controls for absent Agent modules; they also
-classify `engine/packages/agent/src/rpc/**` as RPC implementation and assert that neither
-Agent nor RPC implementation reaches an ordinary release. The Template release additionally
-proves absent authoring, real dev-source, and dynamic-extension implementation without
-freezing an exact full-module inventory. The `@sillymaker/ui/debug/dev-source-client` subpath
+Player measurements are semantic negative controls for absent Agent modules; they also
+classify Inspector/authoring, DevDock, preset-settings, Agent, RPC, and private-extension
+implementation facets without freezing an exact full-module inventory. Template's ordinary
+release proves every outer facet absent and keeps its initial static JavaScript at or below the
+accepted 360 KiB gzip product budget. `template/reference.html` is the real positive control
+for the first-party reference settings/DevDock composition; Engine Lab release selects the
+same outer boundary plus its lazy private-extension contribution, while Template and Engine
+Lab Author entries remain the Inspector and Agent structural controls. The
+`@sillymaker/ui/debug/dev-source-client` subpath
 resolves to the fetch/write implementation only under the `development` condition; the default
 and release graph receive a fail-closed unavailable stub. Engine Lab's release
 graph also excludes its dev-only Studio binding plus embedded-author virtual

@@ -8,18 +8,14 @@ import type {
   BuildProvenanceV1,
   DeepReadonly,
   HostFilePortV1,
-  RuntimeCapabilityPortV1,
+  SessionFaultCauseV1,
   TextCatalogSetV1,
   TextContentManifestV1,
   TextContentPackDescriptorV1,
   TextContentPackIdV1,
   TextContentSessionV1,
 } from "@sillymaker/base";
-import {
-  createTextContentSessionV1,
-  digestCanonical,
-  engineDebugPatchStateKindV1,
-} from "@sillymaker/base";
+import { createTextContentSessionV1, digestCanonical } from "@sillymaker/base";
 import type {
   CoreAutosavePolicyV1,
   CoreGameApplicationDefinitionV1,
@@ -53,6 +49,7 @@ import type {
   GameUiProjectorV1,
   HeldInputPortV1,
   HeldKeyMapV1,
+  InputRouterV1,
   KeyboardActionMapV1,
   NativeBehaviorResetConfigV1,
   NarrativeSurfaceDefinitionV1,
@@ -60,20 +57,13 @@ import type {
   RuntimeAssetLoaderV1,
   RuntimePresentationPublicationV1,
   SaveOverlayLabelsV1,
+  SaveOverlayPortV1,
   SystemDialogCustomSavesV1,
   WholeCanvasSurfaceDefinitionV1,
   WorkspaceOverlayDefinitionV1,
   WorkspaceOverlayPortBindingV1,
 } from "@sillymaker/ui";
-import type {
-  DevDockContributionSetV1,
-  DevDockControlV1,
-  DevDockOpenStateV1,
-  DevDockPositionV1,
-  StateTunerPortV1,
-} from "@sillymaker/ui/debug";
 import {
-  createDevDockControlV1,
   createHeldKeyInputV1,
   createPresentationFreezePortV1,
   createPresentationRatePortV1,
@@ -83,7 +73,6 @@ import {
 } from "@sillymaker/ui";
 import type { PresentationFreezePortV1, PresentationRatePortV1 } from "@sillymaker/ui";
 import {
-  bindDevDockContributionAcceptanceInternalV1,
   createHostedGameUiCompositionInternalV1,
   resolveOptionalGameUiManagedSurfaceCompositionInternalV1,
   sealHostedGameUiCompositionTerminalInternalV1,
@@ -163,6 +152,39 @@ function retryCurrentApplicationEntryInternalV1(): void {
 }
 
 /**
+ * Host ports exposed only to an explicitly selected outer GUI composition.
+ * The default Player path never imports an outer implementation.
+ */
+export interface WebGameOuterUiHostInputV1 {
+  readonly inputRouter: InputRouterV1;
+  readonly savePort: SaveOverlayPortV1;
+  readonly clearAllSaves: () => Promise<void>;
+  readonly reloadCurrentState: () => Promise<void>;
+  readonly faultCause: {
+    getCurrent(): SessionFaultCauseV1 | null;
+    subscribe(listener: () => void): () => void;
+  };
+  /** Prepare all declared text packs before a generic state mutation. */
+  readonly prepareStateMutation: () => Promise<void>;
+  signalOptionalCapabilityReady(): void;
+  observeOpenState(open: boolean): void;
+}
+
+export interface BoundWebGameOuterUiV1 {
+  /** Concrete preset sections inserted before Story-owned Settings sections. */
+  readonly settingsSections?: readonly ReactNode[];
+  /** Render into the neutral auxiliary shell surface. */
+  renderAuxiliarySurface(input: {
+    readonly returnToTitle: () => Promise<void>;
+  }): ReactNode;
+}
+
+/** Build-known outer GUI selection; reference implementations live on focused subpaths. */
+export interface WebGameOuterUiV1 {
+  bindHost(input: WebGameOuterUiHostInputV1): BoundWebGameOuterUiV1;
+}
+
+/**
  * The per-instance UI wiring a Story returns from `ui()`: projector,
  * overlays, labels, and optional slot contributions. No React Root, no
  * Session/Persistence/Diagnostics wiring.
@@ -201,8 +223,8 @@ export interface WebGameUiDefinitionV1<
   readonly saveLabels?: SaveOverlayLabelsV1;
   /** Hides the default floating system menu (custom shells own the entries). */
   readonly hideSystemMenu?: boolean;
-  /** Removes the developer-tools switch from Settings (URL opt-in remains). */
-  readonly hideDeveloperToolsToggle?: boolean;
+  /** Optional, build-known outer GUI support selected by this product. */
+  readonly outerUi?: WebGameOuterUiV1;
   /** Story safepoint over the live publication (see SaveOverlayGuardV1). */
   readonly saveGuard?: (publication: unknown) => {
     allowed: boolean;
@@ -213,8 +235,6 @@ export interface WebGameUiDefinitionV1<
    * Mutually exclusive with `saveLabels` / `saveGuard`.
    */
   readonly customSaves?: SystemDialogCustomSavesV1;
-  /** Typed Story tooling panels with read-only / cheat authority. */
-  readonly devDockContributions?: DevDockContributionSetV1;
   /** Shows the engine title screen (New game / Continue|Load / Settings). */
   readonly titleScreen?: {
     readonly title: string;
@@ -226,23 +246,6 @@ export interface WebGameUiDefinitionV1<
     /** After the composition-anchored New-game restart, run Story-specific boot. */
     beginNewGame?(semantic: unknown): void | Promise<unknown>;
   };
-  /**
-   * Capability-gated lazy DevDock contributions: tooling UI loads on
-   * demand and never enters the player bundle.
-   */
-  readonly loadDevDockContributions?: () => Promise<DevDockContributionSetV1>;
-  /**
-   * DevDock chip/menu corner and window cascade origin (default
-   * `top_right`). Reposition when the default corner occludes application
-   * chrome; bottom corners expand upward.
-   */
-  readonly devDockPosition?: DevDockPositionV1;
-  /**
-   * Render the built-in debug launcher (`StoryDebugDockV1`; default true).
-   * A Story that mounts its own dock (always-on, live `info`) and opens
-   * tool windows through `devDockControl` sets false.
-   */
-  readonly devDockChip?: boolean;
   /**
    * The unified input surface: discrete keyboard/pointer/gamepad action
    * maps (installed by the root, routed through the InputRouter with
@@ -296,10 +299,10 @@ export interface WebGameUiDefinitionV1<
   /**
    * Optional DebugBundle UI-context reader factory. The composer binds the
    * returned reader to the instance after the UI composition exists,
-   * handing over the live composition read surfaces and DevDock state.
+   * handing over the live composition read surfaces and optional outer UI state.
    */
   readonly debugUiContext?: (input: {
-    readonly devDockOpenState: () => DevDockOpenStateV1;
+    readonly auxiliarySurfaceOpen: () => boolean;
     readonly presentation: { getSnapshot(): unknown };
     readonly overlaySession: {
       getSnapshot(): {
@@ -400,12 +403,6 @@ export interface WebGameApplicationV1<
     readonly capabilities: RuntimeCapabilitySessionOverlayV1;
     /** Multi-instance lease role for banners and manual takeover. */
     readonly instanceLease: WebInstanceLeasePortV1;
-    /**
-     * Shared DevDock window control: a Story debug dock opens/closes the
-     * engine tool windows (Motion Workbench, provenance, maintenance)
-     * through this port instead of relying on the built-in chip.
-     */
-    readonly devDockControl: DevDockControlV1;
     /**
      * Presentation freeze (developer pause): `pause()`/`resume()` hold the
      * shared presentation clock and swallow gameplay input while dev
@@ -578,107 +575,6 @@ function appBuildIdV1(
     "sillymaker:application:v1",
     (buildIdentityInput as { readonly application: unknown }).application,
   );
-}
-
-function formatDebugValidationErrorsV1(errors: readonly unknown[]): string {
-  return errors.map((error) => {
-    if (error !== null && typeof error === "object" && "code" in error) {
-      const code = String((error as { readonly code: unknown }).code);
-      const detail =
-        "detail" in error && typeof (error as { readonly detail?: unknown }).detail === "string"
-          ? (error as { readonly detail: string }).detail
-          : undefined;
-      return detail === undefined || detail.length === 0 ? code : `${code}: ${detail}`;
-    }
-    return String(error);
-  }).join("; ");
-}
-
-function createEngineStateTunerPortV1(input: {
-  readonly instance: {
-    readonly admin: {
-      inspectForTest(): { readonly snapshot: { readonly state: unknown } };
-      readonly debugControl?: {
-        execute(
-          command: never,
-          isCapabilityEnabled: () => boolean,
-        ): Promise<
-          | {
-            readonly kind: "executed";
-            readonly attempt: { readonly result: { readonly kind: string } };
-          }
-          | { readonly kind: "validation_failed"; readonly errors: readonly unknown[] }
-          | { readonly kind: "capability_disabled" }
-          | { readonly kind: "not_executed"; readonly code: string }
-        >;
-      };
-    };
-    readonly semantic: { subscribe(listener: () => void): () => void };
-  };
-  readonly capabilities: RuntimeCapabilityPortV1;
-  readonly prepareMutation?: () => Promise<void>;
-}): StateTunerPortV1 {
-  const { instance, capabilities } = input;
-  return Object.freeze({
-    read: () => instance.admin.inspectForTest().snapshot.state,
-    subscribe: (listener: () => void) => instance.semantic.subscribe(listener),
-    async patch(path: readonly string[], value: string | number | boolean | null) {
-      const debugControl = instance.admin.debugControl;
-      if (debugControl === undefined) {
-        return Object.freeze({
-          kind: "rejected" as const,
-          message: "需要重新加载后才能写入（启动时未开启开发者工具）",
-        });
-      }
-      const capabilityState = capabilities.state.getCurrent();
-      if (!capabilityState.debugTools || !capabilityState.cheats) {
-        return Object.freeze({ kind: "capability_disabled" as const });
-      }
-      if (input.prepareMutation !== undefined) {
-        try {
-          await input.prepareMutation();
-        } catch {
-          return Object.freeze({
-            kind: "rejected" as const,
-            message: "所需文本内容尚未就绪",
-          });
-        }
-      }
-      const result = await debugControl.execute(
-        Object.freeze({
-          kind: engineDebugPatchStateKindV1,
-          path: Object.freeze([...path]),
-          value,
-        }) as never,
-        () => {
-          const state = capabilities.state.getCurrent();
-          return state.debugTools && state.cheats;
-        },
-      );
-      switch (result.kind) {
-        case "executed":
-          return result.attempt.result.kind === "committed"
-            ? Object.freeze({ kind: "committed" as const })
-            : Object.freeze({
-              kind: "rejected" as const,
-              message: result.attempt.result.kind,
-            });
-        case "validation_failed":
-          return Object.freeze({
-            kind: "validation_failed" as const,
-            message: formatDebugValidationErrorsV1(result.errors),
-          });
-        case "capability_disabled":
-          return Object.freeze({ kind: "capability_disabled" as const });
-        case "not_executed":
-          return Object.freeze({ kind: "rejected" as const, message: result.code });
-        default: {
-          const exhaustive: never = result;
-          throw new TypeError(`unknown debug result ${String(exhaustive)}`);
-        }
-      }
-    },
-  });
 }
 
 /**
@@ -861,7 +757,7 @@ export async function startWebGameApplicationV1<
     },
   );
   // The live capability session: page-local requests overlay the persisted
-  // preferences (DevDock persists changes through the Host records).
+  // preferences (an explicitly selected outer GUI may persist changes here).
   const capabilities = createRuntimeCapabilitySessionOverlayV1(
     persistedCapabilities,
     capabilityRequest.kind === "accepted" ? capabilityRequest.requested : Object.freeze([]),
@@ -1169,7 +1065,6 @@ export async function startWebGameApplicationV1<
       claimOnStart: rebootstrapStart === undefined,
     });
     instanceLease = instanceLeaseCoordinator;
-    const devDockControl = createDevDockControlV1();
     // One shared pausable, rate-scalable presentation clock: the rate port
     // wraps the raw host clock (debug 倍速 / Story fast-forward), the freeze
     // port wraps the rate port, and narrative reveal plus hosted surfaces
@@ -1216,23 +1111,12 @@ export async function startWebGameApplicationV1<
       playerProfile,
       files: host.files,
       capabilities,
-      devDockControl,
       presentationFreeze,
       presentationRate,
       heldInput: heldKeyInput.port,
       clearAllSaves,
       reportFailure,
     });
-    const loadDevDockContributionsSource = uiDefinition.loadDevDockContributions;
-    const loadDevDockContributions = loadDevDockContributionsSource === undefined
-      ? undefined
-      : async (): Promise<DevDockContributionSetV1> => {
-        const contributions = await loadDevDockContributionsSource();
-        return bindDevDockContributionAcceptanceInternalV1(
-          contributions,
-          () => startupDiagnostics?.signalOptionalCapabilityReady("ui.dev-dock"),
-        );
-      };
     uiDisposer = uiDefinition.dispose?.bind(uiDefinition);
     const saveSurfaces = createPlayerSaveSurfacesV1({
       files: host.files,
@@ -1395,9 +1279,50 @@ export async function startWebGameApplicationV1<
       capabilities,
     });
 
-    // DevDock open state feeds the diagnostics UI context without giving
-    // the resident player DOM any debug vocabulary.
-    let devDockOpenState: DevDockOpenStateV1 = Object.freeze({ open: false });
+    // An explicitly selected outer composition can report its observable open
+    // state to DebugBundle without adding implementation vocabulary to core.
+    let auxiliarySurfaceOpen = false;
+    const boundOuterUi = uiDefinition.outerUi?.bindHost(Object.freeze({
+      inputRouter: composition.input,
+      savePort: saveSurfaces.maintenance.savePort,
+      clearAllSaves: saveSurfaces.maintenance.clearAllSaves,
+      reloadCurrentState,
+      faultCause: Object.freeze({
+        getCurrent: () => instance.admin.lastFaultCause(),
+        subscribe: (listener: () => void) => instance.semantic.subscribe(listener),
+      }),
+      prepareStateMutation: () =>
+        ensureRequiredTextContentPacksV1(
+          textContentSession?.manifest.packs.map((pack) => pack.packId) ?? [],
+        ),
+      signalOptionalCapabilityReady: () =>
+        startupDiagnostics?.signalOptionalCapabilityReady("ui.outer-tools"),
+      observeOpenState: (open: boolean) => {
+        auxiliarySurfaceOpen = open;
+      },
+    }));
+    const storySlots = uiDefinition.slots;
+    type RootSlotContextV1 = Parameters<
+      NonNullable<NonNullable<typeof storySlots>["background"]>
+    >[0];
+    const rootSlots: typeof uiDefinition.slots = boundOuterUi === undefined
+      ? storySlots
+      : Object.freeze({
+        ...storySlots,
+        settingsSections: (context: RootSlotContextV1) =>
+          Object.freeze([
+            ...(boundOuterUi.settingsSections ?? []),
+            ...(storySlots?.settingsSections?.(context) ?? []),
+          ]),
+        auxiliarySurface: (context: RootSlotContextV1) => (
+          <>
+            {boundOuterUi.renderAuxiliarySurface({
+              returnToTitle: context.systemDialogs.returnToTitle,
+            })}
+            {storySlots?.auxiliarySurface?.(context) ?? null}
+          </>
+        ),
+      });
     // The root installs only the router-coupled discrete adapters; held
     // bindings and the native-behavior reset install below, composer-side.
     const rootInputMaps = ((): {
@@ -1427,9 +1352,7 @@ export async function startWebGameApplicationV1<
           accessibleName={application.accessibleName}
           applicationId={application.applicationId}
           viewport={application.viewport}
-          capabilities={capabilities}
           playerProfile={playerProfile}
-          lifecycle={composedLifecycle}
           {...(uiDefinition.resolveStageAccessibleName === undefined ? {} : {
             resolveStageAccessibleName: uiDefinition.resolveStageAccessibleName as (
               publication: never,
@@ -1442,49 +1365,8 @@ export async function startWebGameApplicationV1<
           {...(uiDefinition.hideSystemMenu === undefined
             ? {}
             : { hideSystemMenu: uiDefinition.hideSystemMenu })}
-          {...(uiDefinition.hideDeveloperToolsToggle === undefined
-            ? {}
-            : { hideDeveloperToolsToggle: uiDefinition.hideDeveloperToolsToggle })}
-          sessionMaintenance={Object.freeze({
-            savePort: saveSurfaces.maintenance.savePort,
-            clearAllSaves: saveSurfaces.maintenance.clearAllSaves,
-            reloadCurrentState,
-            faultCause: Object.freeze({
-              getCurrent: () =>
-                instance.admin.lastFaultCause(),
-              // Faults flip the session status, and the semantic port's
-              // subscribe passes session publishes through.
-              subscribe: (listener: () => void) => instance.semantic.subscribe(listener),
-            }),
-          })}
-          stateTuner={createEngineStateTunerPortV1({
-            instance,
-            capabilities,
-            ...(textContentSession === null ? {} : {
-              prepareMutation: () =>
-                ensureRequiredTextContentPacksV1(
-                  textContentSession.manifest.packs.map((pack) => pack.packId),
-                ),
-            }),
-          })}
           {...(uiDefinition.labels === undefined ? {} : { labels: uiDefinition.labels })}
-          {...(uiDefinition.slots === undefined ? {} : { slots: uiDefinition.slots })}
-          {...(uiDefinition.devDockContributions === undefined
-            ? {}
-            : { devDockContributions: uiDefinition.devDockContributions })}
-          devDock={Object.freeze({
-            ...(loadDevDockContributions === undefined ? {} : { load: loadDevDockContributions }),
-            ...(uiDefinition.devDockPosition === undefined
-              ? {}
-              : { position: uiDefinition.devDockPosition }),
-            ...(uiDefinition.devDockChip === undefined ? {} : { chip: uiDefinition.devDockChip }),
-            control: devDockControl,
-            freeze: presentationFreeze,
-            rate: presentationRate,
-            observeOpenState: (state: DevDockOpenStateV1) => {
-              devDockOpenState = state;
-            },
-          })}
+          {...(rootSlots === undefined ? {} : { slots: rootSlots })}
           {...(rootInputMaps === undefined ? {} : { inputMaps: rootInputMaps })}
         />
       </ApplicationFirstProductCommitInternalV1>
@@ -1530,7 +1412,7 @@ export async function startWebGameApplicationV1<
       });
       unbindUiContext = instance.bindDebugUiContext(
         uiDefinition.debugUiContext({
-          devDockOpenState: () => devDockOpenState,
+          auxiliarySurfaceOpen: () => auxiliarySurfaceOpen,
           presentation: composition.presentation,
           overlaySession: composition.overlaySession as never,
           systemDialogSession: systemDialogReadView,

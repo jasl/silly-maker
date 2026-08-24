@@ -13,12 +13,16 @@ import {
   serializeBuildDependencyMeasurementRequestInternalV1,
 } from "../../engine/packages/tooling/src/vite/build-dependency-receipt.ts";
 import type { BuildDependencyReceiptInternalV1 } from "../../engine/packages/tooling/src/vite/build-dependency-receipt.ts";
+import { resolveWebBuildTargetV1 } from "../../engine/packages/tooling/src/project/config.ts";
+import { loadWorkspaceProjectV1 } from "../../engine/packages/tooling/src/project/workspace.ts";
+import { sillyMakerConfigV1 } from "../../project.config.ts";
 import {
   contributionIdsByPlayerBuildAssetV1,
   playerBuildAssetKindV1,
   playerBuildAssetRoleV1,
   referencedPlayerBuildAssetsV1,
   repositoryRelativePlayerBuildPathV1,
+  selectPlayerBuildOutDirV1,
 } from "./player-build-baseline-helpers.ts";
 import type {
   PlayerBuildAssetKindV1,
@@ -39,7 +43,7 @@ declare const Deno: {
 
 interface OptionsV1 {
   readonly applicationId: string;
-  readonly outDir: string;
+  readonly outDir?: string;
   readonly output?: string;
 }
 
@@ -63,7 +67,7 @@ function argumentErrorV1(message: string): never {
 
 function parseOptionsV1(argv: readonly string[]): OptionsV1 {
   let applicationId = "e2e";
-  let outDir = "e2e/dist-web";
+  let outDir: string | undefined;
   let output: string | undefined;
   const seen = new Set<string>();
   for (let index = 0; index < argv.length; index += 1) {
@@ -86,7 +90,11 @@ function parseOptionsV1(argv: readonly string[]): OptionsV1 {
     else if (flag === "--output") output = value;
     else return argumentErrorV1(`unknown argument: ${flag}`);
   }
-  return output === undefined ? { applicationId, outDir } : { applicationId, outDir, output };
+  return Object.freeze({
+    applicationId,
+    ...(outDir === undefined ? {} : { outDir }),
+    ...(output === undefined ? {} : { output }),
+  });
 }
 
 async function listFilesV1(root: string, directory = root): Promise<readonly string[]> {
@@ -184,9 +192,14 @@ async function buildReleaseWithDependencyReceiptV1(input: {
 
 async function mainV1(): Promise<void> {
   const options = parseOptionsV1(Deno.args);
+  const project = await loadWorkspaceProjectV1({
+    repositoryRoot: repositoryRootV1,
+    workspace: sillyMakerConfigV1,
+  });
+  const web = resolveWebBuildTargetV1(project, options.applicationId);
   const reportedOutDir = repositoryRelativePlayerBuildPathV1(
     repositoryRootV1,
-    options.outDir,
+    selectPlayerBuildOutDirV1(options.outDir, web.outDir),
   );
   const outDir = resolve(repositoryRootV1, reportedOutDir);
   const repository = await repositoryStateV1();

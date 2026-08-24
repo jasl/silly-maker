@@ -24,9 +24,9 @@ import type { PresentationFreezePortV1 } from "../presentation-run/presentation-
 import { DiagnosticInspectorV1 } from "./diagnostic-inspector.tsx";
 import { FixtureBrowserV1 } from "./fixture-browser.tsx";
 import {
-  useDevDockPortalTargetRegistrationV1,
-  type DevDockPortalSurfaceV1,
-} from "./dev-dock-portal-coordinator.tsx";
+  useAuxiliarySurfacePortalTargetRegistrationV1,
+  type AuxiliarySurfacePortalSurfaceV1,
+} from "../shell/auxiliary-surface-portal.tsx";
 import { OverlayHostV1 } from "../overlays/overlay-host.tsx";
 import {
   createLocalManagedSurfaceEpochAllocatorInternalV1,
@@ -131,7 +131,7 @@ function DevDockHarnessV1(props: {
         accessibleName="测试舞台"
         layers={emptyLayersV1()}
         inputRouter={inputRouterRef.current}
-        devDock={
+        auxiliarySurface={
           <DevDockV1
             capabilities={props.capabilities}
             contributions={contributions}
@@ -193,7 +193,7 @@ function SyntheticBlockingSurfaceV1(props: {
 }): ReactElement {
   const [target, setTarget] = useState<HTMLDivElement | null>(null);
   // Production surfaces no longer adopt the dock; only fault pause does.
-  useDevDockPortalTargetRegistrationV1(
+  useAuxiliarySurfacePortalTargetRegistrationV1(
     "fault_pause",
     props.kind === "fault_pause" ? target : null,
   );
@@ -246,7 +246,7 @@ function BlockingSurfaceHarnessV1(props: {
         accessibleName="焦点测试舞台"
         layers={layers}
         inputRouter={inputRouterRef.current}
-        devDock={
+        auxiliarySurface={
           <DebugLauncherAndWindowsV1
             capabilities={props.capabilities}
             inputRouter={inputRouterRef.current}
@@ -258,11 +258,11 @@ function BlockingSurfaceHarnessV1(props: {
 }
 
 function StaticPortalTargetV1(props: {
-  readonly kind: DevDockPortalSurfaceV1;
+  readonly kind: AuxiliarySurfacePortalSurfaceV1;
   readonly children?: ReactNode;
 }): ReactElement {
   const [target, setTarget] = useState<HTMLDivElement | null>(null);
-  useDevDockPortalTargetRegistrationV1(props.kind, target);
+  useAuxiliarySurfacePortalTargetRegistrationV1(props.kind, target);
   return (
     <div ref={setTarget} data-blocking-focus-scope={props.kind}>
       {props.children}
@@ -271,7 +271,7 @@ function StaticPortalTargetV1(props: {
 }
 
 function PriorityHarnessV1(props: {
-  readonly surfaces: readonly DevDockPortalSurfaceV1[];
+  readonly surfaces: readonly AuxiliarySurfacePortalSurfaceV1[];
   readonly capabilities: ReturnType<typeof createCapabilityFixtureV1>["port"];
   readonly control?: DevDockControlV1;
   readonly contributions?: ReturnType<typeof createDevDockContributionSetV1>;
@@ -287,7 +287,7 @@ function PriorityHarnessV1(props: {
         accessibleName="优先级测试舞台"
         layers={Object.freeze({ ...emptyLayersV1(), system: <>{targets}</> })}
         inputRouter={inputRouterRef.current}
-        devDock={
+        auxiliarySurface={
           <DebugLauncherAndWindowsV1
             capabilities={props.capabilities}
             inputRouter={inputRouterRef.current}
@@ -337,7 +337,7 @@ function RealOverlayEscapeHarnessV1(props: {
           />
         ),
       })}
-      devDock={
+      auxiliarySurface={
         <DebugLauncherAndWindowsV1
           capabilities={props.capabilities}
           inputRouter={inputRouterRef.current}
@@ -426,7 +426,7 @@ function RealSystemEscapeHarnessV1(props: {
           </SystemDialogHostV1>
         ),
       })}
-      devDock={
+      auxiliarySurface={
         <DebugLauncherAndWindowsV1
           capabilities={props.capabilities}
           inputRouter={inputRouterRef.current}
@@ -655,7 +655,7 @@ describe("DevDockV1", () => {
           accessibleName="测试舞台"
           layers={emptyLayersV1()}
           inputRouter={inputRouterRef.current}
-          devDock={
+          auxiliarySurface={
             <DebugLauncherAndWindowsV1
               capabilities={capabilities.port}
               inputRouter={inputRouterRef.current}
@@ -845,7 +845,7 @@ describe("DevDockV1", () => {
             accessibleName="输入测试舞台"
             layers={emptyLayersV1()}
             inputRouter={inputRouter}
-            devDock={
+            auxiliarySurface={
               <DevDockV1
                 capabilities={capabilities.port}
                 contributions={panels}
@@ -906,7 +906,7 @@ describe("DevDockV1", () => {
           accessibleName="关闭隔离测试舞台"
           layers={emptyLayersV1()}
           inputRouter={inputRouter}
-          devDock={
+          auxiliarySurface={
             <DevDockV1
               capabilities={capabilities.port}
               contributions={panels}
@@ -1070,7 +1070,7 @@ describe("DevDockV1", () => {
           accessibleName="位置测试舞台"
           layers={emptyLayersV1()}
           inputRouter={inputRouterRef.current}
-          devDock={
+          auxiliarySurface={
             <DebugLauncherAndWindowsV1
               capabilities={capabilities.port}
               inputRouter={inputRouterRef.current}

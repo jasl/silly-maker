@@ -2,7 +2,7 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { useDevDockPortalTargetRegistrationV1 } from "../debug/dev-dock-portal-coordinator.tsx";
+import { useAuxiliarySurfacePortalTargetRegistrationV1 } from "../shell/auxiliary-surface-portal.tsx";
 import { inputHandledV1, inputIgnoredV1, type InputRouterV1 } from "../input/contracts.ts";
 import styles from "../overlays/overlay-host.module.css";
 import { Button } from "../primitives/button.tsx";
@@ -80,7 +80,7 @@ export function RuntimeFailureDialogV1(props: RuntimeFailureDialogPropsV1): Reac
 
   useStageInputIsolationV1("system", true);
   useStageSystemFocusScopeRegistrationV1(focusScopeElement);
-  useDevDockPortalTargetRegistrationV1("fault_pause", focusScopeElement);
+  useAuxiliarySurfacePortalTargetRegistrationV1("fault_pause", focusScopeElement);
 
   useLayoutEffect(
     () =>

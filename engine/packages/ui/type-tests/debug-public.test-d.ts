@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import {
   CapabilityPanelV1,
   DebugCommandPanelV1,
-  DevDockPortalCoordinatorV1,
   DevDockV1,
   DiagnosticInspectorV1,
   FixtureBrowserV1,
@@ -25,7 +24,6 @@ type DebugRuntimeKeysV1 = ExpectV1<
     | "DebugCommandPanelV1"
     | "DebugNarrativeGraphViewV1"
     | "DebugValueInspectorV1"
-    | "DevDockPortalCoordinatorV1"
     | "DevDockV1"
     | "DiagnosticInspectorV1"
     | "FixtureBrowserV1"
@@ -76,7 +74,6 @@ const commandV1: StoryLocalCommandV1 = { kind: "story.synthetic", amount: 1 };
 
 CapabilityPanelV1;
 DebugCommandPanelV1<StoryLocalCommandV1>;
-DevDockPortalCoordinatorV1;
 DevDockV1;
 DiagnosticInspectorV1;
 FixtureBrowserV1<string>;

@@ -17,9 +17,9 @@ import { createPresentationRatePortV1 } from "../presentation-run/presentation-r
 import type { SaveOverlayPortV1 } from "../persistence/save-overlay.tsx";
 import { createDevDockControlV1 } from "./dev-dock-control.ts";
 import {
-  DevDockPortalCoordinatorV1,
-  useDevDockPortalTargetRegistrationV1,
-} from "./dev-dock-portal-coordinator.tsx";
+  AuxiliarySurfacePortalCoordinatorV1,
+  useAuxiliarySurfacePortalTargetRegistrationV1,
+} from "../shell/auxiliary-surface-portal.tsx";
 import { engineStateInspectorPanelIdV1, engineStateTunerPanelIdV1 } from "./state-tuner.ts";
 import { StoryDebugDockV1 } from "./story-debug-dock.tsx";
 
@@ -426,7 +426,7 @@ describe("StoryDebugDockV1", () => {
   it("collapses when fault_pause adopts and releases the launcher", async () => {
     function ScopeFixtureV1(props: { readonly active: boolean }): ReactElement {
       const [element, setElement] = useState<HTMLDivElement | null>(null);
-      useDevDockPortalTargetRegistrationV1("fault_pause", props.active ? element : null);
+      useAuxiliarySurfacePortalTargetRegistrationV1("fault_pause", props.active ? element : null);
       return (
         <div
           ref={setElement}
@@ -437,7 +437,7 @@ describe("StoryDebugDockV1", () => {
     }
     function HarnessV1(props: { readonly scopeActive: boolean }): ReactElement {
       return (
-        <DevDockPortalCoordinatorV1>
+        <AuxiliarySurfacePortalCoordinatorV1>
           <ScopeFixtureV1 active={props.scopeActive} />
           <StoryDebugDockV1
             visible
@@ -445,7 +445,7 @@ describe("StoryDebugDockV1", () => {
             control={createDevDockControlV1()}
             tools={defaultToolsV1}
           />
-        </DevDockPortalCoordinatorV1>
+        </AuxiliarySurfacePortalCoordinatorV1>
       );
     }
     const user = userEvent.setup();

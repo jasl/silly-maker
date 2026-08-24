@@ -2,6 +2,16 @@
 export { GameShell } from "./game-shell.tsx";
 export type { GameShellPropsV1, GameShellViewportOptionsV1 } from "./game-shell.tsx";
 export {
+  AuxiliarySurfacePortalCoordinatorV1,
+  useAuxiliarySurfacePortalTargetRegistrationV1,
+  useAuxiliarySurfacePortalTargetV1,
+} from "./auxiliary-surface-portal.tsx";
+export type {
+  AuxiliarySurfacePortalCoordinatorPropsV1,
+  AuxiliarySurfacePortalSurfaceV1,
+  AuxiliarySurfacePortalTargetSelectionV1,
+} from "./auxiliary-surface-portal.tsx";
+export {
   GameStageV1,
   stageLayerIdsV1,
   useStageInputIsolationV1,

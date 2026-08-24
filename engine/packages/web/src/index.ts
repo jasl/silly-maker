@@ -30,9 +30,12 @@ export {
   startWebGameApplicationV1,
 } from "./application/start-web-game-application.tsx";
 export type {
+  BoundWebGameOuterUiV1,
   StartWebGameApplicationOptionsV1,
   StartedWebGameApplicationV1,
   WebGameApplicationV1,
+  WebGameOuterUiHostInputV1,
+  WebGameOuterUiV1,
   WebGameUiDefinitionV1,
 } from "./application/start-web-game-application.tsx";
 export { createWebInstanceLeaseCoordinatorV1 } from "./application/instance-lease.ts";

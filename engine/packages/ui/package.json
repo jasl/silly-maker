@@ -14,6 +14,10 @@
     },
     "./diagnostics": "./src/diagnostics/index.ts",
     "./internal": "./src/internal.ts",
+    "./reference": "./src/reference/index.ts",
+    "./reference/dev-dock": "./src/reference/dev-dock-entry.ts",
+    "./reference/internal": "./src/reference/internal.ts",
+    "./reference/settings": "./src/reference/settings-entry.ts",
     "./styles.css": "./src/theme/global.css"
   },
   "scripts": {
@@ -21,8 +25,7 @@
   },
   "dependencies": {
     "@radix-ui/react-dialog": "1.1.23",
-    "@sillymaker/base": "workspace:*",
-    "lucide-react": "1.31.0"
+    "@sillymaker/base": "workspace:*"
   },
   "peerDependencies": {
     "react": "19.2.8",

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { gzipSync } from "node:zlib";
 
 import { build } from "vite";
 import { describe, expect, it } from "vitest";
@@ -29,6 +30,7 @@ import {
 } from "./studio.ts";
 
 const repositoryRootV1 = resolve(fileURLToPath(new URL("../../../../..", import.meta.url)));
+const templateMinimalInitialJavascriptGzipBudgetV1 = 360 * 1024;
 
 function chunkV1(
   fileName: string,
@@ -123,6 +125,54 @@ async function measureAuthoringBuildGraphV1(input: {
     });
     if (!Array.isArray(output) && !("output" in output)) {
       throw new TypeError("Authoring measurement unexpectedly returned a build watcher");
+    }
+    return parseBuildDependencyReceiptInternalV1(await readFile(receiptPath, "utf8"));
+  } finally {
+    if (previous === undefined) {
+      delete process.env[buildDependencyMeasurementEnvironmentKeyInternalV1];
+    } else {
+      process.env[buildDependencyMeasurementEnvironmentKeyInternalV1] = previous;
+    }
+    if (previousNodeEnvironment === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = previousNodeEnvironment;
+    }
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
+async function measurePlayerEntryBuildGraphV1(input: {
+  readonly appDirectory: "template";
+  readonly entry: string;
+}): Promise<BuildDependencyReceiptInternalV1> {
+  const directory = await mkdtemp(
+    join(tmpdir(), `sillymaker-${input.appDirectory}-player-entry-build-graph-`),
+  );
+  const receiptPath = join(directory, "receipt.json");
+  const previous = process.env[buildDependencyMeasurementEnvironmentKeyInternalV1];
+  const previousNodeEnvironment = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  process.env[buildDependencyMeasurementEnvironmentKeyInternalV1] =
+    serializeBuildDependencyMeasurementRequestInternalV1({
+      graphRoot: repositoryRootV1,
+      receiptPath,
+    });
+  try {
+    const output = await build({
+      configFile: join(repositoryRootV1, input.appDirectory, "vite.config.ts"),
+      logLevel: "silent",
+      build: {
+        write: false,
+        outDir: join(directory, "out"),
+        emptyOutDir: true,
+        rollupOptions: {
+          input: join(repositoryRootV1, input.appDirectory, input.entry),
+        },
+      },
+    });
+    if (!Array.isArray(output) && !("output" in output)) {
+      throw new TypeError("Player entry measurement unexpectedly returned a build watcher");
     }
     return parseBuildDependencyReceiptInternalV1(await readFile(receiptPath, "utf8"));
   } finally {
@@ -268,8 +318,12 @@ describe("build dependency receipt", () => {
       "engine/packages/base/src/index.ts",
       "engine/packages/base/src/authoring/story-resolver.ts",
       "engine/packages/studio/src/studio-app.tsx",
+      "engine/packages/studio/src/workspaces/scene/scene-inspector.tsx",
       "engine/packages/ui/src/debug/dev-source-client.ts",
+      "engine/packages/ui/src/debug/dev-dock.tsx",
+      "engine/packages/ui/src/reference/default-settings-sections.tsx",
       "engine/packages/composition/src/extension-runtime/backend.ts",
+      "engine/packages/agent/src/host/agent-host.ts",
       "engine/packages/agent/src/rpc/client.ts",
       "engine/packages/web/src/rpc/client.ts",
       "node_modules/dependency/src/tooling/index.ts",
@@ -278,12 +332,24 @@ describe("build dependency receipt", () => {
     ])).toEqual({
       authoringImplementation: [
         "engine/packages/studio/src/studio-app.tsx",
+        "engine/packages/studio/src/workspaces/scene/scene-inspector.tsx",
         "products/neutral-gui/src/authoring/flow-source.ts",
         "products/neutral-gui/src/tooling/inspector.ts",
       ],
+      inspectorAuthoringImplementation: [
+        "engine/packages/studio/src/workspaces/scene/scene-inspector.tsx",
+      ],
       devSourceImplementation: ["engine/packages/ui/src/debug/dev-source-client.ts"],
+      devDockImplementation: ["engine/packages/ui/src/debug/dev-dock.tsx"],
+      presetSettingsImplementation: [
+        "engine/packages/ui/src/reference/default-settings-sections.tsx",
+      ],
       dynamicExtensionImplementation: [
         "engine/packages/composition/src/extension-runtime/backend.ts",
+      ],
+      agentImplementation: [
+        "engine/packages/agent/src/host/agent-host.ts",
+        "engine/packages/agent/src/rpc/client.ts",
       ],
       rpcImplementation: [
         "engine/packages/agent/src/rpc/client.ts",
@@ -316,16 +382,16 @@ describe("build dependency receipt", () => {
       if (!Array.isArray(output) && !("output" in output)) {
         throw new TypeError("Template measurement unexpectedly returned a build watcher");
       }
-      const bundleFileNames = (Array.isArray(output) ? output : [output]).flatMap(
-        ({ output: generatedOutputs }) => generatedOutputs.map(({ fileName }) => fileName),
+      const generatedOutputs = (Array.isArray(output) ? output : [output]).flatMap(
+        ({ output: buildOutputs }) => buildOutputs,
       );
+      const bundleFileNames = generatedOutputs.map(({ fileName }) => fileName);
       expect(bundleFileNames).not.toContain("receipt.json");
       const serialized = await readFile(receiptPath, "utf8");
       const receipt = parseBuildDependencyReceiptInternalV1(serialized);
       expect(receipt.applicationId).toBe("template");
       expect(serialized).not.toContain(repositoryRootV1);
       expect(receipt.chunks.some(({ isEntry }) => isEntry)).toBe(true);
-      expect(receipt.chunks.some(({ isDynamicEntry }) => isDynamicEntry)).toBe(true);
       expect([
         ...receipt.chunks.map(({ fileName }) => fileName),
         ...receipt.assets.map(({ fileName }) => fileName),
@@ -353,12 +419,40 @@ describe("build dependency receipt", () => {
       ];
       expect(classifyStaticGameDependencyFacetsInternalV1(moduleIds)).toEqual({
         authoringImplementation: [],
+        inspectorAuthoringImplementation: [],
         devSourceImplementation: [],
+        devDockImplementation: [],
+        presetSettingsImplementation: [],
         dynamicExtensionImplementation: [],
+        agentImplementation: [],
         rpcImplementation: [],
       });
       expect(moduleIds.some((moduleId) => moduleId.startsWith("engine/packages/agent/")))
         .toBe(false);
+
+      const chunks = new Map(
+        generatedOutputs
+          .filter((generated) => generated.type === "chunk")
+          .map((chunk) => [chunk.fileName, chunk] as const),
+      );
+      const pending = [...chunks.values()]
+        .filter((chunk) => chunk.isEntry)
+        .map((chunk) => chunk.fileName);
+      const initial = new Set<string>();
+      while (pending.length > 0) {
+        const fileName = pending.pop();
+        if (fileName === undefined || initial.has(fileName)) continue;
+        initial.add(fileName);
+        const chunk = chunks.get(fileName);
+        if (chunk !== undefined) pending.push(...chunk.imports);
+      }
+      const initialJavascriptGzipBytes = [...initial].reduce(
+        (total, fileName) => total + gzipSync(chunks.get(fileName)!.code).byteLength,
+        0,
+      );
+      expect(initialJavascriptGzipBytes).toBeLessThanOrEqual(
+        templateMinimalInitialJavascriptGzipBudgetV1,
+      );
     } finally {
       if (previous === undefined) {
         delete process.env[buildDependencyMeasurementEnvironmentKeyInternalV1];
@@ -430,7 +524,11 @@ describe("build dependency receipt", () => {
       const facets = classifyStaticGameDependencyFacetsInternalV1(moduleIds);
       expect(facets.dynamicExtensionImplementation.length).toBeGreaterThan(0);
       expect(facets.authoringImplementation).toEqual([]);
+      expect(facets.inspectorAuthoringImplementation).toEqual([]);
       expect(facets.devSourceImplementation).toEqual([]);
+      expect(facets.devDockImplementation.length).toBeGreaterThan(0);
+      expect(facets.presetSettingsImplementation.length).toBeGreaterThan(0);
+      expect(facets.agentImplementation).toEqual([]);
       expect(facets.rpcImplementation).toEqual([]);
       expect(moduleIds.some((moduleId) => moduleId.startsWith("engine/packages/agent/")))
         .toBe(false);
@@ -452,6 +550,23 @@ describe("build dependency receipt", () => {
     }
   });
 
+  it("includes DevDock and preset settings only in the explicit Template reference entry", async () => {
+    const receipt = await measurePlayerEntryBuildGraphV1({
+      appDirectory: "template",
+      entry: "reference.html",
+    });
+    const facets = classifyStaticGameDependencyFacetsInternalV1(receiptModuleIdsV1(receipt));
+
+    expect(facets.devDockImplementation.length).toBeGreaterThan(0);
+    expect(facets.presetSettingsImplementation.length).toBeGreaterThan(0);
+    expect(facets.authoringImplementation).toEqual([]);
+    expect(facets.inspectorAuthoringImplementation).toEqual([]);
+    expect(facets.devSourceImplementation).toEqual([]);
+    expect(facets.dynamicExtensionImplementation).toEqual([]);
+    expect(facets.agentImplementation).toEqual([]);
+    expect(facets.rpcImplementation).toEqual([]);
+  });
+
   it("keeps the complete Template Author graph free of unselected Agent implementation", async () => {
     const receipt = await measureAuthoringBuildGraphV1({
       appDirectory: "template",
@@ -466,16 +581,21 @@ describe("build dependency receipt", () => {
     const moduleIds = receiptModuleIdsV1(receipt);
     const facets = classifyStaticGameDependencyFacetsInternalV1(moduleIds);
     expect(facets.authoringImplementation.length).toBeGreaterThan(0);
+    expect(facets.inspectorAuthoringImplementation.length).toBeGreaterThan(0);
     expect(facets.authoringImplementation).toContain(
       "template/src/tooling/studio-binding.tsx",
     );
     expect(facets.devSourceImplementation).toContain(
       "engine/packages/ui/src/debug/dev-source-client.ts",
     );
+    expect(facets.agentImplementation).toEqual([]);
     expect(facets.rpcImplementation).toEqual([]);
     expect(moduleIds).toContain("template/src/tooling/studio-binding.tsx");
     expect(moduleIds).toContain("engine/packages/studio/src/core/authoring-host.ts");
     expect(moduleIds).toContain("engine/packages/studio/src/studio-app.tsx");
+    expect(facets.inspectorAuthoringImplementation).toContain(
+      "engine/packages/studio/src/workspaces/scene/scene-inspector.tsx",
+    );
     expect(moduleIds).toContain(
       "engine/packages/studio/src/workspaces/flow/flow-workspace-extension.tsx",
     );
@@ -505,8 +625,10 @@ describe("build dependency receipt", () => {
     const moduleIds = receiptModuleIdsV1(receipt);
     const facets = classifyStaticGameDependencyFacetsInternalV1(moduleIds);
     expect(facets.authoringImplementation.length).toBeGreaterThan(0);
+    expect(facets.inspectorAuthoringImplementation.length).toBeGreaterThan(0);
     expect(facets.authoringImplementation).toContain("e2e/src/tooling/studio-binding.tsx");
     expect(facets.rpcImplementation.length).toBeGreaterThan(0);
+    expect(facets.agentImplementation.length).toBeGreaterThan(0);
     expect(moduleIds).toContain("e2e/src/tooling/studio-binding.tsx");
     expect(moduleIds).toContain("engine/packages/agent/src/host/agent-host.ts");
     expect(moduleIds).toContain("engine/packages/agent/src/artifact/renderer.tsx");

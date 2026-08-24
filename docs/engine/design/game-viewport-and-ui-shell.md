@@ -72,9 +72,9 @@ Composer 提供的每个默认 surface——Save、Settings、系统对话框、
 
 - 玩家常驻 UI（七层中除 system 外的一切，以及 system 层的常驻部分）**零 debug 词汇**：不出现 semantic revision/status 文本、diagnostic export、replay、fixture 或任何工程术语；
 - 测试探针只允许 `data-*` 属性，不允许可见文本；现有"语义状态 ready，修订 N"输出移除可见部分；
-- DevDock 仍是 debug 能力的唯一 UI 宿主：`debug_tools` capability 开启后出现，包含 diagnostic export、状态检查与 Story tooling 面板；
+- DevDock 仍是第一方参考 debug UI 的唯一宿主，但不再由核心 GameRoot 隐式挂载：产品显式选择 reference outer composition 后，`debug_tools` capability 才使它出现；自定义产品可以复制/替换该外圈实现而不改变核心 System/State authority；
 - 玩家侧的"导出诊断信息"作为支持功能保留时，只能放在 Settings/系统菜单内，用玩家语言表述，不占常驻 HUD；
-- 本边界属于引擎验收：E2E conformance 断言普通模式 DOM 无 debug 标识，`debug_tools` 模式 DevDock 完整出现。
+- 本边界属于引擎验收：minimal 产品图与普通模式 DOM 无 debug 实现/标识；显式选择 reference outer UI 后，`debug_tools` 模式 DevDock 完整出现。
 
 ## 6. Acceptance
 

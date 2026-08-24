@@ -20,7 +20,6 @@ import {
 
 import type { AssetUrlRegistryV1 } from "../assets/use-asset-url.ts";
 import { useAssetUrlV1 } from "../assets/use-asset-url.ts";
-import type { StageInspectControllerV1 } from "../debug/stage-inspect.ts";
 import type {
   StageFrameEntryV1,
   StageFrameLayerV1,
@@ -58,6 +57,25 @@ export interface SemanticStageHostDiagnosticV1 {
   readonly code: "stage.renderer_unregistered";
   readonly entryKey: string;
   readonly rendererId: string;
+}
+
+/** Narrow, non-authoritative observation port optionally supplied by devtools. */
+export interface SemanticStageInspectionSnapshotV1 {
+  readonly enabled: boolean;
+  readonly highlightHitRegions: boolean;
+  readonly selectedKey: string | null;
+}
+
+export interface SemanticStageInspectionFrameV1 {
+  readonly frame: StageRenderFrameV1;
+  readonly activeCueId: string | null;
+}
+
+export interface SemanticStageInspectionPortV1 {
+  observe(): SemanticStageInspectionSnapshotV1;
+  subscribe(listener: () => void): () => void;
+  select(frameKey: string | null): void;
+  recordFrame(input: SemanticStageInspectionFrameV1): void;
 }
 
 export interface SemanticStageHostPropsV1 {
@@ -100,7 +118,7 @@ export interface SemanticStageHostPropsV1 {
    * to the controller and, while inspection is enabled, overlays click
    * surfaces that select entries. Absent in production compositions.
    */
-  readonly inspect?: StageInspectControllerV1 | null;
+  readonly inspect?: SemanticStageInspectionPortV1 | null;
   /**
    * Dev-only: outline every declared hit region with its regionId label.
    * Editors pass it directly; the game stage flips it through the inspect
@@ -111,12 +129,10 @@ export interface SemanticStageHostPropsV1 {
 }
 
 const noopInspectSubscribeV1 = (): () => void => () => {};
-const inspectDisabledSnapshotV1: ReturnType<StageInspectControllerV1["observe"]> = Object.freeze({
+const inspectDisabledSnapshotV1: SemanticStageInspectionSnapshotV1 = Object.freeze({
   enabled: false,
   highlightHitRegions: false,
   selectedKey: null,
-  entries: Object.freeze([]),
-  activeCueId: null,
 });
 
 /** Overlay channel lookup: entry channels by layer/tag, camera channels flat. */
@@ -338,7 +354,7 @@ function StageEntryV1(props: {
   readonly ambientSample: MotionSampleV1 | undefined;
   readonly onHitRegionActivate: SemanticStageHostPropsV1["onHitRegionActivate"];
   readonly assets: AssetUrlRegistryV1 | null;
-  readonly inspect: StageInspectControllerV1 | null;
+  readonly inspect: SemanticStageInspectionPortV1 | null;
   readonly inspectEnabled: boolean;
   readonly inspectSelected: boolean;
   readonly hitRegionsHighlighted: boolean;

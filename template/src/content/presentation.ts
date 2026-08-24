@@ -44,6 +44,16 @@ export const templateTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
   ],
 });
 
+/** Resolves resident UI copy from the default-locale bootstrap catalog. */
+export function templateUiTextV1(textId: string): string {
+  const catalog = templateTextCatalogsV1.catalogs.find(
+    (candidate) => candidate.locale === templateTextCatalogsV1.defaultLocale,
+  );
+  const entry = catalog?.entries.find((candidate) => candidate.textId === textId);
+  if (entry === undefined) throw new TypeError(`template.ui_text_missing:${textId}`);
+  return entry.text;
+}
+
 /**
  * The stage content catalog: the only place that knows renderer IDs and
  * accessible names for stage content. Authoritative stage state stores

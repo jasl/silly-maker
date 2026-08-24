@@ -3,7 +3,7 @@
 import { cleanup } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { disposeDevDockContributionLifecycleInternalV1 } from "@sillymaker/ui/internal";
+import { disposeDevDockContributionLifecycleInternalV1 } from "@sillymaker/ui/reference/internal";
 
 import { createLabApplicationInstanceV1 } from "../application/core-application.ts";
 import { loadLabDevDockExtensionV1 } from "../application/dev-dock-extension.tsx";

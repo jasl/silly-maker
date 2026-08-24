@@ -72,6 +72,26 @@ describe("GameShell", () => {
     expect(stage.parentElement).not.toBe(backdrop);
   });
 
+  it("hosts an optional auxiliary surface outside the authoritative Stage", () => {
+    const inputRouter = createInputRouterV1();
+
+    render(
+      <GameShell
+        accessibleName="测试游戏舞台"
+        layers={completeLayersV1()}
+        inputRouter={inputRouter}
+        auxiliarySurface={<button type="button">可选外圈界面</button>}
+      />,
+    );
+
+    const stage = screen.getByRole("main", { name: "测试游戏舞台" });
+    const auxiliary = screen.getByRole("button", { name: "可选外圈界面" });
+    expect(auxiliary).toBeVisible();
+    expect(stage).not.toContainElement(auxiliary);
+    expect(document.querySelector("[data-auxiliary-surface-portal-target='base']"))
+      .not.toBeNull();
+  });
+
   it("keeps ultrawide fill pointer-transparent and removes motion when requested", async () => {
     const css = await readFile(resolve(import.meta.dirname, "game-shell.module.css"), "utf8");
     const backdropRule = css.match(/\.game-shell__backdrop\s*\{(?<body>[^}]*)\}/u);

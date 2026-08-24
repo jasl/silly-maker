@@ -22,7 +22,7 @@ import type {
   SaveOverlayLabelsV1,
 } from "@sillymaker/ui";
 import { defineNarrativeSurfaceV1, SemanticStageV1, systemInputActionIdsV1 } from "@sillymaker/ui";
-import type { WebGameApplicationV1 } from "@sillymaker/web";
+import type { WebGameApplicationV1, WebGameOuterUiV1 } from "@sillymaker/web";
 
 import type {
   TemplateActionDescriptorV1,
@@ -42,6 +42,7 @@ import {
   templateStageContentCatalogV1,
   templateStageTransitionCatalogV1,
   templateTextCatalogsV1,
+  templateUiTextV1,
 } from "../content/presentation.ts";
 import {
   templateEndingTextPackIdV1,
@@ -57,16 +58,6 @@ import { TemplateHudV1, TemplateNarrativeRendererV1 } from "./ui.tsx";
 
 /** The logical canvas: a 16:9 design resolution the viewport letterboxes. */
 export const templateViewportCanvasV1 = Object.freeze({ width: 1600, height: 900 });
-
-/** Resolves a textId from the default-locale catalog; loud when missing. */
-export function templateUiTextV1(textId: string): string {
-  const catalog = templateTextCatalogsV1.catalogs.find(
-    (candidate) => candidate.locale === templateTextCatalogsV1.defaultLocale,
-  );
-  const entry = catalog?.entries.find((candidate) => candidate.textId === textId);
-  if (entry === undefined) throw new TypeError(`template.ui_text_missing:${textId}`);
-  return entry.text;
-}
 
 type TemplateSemanticPublicationV1 = ReturnType<
   TemplateApplicationInstanceV1["semantic"]["observe"]
@@ -214,10 +205,7 @@ export const templateRootLabelsV1: Partial<DefaultGameRootLabelsV1> = Object.fre
   settingsLabel: "设置",
   settingsTitle: "设置",
   settingsEmptyText: "暂无可配置项。",
-  settingsVolumeLabel: "音量",
   settingsMutedLabel: "静音",
-  settingsFullscreenLabel: "切换全屏",
-  settingsDeveloperToolsLabel: "开发者工具",
   titleNewGameLabel: "新游戏",
   titleContinueLabel: "继续",
   closeLabel: "关闭",
@@ -402,3 +390,20 @@ export const templateGameApplicationV1: WebGameApplicationV1<
     });
   },
 });
+
+/** Builds an explicit full/reference composition without changing the minimal entry graph. */
+export function createTemplateGameApplicationWithOuterUiV1(
+  createOuterUi: (
+    input: Parameters<typeof templateGameApplicationV1.ui>[0],
+  ) => WebGameOuterUiV1,
+): typeof templateGameApplicationV1 {
+  return Object.freeze({
+    ...templateGameApplicationV1,
+    ui(input: Parameters<typeof templateGameApplicationV1.ui>[0]) {
+      return Object.freeze({
+        ...templateGameApplicationV1.ui(input),
+        outerUi: createOuterUi(input),
+      });
+    },
+  });
+}

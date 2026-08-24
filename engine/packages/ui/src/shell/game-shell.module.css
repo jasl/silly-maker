@@ -26,7 +26,7 @@
   user-select: none;
 }
 
-.game-shell__dev-dock-target {
+.game-shell__auxiliary-surface-target {
   position: absolute;
   z-index: calc(var(--silly-stage-z-system) + 10);
   inset: 0;

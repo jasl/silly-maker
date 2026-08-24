@@ -5,6 +5,9 @@ export type {
   SemanticStageEntryRendererV1,
   SemanticStageHostDiagnosticV1,
   SemanticStageHostPropsV1,
+  SemanticStageInspectionFrameV1,
+  SemanticStageInspectionPortV1,
+  SemanticStageInspectionSnapshotV1,
 } from "./semantic-stage-host.tsx";
 export { SemanticStageV1 } from "./semantic-stage.tsx";
 export type { SemanticStagePropsV1 } from "./semantic-stage.tsx";

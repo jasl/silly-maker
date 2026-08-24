@@ -181,7 +181,22 @@ Stories whose interaction-document compiler emits the flow projection can hand i
 
 Clickable zones follow the same loop with the **Regions** workspace: pick a `*.regions.json` (or 新建), pick a compiled-scene entry as the live backdrop, and edit against the host's real rendering — the actual clip-path shapes and hover reveals are the preview. Drag the box, scale from the corner, move/insert/delete polygon vertices, convert rectangle⇄polygon; saves go through the regions CAS port with the same dirty-navigation and undo discipline, and a save graduates `authoring.status` to `human_tuned`. To start from legacy bitmap judgment art, `deno task story regions trace <image.png> --out src/regions/<name>.regions.json` converts the alpha silhouette into an editable polygon document (status `generated`; the vertex budget defaults to 32 — tune in Studio afterwards). Binding stays in Story code: import the JSON, `parseRegionsDocumentV1`, hand `regions` to `resolveContent`, and dispatch semantic invocations from `onHitRegionActivate`.
 
-Game scenes get that launcher from `DefaultGameRoot` behind `debug_tools` (`StoryDebugDockV1`, chip label 调试). The launcher groups **状态** (export / import, engine **状态查看** / **状态编辑**, reload-current, reinitialize, and wipe), **场景** (freeze and other `read_only` scene tools), **倍速**, **工具** (Studio or other Story tools when advertised), and Story-specific **作弊** (`cheat` tools, locked until cheats are on). Keep writable Motion work in the standalone/embedded Authoring Host; DevDock provenance may locate the source but must not create a second editor session under the Game root. Contribute panels through `loadDevDockContributions`; the launcher lists the live registry and inlines session maintenance. A Story that wants the chip before `debug_tools` (or live stats in `info`) sets `devDockChip: false` and mounts the same `StoryDebugDockV1`: pass `visible` (Story-owned; do not make always-on the engine default), `clearAllSaves` from `application.ui()` (Core wipe, not a `savePort.clear` loop), freeze via `presentationFreeze`, and an optional `info` slot. Expanding the chip grants `debug_tools`+`cheats` so lazy contributions can load; omit `tools` unless the Story must label panels before the registry exists. The dock never reads Snapshot/Story state. Wipe confirmation is a modal `alertdialog`; the backdrop accessible name must stay distinct from the dialog Cancel button. Desktop/MDI shells that are not a letterboxed game scene set `devDockChip: false` and omit a Story dock. Multi-instance takeover chrome is `InstanceLeaseBannerV1` (`@sillymaker/ui`), driven by the `instanceLease` port; portal it into the scaled viewport canvas so it tracks the picture rather than the letterbox. External `file:` engine consumers already get Vite `resolve.dedupe` for `react`/`react-dom` from `createSillymakerAppViteConfigV1`; Vitest configs that render those engine components need the same dedupe, or hooks break on two physical React copies.
+Game scenes opt into the first-party launcher by assigning
+`outerUi: createReferencePlayerOuterUiV1(...)` in `application.ui()`. That explicit
+outer composition supplies the preset settings sections and `ReferenceDevDockV1`;
+its `loadContributions` option keeps Story panels lazy behind `debug_tools`, while
+`position`, `chip`, `info`, and labels remain product choices. The launcher groups
+**状态**, **场景**, **倍速**, **工具**, and Story **作弊** panels as before. Keep
+writable Motion work in the standalone/embedded Authoring Host; DevDock provenance
+may locate source but must not create a second editor session under the Game root.
+Minimal/custom products omit this adapter and use the generic System host plus the
+neutral `auxiliarySurface` slot; they do not disable a hidden core DevDock.
+`clearAllSaves` must remain the Core wipe operation, and the dock never reads
+Snapshot/Story state. Multi-instance takeover chrome remains
+`InstanceLeaseBannerV1` (`@sillymaker/ui`), driven by `instanceLease`. External
+`file:` engine consumers already get Vite `resolve.dedupe` for `react`/`react-dom`
+from `createSillymakerAppViteConfigV1`; Vitest configs that render those engine
+components need the same dedupe, or hooks break on two physical React copies.
 
 Collaboration contract (agents): never overwrite a `human_tuned` or `locked` motion unless the task explicitly names it — locked changes go through a new variant file with a new id; preserve motion/transition ids across scene refactors; put new tunable animation in a new motion file instead of inline duration/easing constants in scene code (component-local hover effects stay CSS).
 

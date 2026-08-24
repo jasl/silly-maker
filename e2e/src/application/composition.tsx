@@ -17,6 +17,8 @@ import type {
   GameUiProjectorV1,
   GamepadActionMapV1,
   KeyboardActionMapV1,
+  PresentationFreezePortV1,
+  PresentationRatePortV1,
   RuntimePresentationPublicationV1,
   SaveOverlayLabelsV1,
 } from "@sillymaker/ui";
@@ -29,6 +31,10 @@ import {
 } from "@sillymaker/ui";
 import type { StartedWebGameApplicationV1, WebGameApplicationV1 } from "@sillymaker/web";
 import { createWebAudioHostV1 } from "@sillymaker/web";
+import type { RuntimeCapabilitySessionOverlayV1 } from "@sillymaker/web";
+import { createReferencePlayerOuterUiV1 } from "@sillymaker/web/reference";
+import type { DefaultSettingsLabelsV1 } from "@sillymaker/ui/reference/settings";
+import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import { applicationBuildIdentityInputInternalV1 } from "@sillymaker/web/internal/application-build-identity";
 import type {
   InstalledResolvedGameHmrV1,
@@ -328,6 +334,17 @@ export const labRootLabelsV1: Partial<DefaultGameRootLabelsV1> = Object.freeze({
   closeLabel: "关闭",
 });
 
+const labReferenceSettingsLabelsV1: Partial<DefaultSettingsLabelsV1> = Object.freeze({
+  bgmVolumeLabel: "音乐音量",
+  voiceVolumeLabel: "语音音量",
+  sfxVolumeLabel: "音效音量",
+  mutedLabel: "静音",
+  textSpeedLabel: "文字速度",
+  autoWaitLabel: "自动播放停留",
+  fullscreenLabel: "切换全屏",
+  developerToolsLabel: "开发者工具",
+});
+
 export const labSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
   accessibleName: "保存",
   title: "保存",
@@ -585,10 +602,6 @@ export function createLabGameUiDefinitionV1(
         ? { pointer: Object.freeze({ secondary: systemInputActionIdsV1.cancel }) }
         : {}),
     }),
-    loadDevDockContributions: () =>
-      import("./dev-dock-extension.tsx").then((module) =>
-        module.loadLabDevDockExtensionV1({ instance: input.instance })
-      ),
     dispose: createLabUiDisposeV1(
       overlayConformance,
       wholeCanvasConformance,
@@ -631,8 +644,36 @@ export const labGameApplicationV1: WebGameApplicationV1<
   ...(applicationBuildIdentityInputInternalV1 === undefined
     ? {}
     : { buildIdentityInput: applicationBuildIdentityInputInternalV1 }),
-  ui: ({ instance }: { readonly instance: LabApplicationInstanceV1 }) =>
-    createLabGameUiDefinitionV1({ instance }),
+  ui: ({
+    instance,
+    capabilities,
+    playerProfile,
+    presentationFreeze,
+    presentationRate,
+  }: {
+    readonly instance: LabApplicationInstanceV1;
+    readonly capabilities: RuntimeCapabilitySessionOverlayV1;
+    readonly playerProfile: PlayerProfileStoreV1;
+    readonly presentationFreeze: PresentationFreezePortV1;
+    readonly presentationRate: PresentationRatePortV1;
+  }) => {
+    const definition = createLabGameUiDefinitionV1({ instance });
+    return Object.freeze({
+      ...definition,
+      outerUi: createReferencePlayerOuterUiV1({
+        instance,
+        capabilities,
+        playerProfile,
+        presentationFreeze,
+        presentationRate,
+        settingsLabels: labReferenceSettingsLabelsV1,
+        loadContributions: () =>
+          import("./dev-dock-extension.tsx").then((module) =>
+            module.loadLabDevDockExtensionV1({ instance })
+          ),
+      }),
+    });
+  },
 });
 
 export interface LabGameApplicationHmrModuleV1 {

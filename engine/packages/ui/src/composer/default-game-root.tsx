@@ -4,32 +4,12 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
-  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
 import type { ReactElement, ReactNode } from "react";
 
-import type {
-  DeepReadonly,
-  RuntimeCapabilityPortV1,
-  SessionAnchorResultV1,
-  SessionFaultCauseV1,
-} from "@sillymaker/base";
-
-import { createDevDockContributionSetV1, DevDockV1 } from "../debug/dev-dock.tsx";
-import type {
-  DevDockContributionSetV1,
-  DevDockOpenStateV1,
-  DevDockPositionV1,
-} from "../debug/dev-dock.tsx";
-import type { DevDockControlV1 } from "../debug/dev-dock-control.ts";
-import { createDevDockControlV1 } from "../debug/dev-dock-control.ts";
-import { StoryDebugDockV1 } from "../debug/story-debug-dock.tsx";
-import type { StateTunerPortV1 } from "../debug/state-tuner.ts";
-import { mergeEngineStateTunerPanelsV1 } from "../debug/state-tuner-contributions.tsx";
-import type { PresentationFreezePortV1 } from "../presentation-run/presentation-freeze.ts";
-import type { PresentationRatePortV1 } from "../presentation-run/presentation-rate.ts";
+import type { DeepReadonly } from "@sillymaker/base";
 import type { InputRouterV1 } from "../input/contracts.ts";
 import type { GamepadActionMapV1 } from "../input/gamepad-adapter.ts";
 import { installGamepadAdapterV1 } from "../input/gamepad-adapter.ts";
@@ -54,7 +34,6 @@ import type { GameShellViewportOptionsV1 } from "../shell/game-shell.tsx";
 import { MuteToggleV1 } from "../system/mute-toggle.tsx";
 import { SavesLauncherV1 } from "../system/saves-launcher.tsx";
 import { SettingsLauncherV1 } from "../system/settings-launcher.tsx";
-import { DefaultSettingsSectionsV1 } from "../system/default-settings-sections.tsx";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import { SystemDialogHostV1 } from "../system/system-dialog-host.tsx";
 import type { SystemDialogCustomSavesV1 } from "../system/system-dialog-host.tsx";
@@ -72,10 +51,6 @@ import type {
   GameUiManagedSurfaceCompositionInternalV1,
   GameUiOverlayIdV1,
 } from "./create-game-ui-composition.ts";
-import {
-  disposeDevDockContributionLifecycleInternalV1,
-  inheritDevDockContributionAcceptanceInternalV1,
-} from "./dev-dock-contribution-acceptance.ts";
 import { resolveOptionalGameUiManagedSurfaceCompositionInternalV1 } from "./create-game-ui-composition.ts";
 import { SemanticStageCompositionClaimantProviderInternalV1 } from "../stage/semantic-stage.tsx";
 import styles from "./default-game-root.module.css";
@@ -87,16 +62,7 @@ export interface DefaultGameRootLabelsV1 {
   readonly settingsLabel: string;
   readonly settingsTitle: string;
   readonly settingsEmptyText: string;
-  readonly settingsBgmVolumeLabel: string;
-  readonly settingsVoiceVolumeLabel: string;
-  readonly settingsSfxVolumeLabel: string;
   readonly settingsMutedLabel: string;
-  /** Player preference for Story-owned skippable presentation dwells. */
-  readonly settingsSkipCutscenesLabel?: string;
-  readonly settingsTextSpeedLabel: string;
-  readonly settingsAutoWaitLabel: string;
-  readonly settingsFullscreenLabel: string;
-  readonly settingsDeveloperToolsLabel: string;
   readonly titleNewGameLabel: string;
   readonly titleNewGameFailedText: string;
   readonly titleContinueLabel: string;
@@ -112,14 +78,7 @@ export const defaultGameRootLabelsV1: DefaultGameRootLabelsV1 = Object.freeze({
   settingsLabel: "Settings",
   settingsTitle: "Settings",
   settingsEmptyText: "No settings available yet.",
-  settingsBgmVolumeLabel: "Music volume",
-  settingsVoiceVolumeLabel: "Voice volume",
-  settingsSfxVolumeLabel: "Effects volume",
   settingsMutedLabel: "Mute",
-  settingsTextSpeedLabel: "Text speed",
-  settingsAutoWaitLabel: "Auto-forward wait",
-  settingsFullscreenLabel: "Toggle fullscreen",
-  settingsDeveloperToolsLabel: "Developer tools",
   titleNewGameLabel: "New game",
   titleNewGameFailedText: "Unable to start a new game.",
   titleContinueLabel: "Continue",
@@ -192,6 +151,10 @@ export interface DefaultGameRootSlotsV1<
   settingsSections?(
     context: DefaultGameRootSlotContextV1<TPublication, TSemantic, TOverlayId>,
   ): readonly ReactNode[];
+  /** Optional shell chrome kept outside the authoritative stage. */
+  auxiliarySurface?(
+    context: DefaultGameRootSlotContextV1<TPublication, TSemantic, TOverlayId>,
+  ): ReactNode;
   overlayResolver?(
     context: DefaultGameRootSlotContextV1<TPublication, TSemantic, TOverlayId>,
   ): OverlayRendererResolverV1<TOverlayId>;
@@ -220,12 +183,6 @@ export interface DefaultGameRootPropsV1<
    * their own UI through the slot context's `systemDialogs` intents instead.
    */
   readonly hideSystemMenu?: boolean;
-  /**
-   * Removes the developer-tools switch from the default Settings sections.
-   * For Stories that ship their own tooling surface; the
-   * `?capability=debug_tools` URL opt-in for the DevDock keeps working.
-   */
-  readonly hideDeveloperToolsToggle?: boolean;
   /** Optional live stage label (current scene name) for the shell main region. */
   resolveStageAccessibleName?(
     publication: DeepReadonly<
@@ -234,10 +191,8 @@ export interface DefaultGameRootPropsV1<
   ): string;
   readonly applicationId: string;
   readonly viewport: GameShellViewportOptionsV1;
-  readonly capabilities?: RuntimeCapabilityPortV1;
-  /** Enables the engine-baseline Settings sections (volume, fullscreen…). */
+  /** Enables the default mute control in the floating system menu. */
   readonly playerProfile?: PlayerProfileStoreV1;
-  readonly lifecycle?: { restart(): Promise<SessionAnchorResultV1> };
   readonly saveUi?: {
     readonly port: SaveOverlayPortV1;
     readonly labels: SaveOverlayLabelsV1;
@@ -258,96 +213,12 @@ export interface DefaultGameRootPropsV1<
     TSemantic,
     TOverlayId
   >;
-  /** Typed Story tooling panels, including `read_only` / `cheat` authority. */
-  readonly devDockContributions?: DevDockContributionSetV1;
-  /**
-   * Optional DevDock extensions: a capability-gated lazy contribution
-   * loader (tooling UI stays out of the player bundle), an open-state
-   * observer feeding diagnostics UI context, the launcher/window corner
-   * (default `top_right`; applications reposition when it occludes their
-   * chrome — bottom corners expand upward), a launcher visibility switch
-   * (a Story whose own dock drives the control port hides the built-in
-   * entry), and the shared window control port.
-   */
-  readonly devDock?: {
-    load?(): Promise<DevDockContributionSetV1>;
-    observeOpenState?(state: DevDockOpenStateV1): void;
-    readonly position?: DevDockPositionV1;
-    readonly chip?: boolean;
-    readonly control?: DevDockControlV1;
-    readonly freeze?: PresentationFreezePortV1;
-    readonly rate?: PresentationRatePortV1;
-    /** Story-owned live stats rendered in the engine launcher `info` slot. */
-    readonly info?: ReactNode;
-  };
-  /**
-   * Persistence ports inlined into the engine debug launcher (export /
-   * import / Core wipe / reload-current). Not registered as a floating
-   * tool window.
-   */
-  readonly sessionMaintenance?: {
-    readonly savePort?: SaveOverlayPortV1;
-    readonly clearAllSaves?: () => Promise<void>;
-    /** Serialize the live snapshot and load it as the current session. */
-    readonly reloadCurrentState?: () => Promise<void>;
-    /** The session's non-authoritative last-fault-cause record. */
-    readonly faultCause?: {
-      getCurrent(): SessionFaultCauseV1 | null;
-      subscribe(listener: () => void): () => void;
-    };
-  };
-  /**
-   * Authoritative story-state inspector + leaf table. Engine-owned debug
-   * panels; omitted when the host cannot read/patch the live snapshot.
-   */
-  readonly stateTuner?: StateTunerPortV1;
   /** Optional keyboard/gamepad adapters routed through the composition. */
   readonly inputMaps?: {
     readonly keyboard?: KeyboardActionMapV1;
     readonly pointer?: PointerActionMapV1;
     readonly gamepad?: GamepadActionMapV1;
   };
-}
-
-const closedDevDockStateV1 = Object.freeze({ open: false }) satisfies DevDockOpenStateV1;
-const openedDevDockStateV1 = Object.freeze({ open: true }) satisfies DevDockOpenStateV1;
-const emptyDevDockContributionsV1 = createDevDockContributionSetV1({
-  panels: [],
-});
-const devDockLoadFailureDiagnosticV1 = "ui.devdock_contribution_load_failed";
-
-type DevDockLazyLoadStateV1 =
-  | { readonly kind: "idle" }
-  | { readonly kind: "loading" }
-  | {
-    readonly kind: "ready";
-    readonly contributions: DevDockContributionSetV1;
-  }
-  | { readonly kind: "error" };
-
-interface DevDockLoadAttemptV1 {
-  readonly generation: number;
-  readonly settled: Promise<void>;
-}
-
-function releaseDevDockContributionsObservationallyV1(
-  contributions: DevDockContributionSetV1,
-): void {
-  void disposeDevDockContributionLifecycleInternalV1(contributions).catch(() => {
-    // Cleanup is best-effort at this React boundary. The lifecycle receipt
-    // remains idempotent, so an owning async boundary may observe it again.
-  });
-}
-
-function releaseDevDockContributionsAfterCommitV1(
-  contributions: readonly DevDockContributionSetV1[],
-): void {
-  if (contributions.length === 0) return;
-  queueMicrotask(() => {
-    for (const contribution of contributions) {
-      releaseDevDockContributionsObservationallyV1(contribution);
-    }
-  });
 }
 
 function createDefaultOverlayResolverV1<TOverlayId extends string>(input: {
@@ -361,256 +232,6 @@ function createDefaultOverlayResolverV1<TOverlayId extends string>(input: {
       );
     },
   });
-}
-
-/** Story tooling panel host: launcher + floating windows, kept orthogonal. */
-function DefaultDevDockV1(props: {
-  readonly capabilities: RuntimeCapabilityPortV1;
-  readonly contributions: DevDockContributionSetV1;
-  readonly load?: () => Promise<DevDockContributionSetV1>;
-  readonly observeOpenState?: (state: DevDockOpenStateV1) => void;
-  readonly position?: DevDockPositionV1;
-  readonly chip?: boolean;
-  readonly control?: DevDockControlV1;
-  readonly freeze?: PresentationFreezePortV1;
-  readonly rate?: PresentationRatePortV1;
-  readonly info?: ReactNode;
-  readonly savePort?: SaveOverlayPortV1;
-  readonly clearAllSaves?: () => Promise<void>;
-  readonly onReloadCurrentState?: () => void | Promise<unknown>;
-  readonly onReinitialize?: () => void | Promise<unknown>;
-  readonly faultCause?: {
-    getCurrent(): SessionFaultCauseV1 | null;
-    subscribe(listener: () => void): () => void;
-  };
-  readonly stateTuner?: StateTunerPortV1;
-  readonly composition: {
-    readonly input: GameUiCompositionV1<
-      never,
-      never,
-      never,
-      never,
-      never
-    >["input"];
-  };
-}): ReactElement | null {
-  const capabilities = useSyncExternalStore(
-    props.capabilities.state.subscribe,
-    props.capabilities.state.getCurrent,
-    props.capabilities.state.getCurrent,
-  );
-  const [launcherState, setLauncherState] = useState<DevDockOpenStateV1>(
-    closedDevDockStateV1,
-  );
-  const { observeOpenState, load } = props;
-  const localControlRef = useRef<DevDockControlV1 | null>(null);
-  if (props.control === undefined && localControlRef.current === null) {
-    localControlRef.current = createDevDockControlV1();
-  }
-  const control = props.control ?? localControlRef.current as DevDockControlV1;
-  const openWindowCount = useSyncExternalStore(
-    control.openPanelIds.subscribe,
-    () => control.openPanelIds.getCurrent().length,
-    () => control.openPanelIds.getCurrent().length,
-  );
-  // The observed open state covers both surfaces: the launcher and any
-  // floating panel window.
-  const observedOpenRef = useRef(false);
-  useEffect(() => {
-    const open = launcherState.open || openWindowCount > 0;
-    if (observedOpenRef.current === open) return;
-    observedOpenRef.current = open;
-    observeOpenState?.(open ? openedDevDockStateV1 : closedDevDockStateV1);
-  }, [launcherState.open, observeOpenState, openWindowCount]);
-  const debugTools = capabilities.debugTools;
-  const debugToolsRef = useRef(debugTools);
-  useLayoutEffect(() => {
-    debugToolsRef.current = debugTools;
-  }, [debugTools]);
-  // The implementation stays outside the resident entry graph until the
-  // capability is first needed. A release build may still contain its lazy
-  // output when the application declares this loader.
-  const [lazyLoad, setLazyLoad] = useState<DevDockLazyLoadStateV1>({ kind: "idle" });
-  const mountedRef = useRef(true);
-  const loadGenerationRef = useRef(0);
-  const loadAttemptRef = useRef<DevDockLoadAttemptV1 | null>(null);
-  const readyContributionsRef = useRef<DevDockContributionSetV1 | null>(null);
-  const retiringContributionsRef = useRef<DevDockContributionSetV1[]>([]);
-  const loadSourceRef = useRef({ load, contributions: props.contributions });
-  const activateLazyContributions = useCallback((): void => {
-    if (!mountedRef.current || !debugToolsRef.current || load === undefined) return;
-    const ready = readyContributionsRef.current;
-    if (ready !== null) {
-      setLazyLoad({ kind: "ready", contributions: ready });
-      return;
-    }
-    const generation = loadGenerationRef.current;
-    if (loadAttemptRef.current?.generation === generation) return;
-    setLazyLoad({ kind: "loading" });
-    const attempt: DevDockLoadAttemptV1 = {
-      generation,
-      settled: Promise.resolve()
-        .then(load)
-        .then((loaded) => {
-          let admitted: DevDockContributionSetV1;
-          try {
-            admitted = inheritDevDockContributionAcceptanceInternalV1(
-              loaded,
-              createDevDockContributionSetV1({
-                panels: [...props.contributions.panels, ...loaded.panels],
-              }),
-            );
-          } catch (error) {
-            releaseDevDockContributionsObservationallyV1(loaded);
-            throw error;
-          }
-          if (
-            !mountedRef.current || !debugToolsRef.current ||
-            loadGenerationRef.current !== generation || loadAttemptRef.current !== attempt
-          ) {
-            releaseDevDockContributionsObservationallyV1(admitted);
-            return;
-          }
-          readyContributionsRef.current = admitted;
-          loadAttemptRef.current = null;
-          setLazyLoad({ kind: "ready", contributions: admitted });
-        })
-        .catch(() => {
-          if (
-            !mountedRef.current || !debugToolsRef.current ||
-            loadGenerationRef.current !== generation || loadAttemptRef.current !== attempt
-          ) return;
-          loadAttemptRef.current = null;
-          setLazyLoad({ kind: "error" });
-        }),
-    };
-    loadAttemptRef.current = attempt;
-  }, [load, props.contributions]);
-  const revokeLazyContributions = useCallback((): void => {
-    loadGenerationRef.current += 1;
-    loadAttemptRef.current = null;
-    const ready = readyContributionsRef.current;
-    readyContributionsRef.current = null;
-    if (ready !== null) retiringContributionsRef.current.push(ready);
-    setLazyLoad((current) => current.kind === "idle" ? current : { kind: "idle" });
-  }, []);
-  const retryLazyContributions = useCallback((): void => {
-    if (!debugToolsRef.current || load === undefined) return;
-    loadGenerationRef.current += 1;
-    loadAttemptRef.current = null;
-    activateLazyContributions();
-  }, [activateLazyContributions, load]);
-  useEffect(() => {
-    const mounted = mountedRef;
-    const loadGeneration = loadGenerationRef;
-    const loadAttempt = loadAttemptRef;
-    const readyContributions = readyContributionsRef;
-    const retiringContributions = retiringContributionsRef;
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-      loadGeneration.current += 1;
-      loadAttempt.current = null;
-      const ready = readyContributions.current;
-      readyContributions.current = null;
-      const retiring = retiringContributions.current.splice(0);
-      if (ready !== null) retiring.push(ready);
-      releaseDevDockContributionsAfterCommitV1(retiring);
-    };
-  }, []);
-  useEffect(() => {
-    const previousSource = loadSourceRef.current;
-    const sourceChanged = previousSource.load !== load ||
-      previousSource.contributions !== props.contributions;
-    loadSourceRef.current = { load, contributions: props.contributions };
-    if (!debugTools || sourceChanged) revokeLazyContributions();
-    if (debugTools) activateLazyContributions();
-  }, [
-    activateLazyContributions,
-    debugTools,
-    load,
-    props.contributions,
-    revokeLazyContributions,
-  ]);
-  useEffect(() => {
-    const retiring = retiringContributionsRef.current.splice(0);
-    releaseDevDockContributionsAfterCommitV1(retiring);
-  }, [lazyLoad]);
-  // A runtime capability grant (a Story dock/tools button) opens the
-  // launcher immediately; a boot-time grant (URL/persisted preference)
-  // keeps the collapsed chip so tooling never greets the player unasked.
-  // Stories that hide the launcher open specific windows through the
-  // control instead.
-  const chip = props.chip !== false;
-  const previousDebugToolsRef = useRef(debugTools);
-  useEffect(() => {
-    const was = previousDebugToolsRef.current;
-    previousDebugToolsRef.current = debugTools;
-    if (!was && debugTools && chip) setLauncherState(openedDevDockStateV1);
-  }, [chip, debugTools]);
-  const storyContributions = lazyLoad.kind === "ready"
-    ? lazyLoad.contributions
-    : props.contributions;
-  const mergedPanels = useMemo(
-    () => mergeEngineStateTunerPanelsV1(storyContributions.panels, props.stateTuner),
-    [props.stateTuner, storyContributions],
-  );
-  if (!debugTools) return null;
-  const contributions = inheritDevDockContributionAcceptanceInternalV1(
-    storyContributions,
-    createDevDockContributionSetV1({ panels: mergedPanels }),
-  );
-  return (
-    <>
-      {chip
-        ? (
-          <StoryDebugDockV1
-            visible
-            capabilities={props.capabilities}
-            control={control}
-            grantCapabilitiesOnOpen={false}
-            expanded={launcherState.open}
-            onExpandedChange={(next) =>
-              setLauncherState(next ? openedDevDockStateV1 : closedDevDockStateV1)}
-            {...(props.position === undefined ? {} : { position: props.position })}
-            {...(props.freeze === undefined ? {} : { presentationFreeze: props.freeze })}
-            {...(props.rate === undefined ? {} : { presentationRate: props.rate })}
-            {...(props.savePort === undefined ? {} : { savePort: props.savePort })}
-            {...(props.clearAllSaves === undefined ? {} : { clearAllSaves: props.clearAllSaves })}
-            {...(props.onReloadCurrentState === undefined
-              ? {}
-              : { onReloadCurrentState: props.onReloadCurrentState })}
-            {...(props.onReinitialize === undefined
-              ? {}
-              : { onReinitialize: props.onReinitialize })}
-            {...(props.info === undefined ? {} : { info: props.info })}
-            {...(props.faultCause === undefined ? {} : { faultCause: props.faultCause })}
-          />
-        )
-        : null}
-      {lazyLoad.kind === "error"
-        ? (
-          <div
-            className={styles["default-root__dev-dock-load-failure"]}
-            data-devdock-position={props.position ?? "top_right"}
-            data-dev-dock-load-failure={devDockLoadFailureDiagnosticV1}
-            role="alert"
-          >
-            <span>工具加载失败（{devDockLoadFailureDiagnosticV1}）</span>
-            <button type="button" onClick={retryLazyContributions}>重试工具加载</button>
-          </div>
-        )
-        : null}
-      <DevDockV1
-        capabilities={props.capabilities}
-        contributions={contributions}
-        inputRouter={props.composition.input}
-        control={control}
-        {...(props.position === undefined ? {} : { position: props.position })}
-        {...(props.freeze === undefined ? {} : { freeze: props.freeze })}
-      />
-    </>
-  );
 }
 
 function DefaultNarrativeSurfaceHostInternalV1(props: {
@@ -776,9 +397,9 @@ function concealGameplayWhileFrontDoorInternalV1(
 /**
  * The default GameRoot: a complete playable shell over a composed UI with
  * zero Story React code. The stage renders inside a managed GameViewport;
- * default surfaces (Save, Settings, dialogs) satisfy the designed baseline;
- * DevDock remains the sole capability-gated debug UI host. Engine maintenance
- * and Story tooling both enter it as typed, authority-classified panels.
+ * default surfaces (Save, Settings, dialogs) satisfy the designed baseline.
+ * Optional authoring or developer chrome enters through the neutral auxiliary
+ * surface slot and is not part of this root's required graph.
  */
 export function DefaultGameRootV1<
   TSemanticPublication,
@@ -978,33 +599,7 @@ export function DefaultGameRootV1<
         settings={Object.freeze({
           title: labels.settingsTitle,
           closeLabel: labels.closeLabel,
-          sections: Object.freeze([
-            ...(props.playerProfile === undefined ||
-                props.capabilities === undefined
-              ? []
-              : [
-                <DefaultSettingsSectionsV1
-                  key="sillymaker-default-settings"
-                  playerProfile={props.playerProfile}
-                  capabilities={props.capabilities}
-                  showDeveloperTools={props.hideDeveloperToolsToggle !== true}
-                  labels={Object.freeze({
-                    bgmVolumeLabel: labels.settingsBgmVolumeLabel,
-                    voiceVolumeLabel: labels.settingsVoiceVolumeLabel,
-                    sfxVolumeLabel: labels.settingsSfxVolumeLabel,
-                    mutedLabel: labels.settingsMutedLabel,
-                    ...(labels.settingsSkipCutscenesLabel === undefined ? {} : {
-                      skipCutscenesLabel: labels.settingsSkipCutscenesLabel,
-                    }),
-                    textSpeedLabel: labels.settingsTextSpeedLabel,
-                    autoWaitLabel: labels.settingsAutoWaitLabel,
-                    fullscreenLabel: labels.settingsFullscreenLabel,
-                    developerToolsLabel: labels.settingsDeveloperToolsLabel,
-                  })}
-                />,
-              ]),
-            ...(slots.settingsSections?.(slotContext) ?? []),
-          ]),
+          sections: Object.freeze(slots.settingsSections?.(slotContext) ?? []),
           emptyText: labels.settingsEmptyText,
         })}
       >
@@ -1040,15 +635,6 @@ export function DefaultGameRootV1<
   ).semantic;
   const semanticRevision = semanticWitness?.revision;
   const semanticStatus = semanticWitness?.status;
-  const chip = props.devDock?.chip !== false;
-  const hasStoryTools = props.devDockContributions !== undefined ||
-    props.devDock?.load !== undefined;
-  const hasMaintenance = props.sessionMaintenance !== undefined;
-  const hasStateTuner = props.stateTuner !== undefined;
-  const mountDevDock = props.capabilities !== undefined && (
-    (chip && (hasMaintenance || hasStoryTools || hasStateTuner)) ||
-    (!chip && (hasStoryTools || hasStateTuner))
-  );
   return (
     <div
       role="application"
@@ -1068,39 +654,7 @@ export function DefaultGameRootV1<
         layers={layers}
         inputRouter={props.composition.input}
         viewport={props.viewport}
-        devDock={!mountDevDock || props.capabilities === undefined ? null : (
-          <DefaultDevDockV1
-            capabilities={props.capabilities}
-            contributions={props.devDockContributions ?? emptyDevDockContributionsV1}
-            composition={props.composition}
-            {...(props.devDock?.load === undefined ? {} : { load: props.devDock.load })}
-            {...(props.devDock?.observeOpenState === undefined
-              ? {}
-              : { observeOpenState: props.devDock.observeOpenState })}
-            {...(props.devDock?.position === undefined ? {} : { position: props.devDock.position })}
-            {...(props.devDock?.chip === undefined ? {} : { chip: props.devDock.chip })}
-            {...(props.devDock?.control === undefined ? {} : { control: props.devDock.control })}
-            {...(props.devDock?.freeze === undefined ? {} : { freeze: props.devDock.freeze })}
-            {...(props.devDock?.rate === undefined ? {} : { rate: props.devDock.rate })}
-            {...(props.devDock?.info === undefined ? {} : { info: props.devDock.info })}
-            {...(props.sessionMaintenance?.savePort === undefined
-              ? {}
-              : { savePort: props.sessionMaintenance.savePort })}
-            {...(props.sessionMaintenance?.clearAllSaves === undefined
-              ? {}
-              : { clearAllSaves: props.sessionMaintenance.clearAllSaves })}
-            {...(props.sessionMaintenance?.reloadCurrentState === undefined
-              ? {}
-              : { onReloadCurrentState: props.sessionMaintenance.reloadCurrentState })}
-            {...(props.sessionMaintenance?.faultCause === undefined
-              ? {}
-              : { faultCause: props.sessionMaintenance.faultCause })}
-            {...(props.stateTuner === undefined ? {} : { stateTuner: props.stateTuner })}
-            {...(props.lifecycle === undefined
-              ? {}
-              : { onReinitialize: slotContext.systemDialogs.returnToTitle })}
-          />
-        )}
+        auxiliarySurface={slots.auxiliarySurface?.(slotContext) ?? null}
       />
     </div>
   );

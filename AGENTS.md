@@ -160,7 +160,10 @@ Read only the documents relevant to the change:
   index delivered 2026-08-24: command execution uses a cold-compiled reducer
   direct plan plus touched-only batched State materialization, and each Vite dev
   server owns one lazy metadata-only authoring index with cached list views and
-  path-local invalidation. M3 core/outer GUI capability reorganization is the
+  path-local invalidation. M3 core/outer GUI capability reorganization also
+  delivered 2026-08-24: the default Player is minimal, reference DevDock/preset
+  settings are explicitly selected focused subpaths, and final receipts prove
+  minimal/reference/Inspector/Agent reachability. M4 Scene/Object/Layer is the
   only next task.
   This lane does not activate
   State Format V2, ECS, a final Blueprint/Timeline editor, public Mod ABI, or
@@ -193,11 +196,13 @@ Read only the documents relevant to the change:
   state, or add a Save format/migration framework.
 - `docs/engine/proposals/scale-scene-object-and-modular-gui.md` and
   `docs/engine/plans/2026-08-24-scale-scene-object-modular-gui.md` — the accepted
-  target contract and only current execution plan. M0 scale characterization and
-  M1 static content/runtime/authoring separation are delivered; M2 is next. M0–M5 own scale evidence,
-  content/runtime separation, sparse State hot plans, incremental authoring
-  indexing, GUI module boundaries, the first Authoring Scene object hierarchy,
-  and the Inspector-first clean replacement of the old Studio shell. External
+  target contract and only current execution plan. M0 scale characterization,
+  M1 static content/runtime/authoring separation, M2 sparse State hot plans plus
+  incremental authoring indexing, and M3 modular GUI composition are delivered;
+  M4 is next. M0–M5 own scale evidence, content/runtime separation, sparse State
+  hot plans, incremental authoring indexing, GUI module boundaries, the first
+  Authoring Scene object hierarchy, and the Inspector-first clean replacement of
+  the old Studio shell. External
   experiment repositories remain pressure sources only and never become source,
   fixture, dependency, naming, or validation authority.
 - The plans and proposals dated 2026-08-19 through 2026-08-22 own the detailed

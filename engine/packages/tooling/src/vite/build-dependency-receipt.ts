@@ -76,8 +76,12 @@ export interface BuildDependencyAssetInputInternalV1 {
 
 export interface StaticGameDependencyFacetsInternalV1 {
   readonly authoringImplementation: readonly string[];
+  readonly inspectorAuthoringImplementation: readonly string[];
   readonly devSourceImplementation: readonly string[];
+  readonly devDockImplementation: readonly string[];
+  readonly presetSettingsImplementation: readonly string[];
   readonly dynamicExtensionImplementation: readonly string[];
+  readonly agentImplementation: readonly string[];
   readonly rpcImplementation: readonly string[];
 }
 
@@ -514,8 +518,26 @@ export function classifyStaticGameDependencyFacetsInternalV1(
     moduleId.startsWith("engine/packages/tooling/src/vite/") ||
     moduleId === "engine/packages/ui/src/debug/dev-source-client.ts"
   );
+  const inspectorAuthoringImplementation = uniqueModuleIds.filter((moduleId) =>
+    moduleId.startsWith("engine/packages/studio/src/workspaces/scene/scene-inspector")
+  );
+  const devDockImplementation = uniqueModuleIds.filter((moduleId) =>
+    moduleId.startsWith("engine/packages/ui/src/reference/reference-dev-dock") ||
+    moduleId.startsWith("engine/packages/web/src/reference/reference-player-outer-ui") ||
+    /^engine\/packages\/ui\/src\/debug\/(?:dev-dock|story-debug-dock)(?:[.-]|\/)/u.test(
+      moduleId,
+    )
+  );
+  const presetSettingsImplementation = uniqueModuleIds.filter((moduleId) =>
+    moduleId === "engine/packages/ui/src/reference/default-settings-sections.tsx"
+  );
   const dynamicExtensionImplementation = uniqueModuleIds.filter((moduleId) =>
     moduleId.startsWith("engine/packages/composition/src/extension-runtime/")
+  );
+  const agentImplementation = uniqueModuleIds.filter((moduleId) =>
+    moduleId.startsWith("engine/packages/agent/src/") ||
+    moduleId.startsWith("engine/packages/studio/src/experimental-agent/") ||
+    moduleId === "engine/packages/studio/src/internal-agent.ts"
   );
   const rpcImplementation = uniqueModuleIds.filter((moduleId) =>
     /^engine\/packages\/(?:agent|base|composition|tooling|ui|web)\/src\/(?:rpc|rpc-client)\//u.test(
@@ -524,8 +546,12 @@ export function classifyStaticGameDependencyFacetsInternalV1(
   );
   return Object.freeze({
     authoringImplementation: Object.freeze(authoringImplementation),
+    inspectorAuthoringImplementation: Object.freeze(inspectorAuthoringImplementation),
     devSourceImplementation: Object.freeze(devSourceImplementation),
+    devDockImplementation: Object.freeze(devDockImplementation),
+    presetSettingsImplementation: Object.freeze(presetSettingsImplementation),
     dynamicExtensionImplementation: Object.freeze(dynamicExtensionImplementation),
+    agentImplementation: Object.freeze(agentImplementation),
     rpcImplementation: Object.freeze(rpcImplementation),
   });
 }

@@ -204,6 +204,7 @@ export type {
   RuntimePresentationStoreV1,
 } from "./runtime/index.ts";
 export {
+  AuxiliarySurfacePortalCoordinatorV1,
   GameShell,
   GameStageV1,
   TopCardHudV1,
@@ -219,8 +220,13 @@ export {
   useStageSystemFocusScopeRegistrationV1,
   useStageSystemFocusScopeTargetV1,
   useStageSystemPortalContainerV1,
+  useAuxiliarySurfacePortalTargetRegistrationV1,
+  useAuxiliarySurfacePortalTargetV1,
 } from "./shell/index.ts";
 export type {
+  AuxiliarySurfacePortalCoordinatorPropsV1,
+  AuxiliarySurfacePortalSurfaceV1,
+  AuxiliarySurfacePortalTargetSelectionV1,
   GameShellPropsV1,
   GameShellViewportOptionsV1,
   GameStageLayersV1,
@@ -250,6 +256,9 @@ export type {
   SemanticStageEntryRendererV1,
   SemanticStageHostDiagnosticV1,
   SemanticStageHostPropsV1,
+  SemanticStageInspectionFrameV1,
+  SemanticStageInspectionPortV1,
+  SemanticStageInspectionSnapshotV1,
   SemanticStagePropsV1,
   StageFrameEntryV1,
   StageFrameLayerV1,
@@ -356,11 +365,6 @@ export {
   createGameUiCompositionV1,
   defaultGameRootLabelsV1,
 } from "./composer/index.ts";
-// The DevDock window control is composer-level plumbing (a Story dock
-// opens engine tool windows through it); the tooling UI itself stays on
-// the dedicated debug subpath.
-export { createDevDockControlV1 } from "./debug/dev-dock-control.ts";
-export type { DevDockControlV1, DevDockPanelDescriptorV1 } from "./debug/dev-dock-control.ts";
 export type {
   CreateGameUiCompositionInputV1,
   DefaultGameRootLabelsV1,

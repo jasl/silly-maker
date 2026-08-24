@@ -4,6 +4,7 @@
 // in presentation.ts; this file is label data for the engine's default surfaces (system menu/saves/settings).
 import type { DeepReadonly } from "@sillymaker/base";
 import type { DefaultGameRootLabelsV1, SaveOverlayLabelsV1 } from "@sillymaker/ui";
+import type { DefaultSettingsLabelsV1 } from "@sillymaker/ui/reference/settings";
 
 import type { CatcafeUiPublicationV1 } from "./ui-kit.ts";
 
@@ -13,14 +14,7 @@ export const catcafeRootLabelsV1: Partial<DefaultGameRootLabelsV1> = Object.free
   settingsLabel: "设置",
   settingsTitle: "设置",
   settingsEmptyText: "暂无可配置项。",
-  settingsBgmVolumeLabel: "音乐音量",
-  settingsVoiceVolumeLabel: "语音音量",
-  settingsSfxVolumeLabel: "音效音量",
   settingsMutedLabel: "静音",
-  settingsTextSpeedLabel: "文字速度",
-  settingsAutoWaitLabel: "自动播放停留",
-  settingsFullscreenLabel: "切换全屏",
-  settingsDeveloperToolsLabel: "开发者工具",
   titleNewGameLabel: "新游戏",
   titleContinueLabel: "继续",
   titleLoadGameLabel: "载入存档",
@@ -33,18 +27,33 @@ const catcafeRootLabelsEnV1: Partial<DefaultGameRootLabelsV1> = Object.freeze({
   settingsLabel: "Settings",
   settingsTitle: "Settings",
   settingsEmptyText: "No settings available yet.",
-  settingsBgmVolumeLabel: "Music volume",
-  settingsVoiceVolumeLabel: "Voice volume",
-  settingsSfxVolumeLabel: "Effects volume",
   settingsMutedLabel: "Mute",
-  settingsTextSpeedLabel: "Text speed",
-  settingsAutoWaitLabel: "Auto-forward wait",
-  settingsFullscreenLabel: "Toggle fullscreen",
-  settingsDeveloperToolsLabel: "Developer tools",
   titleNewGameLabel: "New game",
   titleContinueLabel: "Continue",
   titleLoadGameLabel: "Load game",
   closeLabel: "Close",
+});
+
+export const catcafeReferenceSettingsLabelsV1: DefaultSettingsLabelsV1 = Object.freeze({
+  bgmVolumeLabel: "音乐音量",
+  voiceVolumeLabel: "语音音量",
+  sfxVolumeLabel: "音效音量",
+  mutedLabel: "静音",
+  textSpeedLabel: "文字速度",
+  autoWaitLabel: "自动播放停留",
+  fullscreenLabel: "切换全屏",
+  developerToolsLabel: "开发者工具",
+});
+
+const catcafeReferenceSettingsLabelsEnV1: DefaultSettingsLabelsV1 = Object.freeze({
+  bgmVolumeLabel: "Music volume",
+  voiceVolumeLabel: "Voice volume",
+  sfxVolumeLabel: "Effects volume",
+  mutedLabel: "Mute",
+  textSpeedLabel: "Text speed",
+  autoWaitLabel: "Auto-forward wait",
+  fullscreenLabel: "Toggle fullscreen",
+  developerToolsLabel: "Developer tools",
 });
 
 /**
@@ -81,11 +90,20 @@ export function catcafeSaveGuardForLocaleV1(
 /** System chrome (save/settings dialogs) picks the boot-time locale preference; takes effect after reload. */
 export function catcafeChromeForLocaleV1(locale: string | null): {
   readonly labels: Partial<DefaultGameRootLabelsV1>;
+  readonly settingsLabels: DefaultSettingsLabelsV1;
   readonly saveLabels: SaveOverlayLabelsV1;
 } {
   return locale === "en"
-    ? Object.freeze({ labels: catcafeRootLabelsEnV1, saveLabels: catcafeSaveOverlayLabelsEnV1 })
-    : Object.freeze({ labels: catcafeRootLabelsV1, saveLabels: catcafeSaveOverlayLabelsV1 });
+    ? Object.freeze({
+      labels: catcafeRootLabelsEnV1,
+      settingsLabels: catcafeReferenceSettingsLabelsEnV1,
+      saveLabels: catcafeSaveOverlayLabelsEnV1,
+    })
+    : Object.freeze({
+      labels: catcafeRootLabelsV1,
+      settingsLabels: catcafeReferenceSettingsLabelsV1,
+      saveLabels: catcafeSaveOverlayLabelsV1,
+    });
 }
 
 export const catcafeSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({

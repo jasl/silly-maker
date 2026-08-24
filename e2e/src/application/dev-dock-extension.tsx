@@ -4,7 +4,7 @@ import {
   mountExtensionFactoryInternalV1,
 } from "@sillymaker/composition/internal/extension-runtime";
 import type { DevDockContributionSetV1 } from "@sillymaker/ui/debug";
-import { bindDevDockContributionLifecycleInternalV1 } from "@sillymaker/ui/internal";
+import { bindDevDockContributionLifecycleInternalV1 } from "@sillymaker/ui/reference/internal";
 
 import type { LabApplicationInstanceV1 } from "./core-definition.ts";
 import { createLabDevDockContributionsV1 } from "./dev-dock.tsx";

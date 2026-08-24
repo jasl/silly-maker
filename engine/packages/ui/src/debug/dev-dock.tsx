@@ -18,7 +18,7 @@ import { useClampedElementDragV1 } from "../primitives/use-clamped-element-drag.
 import { createDevDockControlV1 } from "./dev-dock-control.ts";
 import type { DevDockControlV1 } from "./dev-dock-control.ts";
 import type { PresentationFreezePortV1 } from "../presentation-run/presentation-freeze.ts";
-import { useDevDockPortalTargetV1 } from "./dev-dock-portal-coordinator.tsx";
+import { useAuxiliarySurfacePortalTargetV1 } from "../shell/auxiliary-surface-portal.tsx";
 import styles from "./dev-dock.module.css";
 import {
   acknowledgeDevDockContributionAcceptanceInternalV1,
@@ -77,8 +77,8 @@ export interface DevDockPropsV1 {
   readonly contributions: DevDockContributionSetV1;
   readonly inputRouter: InputRouterV1;
   /**
-   * Window cascade origin; matches the launcher chip corner
-   * (`StoryDebugDockV1` / `devDockPosition`). Defaults to `top_right`.
+   * Window cascade origin; the reference outer UI uses the same corner for
+   * its launcher chip. Defaults to `top_right`.
    */
   readonly position?: DevDockPositionV1;
   /** Shared window control; the dock creates a private one when absent. */
@@ -296,7 +296,7 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
     control.openPanelIds.getCurrent,
   );
   const [focusedWindows, setFocusedWindows] = useState<readonly string[]>(Object.freeze([]));
-  const { target, surface } = useDevDockPortalTargetV1();
+  const { target, surface } = useAuxiliarySurfacePortalTargetV1();
   const debugTools = capabilities.debugTools;
   const cheatsEnabled = debugTools && capabilities.cheats;
 

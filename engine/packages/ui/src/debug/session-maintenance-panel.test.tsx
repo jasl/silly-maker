@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeCapabilitiesV1, RuntimeCapabilityPortV1 } from "@sillymaker/base";
 import { createInputRouterV1 } from "../input/input-router.ts";
 import type { SaveOverlayPortV1 } from "../persistence/save-overlay.tsx";
-import { DevDockPortalCoordinatorV1 } from "./dev-dock-portal-coordinator.tsx";
+import { AuxiliarySurfacePortalCoordinatorV1 } from "../shell/auxiliary-surface-portal.tsx";
 import { createDevDockContributionSetV1, DevDockV1 } from "./dev-dock.tsx";
 import { createDevDockControlV1 } from "./dev-dock-control.ts";
 import { SessionMaintenancePanelV1 } from "./session-maintenance-panel.tsx";
@@ -248,14 +248,14 @@ describe("SessionMaintenancePanelV1", () => {
     const control = createDevDockControlV1();
     control.open("engine.session_maintenance");
     render(
-      <DevDockPortalCoordinatorV1>
+      <AuxiliarySurfacePortalCoordinatorV1>
         <DevDockV1
           capabilities={capabilities}
           contributions={contributions}
           inputRouter={createInputRouterV1()}
           control={control}
         />
-      </DevDockPortalCoordinatorV1>,
+      </AuxiliarySurfacePortalCoordinatorV1>,
     );
 
     fireEvent.click(screen.getByText("Clear all saves"));

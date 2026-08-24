@@ -84,8 +84,10 @@ initial-bundle separation 也已于同日交付：build-known text packs 与 too
 ordinary Player initial graph 和 Snapshot/Save，Web 通过单一 semantic-invocation/Snapshot-replacement
 readiness boundary 按候选需求准备内容。M2 State hot plan 与 single-owner incremental project index
 也已于 2026-08-24 交付：cold reducer direct plan/touched-only State materialization 与一个 lazy、
-metadata-only、path-incremental dev-server authoring index 满足结构预算；当前唯一下一项为 M3
-core/outer GUI capability reorganization。
+metadata-only、path-incremental dev-server authoring index 满足结构预算。M3 也已于 2026-08-24 交付：
+core Player 不再反向 import
+DevDock/preset settings/Inspector/Agent，focused reference subpaths 与真实 final-output receipts 证明
+显式选择和结构排除；当前唯一下一项为 M4 Scene/Object/Layer 渐进模型。
 首个经 release
 source/行为确认包含目标路径的 stable（2.9.6 只是预期候选）仍须重跑同一分层验收，全部通过后才
 正式打开 maintained Desktop development workflow。此前 adapter 保持 package-private、explicit、

@@ -11,6 +11,14 @@ export interface PlayerBuildAssetReferencesV1 {
   readonly preload: ReadonlySet<string>;
 }
 
+/** Explicit CLI override wins; otherwise measure the selected app's real target. */
+export function selectPlayerBuildOutDirV1(
+  explicitOutDir: string | undefined,
+  applicationOutDir: string,
+): string {
+  return explicitOutDir ?? applicationOutDir;
+}
+
 /** Machine-independent path persisted in the build baseline report. */
 export function repositoryRelativePlayerBuildPathV1(
   repositoryRoot: string,

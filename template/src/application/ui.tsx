@@ -9,10 +9,10 @@ import type { NarrativeSurfaceRendererPropsV1 } from "@sillymaker/ui";
 import { Button } from "@sillymaker/ui";
 
 import { templateHudBoxNameV1, templateHudChromeLayoutV1 } from "../chrome/index.ts";
+import { templateUiTextV1 } from "../content/presentation.ts";
 import type { TemplateActionIdV1 } from "./semantic.ts";
 import type { TemplateApplicationInstanceV1 } from "./core-definition.ts";
 import type { TemplateUiPublicationV1 } from "./composition.tsx";
-import { templateUiTextV1 } from "./composition.tsx";
 
 type TemplateSemanticPortV1 = TemplateApplicationInstanceV1["semantic"];
 

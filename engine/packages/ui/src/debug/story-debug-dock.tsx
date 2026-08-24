@@ -2,9 +2,9 @@
 /**
  * Game-scene debug launcher: collapsed chip, grouped actions (state /
  * scene / story cheats), freeze, and inlined session maintenance.
- * Floating tool windows stay on `DevDockV1`. Stories may mount this
- * themselves (`devDockChip: false`) to own visibility and the `info`
- * slot; `DefaultGameRoot` mounts it when `debug_tools` is on.
+ * Floating tool windows stay on `DevDockV1`. The reference outer UI mounts
+ * this component; products may instead compose it directly to own visibility
+ * and the `info` slot.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
@@ -23,7 +23,7 @@ import type { SaveOverlayPortV1 } from "../persistence/save-overlay.tsx";
 import { Button } from "../primitives/button.tsx";
 import type { DevDockPositionV1 } from "./dev-dock.tsx";
 import type { DevDockControlV1 } from "./dev-dock-control.ts";
-import { useDevDockPortalTargetV1 } from "./dev-dock-portal-coordinator.tsx";
+import { useAuxiliarySurfacePortalTargetV1 } from "../shell/auxiliary-surface-portal.tsx";
 import {
   defaultSessionMaintenanceLabelsV1,
   engineSessionMaintenancePanelIdV1,
@@ -407,7 +407,7 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
   const [internalExpanded, setInternalExpanded] = useState(props.defaultExpanded === true);
   const expanded = props.expanded ?? internalExpanded;
   const chipRef = useRef<HTMLElement>(null);
-  const coordinatorSelection = useDevDockPortalTargetV1();
+  const coordinatorSelection = useAuxiliarySurfacePortalTargetV1();
   const portalTarget = props.portalTarget ?? coordinatorSelection.target;
   const capabilityState = useSyncExternalStore(
     props.capabilities.state.subscribe,

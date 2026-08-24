@@ -9,9 +9,9 @@ import { userEvent } from "@testing-library/user-event";
 import { startTransition, Suspense, useEffect, useLayoutEffect, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  DevDockPortalCoordinatorV1,
-  useDevDockPortalTargetV1,
-} from "../debug/dev-dock-portal-coordinator.tsx";
+  AuxiliarySurfacePortalCoordinatorV1,
+  useAuxiliarySurfacePortalTargetV1,
+} from "../shell/auxiliary-surface-portal.tsx";
 import {
   inputHandledV1,
   parseInputActionIdV1,
@@ -277,8 +277,8 @@ function OverlayHarnessV1() {
   );
 }
 
-function DevDockPortalSelectionProbeV1() {
-  const { surface, target } = useDevDockPortalTargetV1();
+function AuxiliarySurfacePortalSelectionProbeV1() {
+  const { surface, target } = useAuxiliarySurfacePortalTargetV1();
   return (
     <output
       data-testid="devdock-portal-selection"
@@ -900,15 +900,15 @@ describe("OverlayHostV1", () => {
     await openReadyV1(store, "overlay.test.inventory");
     await pushReadyV1(store, "overlay.test.ingredient");
     render(
-      <DevDockPortalCoordinatorV1>
-        <DevDockPortalSelectionProbeV1 />
+      <AuxiliarySurfacePortalCoordinatorV1>
+        <AuxiliarySurfacePortalSelectionProbeV1 />
         <OverlayHostV1
           session={store}
           rendererResolver={createResolverV1(store)}
           inputRouter={createInputRouterV1()}
           closeLabel="关闭"
         />
-      </DevDockPortalCoordinatorV1>,
+      </AuxiliarySurfacePortalCoordinatorV1>,
     );
 
     const primary = await screen.findByRole("dialog", { name: "背包" });
@@ -1699,14 +1699,14 @@ describe("OverlayHostV1", () => {
     const gameplay = vi.fn(() => inputHandledV1);
     inputRouter.register({ context: "gameplay", handle: gameplay });
     render(
-      <DevDockPortalCoordinatorV1>
+      <AuxiliarySurfacePortalCoordinatorV1>
         <OverlayHostV1
           session={store}
           rendererResolver={createResolverV1(store)}
           inputRouter={inputRouter}
           closeLabel="关闭"
         />
-      </DevDockPortalCoordinatorV1>,
+      </AuxiliarySurfacePortalCoordinatorV1>,
     );
     act(() => {
       store.openPrimary("overlay.test.locked");

@@ -6,9 +6,9 @@ import { userEvent } from "@testing-library/user-event";
 import { startTransition, Suspense, useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  DevDockPortalCoordinatorV1,
-  useDevDockPortalTargetV1,
-} from "../debug/dev-dock-portal-coordinator.tsx";
+  AuxiliarySurfacePortalCoordinatorV1,
+  useAuxiliarySurfacePortalTargetV1,
+} from "../shell/auxiliary-surface-portal.tsx";
 import { inputHandledV1, systemInputActionIdsV1 } from "../input/contracts.ts";
 import { createInputRouterV1 } from "../input/input-router.ts";
 import { GameStageV1, useStageSystemFocusScopeTargetV1 } from "../shell/game-stage.tsx";
@@ -35,8 +35,8 @@ function SystemFocusScopeTargetProbeV1() {
   );
 }
 
-function DevDockPortalSelectionProbeV1() {
-  const { surface, target } = useDevDockPortalTargetV1();
+function AuxiliarySurfacePortalSelectionProbeV1() {
+  const { surface, target } = useAuxiliarySurfacePortalTargetV1();
   return (
     <output
       data-testid="devdock-portal-selection"
@@ -201,15 +201,15 @@ describe("RuntimeFailureDialogV1", () => {
   it("registers the actual failure Dialog.Content as the highest DevDock target", async () => {
     const inputRouter = createInputRouterV1();
     render(
-      <DevDockPortalCoordinatorV1>
-        <DevDockPortalSelectionProbeV1 />
+      <AuxiliarySurfacePortalCoordinatorV1>
+        <AuxiliarySurfacePortalSelectionProbeV1 />
         <RuntimeFailureDialogV1
           {...labelsV1}
           inputRouter={inputRouter}
           actions={{ retry: null, reloadApplication: () => undefined, requestExit: null }}
           diagnosticExport={<button type="button">导出诊断包</button>}
         />
-      </DevDockPortalCoordinatorV1>,
+      </AuxiliarySurfacePortalCoordinatorV1>,
     );
 
     expect(screen.getByRole("dialog", { name: labelsV1.title })).toHaveAttribute(

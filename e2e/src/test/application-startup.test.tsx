@@ -12,12 +12,13 @@ import {
   createMemoryHostRecordStoreV1,
 } from "@sillymaker/base/testkit";
 import { createWebHostV1, startWebGameApplicationV1 } from "@sillymaker/web";
+import { createReferencePlayerOuterUiV1 } from "@sillymaker/web/reference";
 import {
+  createDevDockControlV1,
   createDevDockContributionSetV1,
-  type DevDockControlV1,
   type DevDockContributionSetV1,
 } from "@sillymaker/ui/debug";
-import { bindDevDockContributionLifecycleInternalV1 } from "@sillymaker/ui/internal";
+import { bindDevDockContributionLifecycleInternalV1 } from "@sillymaker/ui/reference/internal";
 import {
   applicationStartupSignalEventNameInternalV1,
   type ApplicationStartupSignalDetailInternalV1,
@@ -161,7 +162,14 @@ describe("AR0 Web document-entry startup", () => {
       ui(input: Parameters<typeof labGameApplicationV1.ui>[0]) {
         return Object.freeze({
           ...labGameApplicationV1.ui(input),
-          loadDevDockContributions: loadOptional,
+          outerUi: createReferencePlayerOuterUiV1({
+            instance: input.instance,
+            capabilities: input.capabilities,
+            playerProfile: input.playerProfile,
+            presentationFreeze: input.presentationFreeze,
+            presentationRate: input.presentationRate,
+            loadContributions: loadOptional,
+          }),
         });
       },
     });
@@ -195,12 +203,12 @@ describe("AR0 Web document-entry startup", () => {
     const optional = deferredValueV1<DevDockContributionSetV1>();
     const loadOptional = vi.fn(() => optional.promise);
     let capabilities: RuntimeCapabilityPortV1 | null = null;
-    let devDockControl: DevDockControlV1 | null = null;
+    const devDockControl = createDevDockControlV1();
     let panelWasRegisteredAtSignal: boolean | null = null;
     entry.shell.addEventListener(applicationStartupSignalEventNameInternalV1, (event) => {
       const detail = (event as CustomEvent<ApplicationStartupSignalDetailInternalV1>).detail;
       if (detail.signal === "optional_capability_ready") {
-        panelWasRegisteredAtSignal = devDockControl?.panels.getCurrent().some(
+        panelWasRegisteredAtSignal = devDockControl.panels.getCurrent().some(
           (panel) => panel.id === "startup.optional",
         ) ?? false;
       }
@@ -209,10 +217,17 @@ describe("AR0 Web document-entry startup", () => {
       ...labGameApplicationV1,
       ui(input: Parameters<typeof labGameApplicationV1.ui>[0]) {
         capabilities = input.capabilities;
-        devDockControl = input.devDockControl;
         return Object.freeze({
           ...labGameApplicationV1.ui(input),
-          loadDevDockContributions: loadOptional,
+          outerUi: createReferencePlayerOuterUiV1({
+            instance: input.instance,
+            capabilities: input.capabilities,
+            playerProfile: input.playerProfile,
+            presentationFreeze: input.presentationFreeze,
+            presentationRate: input.presentationRate,
+            control: devDockControl,
+            loadContributions: loadOptional,
+          }),
         });
       },
     });
@@ -226,7 +241,7 @@ describe("AR0 Web document-entry startup", () => {
         await capabilities?.setEnabled("debug_tools", true);
       });
       await waitFor(() => expect(loadOptional).toHaveBeenCalledTimes(1));
-      act(() => devDockControl?.open("startup.optional"));
+      act(() => devDockControl.open("startup.optional"));
       expect(signalCountV1(entry.signals, "optional_capability_ready")).toBe(0);
 
       await act(async () => optional.resolve(optionalDevDockContributionsV1()));
@@ -247,15 +262,22 @@ describe("AR0 Web document-entry startup", () => {
     const loadOptional = vi.fn(() => optional.promise);
     const disposeOptional = vi.fn(async () => undefined);
     let capabilities: RuntimeCapabilityPortV1 | null = null;
-    let devDockControl: DevDockControlV1 | null = null;
+    const devDockControl = createDevDockControlV1();
     const application = Object.freeze({
       ...labGameApplicationV1,
       ui(input: Parameters<typeof labGameApplicationV1.ui>[0]) {
         capabilities = input.capabilities;
-        devDockControl = input.devDockControl;
         return Object.freeze({
           ...labGameApplicationV1.ui(input),
-          loadDevDockContributions: loadOptional,
+          outerUi: createReferencePlayerOuterUiV1({
+            instance: input.instance,
+            capabilities: input.capabilities,
+            playerProfile: input.playerProfile,
+            presentationFreeze: input.presentationFreeze,
+            presentationRate: input.presentationRate,
+            control: devDockControl,
+            loadContributions: loadOptional,
+          }),
         });
       },
     });
@@ -282,7 +304,7 @@ describe("AR0 Web document-entry startup", () => {
       );
 
       expect(signalCountV1(entry.signals, "optional_capability_ready")).toBe(0);
-      expect((devDockControl as DevDockControlV1 | null)?.panels.getCurrent()).toEqual([]);
+      expect(devDockControl.panels.getCurrent()).toEqual([]);
       expect(screen.queryByText("Accepted optional panel")).not.toBeInTheDocument();
       await waitFor(() => expect(disposeOptional).toHaveBeenCalledOnce());
     } finally {

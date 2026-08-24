@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 import type { ReactElement, ReactNode } from "react";
-import { DevDockPortalCoordinatorV1 } from "../debug/dev-dock-portal-coordinator.tsx";
 import { RootErrorBoundaryV1 } from "../errors/root-error-boundary.tsx";
 import type { RootErrorBoundaryPropsV1 } from "../errors/root-error-boundary.tsx";
 import type { InputRouterV1 } from "../input/contracts.ts";
@@ -9,6 +8,7 @@ import { GameViewportV1 } from "../viewport/game-viewport.tsx";
 import type { GameViewportPropsV1 } from "../viewport/game-viewport.tsx";
 import { GameStageV1 } from "./game-stage.tsx";
 import type { GameStageLayersV1 } from "./game-stage.tsx";
+import { AuxiliarySurfacePortalCoordinatorV1 } from "./auxiliary-surface-portal.tsx";
 import styles from "./game-shell.module.css";
 
 export type GameShellViewportOptionsV1 = Omit<GameViewportPropsV1, "children">;
@@ -20,7 +20,8 @@ export interface GameShellPropsV1 {
   /** When present, the stage renders inside a managed GameViewport. */
   readonly viewport?: GameShellViewportOptionsV1;
   readonly backdrop?: ReactNode;
-  readonly devDock?: ReactNode;
+  /** Optional chrome outside the authoritative stage (for example, developer tools). */
+  readonly auxiliarySurface?: ReactNode;
   readonly errorBoundary?: Omit<
     RootErrorBoundaryPropsV1,
     "children" | "inputRouter" | "renderFailure"
@@ -68,10 +69,12 @@ export function GameShell(props: GameShellPropsV1): ReactElement {
         {props.backdrop ?? null}
       </div>
       <InputContextProviderV1 router={props.inputRouter}>
-        <DevDockPortalCoordinatorV1 baseTargetClassName={styles["game-shell__dev-dock-target"]!}>
+        <AuxiliarySurfacePortalCoordinatorV1
+          baseTargetClassName={styles["game-shell__auxiliary-surface-target"]!}
+        >
           {protectedStage}
-          {props.devDock ?? null}
-        </DevDockPortalCoordinatorV1>
+          {props.auxiliarySurface ?? null}
+        </AuxiliarySurfacePortalCoordinatorV1>
       </InputContextProviderV1>
     </div>
   );

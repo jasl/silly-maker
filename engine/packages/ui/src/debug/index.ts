@@ -31,11 +31,6 @@ export type {
 } from "./dev-dock.tsx";
 export { createDevDockControlV1 } from "./dev-dock-control.ts";
 export type { DevDockControlV1, DevDockPanelDescriptorV1 } from "./dev-dock-control.ts";
-export { DevDockPortalCoordinatorV1 } from "./dev-dock-portal-coordinator.tsx";
-export type {
-  DevDockPortalCoordinatorPropsV1,
-  DevDockPortalSurfaceV1,
-} from "./dev-dock-portal-coordinator.tsx";
 export { DiagnosticInspectorV1 } from "./diagnostic-inspector.tsx";
 export type {
   DiagnosticInspectorEntriesV1,

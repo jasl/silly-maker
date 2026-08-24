@@ -1,0 +1,45 @@
+@import url("../theme/global.css");
+
+.reference-dev-dock__load-failure {
+  position: absolute;
+  z-index: calc(var(--silly-stage-z-system) + 20);
+  display: flex;
+  gap: var(--silly-space-2);
+  align-items: center;
+  max-inline-size: min(90%, 32rem);
+  padding: var(--silly-space-2) var(--silly-space-3);
+  border: 1px solid var(--silly-color-danger, #e5484d);
+  border-radius: var(--silly-radius-card);
+  color: var(--silly-color-text);
+  background: var(--silly-color-surface);
+  pointer-events: auto;
+}
+
+.reference-dev-dock__load-failure[data-devdock-position="top_right"] {
+  inset-block-start: var(--silly-space-2);
+  inset-inline-end: var(--silly-space-2);
+}
+
+.reference-dev-dock__load-failure[data-devdock-position="top_left"] {
+  inset-block-start: var(--silly-space-2);
+  inset-inline-start: var(--silly-space-2);
+}
+
+.reference-dev-dock__load-failure[data-devdock-position="bottom_right"] {
+  inset-block-end: var(--silly-space-2);
+  inset-inline-end: var(--silly-space-2);
+}
+
+.reference-dev-dock__load-failure[data-devdock-position="bottom_left"] {
+  inset-block-end: var(--silly-space-2);
+  inset-inline-start: var(--silly-space-2);
+}
+
+.reference-dev-dock__load-failure button {
+  min-block-size: var(--silly-control-min-size);
+  border: 1px solid var(--silly-color-border);
+  border-radius: var(--silly-radius-control);
+  color: inherit;
+  background: var(--silly-color-control);
+  cursor: pointer;
+}

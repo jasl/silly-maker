@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
 import type { StageRenderTargetV1 } from "@sillymaker/base";
 
+import type {
+  SemanticStageInspectionFrameV1,
+  SemanticStageInspectionPortV1,
+  SemanticStageInspectionSnapshotV1,
+} from "../stage/semantic-stage-host.tsx";
 import type { StageFramePhaseV1, StageRenderFrameV1 } from "../stage/stage-reconciler.ts";
 
 /**
@@ -30,7 +35,7 @@ export interface StageEntryProvenanceV1 {
   readonly lastMotionId: string | null;
 }
 
-export interface StageInspectSnapshotV1 {
+export interface StageInspectSnapshotV1 extends SemanticStageInspectionSnapshotV1 {
   /** Whether click-to-inspect hit surfaces are active on the stage. */
   readonly enabled: boolean;
   /** Whether declared hit regions render as labeled outlines on the stage. */
@@ -40,10 +45,7 @@ export interface StageInspectSnapshotV1 {
   readonly activeCueId: string | null;
 }
 
-export interface StageInspectFrameInputV1 {
-  readonly frame: StageRenderFrameV1;
-  readonly activeCueId: string | null;
-}
+export type StageInspectFrameInputV1 = SemanticStageInspectionFrameV1;
 
 /**
  * A non-authoritative presentation fixture captured from the live stage:
@@ -56,7 +58,7 @@ export interface StageInspectCaptureV1 {
   readonly entryKey: string | null;
 }
 
-export interface StageInspectControllerV1 {
+export interface StageInspectControllerV1 extends SemanticStageInspectionPortV1 {
   observe(): StageInspectSnapshotV1;
   subscribe(listener: () => void): () => void;
   setEnabled(enabled: boolean): void;

@@ -110,7 +110,7 @@ test("Template automation dispatch prepares the selected content pack", async ({
 });
 
 test("the mist ambient loop drifts, freezes with the presentation clock, and resumes", async ({ page }) => {
-  await page.goto(templateTargetUrlV1("?capability=debug_tools"));
+  await page.goto(templateTargetUrlV1("reference.html?capability=debug_tools"));
   await page.getByRole("button", { name: "新游戏" }).click();
   await page.getByRole("button", { name: "开始故事" }).click();
 
@@ -143,7 +143,7 @@ test("the mist ambient loop drifts, freezes with the presentation clock, and res
 });
 
 test("the scene-first starter advertises Studio from the debug dock", async ({ page }) => {
-  await page.goto(templateTargetUrlV1("?capability=debug_tools"));
+  await page.goto(templateTargetUrlV1("reference.html?capability=debug_tools"));
   await page.getByRole("button", { name: "调试" }).click();
   const studio = page.getByRole("group", { name: "调试" }).getByRole("link", { name: "Studio" });
   await expect(studio).toHaveAttribute("href", "/__sillymaker/studio/");
@@ -281,6 +281,10 @@ test("the starter Studio constructs a scene from blank: content, cue, new motion
     expect(motionJson.motionId).toBe("motion.template.mei");
     expect(motionJson.authoring.status).toBe("generated");
   } finally {
+    // Close the HMR client before deleting the temporary source tree. The
+    // next browser project must not inherit a removal update for a URL that
+    // intentionally no longer exists.
+    if (!page.isClosed()) await page.close();
     if (existsSync(patioDirectory)) rmSync(patioDirectory, { recursive: true, force: true });
   }
 });
@@ -288,7 +292,7 @@ test("the starter Studio constructs a scene from blank: content, cue, new motion
 test("the starter Studio edits chrome layout: fixture preview, box drag, save to disk (chrome M2)", async ({ page }) => {
   // The created document is real disk under the starter's chrome tree;
   // remove it afterwards so reruns (and the next browser project) start
-  // clean. Nothing imports it, so no dev server reloads over HMR.
+  // clean.
   const lobbyPath = fileURLToPath(
     new URL("../../template/src/chrome/lobby.chrome-layout.json", import.meta.url),
   );
@@ -363,6 +367,7 @@ test("the starter Studio edits chrome layout: fixture preview, box drag, save to
       .click();
     await expect(sceneX).toHaveValue(savedSceneX);
   } finally {
+    if (!page.isClosed()) await page.close();
     if (existsSync(lobbyPath)) rmSync(lobbyPath, { force: true });
   }
 });

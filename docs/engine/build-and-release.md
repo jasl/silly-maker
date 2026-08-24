@@ -71,8 +71,10 @@ dynamic-import graph rather than being forced into one entry chunk. A product
 that selects a progressive contribution may therefore carry its private Direct
 extension backend in that contribution's lazy outputs; an ordinary
 no-extension application excludes the backend completely. Chunk size is a
-measured product trend, not an assumed 500 kB guarantee; the current release
-workflow does not enforce a bundle budget. Use `deno task bench:player:bundle`
+measured product trend. The minimal Template initial static JavaScript has an
+accepted 360 KiB gzip product budget; other bundle groups remain measurements
+until they receive their own sustained product budgets. Use
+`deno task bench:player:bundle`
 to fresh-build Engine Lab and report entry/preload/lazy plus aggregate JS/CSS/
 runtime-asset raw and gzip bytes to an OS-temporary JSON file. Its schema-v2
 report also records the final Vite chunk/asset graph and the build-known dynamic
@@ -80,16 +82,20 @@ entry contribution IDs carried by each output. Shared and mixed outputs retain
 every contribution instead of duplicating their physical bytes. The
 measurement plugin writes its private receipt only below the OS temporary
 directory; it emits nothing into the Player and ordinary builds do not install
-it. Template is the no-extension negative control: authoring, real dev-source,
-dynamic-extension, and RPC implementation facets are all zero. The
+it. Template's ordinary `index.html` is the minimal negative control: Inspector/
+authoring, DevDock, preset settings, Agent/RPC, real dev-source, and private
+extension implementation facets are all zero. `template/reference.html` is a
+separate runnable positive control that explicitly imports the first-party
+reference outer UI. The
 `@sillymaker/ui/debug/dev-source-client` subpath selects its fetch/CAS/open-source
 implementation only under the `development` export condition; default/release
 resolution receives a fail-closed unavailable stub. Engine Lab is both a
 development positive control and a release negative control: Vite dev may inject
 the lightweight embedded-author launcher and lazy Host runtime, while its final
 production graph contains neither the Studio binding/Host/workspaces nor
-embedded-author/dev-source virtual entries. The selected Direct backend still
-appears only in lazy DevDock contribution outputs and never in entry. These
+embedded-author/dev-source virtual entries. Engine Lab explicitly selects the
+reference outer UI; its selected Direct backend still appears only in lazy
+DevDock contribution outputs and never in entry. These
 receipts prove placement and exclusion, not a fixed bundle or startup number. The first CR3
 sample measured the largest Engine Lab entry at 922,550 raw / 214,643 gzip
 bytes; that is a visible optimization lead, not a compatibility failure or a

@@ -211,7 +211,9 @@ initial JavaScript gzip 从 `361,006 B` 增到 `361,664 B`（`+658 B`），内�
 独立 pack assets 计量。M2 也已于 2026-08-24 交付：State cold compile 生成 reducer direct plan，
 hot commit 只访问 subscribers/touched owners 并一次 materialize aggregate State；每个 Vite dev server
 又共享一个 lazy metadata-only authoring index，cached lists 零读盘，单文件失效只重读/admission 该
-record。当前唯一下一项为 M3 core/outer GUI capability reorganization。i18n/message-catalog 与 pack unload 在 M0–M5
+record。M3 也已于 2026-08-24 交付：默认 Player 只保留必要 GUI，DevDock/preset settings 由 focused
+reference subpath 显式组合，真实 minimal/reference/Inspector/Agent entries 提供最终图正负证据。
+当前唯一下一项为 M4 Scene/Object/Layer 渐进模型。i18n/message-catalog 与 pack unload 在 M0–M5
 关闭后再按作品重写证据评估，不插入当前顺序。
 
 排序与交付记录以

@@ -6,6 +6,7 @@
   "license": "MIT",
   "exports": {
     ".": "./src/index.ts",
+    "./reference": "./src/reference/index.ts",
     "./internal/application-build-identity": "./src/application/application-build-identity.ts",
     "./internal/application-hmr": "./src/application/application-hmr-internal.ts",
     "./internal/application-startup": "./src/application/application-startup.ts"
@@ -17,10 +18,8 @@
   "dependencies": {
     "@sillymaker/base": "workspace:*",
     "@sillymaker/ui": "workspace:*",
-    "idb": "8.0.3",
     "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "react-router-dom": "7.18.2"
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

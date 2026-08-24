@@ -2,13 +2,13 @@
 
 # Starter template Story
 
-这是一个可以直接游玩的 scene-first 最小 Story，也是开新游戏的起点。先玩起来，再进 Studio 改场景：
+这是一个可以直接游玩的 scene-first 最小 Story，也是开新游戏的起点。默认入口刻意只组合必要 Player；参考 DevDock/预制设置另有显式入口：
 
 ```sh
-deno task dev        # 启动游戏（根目录可用 deno task author template）
+deno task dev        # 启动最小 Player（根目录可用 deno task author template）
 ```
 
-打开游戏 → 设置 → 开发者工具 → **调试 → 工具 → Studio**（同源新标签，进行中的会话继续跑）。在 Studio 里可以直接拖动小梅、改缩放、换入场动画，保存后运行中的游戏 HMR 生效，`git diff` 只会出现 `src/scenes/opening/opening.scene.json`（以及编辑过的 `*.motion.json`）。场景文档是构图/站位/每 cue 表现声明（绑定 motion 或显式 `cut: true` 瞬切；同一条目允许多个 cue 各自声明，运行时按"这条边由哪个 cue 触发"解析——开场小梅的仪式性入场与取猫瞬回就共用同一条 enter 边）的唯一作者权威；剧本只引用 cue。
+需要第一方完整参考外圈时打开同一 dev server 的 `/reference.html`；它显式组合 `@sillymaker/web/reference` 的预制设置与 DevDock，不是最小产品的隐式依赖。场景制作直接运行根目录 `deno task author template` 进入独立 Authoring Host。在 Studio 里可以拖动小梅、改缩放、换入场动画，保存后运行中的游戏 HMR 生效，`git diff` 只会出现 `src/scenes/opening/opening.scene.json`（以及编辑过的 `*.motion.json`）。场景文档是构图/站位/每 cue 表现声明（绑定 motion 或显式 `cut: true` 瞬切；同一条目允许多个 cue 各自声明，运行时按"这条边由哪个 cue 触发"解析）的唯一作者权威；剧本只引用 cue。
 
 复制本目录、全局替换 `template`/`Template` 为你的故事名、改好 `sillymaker.config.ts`，即可开始创作——副本本身就是完整项目（自带 `vite.config.ts` 与本地 story CLI）。在本仓库内开发时，把目录加进根 `project.config.ts` 清单；在仓库外开发时，把 `package.json` 里的引擎依赖改为相对 `file:` 路径并在 `deno.json` 设 `"nodeModulesDir": "manual"`。
 
@@ -19,6 +19,7 @@ deno task story check .                              # 结构化 Story 诊断（
 deno task story simulate . --scenario opening        # 无浏览器跑完整叙事
 deno task test                                        # 基线 + 图 lint + 全剧本走通
 deno task dev                                         # 在本目录启动开发服务器
+                                                     # / = minimal，/reference.html = reference outer UI
 deno task build:web                                   # 静态构建到 dist-web/（`build` 是它的别名）
 deno task build:desktop                               # 桌面 preview 到 dist-desktop/（可加 --target <triple>）
 deno task preview                                     # 用 HTTP 预览 dist-web/

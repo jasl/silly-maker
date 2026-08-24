@@ -7,7 +7,7 @@ import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import { Button } from "../primitives/button.tsx";
 
 /**
- * The engine-baseline Settings sections every game gets for free: per-bus
+ * The optional reference Settings sections: per-bus
  * volumes (BGM / voice / SFX) with a mute quick toggle, text playback
  * preferences (reveal speed, auto-forward wait), a fullscreen toggle (the
  * same API in browsers and desktop webviews), and a developer-tools switch
@@ -31,6 +31,17 @@ export interface DefaultSettingsLabelsV1 {
   readonly fullscreenLabel: string;
   readonly developerToolsLabel: string;
 }
+
+export const defaultSettingsLabelsV1: DefaultSettingsLabelsV1 = Object.freeze({
+  bgmVolumeLabel: "Music volume",
+  voiceVolumeLabel: "Voice volume",
+  sfxVolumeLabel: "Effects volume",
+  mutedLabel: "Mute",
+  textSpeedLabel: "Text speed",
+  autoWaitLabel: "Auto-forward wait",
+  fullscreenLabel: "Toggle fullscreen",
+  developerToolsLabel: "Developer tools",
+});
 
 function VolumeSliderV1(props: {
   readonly label: string;
