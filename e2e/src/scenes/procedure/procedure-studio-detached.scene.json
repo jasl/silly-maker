@@ -40,5 +40,12 @@
       "appearance": { "pose": "standing", "expression": "neutral" }
     }
   ],
-  "cues": []
+  "cues": [
+    {
+      "cueId": "cue.e2e.alpha-enters",
+      "kind": "show",
+      "tag": "tag.e2e.alpha",
+      "motionId": "motion.e2e.char-enter"
+    }
+  ]
 }
