@@ -1,6 +1,6 @@
 # Scale、Scene/Object 与模块化 GUI V1 实施计划
 
-状态：**2026-08-24 经所有者接受并开启；M0、M1 已于同日交付，当前下一项为 M2；
+状态：**2026-08-24 经所有者接受并开启；M0、M1、M2.1 已于同日交付，当前下一项为 M2.2；
 M0–M5 必须按序交付，每个里程碑独立复核后再进入下一项。**
 
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 仍是唯一跨计划排序入口；
@@ -312,6 +312,32 @@ targeted format/lint 也在修正一处 `no-shadow` 后重跑通过。
 - 对一个 command 收集 touched slot results，完成各 touched owner 一次 schema/value validation 后，
   一次 materialize parent State；保留真正的 aggregate invariant/reference validation、一个 authoritative
   Snapshot digest/freeze、CommandLog continuity 和 replay。不因 locality 跳过跨 owner invariant。
+
+**M2.1 交付记录（2026-08-24）：** `@sillymaker/base` 现在在 module composition 的 cold path
+把 event kind 编译为 UTF-16 module-ID 有序 subscriber direct plan。hot transaction 保持 event-major
+emission order，只遍历实际 subscriber；同一 owner 的重复 event 在一个 proposal 上连续 fold。fold 完成后
+只排序 touched owners，每个 owner 的 slice schema 执行一次，再用 touched-only sparse trie 一次复制
+aggregate State 与共享祖先、每个 touched slot 只写一次。其后的 whole-State schema、aggregate
+`validateCandidate`、attempt envelope、Session Snapshot freeze/digest、CommandLog、Save 与 replay 路径未改。
+
+- State slot 的 exact duplicate 与 parent/child overlap 现在在 cold composition 以
+  `authoring.module.overlapping_state_slot` fail-fast；这是既有 disjoint owner-slice 合同的明确化，不保留
+  会继续允许两个模块共同写同一数据的慢速 fallback。
+- package-private counter 只观察 `reducer_plan_visit`、`slot_materialization` 与
+  `aggregate_materialization`，不进入任何 package barrel。自动结构门槛证明：160 modules / one subscriber
+  为 `1/1/1`；同 owner 三个 event 为 `3/1/1`；一个 event 的 16 owners 为 `16/16/1`；journal-only
+  event 为 `0/0/0`。counter 不试图认证 GC、allocation 或完整对象身份。
+- 8-cell correctness matrix 的 retained CommandLog sequence、Save digest、Snapshot state digest、owner
+  counters、round-trip bytes 与 200-entry authoritative replay 全部保持一致。Deno 2.9.5、同机、1 warmup
+  - 5 samples 的 100 KiB steady p95 为：16 modules touched-1/16 约 `1.559/1.641 ms`，160 modules
+    约 `1.950/1.998 ms`；1 MiB 四个 cells 为约 `17.485–17.567 ms`，全部低于 §2.4 的 owner-review
+    预算。绝对值相对 M0 的非交错样本在所有 cells 上同向高约 10–15%，因此不宣称 wall-clock speedup；
+    可稳定自动验收的是 direct-plan 与 materialization 结构，1 MiB 仍如计划由保留的 whole-State 工作主导。
+- 独立复核没有剩余 blocker。focused authoring/ordering/State 与 Composition workload 通过；canonical
+  `deno task check` 为 `366 files / 5607 tests` 全绿，Deno benchmark tests `6 passed`，docs build 通过。
+  本切片没有修改 React/TSX，不触发 React Doctor。除本交付段外，implementation、focused tests 与
+  supporting docs 合计约 `+494/-85 LOC`；新增复杂度只保留 direct plan、sparse materializer 和一个
+  69-line internal counter，没有第二个 State、旧 runner、A/B harness 或新 benchmark framework。
 
 **M2.2 Incremental project index**
 

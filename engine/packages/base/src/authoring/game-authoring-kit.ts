@@ -24,6 +24,8 @@ import {
 } from "../contracts/values.ts";
 import { compareUtf16CodeUnitsInternalV1 } from "../internal/utf16-code-unit-order.ts";
 import { defineGameplayModule } from "./define-gameplay-module.ts";
+import type { TransactionWorkInstrumentationV1 } from "./transaction-work-instrumentation.ts";
+import { recordTransactionWorkV1 } from "./transaction-work-instrumentation.ts";
 
 declare const capabilityPortBrandV1: unique symbol;
 
@@ -268,52 +270,88 @@ function kitDiagnosticV1(
   return createDiagnosticV1({ code, message, subject, details });
 }
 
-function readStateSlotV1(state: unknown, slot: string): unknown {
+function missingStateSlotV1(slot: string): AuthoringDiagnosticErrorV1 {
+  return new AuthoringDiagnosticErrorV1([
+    kitDiagnosticV1(
+      "authoring.capability.provider_state_missing",
+      `State slot ${slot} is absent from aggregate State`,
+      { kind: "state_slot", id: slot },
+    ),
+  ]);
+}
+
+function readStatePathV1(state: unknown, path: readonly string[], slot: string): unknown {
   let current = state;
-  for (const property of slot.split(".")) {
+  for (const property of path) {
     if (current === null || typeof current !== "object" || !Object.hasOwn(current, property)) {
-      throw new AuthoringDiagnosticErrorV1([
-        kitDiagnosticV1(
-          "authoring.capability.provider_state_missing",
-          `State slot ${slot} is absent from aggregate State`,
-          { kind: "state_slot", id: slot },
-        ),
-      ]);
+      throw missingStateSlotV1(slot);
     }
     current = Reflect.get(current, property);
   }
   return current;
 }
 
-function writeStateSlotV1(state: unknown, slot: string, value: unknown): unknown {
-  const parts = slot.split(".");
-  const set = (current: unknown, index: number): unknown => {
+function readStateSlotV1(state: unknown, slot: string): unknown {
+  return readStatePathV1(state, slot.split("."), slot);
+}
+
+interface StateSlotUpdateV1 {
+  readonly slot: string;
+  readonly path: readonly string[];
+  readonly value: unknown;
+}
+
+interface StateMaterializationNodeV1 {
+  readonly diagnosticSlot: string;
+  readonly children: Map<string, StateMaterializationNodeV1>;
+  update?: StateSlotUpdateV1;
+}
+
+function materializeStateSlotsV1(
+  state: unknown,
+  updates: readonly StateSlotUpdateV1[],
+  instrumentation: TransactionWorkInstrumentationV1 | undefined,
+): unknown {
+  if (updates.length === 0) return state;
+  const root: StateMaterializationNodeV1 = {
+    diagnosticSlot: updates[0]!.slot,
+    children: new Map(),
+  };
+  for (const update of updates) {
+    let node = root;
+    for (const property of update.path) {
+      let child = node.children.get(property);
+      if (child === undefined) {
+        child = { diagnosticSlot: update.slot, children: new Map() };
+        node.children.set(property, child);
+      }
+      node = child;
+    }
+    node.update = update;
+  }
+
+  const materialize = (current: unknown, node: StateMaterializationNodeV1): unknown => {
+    if (node.update !== undefined) return node.update.value;
     if (current === null || typeof current !== "object" || Array.isArray(current)) {
-      throw new AuthoringDiagnosticErrorV1([
-        kitDiagnosticV1(
-          "authoring.capability.provider_state_missing",
-          `State slot ${slot} is absent from aggregate State`,
-          { kind: "state_slot", id: slot },
-        ),
-      ]);
+      throw missingStateSlotV1(node.diagnosticSlot);
     }
     const record = current as Readonly<Record<string, unknown>>;
-    const key = parts[index] as string;
-    if (!Object.hasOwn(record, key)) {
-      throw new AuthoringDiagnosticErrorV1([
-        kitDiagnosticV1(
-          "authoring.capability.provider_state_missing",
-          `State slot ${slot} is absent from aggregate State`,
-          { kind: "state_slot", id: slot },
-        ),
-      ]);
+    const candidate: Record<string, unknown> = { ...record };
+    for (const [property, child] of node.children) {
+      if (!Object.hasOwn(record, property)) throw missingStateSlotV1(child.diagnosticSlot);
+      candidate[property] = materialize(record[property], child);
     }
-    return {
-      ...record,
-      [key]: index === parts.length - 1 ? value : set(record[key], index + 1),
-    };
+    return candidate;
   };
-  return set(state, 0);
+
+  const candidate = materialize(state, root);
+  if (instrumentation !== undefined) {
+    for (let index = 0; index < updates.length; index += 1) {
+      recordTransactionWorkV1(instrumentation, "slot_materialization");
+    }
+    recordTransactionWorkV1(instrumentation, "aggregate_materialization");
+  }
+  return candidate;
 }
 
 function assertGraphIsDagV1(
@@ -454,9 +492,12 @@ function validateReducerMapV1(
   return reducers as Readonly<Record<string, (state: never, event: never) => unknown>>;
 }
 
-export function createGameAuthoringKitV1<
+/** @internal Instrumented authoring kit; intentionally absent from package barrels. */
+export function createGameAuthoringKitInternalV1<
   TTypes extends GameSimulationTypeMapV1,
->(): GameAuthoringKitV1<TTypes> {
+>(
+  instrumentation?: TransactionWorkInstrumentationV1,
+): GameAuthoringKitV1<TTypes> {
   const issuedTokenIds = new Map<string, CapabilityTokenV1<unknown>>();
 
   function defineCapability(id: string): CapabilityTokenV1<unknown> {
@@ -613,6 +654,25 @@ export function createGameAuthoringKitV1<
       ),
     );
 
+    const modulesBySlot = [...statefulModules].sort((left, right) =>
+      compareUtf16CodeUnitsInternalV1(String(left.stateSlot), String(right.stateSlot))
+    );
+    for (let index = 1; index < modulesBySlot.length; index += 1) {
+      const owner = modulesBySlot[index]!;
+      const predecessor = modulesBySlot[index - 1]!;
+      const slot = String(owner.stateSlot);
+      const predecessorSlot = String(predecessor.stateSlot);
+      if (slot !== predecessorSlot && !slot.startsWith(`${predecessorSlot}.`)) continue;
+      diagnostics.push(
+        kitDiagnosticV1(
+          "authoring.module.overlapping_state_slot",
+          `module ${String(owner.id)} State slot ${slot} overlaps ${predecessorSlot}`,
+          { kind: "module", id: String(owner.id) },
+          { stateSlot: slot, overlaps: predecessorSlot, owner: String(predecessor.id) },
+        ),
+      );
+    }
+
     if (diagnostics.length > 0) {
       throw new AuthoringDiagnosticErrorV1(
         diagnostics,
@@ -690,10 +750,39 @@ export function createGameAuthoringKitV1<
       statefulModules.map((module) => [module.id, new Set(Object.values(module.requires))]),
     );
 
-    // Fold order is deterministic: events in emission order, and for each
-    // event every subscribed module in UTF-16 module-id order.
+    // Cold-compile the direct fold plan. Events remain in emission order and
+    // subscribers remain in UTF-16 module-id order, but command execution no
+    // longer searches every module for each event.
     const foldModulesOrdered = [...statefulModules].sort((left, right) =>
       compareUtf16CodeUnitsInternalV1(String(left.id), String(right.id))
+    );
+    const foldOwners = Object.freeze(foldModulesOrdered.map((module, order) =>
+      Object.freeze({
+        module,
+        order,
+        slot: String(module.stateSlot),
+        path: Object.freeze(String(module.stateSlot).split(".")),
+        schema: module.config.state.schema,
+      })
+    ));
+    const mutableReducersByEventKind = new Map<
+      string,
+      {
+        readonly owner: (typeof foldOwners)[number];
+        readonly reducer: (state: never, event: never) => unknown;
+      }[]
+    >();
+    for (const owner of foldOwners) {
+      for (const [kind, reducer] of Object.entries(owner.module.config.reducers)) {
+        const subscribers = mutableReducersByEventKind.get(kind) ?? [];
+        subscribers.push(Object.freeze({ owner, reducer }));
+        mutableReducersByEventKind.set(kind, subscribers);
+      }
+    }
+    const reducersByEventKind = new Map(
+      [...mutableReducersByEventKind].map(([kind, subscribers]) =>
+        [kind, Object.freeze([...subscribers])] as const
+      ),
     );
 
     const createDependencyPortsFor = (consumer: ErasedConsumerV1, state: unknown) => {
@@ -765,30 +854,36 @@ export function createGameAuthoringKitV1<
             if (outcome.kind !== "transaction_complete") {
               throw new TypeError("transaction run returned an invalid outcome");
             }
-            let nextState: unknown = snapshot.state;
-            const touched = new Set<ErasedStatefulModuleV1>();
+            const proposals = new Map<(typeof foldOwners)[number], unknown>();
             for (const { kind, event } of emitted) {
-              for (const module of foldModulesOrdered) {
-                const reducer = Object.hasOwn(module.config.reducers, kind)
-                  ? module.config.reducers[kind]
-                  : undefined;
-                if (reducer === undefined) continue;
-                const slice = readStateSlotV1(nextState, module.stateSlot);
-                const reduced = reducer(slice as never, event as never);
-                nextState = writeStateSlotV1(nextState, module.stateSlot, reduced);
-                touched.add(module);
+              for (const { owner, reducer } of reducersByEventKind.get(kind) ?? []) {
+                if (instrumentation !== undefined) {
+                  recordTransactionWorkV1(instrumentation, "reducer_plan_visit");
+                }
+                const slice = proposals.has(owner)
+                  ? proposals.get(owner)
+                  : readStatePathV1(snapshot.state, owner.path, owner.slot);
+                proposals.set(owner, reducer(slice as never, event as never));
               }
             }
             // Touched slices validate once after the whole fold, not per
             // event: reducers are trusted Story code consuming events the
             // schema admitted at emit time, and an invalid intermediate value
             // still faults here before any commit.
-            for (const module of foldModulesOrdered) {
-              if (!touched.has(module)) continue;
-              const slice = readStateSlotV1(nextState, module.stateSlot);
-              const parsedSlice = module.config.state.schema.parse(slice);
-              nextState = writeStateSlotV1(nextState, module.stateSlot, parsedSlice);
-            }
+            const updates = [...proposals]
+              .sort(([left], [right]) => left.order - right.order)
+              .map(([owner, proposal]) =>
+                Object.freeze({
+                  slot: owner.slot,
+                  path: owner.path,
+                  value: owner.schema.parse(proposal),
+                })
+              );
+            const nextState = materializeStateSlotsV1(
+              snapshot.state,
+              updates,
+              instrumentation,
+            );
             const candidateState = config.stateSchema.parse(nextState);
             const violations = config.validateCandidate?.(candidateState as never) ?? [];
             if (violations.length > 0) {
@@ -850,4 +945,10 @@ export function createGameAuthoringKitV1<
     defineStatelessModule,
     composeModules,
   }) as unknown as GameAuthoringKitV1<TTypes>;
+}
+
+export function createGameAuthoringKitV1<
+  TTypes extends GameSimulationTypeMapV1,
+>(): GameAuthoringKitV1<TTypes> {
+  return createGameAuthoringKitInternalV1<TTypes>();
 }

@@ -97,11 +97,15 @@ neutral API does not expose Base module-local invariant metadata because the
 current transaction runner does not execute it. Use workflow
 `validateCandidate` for aggregate validation. `StateTransactionV1` reads only
 command-start State (no read-your-writes). Modules declare pure reducers keyed
-by domain-event kind; a workflow admits emitted events through `eventSchema`
-and must reject before its first `emit`. Events fold in emission order, with
-subscribed reducers for one event ordered by UTF-16 module ID; an event with no
-subscriber remains journal-only evidence. Rejection and fault leave the
-authoritative Snapshot and committed RNG unchanged.
+by domain-event kind and must own disjoint State slots; exact and parent/child
+slot overlap is rejected at composition. A workflow admits emitted events
+through `eventSchema` and must reject before its first `emit`. Cold composition
+compiles each event kind to its UTF-16 module-ID-ordered subscribers. Hot
+execution folds in emission order, accumulates one proposal per touched owner,
+validates that owner once, and batch-materializes all touched slots without
+scanning unrelated modules. An event with no subscriber remains journal-only
+evidence. Rejection and fault leave the authoritative Snapshot and committed RNG
+unchanged.
 
 `@sillymaker/composition` is cold-path only. Public plugins use its scope and
 typed tokens; no dynamic lifecycle Context is exported. Compile services and

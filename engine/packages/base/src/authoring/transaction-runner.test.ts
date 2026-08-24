@@ -14,7 +14,12 @@ import type { GameSnapshotEnvelopeV1 } from "../contracts/snapshot.ts";
 import { createPristineRunIntegrityV1 } from "../contracts/snapshot.ts";
 import type { RuntimeSchemaV1 } from "../contracts/values.ts";
 import { parseNonNegativeSafeInteger, parseNonZeroUint32 } from "../contracts/values.ts";
-import { createGameAuthoringKitV1 } from "./game-authoring-kit.ts";
+import {
+  createGameAuthoringKitInternalV1,
+  createGameAuthoringKitV1,
+} from "./game-authoring-kit.ts";
+import type { AuthoringKitAnyModuleV1 } from "./game-authoring-kit.ts";
+import { createTransactionWorkCounterV1 } from "./transaction-work-instrumentation.ts";
 
 interface VaultStateV1 {
   readonly coins: number;
@@ -178,6 +183,108 @@ function bankSnapshotV1(coins = 10, entries = 0): BankSnapshotV1 {
     commandSequence: parseNonNegativeSafeInteger(4),
     integrity: createPristineRunIntegrityV1(),
   });
+}
+
+interface StructuralSliceV1 {
+  readonly value: number;
+}
+
+interface StructuralStateV1 {
+  readonly simulation: Readonly<Record<string, StructuralSliceV1>>;
+}
+
+interface StructuralEventV1 {
+  readonly kind: string;
+  readonly delta: number;
+}
+
+interface StructuralTypesV1
+  extends GameSimulationTypeMapV1<GameBootstrapInputV1, StructuralStateV1, RngStateV1> {
+  readonly snapshot: GameSnapshotEnvelopeV1<StructuralStateV1, RngStateV1>;
+  readonly command: { readonly kind: "structural.run" };
+  readonly event: StructuralEventV1;
+  readonly rejection: { readonly code: "structural.rejected" };
+  readonly fault: { readonly code: "structural.failed" };
+}
+
+function createStructuralFixtureV1(moduleCount: number) {
+  const counter = createTransactionWorkCounterV1();
+  const kit = createGameAuthoringKitInternalV1<StructuralTypesV1>(counter.instrumentation);
+  const foldOrder: string[] = [];
+  const sliceParses = Array.from({ length: moduleCount }, () => 0);
+  const keys = Array.from(
+    { length: moduleCount },
+    (_, index) => `owner${String(index).padStart(3, "0")}`,
+  );
+  const moduleIds = keys.map((key) => `structural.${key}`);
+  const eventKinds = moduleIds.map((id) => `structural.changed:${id}`);
+  const modules = keys.map((key, index) => {
+    const moduleId = moduleIds[index]!;
+    const reduce = (state: StructuralSliceV1, event: StructuralEventV1) =>
+      Object.freeze({ value: state.value + event.delta });
+    return kit.defineStatefulModule({
+      id: moduleId,
+      contractRevision: 1,
+      state: {
+        slot: `simulation.${key}`,
+        schema: Object.freeze({
+          parse(value: unknown): StructuralSliceV1 {
+            sliceParses[index]! += 1;
+            const slice = value as StructuralSliceV1;
+            parseNonNegativeSafeInteger(slice.value);
+            return Object.freeze({ value: slice.value });
+          },
+        }),
+        initial: () => Object.freeze({ value: 0 }),
+      },
+      reducers: {
+        [eventKinds[index]!]: reduce,
+        "structural.shared": (state, event) => {
+          foldOrder.push(moduleId);
+          return reduce(state, event);
+        },
+      },
+    });
+  });
+  let aggregateParses = 0;
+  const runner = kit.composeModules(modules as unknown as readonly AuthoringKitAnyModuleV1[])
+    .createTransactionRunner({
+      stateSchema: Object.freeze({
+        parse(value: unknown): StructuralStateV1 {
+          aggregateParses += 1;
+          return value as StructuralStateV1;
+        },
+      }),
+      eventSchema: Object.freeze({
+        parse(value: unknown): StructuralEventV1 {
+          const event = value as StructuralEventV1;
+          if (typeof event.kind !== "string" || !Number.isSafeInteger(event.delta)) {
+            throw new TypeError("invalid structural event");
+          }
+          return Object.freeze({ kind: event.kind, delta: event.delta });
+        },
+      }),
+      createFault: () => Object.freeze({ code: "structural.failed" as const }),
+    });
+  const simulation = Object.fromEntries(
+    keys.map((key) => [key, Object.freeze({ value: 0 })]),
+  );
+  const snapshot: StructuralTypesV1["snapshot"] = Object.freeze({
+    state: Object.freeze({ simulation: Object.freeze(simulation) }),
+    rng: createTransactionalRngV1(parseNonZeroUint32(211)).candidateState(),
+    commandSequence: parseNonNegativeSafeInteger(0),
+    integrity: createPristineRunIntegrityV1(),
+  });
+  return {
+    aggregateParses: () => aggregateParses,
+    counter,
+    eventKinds,
+    foldOrder,
+    moduleIds,
+    runner,
+    sliceParses,
+    snapshot,
+  };
 }
 
 describe("kit transaction runner", () => {
@@ -613,5 +720,122 @@ describe("kit transaction runner", () => {
       fault: { code: "bank.transaction_failed", diagnosticCode: "authoring.transaction.settled" },
     });
     expect(attempt.result.snapshot).toBe(snapshot);
+  });
+
+  it("visits only one direct subscriber in a 160-module composition", () => {
+    const fixture = createStructuralFixtureV1(160);
+    const attempt = fixture.runner.execute(
+      fixture.snapshot,
+      createTransactionalRngV1(fixture.snapshot.rng),
+      (transaction) => {
+        transaction.emit({ kind: fixture.eventKinds.at(-1)!, delta: 1 });
+        return transaction.complete();
+      },
+    );
+
+    expect(attempt.result.kind).toBe("committed");
+    expect(fixture.counter.snapshot()).toEqual({
+      reducerPlanVisits: 1,
+      slotMaterializations: 1,
+      aggregateMaterializations: 1,
+    });
+    expect(fixture.sliceParses.reduce((sum, count) => sum + count, 0)).toBe(1);
+    expect(fixture.aggregateParses()).toBe(1);
+  });
+
+  it("folds repeated events in order and validates/materializes their owner once", () => {
+    const fixture = createStructuralFixtureV1(16);
+    const attempt = fixture.runner.execute(
+      fixture.snapshot,
+      createTransactionalRngV1(fixture.snapshot.rng),
+      (transaction) => {
+        transaction.emit({ kind: fixture.eventKinds[0]!, delta: 1 });
+        transaction.emit({ kind: fixture.eventKinds[0]!, delta: 2 });
+        transaction.emit({ kind: fixture.eventKinds[0]!, delta: 3 });
+        return transaction.complete();
+      },
+    );
+
+    expect(attempt.result.kind).toBe("committed");
+    if (attempt.result.kind !== "committed") return;
+    expect(attempt.result.snapshot.state.simulation.owner000).toEqual({ value: 6 });
+    expect(fixture.counter.snapshot()).toEqual({
+      reducerPlanVisits: 3,
+      slotMaterializations: 1,
+      aggregateMaterializations: 1,
+    });
+    expect(fixture.sliceParses[0]).toBe(1);
+    expect(fixture.aggregateParses()).toBe(1);
+  });
+
+  it("keeps UTF-16 subscriber order while batching sixteen owner writes", () => {
+    const fixture = createStructuralFixtureV1(16);
+    const attempt = fixture.runner.execute(
+      fixture.snapshot,
+      createTransactionalRngV1(fixture.snapshot.rng),
+      (transaction) => {
+        transaction.emit({ kind: "structural.shared", delta: 1 });
+        return transaction.complete();
+      },
+    );
+
+    expect(attempt.result.kind).toBe("committed");
+    expect(fixture.foldOrder).toEqual(fixture.moduleIds);
+    expect(fixture.counter.snapshot()).toEqual({
+      reducerPlanVisits: 16,
+      slotMaterializations: 16,
+      aggregateMaterializations: 1,
+    });
+    expect(fixture.sliceParses).toEqual(Array.from({ length: 16 }, () => 1));
+    expect(fixture.aggregateParses()).toBe(1);
+  });
+
+  it("does no reducer or materialization work for a journal-only event", () => {
+    const fixture = createStructuralFixtureV1(160);
+    const attempt = fixture.runner.execute(
+      fixture.snapshot,
+      createTransactionalRngV1(fixture.snapshot.rng),
+      (transaction) => {
+        transaction.emit({ kind: "structural.journal", delta: 0 });
+        return transaction.complete();
+      },
+    );
+
+    expect(attempt.result.kind).toBe("committed");
+    expect(fixture.counter.snapshot()).toEqual({
+      reducerPlanVisits: 0,
+      slotMaterializations: 0,
+      aggregateMaterializations: 0,
+    });
+    expect(fixture.aggregateParses()).toBe(1);
+  });
+
+  it("rejects exact and parent/child State slots as conflicting module ownership", () => {
+    for (const secondSlot of ["simulation.actor", "simulation.actor.hp"]) {
+      const kit = createGameAuthoringKitV1<StructuralTypesV1>();
+      const schema = Object.freeze({ parse: (value: unknown) => value as StructuralSliceV1 });
+      const parent = kit.defineStatefulModule({
+        id: "structural.actor",
+        contractRevision: 1,
+        state: { slot: "simulation.actor", schema, initial: () => ({ value: 0 }) },
+        reducers: {},
+      });
+      const second = kit.defineStatefulModule({
+        id: "structural.second",
+        contractRevision: 1,
+        state: { slot: secondSlot, schema, initial: () => ({ value: 0 }) },
+        reducers: {},
+      });
+
+      try {
+        kit.composeModules([parent, second] as unknown as readonly AuthoringKitAnyModuleV1[]);
+        throw new Error("expected overlapping State slots to fail composition");
+      } catch (error) {
+        expect(error).toBeInstanceOf(AuthoringDiagnosticErrorV1);
+        expect((error as AuthoringDiagnosticErrorV1).diagnostics).toContainEqual(
+          expect.objectContaining({ code: "authoring.module.overlapping_state_slot" }),
+        );
+      }
+    }
   });
 });

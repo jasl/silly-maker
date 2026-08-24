@@ -332,13 +332,17 @@ package-private carrier references the same Base authoring module only on the
 cold composition path, and object-spread/prototype aliases without their own
 carrier fail rather than split neutral and physical metadata. Module initializers
 in V1 are deliberately bootstrap-independent, while aggregate candidate
-validation remains the only neutral invariant hook. Each module declares pure
-reducers keyed by domain-event kind. A transaction reads the command-start State
-without read-your-writes; the workflow rejects before emission or emits events
-that are admitted by its `eventSchema`. Base folds events in emission order and,
-within one event, subscribed reducers in UTF-16 module-ID order; events without
-a reducer remain journal-only evidence. Rejection or fault atomically preserves
-the command-start Snapshot and RNG. The original
+validation remains the only neutral invariant hook. Each module declares a
+disjoint owned State slot and pure reducers keyed by domain-event kind; exact and
+parent/child slot overlap fails during cold composition. A transaction reads the
+command-start State without read-your-writes; the workflow rejects before
+emission or emits events that are admitted by its `eventSchema`. Base
+cold-compiles event kinds to ordered subscribers, then folds events in emission
+order and, within one event, subscribed reducers in UTF-16 module-ID order.
+Repeated events fold through the owner's running proposal; each touched owner
+validates once and all touched slices materialize through one batched
+aggregate-State copy. Events without a reducer remain journal-only evidence.
+Rejection or fault atomically preserves the command-start Snapshot and RNG. The original
 `calendar`/`inventory`/`actor`/`evening` pilot proves a cross-module event commit,
 workflow rejection rollback, and candidate-validation fault rollback. It is an
 engine fixture, not commercial game content. There is still no module-keyed State
@@ -644,18 +648,21 @@ synchronously, also without invoking an accessor, rather than being silently
 overwritten or masquerading as a generic field in the returned type.
 The ordinary Session `{source, command}` path performs no metadata traversal.
 
-The current validator checks unique State ownership and an acyclic module
-dependency graph. A Story's aggregate State should reflect the modules it
-actually composes; unused modules should not force placeholder State.
+The current validator checks disjoint State ownership (including parent/child
+overlap) and an acyclic module dependency graph. A Story's aggregate State
+should reflect the modules it actually composes; unused modules should not force
+placeholder State.
 
 The Game Authoring Kit transaction runner journals `transaction.emit(event)`
 calls in the Story's explicit emission order (each event validated once against
-the Story's `eventSchema` at emit time). After `complete()`, the engine folds
-the journal: events replay in emission order, and within one event the
-subscribed module reducers run in UTF-16 code-unit module-ID order, each
-folding its own slice. The engine validates the aggregate candidate, finalizes
-evidence (the committed envelope carries the event journal), appends
-CommandLog, and only then installs/publishes a committed Snapshot.
+the Story's `eventSchema` at emit time). Cold composition maps every event kind
+directly to its UTF-16 module-ID-ordered subscribers. After `complete()`, the
+engine folds the journal in event-major order without scanning unrelated
+modules, retains one running proposal per touched owner, validates each proposal
+once, and materializes all touched slots through one sparse aggregate-State
+copy. The engine then validates the aggregate candidate, finalizes evidence (the
+committed envelope carries the event journal), appends CommandLog, and only then
+installs/publishes a committed Snapshot.
 Authoritative replay runs the same executor/order. The comparator is
 package-internal and Host-locale-independent; it is not the Unicode code-point
 comparator used by canonical JSON keys.
