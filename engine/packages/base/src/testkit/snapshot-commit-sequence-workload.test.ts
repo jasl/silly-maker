@@ -32,14 +32,10 @@ describe("Snapshot sequence and replay workloads", () => {
   it("runs through two real transaction owners without changing instrumented behavior", async () => {
     const counter = createSnapshotWorkCounterV1();
     const purposes = createPurposeTaggedSnapshotWorkCounterV1();
-    let evidenceAdmissionFreezeTraversals = 0;
     const instrumentation = Object.freeze({
       record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1) {
         counter.instrumentation.record(event, purpose);
         purposes.instrumentation.record(event, purpose);
-        if (event === "deep_freeze_traversal" && purpose === "evidence_admission") {
-          evidenceAdmissionFreezeTraversals += 1;
-        }
       },
     });
     const measured = createSnapshotTransactionWorkloadV1({
@@ -49,7 +45,6 @@ describe("Snapshot sequence and replay workloads", () => {
     const reference = createSnapshotTransactionWorkloadV1({ entityCount: 100 });
     counter.reset();
     purposes.reset();
-    evidenceAdmissionFreezeTraversals = 0;
 
     const measuredResult = await measured.dispatch("cross_owner_atomic_committed");
     const referenceResult = await reference.dispatch("cross_owner_atomic_committed");
@@ -78,7 +73,6 @@ describe("Snapshot sequence and replay workloads", () => {
     expect(counter.snapshot()).toEqual({
       canonicalTraversals: 3,
       canonicalDigests: 1,
-      deepFreezeTraversals: 3,
       commandLogContinuityVerifications: 1,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -86,18 +80,13 @@ describe("Snapshot sequence and replay workloads", () => {
     });
     expect(purposes.snapshot()).toEqual({
       snapshotDigestTraversals: 1,
-      snapshotFreezeTraversals: 1,
       bootstrapAdmissionCanonicalTraversals: 0,
-      bootstrapHandoffFreezeTraversals: 0,
       commandAdmissionCanonicalTraversals: 1,
-      commandHandoffFreezeTraversals: 1,
       commandLogMetadataAdmissionCanonicalTraversals: 0,
-      commandLogMetadataFreezeTraversals: 0,
       evidenceAdmissionCanonicalTraversals: 1,
       replayComparisonTraversals: 0,
       totalPhysicalCanonicalTraversals: 3,
     });
-    expect(evidenceAdmissionFreezeTraversals).toBe(1);
   });
 
   it("locks the current mixed 256-command Session baseline", async () => {
@@ -115,7 +104,6 @@ describe("Snapshot sequence and replay workloads", () => {
     expect(prepared.setupCounts).toEqual({
       canonicalTraversals: 1,
       canonicalDigests: 1,
-      deepFreezeTraversals: 1,
       commandLogContinuityVerifications: 0,
     });
     await expect(prepared.runOnce()).resolves.toMatchObject({
@@ -126,7 +114,6 @@ describe("Snapshot sequence and replay workloads", () => {
       counts: {
         canonicalTraversals: 682,
         canonicalDigests: 170,
-        deepFreezeTraversals: 682,
         commandLogContinuityVerifications: 256,
       },
       retainedCommandCount: 200,
@@ -179,13 +166,11 @@ describe("Snapshot sequence and replay workloads", () => {
     expect(prepared.setupCounts).toEqual({
       canonicalTraversals: 1,
       canonicalDigests: 1,
-      deepFreezeTraversals: 1,
       commandLogContinuityVerifications: 0,
     });
     expect(prepared.recordingCounts).toEqual({
       canonicalTraversals: 682,
       canonicalDigests: 170,
-      deepFreezeTraversals: 682,
       commandLogContinuityVerifications: 256,
     });
     await expect(prepared.runOnce()).resolves.toEqual({
@@ -200,7 +185,6 @@ describe("Snapshot sequence and replay workloads", () => {
       counts: {
         canonicalTraversals: 3609,
         canonicalDigests: 1405,
-        deepFreezeTraversals: 200,
         commandLogContinuityVerifications: 0,
       },
     });

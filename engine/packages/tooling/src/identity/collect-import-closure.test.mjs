@@ -8,37 +8,13 @@ import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { test } from "vitest";
-import {
-  buildImportClosureRecordsV1,
-  collectImportClosure,
-  collectManagedPaths,
-} from "./collect-import-closure.mjs";
+import { buildImportClosureRecordsV1, collectImportClosure } from "./collect-import-closure.mjs";
 
 // This module lives at engine/packages/tooling/src/identity/, five levels
 // below the repository root the closure walker resolves against.
 const root = join(dirname(fileURLToPath(import.meta.url)), "../../../../..");
-const cli = fileURLToPath(new URL("./collect-import-closure.mjs", import.meta.url));
 const execFileAsync = promisify(execFile);
 const reactSpecifierPattern = /^(?:react(?:\/|$)|react-dom(?:\/|$))/u;
-
-async function collectFromCli(cwd, entries) {
-  // `--node-modules-dir=none` keeps the spawned deno from re-materializing
-  // the workspace's node_modules symlinks: every managed `deno run` briefly
-  // unlinks/relinks workspace members, which races any concurrently running
-  // test that realpath-resolves through those links (observed as transient
-  // ENOENT in the determinism authority-map under full-suite load). The
-  // walker itself resolves via the on-disk node_modules tree, which this
-  // flag leaves untouched.
-  const { stdout } = await execFileAsync(
-    process.execPath,
-    ["run", "--node-modules-dir=none", "-A", cli, ...entries],
-    {
-      cwd,
-      maxBuffer: 10 * 1024 * 1024,
-    },
-  );
-  return JSON.parse(stdout);
-}
 
 async function assertNodeSafeStoryClosure(entry) {
   const closure = await collectImportClosure(root, [entry]);
@@ -51,15 +27,6 @@ async function assertNodeSafeStoryClosure(entry) {
     entry,
   );
 }
-
-test("direct CLI resolves the same workspace closure from the repository and application roots", async () => {
-  const fromRepository = await collectFromCli(root, ["template/src/story.ts"]);
-  const fromApplication = await collectFromCli(join(root, "template"), ["src/story.ts"]);
-
-  assert.deepEqual(fromApplication, fromRepository);
-  assert(fromApplication.includes("template/src/story.ts"));
-  assert(fromApplication.includes("engine/packages/base/src/index.ts"));
-});
 
 test("keeps resolved external package exports outside the managed application closure", async () => {
   const fixtureRoot = await mkdtemp(join(tmpdir(), "sillymaker-import-closure-"));
@@ -190,7 +157,7 @@ test("collects the production application closure", async () => {
   for (const { entry } of cases) {
     const closure = await collectImportClosure(root, [entry]);
     assert.deepEqual(closure.errors, [], entry);
-    const paths = await collectManagedPaths(root, [entry]);
+    const paths = closure.paths;
     assert(paths.includes(entry));
     assert(paths.includes("engine/packages/web/src/index.ts"));
     assert(!paths.some((path) => path.includes("developer-entry")));

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 import {
-  captureExactDataDescriptorsInternalV1,
   parseSaveStateContractIdentityInternalV1,
   parseSaveStateMigrationReasonCodeV1,
   readSaveStateMigrationRegistryInternalV1,
@@ -16,11 +15,10 @@ import type {
   SaveStateMigrationStepIdentityV1,
   SaveStateMigrationStepV1,
 } from "../contracts/save-state-migration.ts";
-import { canonicalJsonBytesWithStrictLimitsInternalV1 } from "../contracts/strict-json.ts";
 import type { StrictJsonLimitsV1, StrictJsonValueV1 } from "../contracts/strict-json.ts";
 import type { DeepReadonly, Digest } from "../contracts/values.ts";
 import { parseDigest } from "../contracts/values.ts";
-import { projectFrozenStrictCanonicalJsonInternalV1 } from "./strict-canonical-projection.ts";
+import { projectStrictCanonicalJsonInternalV1 } from "./strict-canonical-projection.ts";
 
 declare const resolvedSaveStateMigrationChainBrandInternalV1: unique symbol;
 
@@ -160,12 +158,7 @@ function admitMigrationStateInternalV1(
   value: unknown,
   limits: DeepReadonly<StrictJsonLimitsV1>,
 ): DeepReadonly<StrictJsonValueV1> {
-  const projection = projectFrozenStrictCanonicalJsonInternalV1(value, limits);
-  const strict = canonicalJsonBytesWithStrictLimitsInternalV1(projection, limits);
-  if (!strict.ok) {
-    throw new TypeError(`Save State migration State exceeds ${strict.error.code}`);
-  }
-  return projection;
+  return projectStrictCanonicalJsonInternalV1(value, limits);
 }
 
 type ParsedMigrationStepResultInternalV1 =
@@ -176,41 +169,30 @@ type ParsedMigrationStepResultInternalV1 =
 function parseMigrationStepResultInternalV1(
   value: unknown,
 ): ParsedMigrationStepResultInternalV1 {
-  if (value === null || typeof value !== "object") {
-    return Object.freeze({ kind: "invalid" });
-  }
-  let observedPrototype: object | null;
-  try {
-    observedPrototype = Object.getPrototypeOf(value);
-  } catch {
-    return Object.freeze({ kind: "invalid" });
-  }
-  let descriptors: ReturnType<typeof captureExactDataDescriptorsInternalV1>;
-  try {
-    descriptors = captureExactDataDescriptorsInternalV1(
-      value,
-      [
-        ["kind", "state"],
-        ["kind", "reasonCode"],
-      ],
-      "Save State migration callback result",
-      { value: observedPrototype },
-    );
-  } catch {
-    return Object.freeze({ kind: "invalid" });
-  }
-  if (descriptors.kind?.value === "migrated") {
-    if (descriptors.state === undefined) return Object.freeze({ kind: "invalid" });
-    return Object.freeze({ kind: "migrated", state: descriptors.state?.value });
-  }
-  if (descriptors.kind?.value !== "rejected" || descriptors.reasonCode === undefined) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return Object.freeze({ kind: "invalid" });
   }
   try {
-    return Object.freeze({
-      kind: "rejected",
-      reasonCode: parseSaveStateMigrationReasonCodeV1(descriptors.reasonCode?.value),
-    });
+    const result = value as {
+      readonly kind?: unknown;
+      readonly state?: unknown;
+      readonly reasonCode?: unknown;
+    };
+    const kind = result.kind;
+    if (kind === "migrated") {
+      const state = result.state;
+      return state === undefined
+        ? Object.freeze({ kind: "invalid" })
+        : Object.freeze({ kind, state });
+    }
+    if (kind === "rejected") {
+      const reasonCode = result.reasonCode;
+      return reasonCode === undefined ? Object.freeze({ kind: "invalid" }) : Object.freeze({
+        kind,
+        reasonCode: parseSaveStateMigrationReasonCodeV1(reasonCode),
+      });
+    }
+    return Object.freeze({ kind: "invalid" });
   } catch {
     return Object.freeze({ kind: "invalid" });
   }

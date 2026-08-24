@@ -51,10 +51,8 @@ export interface AssetProviderEntryV1 {
   readonly assetId: string;
   readonly runtimePath: string;
   readonly mediaType: "image/webp" | "image/png" | "image/svg+xml";
-  readonly byteLength: PositiveSafeInteger;
   readonly width: PositiveSafeInteger;
   readonly height: PositiveSafeInteger;
-  readonly sha256: Digest;
 }
 
 export interface AssetPackV1 {

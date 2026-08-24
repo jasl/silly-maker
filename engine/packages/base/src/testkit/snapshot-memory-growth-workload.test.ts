@@ -114,7 +114,6 @@ describe("Snapshot memory-growth workload", () => {
     expect(prepared.setupCounts).toEqual({
       canonicalTraversals: 1,
       canonicalDigests: 1,
-      deepFreezeTraversals: 1,
       commandLogContinuityVerifications: 0,
       ...zeroSaveCountsV1,
     });
@@ -127,7 +126,6 @@ describe("Snapshot memory-growth workload", () => {
     expect(run.counts).toEqual({
       canonicalTraversals: 15,
       canonicalDigests: 5,
-      deepFreezeTraversals: 15,
       commandLogContinuityVerifications: 5,
       ...zeroSaveCountsV1,
     });
@@ -254,7 +252,6 @@ describe("Snapshot memory-growth workload", () => {
     expect(measuredRun.counts).toEqual({
       canonicalTraversals: 603,
       canonicalDigests: 201,
-      deepFreezeTraversals: 603,
       commandLogContinuityVerifications: 201,
       ...zeroSaveCountsV1,
     });

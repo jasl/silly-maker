@@ -5,6 +5,9 @@ latest-stable Deno policy 修订。本文处理桌面 Host persistence
 durability，并以独立 D4 子轨处理 per-platform packaging promotion；不改变
 Gameplay Snapshot、Save envelope、slot 语义或浏览器 IndexedDB adapter。
 
+2026-08-24：D0j–D0l/D1a 的 test-only SQLite spike 已在复杂度清理中退役；下文仅
+保留历史证据。共享 `HostAtomicRecordStoreV1` 合同与 backend-neutral conformance 不变。
+
 当前 `record-file-store.mts` 已具备：
 
 - 严格 wire 值校验；

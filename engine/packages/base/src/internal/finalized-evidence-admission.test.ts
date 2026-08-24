@@ -1,222 +1,91 @@
 // SPDX-License-Identifier: MIT
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { CanonicalJsonError, canonicalJsonBytes } from "../contracts/canonical-json.ts";
+import { CanonicalJsonError } from "../contracts/canonical-json.ts";
 import {
   admitCommandAttemptEvidenceInternalV1,
-  admitDebugValidationErrorsInternalV1,
+  admitDebugValidationResultInternalV1,
 } from "./finalized-evidence-admission.ts";
 
-function fixtureSnapshot() {
-  return Object.freeze({
-    rng: Object.freeze({ cursor: 1 }),
-    commandSequence: 0,
-  });
+function fixtureSnapshot(count = 0) {
+  return { rng: { cursor: count }, commandSequence: count };
 }
 
-function dynamicLengthArrayV1<T>(items: readonly T[]): {
-  readonly value: readonly T[];
-  readonly lengthReads: () => number;
-  readonly lengthDescriptorReads: () => number;
-} {
-  const target = [...items];
-  let lengthReads = 0;
-  let lengthDescriptorReads = 0;
+function fixtureDiagnostics(snapshot = fixtureSnapshot()) {
   return {
-    value: new Proxy(target, {
-      get(array, key, receiver) {
-        if (key === "length") {
-          lengthReads += 1;
-          return lengthReads <= target.length ? target.length : target.length - 1;
-        }
-        return Reflect.get(array, key, receiver);
-      },
-      getOwnPropertyDescriptor(array, key) {
-        if (key === "length") lengthDescriptorReads += 1;
-        return Reflect.getOwnPropertyDescriptor(array, key);
-      },
-    }),
-    lengthReads: () => lengthReads,
-    lengthDescriptorReads: () => lengthDescriptorReads,
+    committedRngBefore: snapshot.rng,
+    attemptedDraws: [],
+    candidateRngAfter: snapshot.rng,
+    committedRngAfter: snapshot.rng,
   };
 }
 
-it("captures committed evidence vectors from one fixed own length descriptor", () => {
-  const snapshot = fixtureSnapshot();
-  const events = dynamicLengthArrayV1([
-    { kind: "fixture.event", ordinal: 1 },
-    { kind: "fixture.event", ordinal: 2 },
-  ]);
-  const attemptedDraws = dynamicLengthArrayV1([
-    { kind: "fixture.draw", ordinal: 1 },
-    { kind: "fixture.draw", ordinal: 2 },
-  ]);
+describe("finalized evidence admission", () => {
+  it("normalizes committed evidence into detached canonical data", () => {
+    const before = fixtureSnapshot();
+    const event = { kind: "fixture.event", amount: 1 };
+    const admitted = admitCommandAttemptEvidenceInternalV1(
+      before,
+      {
+        result: { kind: "committed", snapshot: fixtureSnapshot(1), events: [event] },
+        diagnostics: fixtureDiagnostics(before),
+      },
+      { parseEvent: (value) => ({ ...(value as typeof event), admitted: true }) },
+    );
 
-  const admitted = admitCommandAttemptEvidenceInternalV1(snapshot, {
-    result: {
-      kind: "committed",
-      snapshot,
-      events: events.value,
-    },
-    diagnostics: {
-      committedRngBefore: snapshot.rng,
-      attemptedDraws: attemptedDraws.value,
-      candidateRngAfter: snapshot.rng,
-      committedRngAfter: snapshot.rng,
-    },
+    expect(admitted.result.kind).toBe("committed");
+    if (admitted.result.kind !== "committed") return;
+    expect(admitted.result.events).toEqual([{ ...event, admitted: true }]);
+    expect(admitted.result.events[0]).not.toBe(event);
   });
 
-  if (admitted.result.kind !== "committed") throw new Error("expected committed evidence");
-  expect(admitted.result.events).toHaveLength(2);
-  expect(admitted.diagnostics.attemptedDraws).toHaveLength(2);
-  expect(events.lengthReads()).toBe(0);
-  expect(attemptedDraws.lengthReads()).toBe(0);
-  expect(events.lengthDescriptorReads()).toBe(1);
-  expect(attemptedDraws.lengthDescriptorReads()).toBe(1);
-});
+  it("preserves rejected and faulted non-commit Snapshot identity", () => {
+    const before = fixtureSnapshot();
+    const rejected = admitCommandAttemptEvidenceInternalV1(before, {
+      result: { kind: "rejected", snapshot: before, reasons: [{ code: "fixture" }] },
+      diagnostics: fixtureDiagnostics(before),
+    });
+    const faulted = admitCommandAttemptEvidenceInternalV1(before, {
+      result: { kind: "faulted", snapshot: before, fault: { code: "fixture" } },
+      diagnostics: fixtureDiagnostics(before),
+    });
 
-it("captures rejected evidence vectors from one fixed own length descriptor", () => {
-  const snapshot = fixtureSnapshot();
-  const reasons = dynamicLengthArrayV1([
-    { code: "fixture.first" },
-    { code: "fixture.second" },
-  ]);
-
-  const admitted = admitCommandAttemptEvidenceInternalV1(snapshot, {
-    result: {
-      kind: "rejected",
-      snapshot,
-      reasons: reasons.value,
-    },
-    diagnostics: {
-      committedRngBefore: snapshot.rng,
-      attemptedDraws: [],
-      committedRngAfter: snapshot.rng,
-    },
+    expect(rejected.result.snapshot).toBe(before);
+    expect(faulted.result.snapshot).toBe(before);
+    expect(() =>
+      admitCommandAttemptEvidenceInternalV1(before, {
+        result: { kind: "rejected", snapshot: fixtureSnapshot(), reasons: [] },
+        diagnostics: fixtureDiagnostics(before),
+      })
+    ).toThrow("Non-committed command attempt changed the Snapshot");
   });
 
-  if (admitted.result.kind !== "rejected") throw new Error("expected rejected evidence");
-  expect(admitted.result.reasons).toHaveLength(2);
-  expect(reasons.lengthReads()).toBe(0);
-  expect(reasons.lengthDescriptorReads()).toBe(1);
-});
-
-it("captures Debug validation errors from one fixed own length descriptor", () => {
-  const errors = dynamicLengthArrayV1([
-    { code: "fixture.first" },
-    { code: "fixture.second" },
-  ]);
-
-  const admitted = admitDebugValidationErrorsInternalV1(errors.value, undefined);
-
-  expect(admitted).toHaveLength(2);
-  expect(errors.lengthReads()).toBe(0);
-  expect(errors.lengthDescriptorReads()).toBe(1);
-});
-
-it("rejects a maximum-length sparse evidence array at its first hole without materializing indices", () => {
-  const snapshot = fixtureSnapshot();
-  const events: unknown[] = [];
-  events.length = 0xffff_ffff;
-  const attempt = {
-    result: {
-      kind: "committed" as const,
-      snapshot,
-      events,
-    },
-    diagnostics: {
-      committedRngBefore: snapshot.rng,
-      attemptedDraws: [],
-      candidateRngAfter: snapshot.rng,
-      committedRngAfter: snapshot.rng,
-    },
-  };
-
-  let failure: unknown;
-  try {
-    admitCommandAttemptEvidenceInternalV1(snapshot, attempt);
-  } catch (error) {
-    failure = error;
-  }
-
-  expect(failure).toBeInstanceOf(CanonicalJsonError);
-  expect(failure).toMatchObject({
-    code: "value.sparse_array",
-    path: "/result/events/0",
+  it("rejects non-canonical admitted evidence", () => {
+    const before = fixtureSnapshot();
+    expect(() =>
+      admitCommandAttemptEvidenceInternalV1(before, {
+        result: {
+          kind: "committed",
+          snapshot: fixtureSnapshot(1),
+          events: [{ amount: 0.25 }],
+        },
+        diagnostics: fixtureDiagnostics(before),
+      })
+    ).toThrow(CanonicalJsonError);
   });
-  expect(Object.isFrozen(events)).toBe(false);
-});
 
-it("returns canonical evidence projections without retaining normalized raw identity state", () => {
-  const snapshot = fixtureSnapshot();
-  const shared = { value: 1 };
-  let virtualReads = 0;
-  const rawEventTarget = {
-    kind: "fixture.event" as const,
-    first: shared,
-    second: shared,
-  };
-  const rawEvent = new Proxy(rawEventTarget, {
-    get(target, key, receiver) {
-      if (key === "virtual") return ++virtualReads;
-      return Reflect.get(target, key, receiver);
-    },
+  it("normalizes Debug validation results without descriptor authentication", () => {
+    expect(admitDebugValidationResultInternalV1({ kind: "allowed" }, undefined)).toEqual({
+      kind: "allowed",
+    });
+    expect(
+      admitDebugValidationResultInternalV1(
+        { kind: "validation_failed", errors: [{ code: "raw" }] },
+        (value) => ({ ...(value as { code: string }), admitted: true }),
+      ),
+    ).toEqual({
+      kind: "validation_failed",
+      errors: [{ code: "raw", admitted: true }],
+    });
   });
-  const sideTable = new WeakMap<object, string>([[rawEvent, "raw-only"]]);
-  const expectedBytes = canonicalJsonBytes(rawEvent);
-  const attempt = {
-    result: {
-      kind: "committed" as const,
-      snapshot,
-      events: [rawEvent],
-    },
-    diagnostics: {
-      committedRngBefore: snapshot.rng,
-      attemptedDraws: [],
-      candidateRngAfter: snapshot.rng,
-      committedRngAfter: snapshot.rng,
-    },
-  };
-
-  const admitted = admitCommandAttemptEvidenceInternalV1(snapshot, attempt);
-  if (admitted.result.kind !== "committed") throw new Error("expected committed evidence");
-  const event = admitted.result.events[0] as typeof rawEventTarget & {
-    readonly virtual?: number;
-  };
-
-  expect(event).not.toBe(rawEvent);
-  expect(event.first).not.toBe(shared);
-  expect(event.second).not.toBe(shared);
-  expect(event.first).not.toBe(event.second);
-  expect(event.virtual).toBeUndefined();
-  expect(virtualReads).toBe(0);
-  expect(sideTable.has(event)).toBe(false);
-  expect(Object.isFrozen(event)).toBe(true);
-  expect(Object.isFrozen(event.first)).toBe(true);
-  expect(Object.isFrozen(rawEvent)).toBe(false);
-  expect(Object.isFrozen(shared)).toBe(false);
-  expect(canonicalJsonBytes(event)).toEqual(expectedBytes);
-});
-
-it("does not carry private elements from canonical-looking normalized evidence", () => {
-  class HiddenValidationError {
-    #counter = 0;
-    readonly code = "fixture.hidden";
-
-    static next(value: HiddenValidationError): number {
-      return ++value.#counter;
-    }
-  }
-
-  const raw = new HiddenValidationError();
-  Object.setPrototypeOf(raw, Object.prototype);
-
-  const admitted = admitDebugValidationErrorsInternalV1([raw], undefined);
-
-  expect(admitted[0]).not.toBe(raw);
-  expect(() => HiddenValidationError.next(admitted[0] as HiddenValidationError)).toThrow(
-    TypeError,
-  );
-  expect(HiddenValidationError.next(raw)).toBe(1);
-  expect(Object.isFrozen(raw)).toBe(false);
 });

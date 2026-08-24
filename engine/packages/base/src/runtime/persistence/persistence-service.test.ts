@@ -1951,21 +1951,13 @@ describe("PersistenceServiceV1", () => {
     }
   });
 
-  it("normalizes a failing or hostile stamp collector before lease acquisition", async () => {
+  it("normalizes a malformed or failing stamp collector before lease acquisition", async () => {
     const events: string[] = [];
-    let getterCalls = 0;
-    const hostile = Object.create(null) as Record<string, unknown>;
-    Object.defineProperty(hostile, "applicationVersion", {
-      enumerable: true,
-      get() {
-        getterCalls += 1;
-        return "must-not-run";
-      },
-    });
+    const malformedStamp = { applicationVersion: 42 } as unknown as VersionStampV1;
     const malformed = await fixtureV1({
       collectVersionStamp: () => {
         events.push("collect");
-        return hostile as unknown as VersionStampV1;
+        return malformedStamp;
       },
       decorateLease(lease) {
         return Object.freeze({
@@ -1978,7 +1970,6 @@ describe("PersistenceServiceV1", () => {
       },
     });
     expect(events).toEqual(["collect", "acquire"]);
-    expect(getterCalls).toBe(0);
     const malformedExport = decodeSaveRecordV1(
       (await malformed.service.port.exportCurrentSave()).bytes,
       codecV1,
@@ -4274,7 +4265,6 @@ describe("PersistenceService standard composition", () => {
     expect(optimizedCounter.snapshot()).toEqual({
       canonicalTraversals: 4,
       canonicalDigests: 3,
-      deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 1,
       strictJsonParses: 1,
@@ -4283,7 +4273,6 @@ describe("PersistenceService standard composition", () => {
     expect(fallbackCounter.snapshot()).toEqual({
       canonicalTraversals: 6,
       canonicalDigests: 4,
-      deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 2,
       strictJsonParses: 1,
@@ -4350,7 +4339,6 @@ describe("PersistenceService standard composition", () => {
     expect(optimizedCounter.snapshot()).toEqual({
       canonicalTraversals: 4,
       canonicalDigests: 3,
-      deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 1,
       strictJsonParses: 1,
@@ -4359,7 +4347,6 @@ describe("PersistenceService standard composition", () => {
     expect(fallbackCounter.snapshot()).toEqual({
       canonicalTraversals: 6,
       canonicalDigests: 4,
-      deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 2,
       strictJsonParses: 1,
@@ -4519,7 +4506,6 @@ describe("PersistenceService standard composition", () => {
     expect(optimizedCounter.snapshot()).toEqual({
       canonicalTraversals: 6,
       canonicalDigests: 5,
-      deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 1,
       strictJsonParses: 2,
@@ -4528,7 +4514,6 @@ describe("PersistenceService standard composition", () => {
     expect(fallbackCounter.snapshot()).toEqual({
       canonicalTraversals: 8,
       canonicalDigests: 6,
-      deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 2,
       strictJsonParses: 2,

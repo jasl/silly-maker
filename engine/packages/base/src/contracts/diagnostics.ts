@@ -75,8 +75,7 @@ export type PersistenceFaultCodeV1 =
   | "persistence.stale_writer";
 export type AssetLoadFaultCodeV1 =
   | "asset.fetch_failed"
-  | "asset.decode_failed"
-  | "asset.integrity_mismatch";
+  | "asset.decode_failed";
 export type UiFaultCodeV1 = "ui.render_failed" | "ui.event_handler_failed";
 export type RuntimeFaultCodeV1 =
   | "runtime.async_operation_failed"
@@ -259,7 +258,6 @@ const codes = {
   asset_load: new Set<AssetLoadFaultCodeV1>([
     "asset.fetch_failed",
     "asset.decode_failed",
-    "asset.integrity_mismatch",
   ]),
   ui: new Set<UiFaultCodeV1>(["ui.render_failed", "ui.event_handler_failed"]),
   runtime: new Set<RuntimeFaultCodeV1>([
@@ -338,7 +336,7 @@ function parseDenseArrayV1<T>(
   ) {
     throw new TypeError(`invalid ${label}`);
   }
-  return Object.freeze(keys.map((key) => schema.parse(descriptors[key]?.value)));
+  return keys.map((key) => schema.parse(descriptors[key]?.value));
 }
 
 function readDebugDenseArrayV1(
@@ -517,18 +515,16 @@ function parseDebugPresentationRendererSummaryV1(
     ["rendererId", "characterId", "rigId", "poseId", "expressionId", "appearanceLayerIds"],
     "DebugPresentationRendererSummaryV1",
   );
-  const appearanceLayerIds = Object.freeze(
-    readDebugDenseArrayV1(
-      fields.appearanceLayerIds?.value,
-      debugPresentationLimitsV1.appearanceLayersPerRenderer,
-      "diagnostics.presentation_appearance_limit",
-      "Debug presentation appearance layers",
-    ).map((entry) => parseBrandedDiagnosticIdV1(entry, parseAppearanceLayerId)),
-  );
+  const appearanceLayerIds = readDebugDenseArrayV1(
+    fields.appearanceLayerIds?.value,
+    debugPresentationLimitsV1.appearanceLayersPerRenderer,
+    "diagnostics.presentation_appearance_limit",
+    "Debug presentation appearance layers",
+  ).map((entry) => parseBrandedDiagnosticIdV1(entry, parseAppearanceLayerId));
   if (new Set(appearanceLayerIds).size !== appearanceLayerIds.length) {
     throw new TypeError("diagnostics.presentation_appearance_duplicate");
   }
-  return Object.freeze({
+  return {
     rendererId: parseDiagnosticIdV1(fields.rendererId?.value, "Debug rendererId"),
     characterId: parseBrandedDiagnosticIdV1(fields.characterId?.value, parseCharacterId),
     rigId: parseBrandedDiagnosticIdV1(fields.rigId?.value, parseCharacterRigId),
@@ -538,7 +534,7 @@ function parseDebugPresentationRendererSummaryV1(
       parseCharacterExpressionId,
     ),
     appearanceLayerIds,
-  });
+  };
 }
 
 function parseDebugPresentationSummaryV1(value: unknown): DebugPresentationSummaryV1 {
@@ -557,29 +553,25 @@ function parseDebugPresentationSummaryV1(value: unknown): DebugPresentationSumma
     ],
     "DebugPresentationSummaryV1",
   );
-  const renderers = Object.freeze(
-    readDebugDenseArrayV1(
-      fields.renderers?.value,
-      debugPresentationLimitsV1.renderers,
-      "diagnostics.presentation_renderers_limit",
-      "Debug presentation renderers",
-    ).map(parseDebugPresentationRendererSummaryV1),
-  );
+  const renderers = readDebugDenseArrayV1(
+    fields.renderers?.value,
+    debugPresentationLimitsV1.renderers,
+    "diagnostics.presentation_renderers_limit",
+    "Debug presentation renderers",
+  ).map(parseDebugPresentationRendererSummaryV1);
   if (new Set(renderers.map(({ characterId }) => characterId)).size !== renderers.length) {
     throw new TypeError("diagnostics.presentation_character_duplicate");
   }
-  const visibleInteractionSurfaceIds = Object.freeze(
-    readDebugDenseArrayV1(
-      fields.visibleInteractionSurfaceIds?.value,
-      debugPresentationLimitsV1.visibleInteractionSurfaces,
-      "diagnostics.presentation_surfaces_limit",
-      "Debug presentation interaction surfaces",
-    ).map((entry) => parseBrandedDiagnosticIdV1(entry, parseInteractionSurfaceId)),
-  );
+  const visibleInteractionSurfaceIds = readDebugDenseArrayV1(
+    fields.visibleInteractionSurfaceIds?.value,
+    debugPresentationLimitsV1.visibleInteractionSurfaces,
+    "diagnostics.presentation_surfaces_limit",
+    "Debug presentation interaction surfaces",
+  ).map((entry) => parseBrandedDiagnosticIdV1(entry, parseInteractionSurfaceId));
   if (new Set(visibleInteractionSurfaceIds).size !== visibleInteractionSurfaceIds.length) {
     throw new TypeError("diagnostics.presentation_surface_duplicate");
   }
-  return Object.freeze({
+  return {
     presentationRevision: parseNonNegativeSafeInteger(fields.presentationRevision?.value),
     stageSceneId: parseNullableBrandedDiagnosticIdV1(fields.stageSceneId?.value, parseStageSceneId),
     variantId: parseNullableBrandedDiagnosticIdV1(
@@ -598,7 +590,7 @@ function parseDebugPresentationSummaryV1(value: unknown): DebugPresentationSumma
     ),
     contentPolicyRevision: parsePositiveSafeInteger(fields.contentPolicyRevision?.value),
     allowedContentFlags: parseContentMaturityFlagsV1(fields.allowedContentFlags?.value),
-  });
+  };
 }
 
 function parseDebugUiSessionSummaryV1(value: unknown): DebugUiSessionSummaryV1 {
@@ -619,15 +611,13 @@ function parseDebugUiSessionSummaryV1(value: unknown): DebugUiSessionSummaryV1 {
     ["leftOpen", "rightOpen"],
     "Debug UI DevDock summary",
   );
-  const detailOverlayIds = Object.freeze(
-    readDebugDenseArrayV1(
-      fields.detailOverlayIds?.value,
-      debugPresentationLimitsV1.detailOverlayStack,
-      "diagnostics.ui_context_detail_stack_limit",
-      "Debug UI detail overlay stack",
-    ).map((entry) => parseDiagnosticIdV1(entry, "Debug detail overlay ID")),
-  );
-  return Object.freeze({
+  const detailOverlayIds = readDebugDenseArrayV1(
+    fields.detailOverlayIds?.value,
+    debugPresentationLimitsV1.detailOverlayStack,
+    "diagnostics.ui_context_detail_stack_limit",
+    "Debug UI detail overlay stack",
+  ).map((entry) => parseDiagnosticIdV1(entry, "Debug detail overlay ID"));
+  return {
     routeId: parseNullableDiagnosticIdV1(fields.routeId?.value, "Debug routeId"),
     primaryOverlayId: parseNullableDiagnosticIdV1(
       fields.primaryOverlayId?.value,
@@ -636,11 +626,11 @@ function parseDebugUiSessionSummaryV1(value: unknown): DebugUiSessionSummaryV1 {
     detailOverlayIds,
     narrativeOpen: parseDebugBooleanV1(fields.narrativeOpen?.value, "Debug narrativeOpen"),
     systemDialogOpen: parseDebugBooleanV1(fields.systemDialogOpen?.value, "Debug systemDialogOpen"),
-    devDock: Object.freeze({
+    devDock: {
       leftOpen: parseDebugBooleanV1(devDockFields.leftOpen?.value, "Debug left dock state"),
       rightOpen: parseDebugBooleanV1(devDockFields.rightOpen?.value, "Debug right dock state"),
-    }),
-  });
+    },
+  };
 }
 
 export function createDebugUiContextSchemaV1(): RuntimeSchemaV1<DebugUiContextV1> {
@@ -654,13 +644,13 @@ export function createDebugUiContextSchemaV1(): RuntimeSchemaV1<DebugUiContextV1
       );
       if (fields.revision?.value !== 1) throw new TypeError("invalid Debug UI context revision");
       const presentationValue = fields.presentation?.value;
-      return Object.freeze({
+      return {
         revision: 1 as const,
         presentation: presentationValue === null
           ? null
           : parseDebugPresentationSummaryV1(presentationValue),
         session: parseDebugUiSessionSummaryV1(fields.session?.value),
-      });
+      };
     },
   });
 }

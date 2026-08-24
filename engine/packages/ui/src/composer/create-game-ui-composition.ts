@@ -82,7 +82,6 @@ import {
   type NarrativeSurfaceCompositionRuntimeInternalV1,
 } from "../narrative/narrative-surface-composition.tsx";
 import { createNarrativeManagedSurfaceFamilyContractInternalV1 } from "../narrative/narrative-managed-surface-family.ts";
-import { admitSettledSessionAnchorResultInternalV1 } from "./session-anchor-result-admission-internal.ts";
 import {
   bindWholeCanvasSurfaceCompositionPrivateMetadataInternalV1,
   claimWholeCanvasSurfaceHostedAdapterInternalV1,
@@ -975,9 +974,7 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
     const runNewGame = async (): Promise<void> => {
       const generation = ++mutationGeneration;
       try {
-        const result = admitSettledSessionAnchorResultInternalV1(
-          await input.lifecycle.restart(),
-        );
+        const result = await input.lifecycle.restart();
         if (disposed || generation !== mutationGeneration) return;
         if (result.kind !== "anchored") {
           throw new TypeError("ui.lifecycle_restart_rejected");
@@ -1183,9 +1180,7 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
         const generation = ++mutationGeneration;
         returningToTitle = true;
         try {
-          const result = admitSettledSessionAnchorResultInternalV1(
-            await input.lifecycle.restart(),
-          );
+          const result = await input.lifecycle.restart();
           if (disposed || generation !== mutationGeneration) return;
           if (result.kind !== "anchored") {
             throw new TypeError("ui.lifecycle_restart_rejected");

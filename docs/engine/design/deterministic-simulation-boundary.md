@@ -56,8 +56,8 @@ API、静态检查、运行时边界、测试探针和跨引擎证据，但不�
 
 包括：
 
-- `createBootstrapInput` 输出经过 Core canonical admission 和 deep-freeze 后，
-  `createInitialState` 实际接收的 plain input；
+- `createBootstrapInput` 输出经过 Core 一次 canonical admission 后，
+  `createInitialState` 实际接收的 detached plain input；
 - GameCommand / DebugCommand 的规范化结果；
 - command executor、module domain-event reducers、invariant 与 authoritative
   Narrative reducer；
@@ -104,10 +104,10 @@ adapter，而不是 authoritative transition callback；它只能消费显式注
 
 - raw capability/provider、未采样 entropy 与 Host-only metadata 不进入 gameplay
   Snapshot/Save/digest；
-- `createBootstrapInput` 的返回值仍视为不可信 ingress data；Core 必须先对整个值做
-  package-internal Strict Canonical Data projection admission 并 deep-freeze 新建的
-  ordinary projection，再把同一个 admitted projection 交给 seed reader 与
-  `createInitialState`；raw adapter output 不冻结、不保留；
+- `createBootstrapInput` 的返回值是显式 ingress data；Core 先对整个值做一次
+  package-internal Strict Canonical Data projection admission，再把同一个 admitted
+  ordinary projection 交给 seed reader 与 `createInitialState`。内部 typed consumer
+  不重复 admission；raw adapter output 不保留；
 - 该 handoff 不新增 public bootstrap schema/envelope 或第二份 authoritative
   state；其中通过既有 seed validation 的版本化 seed 可以进入 initial Snapshot；
 - 不通过闭包或 mutable singleton 反向改变规则；
@@ -116,7 +116,7 @@ adapter，而不是 authoritative transition callback；它只能消费显式注
 
 这个区域中的 **durable deterministic projection** 是窄例外：它不改变 gameplay
 transition，却会改变持久化 bytes，因此不能继承普通 Presentation 的 ambient
-能力。当前 `summarizeSave(state)` 只能读取 immutable State，并为同一 State 返回同一
+能力。当前 `summarizeSave(state)` 只能读取 authoritative read-only State，并为同一 State 返回同一
 bounded canonical summary；不得读取 clock、random、network、environment、locale
 default 或 DOM。其 normalized output 进入 Save annotation，但不进入 Snapshot
 digest、CommandLog 或 replay。玩家 note 是显式 persistence input，不是 Story
@@ -202,7 +202,7 @@ gameplay 部分使用现有 Strict Canonical Data 数值合同：
 当前 Snapshot/Save encoder、Strict JSON parser、normalized command 与完整
 authoritative evidence 都已执行对应边界，避免 malformed data 先污染
 CommandLog、Save import 或 Debug Bundle decode 后才失败。canonical bootstrap
-handoff 也已使用同一 engine-owned projection/freeze ownership；authority-aware static
+handoff 也已使用同一 detached engine-owned projection；authority-aware static
 guard 与跨 runtime ambient/parity gate 仍按 active plan 后续切片推进。
 
 ### 3.2 Domain representations
@@ -267,7 +267,8 @@ Authoritative code 不直接调用：
 - composition root 把 Host entropy provider 作为 `BootstrapEntropyV1` 显式注入
   Story-owned `createBootstrapInput` ingress adapter；只有对该参数的方法调用获得窄
   capability allowance，adapter 仍不得直接调用 ambient entropy/clock；
-- Core 对 adapter 输出做一次 canonical projection admission 和 immutable handoff；
+- Core 对 adapter 输出做一次 canonical projection admission；admitted typed value
+  遵循普通 JavaScript runtime 语义；
   `createInitialState` 才是消费 bootstrap 的 authoritative callback；
 - gameplay randomness 只经 Snapshot-owned transactional RNG；
 - gameplay-authoritative time 是 Story-owned canonical State/Command data，通常使用有界整数
@@ -370,9 +371,9 @@ draw-order coupling、诊断歧义或第二消费者出现后才单独设计与�
 - deterministic capabilities 通过 execution context/transaction 注入；
 - external decision 先 canonical admission；
 - bootstrap entropy 只经显式 provider 进入 ingress adapter，其输出在
-  `createInitialState` 前 canonical admission + deep-freeze；
-- durable Save projector 只消费 immutable State，输出立即 normalize、copy 与
-  freeze；异常必须在任何 physical Save write 前原子失败；
+  `createInitialState` 前做一次 canonical admission；
+- durable Save projector 只消费 authoritative read-only State，输出立即 normalize 与
+  copy；异常必须在任何 physical Save write 前原子失败；
 - Presentation/Host 不获得 State setter。
 
 ### 6.2 Static guard
@@ -593,18 +594,16 @@ wrong-code 与 whole-file directive 全部 fail closed，numeric diagnostic 不�
 ### 6.3 State migration callback boundary
 
 M2 State migrator 是 Authoritative Simulation callback，但只接收 raw-digest-verified
-historical Snapshot 的 `state` 经 package-owned detached canonical projection与 deep-freeze
-后的值。callback同步返回 exact migrated/rejected union，不取得 Save envelope、Host、clock、
-random、network、Session、renderer、database或 arbitrary context；每步 output在下一 callback
-前重新执行 descriptor-safe canonical/limit admission、copy与freeze。该 admission在 capture
-过程中按 depth/node/collection/string/canonical-byte limits fail fast，不得先构造完整的
-over-limit projection/encoding再分类。exact wrapper/array只捕获一次 own-key vector，随后按该
-snapshot读取 data descriptors；不得用两个可变化的 Proxy key snapshots 拼接一个 accepted
-结果。
-
-Promise/thenable一律不是同步 callback result，并分类为 `result_envelope` failure。kernel不
-await、不继续 migration，也不读取或调用 arbitrary `.then`/thenable accessor；opaque
-thenable直接 fail closed且不触碰其 continuation。
+historical Snapshot 的 `state`。package-owned canonical encoder 与 Strict JSON parser 对
+historical State 和每步 migrated output 各执行一次 canonical/limits admission，并交付 detached
+plain data。callback 同步返回 migrated/rejected union，不取得 Save envelope、Host、clock、
+random、network、Session、renderer、database 或 arbitrary context；result 使用普通 JavaScript
+discriminant/field 读取，Promise、缺失字段、非法 reason code 与不满足 Strict JSON/limits 的
+State fail closed。该边界不认证 prototype、descriptor、accessor 或 exact own-key shape，也不
+递归冻结 State；`DeepReadonly` 是受支持的类型合同，绕过类型约束修改对象属于未支持行为。
+每个成功 output 在交给下一步前重新 detached admission，因此 callback 持有的 raw input/output
+alias 不能在返回后改变后续 migrated State。kernel 不 await，也不读取或调用 arbitrary
+`.then`。
 
 Core中配置的 factory-produced exact registry必须与
 `ApplicationAuthorityPolicyV1.saveStateMigrationOwner` 指定 module/export是同一对象；collector
@@ -629,213 +628,42 @@ receipt的跨 runtime equality仍须验证，以证明 migration结果和新 anc
 
 ### 6.4 Runtime admission
 
-- `createBootstrapInput` 输出在任何 seed read / `createInitialState` 调用前做
-  package-internal canonical projection gate，并 deep-freeze engine-owned ordinary
-  projection；admission 不保留或冻结 adapter raw output（adapter 自身可以返回已冻结
-  value）。初次
-  construction、restart 与 extension 使用的现有 initial-Snapshot helper 必须共用这一条
-  路径；
-- bootstrap helper 的固定 stage order 是：调用 adapter → 完整 canonical projection
-  traversal → projection recursive freeze → descriptor-safe seed read/parse（结果只读取一次并
-  复用）→ resolved `createInitialState`（root callback/State schema，随后按 module tuple
-  顺序执行每个 stateful initializer/schema/equivalence）→ Snapshot envelope schema → 仅在
-  安装路径执行 Session Snapshot freeze/digest。不得为了分类错误而提前 seed read，也不得在
-  Story callback 后重新读取 raw bootstrap；
-- projection traversal 按 command/evidence 已接受的 fully-represented own-data 规则生成
-  byte-identical canonical bytes 与新的 ordinary-data tree；raw shared alias 按 path 展开，
-  cycle 拒绝。freeze 只访问 engine-owned projection，不再需要保存 raw descriptor graph 或在
-  freeze 后重验 hostile Proxy shape，也不增加第二次 canonical traversal；
-- bootstrap failure classification 与 precedence 按上述 stage order 取第一个失败：adapter
-  throw 原样保留；canonical violation 使用 root-public
-  `CanonicalJsonError(code, path)`；Proxy reflection、projection allocation /
-  `defineProperty`、freeze 等 operational throw 原样保留；canonical-valid 的 missing /
-  invalid seed 保留既有 bootstrap seed error（zero 仍为 `rng.invalid_state`）；其后 Story
-  callback、State/module schema/equivalence 与 Snapshot-envelope failure 保留各自既有 error。
-  因此 canonical-invalid + zero seed 报 canonical failure，canonical-valid zero seed 先于
-  Story initializer failure，root/aggregate failure 先于 module tuple 中的第一处 failure；
-- direct construction Promise 与 captured extension helper 分别从既有 reject / sync throw
-  channel 暴露原 error；queued restart 保留 Session fence 与既有归一化：普通 helper
-  failure 返回 `runtime.anchor_failed` 并进入 `fault_paused`，pre/post HMR fence 胜出时仍返回
-  既有 HMR outcome。preflight HMR 不运行 adapter；若 Story/Proxy code 在同步 helper 内主动
-  invalidates，post-operation/catch fence 只覆盖 public outcome 与 authoritative install，
-  不承诺撤销已执行的 transient adapter/projection work；
-- canonical traversal 完整成功后才开始 projection freeze，因此 canonical-invalid raw
-  value 不会被部分冻结。若 projection freeze 自身失败，partial engine projection 保持不可达；
-  raw adapter value、seed reader、root/module callback、Snapshot/Session/persistence mutation
-  均不受影响；
-- 任何 bootstrap failure 都不得创建/替换 authoritative Snapshot、Session、CommandLog
-  replay base 或 persistence anchor。construction failure 发生在 Session/listener/lease
-  acquisition 前；restart failure 保持 installed Snapshot identity/digest/RNG/sequence、
-  CommandLog/replay base 与 persistence bytes；extension failure 不修改 live Session。
-  Story callback 自身的外部副作用不是可回滚的 authoritative mutation，author 仍须保持
-  initializer pure；
-- command schema normalization 后、进入 Session queue/executor 前做 canonical
-  admission；同一次 command-admission canonical traversal 在访问每个 container 时先做
-  command-only representability shape check，再按现有算法编码，同时通过 descriptor-only、
-  traversal-position 的懒 descriptor 读取构造 engine-owned ordinary-data projection；成功后
-  只 deep-freeze 并交付该 projection。command admission 本身不冻结或保留 upstream
-  normalized identity，也不把它交给 executor；推荐 schema helper 可能已按自身合同冻结
-  output。Story-facing DebugTools 的 capability denial 先于 Story
-  schema；schema 成功返回后，下层 Session control 的 capability/session/HMR
-  preflight 先于
-  command-admission canonical traversal 与 queue。下层 fence 胜出时不得枚举或读取
-  normalized command、调用该 traversal 或进入 queue，但不承诺上层 Story schema
-  尚未执行；admission 通过后，queue front 仍重新检查 capability 与 Session/HMR
-  状态，关闭 preparation 与 execution 之间的竞态；
-- Story schema/domain validation 保留既有 result classification：
-  `GameSession.dispatch` 的 `commandSchema.parse` failure 继续 resolve 为
-  `not_executed/validation_failed`，Story-facing DebugTools 的 schema failure 与
-  Debug domain validation 继续使用既有 result，后者仍携带 Story-owned non-empty
-  errors。schema 成功后发现的 Strict Canonical Data violation 不伪装成 Story
-  error，也不进入 unexpected-fault normalizer；同步 Simulation/CommandLog entry
-  throw、Promise entry reject 从 `@sillymaker/base` root 公开的
-  `CanonicalJsonError`；root 同时公开 `CanonicalJsonErrorCodeV1`，稳定兼容字段为
-  `code` 与 `path`。`path` 使用 JSON Pointer，根路径为空字符串 `""`，message 只作
-  diagnostics。low-level Debug control 本身没有 Story schema，只执行 unconditional
-  canonical shape gate；
-- command-only representability shape check 拒绝无法被 canonical bytes 表示的
-  descriptor-visible runtime members：任意 own symbol key 使用
-  `value.unrepresented_property`，任意 array own string key（除 `length` 与
-  `0..length-1` 的 canonical index）也使用 `value.unrepresented_property`，array
-  prototype 不是 `Array.prototype` 时复用 `value.custom_prototype`。symbol-key
-  failure 的 `path` 指向所在 container，因为 symbol 没有 JSON Pointer segment；
-  array extra property 的 `path` 指向按 JSON Pointer escaping 编码的 property，
-  custom array prototype 指向 array 本身。根 container 仍使用 `""`；新 code
-  进入 root export 的 `CanonicalJsonErrorCodeV1` stable union。projection 不沿用 raw
-  container identity，因此 Proxy virtual `get`、private element 与 raw-identity-keyed
-  `WeakMap` association 都不会跨过 ingress；
-- command-admission traversal 在每个已访问 container 先检查 prototype，再检查 symbol
-  keys，再按 Unicode code-point order 选择第一个 array extra property，随后才按既有
-  canonical depth-first order 继续编码：array index 升序、plain-object string key 按
-  Unicode code point 排序。这三类 container-wide shape failure 都先于该 container
-  的 child traversal。represented accessor 不属于 container-wide shape check；
-  traversal 到达对应 array index 或 plain-object key 时才使用现有 `value.getter`
-  拒绝且不调用 getter，因此 earlier child failure 可以先于 later accessor 胜出。
-  不同 container 之间仍由既有 depth-first traversal 决定第一个 stable
-  `CanonicalJsonError`。Proxy reflection trap、allocation、`defineProperty` 或 freeze 自身
-  抛出的 operational error 继续走原 throw/reject channel，但不承诺上述 stable error
-  ordering；任何失败都不得发布部分 projection；
-- 这个更窄的 command rule 不改变 public `canonicalJsonBytes` 的既有行为：
-  公共 encoder 仍按原算法忽略 symbol-keyed members 与 array extra
-  properties，也不为 array prototype 新增拒绝。command admission 在 package-internal
-  projection traversal 拒绝它们，而不是修改 canonical JSON、digest、Save/Debug Bundle
-  bytes。该 traversal 同步生成 byte-identical canonical bytes 与一棵新的普通对象/数组
-  tree；共享 raw alias 按 canonical path 展开，active-ancestor cycle 仍拒绝，`__proto__`
-  作为安全 own data property 安装。该 projection 是本次 ingress 唯一进入 executor、
-  recursive freeze、CommandLog 与 replay 的 command；raw identity 立即丢弃，因此不形成
-  第二份 authoritative command。不同 ingress 即使复用同一个 raw value 也各自产生新的
-  projection；本边界只封闭 ingress-attached hidden state，不宣称 sandbox Story callback
-  或消除 realm/global prototype 等 ambient state；
-- command admission failure 在任何 queue mutation、executor/authoritative replay
-  driver、fault normalizer、RNG、candidate Snapshot traversal/post-digest/freeze 或
-  CommandLog continuity/append 前原子失败；Snapshot identity/digest、RNG、command
-  sequence、Session status 与 CommandLog 保持不变；package-internal traversal 对
-  represented getter 通过 descriptor 检测拒绝且不调用。schema-bearing ingress 在
-  gate 前仍可按 Story 自有 schema 语义读取 raw input，本合同不把 getter-zero 保证
-  扩张到 schema；
-- executor 或 Debug validator 返回后，Session 先执行 post-callback HMR fence；fence
-  胜出时不读取 stale candidate、调用 normalizer 或执行 evidence traversal。随后才
-  descriptor-only capture attempt/result/diagnostics 外壳与 branch；capture 不读取
-  accessor、不遍历 candidate Snapshot。Standard Core 再使用 DET1 的既有 xorshift
-  schema 验证 captured candidate
-  Snapshot RNG，再进入 evidence finalization；因此同一个 candidate 同时包含 zero
-  RNG 与 malformed evidence 时，`rng.invalid_state` 仍先胜出。不得把 evidence gate
-  提前包进 resolved `GameSimulation` executor 而反转该 precedence；
-- finalized evidence 使用 package-internal 两阶段 prepare/commit：先检查 outer exact
-  shape 与 non-committed Snapshot identity，再按 outcome branch 的 array index 顺序做
-  fact/rejection schema normalization（fault 无 Story schema），随后依次准备
-  `committedRngBefore`、`attemptedDraws`、可选 `candidateRngAfter`、
-  `committedRngAfter` 与已有 engine receipt fields。Standard Core 还对 Debug
-  validation errors 按 index 使用既有 schema；low-level generic path 仍执行无条件
-  exact-shape + Strict Canonical Data gate。`events`、`reasons`、`attemptedDraws` 与 Debug
-  errors 各自只 capture 一次 own `length` data descriptor，并以该固定 length 做 extra-key /
-  index validation；不得读取 Proxy virtual `get("length")`。所有准备完成后，对不含 Snapshot 的完整
-  evidence candidate 做一次 `evidence_admission` canonical projection traversal；成功才
-  冻结 engine-owned projection，重建包含 Snapshot identity 例外的 admitted attempt，并
-  签发绑定该 exact admitted-attempt identity 的 package-internal exact-target、one-shot
-  receipt。evidence admission 本身不保留或冻结 upstream normalized identity；schema
-  helper 可能已按自身合同冻结其 output。candidate/result 中的 Snapshot 与 finalized
-  `preSnapshot` 是显式 identity-preserving 例外，不进入 projection。CommandLog 消费
-  receipt 时不得重复 traversal，独立或嵌套 ingress 必须
-  自行重新 finalization。该 receipt 只覆盖 Standard Core 对同步
-  `GameSimulationV1` callback 的受控调用和 Session→CommandLog handoff；generic
-  low-level Session 允许 async adapter，若 adapter 在自身 callback 内显式调用 public
-  Simulation，那是 callback 返回前已经发生的独立 ingress，不得用全局跨-`await`
-  deferral 绕过或混淆并发 direct call；
-- evidence finalization 必须早于 candidate Snapshot integrity mutation、whole-tree
-  freeze、post-digest、install、authoritative/semantic publication 与 CommandLog
-  continuity/append。prepare 失败前 engine 不部分冻结 earlier upstream evidence identity，
-  candidate Snapshot traversal/post-digest/freeze 精确为 `0/0/0`，并保持 installed
-  Snapshot identity/digest、RNG、sequence、replay base 与 existing log 不变；queue 的
-  既有 busy/idle observer notification 不属于 authoritative publication；
-- failure classification 保持现有 public surface：fact/rejection schema、Debug
-  validation-error schema、fault/RNG/receipt shape 或 canonical failure 都是
-  attempt-finalization failure，不伪装成 command `validation_failed`、Story rejection
-  或新 result kind。direct synchronous Simulation 对同时带有 own `result` 与
-  `diagnostics` 的 attempt-shaped result、以及 direct CommandLog，继续从既有 throw
-  channel 暴露 schema error 或 root-public `CanonicalJsonError(code, path)`；Session
-  把该 error 交给既有 game/debug unexpected-fault callback **恰好一次**。现有
-  `GameSimulationV1` 的 `TAttempt` 是有意保持 opaque 的 generic；不具备该结构的
-  Story 自定义 result 原样返回，DET2b 不借机收窄其 public type 或语义；
-- normalizer 返回合法、canonical、保留 command-start Snapshot identity 的 faulted
-  fallback 时，只 append 这一条 fallback，返回既有 executed/faulted 并进入
-  `fault_paused`；原 malformed attempt 不被记录、observer 或 transient publication
-  看见。normalizer 缺失/throw、返回非-faulted，或 fallback 的 Snapshot/evidence 仍
-  非法时，不递归 normalizer：第二次 finalization/回调 error 使 Promise reject，Session
-  回到原 stable status，Snapshot/RNG/sequence/replay base 与 log 不变；malformed Debug
-  validation errors 同样走该 policy，合法 non-empty errors 才返回既有
-  `validation_failed` 且不写 log；
-- authoritative replay 保留 blocking identity mismatch 的最高 precedence；identity
-  匹配后先同步、各一次地 capture 完整 recorded-command vector 的 `source` 与
-  `command` identity；capture 不枚举 command、不执行 canonical traversal，也不
-  freeze。随后按 entry 顺序先验证 captured source 是 `game | debug`，再 prepare 该
-  captured command；invalid source 在该 entry 的 command traversal 前以 `TypeError`
-  失败。每个 prepare 执行一次包含 representability check 的 command-admission
-  projection traversal。全部 entry prepare 成功后才统一 freeze，并且仍早于 Snapshot
-  digest/validation 与 driver construction；driver 只接收 captured source 与 admitted
-  command projection（包括合法 `null`），并按 prepared-record presence 选择该 value，
-  不用 nullish fallback 重新读取可变 entry slot。因此第 `k` 个 command 失败时已有
-  `k` 次 command canonical traversal，但
-  handoff freeze 与 driver construction 均为 `0`；best-effort replay inspection 不
-  执行该 gate；
-- 以上 evidence precedence 位于 DET2a command admission 与 queue-front/post-callback
-  HMR fence 之后；HMR fence 胜出时不读取 callback 返回的 stale candidate 或执行
-  Session-owned evidence traversal；它不能追溯撤销 callback 内显式完成的另一个 public
-  ingress。Story schema callback 自身若在 evidence preparation 中同步触发 HMR，Session
-  在 preparation/finalization 返回后、CommandLog append/install/publication 前再次检查
-  fence：已开始的 normalization/canonical/freeze 不能回滚，但 candidate 仍不得成为
-  authoritative state 或 log evidence；
-  direct CommandLog 先做 source/debug-outcome 约束与 command admission，再做 evidence
-  finalization 和 continuity/digest audit；若 logged-command 含 source/command 与
-  engine-reserved fields 之外的 enumerable metadata，随后 descriptor-only capture 并
-  独立 canonical-project/freeze 这些 fields，保留公开 entry 的字段枚举顺序。symbol 或
-  accessor metadata 在 top-level extra-field capture 时拒绝且不调用 getter；任何 enumerable
-  engine-reserved field collision 也同步拒绝而不是静默覆盖，returned entry type 只把
-  engine-owned value 暴露为这些 field。continuity failure 先于 metadata failure，任何
-  metadata failure 都早于 ordinal/eviction/publication，log/replay base 保持不变；
-- 所有 public Session/CommandLog path 与 attempt-shaped direct Simulation result 都执行
-  无条件 canonical shape gate；标准 Core composition 另外执行 Story event/rejection
-  schema normalization，test/bench 只能注入 observation/counter，不得替换或绕过
-  gate；
-- 有效输入不改变 canonical algorithm、digest、Save bytes 或 PF1 的 Snapshot
-  digest/freeze contract。bootstrap/command/evidence admission 会产生新增物理
-  traversal，instrumentation 必须按 Snapshot digest/freeze、bootstrap admission /
-  handoff freeze、command admission/handoff freeze、conditional CommandLog metadata
-  admission/freeze、evidence admission、replay comparison 与 total 分标签报告。标准
-  `{source, command}` Session path 的 metadata count 固定为 `0/0`；非空合法 metadata
-  额外为 `1/1`，top-level symbol/accessor descriptor rejection 与 engine-field collision
-  为 `0/0`；已经进入 projection traversal 的 canonical failure（含 nested
-  symbol/accessor 或 numeric/value failure）为 `1/0`。
+Runtime admission protects concrete data boundaries; it is not an object
+authenticity or hostile-JavaScript subsystem.
 
-2026-08-20 起 Story `eventSchema`（原 `factSchema`，随域事件车道换名）在
-`emit` 时接入 execution path，`rejectionSchema` 在 evidence admission 接入；
-fault 仍没有对应 simulation schema。DET2b 只允许使用 package-internal composition、engine-owned outer
-shape/canonical gate 与现有 stable fault policy；不新增 public evidence hook/receipt、
-command result branch、`GameSimulation` revision、fault schema/envelope 或 universal
-application receipt，也不把 Surface envelope 扩张到所有 command。若实现不能保持
-DET1 zero-RNG precedence、fallback-invalid 的 rejected-Promise + original stable
-status + no-new-log 合同，或不能在零 candidate Snapshot traversal 下闭合，必须先
-停止并修订设计。
+- `createBootstrapInput` is treated as Host ingress. Core creates one detached
+  canonical projection, parses the RNG seed, and passes that admitted typed
+  value to the root and stateful-module initializers. Construction, restart,
+  and the extension initial-Snapshot helper share this path. Failure is atomic
+  with respect to Session, replay-base, and persistence ownership.
+- Public Session gameplay/Debug commands, public `createCommandLogV1`, and the
+  authoritative replay vector each canonicalize commands at their own true
+  ingress. A Session passes its admitted command to trusted Simulation and
+  internal CommandLog collaborators without repeating validation. Replay
+  preflights the complete source/command vector before driver creation.
+- Session finalization validates result kind, candidate Snapshot RNG and run-integrity data,
+  non-commit Snapshot identity, `eventSchema`/`rejectionSchema`/Debug-error
+  normalization, RNG evidence, and Snapshot-free canonical evidence once. It
+  then applies integrity, digest, log, and install steps. A malformed attempt
+  reaches the existing unexpected-fault normalizer at most once; an invalid
+  fallback cannot mutate authoritative state.
+- The public low-level CommandLog independently admits its command and
+  finalized evidence and recomputes state digests. The Session-owned internal
+  log trusts the already admitted command/finalized attempt but still enforces
+  source and Debug-outcome rules, Snapshot identity, digest continuity,
+  ordinals, and eviction. Public extra metadata is canonicalized once and may
+  not collide with engine-owned fields.
+- Admitted Snapshot, command, evidence, bootstrap, and semantic projection
+  objects follow ordinary JavaScript runtime semantics. `DeepReadonly` is the
+  supported TypeScript contract; deliberate casts, mutation, Proxy tricks,
+  private side tables, or monkey-patching are outside the engine contract and
+  threat model. The engine does not recursively freeze these trees or
+  authenticate prototypes/descriptors/accessors at every internal layer.
+- This simplification does not weaken strict bytes/files/URLs/HTTP/RPC/Save
+  parsing, Snapshot schema and digest, replay comparison, CAS, generation or
+  sequence currentness, persistence atomicity, or deterministic execution.
+  Valid public canonical bytes, Save/Debug Bundle formats, and replay data are
+  unchanged.
 
 ### 6.5 Test-only isolated tripwire
 
@@ -964,7 +792,7 @@ historical 与 corrective promotion record 分别拥有：
    command/evidence late failure 与 replay admission 的旧行为；
 2. 合法 corpus 的 Snapshot/digest/Save/replay bytes 保持等价；
 3. invalid bootstrap output 在 `createInitialState` 前失败；有效 handoff 是一个
-   admitted、deep-frozen value，且不新增 public schema/envelope；
+   detached admitted value，内部按 typed data 使用，且不新增 public schema/envelope；
 4. invalid command/evidence 在 first authoritative boundary 原子失败；evidence
    finalization 保持 DET1 zero-RNG precedence，valid fallback 只记录一条 canonical
    fault 并进入 `fault_paused`，invalid/absent fallback 则 reject、回到原 stable

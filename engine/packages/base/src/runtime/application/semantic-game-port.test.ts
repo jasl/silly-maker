@@ -194,8 +194,6 @@ describe("createSemanticGamePortV1", () => {
     expect(fixture.port.availableActions()).toBe(first.actions);
     expect(fixture.createQueriesCalls()).toBe(1);
     expect(Object.isFrozen(first)).toBe(true);
-    expect(Object.isFrozen(first.narrative)).toBe(true);
-    expect(Object.isFrozen(first.narrative.details)).toBe(true);
 
     fixture.sourceFixture.publishStatus("busy");
     const statusOnly = fixture.port.observe();
@@ -283,7 +281,7 @@ describe("createSemanticGamePortV1", () => {
     await expect(afterTeardown).resolves.toBe(fixture.port.observe());
   });
 
-  it("rejects a Narrative projector then accessor without replacing the publication", () => {
+  it("rejects a Narrative projector thenable without replacing the publication", () => {
     let projectionCalls = 0;
     let getterCalls = 0;
     const accessor = {};
@@ -309,7 +307,7 @@ describe("createSemanticGamePortV1", () => {
     expect(() => fixture.sourceFixture.replaceState(1)).toThrow(
       "Semantic projectNarrativeView returned thenable",
     );
-    expect(getterCalls).toBe(0);
+    expect(getterCalls).toBe(1);
     expect(fixture.port.observe()).toBe(before);
   });
 
@@ -339,7 +337,7 @@ describe("createSemanticGamePortV1", () => {
     );
   });
 
-  it("rejects a preview then accessor without invoking its getter", async () => {
+  it("rejects a preview thenable through ordinary property access", async () => {
     let getterCalls = 0;
     const accessor = {};
     Reflect.defineProperty(accessor, ["th", "en"].join(""), {
@@ -365,6 +363,6 @@ describe("createSemanticGamePortV1", () => {
     await expect(fixture.port.preview({ minimum: 0 })).rejects.toThrow(
       "Semantic preview returned thenable",
     );
-    expect(getterCalls).toBe(0);
+    expect(getterCalls).toBe(1);
   });
 });

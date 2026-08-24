@@ -77,7 +77,9 @@ application. It excludes media working archives, `references/`, research notes,
 calibration output, local Saves, DebugBundles, diagnostics,
 screenshots, and test output.
 
-Artifact preparation validates actual runtime paths and technical integrity.
+Application build and check workflows validate the runtime paths they consume.
+The optional legal-file copy helper does not inspect or certify Artifact
+integrity.
 
 ## 6. Contributions
 

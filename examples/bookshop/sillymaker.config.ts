@@ -18,11 +18,7 @@ export const sillymakerAppConfigV1 = {
     applicationEntry: "src/application/entry.tsx",
     base: "./",
     sourcemap: false,
-    identity: {
-      module: "tools/build-identity.mjs",
-      collectExport: "collectBookshopBuildIdentityV1",
-      createPluginExport: "createBookshopBuildIdentityVirtualPluginV1",
-    },
+    identity: null,
     desktop: {
       name: "Bookshop",
       identifier: "dev.sillymaker.example.bookshop",

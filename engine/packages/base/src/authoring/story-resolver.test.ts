@@ -320,10 +320,8 @@ function createPackageWithAssetPatchSurface() {
         readonly assetId: "asset.synthetic.stage.background";
         readonly runtimePath: string;
         readonly mediaType: "image/png";
-        readonly byteLength: ReturnType<typeof parsePositiveSafeInteger>;
         readonly width: ReturnType<typeof parsePositiveSafeInteger>;
         readonly height: ReturnType<typeof parsePositiveSafeInteger>;
-        readonly sha256: ReturnType<typeof digestBytes>;
       },
     }),
   });
@@ -855,10 +853,8 @@ describe("Story resolver", () => {
       assetId: "asset.synthetic.stage.background" as const,
       runtimePath: "images/synthetic-stage-hotfix.png",
       mediaType: "image/png" as const,
-      byteLength: parsePositiveSafeInteger(1),
       width: parsePositiveSafeInteger(1),
       height: parsePositiveSafeInteger(1),
-      sha256: digestBytes(Uint8Array.of(1)),
     });
     const result = resolveGamePackageV1(
       fixture.entry,

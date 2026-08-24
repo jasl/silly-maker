@@ -12,6 +12,13 @@ const restartAnchorV1 = Object.freeze({
   origin: "restart" as const,
 });
 
+function anchoredResultV1(commandSequence = 0): SessionAnchorResultV1 {
+  return Object.freeze({
+    kind: "anchored",
+    commandSequence: parseNonNegativeSafeInteger(commandSequence),
+  });
+}
+
 function deferredV1<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((resolvePromise) => {
@@ -48,7 +55,7 @@ describe("composition-bound restart lifecycle", () => {
     terminal.signalTerminal(primary);
     const prepareRestart = vi.fn(() => ({
       publicationContext: Object.freeze({}),
-      run: vi.fn(() => Promise.resolve({ kind: "anchored", commandSequence: 0 })),
+      run: vi.fn(() => Promise.resolve(anchoredResultV1())),
     }));
     const broker = createPresentationSuccessorAcknowledgmentBrokerInternalV1({
       signalTerminal: terminal.signalTerminal,
@@ -73,7 +80,7 @@ describe("composition-bound restart lifecycle", () => {
       },
     });
     const token = Object.freeze({});
-    const raw = Object.assign(Object.create(null), { commandSequence: 0, kind: "anchored" });
+    const result = anchoredResultV1();
     const lifecycle = createCompositionBoundRestartLifecycleInternalV1({
       prepareRestart: () => ({
         publicationContext: token,
@@ -81,17 +88,14 @@ describe("composition-bound restart lifecycle", () => {
           // This settlement is dropped unless arm happened before run.
           broker.bindExpected(token, restartAnchorV1);
           broker.producer.installed({ token, anchor: restartAnchorV1 });
-          return Promise.resolve(raw);
+          return Promise.resolve(result);
         },
       }),
       acknowledgments: broker,
       terminal,
     });
 
-    const result = await lifecycle.restart();
-    expect(result).toEqual({ kind: "anchored", commandSequence: 0 });
-    expect(result).not.toBe(raw);
-    expect(Object.isFrozen(result)).toBe(true);
+    await expect(lifecycle.restart()).resolves.toBe(result);
     expect(terminal.terminate).not.toHaveBeenCalled();
   });
 
@@ -138,7 +142,7 @@ describe("composition-bound restart lifecycle", () => {
             if (kind === "foreign") {
               broker.producer.installed({ token: foreignToken, anchor: restartAnchorV1 });
             }
-            return Promise.resolve({ kind: "anchored", commandSequence: 0 });
+            return Promise.resolve(anchoredResultV1());
           },
         }),
         acknowledgments: broker,
@@ -178,7 +182,7 @@ describe("composition-bound restart lifecycle", () => {
             // is diagnosed while the authoritative operation still settles.
             events.push("observer-diagnostic");
           }
-          return Promise.resolve({ kind: "anchored", commandSequence: 0 });
+          return Promise.resolve(anchoredResultV1());
         },
       }),
       acknowledgments: broker,
@@ -265,7 +269,7 @@ describe("composition-bound restart lifecycle", () => {
             anchor: restartAnchorV1,
             error: new Error("activation failed"),
           });
-          return Promise.resolve({ kind: "anchored", commandSequence: 0 });
+          return Promise.resolve(anchoredResultV1());
         },
       }),
       acknowledgments: broker,
@@ -281,82 +285,6 @@ describe("composition-bound restart lifecycle", () => {
 
     release.resolve("released");
     await expect(restart).rejects.toThrow("ui.presentation_successor_activation_failed");
-  });
-
-  it("descriptor-rejects malformed results without invoking their getters and terminalizes", async () => {
-    let getterReads = 0;
-    const raw = {};
-    Object.defineProperties(raw, {
-      kind: {
-        enumerable: true,
-        get() {
-          getterReads += 1;
-          return "anchored";
-        },
-      },
-      commandSequence: { enumerable: true, value: 0 },
-    });
-    const release = deferredV1<"released">();
-    let broker!: ReturnType<typeof createPresentationSuccessorAcknowledgmentBrokerInternalV1>;
-    const terminal = createWebApplicationTerminalSupervisorInternalV1({
-      fenceSteps: [],
-      cleanupSteps: [Object.freeze({ name: "broker", run: () => broker.dispose() })],
-      releaseCorePersistence: () => release.promise,
-    });
-    broker = createPresentationSuccessorAcknowledgmentBrokerInternalV1({
-      signalTerminal: terminal.signalTerminal,
-    });
-    const lifecycle = createCompositionBoundRestartLifecycleInternalV1({
-      prepareRestart: () => ({
-        publicationContext: Object.freeze({}),
-        run: () => Promise.resolve(raw),
-      }),
-      acknowledgments: broker,
-      terminal,
-    });
-
-    let settled = false;
-    const restart = lifecycle.restart().finally(() => {
-      settled = true;
-    });
-    await Promise.resolve();
-    expect(settled).toBe(false);
-    release.resolve("released");
-    await expect(restart).rejects.toThrow("ui.lifecycle_restart_result_invalid");
-    expect(getterReads).toBe(0);
-  });
-
-  it("preserves native assimilation for a direct thenable returned by the raw provider", async () => {
-    let thenGetterReads = 0;
-    const token = Object.freeze({});
-    const terminal = immediateTerminalV1();
-    const broker = createPresentationSuccessorAcknowledgmentBrokerInternalV1({
-      signalTerminal: vi.fn(),
-    });
-    const thenable = Object.create(null);
-    // oxlint-disable-next-line unicorn/no-thenable -- characterizes required Promise assimilation
-    Object.defineProperty(thenable, "then", {
-      get() {
-        thenGetterReads += 1;
-        return (resolve: (value: unknown) => void) =>
-          resolve(Object.freeze({ kind: "anchored", commandSequence: 4 }));
-      },
-    });
-    const lifecycle = createCompositionBoundRestartLifecycleInternalV1({
-      prepareRestart: () => ({
-        publicationContext: token,
-        run: () => {
-          broker.bindExpected(token, restartAnchorV1);
-          broker.producer.installed({ token, anchor: restartAnchorV1 });
-          return thenable;
-        },
-      }),
-      acknowledgments: broker,
-      terminal,
-    });
-
-    await expect(lifecycle.restart()).resolves.toEqual({ kind: "anchored", commandSequence: 4 });
-    expect(thenGetterReads).toBe(1);
   });
 
   it("preserves pre-commit synchronous run failures as asynchronous original rejections", async () => {
@@ -444,8 +372,8 @@ describe("composition-bound restart lifecycle", () => {
   );
 
   it("correlates concurrent restart completions without FIFO inference", async () => {
-    const firstRaw = deferredV1<unknown>();
-    const secondRaw = deferredV1<unknown>();
+    const firstRaw = deferredV1<SessionAnchorResultV1>();
+    const secondRaw = deferredV1<SessionAnchorResultV1>();
     const firstToken = Object.freeze({});
     const secondToken = Object.freeze({});
     const prepared = [
@@ -466,11 +394,11 @@ describe("composition-bound restart lifecycle", () => {
     const second = lifecycle.restart();
     broker.bindExpected(secondToken, restartAnchorV1);
     broker.producer.installed({ token: secondToken, anchor: restartAnchorV1 });
-    secondRaw.resolve({ kind: "anchored", commandSequence: 2 });
+    secondRaw.resolve(anchoredResultV1(2));
     await expect(second).resolves.toEqual({ kind: "anchored", commandSequence: 2 });
     broker.bindExpected(firstToken, restartAnchorV1);
     broker.producer.installed({ token: firstToken, anchor: restartAnchorV1 });
-    firstRaw.resolve({ kind: "anchored", commandSequence: 1 });
+    firstRaw.resolve(anchoredResultV1(1));
     await expect(first).resolves.toEqual({ kind: "anchored", commandSequence: 1 });
   });
 });

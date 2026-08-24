@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
-import {
-  digestBytes,
-  type DeepReadonly,
-  type ResolvedAssetManifestV1,
+import type {
+  DeepReadonly,
+  ResolvedAssetManifestV1,
 } from "../../engine/packages/base/src/index.ts";
 
 import { readRuntimeImageMetadataV1 } from "./runtime-image-metadata.mts";
@@ -35,8 +34,6 @@ export interface RuntimeAssetValidationErrorV1 {
     | "asset.runtime_path_escape"
     | "asset.runtime_file_missing"
     | "asset.runtime_media_mismatch"
-    | "asset.runtime_byte_length_mismatch"
-    | "asset.runtime_hash_mismatch"
     | "asset.runtime_dimensions_mismatch";
 }
 
@@ -204,12 +201,6 @@ export async function validateRuntimeAssetManifestV1(
 
     if (mediaMismatch) {
       errors.push(validationErrorV1(asset.assetId, "asset.runtime_media_mismatch"));
-    }
-    if (bytes.byteLength !== asset.byteLength) {
-      errors.push(validationErrorV1(asset.assetId, "asset.runtime_byte_length_mismatch"));
-    }
-    if (digestBytes(bytes) !== asset.sha256) {
-      errors.push(validationErrorV1(asset.assetId, "asset.runtime_hash_mismatch"));
     }
     if (dimensionsMismatch) {
       errors.push(validationErrorV1(asset.assetId, "asset.runtime_dimensions_mismatch"));

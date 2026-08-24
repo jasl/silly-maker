@@ -1415,60 +1415,6 @@ describe("Save import candidate validation", () => {
     expect(validateEnvelope).toHaveBeenCalledOnce();
   });
 
-  it("rejects cross-field mutation of the admitted migrated candidate", () => {
-    const source = validationMigrationIdentityV1(1, "cross-field-alias.source");
-    const target = validationMigrationIdentityV1(2, "cross-field-alias.target");
-    const registry = validationMigrationRegistryV1([source, target], [
-      (_state) =>
-        Object.freeze({
-          kind: "migrated" as const,
-          state: Object.freeze({ referenceId: "reference.cross-field" }),
-        }),
-    ]);
-    const mutableSnapshotSchema: RuntimeSchemaV1<ValidationSnapshotV1> = Object.freeze({
-      parse(value: unknown) {
-        const parsed = validationSnapshotSchemaV1.parse(value);
-        return {
-          state: { ...parsed.state },
-          rng: { ...parsed.rng },
-          commandSequence: parsed.commandSequence,
-          integrity: { ...parsed.integrity },
-        };
-      },
-    });
-    const codec: SaveCodecContextV1<ValidationSnapshotV1, ValidationRecordV1> = Object.freeze({
-      recordSchema: createSaveRecordEnvelopeSchemaV1(
-        mutableSnapshotSchema,
-        validationProvenanceSchemaV1,
-        validationSlotSchemaV1,
-        validationLineageSchemaV1,
-      ),
-      validateEnvelope(record: DeepReadonly<ValidationRecordV1>) {
-        (record.snapshot.rng as { cursor: number }).cursor += 1;
-      },
-    });
-    const fixture = validationContextV1({
-      classification: exactV1,
-      currentStateContractRevision: 2,
-      saveStateMigrations: registry,
-    });
-
-    const result = validateSaveImportCandidateV1(
-      canonicalJsonBytes(validationHistoricalRecordV1(source)),
-      Object.freeze({ ...fixture.context, codec }),
-    );
-
-    expect(result).toMatchObject({
-      kind: "rejected",
-      code: "envelope.schema_invalid",
-      migrationAttempt: {
-        failingPhase: "current_snapshot_schema",
-        migratedStateDigest: null,
-      },
-    });
-    expect(fixture.classifyCompatibility).not.toHaveBeenCalled();
-  });
-
   it("never validates or exposes a candidate for inspect-only input", () => {
     const fixture = validationContextV1({
       classification: Object.freeze({

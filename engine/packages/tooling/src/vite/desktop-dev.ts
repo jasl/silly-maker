@@ -589,16 +589,6 @@ function publishServerOriginV1(generation: DesktopDevServerGenerationInternalV1)
   generation.origin = `http://127.0.0.1:${String(address.port)}`;
 }
 
-function requireViteTransportsClosedV1(server: ViteDevServer): void {
-  const httpServer = server.httpServer;
-  if (
-    (httpServer !== null && (httpServer.listening || httpServer.address() !== null)) ||
-    server.ws.clients.size !== 0
-  ) {
-    throw new Error("desktop_dev.server.transport_close_incomplete");
-  }
-}
-
 function readCoordinatorV1(target: object): DesktopDevCoordinatorInternalV1 | null {
   const descriptor = Object.getOwnPropertyDescriptor(target, desktopDevCoordinatorKeyInternalV1);
   if (descriptor === undefined) return null;
@@ -651,10 +641,6 @@ function createCoordinatorV1(
       shutdown: async () => {
         await Promise.allSettled([...generation.activePrivateExchanges]);
         await generation.server.close();
-        // Vite 8.2.1 settles its transport close operations with
-        // Promise.allSettled, so a resolved close alone cannot authorize the
-        // native process to exit while an HTTP listener or WS client remains.
-        requireViteTransportsClosedV1(generation.server);
       },
     })();
   };

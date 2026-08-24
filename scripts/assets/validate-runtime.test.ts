@@ -63,10 +63,7 @@ type ResolvedRuntimeAssetEntryV1 = Extract<
 interface RuntimeProviderFixtureV1 {
   readonly assetId: string;
   readonly runtimePath: string;
-  readonly bytes?: Uint8Array;
   readonly mediaType?: ResolvedRuntimeAssetEntryV1["mediaType"];
-  readonly byteLength?: number;
-  readonly sha256?: ResolvedRuntimeAssetEntryV1["sha256"];
   readonly width?: number;
   readonly height?: number;
 }
@@ -125,13 +122,10 @@ function createManifestV1(
       };
     }
 
-    const bytes = fixture.bytes ?? validPngV1;
     return {
       ...slot,
       runtimePath: fixture.runtimePath,
       mediaType: fixture.mediaType ?? "image/png",
-      byteLength: parsePositiveSafeInteger(fixture.byteLength ?? bytes.byteLength),
-      sha256: fixture.sha256 ?? digestBytes(bytes),
       delivery: "runtime_image",
       provider: providerRefV1,
       overrideChain: Object.freeze([providerRefV1]),
@@ -419,32 +413,6 @@ describe("runtime asset manifest validation", () => {
         path: "assets/scene.svg",
         bytes: validPngV1,
         code: "asset.runtime_media_mismatch",
-      },
-      {
-        id: "byte-length-mismatch",
-        manifest: createManifestV1([
-          {
-            assetId: "scene.bytes",
-            runtimePath: "assets/scene.png",
-            byteLength: validPngV1.byteLength + 1,
-          },
-        ]),
-        path: "assets/scene.png",
-        bytes: validPngV1,
-        code: "asset.runtime_byte_length_mismatch",
-      },
-      {
-        id: "hash-mismatch",
-        manifest: createManifestV1([
-          {
-            assetId: "scene.hash",
-            runtimePath: "assets/scene.png",
-            sha256: digestBytes(Uint8Array.of(0)),
-          },
-        ]),
-        path: "assets/scene.png",
-        bytes: validPngV1,
-        code: "asset.runtime_hash_mismatch",
       },
       {
         id: "dimension-mismatch",

@@ -11,11 +11,11 @@ import type {
 import { audioBusForChannelV1 } from "@sillymaker/ui";
 
 /**
- * The browser Audio Host: decodes and caches verified audio bytes, applies
+ * The browser Audio Host: decodes and caches audio bytes, applies
  * continuous channels with gain fades, unlocks the AudioContext on the
  * first user gesture, and degrades to silence with a structured diagnostic
- * whenever autoplay is denied, media is missing, bytes fail integrity, or
- * decode fails. Nothing here touches gameplay State, and no audio node or
+ * whenever autoplay is denied or media is missing/undecodable. Nothing here
+ * touches gameplay State, and no audio node or
  * playback cursor is ever saved.
  */
 
@@ -63,10 +63,8 @@ export interface CreateWebAudioHostOptionsV1 {
   resolveRuntimeUrl(runtimePath: string): string;
   /** Injectable for tests; defaults to `new AudioContext()`. */
   createContext?(): WebAudioContextLikeV1;
-  /** Injectable for tests; defaults to `fetch` returning verified bytes. */
+  /** Injectable for tests; defaults to `fetch` returning response bytes. */
   fetchBytes?(url: string): Promise<Uint8Array>;
-  /** Injectable for tests; defaults to `crypto.subtle` SHA-256. */
-  digestBytes?(bytes: Uint8Array): Promise<string>;
   reportDiagnostic?(diagnostic: AudioHostDiagnosticV1): void;
   /** Gesture event target for autoplay unlock; defaults to `document`. */
   readonly unlockTarget?: Pick<EventTarget, "addEventListener" | "removeEventListener">;
@@ -76,14 +74,6 @@ interface ActiveChannelV1 {
   readonly source: WebBufferSourceLikeV1;
   readonly gain: WebGainNodeLikeV1;
   readonly assetId: string;
-}
-
-async function defaultDigestBytesV1(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", bytes.slice().buffer);
-  const hex = [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-  return `sha256:${hex}`;
 }
 
 async function defaultFetchBytesV1(url: string): Promise<Uint8Array> {
@@ -97,7 +87,6 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
     options.manifest.entries.map((entry) => [entry.assetId, entry]),
   );
   const fetchBytes = options.fetchBytes ?? defaultFetchBytesV1;
-  const digestBytes = options.digestBytes ?? defaultDigestBytesV1;
   const reportDiagnostic = options.reportDiagnostic ?? (() => undefined);
   const unlockTarget = options.unlockTarget ?? (typeof document === "undefined" ? null : document);
 
@@ -207,25 +196,6 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
       const activeContext = ensureContextV1();
       if (activeContext === null) return null;
       const bytes = await fetchBytes(options.resolveRuntimeUrl(entry.provider.runtimePath));
-      if (bytes.byteLength !== entry.provider.byteLength) {
-        reportDiagnostic({
-          code: "audio.integrity_mismatch",
-          assetId,
-          detail: `expected ${String(entry.provider.byteLength)} bytes, received ${
-            String(bytes.byteLength)
-          }`,
-        });
-        return null;
-      }
-      const digest = await digestBytes(bytes);
-      if (digest !== (entry.provider.sha256 as string)) {
-        reportDiagnostic({
-          code: "audio.integrity_mismatch",
-          assetId,
-          detail: "response digest does not match the declared sha256",
-        });
-        return null;
-      }
       try {
         return await activeContext.decodeAudioData(bytes.slice().buffer as ArrayBuffer);
       } catch (error) {

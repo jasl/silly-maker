@@ -2393,7 +2393,6 @@ describe("Narrative stable Managed Surface family", () => {
       },
     });
     expect(Object.isFrozen(frame)).toBe(true);
-    expect(Object.isFrozen(frame?.pending)).toBe(true);
     expect(frame?.candidateSnapshot.semanticDispatchPort).not.toBe(
       defaultSemanticDispatchPortV1,
     );
@@ -2923,10 +2922,6 @@ describe("Narrative stable Managed Surface family", () => {
       expectedOccurrenceId: occurrenceV1(1),
       resolution: { kind: "choose", choiceId: "choice.test.first" },
     });
-    expect(Object.isFrozen(capturedRequest)).toBe(true);
-    expect(
-      Object.isFrozen((capturedRequest as { readonly resolution: object }).resolution),
-    ).toBe(true);
 
     admission.disposeInternalV1();
     expect(
@@ -3322,7 +3317,6 @@ describe("Narrative stable Managed Surface family", () => {
       elapsedMs: 250,
       expectedHoldOccurrenceId: occurrenceV1(1),
     });
-    expect(Object.isFrozen(capturedRequest)).toBe(true);
     expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
     expect(
       fixture.admission.routeInternalV1(
@@ -3602,7 +3596,7 @@ describe("Narrative stable Managed Surface family", () => {
     expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
   });
 
-  it("dispatches one authenticated custom payload from a detached frozen Base projection", async () => {
+  it("dispatches one authenticated custom payload from a detached Base projection", async () => {
     const semanticReceipt = Object.freeze({ kind: "custom-accepted" as const });
     let capturedRequest: unknown = null;
     let semanticPort!: NarrativeStableSemanticResolutionPortInternalV1;
@@ -3660,18 +3654,10 @@ describe("Narrative stable Managed Surface family", () => {
         },
       },
     });
-    expect(Object.isFrozen(capturedRequest)).toBe(true);
     const capturedResolution = (capturedRequest as {
       readonly resolution: { readonly payload: Record<string, unknown> };
     }).resolution;
-    expect(Object.isFrozen(capturedResolution)).toBe(true);
-    expect(Object.isFrozen(capturedResolution.payload)).toBe(true);
     expect(Reflect.ownKeys(capturedResolution.payload)).toEqual(["a", "nil", "z"]);
-    expect(
-      Object.isFrozen(
-        (capturedResolution.payload.a as { readonly list: readonly unknown[] }).list,
-      ),
-    ).toBe(true);
     expect([...canonicalJsonBytes(capturedResolution.payload)]).toEqual([
       ...canonicalJsonBytes({
         a: { enabled: true, list: [1, { label: "original" }] },
@@ -4150,7 +4136,6 @@ describe("Narrative stable Managed Surface family", () => {
         elapsedMs: 250,
         expectedHoldOccurrenceId: occurrenceV1(1),
       });
-      expect(Object.isFrozen(capturedRequest)).toBe(true);
       expect(controller.dispatchInternalV1(attempt, 250)).toEqual({
         kind: "stale",
         completion: null,
@@ -4820,7 +4805,6 @@ describe("Narrative stable Managed Surface family", () => {
       expectedOccurrenceId: occurrenceV1(1),
       resolution: { kind: "advance" },
     });
-    expect(Object.isFrozen(capturedRequest)).toBe(true);
     expect(
       fixture.admission.routeInternalV1(
         fixture.admission.createEnvelopeInternalV1({
@@ -5288,9 +5272,6 @@ describe("Narrative stable Managed Surface family", () => {
       expectedOccurrenceId: occurrenceV1(1),
       resolution: { kind: "advance" },
     });
-    expect(Object.isFrozen(capturedRequest)).toBe(true);
-    expect(Object.isFrozen((capturedRequest as { readonly resolution: object }).resolution))
-      .toBe(true);
     expect(
       fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller),
     ).toBeNull();
@@ -8435,9 +8416,6 @@ describe("Narrative stable Managed Surface family", () => {
         transitionId: "transition.test.fade",
       },
     });
-    expect(Object.isFrozen(capturedRequest)).toBe(true);
-    expect(Object.isFrozen((capturedRequest as { readonly resolution: object }).resolution))
-      .toBe(true);
     expect(fixture.controller.flushRetainedTerminalInternalV1()).toBe(dispatched);
     expect(dispatchResolution).toHaveBeenCalledOnce();
 
@@ -9617,9 +9595,6 @@ describe("Narrative stable Managed Surface family", () => {
         transitionId: "transition.test.fade",
       },
     });
-    expect(Object.isFrozen(capturedRequest)).toBe(true);
-    expect(Object.isFrozen((capturedRequest as { readonly resolution: object }).resolution))
-      .toBe(true);
     await expect(dispatched.completion).resolves.toBe(semanticReceipt);
     expect(fixture.controller.dispatchSettleRecoveryInternalV1(attempt)).toEqual({
       kind: "stale",

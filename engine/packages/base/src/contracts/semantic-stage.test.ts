@@ -50,7 +50,7 @@ function playableStageV1() {
 }
 
 describe("SemanticStageStateV1", () => {
-  it("creates an empty declared-layer stage that is deep-frozen", () => {
+  it("creates an empty declared-layer stage", () => {
     const state = createSemanticStageStateV1({
       stageId: "stage.test.lab",
       layerIds: ["layer.background", "layer.characters"],
@@ -59,9 +59,6 @@ describe("SemanticStageStateV1", () => {
       "layer.background",
       "layer.characters",
     ]);
-    expect(Object.isFrozen(state)).toBe(true);
-    expect(Object.isFrozen(state.layers[0])).toBe(true);
-    expect(Object.isFrozen(state.camera)).toBe(true);
   });
 
   it("round-trips canonically through plain JSON with a stable digest", () => {

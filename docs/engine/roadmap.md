@@ -313,8 +313,8 @@ Snapshot 数据结构、determinism guard 或 Mod resolver 作为一个大改动
 不改变 canonical/digest/Save/replay 语义的前提下完成 Session、CommandLog 与
 Persistence 的 digest/serialization 去重。常规测试锁确定性次数和 byte
 equivalence；wall-clock、memory 与 profile 只作临时趋势证据。普通 committed
-command 仍保留一次完整 digest 与整树 freeze；这不是 changed-set proportional
-commit。
+command 仍保留一次完整 digest，但 installed Snapshot 不再整树冻结；runtime
+immutability 遵循普通 JavaScript/TypeScript `DeepReadonly` 合同。
 
 当前没有已接受的真实经营 Story 性能预算，100k 中性 profile 与 memory/GC 也不足以
 激活 A2。该 evidence limitation 不阻塞 production-floor 核心顺序进入 Managed
@@ -334,8 +334,8 @@ Surface pilot。
 - 修复 Strict JSON 先转 binary64 导致数学小数可能舍入为 safe integer 的 token
   admission gap，同时保持 canonical output/digest 不变；
 - 将 Story-owned `createBootstrapInput` 限定为显式 entropy ingress adapter，并在
-  authoritative `createInitialState` 前由 Core 对整个 output 做 canonical
-  admission + deep-freeze，不新增 public bootstrap schema/envelope；
+  authoritative `createInitialState` 前由 Core 对整个 output 做一次 detached canonical
+  admission，不新增 public bootstrap schema/envelope；
 - 从 root application registry fail-closed 建立真实 authority closure，以现有
   BuildIdentity managed simulation records 为 dependency seed，并补齐 simulation
   callback owner 与显式 authority entry；再用 path-aware static guard、isolated
@@ -357,11 +357,13 @@ sandbox；这些仍须真实需求、版本化 wire 与 migration 证据后另�
 
 只有 A1 后真实 workload 仍超预算，才接受专门 design，比较：
 
-- deep / changed-subtree / none freeze；
 - every-command / checkpoint / module-root / off digest；
 - full / changed-module / boundary validation；
 - module revision、changed-set、structural sharing；
 - typed StateStore 与现有 module state 的交互。
+
+不重新引入自定义 runtime freeze policy；使用者通过 cast/hack 修改 engine-owned
+对象属于未支持行为。
 
 全量 canonical digest 保留给 Save、checkpoint、replay verification 与 debug export。未经 profiling 不改写为 ECS，也不只替换 SHA 实现冒充优化。
 

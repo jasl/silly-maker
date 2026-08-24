@@ -5,10 +5,8 @@ import { createAssetDemandPlanV1 } from "./asset-demand.ts";
 import { parseAudioIntentV1, parseVoiceIntentV1, resolveAudioManifestV1 } from "./media-audio.ts";
 import { PresentationDataError } from "./presentation-data.ts";
 
-const digestV1 = `sha256:${"b".repeat(64)}`;
-
 describe("audio media contracts", () => {
-  it("resolves slots to verified providers or the silence fallback", () => {
+  it("resolves slots to runtime providers or the silence fallback", () => {
     const manifest = resolveAudioManifestV1(
       [
         { assetId: "audio.test.theme", kind: "music", fallback: "silence", loadGroup: "bootstrap" },
@@ -19,14 +17,16 @@ describe("audio media contracts", () => {
           assetId: "audio.test.theme",
           runtimePath: "audio/theme.ogg",
           mediaType: "audio/ogg",
-          byteLength: 2048,
-          sha256: digestV1,
           durationMs: 30_000,
         },
       ],
     );
     expect(manifest.entries).toMatchObject([
-      { assetId: "audio.test.theme", delivery: "runtime_audio", provider: { byteLength: 2048 } },
+      {
+        assetId: "audio.test.theme",
+        delivery: "runtime_audio",
+        provider: { runtimePath: "audio/theme.ogg", mediaType: "audio/ogg" },
+      },
       { assetId: "audio.test.hum", delivery: "silence_fallback", provider: null },
     ]);
     // Round-trips as plain JSON.
@@ -41,8 +41,6 @@ describe("audio media contracts", () => {
           assetId: "audio.test.jingle",
           runtimePath: "audio/jingle.m4a",
           mediaType: "audio/mp4",
-          byteLength: 512,
-          sha256: digestV1,
           durationMs: null,
         },
       ],
@@ -65,8 +63,6 @@ describe("audio media contracts", () => {
             assetId: "audio.test.jingle",
             runtimePath: "audio/jingle.m4a",
             mediaType: "audio/x-m4a",
-            byteLength: 512,
-            sha256: digestV1,
             durationMs: null,
           },
         ],
@@ -90,8 +86,6 @@ describe("audio media contracts", () => {
             assetId: "audio.test.ghost",
             runtimePath: "audio/ghost.ogg",
             mediaType: "audio/ogg",
-            byteLength: 1,
-            sha256: digestV1,
             durationMs: null,
           },
         ],

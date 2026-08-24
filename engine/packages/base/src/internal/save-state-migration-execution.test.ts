@@ -96,18 +96,8 @@ function executeV1(
   });
 }
 
-function expectFrozenTreeV1(value: unknown): void {
-  if (value === null || typeof value !== "object") return;
-  expect(Object.isFrozen(value)).toBe(true);
-  for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(value))) {
-    if (descriptor.get === undefined && descriptor.set === undefined) {
-      expectFrozenTreeV1(descriptor.value);
-    }
-  }
-}
-
 describe("Save State migration pure execution", () => {
-  it("executes one step with a detached frozen input and output without retaining raw aliases", () => {
+  it("executes one step with detached input and output without retaining raw aliases", () => {
     const first = identityV1(1);
     const second = identityV1(2);
     const rawInput = { count: 1, nested: { label: "raw" } };
@@ -120,7 +110,6 @@ describe("Save State migration pure execution", () => {
       callbackArgumentCount = arguments.length;
       expect(state).not.toBe(rawInput);
       expect(state.nested).not.toBe(rawInput.nested);
-      expectFrozenTreeV1(state);
       rawOutput = { count: 2, nested: { label: "migrated" } };
       return { kind: "migrated" as const, state: rawOutput };
     });
@@ -137,7 +126,6 @@ describe("Save State migration pure execution", () => {
     if (result.kind !== "migrated") return;
     expect(result.state).toEqual({ count: 2, nested: { label: "migrated" } });
     expect(result.state).not.toBe(rawOutput);
-    expectFrozenTreeV1(result);
     expect(migrate).toHaveBeenCalledTimes(1);
     expect(migrateSpy.mock.contexts).toEqual([undefined]);
     expect(callbackArgumentCount).toBe(1);
@@ -165,7 +153,6 @@ describe("Save State migration pure execution", () => {
       migratedStateDigest: finalSnapshotDigestV1,
     });
     expect(receipt.sourceStateDigest).not.toBe(receipt.migratedStateDigest);
-    expectFrozenTreeV1(receipt);
     expect(() =>
       createSaveStateMigrationReceiptInternalV1(
         { ...result.completion } as typeof result.completion,
@@ -194,7 +181,6 @@ describe("Save State migration pure execution", () => {
       expect(record.left).not.toBe(shared);
       expect(record.right).not.toBe(shared);
       expect(record.left).not.toBe(record.right);
-      expectFrozenTreeV1(state);
       return { kind: "migrated" as const, state: { ...record, count: 3 } };
     });
     const registry = defineSaveStateMigrationRegistryV1({
@@ -231,7 +217,7 @@ describe("Save State migration pure execution", () => {
     expect(secondCallback).toHaveBeenCalledTimes(1);
   });
 
-  it("is repeatable while returning independent immutable State, completion, and receipt data", () => {
+  it("is repeatable while returning independent State, completion, and receipt data", () => {
     const first = identityV1(1);
     const second = identityV1(2);
     const callback = vi.fn((state: StrictJsonValueV1) => ({
@@ -467,7 +453,6 @@ describe("Save State migration pure execution", () => {
       },
     });
     expect(firstSuccess).toHaveBeenCalledTimes(1);
-    expectFrozenTreeV1(secondRejected);
   });
 
   it.each([
@@ -535,51 +520,18 @@ describe("Save State migration pure execution", () => {
     },
   );
 
-  it("maps malformed callback result envelopes to output_invalid without invoking accessors", () => {
+  it("maps malformed callback results to output_invalid", () => {
     const first = identityV1(1);
     const second = identityV1(2);
-    const getter = vi.fn(() => "migrated");
-    const stateGetter = vi.fn(() => ({ value: 2 }));
-    const reasonGetter = vi.fn(() => "migration.synthetic.declined");
-    const thenGetter = vi.fn(() => () => undefined);
-    const throwingTrap = vi.fn(() => {
-      throw new Error("hostile result trap");
-    });
-    const symbolResult = { kind: "migrated", state: { value: 2 }, [Symbol("extra")]: true };
     const cases: readonly unknown[] = [
       undefined,
       null,
       1,
       [],
       Promise.resolve({ kind: "migrated", state: { value: 2 } }),
-      // oxlint-disable-next-line unicorn/no-thenable -- deliberate hostile callback result
-      { kind: "migrated", state: { value: 2 }, then: () => undefined },
-      // oxlint-disable-next-line unicorn/no-thenable -- verifies the executor never reads then
-      Object.defineProperty({ kind: "migrated", state: { value: 2 } }, "then", {
-        enumerable: true,
-        get: thenGetter,
-      }),
       { kind: "migrated" },
-      { kind: "migrated", state: { value: 2 }, extra: true },
-      symbolResult,
-      Object.defineProperty({ state: { value: 2 } }, "kind", {
-        enumerable: true,
-        get: getter,
-      }),
-      Object.defineProperty({ kind: "migrated" }, "state", {
-        enumerable: true,
-        get: stateGetter,
-      }),
-      Object.defineProperty({ kind: "rejected" }, "reasonCode", {
-        enumerable: true,
-        get: reasonGetter,
-      }),
-      Object.assign(Object.create(null), { kind: "migrated", state: { value: 2 } }),
-      Object.assign(Object.create({}), { kind: "migrated", state: { value: 2 } }),
       { kind: "unknown", state: { value: 2 } },
       { kind: "rejected", reasonCode: "INVALID REASON" },
-      { kind: "rejected", reasonCode: "migration.synthetic.declined", extra: true },
-      new Proxy({}, { getPrototypeOf: throwingTrap }),
     ];
 
     for (const [index, invalidResult] of cases.entries()) {
@@ -606,170 +558,34 @@ describe("Save State migration pure execution", () => {
       });
       expect(callbackCount).toBe(1);
     }
-    expect(getter).not.toHaveBeenCalled();
-    expect(stateGetter).not.toHaveBeenCalled();
-    expect(reasonGetter).not.toHaveBeenCalled();
-    expect(thenGetter).not.toHaveBeenCalled();
-    expect(throwingTrap).toHaveBeenCalledTimes(1);
   });
 
-  it("captures a callback result key vector once", () => {
+  it("reads callback result fields with ordinary JavaScript semantics", () => {
     const first = identityV1(1);
     const second = identityV1(2);
-    const symbol = Symbol("configurable-extra");
-    const target = { kind: "migrated" as const, state: { value: 2 }, [symbol]: true };
-    let ownKeysCalls = 0;
-    const resultProxy = new Proxy(target, {
-      ownKeys() {
-        ownKeysCalls += 1;
-        return ownKeysCalls === 1 ? ["kind", "state"] : Reflect.ownKeys(target);
-      },
-    });
     const registry = defineSaveStateMigrationRegistryV1({
       namespace: namespaceV1,
       minimumSupported: first,
       current: second,
-      steps: [stepV1(first, second, "single-result-snapshot", () => resultProxy)],
+      steps: [stepV1(first, second, "ordinary-result", () => ({
+        kind: "migrated",
+        state: { value: 2 },
+        extra: "ignored",
+      }))],
     });
 
     expect(executeV1(resolveV1(registry, first), { value: 1 })).toMatchObject({
       kind: "migrated",
       state: { value: 2 },
     });
-    expect(ownKeysCalls).toBe(1);
   });
 
-  it("rejects an oversized callback-result key before reading any descriptor", () => {
-    const first = identityV1(1);
-    const second = identityV1(2);
-    const inspectedProperties: PropertyKey[] = [];
-    const resultProxy = new Proxy({}, {
-      ownKeys: () => ["kind", "x".repeat(1_024)],
-      getOwnPropertyDescriptor(target, property) {
-        inspectedProperties.push(property);
-        return Reflect.getOwnPropertyDescriptor(target, property);
-      },
-    });
-    const registry = defineSaveStateMigrationRegistryV1({
-      namespace: namespaceV1,
-      minimumSupported: first,
-      current: second,
-      steps: [stepV1(first, second, "bounded-result-key", () => resultProxy as never)],
-    });
-
-    expect(executeV1(resolveV1(registry, first), { value: 1 })).toMatchObject({
-      kind: "rejected",
-      code: "migration.output_invalid",
-      migrationAttempt: { failingPhase: "result_envelope" },
-    });
-    expect(inspectedProperties).toEqual([]);
-  });
-
-  it("stops over-limit array admission before inspecting any array item", () => {
-    const first = identityV1(1);
-    const second = identityV1(2);
-    const inspectedIndices: PropertyKey[] = [];
-    const oversized = new Proxy([1, 2], {
-      getOwnPropertyDescriptor(target, property) {
-        if (property !== "length") inspectedIndices.push(property);
-        return Reflect.getOwnPropertyDescriptor(target, property);
-      },
-    });
-    const registry = defineSaveStateMigrationRegistryV1({
-      namespace: namespaceV1,
-      minimumSupported: first,
-      current: second,
-      steps: [stepV1(first, second, "bounded-array", () => ({
-        kind: "migrated",
-        state: oversized,
-      }))],
-    });
-    const limits = parseStrictJsonLimitsV1({
-      maxBytes: 1_024,
-      maxDepth: 8,
-      maxArrayItems: 1,
-      maxObjectMembers: 8,
-      maxNodes: 32,
-      maxStringBytes: 128,
-    });
-
-    expect(executeV1(resolveV1(registry, first), null, limits)).toMatchObject({
-      kind: "rejected",
-      code: "migration.output_invalid",
-      migrationAttempt: { failingPhase: "output_admission" },
-    });
-    expect(inspectedIndices).toEqual([]);
-  });
-
-  it("bounds hostile object and array key spellings before descriptor traversal", () => {
-    const first = identityV1(1);
-    const second = identityV1(2);
-    const inspectedProperties: PropertyKey[] = [];
-    const hostileObject = new Proxy({}, {
-      ownKeys: () => ["x".repeat(1_024), "y".repeat(1_024)],
-      getOwnPropertyDescriptor(target, property) {
-        inspectedProperties.push(property);
-        return Reflect.getOwnPropertyDescriptor(target, property);
-      },
-    });
-    const hostileArray = new Proxy([1], {
-      ownKeys: () => ["length", "9".repeat(1_024)],
-      getOwnPropertyDescriptor(target, property) {
-        if (property !== "length") inspectedProperties.push(property);
-        return Reflect.getOwnPropertyDescriptor(target, property);
-      },
-    });
-    const outputs = [hostileObject, hostileArray];
-    const limits = parseStrictJsonLimitsV1({
-      maxBytes: 64,
-      maxDepth: 8,
-      maxArrayItems: 8,
-      maxObjectMembers: 8,
-      maxNodes: 32,
-      maxStringBytes: 8,
-    });
-
-    for (const [index, state] of outputs.entries()) {
-      const registry = defineSaveStateMigrationRegistryV1({
-        namespace: namespaceV1,
-        minimumSupported: first,
-        current: second,
-        steps: [stepV1(first, second, `bounded-key-${index}`, () => ({
-          kind: "migrated",
-          state,
-        }))],
-      });
-      expect(executeV1(resolveV1(registry, first), null, limits)).toMatchObject({
-        kind: "rejected",
-        code: "migration.output_invalid",
-        migrationAttempt: { failingPhase: "output_admission" },
-      });
-    }
-    expect(inspectedProperties).toEqual([]);
-  });
-
-  it("maps non-canonical migrated State to output_invalid without invoking nested accessors", () => {
+  it("maps non-canonical migrated State to output_invalid", () => {
     // sillymaker-determinism-vector: migration-negative-zero-output-admission
     const first = identityV1(1);
     const second = identityV1(2);
-    const nestedGetter = vi.fn(() => 2);
-    const accessorState = Object.defineProperty({}, "value", {
-      enumerable: true,
-      get: nestedGetter,
-    });
     const sparse: unknown[] = [];
     sparse.length = 1;
-    const arrayGetter = vi.fn(() => 1);
-    const accessorArray: unknown[] = [];
-    Object.defineProperty(accessorArray, "0", {
-      enumerable: true,
-      configurable: true,
-      get: arrayGetter,
-    });
-    const customArray = Object.setPrototypeOf([1], Object.create(Array.prototype));
-    const extraArray = [1];
-    Object.defineProperty(extraArray, "extra", { enumerable: true, value: 2 });
-    const symbolState = { value: 2, [Symbol("extra")]: true };
     const dangerousState = {};
     Object.defineProperty(dangerousState, "__proto__", { enumerable: true, value: 2 });
     const cycle: Record<string, unknown> = {};
@@ -784,12 +600,7 @@ describe("Save State migration pure execution", () => {
       { value: -0 },
       { value: "\ud800" },
       new Date(0),
-      accessorState,
-      accessorArray,
-      customArray,
       sparse,
-      extraArray,
-      symbolState,
       dangerousState,
       cycle,
       Object.assign(Object.create(null), { value: 2 }),
@@ -814,8 +625,6 @@ describe("Save State migration pure execution", () => {
         },
       });
     }
-    expect(nestedGetter).not.toHaveBeenCalled();
-    expect(arrayGetter).not.toHaveBeenCalled();
   });
 
   it.each(
@@ -965,8 +774,6 @@ describe("Save State migration pure execution", () => {
       finalSnapshotDigestV1,
     );
     expect(afterDigest.migratedStateDigest).toBe(finalSnapshotDigestV1);
-    expectFrozenTreeV1(beforeDigest);
-    expectFrozenTreeV1(afterDigest);
     expect(() =>
       createSaveStateMigrationAttemptInternalV1(
         { ...result.completion } as typeof result.completion,
@@ -1018,7 +825,6 @@ describe("Save State migration pure execution", () => {
       failingPhase: "snapshot_shell",
       migratedStateDigest: null,
     });
-    expectFrozenTreeV1(attempt);
     expect(() =>
       createSaveStateMigrationSnapshotShellAttemptInternalV1(
         { ...chain } as ResolvedSaveStateMigrationChainInternalV1,

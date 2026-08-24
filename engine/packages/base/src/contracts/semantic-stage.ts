@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { digestCanonical } from "./digest.ts";
 import type { Brand, Digest } from "./values.ts";
-import { dataFailure, deepFreezeData, readArray, readExactRecord } from "./presentation-data.ts";
+import { dataFailure, readArray, readExactRecord } from "./presentation-data.ts";
 
 /**
  * Semantic Stage V1: the plain, versioned, validated stage target that lives
@@ -184,13 +184,13 @@ export function parseStagePlacementV1(value: unknown, path = "/placement"): Stag
     ["x", "y", "scalePermille", "opacityPermille", "mirrored"],
     path,
   );
-  return Object.freeze({
+  return {
     x: parseStageCoordinateV1(record.x, `${path}/x`),
     y: parseStageCoordinateV1(record.y, `${path}/y`),
     scalePermille: parseStagePermilleV1(record.scalePermille, `${path}/scalePermille`),
     opacityPermille: parseStageOpacityPermilleV1(record.opacityPermille, `${path}/opacityPermille`),
     mirrored: parseBooleanV1(record.mirrored, `${path}/mirrored`),
-  });
+  };
 }
 
 export function parseStageAppearanceV1(value: unknown, path = "/appearance"): StageAppearanceV1 {
@@ -222,7 +222,7 @@ export function parseStageAppearanceV1(value: unknown, path = "/appearance"): St
     }
     result[key] = entryValue;
   }
-  return Object.freeze(result);
+  return result;
 }
 
 export function parseStageLayerTransformV1(
@@ -230,21 +230,21 @@ export function parseStageLayerTransformV1(
   path = "/transform",
 ): StageLayerTransformV1 {
   const record = readExactRecord(value, ["x", "y", "scalePermille", "visible"], path);
-  return Object.freeze({
+  return {
     x: parseStageCoordinateV1(record.x, `${path}/x`),
     y: parseStageCoordinateV1(record.y, `${path}/y`),
     scalePermille: parseStagePermilleV1(record.scalePermille, `${path}/scalePermille`),
     visible: parseBooleanV1(record.visible, `${path}/visible`),
-  });
+  };
 }
 
 export function parseStageCameraV1(value: unknown, path = "/camera"): StageCameraV1 {
   const record = readExactRecord(value, ["x", "y", "zoomPermille"], path);
-  return Object.freeze({
+  return {
     x: parseStageCoordinateV1(record.x, `${path}/x`),
     y: parseStageCoordinateV1(record.y, `${path}/y`),
     zoomPermille: parseStagePermilleV1(record.zoomPermille, `${path}/zoomPermille`),
-  });
+  };
 }
 
 function parseStageEntryV1(value: unknown, path: string): StageEntryV1 {
@@ -253,13 +253,13 @@ function parseStageEntryV1(value: unknown, path: string): StageEntryV1 {
     ["tag", "contentId", "zOrder", "placement", "appearance"],
     path,
   );
-  return Object.freeze({
+  return {
     tag: parseStageTagV1(record.tag, `${path}/tag`),
     contentId: parseStageContentIdV1(record.contentId, `${path}/contentId`),
     zOrder: parseZOrderV1(record.zOrder, `${path}/zOrder`),
     placement: parseStagePlacementV1(record.placement, `${path}/placement`),
     appearance: parseStageAppearanceV1(record.appearance, `${path}/appearance`),
-  });
+  };
 }
 
 function parseStageLayerV1(value: unknown, path: string): StageLayerV1 {
@@ -280,17 +280,17 @@ function parseStageLayerV1(value: unknown, path: string): StageLayerV1 {
     previousZOrder = entry.zOrder;
     entries.push(entry);
   }
-  return Object.freeze({
+  return {
     layerId: parseStageLayerIdV1(record.layerId, `${path}/layerId`),
     transform: parseStageLayerTransformV1(record.transform, `${path}/transform`),
-    entries: Object.freeze(entries),
-  });
+    entries,
+  };
 }
 
 /**
  * Parses a full semantic stage state from plain data, enforcing the
  * canonical form: exact keys, unique layer IDs, unique tags per layer, and
- * entries ordered by non-decreasing z-order. The result is deep-frozen.
+ * entries ordered by non-decreasing z-order. The result is detached plain data.
  */
 export function parseSemanticStageStateV1(value: unknown, path = ""): SemanticStageStateV1 {
   const record = readExactRecord(
@@ -312,12 +312,12 @@ export function parseSemanticStageStateV1(value: unknown, path = ""): SemanticSt
     seenLayerIds.add(layer.layerId as string);
     layers.push(layer);
   }
-  return deepFreezeData({
+  return {
     contractRevision: semanticStageContractRevisionV1,
     stageId: parseStageIdV1(record.stageId, `${path}/stageId`),
-    layers: Object.freeze(layers),
+    layers,
     camera: parseStageCameraV1(record.camera, `${path}/camera`),
-  });
+  };
 }
 
 export interface CreateSemanticStageStateInputV1 {

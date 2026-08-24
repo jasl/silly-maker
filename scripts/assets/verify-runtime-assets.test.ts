@@ -247,7 +247,7 @@ describe("closed runtime asset verification", () => {
     );
     const error: RuntimeAssetValidationErrorV1 = Object.freeze({
       assetId: "asset.test.invalid",
-      code: "asset.runtime_hash_mismatch",
+      code: "asset.runtime_dimensions_mismatch",
     });
 
     await expect(
@@ -268,8 +268,8 @@ describe("closed runtime asset verification", () => {
         },
       ),
     ).rejects.toThrow(
-      "story.test.first:asset.test.invalid:asset.runtime_hash_mismatch\n" +
-        "story.test.second:asset.test.invalid:asset.runtime_hash_mismatch",
+      "story.test.first:asset.test.invalid:asset.runtime_dimensions_mismatch\n" +
+        "story.test.second:asset.test.invalid:asset.runtime_dimensions_mismatch",
     );
     expect(resolutionCalls).toEqual(["story.test.first", "story.test.second"]);
   });

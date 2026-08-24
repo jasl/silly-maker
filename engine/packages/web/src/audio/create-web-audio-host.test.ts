@@ -8,8 +8,6 @@ import type { AudioHostDiagnosticV1 } from "@sillymaker/ui";
 import type { WebAudioContextLikeV1 } from "./create-web-audio-host.ts";
 import { createWebAudioHostV1 } from "./create-web-audio-host.ts";
 
-const themeDigestV1 = `sha256:${"a".repeat(64)}`;
-
 function manifestV1() {
   return resolveAudioManifestV1(
     [
@@ -22,16 +20,12 @@ function manifestV1() {
         assetId: "audio.test.theme",
         runtimePath: "audio/theme.ogg",
         mediaType: "audio/ogg",
-        byteLength: 4,
-        sha256: themeDigestV1,
         durationMs: 1000,
       },
       {
         assetId: "audio.test.broken",
         runtimePath: "audio/broken.ogg",
         mediaType: "audio/ogg",
-        byteLength: 4,
-        sha256: themeDigestV1,
         durationMs: null,
       },
     ],
@@ -127,7 +121,6 @@ function hostV1(input: {
         ? Promise.reject(new Error(`no bytes for ${url}`))
         : Promise.resolve(bytes);
     },
-    digestBytes: () => Promise.resolve(themeDigestV1),
     reportDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
     unlockTarget: document,
   });
@@ -141,7 +134,7 @@ const flushV1 = async (): Promise<void> => {
 };
 
 describe("createWebAudioHostV1", () => {
-  it("plays verified continuous audio when the context is already unlocked", async () => {
+  it("plays decoded continuous audio when the context is already unlocked", async () => {
     const { host, context, diagnostics } = hostV1({});
     host.play({
       channel: "bgm",
@@ -183,10 +176,10 @@ describe("createWebAudioHostV1", () => {
     host.dispose();
   });
 
-  it("degrades silently with diagnostics for missing, corrupt, and undecodable media", async () => {
+  it("accepts replacement bytes and degrades missing or undecodable media", async () => {
     const { host, context, diagnostics } = hostV1({
       bytesByPath: {
-        // Wrong byte length for theme: integrity mismatch.
+        // A same-path local replacement need not match an author-maintained receipt.
         "audio/theme.ogg": new Uint8Array([1, 2, 3]),
         // Undecodable bytes for the broken sfx.
         "audio/broken.ogg": new Uint8Array([0xff, 0, 0, 0]),
@@ -203,7 +196,7 @@ describe("createWebAudioHostV1", () => {
     });
     // Unknown asset id.
     host.playEffect({ assetId: "audio.test.ghost", gainPermille: 1000 });
-    // Integrity mismatch never registers ready.
+    // Replacement bytes decode and play normally.
     host.play({
       channel: "bgm",
       assetId: "audio.test.theme",
@@ -215,10 +208,9 @@ describe("createWebAudioHostV1", () => {
     host.playEffect({ assetId: "audio.test.broken", gainPermille: 1000 });
     await flushV1();
 
-    expect(context.startedSources()).toHaveLength(0);
+    expect(context.startedSources()).toHaveLength(1);
     expect(diagnostics.map(({ code, assetId }) => `${code}:${String(assetId)}`)).toEqual([
       "audio.asset_missing:audio.test.ghost",
-      "audio.integrity_mismatch:audio.test.theme",
       "audio.decode_failed:audio.test.broken",
     ]);
     host.dispose();
@@ -263,7 +255,6 @@ describe("createWebAudioHostV1", () => {
       resolveRuntimeUrl: (runtimePath) => runtimePath,
       createContext: () => context,
       fetchBytes,
-      digestBytes: () => Promise.resolve(themeDigestV1),
       reportDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
       unlockTarget: document,
     });

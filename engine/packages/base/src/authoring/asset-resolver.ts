@@ -11,7 +11,7 @@ import type {
 } from "../contracts/assets.ts";
 import type { AssetHotfixReplacementV1 } from "./hotfix-resolver.ts";
 import { digestCanonical } from "../contracts/digest.ts";
-import { parseDigest, parsePositiveSafeInteger } from "../contracts/values.ts";
+import { parsePositiveSafeInteger } from "../contracts/values.ts";
 import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.ts";
 
 function validateRuntimePath(path: string): void {
@@ -39,6 +39,17 @@ function fallback(slot: AssetSlotDefinitionV1): ResolvedAssetEntryV1 {
   });
 }
 
+function normalizeProviderV1(provider: AssetProviderEntryV1): AssetProviderEntryV1 {
+  validateRuntimePath(provider.runtimePath);
+  return Object.freeze({
+    assetId: provider.assetId,
+    runtimePath: provider.runtimePath,
+    mediaType: provider.mediaType,
+    width: parsePositiveSafeInteger(provider.width),
+    height: parsePositiveSafeInteger(provider.height),
+  });
+}
+
 export function resolveAssetManifestV1(
   authoredSlots: readonly AssetSlotDefinitionV1[],
   authoredPacks: readonly AssetPackV1[],
@@ -61,24 +72,16 @@ export function resolveAssetManifestV1(
     if (!/^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$/u.test(pack.identity.id)) {
       throw new TypeError("invalid Asset Pack ID");
     }
-    if (
-      new Set(pack.providers.map((provider) => provider.assetId)).size !== pack.providers.length
-    ) {
+    const providers = pack.providers.map(normalizeProviderV1);
+    if (new Set(providers.map((provider) => provider.assetId)).size !== providers.length) {
       throw new TypeError("duplicate Asset Pack provider");
-    }
-    for (const provider of pack.providers) {
-      validateRuntimePath(provider.runtimePath);
-      parsePositiveSafeInteger(provider.byteLength);
-      parsePositiveSafeInteger(provider.width);
-      parsePositiveSafeInteger(provider.height);
-      parseDigest(provider.sha256);
     }
     const projection: AssetPackDigestProjectionV1 = {
       identity: {
         id: pack.identity.id,
         revision: pack.identity.revision,
       },
-      providers: pack.providers,
+      providers,
     };
     const identity = Object.freeze({
       ...projection.identity,
@@ -90,7 +93,7 @@ export function resolveAssetManifestV1(
       identity,
     });
 
-    for (const provider of pack.providers) {
+    for (const provider of providers) {
       const slot = slotsById.get(provider.assetId);
       if (!slot) throw new TypeError(`asset slot unknown: ${provider.assetId}`);
       if (provider.width !== slot.width || provider.height !== slot.height) {
@@ -136,15 +139,10 @@ export function resolveAssetManifestV1(
     ) {
       throw new TypeError(`invalid asset Hotfix provider: ${hotfix.assetId}`);
     }
-    const provider = hotfix.provider as AssetProviderEntryV1;
+    const provider = normalizeProviderV1(hotfix.provider as AssetProviderEntryV1);
     if (provider.assetId !== hotfix.assetId) {
       throw new TypeError(`asset Hotfix provider mismatch: ${hotfix.assetId}`);
     }
-    validateRuntimePath(provider.runtimePath);
-    parsePositiveSafeInteger(provider.byteLength);
-    parsePositiveSafeInteger(provider.width);
-    parsePositiveSafeInteger(provider.height);
-    parseDigest(provider.sha256);
     if (provider.width !== slot.width || provider.height !== slot.height) {
       throw new TypeError(`asset dimensions mismatch: ${hotfix.assetId}`);
     }

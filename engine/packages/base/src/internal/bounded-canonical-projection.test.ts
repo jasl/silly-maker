@@ -59,25 +59,7 @@ function rejectedV1(
   if (result.kind !== "rejected") {
     throw new TypeError("expected rejected result");
   }
-  expect(Object.isFrozen(result)).toBe(true);
   return result;
-}
-
-function expectDeepFrozenV1(value: unknown, visited = new Set<object>()): void {
-  if (value === null || typeof value !== "object" || visited.has(value)) return;
-  visited.add(value);
-  expect(Object.isFrozen(value)).toBe(true);
-  for (const key of Reflect.ownKeys(value)) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (
-      descriptor !== undefined &&
-      descriptor.get === undefined &&
-      descriptor.set === undefined &&
-      "value" in descriptor
-    ) {
-      expectDeepFrozenV1(descriptor.value, visited);
-    }
-  }
 }
 
 function objectWithOwnDataV1(
@@ -142,7 +124,7 @@ function expectExactThrowV1(value: unknown, sentinel: unknown): void {
 }
 
 describe("bounded canonical projection internal seam", () => {
-  it("freezes the exact runtime-internal type and result boundary", () => {
+  it("keeps the exact runtime-internal type and result boundary", () => {
     expectTypeOf<ExactKeysV1<BoundedCanonicalJsonLimitsInternalV1>>()
       .toEqualTypeOf<"maxBytes" | "maxDepth" | "maxNodes">();
     expectTypeOf<BoundedCanonicalJsonLimitsInternalV1["maxBytes"]>()
@@ -181,8 +163,6 @@ describe("bounded canonical projection internal seam", () => {
 
     const projected = projectedV1({ nested: [1, { ok: true }] });
     expect(Object.keys(projected)).toEqual(["kind", "value", "bytes"]);
-    expect(Object.isFrozen(projected)).toBe(true);
-    expectDeepFrozenV1(projected.value);
 
     const rejected = rejectedV1(undefined, "canonical.invalid");
     expect(Object.keys(rejected)).toEqual(["kind", "code"]);
@@ -210,7 +190,6 @@ describe("bounded canonical projection internal seam", () => {
     for (const value of values) {
       const result = projectedV1(value);
       expect(result.bytes).toEqual(canonicalJsonBytes(result.value));
-      expectDeepFrozenV1(result.value);
     }
 
     const escaped = projectedV1('"\b\t\n\f\r\0\\😀');
@@ -242,7 +221,6 @@ describe("bounded canonical projection internal seam", () => {
     expect(Object.getPrototypeOf(projected)).toBe(Object.prototype);
     expect(Object.hasOwn(projected, "__proto__")).toBe(true);
     expect(Object.keys(projected)).toContain("__proto__");
-    expectDeepFrozenV1(projected);
   });
 
   it("projects Proxy data without virtual gets and only oracles the detached value", () => {
@@ -261,7 +239,7 @@ describe("bounded canonical projection internal seam", () => {
     expect(result.bytes).toEqual(canonicalJsonBytes(result.value));
   });
 
-  it("duplicates alias paths, freezes the detached tree, and returns fresh byte transports", () => {
+  it("duplicates alias paths and returns fresh byte transports", () => {
     const shared = { nested: [1, 2] };
     const raw = { left: shared, right: shared };
 
@@ -275,7 +253,6 @@ describe("bounded canonical projection internal seam", () => {
     expect(firstValue.left).not.toBe(shared);
     expect(firstValue.left).not.toBe(firstValue.right);
     expect(firstValue.left.nested).not.toBe(firstValue.right.nested);
-    expectDeepFrozenV1(first.value);
     expect(Object.isFrozen(raw)).toBe(false);
     expect(Object.isFrozen(shared)).toBe(false);
     expect(first.bytes).not.toBe(second.bytes);

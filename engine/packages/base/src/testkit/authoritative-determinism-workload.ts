@@ -121,7 +121,6 @@ export type AuthoritativeDeterminismDispatchResultV1 = Awaited<
 export interface AuthoritativeDeterminismWorkCountsV1 {
   readonly canonicalTraversals: number;
   readonly canonicalDigests: number;
-  readonly deepFreezeTraversals: number;
   readonly commandLogContinuityVerifications: number;
   readonly purposes: PurposeTaggedSnapshotWorkCountsV1;
 }
@@ -232,7 +231,6 @@ function createCompositeSnapshotWorkCounterV1(): CompositeSnapshotWorkCounterV1 
       return Object.freeze({
         canonicalTraversals: counts.canonicalTraversals,
         canonicalDigests: counts.canonicalDigests,
-        deepFreezeTraversals: counts.deepFreezeTraversals,
         commandLogContinuityVerifications: counts.commandLogContinuityVerifications,
         purposes: purposes.snapshot(),
       });

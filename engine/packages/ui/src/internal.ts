@@ -11,4 +11,3 @@ export type {
   GameUiPresentationAnchorTokenInternalV1,
   GameUiPresentationSuccessorProducerInternalV1,
 } from "./composer/create-game-ui-composition.ts";
-export { admitSettledSessionAnchorResultInternalV1 } from "./composer/session-anchor-result-admission-internal.ts";

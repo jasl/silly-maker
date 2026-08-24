@@ -34,7 +34,6 @@ export type SnapshotCommitCommandClassV1 = (typeof snapshotCommitCommandClassesV
 export interface SnapshotSessionWorkCountsV1 {
   readonly canonicalTraversals: number;
   readonly canonicalDigests: number;
-  readonly deepFreezeTraversals: number;
   readonly commandLogContinuityVerifications: number;
 }
 
@@ -265,7 +264,6 @@ function sessionCountsV1(counts: SnapshotWorkCountsV1): SnapshotSessionWorkCount
   return Object.freeze({
     canonicalTraversals: counts.canonicalTraversals,
     canonicalDigests: counts.canonicalDigests,
-    deepFreezeTraversals: counts.deepFreezeTraversals,
     commandLogContinuityVerifications: counts.commandLogContinuityVerifications,
   });
 }

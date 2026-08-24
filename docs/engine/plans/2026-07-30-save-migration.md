@@ -381,9 +381,9 @@ bytes、canonical/digest、M1 load order/result、Persistence/Session/CommandLog
 
 ### M2b — Pure one-step/two-step execution kernel（已实现）
 
-**目标：** 在 bounded Base authority 内解析 complete chain，并在 detached、deep-frozen
-Strict Canonical Data 上同步执行每一步。每步只返回 exact migrated/rejected union；每个
-migrated output重新 descriptor-safe capture、canonical/limit admission、copy/freeze，再交给
+**目标：** 在 bounded Base authority 内解析 complete chain，并在 detached
+Strict Canonical Data 上同步执行每一步。每步返回 migrated/rejected union；historical State 与每个
+migrated output各执行一次 canonical/limit admission 和 detached projection，再交给
 下一步；本切片新增 immutable failure attempt、opaque successful completion与 pure receipt
 finalizer。executor不计算 receipt 的 `migratedStateDigest`；M2c完成 whole-Snapshot
 reconstruction/schema/digest后把 final normalized Snapshot digest交给 finalizer。
@@ -396,24 +396,23 @@ browser matrix；不处理 format migration、RNG、command sequence、integrity
 lineage 或 arbitrary context。
 
 **Red/acceptance：** one/two-step、rename、delete fallback/reject、repeat equality、exact callback
-counts、input/output alias mutation、thenable、non-exact/extra/symbol/accessor result、custom
-prototype、cycle、fractional/non-finite/unsafe number与over-limit output。missing/incomplete chain
+counts、input/output alias detachment、missing/illegal result fields、invalid reason、cycle、
+fractional/non-finite/unsafe number与over-limit output。missing/incomplete chain
 callback count 为 `0`；explicit reject=`migration.rejected`，illegal output=
 `migration.output_invalid`，throw=`migration.callback_threw`且不暴露 message/stack。所有 M2b
 failure attempt的 `migratedStateDigest`为 `null`；receipt finalizer只接受 exact successful
 completion与调用者提供的 whole-Snapshot digest，不能接受 failure/fake/spread token。
 
-**2026-08-03 M2b promotion：** Base 现已在 bounded authority 内提供 exact non-empty suffix
-resolution、detached/deep-frozen Strict State admission、同步 one/two-step execution、immutable
-failure attempt、opaque completion与 whole-Snapshot receipt finalizer。capture-time limits 在
-排序或 descriptor traversal 前约束 collection、key/string、node/depth与 canonical bytes；每个
-own-key vector只捕获一次，Promise/thenable同步 fail closed且不读取 `.then`。TDD red先证明缺失
-module/public data type/authority registration；对抗 red随后捕获 post-hoc over-limit traversal、
-双 own-key snapshot、超长 key preflight与合同外 Promise sink，均已收紧。focused为
-`2 files / 49 tests`，affected Base为 `80/1032`，full unit为 `229/3379`，typecheck、
-determinism guard与 `deno task check`全绿。Persistence/load/import、maintained migration owner、
-Save bytes、canonical/digest、Session/CommandLog/replay与 Debug Bundle均未改变。下一独立切片为
-M2c staged integration。
+**2026-08-03 M2b promotion；2026-08-24 Complexity Reset：** Base 在 bounded authority 内保留
+exact non-empty suffix resolution、同步 one/two-step execution、immutable failure attempt、opaque
+completion与 whole-Snapshot receipt finalizer。2026-08-24 reset 删除了原 promotion 中递归
+deep-freeze、descriptor/prototype result-envelope authentication 与一次性对抗 harness；当前实现用
+维护中的 canonical+limits encoder 和 Strict JSON parser 产生 detached State，callback result只做
+普通 discriminant/field/value检查，额外字段不获得 authority。Promise若没有同步合法 union仍
+fail closed，kernel不 await或调用 `.then`。真实 chain/completion ownership、每步 canonical/limits、
+failure phase、whole-Snapshot digest与原子 replacement合同不变。Persistence/load/import、
+maintained migration owner、Save bytes、canonical/digest、Session/CommandLog/replay与 Debug Bundle
+均未改变。
 
 ### M2c — Staged load/import integration and failure mapping（已实现）
 
@@ -441,11 +440,13 @@ limit、current schema/RNG/reference/invariant failure。每个失败逐项保�
 record revision、live Snapshot/RNG/CommandLog/replay digest、lineage、receipt、autosave与Host
 write count；load/import不写回 source Save，fresh Save自然使用 current provenance/digest。
 
-**2026-08-03 M2c promotion：** Core把 exact registry identity原样传入 Persistence；import与
+**2026-08-03 M2c promotion；2026-08-24 runtime-semantics correction：** Core把 exact registry identity原样传入 Persistence；import与
 stored load在 raw digest/State branch（以及 stored physical identity）之后解析完整 chain，
 admit exact historical Snapshot shell并同步迁移 State。schema前 shell与 schema输出 full record
-都经 bounded descriptor-safe detached/deep-frozen canonical capture，因此 permissive schema或
-cross-field validator不能通过 alias改写非 State字段、绕过 limits或造成 stale digest。candidate
+都经 bounded detached Strict Canonical projection；current schema输出在 whole-Snapshot digest前
+重新 admission，因此不能通过 retained raw alias改写非 State字段或绕过 limits。schema与
+cross-field callbacks按 `DeepReadonly` 合同消费普通 JavaScript data；runtime不以递归冻结防御
+绕过类型约束的对象 mutation。candidate
 只更新 State及其 provenance identity/whole-Snapshot digest；RNG、command sequence、integrity、
 annotation、versionStamp、slot、savedAt、record revision与lineage保持。current revision callback
 为 `0`；list/stored export/annotation保持 callback-free。缺 chain产生合同规定的 unavailable，

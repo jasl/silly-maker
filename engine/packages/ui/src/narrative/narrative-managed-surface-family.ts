@@ -7955,13 +7955,13 @@ export function createNarrativeStableSayRevealControllerInternalV1(
     }
     bridgeRecord.sayCallbackClaim = null;
     bridgeRecord.saySemanticInFlightClaim = boundaryClaim;
-    const resolution: InteractionResolutionV1 = Object.freeze({
+    const resolution: InteractionResolutionV1 = {
       kind: "advance" as const,
-    });
-    const request = Object.freeze({
+    };
+    const request = {
       expectedOccurrenceId: currentFrame.pending.occurrenceId,
       resolution,
-    }) satisfies NarrativeStableSemanticResolutionRequestInternalV1;
+    } satisfies NarrativeStableSemanticResolutionRequestInternalV1;
     try {
       if (captureExactCurrentFrame() === null) {
         releaseBoundary(boundaryClaim);
@@ -8452,10 +8452,10 @@ export function createNarrativeStableHoldExpiryControllerInternalV1(
         if (portBinding === undefined || dispatchTime === undefined) {
           return narrativeHoldExpiryFaultedResultInternalV1;
         }
-        const request = Object.freeze({
+        const request = {
           elapsedMs,
           expectedHoldOccurrenceId: current.frame.pending.occurrenceId,
-        }) satisfies NarrativeStableSemanticTimeRequestInternalV1;
+        } satisfies NarrativeStableSemanticTimeRequestInternalV1;
         if (
           Reflect.apply(isCurrentReadyActiveTarget, stableActionAuthority, [record.proof]) !== true
         ) {
@@ -9592,25 +9592,25 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         const foldedElapsedMs = currentFrame.pending.remainingMs -
           (narrativeHoldDispatchLedgersInternalV1.get(currentFrame)?.dispatchedElapsedMs ?? 0);
         if (foldedElapsedMs < 1) return narrativePhysicalActionStaleResultInternalV1;
-        const request = Object.freeze({
+        const request = {
           elapsedMs: foldedElapsedMs,
           expectedHoldOccurrenceId: currentFrame.pending.occurrenceId,
-        }) satisfies NarrativeStableSemanticTimeRequestInternalV1;
+        } satisfies NarrativeStableSemanticTimeRequestInternalV1;
         dispatch = () => dispatchTime(request);
       } else {
         const resolution: InteractionResolutionV1 = record.kind === "choice"
-          ? Object.freeze({
+          ? {
             kind: "choose" as const,
             choiceId: record.choiceId,
-          })
-          : Object.freeze({
+          }
+          : {
             kind: "custom" as const,
             payload: record.payload,
-          });
-        const request = Object.freeze({
+          };
+        const request = {
           expectedOccurrenceId: currentFrame.pending.occurrenceId,
           resolution,
-        }) satisfies NarrativeStableSemanticResolutionRequestInternalV1;
+        } satisfies NarrativeStableSemanticResolutionRequestInternalV1;
         dispatch = () => portBinding.dispatchResolutionInternalV1(request);
       }
       if (
@@ -11133,14 +11133,14 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
         }
         bridgeRecord.barrierCallbackClaim = null;
         bridgeRecord.barrierSemanticInFlightClaim = boundaryClaim;
-        const resolution: InteractionResolutionV1 = Object.freeze({
+        const resolution: InteractionResolutionV1 = {
           kind: "barrier_completed" as const,
           transitionId: generation.preexistingTarget.targetIdentity.expectedTransitionId,
-        });
-        const request = Object.freeze({
+        };
+        const request = {
           expectedOccurrenceId: attemptRecord.frame.pending.occurrenceId,
           resolution,
-        }) satisfies NarrativeStableSemanticResolutionRequestInternalV1;
+        } satisfies NarrativeStableSemanticResolutionRequestInternalV1;
 
         let semanticCompletion: Promise<unknown>;
         try {
@@ -11475,14 +11475,14 @@ export function createNarrativeStableBarrierAcknowledgmentControllerInternalV1(
       }
       bridgeRecord.barrierCallbackClaim = null;
       bridgeRecord.barrierSemanticInFlightClaim = boundaryClaim;
-      const resolution: InteractionResolutionV1 = Object.freeze({
+      const resolution: InteractionResolutionV1 = {
         kind: "barrier_completed" as const,
         transitionId: evidence.targetIdentity.expectedTransitionId,
-      });
-      const request = Object.freeze({
+      };
+      const request = {
         expectedOccurrenceId: current.frame.pending.occurrenceId,
         resolution,
-      }) satisfies NarrativeStableSemanticResolutionRequestInternalV1;
+      } satisfies NarrativeStableSemanticResolutionRequestInternalV1;
 
       let semanticCompletion: Promise<unknown>;
       try {

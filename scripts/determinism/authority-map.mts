@@ -108,7 +108,9 @@ const applicationPoliciesV1 = Object.freeze(
         module: "examples/bookshop/src/application/core-definition.ts",
         exportName: "bookshopCoreApplicationDefinitionV1",
       }),
-      dependencySeedEntries: Object.freeze([]),
+      dependencySeedEntries: Object.freeze([
+        "examples/bookshop/src/game/simulation-definition.ts",
+      ]),
     }),
     Object.freeze({
       applicationId: "example-silly-os",
@@ -118,7 +120,9 @@ const applicationPoliciesV1 = Object.freeze(
         module: "examples/silly-os/src/application/core-definition.ts",
         exportName: "osCoreApplicationDefinitionV1",
       }),
-      dependencySeedEntries: Object.freeze([]),
+      dependencySeedEntries: Object.freeze([
+        "examples/silly-os/src/game/simulation-definition.ts",
+      ]),
     }),
     Object.freeze({
       applicationId: "example-cat-cafe",

@@ -9,7 +9,6 @@ import {
   extractDiagnosticsV1,
 } from "../contracts/diagnostic-envelope.ts";
 import type { RuntimeSchemaV1 } from "../contracts/values.ts";
-import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.ts";
 
 export interface RuntimeSchemaOptionsV1 {
   /** Attached to every diagnostic this schema produces. */
@@ -61,12 +60,12 @@ function finalizeCanonicalValueV1<TValue>(
     }
     throw error;
   }
-  return deepFreezeAuthoringValueV1(value);
+  return value;
 }
 
 /**
  * Wraps a Story-owned parse function into the engine schema contract: the
- * output must be canonical JSON, is deep-frozen, and every failure surfaces
+ * output must be canonical JSON, and every failure surfaces
  * as a stable structured diagnostic instead of a bare exception.
  */
 export function createRuntimeSchemaV1<TValue>(
@@ -136,7 +135,7 @@ function issuePointerV1(issue: StandardSchemaIssueLikeV1): string | null {
 
 /**
  * Adapts a Standard Schema (for example a Zod 4 schema) into the engine's
- * RuntimeSchema contract with canonical-JSON output, deep-freeze, and one
+ * RuntimeSchema contract with canonical-JSON output and one
  * structured diagnostic per validation issue.
  */
 export function fromStandardSchemaV1<TSchema extends StandardSchemaLikeV1<unknown>>(

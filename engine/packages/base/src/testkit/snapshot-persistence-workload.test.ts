@@ -19,7 +19,6 @@ import { snapshotTransactionProvenanceV1 } from "./snapshot-transaction-workload
 const firstAutoSaveCountsV1 = Object.freeze({
   canonicalTraversals: 7,
   canonicalDigests: 4,
-  deepFreezeTraversals: 3,
   commandLogContinuityVerifications: 1,
   saveCanonicalSerializations: 1,
   strictJsonParses: 1,
@@ -29,7 +28,6 @@ const firstAutoSaveCountsV1 = Object.freeze({
 const rotationCountsV1 = Object.freeze({
   canonicalTraversals: 11,
   canonicalDigests: 7,
-  deepFreezeTraversals: 3,
   commandLogContinuityVerifications: 1,
   saveCanonicalSerializations: 2,
   strictJsonParses: 2,
@@ -247,7 +245,6 @@ describe("Snapshot persistence workload", () => {
     expect(prepared.setupCounts).toEqual({
       canonicalTraversals: 1,
       canonicalDigests: 1,
-      deepFreezeTraversals: 1,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -271,7 +268,6 @@ describe("Snapshot persistence workload", () => {
       aggregateCounts: {
         canonicalTraversals: 18,
         canonicalDigests: 11,
-        deepFreezeTraversals: 6,
         commandLogContinuityVerifications: 2,
         saveCanonicalSerializations: 3,
         strictJsonParses: 3,

@@ -356,7 +356,6 @@ describe("GameSession FIFO", () => {
       expect(counter.snapshot()).toEqual({
         canonicalTraversals: 1,
         canonicalDigests: 0,
-        deepFreezeTraversals: 0,
         commandLogContinuityVerifications: 0,
         saveCanonicalSerializations: 0,
         strictJsonParses: 0,
@@ -364,13 +363,9 @@ describe("GameSession FIFO", () => {
       });
       expect(purposes.snapshot()).toEqual({
         snapshotDigestTraversals: 0,
-        snapshotFreezeTraversals: 0,
         bootstrapAdmissionCanonicalTraversals: 0,
-        bootstrapHandoffFreezeTraversals: 0,
         commandAdmissionCanonicalTraversals: 1,
-        commandHandoffFreezeTraversals: 0,
         commandLogMetadataAdmissionCanonicalTraversals: 0,
-        commandLogMetadataFreezeTraversals: 0,
         evidenceAdmissionCanonicalTraversals: 0,
         replayComparisonTraversals: 0,
         totalPhysicalCanonicalTraversals: 1,
@@ -459,7 +454,6 @@ describe("GameSession FIFO", () => {
     expect(counter.snapshot()).toEqual({
       canonicalTraversals: 0,
       canonicalDigests: 0,
-      deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -467,20 +461,16 @@ describe("GameSession FIFO", () => {
     });
     expect(purposes.snapshot()).toEqual({
       snapshotDigestTraversals: 0,
-      snapshotFreezeTraversals: 0,
       bootstrapAdmissionCanonicalTraversals: 0,
-      bootstrapHandoffFreezeTraversals: 0,
       commandAdmissionCanonicalTraversals: 0,
-      commandHandoffFreezeTraversals: 0,
       commandLogMetadataAdmissionCanonicalTraversals: 0,
-      commandLogMetadataFreezeTraversals: 0,
       evidenceAdmissionCanonicalTraversals: 0,
       replayComparisonTraversals: 0,
       totalPhysicalCanonicalTraversals: 0,
     });
   });
 
-  it("re-admits reused normalized input into distinct frozen projections for executor and log", async () => {
+  it("admits reused normalized input once per dispatch and shares it with the internal log", async () => {
     const counter = createSnapshotWorkCounterV1();
     const purposes = createPurposeTaggedSnapshotWorkCounterV1();
     const instrumentation = Object.freeze({
@@ -535,14 +525,11 @@ describe("GameSession FIFO", () => {
     expect(created.commandLog.entries()).toHaveLength(2);
     expect(created.commandLog.entries()[0]?.command).toBe(executedCommands[0]);
     expect(created.commandLog.entries()[1]?.command).toBe(executedCommands[1]);
-    expect(Object.isFrozen(executedCommands[0])).toBe(true);
-    expect(Object.isFrozen(executedCommands[1])).toBe(true);
     expect(Object.isFrozen(normalized)).toBe(false);
     expect(Object.isFrozen((normalized as unknown as { metadata: object }).metadata)).toBe(false);
     expect(counter.snapshot()).toEqual({
       canonicalTraversals: 6,
       canonicalDigests: 2,
-      deepFreezeTraversals: 6,
       commandLogContinuityVerifications: 2,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -550,13 +537,9 @@ describe("GameSession FIFO", () => {
     });
     expect(purposes.snapshot()).toEqual({
       snapshotDigestTraversals: 2,
-      snapshotFreezeTraversals: 2,
       bootstrapAdmissionCanonicalTraversals: 0,
-      bootstrapHandoffFreezeTraversals: 0,
       commandAdmissionCanonicalTraversals: 2,
-      commandHandoffFreezeTraversals: 2,
       commandLogMetadataAdmissionCanonicalTraversals: 0,
-      commandLogMetadataFreezeTraversals: 0,
       evidenceAdmissionCanonicalTraversals: 2,
       replayComparisonTraversals: 0,
       totalPhysicalCanonicalTraversals: 6,
@@ -705,7 +688,6 @@ describe("GameSession FIFO", () => {
     expect(counter.snapshot()).toEqual({
       canonicalTraversals: 3,
       canonicalDigests: 1,
-      deepFreezeTraversals: 3,
       commandLogContinuityVerifications: 1,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -720,7 +702,6 @@ describe("GameSession FIFO", () => {
     expect(counter.snapshot()).toEqual({
       canonicalTraversals: 2,
       canonicalDigests: 0,
-      deepFreezeTraversals: 2,
       commandLogContinuityVerifications: 1,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -851,7 +832,6 @@ describe("GameSession FIFO", () => {
     expect(counter.snapshot()).toEqual({
       canonicalTraversals: 1,
       canonicalDigests: 0,
-      deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -945,7 +925,6 @@ describe("GameSession FIFO", () => {
       expect(counter.snapshot()).toEqual({
         canonicalTraversals: 0,
         canonicalDigests: 0,
-        deepFreezeTraversals: 0,
         commandLogContinuityVerifications: 0,
         saveCanonicalSerializations: 0,
         strictJsonParses: 0,
@@ -1007,7 +986,6 @@ describe("GameSession FIFO", () => {
     expect(debugValidateCalls).toBe(0);
     expect(debugExecuteCalls).toBe(0);
     expect(purposes.snapshot().commandAdmissionCanonicalTraversals).toBe(1);
-    expect(purposes.snapshot().commandHandoffFreezeTraversals).toBe(1);
     expect(purposes.snapshot().evidenceAdmissionCanonicalTraversals).toBe(1);
     expect(created.commandLog.entries()).toHaveLength(1);
     expect(created.commandLog.entries()[0]?.source).toBe("game");
@@ -1292,7 +1270,6 @@ describe("GameSession FIFO", () => {
     expect(counter.snapshot()).toEqual({
       canonicalTraversals: 1,
       canonicalDigests: 1,
-      deepFreezeTraversals: 1,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -1307,7 +1284,6 @@ describe("GameSession FIFO", () => {
     expect(counter.snapshot()).toEqual({
       canonicalTraversals: 3,
       canonicalDigests: 1,
-      deepFreezeTraversals: 3,
       commandLogContinuityVerifications: 1,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -1421,7 +1397,6 @@ describe("GameSession FIFO", () => {
     expect(counter.snapshot()).toEqual({
       canonicalTraversals: 9,
       canonicalDigests: 3,
-      deepFreezeTraversals: 9,
       commandLogContinuityVerifications: 3,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -2887,7 +2862,6 @@ describe("GameSession FIFO", () => {
     expect(counter.snapshot()).toEqual({
       canonicalTraversals: 1,
       canonicalDigests: 1,
-      deepFreezeTraversals: 1,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -2904,7 +2878,6 @@ describe("GameSession FIFO", () => {
     expect(counter.snapshot()).toEqual({
       canonicalTraversals: 3,
       canonicalDigests: 1,
-      deepFreezeTraversals: 3,
       commandLogContinuityVerifications: 1,
       saveCanonicalSerializations: 0,
       strictJsonParses: 0,
@@ -3111,7 +3084,7 @@ describe("GameSession FIFO", () => {
     expect(session.getStatus()).toBe("ready");
   });
 
-  it("rejects a queue-front then accessor without invoking its getter", async () => {
+  it("rejects a queue-front thenable and keeps the Session ready", async () => {
     const { session, runtimeControl } = fixture();
     let getterCalls = 0;
     const accessor = {};
@@ -3125,7 +3098,7 @@ describe("GameSession FIFO", () => {
     await expect(runtimeControl.readAtQueueFront(() => accessor)).rejects.toThrow(
       "GameSession queue-front reader returned thenable",
     );
-    expect(getterCalls).toBe(0);
+    expect(getterCalls).toBe(1);
     expect(session.getStatus()).toBe("ready");
   });
 
@@ -3264,146 +3237,5 @@ describe("GameSession FIFO", () => {
     expect(created.commandLog.entries()[0]?.outcome.kind).toBe("committed");
     expect(created.session.getStatus()).toBe("ready");
     expect(observerFailures).toEqual([observerError]);
-  });
-});
-
-describe("GameSession snapshot immutability", () => {
-  function createMutableSnapshot(
-    count: number,
-    integrity: Snapshot["integrity"] = createPristineRunIntegrityV1(),
-  ): Snapshot {
-    return {
-      state: { count },
-      rng: { cursor: 0 },
-      commandSequence: parseNonNegativeSafeInteger(count),
-      integrity,
-    };
-  }
-
-  function createMutableFixture(): ReturnType<typeof createGameSessionV1<Types>> {
-    return createGameSessionV1<Types>({
-      initialSnapshot: createMutableSnapshot(0),
-      commandSchema,
-      executionContext: undefined,
-      executeAttempt(snapshot, command) {
-        if (command.kind !== "increment") return attempt(snapshot as Snapshot, command);
-        const current = snapshot as Snapshot;
-        const next = createMutableSnapshot(current.state.count + 1, current.integrity);
-        return {
-          result: { kind: "committed", snapshot: next, events: [{ count: next.state.count }] },
-          diagnostics: {
-            committedRngBefore: current.rng,
-            attemptedDraws: [] as readonly never[],
-            committedRngAfter: next.rng,
-          },
-        };
-      },
-      normalizeUnexpectedDispatchFault(_error, snapshot) {
-        return attempt(snapshot as Snapshot, { kind: "fault" });
-      },
-    });
-  }
-
-  it("deep-freezes the bootstrap Snapshot before exposing it", () => {
-    const created = createMutableFixture();
-
-    const current = created.session.getCurrentSnapshot();
-    expect(Object.isFrozen(current)).toBe(true);
-    expect(Object.isFrozen(current.state)).toBe(true);
-    expect(Object.isFrozen(current.rng)).toBe(true);
-    expect(() => {
-      (current.state as { count: number }).count = 99;
-    }).toThrowError(TypeError);
-    expect(current.state.count).toBe(0);
-  });
-
-  it("deep-freezes committed Snapshots even when the executor returns mutable data", async () => {
-    const created = createMutableFixture();
-
-    await created.session.dispatch({ kind: "increment" });
-
-    const current = created.session.getCurrentSnapshot();
-    expect(current.state.count).toBe(1);
-    expect(Object.isFrozen(current)).toBe(true);
-    expect(Object.isFrozen(current.state)).toBe(true);
-    expect(Object.isFrozen(current.rng)).toBe(true);
-    expect(() => {
-      (current.state as { count: number }).count = 99;
-    }).toThrowError(TypeError);
-    expect(created.session.getCurrentSnapshot().state.count).toBe(1);
-  });
-
-  it("freezes a committed Snapshot before observers and keeps the next digest chain valid", async () => {
-    const observerFailures: unknown[] = [];
-    let mutationAttempts = 0;
-    const created = createGameSessionV1<Types>({
-      initialSnapshot: createMutableSnapshot(0),
-      commandSchema,
-      executionContext: undefined,
-      executeAttempt(snapshot, command) {
-        if (command.kind !== "increment") return attempt(snapshot as Snapshot, command);
-        const current = snapshot as Snapshot;
-        const next = createMutableSnapshot(current.state.count + 1, current.integrity);
-        return {
-          result: { kind: "committed", snapshot: next, events: [{ count: next.state.count }] },
-          diagnostics: {
-            committedRngBefore: current.rng,
-            attemptedDraws: [] as readonly never[],
-            committedRngAfter: next.rng,
-          },
-        };
-      },
-      normalizeUnexpectedDispatchFault(_error, snapshot) {
-        return attempt(snapshot as Snapshot, { kind: "fault" });
-      },
-      onAttempt(finalized) {
-        if (mutationAttempts > 0) return;
-        mutationAttempts += 1;
-        (finalized.result.snapshot.state as { count: number }).count = 99;
-      },
-      onObserverFailure(error) {
-        observerFailures.push(error);
-      },
-    });
-
-    await created.session.dispatch({ kind: "increment" });
-    await created.session.dispatch({ kind: "increment" });
-
-    const entries = created.commandLog.entries();
-    expect(observerFailures).toHaveLength(1);
-    expect(observerFailures[0]).toBeInstanceOf(TypeError);
-    expect(created.session.getCurrentSnapshot().state.count).toBe(2);
-    expect(entries).toHaveLength(2);
-    expect(entries[0]?.postStateDigest).toBe(
-      digestCanonical("sillymaker:state:v1", createSnapshot(1)),
-    );
-    expect(entries[1]?.preStateDigest).toBe(entries[0]?.postStateDigest);
-    expect(entries[1]?.postStateDigest).toBe(
-      digestCanonical("sillymaker:state:v1", created.session.getCurrentSnapshot()),
-    );
-  });
-
-  it("recurses into mutable children below an already-frozen envelope", () => {
-    const partiallyFrozen = Object.freeze({
-      state: { count: 0 },
-      rng: { cursor: 0 },
-      commandSequence: parseNonNegativeSafeInteger(0),
-      integrity: createPristineRunIntegrityV1(),
-    });
-    const created = createGameSessionV1<Types>({
-      initialSnapshot: partiallyFrozen,
-      commandSchema,
-      executionContext: undefined,
-      executeAttempt(snapshot, command) {
-        return attempt(snapshot as Snapshot, command);
-      },
-      normalizeUnexpectedDispatchFault(_error, snapshot) {
-        return attempt(snapshot as Snapshot, { kind: "fault" });
-      },
-    });
-
-    const current = created.session.getCurrentSnapshot();
-    expect(Object.isFrozen(current.state)).toBe(true);
-    expect(Object.isFrozen(current.rng)).toBe(true);
   });
 });

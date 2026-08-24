@@ -148,8 +148,8 @@ deno task story prebuilt-smoke <app>
 `dist-web/` can be deployed directly to static hosting. A distributed Player
 must make the SillyMaker MIT text and any notices required by its bundled
 material available through an in-product page, accompanying files, or a stable
-public link; a technical Artifact manifest is optional and does not replace
-that review.
+public link. Offline packaging, signing, and integrity checks use the selected
+target platform's tools and do not replace that review.
 
 ## Diagnostics quick-reference (all from real pitfalls)
 

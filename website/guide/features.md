@@ -45,4 +45,6 @@ Saves are plain, versioned, validated data — a quick slot plus numbered manual
   downloads before draining its local HTTP server on native close.
   Signing/notarization and durable-store promotion remain explicit release gates.
   Player HTML links to the [SillyMaker project license](/reference/licenses);
-  the technical Artifact manifest remains an optional integrity tool.
+  project legal files can also be copied into an explicitly selected offline
+  output. Packaging, signing, and integrity checks use the target platform's
+  tools.

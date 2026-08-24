@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
-import { CanonicalJsonError, projectCanonicalJsonInternalV1 } from "../contracts/canonical-json.ts";
+import { projectCanonicalJsonInternalV1 } from "../contracts/canonical-json.ts";
 import type { CommandExecutionAttemptEnvelopeV1 } from "../contracts/execution.ts";
 import type { DeepReadonly, Digest } from "../contracts/values.ts";
 import type { SnapshotWorkInstrumentationV1 } from "./snapshot-work-instrumentation.ts";
-import { recordSnapshotWorkV1 } from "./snapshot-work-instrumentation.ts";
 
 interface SnapshotWithCommandEvidenceV1 {
   readonly rng: unknown;
@@ -37,57 +36,6 @@ export type FinalizedEvidenceResultConstraintInternalV1 =
     readonly message: string;
   };
 
-export type DeferredSimulationEvidenceTargetInternalV1 =
-  | "simulation_game_execute"
-  | "simulation_debug_validate"
-  | "simulation_debug_execute";
-
-interface ActiveSimulationEvidenceDeferralInternalV1 {
-  readonly target: DeferredSimulationEvidenceTargetInternalV1;
-  consumed: boolean;
-}
-
-const activeSimulationEvidenceDeferralsInternalV1: ActiveSimulationEvidenceDeferralInternalV1[] =
-  [];
-
-/** @internal Distinguishes the public executor's opaque generic results from attempt evidence. */
-export function isCommandAttemptEnvelopeCandidateInternalV1(value: unknown): boolean {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
-  const names = Object.getOwnPropertyNames(value);
-  return names.includes("result") && names.includes("diagnostics");
-}
-
-/** @internal Lets Standard Core preserve candidate-RNG precedence before Session finalization. */
-export function withDeferredSimulationEvidenceAdmissionInternalV1<TResult>(
-  target: DeferredSimulationEvidenceTargetInternalV1,
-  callback: () => TResult,
-): TResult {
-  const deferral: ActiveSimulationEvidenceDeferralInternalV1 = { target, consumed: false };
-  activeSimulationEvidenceDeferralsInternalV1.push(deferral);
-  let outcome:
-    | { readonly kind: "returned"; readonly value: TResult }
-    | { readonly kind: "threw"; readonly error: unknown };
-  try {
-    outcome = { kind: "returned", value: callback() };
-  } catch (error) {
-    outcome = { kind: "threw", error };
-  }
-  const popped = activeSimulationEvidenceDeferralsInternalV1.pop();
-  if (popped !== deferral) throw new TypeError("Simulation evidence deferral scope was corrupted");
-  if (outcome.kind === "threw") throw outcome.error;
-  return outcome.value;
-}
-
-/** @internal Exact-target one-shot check used only by resolved Simulation wrappers. */
-export function consumeSimulationEvidenceDeferralInternalV1(
-  target: DeferredSimulationEvidenceTargetInternalV1,
-): boolean {
-  const deferral = activeSimulationEvidenceDeferralsInternalV1.at(-1);
-  if (deferral === undefined || deferral.consumed || deferral.target !== target) return false;
-  deferral.consumed = true;
-  return true;
-}
-
 type AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace> =
   CommandExecutionAttemptEnvelopeV1<
     TSnapshot,
@@ -111,120 +59,16 @@ type FinalizedAttemptV1<
   readonly postStateDigest: Digest;
 };
 
-type DataDescriptorsV1 = Readonly<Record<string, PropertyDescriptor>>;
-
-function pointerSegmentV1(value: string): string {
-  return value.replaceAll("~", "~0").replaceAll("/", "~1");
+function requireRecordV1(value: unknown, label: string): Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError(`${label} must be an object`);
+  }
+  return value as Record<string, unknown>;
 }
 
-function compareCodePointsV1(left: string, right: string): number {
-  const leftPoints = Array.from(left, (value) => value.codePointAt(0) ?? 0);
-  const rightPoints = Array.from(right, (value) => value.codePointAt(0) ?? 0);
-  const length = Math.min(leftPoints.length, rightPoints.length);
-  for (let index = 0; index < length; index += 1) {
-    const difference = (leftPoints[index] ?? 0) - (rightPoints[index] ?? 0);
-    if (difference !== 0) return difference;
-  }
-  return leftPoints.length - rightPoints.length;
-}
-
-function captureExactRecordV1(
-  value: unknown,
-  label: string,
-  requiredKeys: readonly string[],
-  optionalKeys: readonly string[] = [],
-  path = "",
-): DataDescriptorsV1 {
-  if (
-    value !== null &&
-    typeof value === "object" &&
-    !Array.isArray(value) &&
-    Object.getPrototypeOf(value) !== Object.prototype
-  ) {
-    throw new CanonicalJsonError("value.custom_prototype", path);
-  }
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype
-  ) {
-    throw new TypeError(`${label} must be a plain object`);
-  }
-  if (Object.getOwnPropertySymbols(value).length !== 0) {
-    throw new CanonicalJsonError("value.unrepresented_property", path);
-  }
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const allowed = new Set([...requiredKeys, ...optionalKeys]);
-  const keys = Object.keys(descriptors);
-  if (
-    requiredKeys.some((key) => !Object.hasOwn(descriptors, key)) ||
-    keys.some((key) => !allowed.has(key))
-  ) {
-    throw new TypeError(`${label} has invalid fields`);
-  }
-  for (const [key, descriptor] of Object.entries(descriptors)) {
-    if (descriptor.get !== undefined || descriptor.set !== undefined) {
-      throw new CanonicalJsonError(
-        "value.getter",
-        `${path}/${pointerSegmentV1(key)}`,
-      );
-    }
-    if (descriptor.enumerable !== true) throw new TypeError(`${label} fields must be enumerable`);
-  }
-  return descriptors;
-}
-
-function captureDenseArrayV1(value: unknown, path: string): readonly unknown[] {
-  if (!Array.isArray(value)) throw new TypeError(`${path || "value"} must be an array`);
-  if (Object.getPrototypeOf(value) !== Array.prototype) {
-    throw new CanonicalJsonError("value.custom_prototype", path);
-  }
-  const ownKeys = Reflect.ownKeys(value);
-  if (ownKeys.some((key) => typeof key === "symbol")) {
-    throw new CanonicalJsonError("value.unrepresented_property", path);
-  }
-  const lengthDescriptor = Object.getOwnPropertyDescriptor(value, "length");
-  if (
-    lengthDescriptor === undefined ||
-    lengthDescriptor.get !== undefined ||
-    lengthDescriptor.set !== undefined ||
-    typeof lengthDescriptor.value !== "number" ||
-    !Number.isInteger(lengthDescriptor.value) ||
-    lengthDescriptor.value < 0 ||
-    lengthDescriptor.value > 0xffff_ffff
-  ) {
-    throw new TypeError("Canonical array length descriptor is invalid");
-  }
-  const length = lengthDescriptor.value;
-  const extra = ownKeys.filter((key): key is string => typeof key === "string").filter((name) => {
-    if (name === "length") return false;
-    const index = Number(name);
-    return !(
-      Number.isInteger(index) &&
-      index >= 0 &&
-      index < length &&
-      String(index) === name
-    );
-  }).sort(compareCodePointsV1);
-  if (extra[0] !== undefined) {
-    throw new CanonicalJsonError(
-      "value.unrepresented_property",
-      `${path}/${pointerSegmentV1(extra[0])}`,
-    );
-  }
-  const captured: unknown[] = [];
-  for (let index = 0; index < length; index += 1) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
-    if (descriptor === undefined) {
-      throw new CanonicalJsonError("value.sparse_array", `${path}/${index}`);
-    }
-    if (descriptor.get !== undefined || descriptor.set !== undefined) {
-      throw new CanonicalJsonError("value.getter", `${path}/${index}`);
-    }
-    captured.push(descriptor.value);
-  }
-  return captured;
+function requireArrayV1(value: unknown, label: string): readonly unknown[] {
+  if (!Array.isArray(value)) throw new TypeError(`${label} must be an array`);
+  return value;
 }
 
 function normalizeItemsV1<T>(
@@ -234,38 +78,7 @@ function normalizeItemsV1<T>(
   return values.map((value) => parser === undefined ? value as T : parser(value));
 }
 
-function deepFreezeEvidenceV1(
-  value: unknown,
-  instrumentation?: SnapshotWorkInstrumentationV1,
-): void {
-  recordSnapshotWorkV1(instrumentation, "deep_freeze_traversal", "evidence_admission");
-  const visited = new Set<object>();
-  const freeze = (current: unknown): void => {
-    if (current === null || typeof current !== "object" || visited.has(current)) return;
-    visited.add(current);
-    for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(current))) {
-      if (descriptor.get === undefined && descriptor.set === undefined) freeze(descriptor.value);
-    }
-    Object.freeze(current);
-  };
-  freeze(value);
-}
-
-function readAttemptPartsV1(candidate: unknown): {
-  readonly result: unknown;
-  readonly diagnostics: unknown;
-} {
-  const descriptors = captureExactRecordV1(candidate, "Command attempt", [
-    "result",
-    "diagnostics",
-  ]);
-  return {
-    result: descriptors.result?.value,
-    diagnostics: descriptors.diagnostics?.value,
-  };
-}
-
-function prepareAttemptEvidenceV1<
+function admitAttemptEvidenceV1<
   TSnapshot extends SnapshotWithCommandEvidenceV1,
   TEvent,
   TRejection,
@@ -287,26 +100,14 @@ function prepareAttemptEvidenceV1<
   receipt?: Readonly<{ readonly preStateDigest: Digest; readonly postStateDigest: Digest }>,
   resultConstraint?: FinalizedEvidenceResultConstraintInternalV1,
 ): DeepReadonly<AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>> {
-  const attempt = readAttemptPartsV1(candidate);
-  const resultBase = captureExactRecordV1(
-    attempt.result,
-    "Command attempt result",
-    [
-      "kind",
-      "snapshot",
-    ],
-    ["events", "reasons", "fault"],
-    "/result",
-  );
-  const kind = resultBase.kind?.value;
-  const snapshot = resultBase.snapshot?.value as TSnapshot;
-  const diagnosticsBase = captureExactRecordV1(
+  const attempt = requireRecordV1(candidate, "Command attempt");
+  const candidateResult = requireRecordV1(attempt.result, "Command attempt result");
+  const candidateDiagnostics = requireRecordV1(
     attempt.diagnostics,
     "Command attempt diagnostics",
-    ["committedRngBefore", "attemptedDraws", "committedRngAfter"],
-    ["candidateRngAfter"],
-    "/diagnostics",
   );
+  const kind = candidateResult.kind;
+  const snapshot = candidateResult.snapshot as TSnapshot;
 
   policy.validateCandidateSnapshot?.(snapshot);
   if (
@@ -316,122 +117,83 @@ function prepareAttemptEvidenceV1<
     throw new TypeError(resultConstraint.message);
   }
 
-  let evidenceResult: Readonly<Record<string, unknown>>;
-  let result: AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>["result"];
+  let evidenceResult: Record<string, unknown>;
   if (kind === "committed") {
-    captureExactRecordV1(
-      attempt.result,
-      "Committed command result",
-      ["kind", "snapshot", "events"],
-      [],
-      "/result",
-    );
-    const events = normalizeItemsV1<TEvent>(
-      captureDenseArrayV1(resultBase.events?.value, "/result/events"),
-      policy.parseEvent,
-    );
-    evidenceResult = { kind, events };
-    result = { kind, snapshot, events };
+    evidenceResult = {
+      kind,
+      events: normalizeItemsV1(
+        requireArrayV1(candidateResult.events, "Committed command events"),
+        policy.parseEvent,
+      ),
+    };
   } else if (kind === "rejected") {
-    captureExactRecordV1(
-      attempt.result,
-      "Rejected command result",
-      ["kind", "snapshot", "reasons"],
-      [],
-      "/result",
-    );
     if (snapshot !== before) {
       throw new TypeError("Non-committed command attempt changed the Snapshot");
     }
-    const reasons = normalizeItemsV1<TRejection>(
-      captureDenseArrayV1(resultBase.reasons?.value, "/result/reasons"),
-      policy.parseRejection,
-    );
-    evidenceResult = { kind, reasons };
-    result = { kind, snapshot, reasons };
+    evidenceResult = {
+      kind,
+      reasons: normalizeItemsV1(
+        requireArrayV1(candidateResult.reasons, "Rejected command reasons"),
+        policy.parseRejection,
+      ),
+    };
   } else if (kind === "faulted") {
-    captureExactRecordV1(
-      attempt.result,
-      "Faulted command result",
-      ["kind", "snapshot", "fault"],
-      [],
-      "/result",
-    );
     if (snapshot !== before) {
       throw new TypeError("Non-committed command attempt changed the Snapshot");
     }
-    const fault = resultBase.fault?.value as TFault;
-    evidenceResult = { kind, fault };
-    result = { kind, snapshot, fault };
+    evidenceResult = { kind, fault: candidateResult.fault };
   } else {
     throw new TypeError("Command attempt result has an invalid kind");
   }
 
   const parseRngState = policy.parseRngState;
   const committedRngBefore = parseRngState === undefined
-    ? diagnosticsBase.committedRngBefore?.value as TRngState
-    : parseRngState(diagnosticsBase.committedRngBefore?.value);
-  const attemptedDraws = normalizeItemsV1<TRngDrawTrace>(
-    captureDenseArrayV1(diagnosticsBase.attemptedDraws?.value, "/diagnostics/attemptedDraws"),
+    ? candidateDiagnostics.committedRngBefore as TRngState
+    : parseRngState(candidateDiagnostics.committedRngBefore);
+  const attemptedDraws = normalizeItemsV1(
+    requireArrayV1(candidateDiagnostics.attemptedDraws, "Attempted RNG draws"),
     policy.parseRngDrawTrace,
   );
-  const hasCandidateRngAfter = Object.hasOwn(diagnosticsBase, "candidateRngAfter");
+  const hasCandidateRngAfter = Object.hasOwn(candidateDiagnostics, "candidateRngAfter");
   const candidateRngAfter = hasCandidateRngAfter
     ? parseRngState === undefined
-      ? diagnosticsBase.candidateRngAfter?.value as TRngState
-      : parseRngState(diagnosticsBase.candidateRngAfter?.value)
+      ? candidateDiagnostics.candidateRngAfter as TRngState
+      : parseRngState(candidateDiagnostics.candidateRngAfter)
     : undefined;
   const committedRngAfter = parseRngState === undefined
-    ? diagnosticsBase.committedRngAfter?.value as TRngState
-    : parseRngState(diagnosticsBase.committedRngAfter?.value);
+    ? candidateDiagnostics.committedRngAfter as TRngState
+    : parseRngState(candidateDiagnostics.committedRngAfter);
   const diagnostics = {
     committedRngBefore,
     attemptedDraws,
     ...(hasCandidateRngAfter ? { candidateRngAfter } : {}),
     committedRngAfter,
   };
-  const projection = {
-    result: evidenceResult,
-    diagnostics,
-    ...(receipt === undefined ? {} : { receipt }),
-  };
-  const admittedProjection = projectCanonicalJsonInternalV1(
-    projection,
+  const admitted = projectCanonicalJsonInternalV1(
+    {
+      result: evidenceResult,
+      diagnostics,
+      ...(receipt === undefined ? {} : { receipt }),
+    },
     instrumentation,
     "evidence_admission",
-  );
-  deepFreezeEvidenceV1(admittedProjection.value, instrumentation);
-  const admittedEvidence = admittedProjection.value as {
+  ).value as {
     readonly result: Readonly<Record<string, unknown>>;
     readonly diagnostics: typeof diagnostics;
   };
-  if (kind === "committed") {
-    result = {
-      kind,
-      snapshot,
-      events: admittedEvidence.result.events as readonly TEvent[],
-    };
-  } else if (kind === "rejected") {
-    result = {
-      kind,
-      snapshot,
-      reasons: admittedEvidence.result.reasons as readonly TRejection[],
-    };
-  } else {
-    result = {
-      kind: "faulted",
-      snapshot,
-      fault: admittedEvidence.result.fault as TFault,
-    };
-  }
 
-  return Object.freeze({
-    result: Object.freeze(result),
-    diagnostics: admittedEvidence.diagnostics,
-  }) as DeepReadonly<AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>>;
+  const result = kind === "committed"
+    ? { kind, snapshot, events: admitted.result.events as readonly TEvent[] }
+    : kind === "rejected"
+    ? { kind, snapshot, reasons: admitted.result.reasons as readonly TRejection[] }
+    : { kind: "faulted" as const, snapshot, fault: admitted.result.fault as TFault };
+
+  return { result, diagnostics: admitted.diagnostics } as DeepReadonly<
+    AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>
+  >;
 }
 
-/** @internal Session/Simulation candidate admission; intentionally absent from package barrels. */
+/** @internal Admits executor evidence once before Session finalization. */
 export function admitCommandAttemptEvidenceInternalV1<
   TSnapshot extends SnapshotWithCommandEvidenceV1,
   TEvent,
@@ -453,7 +215,7 @@ export function admitCommandAttemptEvidenceInternalV1<
   instrumentation?: SnapshotWorkInstrumentationV1,
   resultConstraint?: FinalizedEvidenceResultConstraintInternalV1,
 ): DeepReadonly<AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>> {
-  return prepareAttemptEvidenceV1(
+  return admitAttemptEvidenceV1(
     before,
     candidate,
     policy,
@@ -463,26 +225,24 @@ export function admitCommandAttemptEvidenceInternalV1<
   );
 }
 
-/** @internal Debug validation evidence admission; intentionally absent from package barrels. */
+/** @internal Admits Debug validation errors at the Session boundary. */
 export function admitDebugValidationErrorsInternalV1<TValidationError>(
   errors: readonly TValidationError[],
   parse: ((value: unknown) => TValidationError) | undefined,
   instrumentation?: SnapshotWorkInstrumentationV1,
 ): readonly DeepReadonly<TValidationError>[] {
-  const normalized = normalizeItemsV1<TValidationError>(
-    captureDenseArrayV1(errors, "/errors"),
+  const normalized = normalizeItemsV1(
+    requireArrayV1(errors, "Debug validation errors"),
     parse,
   );
-  const projection = projectCanonicalJsonInternalV1(
+  return projectCanonicalJsonInternalV1(
     { errors: normalized },
     instrumentation,
     "evidence_admission",
-  );
-  deepFreezeEvidenceV1(projection.value, instrumentation);
-  return projection.value.errors as readonly DeepReadonly<TValidationError>[];
+  ).value.errors as readonly DeepReadonly<TValidationError>[];
 }
 
-/** @internal Exact outer validation plus admission for a Debug validator result. */
+/** @internal Normalizes one Debug validator result at the Session boundary. */
 export function admitDebugValidationResultInternalV1<TValidationError>(
   validation: unknown,
   parse: ((value: unknown) => TValidationError) | undefined,
@@ -493,85 +253,26 @@ export function admitDebugValidationResultInternalV1<TValidationError>(
     readonly kind: "validation_failed";
     readonly errors: readonly DeepReadonly<TValidationError>[];
   } {
-  const descriptors = captureExactRecordV1(
-    validation,
-    "DebugCommand validation result",
-    ["kind"],
-    ["errors"],
-  );
-  const kind = descriptors.kind?.value;
-  if (kind === "allowed") {
-    captureExactRecordV1(validation, "Allowed DebugCommand validation result", ["kind"]);
-    return Object.freeze({ kind });
-  }
-  if (kind !== "validation_failed") {
+  const record = requireRecordV1(validation, "DebugCommand validation result");
+  if (record.kind === "allowed") return { kind: "allowed" };
+  if (record.kind !== "validation_failed") {
     throw new TypeError("DebugCommand validation returned an invalid result");
   }
-  captureExactRecordV1(validation, "Failed DebugCommand validation result", ["kind", "errors"]);
-  const errors = captureDenseArrayV1(descriptors.errors?.value, "/errors");
+  const errors = requireArrayV1(record.errors, "Debug validation errors");
   if (errors.length === 0) {
     throw new TypeError("DebugCommand validation failure must contain errors");
   }
-  return Object.freeze({
-    kind,
+  return {
+    kind: "validation_failed",
     errors: admitDebugValidationErrorsInternalV1(
       errors as readonly TValidationError[],
       parse,
       instrumentation,
     ),
-  });
+  };
 }
 
-interface ActiveFinalizedEvidenceHandoffV1 {
-  readonly attempt: object;
-  consumed: boolean;
-}
-
-const activeFinalizedEvidenceHandoffsV1: ActiveFinalizedEvidenceHandoffV1[] = [];
-
-/** @internal Descriptor-only preflight for CommandLog source/outcome precedence. */
-export function captureFinalizedCommandAttemptResultKindInternalV1(
-  finalizedAttempt: unknown,
-): unknown {
-  const descriptors = captureExactRecordV1(finalizedAttempt, "Finalized command attempt", [
-    "result",
-    "diagnostics",
-    "preSnapshot",
-    "preStateDigest",
-    "postStateDigest",
-  ]);
-  const result = captureExactRecordV1(
-    descriptors.result?.value,
-    "Finalized command result",
-    ["kind", "snapshot"],
-    ["events", "reasons", "fault"],
-    "/result",
-  );
-  return result.kind?.value;
-}
-
-/** @internal Offers one finalized attempt to one exact synchronous CommandLog append. */
-export function withFinalizedEvidenceHandoffInternalV1<TResult>(
-  attempt: object,
-  callback: () => TResult,
-): TResult {
-  const handoff: ActiveFinalizedEvidenceHandoffV1 = { attempt, consumed: false };
-  activeFinalizedEvidenceHandoffsV1.push(handoff);
-  let outcome:
-    | { readonly kind: "returned"; readonly value: TResult }
-    | { readonly kind: "threw"; readonly error: unknown };
-  try {
-    outcome = { kind: "returned", value: callback() };
-  } catch (error) {
-    outcome = { kind: "threw", error };
-  }
-  const popped = activeFinalizedEvidenceHandoffsV1.pop();
-  if (popped !== handoff) throw new TypeError("Finalized evidence handoff scope was corrupted");
-  if (outcome.kind === "threw") throw outcome.error;
-  return outcome.value;
-}
-
-/** @internal CommandLog admission with exact admitted-attempt one-shot Session reuse. */
+/** @internal Public CommandLog input admission. */
 export function admitFinalizedCommandAttemptEvidenceInternalV1<
   TSnapshot extends SnapshotWithCommandEvidenceV1,
   TEvent,
@@ -590,36 +291,23 @@ export function admitFinalizedCommandAttemptEvidenceInternalV1<
   >,
   instrumentation?: SnapshotWorkInstrumentationV1,
 ): FinalizedAttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace> {
-  const handoff = activeFinalizedEvidenceHandoffsV1.at(-1);
-  if (handoff !== undefined && !handoff.consumed && handoff.attempt === finalizedAttempt) {
-    handoff.consumed = true;
-    return finalizedAttempt;
-  }
-
-  const descriptors = captureExactRecordV1(finalizedAttempt, "Finalized command attempt", [
-    "result",
-    "diagnostics",
-    "preSnapshot",
-    "preStateDigest",
-    "postStateDigest",
-  ]);
-  const preSnapshot = descriptors.preSnapshot?.value as DeepReadonly<TSnapshot>;
-  const preStateDigest = descriptors.preStateDigest?.value as Digest;
-  const postStateDigest = descriptors.postStateDigest?.value as Digest;
-  const admitted = prepareAttemptEvidenceV1(
+  const preSnapshot = finalizedAttempt.preSnapshot;
+  const preStateDigest = finalizedAttempt.preStateDigest;
+  const postStateDigest = finalizedAttempt.postStateDigest;
+  const admitted = admitAttemptEvidenceV1(
     preSnapshot,
     {
-      result: descriptors.result?.value,
-      diagnostics: descriptors.diagnostics?.value,
+      result: finalizedAttempt.result,
+      diagnostics: finalizedAttempt.diagnostics,
     } as AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>,
     {},
     instrumentation,
-    Object.freeze({ preStateDigest, postStateDigest }),
+    { preStateDigest, postStateDigest },
   );
-  return Object.freeze({
+  return {
     ...admitted,
     preSnapshot,
     preStateDigest,
     postStateDigest,
-  }) as FinalizedAttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>;
+  } as FinalizedAttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>;
 }

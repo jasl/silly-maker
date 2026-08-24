@@ -21,8 +21,9 @@ Status: simplified 2026-08-12. `LICENSE.md` is controlling.
 Make the SillyMaker MIT text available with a distributed Player or Desktop
 package through an in-product page, accompanying file, or stable public link.
 Hosted `dist-web/` output may be deployed directly. The optional
-`scripts/prepare-artifact.mjs` workflow adds the project license files to an
-offline, integrity-checked handoff.
+`scripts/prepare-artifact.mjs` helper copies the project license files into one
+explicitly selected offline output directory; it does not perform integrity
+checking or package preparation.
 
 Examples and the starter template are MIT inside this repository. A copied
 template may choose a different license for new project-owned Story code and

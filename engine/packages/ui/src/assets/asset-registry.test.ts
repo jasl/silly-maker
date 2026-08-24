@@ -34,7 +34,6 @@ function digestV1(label: string): Digest {
 function runtimeAssetV1(input: {
   readonly assetId: AssetId;
   readonly runtimePath: string;
-  readonly sha256?: Digest;
   readonly usage?: AssetUsageV1;
   readonly fallbackToken?: string;
 }): RuntimeAssetEntryV1 {
@@ -57,8 +56,6 @@ function runtimeAssetV1(input: {
     pivot: null,
     runtimePath: input.runtimePath,
     mediaType: "image/webp",
-    byteLength: parsePositiveSafeInteger(1),
-    sha256: input.sha256 ?? digestV1(input.runtimePath),
     delivery: "runtime_image",
     provider: Object.freeze({ kind: "asset_pack", identity: providerIdentity }),
     overrideChain: Object.freeze([
@@ -118,7 +115,7 @@ function manifestV1(assets: readonly ResolvedAssetEntryV1[]): ResolvedAssetManif
 }
 
 function cacheKeyV1(request: RuntimeAssetLoadRequestV1): string {
-  return `${request.runtimePath}#${request.sha256}`;
+  return request.runtimePath;
 }
 
 function fakeLoaderV1(
@@ -195,11 +192,11 @@ describe("AssetRegistryV1", () => {
     const loader = fakeLoaderV1(
       new Map([
         [
-          `${second.runtimePath}#${second.sha256}`,
+          second.runtimePath,
           { kind: "loaded" as const, url: "/assets/second.webp" },
         ],
         [
-          `${first.runtimePath}#${first.sha256}`,
+          first.runtimePath,
           { kind: "loaded" as const, url: "/assets/first.webp" },
         ],
       ]),
@@ -213,8 +210,8 @@ describe("AssetRegistryV1", () => {
       { assetId: firstId, status: "loaded" },
     ]);
     expect(loader.calls).toEqual([
-      `${second.runtimePath}#${second.sha256}`,
-      `${first.runtimePath}#${first.sha256}`,
+      second.runtimePath,
+      first.runtimePath,
     ]);
     expect(loader.calls.join("\n")).not.toContain("filtered");
   });
@@ -245,21 +242,18 @@ describe("AssetRegistryV1", () => {
     });
   });
 
-  it("deduplicates a final URL and digest while mapping readiness to every ID", async () => {
+  it("deduplicates a Host cache key while mapping readiness to every ID", async () => {
     const firstId = assetId("asset.e2e.scene-a");
     const secondId = assetId("asset.e2e.scene-b");
-    const sharedDigest = digestV1("shared");
     const first = runtimeAssetV1({
       assetId: firstId,
       runtimePath: "assets/shared.webp",
-      sha256: sharedDigest,
     });
     const second = runtimeAssetV1({
       assetId: secondId,
       runtimePath: "assets/shared.webp",
-      sha256: sharedDigest,
     });
-    const key = `${first.runtimePath}#${sharedDigest}`;
+    const key = first.runtimePath;
     const loader = fakeLoaderV1(
       new Map([[key, { kind: "loaded" as const, url: "/assets/shared.webp" }]]),
     );
@@ -285,16 +279,13 @@ describe("AssetRegistryV1", () => {
   it("atomically publishes every ID sharing one settled load in a single revision", async () => {
     const firstId = assetId("asset.e2e.atomic-a");
     const secondId = assetId("asset.e2e.atomic-b");
-    const sharedDigest = digestV1("atomic-shared");
     const first = runtimeAssetV1({
       assetId: firstId,
       runtimePath: "assets/atomic-shared.webp",
-      sha256: sharedDigest,
     });
     const second = runtimeAssetV1({
       assetId: secondId,
       runtimePath: "assets/atomic-shared.webp",
-      sha256: sharedDigest,
     });
     const settlement = deferredV1<LoaderSettlementV1>();
     const calls: string[] = [];
@@ -340,16 +331,13 @@ describe("AssetRegistryV1", () => {
   it("isolates a throwing subscriber after committing shared readiness", async () => {
     const firstId = assetId("asset.e2e.subscriber-a");
     const secondId = assetId("asset.e2e.subscriber-b");
-    const sharedDigest = digestV1("subscriber-shared");
     const first = runtimeAssetV1({
       assetId: firstId,
       runtimePath: "assets/subscriber-shared.webp",
-      sha256: sharedDigest,
     });
     const second = runtimeAssetV1({
       assetId: secondId,
       runtimePath: "assets/subscriber-shared.webp",
-      sha256: sharedDigest,
     });
     const settlement = deferredV1<LoaderSettlementV1>();
     const loader = Object.freeze({
@@ -398,11 +386,11 @@ describe("AssetRegistryV1", () => {
     const loader = fakeLoaderV1(
       new Map([
         [
-          `${failed.runtimePath}#${failed.sha256}`,
+          failed.runtimePath,
           { kind: "failed" as const, code: "decode_failed" as const },
         ],
         [
-          `${loaded.runtimePath}#${loaded.sha256}`,
+          loaded.runtimePath,
           { kind: "loaded" as const, url: "/assets/loaded.webp" },
         ],
       ]),
@@ -501,18 +489,15 @@ describe("AssetRegistryV1", () => {
   it("deduplicates one diagnostic for a shared failure in the same load cycle", async () => {
     const firstId = assetId("asset.e2e.failed-a");
     const secondId = assetId("asset.e2e.failed-b");
-    const sharedDigest = digestV1("shared-failure");
     const first = runtimeAssetV1({
       assetId: firstId,
       runtimePath: "assets/shared-failure.webp",
-      sha256: sharedDigest,
     });
     const second = runtimeAssetV1({
       assetId: secondId,
       runtimePath: "assets/shared-failure.webp",
-      sha256: sharedDigest,
     });
-    const key = `${first.runtimePath}#${sharedDigest}`;
+    const key = first.runtimePath;
     const loader = fakeLoaderV1(
       new Map([[key, { kind: "failed" as const, code: "decode_failed" as const }]]),
     );
@@ -532,8 +517,7 @@ describe("AssetRegistryV1", () => {
     expect(diagnostics).toHaveBeenCalledTimes(1);
     expect(diagnostics).toHaveBeenCalledWith(
       expect.objectContaining({
-        finalUrl: "assets/shared-failure.webp",
-        digest: sharedDigest,
+        runtimePath: "assets/shared-failure.webp",
         faultCode: "asset.decode_failed",
         loadCycle: 1,
       }),
@@ -547,7 +531,7 @@ describe("AssetRegistryV1", () => {
       runtimePath: "assets/usage.webp",
       fallbackToken: "fallback.usage",
     });
-    const key = `${demanded.runtimePath}#${demanded.sha256}`;
+    const key = demanded.runtimePath;
     const loader = fakeLoaderV1(
       new Map([[key, { kind: "loaded" as const, url: "/assets/usage.webp" }]]),
     );
@@ -573,8 +557,7 @@ describe("AssetRegistryV1", () => {
     });
     expect(diagnostics).toHaveBeenCalledWith(
       expect.objectContaining({
-        finalUrl: "assets/usage.webp",
-        digest: demanded.sha256,
+        runtimePath: "assets/usage.webp",
         faultCode: "asset.usage_mismatch",
       }),
     );

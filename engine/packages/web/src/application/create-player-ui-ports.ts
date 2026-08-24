@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 import {
   debugBundleJsonLimitsV1,
-  digestBytes,
-  parseDigest,
   parseNonNegativeSafeInteger,
   parseStrictJson,
   saveJsonLimitsV1,
@@ -56,69 +54,13 @@ export interface PlayerUiPortsV1 {
   readonly diagnostics: DiagnosticExportPortV1;
 }
 
-const requiredDebugBundleKeysV1 = Object.freeze(
-  [
-    "formatRevision",
-    "provenance",
-    "capabilities",
-    "simulationLineage",
-    "generatedAt",
-    "replayBase",
-    "replayBaseStateDigest",
-    "commandLog",
-    "currentSnapshot",
-    "currentStateDigest",
-    "diagnostics",
-    "runtimeFailures",
-  ] as const,
-);
-const optionalDebugBundleKeysV1 = Object.freeze(["appBuildId", "failure", "uiContext"] as const);
-const allowedDebugBundleKeysV1 = new Set<string>([
-  ...requiredDebugBundleKeysV1,
-  ...optionalDebugBundleKeysV1,
-]);
-
-function parseExportedDebugBundleV1(value: unknown): ExportedDebugBundleV1 {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype
-  ) {
-    throw new TypeError("invalid exported Debug Bundle");
-  }
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const keys = Reflect.ownKeys(descriptors);
-  if (
-    keys.length !== 4 ||
-    keys.some(
-      (key) =>
-        typeof key !== "string" || !["bytes", "digest", "filename", "mediaType"].includes(key),
-    ) ||
-    Object.values(descriptors).some(
-      (descriptor) => descriptor.get !== undefined || descriptor.set !== undefined,
-    )
-  ) {
-    throw new TypeError("invalid exported Debug Bundle");
-  }
-  const bytesValue = descriptors.bytes?.value;
-  if (
-    !(bytesValue instanceof Uint8Array) ||
-    Object.getPrototypeOf(bytesValue) !== Uint8Array.prototype
-  ) {
-    throw new TypeError("invalid exported Debug Bundle bytes");
-  }
-  const bytes = Uint8Array.from(bytesValue);
-  const digest = parseDigest(descriptors.digest?.value);
-  if (digest !== digestBytes(bytes)) throw new TypeError("exported Debug Bundle digest mismatch");
-  const filename = descriptors.filename?.value;
-  if (typeof filename !== "string" || filename.length === 0) {
-    throw new TypeError("invalid exported Debug Bundle filename");
-  }
-  if (descriptors.mediaType?.value !== "application/json") {
-    throw new TypeError("invalid exported Debug Bundle media type");
-  }
-  return Object.freeze({ filename, mediaType: "application/json" as const, digest, bytes });
+function detachExportedDebugBundleV1(value: ExportedDebugBundleV1): ExportedDebugBundleV1 {
+  return Object.freeze({
+    filename: value.filename,
+    mediaType: value.mediaType,
+    digest: value.digest,
+    bytes: Uint8Array.from(value.bytes),
+  });
 }
 
 function classifyDebugBundleCategoriesV1(
@@ -127,20 +69,7 @@ function classifyDebugBundleCategoriesV1(
   const decoded = parseStrictJson(bytes, debugBundleJsonLimitsV1);
   if (!decoded.ok) throw new TypeError("invalid prepared Debug Bundle Strict JSON");
   const envelope = decoded.value;
-  if (
-    envelope === null ||
-    typeof envelope !== "object" ||
-    Array.isArray(envelope) ||
-    Object.getPrototypeOf(envelope) !== Object.prototype
-  ) {
-    throw new TypeError("invalid prepared Debug Bundle envelope");
-  }
-  const keys = Object.keys(envelope);
-  if (
-    requiredDebugBundleKeysV1.some((key) => !Object.prototype.hasOwnProperty.call(envelope, key)) ||
-    keys.some((key) => !allowedDebugBundleKeysV1.has(key)) ||
-    Reflect.get(envelope, "formatRevision") !== 1
-  ) {
+  if (envelope === null || typeof envelope !== "object" || Array.isArray(envelope)) {
     throw new TypeError("invalid prepared Debug Bundle envelope");
   }
   const categories: DiagnosticExportContentCategoryIdV1[] = [
@@ -149,10 +78,10 @@ function classifyDebugBundleCategoriesV1(
     "replay_evidence",
     "diagnostics_and_runtime_failures",
   ];
-  if (Object.prototype.hasOwnProperty.call(envelope, "failure")) {
+  if (Object.hasOwn(envelope, "failure")) {
     categories.push("failure_context");
   }
-  if (Object.prototype.hasOwnProperty.call(envelope, "uiContext")) {
+  if (Object.hasOwn(envelope, "uiContext")) {
     categories.push("ui_context");
   }
   return Object.freeze(categories);
@@ -260,7 +189,9 @@ export function createPlayerUiPortsV1(input: {
       const generation = diagnosticGeneration + 1;
       diagnosticGeneration = generation;
       preparedDiagnostic = undefined;
-      const exported = parseExportedDebugBundleV1(await input.diagnostics.exportDebugBundle());
+      const exported = detachExportedDebugBundleV1(
+        await input.diagnostics.exportDebugBundle(),
+      );
       const preview = createDiagnosticPreviewV1(exported);
       if (generation !== diagnosticGeneration) {
         throw new TypeError("prepared Debug Bundle was discarded");

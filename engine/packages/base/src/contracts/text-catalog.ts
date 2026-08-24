@@ -6,7 +6,6 @@ import {
   assertUniqueValues,
   catalogFailure,
   dataFailure,
-  deepFreezeData,
   parseAt,
   parseNullableAt,
   readArray,
@@ -140,7 +139,7 @@ function parseTextCatalogSetDataV1(value: unknown): TextCatalogSetV1 {
     }
   });
 
-  return deepFreezeData({ defaultLocale, catalogs });
+  return Object.freeze({ defaultLocale, catalogs });
 }
 
 export function parseTextCatalogSetV1(value: unknown): TextCatalogSetV1 {

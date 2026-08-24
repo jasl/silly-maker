@@ -472,8 +472,7 @@ function createRuntimePresentationAssetFixtureV1() {
     codeFallbackAssetV1(betaBackgroundAssetIdV1, "scene_background"),
   ];
   const loader: RuntimeAssetLoaderV1 = Object.freeze({
-    cacheKey: (request: Parameters<RuntimeAssetLoaderV1["cacheKey"]>[0]) =>
-      `${request.runtimePath}#${request.sha256}`,
+    cacheKey: (request: Parameters<RuntimeAssetLoaderV1["cacheKey"]>[0]) => request.runtimePath,
     async load() {
       throw new Error("code fallback should not load");
     },

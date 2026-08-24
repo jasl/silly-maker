@@ -28,19 +28,8 @@ export function collectImportClosure(
   entries: readonly string[],
 ): Promise<ImportClosureResultV1>;
 
-export function collectManagedPaths(
-  root: string,
-  entries: readonly string[],
-): Promise<readonly string[]>;
-
 export function buildImportClosureRecordsV1(
   root: string,
   paths: readonly string[],
-  facet: BuildIdentityFacetV1,
-): Promise<readonly ImportClosureRecordV1[]>;
-
-export function buildImportClosureV1(
-  root: string,
-  entries: readonly string[],
   facet: BuildIdentityFacetV1,
 ): Promise<readonly ImportClosureRecordV1[]>;

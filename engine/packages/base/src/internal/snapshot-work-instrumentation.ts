@@ -3,7 +3,6 @@
 export type SnapshotWorkEventV1 =
   | "canonical_traversal"
   | "canonical_digest"
-  | "deep_freeze_traversal"
   | "command_log_continuity_verification"
   | "save_canonical_serialization"
   | "strict_json_parse"
@@ -12,13 +11,9 @@ export type SnapshotWorkEventV1 =
 /** @internal Physical traversal purpose; intentionally absent from package barrels. */
 export type SnapshotWorkPurposeV1 =
   | "snapshot_digest"
-  | "snapshot_freeze"
   | "bootstrap_admission"
-  | "bootstrap_handoff_freeze"
   | "command_admission"
-  | "command_handoff_freeze"
   | "command_log_metadata_admission"
-  | "command_log_metadata_freeze"
   | "evidence_admission"
   | "replay_comparison";
 
@@ -28,13 +23,9 @@ export interface SnapshotWorkInstrumentationV1 {
 
 export interface PurposeTaggedSnapshotWorkCountsV1 {
   readonly snapshotDigestTraversals: number;
-  readonly snapshotFreezeTraversals: number;
   readonly bootstrapAdmissionCanonicalTraversals: number;
-  readonly bootstrapHandoffFreezeTraversals: number;
   readonly commandAdmissionCanonicalTraversals: number;
-  readonly commandHandoffFreezeTraversals: number;
   readonly commandLogMetadataAdmissionCanonicalTraversals: number;
-  readonly commandLogMetadataFreezeTraversals: number;
   readonly evidenceAdmissionCanonicalTraversals: number;
   readonly replayComparisonTraversals: number;
   readonly totalPhysicalCanonicalTraversals: number;
@@ -43,7 +34,6 @@ export interface PurposeTaggedSnapshotWorkCountsV1 {
 export interface SnapshotWorkCountsV1 {
   readonly canonicalTraversals: number;
   readonly canonicalDigests: number;
-  readonly deepFreezeTraversals: number;
   readonly commandLogContinuityVerifications: number;
   readonly saveCanonicalSerializations: number;
   readonly strictJsonParses: number;
@@ -53,7 +43,6 @@ export interface SnapshotWorkCountsV1 {
 interface MutableSnapshotWorkCountsV1 {
   canonicalTraversals: number;
   canonicalDigests: number;
-  deepFreezeTraversals: number;
   commandLogContinuityVerifications: number;
   saveCanonicalSerializations: number;
   strictJsonParses: number;
@@ -64,7 +53,6 @@ function emptyCountsV1(): MutableSnapshotWorkCountsV1 {
   return {
     canonicalTraversals: 0,
     canonicalDigests: 0,
-    deepFreezeTraversals: 0,
     commandLogContinuityVerifications: 0,
     saveCanonicalSerializations: 0,
     strictJsonParses: 0,
@@ -96,13 +84,9 @@ export function recordSnapshotWorkV1(
 function emptyPurposeTaggedCountsV1(): PurposeTaggedSnapshotWorkCountsV1 {
   return {
     snapshotDigestTraversals: 0,
-    snapshotFreezeTraversals: 0,
     bootstrapAdmissionCanonicalTraversals: 0,
-    bootstrapHandoffFreezeTraversals: 0,
     commandAdmissionCanonicalTraversals: 0,
-    commandHandoffFreezeTraversals: 0,
     commandLogMetadataAdmissionCanonicalTraversals: 0,
-    commandLogMetadataFreezeTraversals: 0,
     evidenceAdmissionCanonicalTraversals: 0,
     replayComparisonTraversals: 0,
     totalPhysicalCanonicalTraversals: 0,
@@ -130,25 +114,12 @@ export function createPurposeTaggedSnapshotWorkCounterV1(): {
             counts = { ...counts, snapshotDigestTraversals: counts.snapshotDigestTraversals + 1 };
           }
           return;
-        case "snapshot_freeze":
-          if (event === "deep_freeze_traversal") {
-            counts = { ...counts, snapshotFreezeTraversals: counts.snapshotFreezeTraversals + 1 };
-          }
-          return;
         case "bootstrap_admission":
           if (event === "canonical_traversal") {
             counts = {
               ...counts,
               bootstrapAdmissionCanonicalTraversals: counts.bootstrapAdmissionCanonicalTraversals +
                 1,
-            };
-          }
-          return;
-        case "bootstrap_handoff_freeze":
-          if (event === "deep_freeze_traversal") {
-            counts = {
-              ...counts,
-              bootstrapHandoffFreezeTraversals: counts.bootstrapHandoffFreezeTraversals + 1,
             };
           }
           return;
@@ -160,28 +131,12 @@ export function createPurposeTaggedSnapshotWorkCounterV1(): {
             };
           }
           return;
-        case "command_handoff_freeze":
-          if (event === "deep_freeze_traversal") {
-            counts = {
-              ...counts,
-              commandHandoffFreezeTraversals: counts.commandHandoffFreezeTraversals + 1,
-            };
-          }
-          return;
         case "command_log_metadata_admission":
           if (event === "canonical_traversal") {
             counts = {
               ...counts,
               commandLogMetadataAdmissionCanonicalTraversals:
                 counts.commandLogMetadataAdmissionCanonicalTraversals + 1,
-            };
-          }
-          return;
-        case "command_log_metadata_freeze":
-          if (event === "deep_freeze_traversal") {
-            counts = {
-              ...counts,
-              commandLogMetadataFreezeTraversals: counts.commandLogMetadataFreezeTraversals + 1,
             };
           }
           return;
@@ -232,9 +187,6 @@ export function createSnapshotWorkCounterV1(): {
           return;
         case "canonical_digest":
           counts.canonicalDigests += 1;
-          return;
-        case "deep_freeze_traversal":
-          counts.deepFreezeTraversals += 1;
           return;
         case "command_log_continuity_verification":
           counts.commandLogContinuityVerifications += 1;

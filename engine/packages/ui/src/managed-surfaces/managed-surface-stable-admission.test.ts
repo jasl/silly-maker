@@ -5,7 +5,7 @@ import {
   parsePositiveSafeInteger,
   type RuntimeSchemaV1,
 } from "@sillymaker/base";
-import { describe, expect, expectTypeOf, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   parseManagedSurfaceDefinitionIdV1,
@@ -40,7 +40,6 @@ import {
   type ManagedSurfaceStablePublisherLeaseRegistryInternalV1,
 } from "./managed-surface-stable-publisher-lease.ts";
 
-type ExactKeysV1<TValue> = TValue extends unknown ? keyof TValue : never;
 type AdmittedResultV1 = Extract<
   ManagedSurfaceStableAdmissionResultInternalV1,
   { readonly kind: "admitted" }
@@ -284,10 +283,6 @@ function evaluateV1(
 function admittedV1(result: ManagedSurfaceStableAdmissionResultInternalV1): AdmittedResultV1 {
   expect(result.kind).toBe("admitted");
   if (result.kind !== "admitted") throw new Error(`expected admitted, got ${result.kind}`);
-  expect(Reflect.ownKeys(result)).toEqual(["kind", "proposal"]);
-  expect(Object.isFrozen(result)).toBe(true);
-  expect(Object.isFrozen(result.proposal)).toBe(true);
-  expect(Object.isFrozen(result.proposal.captured)).toBe(true);
   return result;
 }
 
@@ -297,136 +292,29 @@ function expectZeroResultV1(
   code: Extract<ManagedSurfaceStableReconcileResultInternalV1, { kind: typeof kind }>["code"],
 ): void {
   expect(result).toEqual({ kind, code, delta: zeroDeltaV1 });
-  expect(Object.isFrozen(result)).toBe(true);
   if (result.kind === "admitted") throw new Error("non-admitted result exposed a proposal");
   expect("proposal" in result).toBe(false);
-  expect(Object.isFrozen(result.delta)).toBe(true);
 }
 
 describe("dormant managed stable vector admission", () => {
-  it("freezes the exact internal API shapes without exposing applied semantics", () => {
-    expectTypeOf<ExactKeysV1<ManagedSurfaceStableDefinitionSidecarInternalV1>>()
-      .toEqualTypeOf<"definition" | "parameterSchema">();
-    expectTypeOf<ExactKeysV1<ManagedSurfaceStableAcceptedBaselineInternalV1>>()
-      .toEqualTypeOf<
-        | "kind"
-        | "publisherLease"
-        | "ownerId"
-        | "sourceRevision"
-        | "targets"
-        | "acceptedOccurrenceHighWater"
-      >();
-    expectTypeOf<
-      Extract<keyof ManagedSurfaceStableReservationGenerationTokenInternalV1, string | number>
-    >().toEqualTypeOf<never>();
-    expectTypeOf<ExactKeysV1<ManagedSurfaceStableRootReservationSnapshotInternalV1>>()
-      .toEqualTypeOf<"subjectPublisherLease" | "generationToken" | "reservedRootSlotIds">();
-    expectTypeOf<ExactKeysV1<ManagedSurfaceStableAdmissionProposalInternalV1>>()
-      .toEqualTypeOf<"relation" | "captured" | "nextAcceptedBaseline">();
-    expectTypeOf<ExactKeysV1<AdmittedResultV1>>().toEqualTypeOf<"kind" | "proposal">();
-    expectTypeOf<Extract<ManagedSurfaceStableAdmissionResultInternalV1, { kind: "applied" }>>()
-      .toEqualTypeOf<never>();
-    expectTypeOf<
-      Extract<ManagedSurfaceStableAdmissionResultInternalV1, { kind: "stale" }>["code"]
-    >().toEqualTypeOf<
-      "surface.stable_publisher_lease_stale" | "surface.stable_source_revision_stale"
-    >();
-    expectTypeOf<
-      Extract<ManagedSurfaceStableAdmissionResultInternalV1, { kind: "faulted" }>["code"]
-    >().toEqualTypeOf<"surface.stable_admission_faulted">();
-    expectTypeOf<
-      Extract<
-        Extract<ManagedSurfaceStableAdmissionResultInternalV1, { kind: "faulted" }>["code"],
-        "surface.stable_reconcile_faulted"
-      >
-    >().toEqualTypeOf<never>();
-    expectTypeOf<
-      Extract<
-        Extract<ManagedSurfaceStableAdmissionResultInternalV1, { kind: "stale" }>["code"],
-        "surface.stable_reconcile_precondition_stale"
-      >
-    >().toEqualTypeOf<never>();
-    expectTypeOf<
-      Extract<
-        ManagedSurfaceStableAdmissionResultInternalV1,
-        { code: "surface.stable_publisher_already_disposed" }
-      >
-    >().toEqualTypeOf<never>();
-    expectTypeOf<
-      ReturnType<ManagedSurfaceStableAdmissionAuthorityInternalV1["createUnpublishedBaseline"]>
-    >().toEqualTypeOf<
-      Extract<ManagedSurfaceStableAcceptedBaselineInternalV1, { kind: "unpublished" }>
-    >();
-    expectTypeOf<ExactKeysV1<ManagedSurfaceStableAdmissionAuthorityInternalV1>>()
-      .toEqualTypeOf<
-        | "createUnpublishedBaseline"
-        | "createReservationGenerationToken"
-        | "createRootReservationSnapshot"
-        | "inspectAdmittedTargetDefinition"
-        | "inspectAdmissionProposal"
-        | "evaluate"
-      >();
-
+  it("keeps admission separate from runtime application", () => {
     const harness = harnessV1();
-    expect(Object.isFrozen(harness.authority)).toBe(true);
-    expect(Object.isFrozen(harness.baseline)).toBe(true);
-    expect(Reflect.ownKeys(harness.baseline)).toEqual([
-      "kind",
-      "publisherLease",
-      "acceptedOccurrenceHighWater",
-    ]);
     expect(harness.baseline.kind).toBe("unpublished");
-    expect(Object.isFrozen(harness.reservationSnapshot)).toBe(true);
-    expect(Object.isFrozen(harness.reservationSnapshot.reservedRootSlotIds)).toBe(true);
+    const revision = harness.workspace.issueSourceRevision();
+    const result = admittedV1(evaluateV1(harness, publicationV1(harness.workspace, revision, [])));
+    expect(result.proposal.nextAcceptedBaseline.kind).toBe("accepted");
+    expect(result).not.toHaveProperty("delta");
   });
 
-  it("captures each schema callable and exact receiver once at factory construction", () => {
-    let capturedCalls = 0;
-    let replacementCalls = 0;
-    const parameterSchema = schemaV1(function (value) {
-      expect(this).toBe(parameterSchema);
-      capturedCalls += 1;
-      return { normalized: value === undefined ? "default" : value };
-    });
-    const sidecars = definitionSidecarsV1(
-      new Map([[rootStackDefinitionIdV1, parameterSchema]]),
-    );
-    const harness = harnessV1({ definitionSidecars: sidecars });
-    parameterSchema.parse = function () {
-      replacementCalls += 1;
-      return { normalized: "replacement" };
-    };
-
-    const occurrence = harness.workspace.issueOccurrence();
-    const revision = harness.workspace.issueSourceRevision();
-    const result = admittedV1(
-      evaluateV1(
-        harness,
-        publicationV1(harness.workspace, revision, [
-          targetV1({ occurrenceId: occurrence, parameters: undefined }),
-        ]),
-      ),
-    );
-    expect(capturedCalls).toBe(1);
-    expect(replacementCalls).toBe(0);
-    expect(result.proposal.nextAcceptedBaseline.targets[0]?.normalizedParameters).toEqual({
-      normalized: "default",
-    });
-
-    let getterReads = 0;
-    const accessorSchema = Object.defineProperty({}, "parse", {
-      configurable: true,
-      get() {
-        getterReads += 1;
-        throw new Error("schema getter must not run");
-      },
-    }) as RuntimeSchemaV1<unknown>;
-    const accessorSidecars = definitionSidecarsV1(
-      new Map([[rootStackDefinitionIdV1, accessorSchema]]),
-    );
-    expect(() => harnessV1({ definitionSidecars: accessorSidecars })).toThrow(TypeError);
-    expect(getterReads).toBe(0);
-
+  it("requires callable schemas and rejects duplicate catalog entries", () => {
+    const sidecars = definitionSidecarsV1();
+    expect(() =>
+      harnessV1({
+        definitionSidecars: definitionSidecarsV1(
+          new Map([[rootStackDefinitionIdV1, { parse: null } as never]]),
+        ),
+      })
+    ).toThrow(TypeError);
     expect(() =>
       harnessV1({
         definitionSidecars: Object.freeze([...sidecars, sidecars[0]!]),
@@ -442,7 +330,7 @@ describe("dormant managed stable vector admission", () => {
     ).toThrow(TypeError);
   });
 
-  it("admits initial normalized identity with detached frozen bytes and exact proposal provenance", () => {
+  it("admits normalized identity with detached bytes and proposal provenance", () => {
     const rawParameters: { count?: number } = {};
     const parameterSchema = schemaV1((value) => ({
       count: (value as { count?: number }).count ?? 1,
@@ -488,28 +376,14 @@ describe("dormant managed stable vector admission", () => {
       nextAcceptedBaseline: Object.freeze({ ...next }),
     }) as ManagedSurfaceStableAdmissionProposalInternalV1;
     expect(harness.authority.inspectAdmissionProposal(nextBaselineSplice)).toBeNull();
-    expect(Reflect.ownKeys(next)).toEqual([
-      "kind",
-      "publisherLease",
-      "ownerId",
-      "sourceRevision",
-      "targets",
-      "acceptedOccurrenceHighWater",
-    ]);
     expect(next.sourceRevision).toBe(revision);
     expect(next.ownerId).toBe(workspaceOwnerIdV1);
     expect(next.acceptedOccurrenceHighWater.occurrenceSequenceHighWater).toBe(1);
-    expect(Object.isFrozen(next)).toBe(true);
-    expect(Object.isFrozen(next.targets)).toBe(true);
     const target = next.targets[0]!;
-    expect(Object.isFrozen(target)).toBe(true);
     expect(target.normalizedParameters).toEqual({ count: 1 });
-    expect(Object.isFrozen(target.normalizedParameters)).toBe(true);
     expect(target.canonicalParameterBytes.byteLength).toBe(
       canonicalJsonBytes({ count: 1 }).byteLength,
     );
-    expect(Reflect.ownKeys(target.canonicalParameterBytes)).toEqual(["byteLength"]);
-    expect(Object.isFrozen(target.canonicalParameterBytes)).toBe(true);
     rawParameters.count = 99;
     expect(target.normalizedParameters).toEqual({ count: 1 });
   });
@@ -535,7 +409,6 @@ describe("dormant managed stable vector admission", () => {
 
     const capturedDefinition = harness.authority.inspectAdmittedTargetDefinition(exactTarget);
     expect(capturedDefinition).toEqual(expectedDefinition);
-    expect(Object.isFrozen(capturedDefinition)).toBe(true);
 
     const revision2 = harness.workspace.issueSourceRevision();
     const greaterSame = admittedV1(
@@ -593,7 +466,7 @@ describe("dormant managed stable vector admission", () => {
     expect(harness.authority.inspectAdmissionProposal(proposalSplice)).toBeNull();
   });
 
-  it("enforces outer, source, and baseline precedence without touching target values", () => {
+  it("uses ordinary publication fields while preserving source and baseline precedence", () => {
     {
       const harness = harnessV1();
       const revision = harness.workspace.issueSourceRevision();
@@ -607,61 +480,14 @@ describe("dormant managed stable vector admission", () => {
     {
       const harness = harnessV1();
       const revision = harness.workspace.issueSourceRevision();
-      const revokedTargets = Proxy.revocable([], {});
-      revokedTargets.revoke();
-      const result = evaluateV1(harness, {
-        publisherLease: harness.workspace.lease,
-        sourceRevision: revision,
-        targets: revokedTargets.proxy,
-        extra: true,
-      });
-      expectZeroResultV1(
-        result,
-        "rejected",
-        "surface.stable_publication_envelope_invalid",
-      );
-    }
-
-    {
-      const harness = harnessV1();
-      const revision = harness.workspace.issueSourceRevision();
-      let getterCalls = 0;
-      const publication = {
-        publisherLease: harness.workspace.lease,
-        sourceRevision: revision,
-        get targets() {
-          getterCalls += 1;
-          return [];
-        },
-      };
-      expectZeroResultV1(
-        evaluateV1(harness, publication),
-        "rejected",
-        "surface.stable_publication_envelope_invalid",
-      );
-      expect(getterCalls).toBe(0);
-    }
-
-    {
-      const harness = harnessV1();
-      const revision = harness.workspace.issueSourceRevision();
-      const publication = new Proxy(
-        {
+      expect(
+        admittedV1(evaluateV1(harness, {
           publisherLease: harness.workspace.lease,
           sourceRevision: revision,
           targets: [],
-        },
-        {
-          ownKeys() {
-            throw new Error("outer reflection fault");
-          },
-        },
-      );
-      expectZeroResultV1(
-        evaluateV1(harness, publication),
-        "faulted",
-        "surface.stable_admission_faulted",
-      );
+          extraDiagnostic: true,
+        })).proposal.relation,
+      ).toBe("initial");
     }
 
     {
@@ -778,20 +604,15 @@ describe("dormant managed stable vector admission", () => {
       }),
     ).proposal.nextAcceptedBaseline;
     schemaCalls = 0;
-    const revokedTargets = Proxy.revocable([], {});
-    revokedTargets.revoke();
-    const revokedReservation = Proxy.revocable({}, {});
-    revokedReservation.revoke();
     const publisherSnapshot = harness.workspace.getSnapshot();
     const registrySnapshot = harness.registry.getSnapshot();
     expectZeroResultV1(
       evaluateV1(
         harness,
-        publicationV1(harness.workspace, revision2, revokedTargets.proxy),
+        publicationV1(harness.workspace, revision2, []),
         {
           acceptedBaseline: accepted3,
-          reservationSnapshot: revokedReservation
-            .proxy as ManagedSurfaceStableRootReservationSnapshotInternalV1,
+          reservationSnapshot: harness.reservationSnapshot,
         },
       ),
       "stale",
@@ -803,7 +624,7 @@ describe("dormant managed stable vector admission", () => {
     expect(accepted3.sourceRevision).toBe(revision3);
   });
 
-  it("enforces the 64 target bound before item capture and rejects exact shape violations", () => {
+  it("enforces the 64 target bound and basic target value shape", () => {
     {
       let schemaCalls = 0;
       const harness = harnessV1({
@@ -833,20 +654,13 @@ describe("dormant managed stable vector admission", () => {
 
     {
       const harness = harnessV1();
-      let ownKeysCalls = 0;
-      const targets = new Proxy(Array.from({ length: 65 }), {
-        ownKeys(target) {
-          ownKeysCalls += 1;
-          return Reflect.ownKeys(target);
-        },
-      });
+      const targets = Array.from({ length: 65 });
       const revision = harness.workspace.issueSourceRevision();
       expectZeroResultV1(
         evaluateV1(harness, publicationV1(harness.workspace, revision, targets)),
         "rejected",
         "surface.stable_target_limit_exceeded",
       );
-      expect(ownKeysCalls).toBe(0);
     }
 
     const malformedTargets = [
@@ -855,17 +669,9 @@ describe("dormant managed stable vector admission", () => {
         value.length = 1;
         return value;
       },
-      () => Object.setPrototypeOf([], null),
-      () => {
-        const target = targetV1({ occurrenceId: "unused" }) as Record<PropertyKey, unknown>;
-        target[Symbol("extra")] = true;
-        return [target];
-      },
-      () => [
-        Object.setPrototypeOf(targetV1({ occurrenceId: "unused" }), {
-          customPrototype: true,
-        }),
-      ],
+      () => [null],
+      () => [{}],
+      () => [{ ...targetV1({ occurrenceId: "unused" }), parentOccurrenceId: 42 }],
     ];
     for (const createTargets of malformedTargets) {
       const harness = harnessV1();
@@ -874,40 +680,6 @@ describe("dormant managed stable vector admission", () => {
         evaluateV1(harness, publicationV1(harness.workspace, revision, createTargets())),
         "rejected",
         "surface.stable_target_shape_invalid",
-      );
-    }
-
-    {
-      const harness = harnessV1();
-      const occurrence = harness.workspace.issueOccurrence();
-      let getterCalls = 0;
-      const target = targetV1({ occurrenceId: occurrence });
-      Object.defineProperty(target, "parameters", {
-        configurable: true,
-        enumerable: true,
-        get() {
-          getterCalls += 1;
-          return null;
-        },
-      });
-      const revision = harness.workspace.issueSourceRevision();
-      expectZeroResultV1(
-        evaluateV1(harness, publicationV1(harness.workspace, revision, [target])),
-        "rejected",
-        "surface.stable_target_shape_invalid",
-      );
-      expect(getterCalls).toBe(0);
-    }
-
-    {
-      const harness = harnessV1();
-      const revision = harness.workspace.issueSourceRevision();
-      const revoked = Proxy.revocable([], {});
-      revoked.revoke();
-      expectZeroResultV1(
-        evaluateV1(harness, publicationV1(harness.workspace, revision, revoked.proxy)),
-        "faulted",
-        "surface.stable_admission_faulted",
       );
     }
   });
@@ -996,23 +768,11 @@ describe("dormant managed stable vector admission", () => {
   });
 
   it("faults malformed or impossible R1 occurrence classifications", () => {
-    let classificationGetterCalls = 0;
-    const accessorClassification = Object.defineProperty({}, "kind", {
-      configurable: true,
-      get() {
-        classificationGetterCalls += 1;
-        throw new Error("classification getter must not run");
-      },
-    });
-    const revokedClassification = Proxy.revocable({ kind: "fresh", occurrenceSequence: 1 }, {});
-    revokedClassification.revoke();
     const malformedClassifications = [
       Object.freeze({ kind: "fresh", occurrenceSequence: 0 }),
       Object.freeze({ kind: "fresh", occurrenceSequence: 2 }),
       Object.freeze({ kind: "retained", occurrenceSequence: 1 }),
       Object.freeze({ kind: "unknown" }),
-      accessorClassification,
-      revokedClassification.proxy,
     ];
 
     for (const malformedClassification of malformedClassifications) {
@@ -1035,8 +795,6 @@ describe("dormant managed stable vector admission", () => {
         "surface.stable_admission_faulted",
       );
     }
-    expect(classificationGetterCalls).toBe(0);
-
     for (const impossibleKind of ["foreign", "unissued"] as const) {
       const registry = registryV1();
       let overrideRetained = false;
@@ -1387,8 +1145,6 @@ describe("dormant managed stable vector admission", () => {
       for (let index = 0; index < 33; index += 1) value = [value];
       return value;
     })();
-    const revokedValue = Proxy.revocable([], {});
-    revokedValue.revoke();
     const canonicalCases = [
       {
         output: () => {
@@ -1416,11 +1172,6 @@ describe("dormant managed stable vector admission", () => {
         output: () => Array.from({ length: 4_097 }, () => null),
         kind: "rejected" as const,
         code: "surface.stable_canonical_nodes_exceeded" as const,
-      },
-      {
-        output: () => revokedValue.proxy,
-        kind: "faulted" as const,
-        code: "surface.stable_admission_faulted" as const,
       },
     ];
     for (const current of canonicalCases) {
@@ -1452,10 +1203,7 @@ describe("dormant managed stable vector admission", () => {
       generationToken: generationA,
       foreignReservedRootSlotIds: [rootOtherSlotIdV1, rootOtherSlotIdV1],
     });
-    expect(Object.isFrozen(generationA)).toBe(true);
-    expect(Reflect.ownKeys(generationA)).toEqual([]);
     expect(snapshotA.reservedRootSlotIds).toEqual([rootOtherSlotIdV1]);
-    expect(Object.isFrozen(snapshotA.reservedRootSlotIds)).toBe(true);
 
     const generationB = harness.authority.createReservationGenerationToken();
     const snapshotB = harness.authority.createRootReservationSnapshot({
@@ -1653,34 +1401,7 @@ describe("dormant managed stable vector admission", () => {
     }
   });
 
-  it("uses R1a proof across target/schema callback disposal and ignores post-capture issuance", () => {
-    {
-      const harness = harnessV1();
-      const occurrence = harness.workspace.issueOccurrence();
-      const rawTarget = targetV1({ occurrenceId: occurrence });
-      let disposed = false;
-      const targetProxy = new Proxy(rawTarget, {
-        ownKeys(target) {
-          if (!disposed) {
-            disposed = true;
-            expect(harness.registry.disposePublisherLease(harness.workspace.lease)).toBe(
-              "disposed",
-            );
-          }
-          return Reflect.ownKeys(target);
-        },
-      });
-      const revision = harness.workspace.issueSourceRevision();
-      const result = admittedV1(
-        evaluateV1(harness, publicationV1(harness.workspace, revision, [targetProxy])),
-      );
-      expect(result.proposal.relation).toBe("initial");
-      expect(result.proposal.nextAcceptedBaseline.acceptedOccurrenceHighWater)
-        .toMatchObject({ occurrenceSequenceHighWater: 1 });
-      expect(result.proposal.nextAcceptedBaseline.publisherLease).toBe(harness.workspace.lease);
-      expect(harness.registry.inspectCurrentLease(harness.workspace.lease)).toBeNull();
-    }
-
+  it("uses the captured R1 proof across schema callbacks and later issuance", () => {
     {
       let harness!: StableAdmissionHarnessV1;
       const disposingSchema = schemaV1((value) => {

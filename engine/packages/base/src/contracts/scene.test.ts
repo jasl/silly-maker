@@ -109,7 +109,6 @@ describe("parseSceneDocumentV1", () => {
     expect(document.entries).toHaveLength(2);
     expect(document.cues).toHaveLength(3);
     expect(Object.isFrozen(document)).toBe(true);
-    expect(Object.isFrozen(document.entries[1]?.placement)).toBe(true);
   });
 
   it("rejects format, version, id, label, and canvas violations", () => {

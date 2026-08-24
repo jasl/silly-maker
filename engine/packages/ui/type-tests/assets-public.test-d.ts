@@ -43,7 +43,7 @@ type PublicPresentationKeysV1 = ExpectV1<
 type PublicLoaderRequestKeysV1 = ExpectV1<
   EqualV1<
     keyof RuntimeAssetLoadRequestV1,
-    "height" | "mediaType" | "runtimePath" | "sha256" | "width"
+    "height" | "mediaType" | "runtimePath" | "width"
   >
 >;
 
@@ -72,7 +72,6 @@ registryV1.resolve(assetIdV1, "scene_background");
 loaderV1.cacheKey({
   runtimePath: "runtime/scene.webp",
   mediaType: "image/webp",
-  sha256: {} as RuntimeAssetLoadRequestV1["sha256"],
   width: {} as RuntimeAssetLoadRequestV1["width"],
   height: {} as RuntimeAssetLoadRequestV1["height"],
 });

@@ -95,8 +95,8 @@ Cloudflare Workers 的 `deploy:cf` 任务：
 
 想用 GitHub Pages 的话：一个仓库只有一个 Pages 站点，所以给游戏单开一个仓库，
 从中发布构建好的 `dist-web/` 内容并开启 Pages 即可。相对路径的产物在任何路径下
-都直接可用。技术 Artifact manifest 只在离线交接、完整性、签名或商店打包等流程
-中按需使用，不是 hosted deployment 的前置门。两种目标的细节见
+都直接可用。离线打包、签名、完整性与商店交接由所选目标平台的工具负责，不是
+hosted deployment 的前置门。两种目标的细节见
 [Build and release](https://github.com/jasl/silly-maker/blob/main/docs/engine/build-and-release.md)。
 
 ## 让结果更好的几条建议

@@ -34,12 +34,8 @@ import {
   admitCommandAttemptEvidenceInternalV1,
   type FinalizedEvidencePolicyInternalV1,
   type FinalizedEvidenceResultConstraintInternalV1,
-  withDeferredSimulationEvidenceAdmissionInternalV1,
 } from "../../internal/finalized-evidence-admission.ts";
-import {
-  admitCanonicalBootstrapInternalV1,
-  type CanonicalBootstrapAdmissionHooksInternalV1,
-} from "../../internal/canonical-bootstrap-admission.ts";
+import { admitCanonicalBootstrapInternalV1 } from "../../internal/canonical-bootstrap-admission.ts";
 import type {
   RuntimeSessionStatusV1,
   SessionAnchorResultV1,
@@ -477,16 +473,9 @@ export function defineCoreGameApplicationV1<
 function captureCoreAdoptionDeclarationsV1(
   definition: object,
 ): readonly DeepReadonly<PatchSetAdoptionDeclarationV1>[] {
-  const descriptors = Object.getOwnPropertyDescriptors(definition);
-  const adoptionDescriptor = descriptors.adoptionDeclarations;
-  if (
-    adoptionDescriptor !== undefined &&
-    (adoptionDescriptor.get !== undefined || adoptionDescriptor.set !== undefined)
-  ) {
-    throw new TypeError("core application adoptionDeclarations accessors are forbidden");
-  }
   const adoptionDeclarations = admitAdoptionDeclarationsInternalV1(
-    adoptionDescriptor?.value ?? Object.freeze([]),
+    (definition as { readonly adoptionDeclarations?: unknown }).adoptionDeclarations ??
+      Object.freeze([]),
   );
   return adoptionDeclarations;
 }
@@ -771,10 +760,6 @@ const saveProjectionInstrumentationV1 = new WeakMap<
   CreateCoreGameApplicationInstanceOptionsV1,
   SaveSummaryProjectionInstrumentationInternalV1
 >();
-const bootstrapAdmissionHooksV1 = new WeakMap<
-  CreateCoreGameApplicationInstanceOptionsV1,
-  CanonicalBootstrapAdmissionHooksInternalV1
->();
 interface CoreApplicationReadinessHooksStoredInternalV1 {
   readonly prepareSemanticInvocation?: (invocation: unknown) => Promise<void>;
   readonly prepareReplacement?: (snapshot: unknown) => Promise<void>;
@@ -829,15 +814,6 @@ export function instrumentCoreApplicationSaveProjectionOptionsInternalV1(
   instrumentation: SaveSummaryProjectionInstrumentationInternalV1,
 ): CreateCoreGameApplicationInstanceOptionsV1 {
   saveProjectionInstrumentationV1.set(options, instrumentation);
-  return options;
-}
-
-/** @internal One-shot bootstrap-admission failure seam for package tests. */
-export function instrumentCoreApplicationBootstrapAdmissionOptionsInternalV1(
-  options: CreateCoreGameApplicationInstanceOptionsV1,
-  hooks: CanonicalBootstrapAdmissionHooksInternalV1,
-): CreateCoreGameApplicationInstanceOptionsV1 {
-  bootstrapAdmissionHooksV1.set(options, hooks);
   return options;
 }
 
@@ -1116,18 +1092,19 @@ export function disposeCoreGameApplicationForRebootstrapInternalV1(
 function readBootstrapRngSeedV1(
   bootstrap: unknown,
 ): Parameters<typeof createTransactionalRngV1>[0] {
-  if (bootstrap === null || typeof bootstrap !== "object") {
+  if (bootstrap === null || typeof bootstrap !== "object" || Array.isArray(bootstrap)) {
     throw new TypeError(
       "core application bootstrap input must be an object carrying an rngSeed field",
     );
   }
-  const descriptor = Object.getOwnPropertyDescriptor(bootstrap, "rngSeed");
-  if (descriptor === undefined || descriptor.get !== undefined || descriptor.set !== undefined) {
+  if (!Object.hasOwn(bootstrap, "rngSeed")) {
     throw new TypeError(
       "core application bootstrap input must be an object carrying an rngSeed field",
     );
   }
-  return descriptor.value as Parameters<typeof createTransactionalRngV1>[0];
+  return (bootstrap as { readonly rngSeed: unknown }).rngSeed as Parameters<
+    typeof createTransactionalRngV1
+  >[0];
 }
 
 class CoreRngReplacementNormalizerFailureV1 {
@@ -1178,8 +1155,6 @@ export async function createCoreGameApplicationInstanceV1<
   snapshotWorkInstrumentationV1.delete(options);
   const saveProjectionInstrumentation = saveProjectionInstrumentationV1.get(options);
   saveProjectionInstrumentationV1.delete(options);
-  const bootstrapAdmissionHooks = bootstrapAdmissionHooksV1.get(options);
-  bootstrapAdmissionHooksV1.delete(options);
   const readinessHooks = coreApplicationReadinessHooksInternalV1.get(options);
   coreApplicationReadinessHooksInternalV1.delete(options);
   const autosave = normalizeCoreAutosavePolicyV1(options.autosave);
@@ -1215,18 +1190,14 @@ export async function createCoreGameApplicationInstanceV1<
     rngStateV1Schema,
   );
   const validateSnapshotRngV1 = (snapshot: DeepReadonly<TTypes["snapshot"]>): void => {
-    if (snapshot === null || typeof snapshot !== "object") {
-      throw new RngStateSchemaFailureInternalV1("invalid candidate Snapshot RNG");
-    }
-    const descriptor = Object.getOwnPropertyDescriptor(snapshot, "rng");
     if (
-      descriptor === undefined ||
-      descriptor.get !== undefined ||
-      descriptor.set !== undefined
+      snapshot === null ||
+      typeof snapshot !== "object" ||
+      !Object.hasOwn(snapshot, "rng")
     ) {
       throw new RngStateSchemaFailureInternalV1("invalid candidate Snapshot RNG");
     }
-    rngStateV1Schema.parse(descriptor.value);
+    rngStateV1Schema.parse((snapshot as { readonly rng: unknown }).rng);
   };
   const evidencePolicyV1: FinalizedEvidencePolicyInternalV1<
     TTypes["event"],
@@ -1253,7 +1224,6 @@ export async function createCoreGameApplicationInstanceV1<
     const bootstrap = admitCanonicalBootstrapInternalV1(
       gameSimulation.createBootstrapInput(options.host.entropy),
       snapshotWorkInstrumentation,
-      bootstrapAdmissionHooks,
     );
     const rngSeed = parseRngSeedInternalV1(readBootstrapRngSeedV1(bootstrap));
     return snapshotSchema.parse({
@@ -1306,17 +1276,12 @@ export async function createCoreGameApplicationInstanceV1<
     initialSnapshot: createInitialSnapshotV1(),
     commandSchema: gameSimulation.commandSchema,
     executionContext: undefined as TTypes["executionContext"],
-    executeAttempt: (snapshot, command) => {
-      return withDeferredSimulationEvidenceAdmissionInternalV1(
-        "simulation_game_execute",
-        () =>
-          gameSimulation.commandExecutor.executeAttempt(
-            snapshot,
-            command,
-            undefined as TTypes["executionContext"],
-          ),
-      );
-    },
+    executeAttempt: (snapshot, command) =>
+      gameSimulation.commandExecutor.executeAttempt(
+        snapshot,
+        command,
+        undefined as TTypes["executionContext"],
+      ),
     normalizeUnexpectedDispatchFault(error, snapshot) {
       if (definition.normalizeUnexpectedDispatchFault !== undefined) {
         return definition.normalizeUnexpectedDispatchFault(error, snapshot);
@@ -1326,38 +1291,29 @@ export async function createCoreGameApplicationInstanceV1<
     debug: Object.freeze(
       {
         validate: (snapshot, command) =>
-          withDeferredSimulationEvidenceAdmissionInternalV1(
-            "simulation_debug_validate",
-            () =>
-              isEngineDebugPatchStateKindV1(command)
-                ? validateEngineStatePatchV1(
-                  snapshot as never,
-                  command,
-                  gameSimulation.stateSchema,
-                ) as never
-                : gameSimulation.debugCommandExecutor.validate(
-                  snapshot,
-                  command,
-                  undefined as TTypes["executionContext"],
-                ),
-          ),
-        executeAttempt: (snapshot, command) => {
-          return withDeferredSimulationEvidenceAdmissionInternalV1(
-            "simulation_debug_execute",
-            () =>
-              isEngineDebugPatchStateKindV1(command)
-                ? executeEngineStatePatchV1(
-                  snapshot as never,
-                  command,
-                  gameSimulation.stateSchema,
-                )
-                : gameSimulation.debugCommandExecutor.executeAttempt(
-                  snapshot,
-                  command,
-                  undefined as TTypes["executionContext"],
-                ),
-          );
-        },
+          isEngineDebugPatchStateKindV1(command)
+            ? validateEngineStatePatchV1(
+              snapshot as never,
+              command,
+              gameSimulation.stateSchema,
+            ) as never
+            : gameSimulation.debugCommandExecutor.validate(
+              snapshot,
+              command,
+              undefined as TTypes["executionContext"],
+            ),
+        executeAttempt: (snapshot, command) =>
+          isEngineDebugPatchStateKindV1(command)
+            ? executeEngineStatePatchV1(
+              snapshot as never,
+              command,
+              gameSimulation.stateSchema,
+            )
+            : gameSimulation.debugCommandExecutor.executeAttempt(
+              snapshot,
+              command,
+              undefined as TTypes["executionContext"],
+            ),
         normalizeUnexpectedFault(error, snapshot) {
           if (definition.normalizeUnexpectedDebugFault !== undefined) {
             return definition.normalizeUnexpectedDebugFault(error, snapshot);
@@ -2217,7 +2173,9 @@ export async function createCoreGameApplicationInstanceV1<
     // — and it reseeds from the live Snapshot whenever the replay base is
     // replaced (load, import, restart, debug anchor), so rollback can never
     // cross into a different lineage. A barrier commit clears everything
-    // behind it. Snapshots are immutable, so keeping references is cheap.
+    // behind it. Checkpoints retain engine-owned Snapshot references; mutating
+    // them through casts or other unsupported JavaScript tricks is outside the
+    // runtime contract.
     interface RollbackCheckpointV1 {
       readonly snapshot: DeepReadonly<TTypes["snapshot"]>;
       readonly commandSequence: NonNegativeSafeInteger;
@@ -2550,21 +2508,17 @@ export async function createCoreGameApplicationInstanceV1<
             if (logged.source === "debug") {
               const raw = admitReplayAttemptV1(
                 () =>
-                  withDeferredSimulationEvidenceAdmissionInternalV1(
-                    "simulation_debug_execute",
-                    () =>
-                      isEngineDebugPatchStateKindV1(logged.command)
-                        ? executeEngineStatePatchV1(
-                          preSnapshot as never,
-                          logged.command,
-                          gameSimulation.stateSchema,
-                        )
-                        : gameSimulation.debugCommandExecutor.executeAttempt(
-                          preSnapshot as never,
-                          logged.command as never,
-                          undefined as TTypes["executionContext"],
-                        ),
-                  ),
+                  isEngineDebugPatchStateKindV1(logged.command)
+                    ? executeEngineStatePatchV1(
+                      preSnapshot as never,
+                      logged.command,
+                      gameSimulation.stateSchema,
+                    )
+                    : gameSimulation.debugCommandExecutor.executeAttempt(
+                      preSnapshot as never,
+                      logged.command as never,
+                      undefined as TTypes["executionContext"],
+                    ),
                 (error, snapshot) => {
                   if (definition.normalizeUnexpectedDebugFault === undefined) throw error;
                   return definition.normalizeUnexpectedDebugFault(error, snapshot);
@@ -2608,14 +2562,10 @@ export async function createCoreGameApplicationInstanceV1<
             }
             return admitReplayAttemptV1(
               () =>
-                withDeferredSimulationEvidenceAdmissionInternalV1(
-                  "simulation_game_execute",
-                  () =>
-                    gameSimulation.commandExecutor.executeAttempt(
-                      preSnapshot as never,
-                      logged.command,
-                      undefined as TTypes["executionContext"],
-                    ),
+                gameSimulation.commandExecutor.executeAttempt(
+                  preSnapshot as never,
+                  logged.command,
+                  undefined as TTypes["executionContext"],
                 ),
               (error, snapshot) => {
                 if (definition.normalizeUnexpectedDispatchFault === undefined) throw error;

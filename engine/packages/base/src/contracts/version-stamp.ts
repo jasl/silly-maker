@@ -44,36 +44,31 @@ function boundedPrintableFieldV1(value: string): string | null {
   return nonPrintableVersionStampPatternV1.test(trimmed) ? null : trimmed;
 }
 
-function fieldV1(descriptors: PropertyDescriptorMap, key: string): string | null {
-  const descriptor = descriptors[key];
-  if (descriptor === undefined || !Object.prototype.hasOwnProperty.call(descriptor, "value")) {
-    return null;
-  }
-  const value = descriptor.value as unknown;
+function fieldV1(source: Readonly<Record<string, unknown>>, key: string): string | null {
+  const value = source[key];
   if (typeof value !== "string") return null;
   return boundedPrintableFieldV1(value);
 }
 
 /**
- * @internal Normalizes an untrusted stamp without invoking its accessors.
+ * @internal Normalizes diagnostic metadata with ordinary JavaScript field reads.
  * `null` means the entire diagnostic field should be omitted.
  */
 export function normalizeVersionStampInternalV1(source: unknown): VersionStampV1 | null {
-  if ((typeof source !== "object" && typeof source !== "function") || source === null) return null;
-  let descriptors: PropertyDescriptorMap;
+  if (typeof source !== "object" || source === null || Array.isArray(source)) return null;
+  let normalized: VersionStampV1;
   try {
-    descriptors = Object.getOwnPropertyDescriptors(source);
+    const fields = source as Readonly<Record<string, unknown>>;
+    normalized = Object.freeze({
+      applicationVersion: fieldV1(fields, "applicationVersion"),
+      applicationCommit: fieldV1(fields, "applicationCommit"),
+      engineVersion: fieldV1(fields, "engineVersion"),
+      engineCommit: fieldV1(fields, "engineCommit"),
+    });
   } catch {
-    // A hostile Proxy may reject descriptor inspection. Diagnostic metadata
-    // must never make a runtime or Save unreadable.
+    // Diagnostic metadata must never make a runtime or Save unreadable.
     return null;
   }
-  const normalized = Object.freeze({
-    applicationVersion: fieldV1(descriptors, "applicationVersion"),
-    applicationCommit: fieldV1(descriptors, "applicationCommit"),
-    engineVersion: fieldV1(descriptors, "engineVersion"),
-    engineCommit: fieldV1(descriptors, "engineCommit"),
-  });
   return normalized.applicationVersion === null &&
       normalized.applicationCommit === null &&
       normalized.engineVersion === null &&
@@ -84,10 +79,7 @@ export function normalizeVersionStampInternalV1(source: unknown): VersionStampV1
 
 function injectedVersionStampV1(): unknown {
   try {
-    const descriptor = Object.getOwnPropertyDescriptor(globalThis, versionStampGlobalKeyV1);
-    return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value")
-      ? descriptor.value
-      : undefined;
+    return Reflect.get(globalThis, versionStampGlobalKeyV1);
   } catch {
     return undefined;
   }

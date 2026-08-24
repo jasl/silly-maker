@@ -1,7 +1,8 @@
 # Scale、Scene/Object 与模块化 GUI V1 实施计划
 
-状态：**2026-08-24 经所有者接受并开启；M0–M4 已于同日交付，当前唯一下一项为 M5；
-M0–M5 必须按序交付，每个里程碑独立复核后再进入下一项。**
+状态：**2026-08-24 经所有者接受并开启；M0–M4 与独立 runtime-boundary Complexity Reset
+已于同日交付。暂停的 M5 实现仍隔离在 stash 中等待所有者复核；复核后 M5 是唯一下一项，
+M0–M5 仍按序交付。**
 
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 仍是唯一跨计划排序入口；
 本计划接在已关闭的 Browser R2 authoritative handoff 之后。Deno Desktop candidate 继续
@@ -11,6 +12,11 @@ package-private、explicit、default-off，等待含目标实现的 stable Deno 
 目标合同由
 [Scale, Scene Object, and Modular GUI](../proposals/scale-scene-object-and-modular-gui.md)
 拥有；本计划只拥有 M0–M5 的实施顺序、预算、验证与停止条件。
+
+本次插入的 Complexity Reset 没有改变本计划产品方向：它删除了 Snapshot、semantic publication 与
+admission data 的递归freeze、重复admission/handoff/descriptor 防御、实现形状测试、dead BuildIdentity consumer 与本地 attestation
+tooling，保留 schema、digest、Save/replay、CAS、generation/currentness 与 RPC 等真实边界。
+暂停的 M5 实现没有混入清理提交。
 
 本轮的所有者目标不是把下一次作品重写一步做成最终形态，而是先关闭三类会随规模放大的引擎风险：
 
@@ -118,7 +124,7 @@ checkout/A-B 编排、机器身份或长期 report coordinator。
   或 preset settings UI implementation；每个 optional positive control 又必须证明其显式选择可达。
 - 160-module command 对一个 event 只访问该 event kind 的 ordered subscribers；one-subscriber case
   不得访问 160 reducers。每个 touched owner 每次 commit 至多 materialize/write 一次，最终 aggregate
-  validation、whole-Snapshot digest/freeze 与 atomic commit 仍各自保持既有合同次数。
+  validation、whole-Snapshot finalization/digest 与 atomic commit 仍各自保持既有合同次数。
 - project index cold build 只有一次 source-tree walk；cached list 为 0 file read/parse；单文件变化只
   re-read/re-admit 该文件。完整文档与 preview payload 只在选择后读取。
 - Inspector 的对象/文档列表使用 windowing；mounted row 数随可见窗口 + 固定 overscan 增长，不随
@@ -311,14 +317,15 @@ targeted format/lint 也在修正一处 `no-shadow` 后重跑通过。
   rejection/fault whole-attempt atomicity不变。
 - 对一个 command 收集 touched slot results，完成各 touched owner 一次 schema/value validation 后，
   一次 materialize parent State；保留真正的 aggregate invariant/reference validation、一个 authoritative
-  Snapshot digest/freeze、CommandLog continuity 和 replay。不因 locality 跳过跨 owner invariant。
+  Snapshot finalization/digest、CommandLog continuity 和 replay。不因 locality 跳过跨 owner invariant。
 
 **M2.1 交付记录（2026-08-24）：** `@sillymaker/base` 现在在 module composition 的 cold path
 把 event kind 编译为 UTF-16 module-ID 有序 subscriber direct plan。hot transaction 保持 event-major
 emission order，只遍历实际 subscriber；同一 owner 的重复 event 在一个 proposal 上连续 fold。fold 完成后
 只排序 touched owners，每个 owner 的 slice schema 执行一次，再用 touched-only sparse trie 一次复制
 aggregate State 与共享祖先、每个 touched slot 只写一次。其后的 whole-State schema、aggregate
-`validateCandidate`、attempt envelope、Session Snapshot freeze/digest、CommandLog、Save 与 replay 路径未改。
+`validateCandidate`、attempt envelope、Session finalization/digest、CommandLog、Save 与 replay 路径
+在 M2 当时未改；后插入的 Complexity Reset 随后移除了 recursive runtime freeze，不改变本节 locality 结论。
 
 - State slot 的 exact duplicate 与 parent/child overlap 现在在 cold composition 以
   `authoring.module.overlapping_state_slot` fail-fast；这是既有 disjoint owner-slice 合同的明确化，不保留

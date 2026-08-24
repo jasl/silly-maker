@@ -191,7 +191,7 @@ describe("TextCatalogSetV1 contracts", () => {
     }
   });
 
-  it("preserves authored catalog and entry order and deeply freezes cloned plain data", () => {
+  it("preserves authored catalog and entry order in detached plain data", () => {
     const source = createRawTextCatalogSetV1();
     const parsed = parsePendingTextCatalogSetV1(source) as {
       readonly defaultLocale: string;
@@ -204,18 +204,14 @@ describe("TextCatalogSetV1 contracts", () => {
 
     expect(parsed).toEqual(source);
     expect(parsed).not.toBe(source);
+    expect(parsed.catalogs).not.toBe(source.catalogs);
+    expect(parsed.catalogs[0]).not.toBe(source.catalogs[0]);
+    expect(parsed.catalogs[0]?.entries).not.toBe(source.catalogs[0]?.entries);
     expect(parsed.catalogs.map((catalog) => catalog.locale)).toEqual(["fr-CA", "zh-CN", "fr-FR"]);
     expect(parsed.catalogs[1]?.entries.map((entry) => entry.textId)).toEqual([
       "text.synthetic.second",
       "text.synthetic.first",
     ]);
-    expect(Object.isFrozen(parsed)).toBe(true);
-    expect(Object.isFrozen(parsed.catalogs)).toBe(true);
-    for (const catalog of parsed.catalogs) {
-      expect(Object.isFrozen(catalog)).toBe(true);
-      expect(Object.isFrozen(catalog.entries)).toBe(true);
-      for (const entry of catalog.entries) expect(Object.isFrozen(entry)).toBe(true);
-    }
   });
 
   it("requires exact plain-data catalog, locale, and entry records without invoking accessors", () => {

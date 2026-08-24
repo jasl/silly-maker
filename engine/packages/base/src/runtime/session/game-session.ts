@@ -22,20 +22,14 @@ import type {
 } from "../../contracts/values.ts";
 import type { RunIntegrityReasonV1 } from "../../contracts/snapshot.ts";
 import { runIntegrityV1Schema } from "../../contracts/snapshot.ts";
-import {
-  admitCanonicalCommandInternalV1,
-  type CanonicalCommandAdmissionInternalV1,
-  withCanonicalCommandHandoffInternalV1,
-} from "../../internal/canonical-command-admission.ts";
+import { admitCanonicalCommandInternalV1 } from "../../internal/canonical-command-admission.ts";
 import {
   admitCommandAttemptEvidenceInternalV1,
   admitDebugValidationResultInternalV1,
   type FinalizedEvidencePolicyInternalV1,
   type FinalizedEvidenceResultConstraintInternalV1,
-  withFinalizedEvidenceHandoffInternalV1,
 } from "../../internal/finalized-evidence-admission.ts";
 import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
-import { recordSnapshotWorkV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import {
   type CommandLogV1,
   createCommandLogInternalV1,
@@ -538,22 +532,9 @@ export interface GameSessionCompositionV1<TTypes extends GameSimulationTypeMapV1
 }
 
 function isThenable(value: unknown): boolean {
-  if (value === null || (typeof value !== "object" && typeof value !== "function")) {
-    return false;
-  }
-  let current: object | null = value;
-  while (current !== null) {
-    const descriptor = Object.getOwnPropertyDescriptor(current, "then");
-    if (descriptor !== undefined) {
-      return (
-        descriptor.get !== undefined ||
-        descriptor.set !== undefined ||
-        typeof descriptor.value === "function"
-      );
-    }
-    current = Object.getPrototypeOf(current);
-  }
-  return false;
+  return value !== null &&
+    (typeof value === "object" || typeof value === "function") &&
+    typeof (value as { readonly then?: unknown }).then === "function";
 }
 
 function finalizeCommandAttemptV1<TTypes extends GameSimulationTypeMapV1>(
@@ -587,9 +568,7 @@ function finalizeCommandAttemptV1<TTypes extends GameSimulationTypeMapV1>(
     admittedCandidate.result.snapshot,
     integrityDirective,
   );
-  const postSnapshot = admittedCandidate.result.kind === "committed"
-    ? deepFreezeSnapshotV1(finalizedSnapshot, instrumentation)
-    : finalizedSnapshot;
+  const postSnapshot = finalizedSnapshot;
 
   const result: AttemptFor<TTypes>["result"] = admittedCandidate.result.kind === "committed"
     ? Object.freeze({
@@ -646,16 +625,9 @@ function debugCommandKindV1(command: unknown): string {
   if (command === null || typeof command !== "object" || Array.isArray(command)) {
     throw new TypeError("DebugCommand must be an object");
   }
-  const descriptor = Object.getOwnPropertyDescriptor(command, "kind");
-  if (
-    descriptor === undefined ||
-    descriptor.get !== undefined ||
-    descriptor.set !== undefined ||
-    typeof descriptor.value !== "string"
-  ) {
-    throw new TypeError("DebugCommand kind must be an own data string");
-  }
-  return descriptor.value;
+  const kind = (command as { readonly kind?: unknown }).kind;
+  if (typeof kind !== "string") throw new TypeError("DebugCommand kind must be a string");
+  return kind;
 }
 
 function debugAnchorReasonV1<
@@ -671,34 +643,6 @@ function debugAnchorReasonV1<
       kind: "debug_bundle_anchor" as const,
       sequence: snapshot.commandSequence,
     });
-}
-
-/**
- * Freezes every reachable own data property of an installed Snapshot in place.
- * Snapshots are plain validated data; freezing enforces the immutability the
- * type-level DeepReadonly promises, so a buggy consumer mutating a live
- * Snapshot throws instead of silently corrupting authoritative state. A
- * visited set guards traversal because already-frozen envelopes can still
- * carry mutable children.
- */
-function deepFreezeSnapshotV1<TSnapshot>(
-  value: TSnapshot,
-  instrumentation?: SnapshotWorkInstrumentationV1,
-): TSnapshot {
-  recordSnapshotWorkV1(instrumentation, "deep_freeze_traversal", "snapshot_freeze");
-  const visited = new Set<object>();
-  const freeze = (current: unknown): void => {
-    if (current === null || typeof current !== "object" || visited.has(current)) return;
-    visited.add(current);
-    for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(current))) {
-      if (descriptor.get === undefined && descriptor.set === undefined) {
-        freeze(descriptor.value);
-      }
-    }
-    Object.freeze(current);
-  };
-  freeze(value);
-  return value;
 }
 
 /** Builds the non-authoritative cause record for one normalized throw. */
@@ -725,7 +669,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
   type DispatchResult = Awaited<ReturnType<GameSessionV1<TTypes>["dispatch"]>>;
 
   runIntegrityV1Schema.parse(input.initialSnapshot.integrity);
-  let snapshot = deepFreezeSnapshotV1(input.initialSnapshot, instrumentation);
+  let snapshot = input.initialSnapshot;
   let currentStateDigest = digestCanonicalInternalV1(
     "sillymaker:state:v1",
     snapshot,
@@ -869,13 +813,10 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
               TResult
             >(outcome as object, prepareReplacementCommit);
             const prepareSessionReplacementV1 = () => {
-              const finalized = deepFreezeSnapshotV1(
-                finalizeSnapshotIntegrityV1<TTypes["snapshot"]>(
-                  snapshot as DeepReadonly<TTypes["snapshot"]>,
-                  outcome.snapshot,
-                  { kind: "accept_replacement" },
-                ),
-                instrumentation,
+              const finalized = finalizeSnapshotIntegrityV1<TTypes["snapshot"]>(
+                snapshot as DeepReadonly<TTypes["snapshot"]>,
+                outcome.snapshot,
+                { kind: "accept_replacement" },
               ) as DeepReadonly<TTypes["snapshot"]>;
               if (outcome.anchor === "preserve_log" && finalized !== snapshot) {
                 throw new TypeError("preserve_log replacement changed the Snapshot");
@@ -1025,9 +966,9 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
       const initialFence = preflight();
       if (initialFence !== undefined) return Promise.resolve(initialFence);
 
-      let admission: CanonicalCommandAdmissionInternalV1<TTypes["debugCommand"]>;
+      let admittedCommand: DeepReadonly<TTypes["debugCommand"]>;
       try {
-        admission = admitCanonicalCommandInternalV1(command, instrumentation);
+        admittedCommand = admitCanonicalCommandInternalV1(command, instrumentation);
       } catch (error) {
         return Promise.reject(error);
       }
@@ -1059,11 +1000,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
         let operationFailure: { readonly error: unknown } | undefined;
         let validation: unknown;
         try {
-          validation = withCanonicalCommandHandoffInternalV1(
-            admission,
-            "simulation_debug_validate",
-            () => debug.validate(before, admission.value, input.executionContext),
-          );
+          validation = debug.validate(before, admittedCommand, input.executionContext);
           if (isThenable(validation)) {
             throw new TypeError("DebugCommand validation returned thenable");
           }
@@ -1087,10 +1024,10 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
             } else if (admittedValidation.kind !== "allowed") {
               throw new TypeError("DebugCommand validation returned an invalid result");
             } else {
-              candidate = await withCanonicalCommandHandoffInternalV1(
-                admission,
-                "simulation_debug_execute",
-                () => debug.executeAttempt(before, admission.value, input.executionContext),
+              candidate = await debug.executeAttempt(
+                before,
+                admittedCommand,
+                input.executionContext,
               );
               attemptReturned = true;
             }
@@ -1122,7 +1059,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
             evidencePolicy,
             instrumentation,
             {
-              debugCommand: admission.value,
+              debugCommand: admittedCommand,
               resultConstraint: candidateIsFallback
                 ? {
                   kind: "require",
@@ -1154,7 +1091,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
             evidencePolicy,
             instrumentation,
             {
-              debugCommand: admission.value,
+              debugCommand: admittedCommand,
               resultConstraint: {
                 kind: "require",
                 resultKind: "faulted",
@@ -1165,21 +1102,12 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
         }
         if (isHmrInvalidated()) return hmrInvalidatedV1;
 
-        withCanonicalCommandHandoffInternalV1(
-          admission,
-          "command_log_append",
-          () =>
-            withFinalizedEvidenceHandoffInternalV1(
-              finalizedAttempt,
-              () =>
-                commandLog.append(
-                  Object.freeze({
-                    source: "debug" as const,
-                    command: admission.value,
-                  }),
-                  finalizedAttempt,
-                ),
-            ),
+        commandLog.append(
+          Object.freeze({
+            source: "debug" as const,
+            command: admittedCommand,
+          }),
+          finalizedAttempt,
         );
         try {
           input.onAttempt?.(finalizedAttempt);
@@ -1240,16 +1168,13 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
               outcome.snapshot,
               { kind: "accept_replacement" },
             );
-            const finalized = deepFreezeSnapshotV1(
-              {
-                ...accepted,
-                integrity: markRunModifiedV1(
-                  accepted.integrity,
-                  debugAnchorReasonV1(anchor, accepted),
-                ),
-              },
-              instrumentation,
-            ) as DeepReadonly<TTypes["snapshot"]>;
+            const finalized = {
+              ...accepted,
+              integrity: markRunModifiedV1(
+                accepted.integrity,
+                debugAnchorReasonV1(anchor, accepted),
+              ),
+            } as DeepReadonly<TTypes["snapshot"]>;
             runIntegrityV1Schema.parse(finalized.integrity);
             const preparedCommandLogAnchor = commandLog.prepareAnchor(finalized);
             return Object.freeze({ finalized, preparedCommandLogAnchor });
@@ -1350,9 +1275,9 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
       } catch {
         return Promise.resolve(Object.freeze({ kind: "not_executed", code: "validation_failed" }));
       }
-      let admission: CanonicalCommandAdmissionInternalV1<TTypes["command"]>;
+      let admittedCommand: DeepReadonly<TTypes["command"]>;
       try {
-        admission = admitCanonicalCommandInternalV1(parsed, instrumentation);
+        admittedCommand = admitCanonicalCommandInternalV1(parsed, instrumentation);
       } catch (error) {
         return Promise.reject(error);
       }
@@ -1377,15 +1302,10 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
         let candidateIsFallback = false;
         let executionFailure: { readonly error: unknown } | undefined;
         try {
-          candidate = await withCanonicalCommandHandoffInternalV1(
-            admission,
-            "simulation_game_execute",
-            () =>
-              input.executeAttempt(
-                before,
-                admission.value,
-                input.executionContext,
-              ),
+          candidate = await input.executeAttempt(
+            before,
+            admittedCommand,
+            input.executionContext,
           );
           attemptReturned = true;
         } catch (error) {
@@ -1449,21 +1369,12 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           );
         }
         if (isHmrInvalidated()) return hmrInvalidatedV1;
-        withCanonicalCommandHandoffInternalV1(
-          admission,
-          "command_log_append",
-          () =>
-            withFinalizedEvidenceHandoffInternalV1(
-              finalizedAttempt,
-              () =>
-                commandLog.append(
-                  Object.freeze({
-                    source: "game" as const,
-                    command: admission.value,
-                  }),
-                  finalizedAttempt,
-                ),
-            ),
+        commandLog.append(
+          Object.freeze({
+            source: "game" as const,
+            command: admittedCommand,
+          }),
+          finalizedAttempt,
         );
         try {
           input.onAttempt?.(finalizedAttempt);

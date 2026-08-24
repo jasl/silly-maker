@@ -74,8 +74,8 @@ replay 不重新调用外部 oracle。
 
 New-game bootstrap 是一个窄例外：Story-owned `createBootstrapInput` 在生命周期上是
 composition-root ingress adapter，只能消费 Core 注入的 `BootstrapEntropyV1`；
-Core 对它的整个 output 做 canonical admission + deep-freeze 后，才把同一个值交给
-authoritative `createInitialState`。这个边界不允许作者自行读取 `Math.random()` /
+Core 对它的整个 output 做一次 canonical admission 后，把同一个 detached typed value
+交给 authoritative `createInitialState`。这个边界不允许作者自行读取 `Math.random()` /
 `crypto`，也不引入 public bootstrap envelope 或第二份 State。
 
 ## 3. Public authoring surface
@@ -166,7 +166,7 @@ domain-event journal collection、commit/reject/fault 和完整 rollback；Story
 负责业务顺序和 rejection 含义。Module 不能通过 coordinator 获得 foreign write
 capability。
 
-transaction 的所有 `read()` 都观察 command-start immutable Snapshot，不读取
+transaction 的所有 `read()` 都观察 command-start read-only Snapshot，不读取
 折叠中的 candidate。`emit(event)` 在发射点按 Story `eventSchema` 验证一次并
 按发射顺序记入 journal；`complete()` 后引擎按确定顺序折叠（事件按发射顺序
 重放，同一事件内订阅的 module reducer 按 UTF-16 code-unit module-ID 顺序各自
@@ -183,12 +183,12 @@ transaction 的所有 `read()` 都观察 command-start immutable Snapshot，不�
 
 - 输入通过 Story schema；
 - 输出必须是 Strict/Canonical JSON；
-- 输出 deep-freeze；
+- 输出遵循普通 JavaScript runtime 语义，consumer 使用 `DeepReadonly`；
 - validation issues 转成统一 Authoring Diagnostic；
 - 可选暴露 JSON Schema/description，供 CLI、表单和 Agent inspect；
 - 引擎 runtime contract 不依赖 Zod 专属类型。
 
-这会替代每个 Story 私自实现的 parse、canonicalize、freeze 和 issue formatting
+这会替代每个 Story 私自实现的 parse、canonicalize 和 issue formatting
 胶水。
 
 ## 4. Structured diagnostics

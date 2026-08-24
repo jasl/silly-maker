@@ -875,34 +875,19 @@ New authoritative callback families must be added to the live authority policy;
 the first real executable Save migrator will reuse this seam rather than
 introducing another checker.
 
-`deno task bench:snapshot` runs generated 100/1k/10k/100k-entity Session workloads for single-field commits, multi-slice committed controls, real cross-owner atomic commits, rejection, and fault. Its full matrix also includes a neutral 256-command mixed sequence at 100 entities, authoritative replay of the retained 200-entry CommandLog, and a fixed 100-entity `every_commit` persistence workload that drains each of two committed commands and records the resulting `auto.previous` rotation. By default its schema-v3 report writes machine-readable p50/p95 and deterministic traversal, digest, freeze, continuity, Save serialization, and Strict JSON counts under an operating-system temporary directory; pass `--output <path>` for a CI artifact.
+`deno task bench:snapshot` runs generated 100/1k/10k/100k-entity Session workloads for single-field commits, multi-slice committed controls, real cross-owner atomic commits, rejection, and fault. Its full matrix also includes a neutral 256-command mixed sequence at 100 entities, authoritative replay of the retained 200-entry CommandLog, and a fixed 100-entity `every_commit` persistence workload that drains each of two committed commands and records the resulting `auto.previous` rotation. By default its report writes machine-readable p50/p95 plus deterministic canonical-traversal, digest, continuity, Save-serialization, and Strict-JSON counts under an operating-system temporary directory; pass `--output <path>` for a CI artifact.
 
-The deterministic counters distinguish bootstrap admission/freeze, command
-admission/freeze, finalized-evidence admission, conditional additional
-CommandLog-metadata admission/freeze, Snapshot digest/freeze, and CommandLog
-continuity. Each Standard Core initial-Snapshot helper performs exactly one
-bootstrap canonical projection and one engine-owned projection freeze before
-resolved initial-State construction. The resulting tuple
-`bootstrap admission / bootstrap freeze / createInitialState / Snapshot freeze /
-Snapshot digest` is `1/1/1/1/1` for construction and queued restart, and
-`1/1/1/0/0` for the captured extension helper. Adapter throws record all zeros;
-canonical or projection-traversal failure records `1/0/0/0/0`; projection-freeze
-or canonical-valid seed failure records `1/1/0/0/0`. These counters are
-package-internal test/bench observations and do not add a public bootstrap hook.
-For queued restart, an already-invalidated HMR preflight records all zeros; a
-valid helper that invalidates during its adapter records `1/1/1/0/0`, while an
-invalidating projection trap that throws records `1/0/0/0/0`. In both latter
-cases the HMR outcome wins and no candidate Snapshot is installed.
-
-Each finalized attempt performs one Snapshot-free evidence canonical projection
-traversal and freeze; Session-to-CommandLog handoff does not repeat it. The
-standard `{source, command}` path records metadata `0/0`; a direct generic log
-entry with non-empty valid extras adds `1/1`; symbol/accessor descriptor
-rejection at the top-level extra-field capture, or an enumerable engine-owned
-field collision, records `0/0`; any canonical failure reached after metadata
-projection starts (including a nested symbol/accessor) records `1/0`. Failure
-fixtures assert zero candidate Snapshot traversal/digest/freeze rather than
-using wall-clock timing.
+The counters distinguish Snapshot digest, bootstrap admission, command
+admission, finalized-evidence admission, conditional additional CommandLog
+metadata admission, replay comparison, and CommandLog continuity. They measure
+real maintained work, not removed freeze/handoff machinery. Standard Core
+performs one bootstrap canonical projection before initial-State construction;
+Session dispatch performs one command projection and one Snapshot-free evidence
+projection, while its internal CommandLog trusts those results. Public
+`createCommandLogV1` independently admits its inputs and retains full digest
+audit. Failure fixtures assert atomic state/log behavior and the absence of
+candidate Snapshot digest work instead of descriptor ordering or wall-clock
+timing.
 
 Save encoding performs canonical serialization and the Strict depth/node/collection/string/dangerous-key checks in the same package-internal traversal. The benchmark's `strictJsonPreflights` counter therefore means a separate post-encoding Strict parse traversal and is zero for each encode; `strictJsonParses` still counts decoder/readback parsing of untrusted bytes.
 

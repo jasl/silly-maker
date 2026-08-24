@@ -18,11 +18,7 @@ export const sillymakerAppConfigV1 = {
     applicationEntry: "src/application/entry.tsx",
     base: "./",
     sourcemap: false,
-    identity: {
-      module: "tools/build-identity.mjs",
-      collectExport: "collectSillyOsBuildIdentityV1",
-      createPluginExport: "createSillyOsBuildIdentityVirtualPluginV1",
-    },
+    identity: null,
     desktop: {
       name: "SillyOS98",
       identifier: "dev.sillymaker.example.silly-os",

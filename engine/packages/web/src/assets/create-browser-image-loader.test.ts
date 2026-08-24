@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { parseDigest, parsePositiveSafeInteger } from "@sillymaker/base";
+import { parsePositiveSafeInteger } from "@sillymaker/base";
 import { describe, expect, it, vi } from "vitest";
 
 import { createBrowserImageLoaderV1 } from "./create-browser-image-loader.ts";
@@ -9,7 +9,6 @@ const runtimeUrlV1 = `https://game.example.test/runtime/${runtimePathV1}`;
 const runtimeRequestV1 = Object.freeze({
   runtimePath: runtimePathV1,
   mediaType: "image/png" as const,
-  sha256: parseDigest(`sha256:${"a".repeat(64)}`),
   width: parsePositiveSafeInteger(1024),
   height: parsePositiveSafeInteger(768),
 });
@@ -79,12 +78,10 @@ function deferredV1<TValue>(): {
 }
 
 describe("browser image loader", () => {
-  it("builds the resolved URL and digest cache key without image I/O", () => {
+  it("uses the Host-resolved URL as its cache key without image I/O", () => {
     const fixture = createLoaderFixtureV1();
 
-    expect(fixture.loader.cacheKey(runtimeRequestV1)).toBe(
-      `${runtimeUrlV1}#${runtimeRequestV1.sha256}`,
-    );
+    expect(fixture.loader.cacheKey(runtimeRequestV1)).toBe(runtimeUrlV1);
     expect(fixture.resolveRuntimeUrl).toHaveBeenCalledExactlyOnceWith(runtimePathV1);
     expect(fixture.createImage).not.toHaveBeenCalled();
     expect(fixture.fakeImage.assignedSources).toEqual([]);

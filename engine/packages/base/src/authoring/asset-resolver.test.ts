@@ -5,20 +5,16 @@ import { digestBytes, digestCanonical } from "../contracts/digest.ts";
 import { parsePositiveSafeInteger } from "../contracts/values.ts";
 import { resolveAssetManifestV1 } from "./asset-resolver.ts";
 
-const bytes = new TextEncoder().encode("synthetic-image");
 const provider = Object.freeze({
   assetId: "asset.synthetic",
   runtimePath: "images/synthetic.png",
   mediaType: "image/png" as const,
-  byteLength: parsePositiveSafeInteger(bytes.length),
   width: parsePositiveSafeInteger(1),
   height: parsePositiveSafeInteger(1),
-  sha256: digestBytes(bytes),
 });
 const hotfixProvider = Object.freeze({
   ...provider,
   runtimePath: "images/synthetic-hotfix.png",
-  sha256: digestBytes(new TextEncoder().encode("synthetic-hotfix-image")),
 });
 const pack = Object.freeze({
   identity: Object.freeze({
@@ -41,7 +37,7 @@ const slot = Object.freeze({
 });
 
 describe("Asset resolver", () => {
-  it("computes identity from the exact provider projection", () => {
+  it("computes identity from the logical provider topology", () => {
     const resolved = resolveAssetManifestV1([slot], [pack]);
     expect(resolved.packs[0]?.digest).toBe(
       digestCanonical("sillymaker:asset-pack:v1", {

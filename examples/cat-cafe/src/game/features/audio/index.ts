@@ -8,7 +8,8 @@ import type { CatcafeGameViewV1 } from "../../simulation.ts";
  * The cat cafe's audio layer: continuous channels (BGM/ambient rain) are a pure
  * projection of the game view — restorable from authoritative state after a load;
  * one-shot SFX ride the commit-only transient-effect stream (mapped on the UI side,
- * see resolveCatcafeEffectAssetV1). Assets are script-synthesized placeholders (source in `art-source/audio-synth/generate.py`); swapping files + digests suffices later.
+ * see resolveCatcafeEffectAssetV1). Assets are script-synthesized placeholders (source in
+ * `art-source/audio-synth/generate.py`); same-path replacements need no receipt update.
  */
 
 export const catcafeAudioIdsV1 = Object.freeze(
@@ -79,72 +80,54 @@ export const catcafeAudioManifestV1: ResolvedAudioManifestV1 = resolveAudioManif
       assetId: catcafeAudioIdsV1.bgmShop,
       runtimePath: audioPathV1("cc-bgm-shop.mp3"),
       mediaType: "audio/mpeg",
-      byteLength: 110027,
-      sha256: "sha256:3314868be07ee53f0c2306f68be87d1a8a11774edaeb0d2c90ba3bfb9983f974",
       durationMs: 27429,
     },
     {
       assetId: catcafeAudioIdsV1.bgmArena,
       runtimePath: audioPathV1("cc-bgm-arena.mp3"),
       mediaType: "audio/mpeg",
-      byteLength: 97258,
-      sha256: "sha256:15fd9cc7a8176a7d9048e11acafdd7865688637e588bf477347ec35f99bd25fa",
       durationMs: 20000,
     },
     {
       assetId: catcafeAudioIdsV1.bgmEnding,
       runtimePath: audioPathV1("cc-bgm-ending.mp3"),
       mediaType: "audio/mpeg",
-      byteLength: 105087,
-      sha256: "sha256:4c2321f03c0705e0ada649fec5e7191936be41715dbcc0c4f92ff583939dab46",
       durationMs: 26182,
     },
     {
       assetId: catcafeAudioIdsV1.ambientRain,
       runtimePath: audioPathV1("cc-ambient-rain.mp3"),
       mediaType: "audio/mpeg",
-      byteLength: 132181,
-      sha256: "sha256:21a274dd7e66ae44ecc07528bdd8075f1761f0142514cf499580393db22acbc9",
       durationMs: 18800,
     },
     {
       assetId: catcafeAudioIdsV1.sfxPurr,
       runtimePath: audioPathV1("cc-sfx-purr.mp3"),
       mediaType: "audio/mpeg",
-      byteLength: 4415,
-      sha256: "sha256:f3a8c90eaa75f6c4df44bda62c6f1ef50854872a784a8070c83092faed5c4ecb",
       durationMs: 900,
     },
     {
       assetId: catcafeAudioIdsV1.sfxHiss,
       runtimePath: audioPathV1("cc-sfx-hiss.mp3"),
       mediaType: "audio/mpeg",
-      byteLength: 5962,
-      sha256: "sha256:a41d73b9180980b549181e11f864e3d5c7d390595cebbb5a363baae73ec2ed17",
       durationMs: 450,
     },
     {
       assetId: catcafeAudioIdsV1.sfxCoin,
       runtimePath: audioPathV1("cc-sfx-coin.mp3"),
       mediaType: "audio/mpeg",
-      byteLength: 2778,
-      sha256: "sha256:a18a1489dc0e0bf662a8732c0cdbe3ba266db2d29869edcf7c07535fc37932fc",
       durationMs: 400,
     },
     {
       assetId: catcafeAudioIdsV1.sfxWin,
       runtimePath: audioPathV1("cc-sfx-win.mp3"),
       mediaType: "audio/mpeg",
-      byteLength: 5431,
-      sha256: "sha256:fa95c95484a9d35d7a8d068be0b95c8c58d06051b9fd7eaf5cdfdf5d4cc183a0",
       durationMs: 1000,
     },
     {
       assetId: catcafeAudioIdsV1.sfxLose,
       runtimePath: audioPathV1("cc-sfx-lose.mp3"),
       mediaType: "audio/mpeg",
-      byteLength: 4207,
-      sha256: "sha256:2d12f679af7aadf2cd705c872de08dd48b1f3b5831d92773a1722b444709398b",
       durationMs: 800,
     },
   ],

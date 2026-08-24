@@ -19,48 +19,14 @@ interface IdleWaiterV1<TPublication> {
 const maxPendingIdleWaitersV1 = 256;
 
 function isThenable(value: unknown): boolean {
-  if (value === null || (typeof value !== "object" && typeof value !== "function")) {
-    return false;
-  }
-  let current: object | null = value;
-  while (current !== null) {
-    const descriptor = Object.getOwnPropertyDescriptor(current, "then");
-    if (descriptor !== undefined) {
-      return (
-        descriptor.get !== undefined ||
-        descriptor.set !== undefined ||
-        typeof descriptor.value === "function"
-      );
-    }
-    current = Object.getPrototypeOf(current);
-  }
-  return false;
+  return value !== null &&
+    (typeof value === "object" || typeof value === "function") &&
+    typeof (value as { readonly then?: unknown }).then === "function";
 }
 
 function requireSynchronousResult<T>(value: T, label: string): T {
   if (isThenable(value)) throw new TypeError(`${label} returned thenable`);
   return value;
-}
-
-function deepFreezeSemanticValueV1<T>(value: T): DeepReadonly<T> {
-  const seen = new WeakSet<object>();
-  function freeze(current: unknown): void {
-    if ((typeof current !== "object" && typeof current !== "function") || current === null) {
-      return;
-    }
-    if (seen.has(current)) return;
-    seen.add(current);
-    for (const key of Reflect.ownKeys(current)) {
-      const descriptor = Object.getOwnPropertyDescriptor(current, key);
-      if (descriptor?.get !== undefined || descriptor?.set !== undefined) {
-        throw new TypeError("Semantic publication accessors are forbidden");
-      }
-      freeze(descriptor?.value);
-    }
-    Object.freeze(current);
-  }
-  freeze(value);
-  return value as DeepReadonly<T>;
 }
 
 function isBusyStatus(status: unknown): boolean {
@@ -113,18 +79,17 @@ export function createSemanticGamePortV1<
       input.createQueries(input.source.getCurrentState()),
       "Semantic createQueries",
     );
-    const game = deepFreezeSemanticValueV1(
-      requireSynchronousResult(input.projectGameView(queries), "Semantic projectGameView"),
-    );
-    const narrative = deepFreezeSemanticValueV1(
-      requireSynchronousResult(
-        input.projectNarrativeView(queries),
-        "Semantic projectNarrativeView",
-      ),
-    );
+    const game = requireSynchronousResult(
+      input.projectGameView(queries),
+      "Semantic projectGameView",
+    ) as DeepReadonly<TGameView>;
+    const narrative = requireSynchronousResult(
+      input.projectNarrativeView(queries),
+      "Semantic projectNarrativeView",
+    ) as DeepReadonly<TNarrativeView>;
     const actionValues = requireSynchronousResult(input.actions(queries), "Semantic actions");
     if (!Array.isArray(actionValues)) throw new TypeError("Semantic actions must return an array");
-    const actions = deepFreezeSemanticValueV1([...actionValues]);
+    const actions = [...actionValues] as readonly DeepReadonly<TActionDescriptor>[];
     return Object.freeze({ game, narrative, actions });
   };
 
@@ -137,7 +102,7 @@ export function createSemanticGamePortV1<
   ): Publication =>
     Object.freeze({
       revision,
-      status: deepFreezeSemanticValueV1(status),
+      status,
       game,
       narrative,
       actions,

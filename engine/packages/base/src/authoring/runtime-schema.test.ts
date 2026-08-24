@@ -32,10 +32,9 @@ describe("createRuntimeSchemaV1", () => {
     { subject: { kind: "module", id: "lab.samples" } },
   );
 
-  it("returns deep-frozen canonical output for a legal value", () => {
+  it("returns canonical output for a legal value", () => {
     const parsed = schema.parse({ count: 3 });
     expect(parsed).toEqual({ count: 3 });
-    expect(Object.isFrozen(parsed)).toBe(true);
   });
 
   it("wraps parse failures into a stable diagnostic with the subject", () => {
@@ -84,12 +83,10 @@ describe("fromStandardSchemaV1 (official Zod adapter)", () => {
     tags: z.array(z.string().min(1)),
   });
 
-  it("parses through Zod and returns deep-frozen canonical output", () => {
+  it("parses through Zod and returns canonical output", () => {
     const schema = fromStandardSchemaV1(labState);
     const parsed = schema.parse({ collected: 2, tags: ["stable"] });
     expect(parsed).toEqual({ collected: 2, tags: ["stable"] });
-    expect(Object.isFrozen(parsed)).toBe(true);
-    expect(Object.isFrozen(parsed.tags)).toBe(true);
   });
 
   it("reports one diagnostic per issue with JSON pointers", () => {

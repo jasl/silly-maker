@@ -12,7 +12,6 @@ import type {
   StageTagV1,
 } from "./semantic-stage.ts";
 import type { StrictJsonObjectV1 } from "./strict-json.ts";
-import { deepFreezeData } from "./presentation-data.ts";
 import type { AssetId } from "./presentation-ids.ts";
 
 /**
@@ -442,7 +441,7 @@ export function projectStageRenderTargetV1(
   });
 
   return Object.freeze({
-    target: deepFreezeData({
+    target: Object.freeze({
       stageId: state.stageId,
       layers,
       camera: state.camera,

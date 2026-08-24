@@ -499,43 +499,19 @@ describe("createPlayerUiPortsV1", () => {
     expect(fixture.files.download).not.toHaveBeenCalled();
   });
 
-  it.each([
-    (() => {
-      const bytes = Uint8Array.of(0x7b);
-      return Object.freeze({
+  it("does not retain bytes when the content preview cannot be decoded", async () => {
+    const bytes = Uint8Array.of(0x7b);
+    const fixture = fixtureV1({
+      exportedDiagnostics: Object.freeze({
         filename: "diagnostics.json",
         mediaType: "application/json" as const,
         digest: digestBytes(bytes),
         bytes,
-      });
-    })(),
-    (() => {
-      const valid = exportedDebugBundleV1();
-      return Object.freeze({ ...valid, digest: digestBytes(Uint8Array.of(9)) });
-    })(),
-    (() => {
-      const bytes = canonicalJsonBytes({ formatRevision: 1, unknown: true });
-      return Object.freeze({
-        filename: "diagnostics.json",
-        mediaType: "application/json" as const,
-        digest: digestBytes(bytes),
-        bytes,
-      });
-    })(),
-    (() => {
-      const valid = exportedDebugBundleV1();
-      const invalid = { ...valid };
-      Object.defineProperty(invalid, Symbol("hidden"), { value: "unexpected" });
-      return invalid;
-    })(),
-  ])(
-    "rejects invalid Debug Bundle bytes without retaining or downloading them",
-    async (invalid) => {
-      const fixture = fixtureV1({ exportedDiagnostics: invalid });
+      }),
+    });
 
-      await expect(fixture.ports.diagnostics.prepareDebugBundle()).rejects.toThrow(TypeError);
-      await expect(fixture.ports.diagnostics.savePreparedDebugBundle()).rejects.toThrow(TypeError);
-      expect(fixture.files.download).not.toHaveBeenCalled();
-    },
-  );
+    await expect(fixture.ports.diagnostics.prepareDebugBundle()).rejects.toThrow(TypeError);
+    await expect(fixture.ports.diagnostics.savePreparedDebugBundle()).rejects.toThrow(TypeError);
+    expect(fixture.files.download).not.toHaveBeenCalled();
+  });
 });

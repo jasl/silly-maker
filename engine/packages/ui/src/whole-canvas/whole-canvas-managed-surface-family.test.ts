@@ -238,7 +238,6 @@ describe("whole-canvas managed Surface family", () => {
         parameters: { a: true, z: 2 },
       });
       expect(Object.isFrozen(parameters)).toBe(true);
-      expect(Object.isFrozen(parameters.parameters)).toBe(true);
 
       for (
         const invalid of [

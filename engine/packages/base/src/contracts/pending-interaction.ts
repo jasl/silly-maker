@@ -19,8 +19,6 @@ import type { StrictJsonObjectV1 } from "./strict-json.ts";
  */
 
 const interactionIdPatternV1 = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$/u;
-const defineInteractionJsonMemberInternalV1 = Object.defineProperty;
-const freezeInteractionDataInternalV1 = Object.freeze;
 
 function parseInteractionIdV1(value: unknown, path: string, reason: string): string {
   if (
@@ -94,28 +92,26 @@ export function parseInteractionJsonObjectV1(value: unknown, path = "/params"): 
     if (Array.isArray(candidate)) {
       const items = readArray(candidate, valuePath);
       if (items.length > 64) return dataFailure(valuePath, "interaction_json_too_large");
-      return freezeInteractionDataInternalV1(
-        items.map((item, index) => parseValue(item, `${valuePath}/${String(index)}`, depth + 1)),
+      return items.map((item, index) =>
+        parseValue(item, `${valuePath}/${String(index)}`, depth + 1)
       );
     }
     if (typeof candidate === "object" && Object.getPrototypeOf(candidate) === Object.prototype) {
       const keys = Object.keys(candidate);
       if (keys.length > 64) return dataFailure(valuePath, "interaction_json_too_large");
-      const result: Record<string, unknown> = {};
-      for (const key of keys.toSorted()) {
-        if (key.length > 96) return dataFailure(valuePath, "interaction_json_key_too_long");
-        defineInteractionJsonMemberInternalV1(result, key, {
-          value: parseValue(
-            (candidate as Record<string, unknown>)[key],
-            `${valuePath}/${key}`,
-            depth + 1,
-          ),
-          writable: true,
-          enumerable: true,
-          configurable: true,
-        });
-      }
-      return freezeInteractionDataInternalV1(result);
+      return Object.fromEntries(
+        keys.toSorted().map((key) => {
+          if (key.length > 96) return dataFailure(valuePath, "interaction_json_key_too_long");
+          return [
+            key,
+            parseValue(
+              (candidate as Record<string, unknown>)[key],
+              `${valuePath}/${key}`,
+              depth + 1,
+            ),
+          ] as const;
+        }),
+      );
     }
     return dataFailure(valuePath, "interaction_json_value_invalid");
   };
@@ -250,7 +246,7 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
       if (record.advancePolicy !== "confirm" && record.advancePolicy !== "auto") {
         return dataFailure(`${path}/advancePolicy`, "advance_policy_invalid");
       }
-      return freezeInteractionDataInternalV1({
+      return {
         kind,
         ...parseInteractionBaseV1(record, path),
         speakerTextId: record.speakerTextId === null ? null : parseInteractionIdV1(
@@ -260,7 +256,7 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
         ),
         textId: parseInteractionIdV1(record.textId, `${path}/textId`, "text_id_invalid"),
         advancePolicy: record.advancePolicy,
-      });
+      };
     }
     case "choice": {
       const record = readExactRecord(
@@ -287,16 +283,16 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
         );
         if (seen.has(choiceId)) return dataFailure(`${optionPath}/choiceId`, "choice_id_duplicate");
         seen.add(choiceId);
-        return freezeInteractionDataInternalV1({
+        return {
           choiceId,
           textId: parseInteractionIdV1(
             optionRecord.textId,
             `${optionPath}/textId`,
             "text_id_invalid",
           ),
-        });
+        };
       });
-      return freezeInteractionDataInternalV1({
+      return {
         kind,
         ...parseInteractionBaseV1(record, path),
         promptTextId: parseInteractionIdV1(
@@ -304,8 +300,8 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
           `${path}/promptTextId`,
           "text_id_invalid",
         ),
-        options: freezeInteractionDataInternalV1(options),
-      });
+        options,
+      };
     }
     case "hold": {
       const declaresTickQuantum = Object.hasOwn(value, "tickQuantumMs");
@@ -337,7 +333,7 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
       const skippable = parseBooleanV1(record.skippable, `${path}/skippable`);
       // The canonical shape omits the optional members entirely when the
       // block does not declare them, keeping earlier pendings byte-identical.
-      return freezeInteractionDataInternalV1({
+      return {
         kind,
         ...base,
         totalMs,
@@ -349,7 +345,7 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
           }
           : {}),
         ...(declaresPace ? { pace: record.pace as PaceHintV1 } : {}),
-      });
+      };
     }
     case "presentation_barrier": {
       const record = readExactRecord(
@@ -360,7 +356,7 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
       if (record.loadRecovery !== "replay" && record.loadRecovery !== "settle") {
         return dataFailure(`${path}/loadRecovery`, "load_recovery_invalid");
       }
-      return freezeInteractionDataInternalV1({
+      return {
         kind,
         ...parseInteractionBaseV1(record, path),
         expectedTransitionId: parseInteractionIdV1(
@@ -369,7 +365,7 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
           "transition_id_invalid",
         ),
         loadRecovery: record.loadRecovery,
-      });
+      };
     }
     case "custom": {
       const record = readExactRecord(
@@ -377,7 +373,7 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
         [...interactionBaseKeysV1, "surfaceId", "params"],
         path,
       );
-      return freezeInteractionDataInternalV1({
+      return {
         kind,
         ...parseInteractionBaseV1(record, path),
         surfaceId: parseInteractionIdV1(
@@ -386,7 +382,7 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
           "surface_id_invalid",
         ),
         params: parseInteractionJsonObjectV1(record.params, `${path}/params`),
-      });
+      };
     }
     default:
       return dataFailure(`${path}/kind`, "interaction_kind_invalid");
@@ -404,32 +400,32 @@ export function parseInteractionResolutionV1(
   switch (kind) {
     case "advance": {
       readExactRecord(value, ["kind"], path);
-      return freezeInteractionDataInternalV1({ kind });
+      return { kind };
     }
     case "choose": {
       const record = readExactRecord(value, ["kind", "choiceId"], path);
-      return freezeInteractionDataInternalV1({
+      return {
         kind,
         choiceId: parseInteractionIdV1(record.choiceId, `${path}/choiceId`, "choice_id_invalid"),
-      });
+      };
     }
     case "barrier_completed": {
       const record = readExactRecord(value, ["kind", "transitionId"], path);
-      return freezeInteractionDataInternalV1({
+      return {
         kind,
         transitionId: parseInteractionIdV1(
           record.transitionId,
           `${path}/transitionId`,
           "transition_id_invalid",
         ),
-      });
+      };
     }
     case "custom": {
       const record = readExactRecord(value, ["kind", "payload"], path);
-      return freezeInteractionDataInternalV1({
+      return {
         kind,
         payload: parseInteractionJsonObjectV1(record.payload, `${path}/payload`),
-      });
+      };
     }
     default:
       return dataFailure(`${path}/kind`, "resolution_kind_invalid");
@@ -461,12 +457,12 @@ export interface InteractionResolutionContextV1 {
 
 const resolutionKindForInteractionV1: Readonly<
   Record<Exclude<PendingInteractionV1["kind"], "hold">, InteractionResolutionV1["kind"]>
-> = freezeInteractionDataInternalV1({
+> = {
   say: "advance",
   choice: "choose",
   presentation_barrier: "barrier_completed",
   custom: "custom",
-});
+};
 
 /**
  * The single resolution evaluator. It never mutates anything: callers use
@@ -478,8 +474,10 @@ export function evaluateInteractionResolutionV1(
   resolution: InteractionResolutionV1,
   context: InteractionResolutionContextV1 = {},
 ): InteractionResolutionOutcomeV1 {
-  const rejected = (code: InteractionRejectionCodeV1): InteractionResolutionOutcomeV1 =>
-    freezeInteractionDataInternalV1({ kind: "rejected", code });
+  const rejected = (code: InteractionRejectionCodeV1): InteractionResolutionOutcomeV1 => ({
+    kind: "rejected",
+    code,
+  });
 
   if (pending === null) return rejected("interaction.none_pending");
   if (pending.occurrenceId !== expectedOccurrenceId) {
@@ -513,7 +511,7 @@ export function evaluateInteractionResolutionV1(
       return rejected("interaction.payload_invalid");
     }
   }
-  return freezeInteractionDataInternalV1({ kind: "accepted" });
+  return { kind: "accepted" };
 }
 
 export type HoldPendingInteractionV1 = Extract<PendingInteractionV1, { readonly kind: "hold" }>;

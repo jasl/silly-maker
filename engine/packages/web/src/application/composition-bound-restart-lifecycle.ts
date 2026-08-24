@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 import type { SessionAnchorResultV1 } from "@sillymaker/base";
-import { admitSettledSessionAnchorResultInternalV1 } from "@sillymaker/ui/internal";
 
 import type { WebApplicationTerminalSupervisorInternalV1 } from "./application-terminal-supervisor.ts";
 import type { PresentationSuccessorAcknowledgmentBrokerInternalV1 } from "./presentation-successor-acknowledgment.ts";
 
 interface PreparedRestartInternalV1 {
   readonly publicationContext: object;
-  run(): unknown;
+  run(): Promise<SessionAnchorResultV1>;
 }
 
 export interface CompositionBoundRestartLifecycleInternalV1 {
@@ -39,9 +38,9 @@ export function createCompositionBoundRestartLifecycleInternalV1(input: {
     const token = prepared.publicationContext;
     input.acknowledgments.arm(token);
 
-    let raw: unknown;
+    let result: SessionAnchorResultV1;
     try {
-      raw = await prepared.run();
+      result = await prepared.run();
     } catch (error) {
       const terminalError = input.terminal.getTerminalError();
       if (terminalError !== null) {
@@ -55,16 +54,6 @@ export function createCompositionBoundRestartLifecycleInternalV1(input: {
         );
       }
       throw error;
-    }
-
-    let result: SessionAnchorResultV1;
-    try {
-      result = admitSettledSessionAnchorResultInternalV1(raw);
-    } catch {
-      input.acknowledgments.cancel(token);
-      return await input.terminal.terminate(
-        new Error("ui.lifecycle_restart_result_invalid"),
-      );
     }
 
     const terminalError = input.terminal.getTerminalError();

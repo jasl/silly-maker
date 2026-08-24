@@ -85,27 +85,19 @@ function countsV1(input: {
   readonly log: boolean;
   readonly commandAdmission?: boolean;
   readonly evidenceAdmissions?: number;
-  readonly evidenceFreezes?: number;
 }): AuthoritativeDeterminismWorkCountsV1 {
   const commandAdmission = input.commandAdmission ?? true;
   const evidenceAdmissions = input.evidenceAdmissions ?? 1;
-  const evidenceFreezes = input.evidenceFreezes ?? (evidenceAdmissions === 0 ? 0 : 1);
   return Object.freeze({
     canonicalTraversals: (input.committed ? 1 : 0) + (commandAdmission ? 1 : 0) +
       evidenceAdmissions,
     canonicalDigests: input.committed ? 1 : 0,
-    deepFreezeTraversals: (input.committed ? 1 : 0) + (commandAdmission ? 1 : 0) +
-      evidenceFreezes,
     commandLogContinuityVerifications: input.log ? 1 : 0,
     purposes: Object.freeze({
       snapshotDigestTraversals: input.committed ? 1 : 0,
-      snapshotFreezeTraversals: input.committed ? 1 : 0,
       bootstrapAdmissionCanonicalTraversals: 0,
-      bootstrapHandoffFreezeTraversals: 0,
       commandAdmissionCanonicalTraversals: commandAdmission ? 1 : 0,
-      commandHandoffFreezeTraversals: commandAdmission ? 1 : 0,
       commandLogMetadataAdmissionCanonicalTraversals: 0,
-      commandLogMetadataFreezeTraversals: 0,
       evidenceAdmissionCanonicalTraversals: evidenceAdmissions,
       replayComparisonTraversals: 0,
       totalPhysicalCanonicalTraversals: (input.committed ? 1 : 0) +
@@ -439,17 +431,12 @@ describe("authoritative determinism evidence finalization", () => {
     expect(workload.counts()).toEqual({
       canonicalTraversals: 1,
       canonicalDigests: 0,
-      deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
       purposes: {
         snapshotDigestTraversals: 0,
-        snapshotFreezeTraversals: 0,
         bootstrapAdmissionCanonicalTraversals: 0,
-        bootstrapHandoffFreezeTraversals: 0,
         commandAdmissionCanonicalTraversals: 1,
-        commandHandoffFreezeTraversals: 0,
         commandLogMetadataAdmissionCanonicalTraversals: 0,
-        commandLogMetadataFreezeTraversals: 0,
         evidenceAdmissionCanonicalTraversals: 0,
         replayComparisonTraversals: 0,
         totalPhysicalCanonicalTraversals: 1,
@@ -511,7 +498,6 @@ describe("authoritative determinism evidence finalization", () => {
           committed: false,
           log: true,
           evidenceAdmissions: 2,
-          evidenceFreezes: 1,
         }),
       );
     },
@@ -554,7 +540,6 @@ describe("authoritative determinism evidence finalization", () => {
         committed: false,
         log: true,
         evidenceAdmissions: 2,
-        evidenceFreezes: 1,
       }),
     );
   });
@@ -588,7 +573,6 @@ describe("authoritative determinism evidence finalization", () => {
         committed: false,
         log: false,
         evidenceAdmissions: 2,
-        evidenceFreezes: 0,
       }),
     );
   });

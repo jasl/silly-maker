@@ -153,7 +153,9 @@ async function existing(candidates) {
   for (const path of candidates) {
     try {
       if ((await lstat(path)).isFile()) return path;
-    } catch {}
+    } catch {
+      // Try the next supported source extension.
+    }
   }
   return null;
 }
@@ -166,7 +168,7 @@ function isWithin(root, path) {
   );
 }
 
-async function resolveRelativeSpecifier(owner, specifier) {
+function resolveRelativeSpecifier(owner, specifier) {
   const raw = resolve(dirname(owner), specifier);
   const extension = extname(raw);
   const candidates = extension === ".js"
@@ -294,12 +296,6 @@ export async function collectImportClosure(root, entries) {
   });
 }
 
-export async function collectManagedPaths(root, entries) {
-  const result = await collectImportClosure(root, entries);
-  if (result.errors.length > 0) throw new TypeError(result.errors.join("\n"));
-  return result.paths;
-}
-
 /**
  * Hashes an already resolved set of workspace-relative files without discovering any additional
  * imports. This keeps facet filtering in the caller while retaining one live-byte record format.
@@ -337,74 +333,4 @@ export async function buildImportClosureRecordsV1(root, paths, facet) {
     }),
   );
   return Object.freeze(records);
-}
-
-export async function buildImportClosureV1(root, entries, facet) {
-  const paths = await collectManagedPaths(root, entries);
-  return buildImportClosureRecordsV1(root, paths, facet);
-}
-
-async function readWorkspaceMembers(directory) {
-  for (const configName of ["deno.json", "package.json"]) {
-    let config;
-    try {
-      config = JSON.parse(await readFile(join(directory, configName), "utf8"));
-    } catch {
-      continue;
-    }
-    const workspace = config.workspace ?? config.workspaces;
-    if (Array.isArray(workspace)) return workspace;
-    if (Array.isArray(workspace?.members)) return workspace.members;
-    if (Array.isArray(workspace?.packages)) return workspace.packages;
-  }
-  return null;
-}
-
-function workspaceMemberContains(workspaceRoot, member, target) {
-  if (typeof member !== "string" || member.length === 0) return false;
-  const wildcardIndex = member.search(/[*?[{\]]/u);
-  const stablePrefix = wildcardIndex === -1 ? member : member.slice(0, wildcardIndex);
-  return isWithin(resolve(workspaceRoot, stablePrefix), target);
-}
-
-async function findContainingWorkspaceRoot(start) {
-  const invocationRoot = await realpath(start);
-  let candidate = invocationRoot;
-  while (true) {
-    const members = await readWorkspaceMembers(candidate);
-    if (
-      members !== null &&
-      (candidate === invocationRoot ||
-        members.some((member) => workspaceMemberContains(candidate, member, invocationRoot)))
-    ) {
-      return candidate;
-    }
-    const parent = dirname(candidate);
-    if (parent === candidate) return invocationRoot;
-    candidate = parent;
-  }
-}
-
-const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isMain) {
-  const invocationRoot = process.cwd();
-  void findContainingWorkspaceRoot(invocationRoot)
-    .then(async (root) => {
-      const entries = process.argv
-        .slice(2)
-        .map((entry) => relative(root, resolve(invocationRoot, entry)));
-      return collectImportClosure(root, entries);
-    })
-    .then(
-      (result) => {
-        if (result.errors.length > 0) {
-          console.error(result.errors.join("\n"));
-          process.exitCode = 1;
-        } else console.log(JSON.stringify(result.paths, null, 2));
-      },
-      (error) => {
-        console.error(error);
-        process.exitCode = 1;
-      },
-    );
 }

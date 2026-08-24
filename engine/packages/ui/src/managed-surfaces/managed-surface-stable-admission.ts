@@ -171,8 +171,7 @@ export interface CreateManagedSurfaceStableAdmissionAuthorityInputInternalV1 {
 
 interface DefinitionRecordInternalV1 {
   readonly definition: ManagedSurfaceResolvedDefinitionV1;
-  readonly schemaReceiver: RuntimeSchemaV1<unknown>;
-  readonly schemaParse: (value: unknown) => unknown;
+  readonly parameterSchema: RuntimeSchemaV1<unknown>;
 }
 
 interface BaselineRecordInternalV1 {
@@ -216,8 +215,6 @@ interface IdentityTargetInternalV1 {
   readonly structurallyStable: boolean;
 }
 
-type ExactDataSnapshotInternalV1 = Readonly<Record<string, unknown>>;
-
 const zeroDeltaInternalV1: ManagedSurfaceStableZeroDeltaInternalV1 = Object.freeze({
   source: "unchanged",
   runtime: "unchanged",
@@ -241,50 +238,49 @@ function zeroResultInternalV1<
   >;
 }
 
-function captureExactOwnDataRecordInternalV1(
-  value: unknown,
-  expectedKeys: readonly string[],
-): ExactDataSnapshotInternalV1 | null {
-  if ((typeof value !== "object" && typeof value !== "function") || value === null) return null;
-  if (Array.isArray(value)) return null;
-  const prototype = Reflect.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) return null;
-  const actualKeys = Reflect.ownKeys(value);
-  if (actualKeys.length !== expectedKeys.length) return null;
-  const expected = new Set(expectedKeys);
-  for (const key of actualKeys) {
-    if (typeof key !== "string" || !expected.has(key)) return null;
-  }
-  const snapshot: Record<string, unknown> = Object.create(null);
-  for (const key of expectedKeys) {
-    const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
-    if (descriptor === undefined || !("value" in descriptor)) return null;
-    Object.defineProperty(snapshot, key, {
-      configurable: false,
-      enumerable: true,
-      writable: false,
-      value: descriptor.value,
-    });
-  }
-  return Object.freeze(snapshot);
-}
-
-function snapshotSchemaInternalV1(value: RuntimeSchemaV1<unknown>): {
-  readonly receiver: RuntimeSchemaV1<unknown>;
-  readonly parse: (value: unknown) => unknown;
-} {
+function requireSchemaInternalV1(value: RuntimeSchemaV1<unknown>): RuntimeSchemaV1<unknown> {
   if ((typeof value !== "object" && typeof value !== "function") || value === null) {
     throw new TypeError("ui.managed_surface_stable_schema_invalid");
   }
-  const descriptor = Reflect.getOwnPropertyDescriptor(value, "parse");
-  if (
-    descriptor === undefined || !("value" in descriptor) || typeof descriptor.value !== "function"
-  ) {
+  if (typeof value.parse !== "function") {
     throw new TypeError("ui.managed_surface_stable_schema_invalid");
   }
+  return value;
+}
+
+function readPublicationInternalV1(value: unknown): {
+  readonly publisherLease: unknown;
+  readonly sourceRevision: unknown;
+  readonly targets: unknown;
+} | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Readonly<Record<string, unknown>>;
+  return {
+    publisherLease: record.publisherLease,
+    sourceRevision: record.sourceRevision,
+    targets: record.targets,
+  };
+}
+
+function readTargetInternalV1(value: unknown, rawIndex: number): CapturedTargetInternalV1 | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Readonly<Record<string, unknown>>;
+  const occurrenceId = record.occurrenceId;
+  const definitionId = record.definitionId;
+  const parentOccurrenceId = record.parentOccurrenceId;
+  if (
+    typeof occurrenceId !== "string" ||
+    typeof definitionId !== "string" ||
+    (parentOccurrenceId !== null && typeof parentOccurrenceId !== "string")
+  ) {
+    return null;
+  }
   return Object.freeze({
-    receiver: value,
-    parse: descriptor.value as (value: unknown) => unknown,
+    occurrenceId: occurrenceId as ManagedSurfaceTargetOccurrenceIdV1,
+    definitionId: definitionId as ManagedSurfaceDefinitionIdV1,
+    parentOccurrenceId: parentOccurrenceId as ManagedSurfaceTargetOccurrenceIdV1 | null,
+    parameters: record.parameters,
+    rawIndex,
   });
 }
 
@@ -414,39 +410,17 @@ function validateOccurrenceClassificationInternalV1(
   acceptedHighWater: number,
   capturedIssuanceHighWater: number,
 ): ManagedSurfaceStableOccurrenceAdmissionClassificationInternalV1 | null {
-  if ((typeof value !== "object" && typeof value !== "function") || value === null) return null;
-  const prototype = Reflect.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) return null;
-  const ownKeys = Reflect.ownKeys(value);
-  if (ownKeys.some((key) => typeof key !== "string")) return null;
-  const kindDescriptor = Reflect.getOwnPropertyDescriptor(value, "kind");
-  if (kindDescriptor === undefined || !("value" in kindDescriptor)) return null;
-  const kind = kindDescriptor.value;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Readonly<Record<string, unknown>>;
+  const kind = record.kind;
   if (kind === "foreign" || kind === "unissued") {
-    if (ownKeys.length !== 1 || ownKeys[0] !== "kind") return null;
     if (isRetainedOccurrence) return null;
     return Object.freeze({ kind });
   }
   if (kind !== "retained" && kind !== "reused" && kind !== "fresh") return null;
-  if (
-    ownKeys.length !== 2 || !ownKeys.includes("kind") ||
-    !ownKeys.includes("occurrenceSequence")
-  ) {
-    return null;
-  }
-  const occurrenceSequenceDescriptor = Reflect.getOwnPropertyDescriptor(
-    value,
-    "occurrenceSequence",
-  );
-  if (
-    occurrenceSequenceDescriptor === undefined ||
-    !("value" in occurrenceSequenceDescriptor)
-  ) {
-    return null;
-  }
   let occurrenceSequence: PositiveSafeInteger;
   try {
-    occurrenceSequence = parsePositiveSafeInteger(occurrenceSequenceDescriptor.value);
+    occurrenceSequence = parsePositiveSafeInteger(record.occurrenceSequence);
   } catch {
     return null;
   }
@@ -477,15 +451,6 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
   const publisherLeaseRegistry = input.publisherLeaseRegistry;
   const definitionSidecars = input.definitionSidecars;
   const resolvedSlotDescriptors = input.resolvedSlotDescriptors;
-  const inspectCurrentLease = publisherLeaseRegistry.inspectCurrentLease;
-  const createAcceptedOccurrenceHighWater =
-    publisherLeaseRegistry.createAcceptedOccurrenceHighWater;
-  const captureAcceptedOccurrenceAdmissionProof =
-    publisherLeaseRegistry.captureAcceptedOccurrenceAdmissionProof;
-  const classifyOccurrenceAgainstAdmissionProof =
-    publisherLeaseRegistry.classifyOccurrenceAgainstAdmissionProof;
-  const deriveAcceptedOccurrenceHighWaterFromAdmissionProof =
-    publisherLeaseRegistry.deriveAcceptedOccurrenceHighWaterFromAdmissionProof;
 
   const definitions = new Map<ManagedSurfaceDefinitionIdV1, DefinitionRecordInternalV1>();
   for (const sidecar of definitionSidecars) {
@@ -493,13 +458,12 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
     if (definitions.has(definition.definitionId)) {
       throw new TypeError("ui.managed_surface_stable_definition_duplicate");
     }
-    const schema = snapshotSchemaInternalV1(sidecar.parameterSchema);
+    const parameterSchema = requireSchemaInternalV1(sidecar.parameterSchema);
     definitions.set(
       definition.definitionId,
       Object.freeze({
         definition,
-        schemaReceiver: schema.receiver,
-        schemaParse: schema.parse,
+        parameterSchema,
       }),
     );
   }
@@ -582,17 +546,11 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
       ManagedSurfaceStableAcceptedBaselineInternalV1,
       { readonly kind: "unpublished" }
     > {
-      const leaseSnapshot = Reflect.apply(inspectCurrentLease, publisherLeaseRegistry, [
-        publisherLease,
-      ]) as ManagedSurfaceStablePublisherLeaseSnapshotInternalV1 | null;
+      const leaseSnapshot = publisherLeaseRegistry.inspectCurrentLease(publisherLease);
       if (leaseSnapshot === null) {
         throw new TypeError("ui.managed_surface_stable_publisher_lease_stale");
       }
-      const cursor = Reflect.apply(
-        createAcceptedOccurrenceHighWater,
-        publisherLeaseRegistry,
-        [publisherLease],
-      ) as ManagedSurfaceStableAcceptedOccurrenceHighWaterInternalV1;
+      const cursor = publisherLeaseRegistry.createAcceptedOccurrenceHighWater(publisherLease);
       const baseline = Object.freeze({
         kind: "unpublished" as const,
         publisherLease,
@@ -621,9 +579,7 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
         throw new TypeError("ui.managed_surface_stable_reservation_generation_invalid");
       }
       if (
-        Reflect.apply(inspectCurrentLease, publisherLeaseRegistry, [
-          snapshotInput.subjectPublisherLease,
-        ]) === null
+        publisherLeaseRegistry.inspectCurrentLease(snapshotInput.subjectPublisherLease) === null
       ) {
         throw new TypeError("ui.managed_surface_stable_reservation_subject_invalid");
       }
@@ -674,12 +630,9 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
     evaluate(
       evaluationInput: EvaluateManagedSurfaceStablePublicationInputInternalV1,
     ): ManagedSurfaceStableAdmissionResultInternalV1 {
-      let publication: ExactDataSnapshotInternalV1 | null;
+      let publication: ReturnType<typeof readPublicationInternalV1>;
       try {
-        publication = captureExactOwnDataRecordInternalV1(
-          evaluationInput.publication,
-          ["publisherLease", "sourceRevision", "targets"],
-        );
+        publication = readPublicationInternalV1(evaluationInput.publication);
       } catch {
         return zeroResultInternalV1("faulted", "surface.stable_admission_faulted");
       }
@@ -693,9 +646,7 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
       const publisherLease = publication.publisherLease;
       let leaseSnapshot: ManagedSurfaceStablePublisherLeaseSnapshotInternalV1 | null;
       try {
-        leaseSnapshot = Reflect.apply(inspectCurrentLease, publisherLeaseRegistry, [
-          publisherLease,
-        ]) as ManagedSurfaceStablePublisherLeaseSnapshotInternalV1 | null;
+        leaseSnapshot = publisherLeaseRegistry.inspectCurrentLease(publisherLease);
       } catch {
         return zeroResultInternalV1("faulted", "surface.stable_admission_faulted");
       }
@@ -743,11 +694,9 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
 
       let occurrenceProof: ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1;
       try {
-        occurrenceProof = Reflect.apply(
-          captureAcceptedOccurrenceAdmissionProof,
-          publisherLeaseRegistry,
-          [baselineRecord.acceptedOccurrenceHighWater],
-        ) as ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1;
+        occurrenceProof = publisherLeaseRegistry.captureAcceptedOccurrenceAdmissionProof(
+          baselineRecord.acceptedOccurrenceHighWater,
+        );
       } catch {
         return zeroResultInternalV1("faulted", "surface.stable_admission_faulted");
       }
@@ -762,32 +711,17 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
         );
       }
 
-      const rawTargets = publication.targets;
+      let rawTargets: unknown[];
       let targetCount: number;
       try {
-        if (!Array.isArray(rawTargets)) {
+        if (!Array.isArray(publication.targets)) {
           return zeroResultInternalV1(
             "rejected",
             "surface.stable_target_shape_invalid",
           );
         }
-        if (Reflect.getPrototypeOf(rawTargets) !== Array.prototype) {
-          return zeroResultInternalV1(
-            "rejected",
-            "surface.stable_target_shape_invalid",
-          );
-        }
-        const lengthDescriptor = Reflect.getOwnPropertyDescriptor(rawTargets, "length");
-        if (
-          lengthDescriptor === undefined || !("value" in lengthDescriptor) ||
-          !Number.isInteger(lengthDescriptor.value) || lengthDescriptor.value < 0
-        ) {
-          return zeroResultInternalV1(
-            "rejected",
-            "surface.stable_target_shape_invalid",
-          );
-        }
-        targetCount = lengthDescriptor.value as number;
+        rawTargets = publication.targets;
+        targetCount = rawTargets.length;
       } catch {
         return zeroResultInternalV1("faulted", "surface.stable_admission_faulted");
       }
@@ -800,64 +734,15 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
 
       const capturedTargets: CapturedTargetInternalV1[] = [];
       try {
-        const ownKeys = Reflect.ownKeys(rawTargets);
-        if (ownKeys.length !== targetCount + 1) {
-          return zeroResultInternalV1(
-            "rejected",
-            "surface.stable_target_shape_invalid",
-          );
-        }
-        const indexKeys = new Set<string>();
-        for (const key of ownKeys) {
-          if (key === "length") continue;
-          if (typeof key !== "string" || !/^(0|[1-9][0-9]*)$/u.test(key)) {
-            return zeroResultInternalV1(
-              "rejected",
-              "surface.stable_target_shape_invalid",
-            );
-          }
-          const index = Number(key);
-          if (!Number.isSafeInteger(index) || index < 0 || index >= targetCount) {
-            return zeroResultInternalV1(
-              "rejected",
-              "surface.stable_target_shape_invalid",
-            );
-          }
-          indexKeys.add(key);
-        }
-        if (indexKeys.size !== targetCount) {
-          return zeroResultInternalV1(
-            "rejected",
-            "surface.stable_target_shape_invalid",
-          );
-        }
         for (let index = 0; index < targetCount; index += 1) {
-          const descriptor = Reflect.getOwnPropertyDescriptor(rawTargets, String(index));
-          if (descriptor === undefined || !("value" in descriptor)) {
-            return zeroResultInternalV1(
-              "rejected",
-              "surface.stable_target_shape_invalid",
-            );
-          }
-          const target = captureExactOwnDataRecordInternalV1(
-            descriptor.value,
-            ["occurrenceId", "definitionId", "parentOccurrenceId", "parameters"],
-          );
+          const target = readTargetInternalV1(rawTargets[index], index);
           if (target === null) {
             return zeroResultInternalV1(
               "rejected",
               "surface.stable_target_shape_invalid",
             );
           }
-          capturedTargets.push(Object.freeze({
-            occurrenceId: target.occurrenceId as ManagedSurfaceTargetOccurrenceIdV1,
-            definitionId: target.definitionId as ManagedSurfaceDefinitionIdV1,
-            parentOccurrenceId: target.parentOccurrenceId as
-              | ManagedSurfaceTargetOccurrenceIdV1
-              | null,
-            parameters: target.parameters,
-            rawIndex: index,
-          }));
+          capturedTargets.push(target);
         }
       } catch {
         return zeroResultInternalV1("faulted", "surface.stable_admission_faulted");
@@ -887,11 +772,12 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
       for (const target of capturedTargets) {
         let classification: ManagedSurfaceStableOccurrenceAdmissionClassificationInternalV1 | null;
         try {
-          const classificationValue = Reflect.apply(
-            classifyOccurrenceAgainstAdmissionProof,
-            publisherLeaseRegistry,
-            [occurrenceProof, target.occurrenceId, retainedByOccurrence.has(target.occurrenceId)],
-          );
+          const classificationValue = publisherLeaseRegistry
+            .classifyOccurrenceAgainstAdmissionProof(
+              occurrenceProof,
+              target.occurrenceId,
+              retainedByOccurrence.has(target.occurrenceId),
+            );
           classification = validateOccurrenceClassificationInternalV1(
             classificationValue,
             retainedByOccurrence.has(target.occurrenceId),
@@ -1087,11 +973,7 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
       for (const target of identityTargets) {
         let normalized: unknown;
         try {
-          normalized = Reflect.apply(
-            target.definitionRecord.schemaParse,
-            target.definitionRecord.schemaReceiver,
-            [target.raw.parameters],
-          );
+          normalized = target.definitionRecord.parameterSchema.parse(target.raw.parameters);
         } catch {
           return zeroResultInternalV1("rejected", "surface.stable_schema_invalid");
         }
@@ -1197,11 +1079,11 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
       let nextAcceptedOccurrenceHighWater:
         ManagedSurfaceStableAcceptedOccurrenceHighWaterInternalV1;
       try {
-        nextAcceptedOccurrenceHighWater = Reflect.apply(
-          deriveAcceptedOccurrenceHighWaterFromAdmissionProof,
-          publisherLeaseRegistry,
-          [occurrenceProof, nextOccurrenceHighWater],
-        ) as ManagedSurfaceStableAcceptedOccurrenceHighWaterInternalV1;
+        nextAcceptedOccurrenceHighWater = publisherLeaseRegistry
+          .deriveAcceptedOccurrenceHighWaterFromAdmissionProof(
+            occurrenceProof,
+            nextOccurrenceHighWater,
+          );
       } catch {
         return zeroResultInternalV1("faulted", "surface.stable_admission_faulted");
       }

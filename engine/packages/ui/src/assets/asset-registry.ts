@@ -3,7 +3,6 @@ import {
   parseNonNegativeSafeInteger,
   type AssetId,
   type DeepReadonly,
-  type Digest,
   type NonNegativeSafeInteger,
   type PositiveSafeInteger,
   type ResolvedAssetManifestV1,
@@ -29,7 +28,6 @@ export type AssetLoadResultV1<TAssetId> =
 export interface RuntimeAssetLoadRequestV1 {
   readonly runtimePath: string;
   readonly mediaType: "image/webp" | "image/png" | "image/svg+xml";
-  readonly sha256: Digest;
   readonly width: PositiveSafeInteger;
   readonly height: PositiveSafeInteger;
 }
@@ -53,8 +51,7 @@ export interface AssetRegistryPublicationV1 {
 }
 
 export interface AssetRegistryDiagnosticV1 {
-  readonly finalUrl: string;
-  readonly digest: Digest;
+  readonly runtimePath: string;
   readonly faultCode: AssetLoadFaultCodeV1;
   readonly loadCycle: NonNegativeSafeInteger;
 }
@@ -97,7 +94,6 @@ interface RegistryAssetRecordV1 {
   readonly runtime: {
     readonly request: DeepReadonly<RuntimeAssetLoadRequestV1>;
     readonly cacheKey: string;
-    readonly finalUrl: string;
   } | null;
 }
 
@@ -115,11 +111,6 @@ function registryFailureV1(
   code: "asset.registry_duplicate_id" | "asset.registry_unknown_id" | "asset.registry_disposed",
 ): TypeError {
   return new TypeError(code);
-}
-
-function finalUrlFromCacheKeyV1(cacheKey: string, digest: Digest): string {
-  const suffix = `#${digest}`;
-  return cacheKey.endsWith(suffix) ? cacheKey.slice(0, -suffix.length) : cacheKey;
 }
 
 function normalizeLoaderSettlementV1(value: unknown): RuntimeAssetLoaderSettlementV1 {
@@ -239,7 +230,6 @@ export function createAssetRegistryV1<
     const request = Object.freeze({
       runtimePath: entry.runtimePath,
       mediaType: entry.mediaType,
-      sha256: entry.sha256,
       width: entry.width,
       height: entry.height,
     });
@@ -253,7 +243,6 @@ export function createAssetRegistryV1<
       runtime: Object.freeze({
         request,
         cacheKey,
-        finalUrl: finalUrlFromCacheKeyV1(cacheKey, entry.sha256),
       }),
     });
     recordsById.set(entry.assetId, record);
@@ -282,8 +271,7 @@ export function createAssetRegistryV1<
   ): void => {
     if (record.runtime === null) return;
     const identity = JSON.stringify([
-      record.runtime.finalUrl,
-      record.runtime.request.sha256,
+      record.runtime.request.runtimePath,
       faultCode,
       loadCycle,
     ]);
@@ -292,8 +280,7 @@ export function createAssetRegistryV1<
     try {
       reportDiagnostic(
         Object.freeze({
-          finalUrl: record.runtime.finalUrl,
-          digest: record.runtime.request.sha256,
+          runtimePath: record.runtime.request.runtimePath,
           faultCode,
           loadCycle,
         }),

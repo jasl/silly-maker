@@ -144,31 +144,22 @@ default for first-party assets. Local research inputs, unlicensed material, and
 commercial-game payloads are outside this contract and must not become build
 dependencies.
 
-## Prepare an optional handoff Artifact
+## Copy legal files into an optional handoff
 
 ```sh
-deno run -A scripts/prepare-artifact.mjs <dist-dir>
+deno run -A scripts/prepare-artifact.mjs <output-dir>
 ```
 
-Artifact preparation takes an already built Player directory and adds an
-offline handoff wrapper. Use it when a recipient needs a self-contained
-download, technical integrity checks, reproducible file inventory, signing,
-store/update packaging, or another workflow that consumes a manifest. It is not
-a prerequisite for deploying `dist-web/` to static hosting.
+The command requires one explicitly selected output directory, creates it when
+needed, and copies `LICENSE.md`, `NOTICE`, `TRADEMARKS.md`, and the project
+license texts under `LICENSES/`. It is useful when an offline Player or another
+handoff directory needs accompanying legal files.
 
-A maintainable prepared Artifact includes:
-
-- the static Player files needed to start the game;
-- a technical manifest describing the built files and identities;
-- `LICENSE.md`, `NOTICE`, the project license texts, and `TRADEMARKS.md`.
-
-The technical manifest describes the Artifact's actual bytes and can reject
-missing or tampered files. It is not a hosted-deployment gate and must not
-require one exact machine, exact
-package-manager patch, Git cleanliness, a Phase checkpoint, or a materialization
-attestation. Likewise, a platform manifest such as `wrangler.jsonc`, an app
-bundle plist, or installer metadata configures that platform; it does not
-inventory copyright notices.
+This helper does not build or copy the Player payload, enumerate or hash the
+output, generate a manifest, sign a package, or validate an updater. Use the
+target platform's packaging and signing tools when a distribution workflow
+actually requires those capabilities. This command is not a prerequisite for
+deploying `dist-web/` to static hosting.
 
 ## Test the built Player
 
@@ -338,7 +329,7 @@ example `SillyGame-0_1_0-abc1234-dirty`). Invalid, overlong, unavailable, or
 status-unverifiable fields are omitted, and the final filename stays within a
 portable single-segment byte budget. This stamp is diagnostic provenance, not
 an exact dirty-tree identity or a replacement for BuildIdentity, byte digests,
-or an optional prepared Artifact manifest.
+or the target platform's package metadata.
 
 Without `--target` the output is a host-platform preview in the format selected
 for that platform. Each explicit supported `--target <triple>` adds one
@@ -372,15 +363,16 @@ Desktop APIs; the web Player is the stable fallback.
 A Player bundle is already self-contained static hosting input — relative base,
 assets resolved against `document.baseURI`, saves in the visitor's IndexedDB —
 so publishing one application independently can deploy `dist-web/` directly.
-It does not need an Artifact manifest.
+It does not need an additional handoff-preparation step.
 
 - **Cloudflare Workers** — the template and each example carry an app-local `wrangler.jsonc` (assets-only Worker serving `./dist-web`) and a `deploy:cf` script. From the application directory: `deno task deploy:cf` (builds, then deploys; authenticate once with `deno run -A npm:wrangler@4.123.0 login`). The Player lands at `https://<worker-name>.<account>.workers.dev/`. The `name` field in `wrangler.jsonc` is the Worker name — template copies rename it with the rest of the project; each application deploys as its own Worker, independent of the composed site. The wrangler version is pinned in each project's `package.json` and task; bump both together.
 - **GitHub Pages** — one repository owns one Pages site, and this repository's Pages slot serves the composed site (which already hosts the Player under `/play/<app>/`). For a truly standalone Pages deployment, publish the built `dist-web/` contents from a dedicated repository; the relative-base bundle works unchanged from any path.
 
 Remote distribution makes the SillyMaker MIT text available through the
-Player's project-license link or the files in an offline Artifact. A template
-copy may choose its own license for new project-owned Story code and content
-while retaining the SillyMaker MIT text for engine code it distributes.
+Player's project-license link or the files copied into an offline output
+directory. A template copy may choose its own license for new project-owned
+Story code and content while retaining the SillyMaker MIT text for engine code
+it distributes.
 
 Each application's `<appRoot>/metadata.json` configures the deployed page's share presentation — document title, description, html lang, theme color, Open Graph / Twitter card, share image, and favicon (`parseStoryMetadataV1` validates the shape; the Vite config injects the tags at build time; Stories without the file keep their hand-written head). Share-image paths are story-relative; the site composer absolutizes `og:image`/`twitter:image` and pins `og:url` when `SITE_ORIGIN` is set (the GitHub Pages workflow provides it automatically).
 
@@ -404,36 +396,37 @@ list the supported floor explicitly rather than promising unbounded historical
 compatibility.
 
 For an offline handoff, integrity workflow, signed package, updater, or store
-submission, also prepare the optional Artifact, inspect its technical manifest
-and project license files, and test the exact package. Current Desktop output
-remains a preview and has not completed that release handoff gate. For a Desktop
-preview, launch on the named target and verify write → exit → reopen.
+submission, copy the project legal files into the selected output, then use the
+actual target's packaging, signing, integrity, or updater tools and test the
+exact package. Current Desktop output remains a preview and has not completed
+that release handoff gate. For a Desktop preview, launch on the named target and
+verify write → exit → reopen.
 
-Neither a successful build nor Artifact preparation certifies final game
+Neither a successful build nor copying the legal files certifies final game
 design, player experience, content approval, or commercial readiness.
 
 ## Remote distribution
 
 `deploy:cf` and the site deployment tasks are explicit remote operations; the
-ordinary build, test, prebuilt-smoke, and Artifact-preparation commands remain
-local. Remote distribution requires target credentials, a retention/rollback
+ordinary build, test, prebuilt-smoke, and legal-file copy commands remain local.
+Remote distribution requires target credentials, a retention/rollback
 policy, and the license-availability check above. Static hosting may consume the
-tested `dist-web/` directly; workflows needing a packaged handoff may consume
-the prepared Artifact.
+tested `dist-web/` directly; workflows needing a packaged handoff should invoke
+the actual target's packaging tools.
 
 ## Asset boundary
 
 Only promoted runtime assets referenced by the Story and its technical asset
 manifest belong in the Player. Local `references/` and media working archives,
 candidates, prompts, calibration reports, browser-test output, Saves, and
-diagnostics enter neither `dist-web/` nor a prepared Artifact. See
+diagnostics enter neither `dist-web/` nor the selected handoff output. See
 [assets and references policy](../policies/assets-and-references.md).
 
 ## Troubleshooting
 
 - If source tests pass but the prebuilt Player fails, inspect base paths,
-  generated identity, and files copied into `dist-web/`; inspect the Artifact
-  manifest only when testing a prepared handoff.
+  generated identity, and files copied into `dist-web/`; inspect the actual
+  target package contents when testing a packaged handoff.
 - If persistence behaves differently between dev and prebuilt modes, verify that both applications use the same Story/state-contract identity and the intended IndexedDB database name.
 - If a browser executable is missing, install the browser required by the current Playwright version; do not pin documentation to one cached revision.
 - If a build-only import fails, confirm that it uses a declared package export and that browser code does not import Node-only tooling.

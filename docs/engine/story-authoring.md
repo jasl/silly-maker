@@ -29,40 +29,27 @@ Treat a revision as a compatibility statement. Change it when the corresponding 
 
 Each stateful module declares its owned State slot(s), schema, initial State, public read ports, domain-event reducers over its own slice, and local invariants. Ownership is disjoint: two composed modules may not claim the same slot or a parent/child pair such as `simulation.actor` and `simulation.actor.hp`. Dependencies should name capabilities another module intentionally exposes.
 
-Schemas can be hand-written parse functions or, preferably, built through `@sillymaker/base/authoring`: `createRuntimeSchemaV1` wraps a parse function and `fromStandardSchemaV1` adapts a Zod (or any Standard Schema V1) schema. Both enforce canonical-JSON output, deep-freeze the result, and report failures as stable `DiagnosticEnvelopeV1` values with JSON pointers instead of bare exceptions. `collectGamePackageDiagnosticsV1` aggregates definition/resolution failures for a whole package the same way.
+Schemas can be hand-written parse functions or, preferably, built through `@sillymaker/base/authoring`: `createRuntimeSchemaV1` wraps a parse function and `fromStandardSchemaV1` adapts a Zod (or any Standard Schema V1) schema. Both enforce canonical-JSON output and report failures as stable `DiagnosticEnvelopeV1` values with JSON pointers instead of bare exceptions. Parsed values use ordinary JavaScript runtime semantics; `DeepReadonly` is the supported consumer contract. `collectGamePackageDiagnosticsV1` aggregates definition/resolution failures for a whole package the same way.
 
 A hand-written permissive schema is still supported, but it cannot bypass the
 engine's command boundary. `GameSession.dispatch` keeps a thrown Story schema
-failure as `not_executed/validation_failed`; after the schema successfully
-returns, the engine validates it and constructs a new ordinary Strict Canonical
-Data projection before queueing. Only that engine-owned projection is frozen and
-delivered to execution/log/replay. Command admission itself neither retains nor
-freezes the schema return identity: a mutable hand-written schema result remains
-mutable, while `createRuntimeSchemaV1` / `fromStandardSchemaV1` output is already
-frozen by the schema contract described above. Shared aliases expand per canonical path, so do not
-use object identity as command semantics. A Strict Canonical Data violation instead rejects with
-`CanonicalJsonError` (`code` plus JSON-Pointer `path`) from `@sillymaker/base` and
-does not enter the Story fault normalizer. Direct low-level Simulation and
-CommandLog calls apply the same gate synchronously. Use integer, plain,
-cycle-free command data. Do not attach symbol-keyed members or extra own
-properties to arrays, and do not replace an array's prototype: those members
-are not represented by canonical command bytes or replay. Command admission
-rejects unrepresented members as
-`value.unrepresented_property` and a custom array prototype as
-`value.custom_prototype` without changing the public canonical encoder. Use data
-properties rather than accessors; admission rejects an accessor as
-`value.getter` without invoking it when traversal reaches that member. Do not
-rely on a later Snapshot or Save encode to catch an invalid command.
+failure as `not_executed/validation_failed`; after schema success, Session builds
+one detached Strict Canonical Data projection before queueing and passes that
+typed command to the trusted Simulation callback and internal CommandLog. The
+public low-level `CommandLog` and authoritative replay independently admit their
+own external inputs. A Strict Canonical Data violation rejects with
+`CanonicalJsonError` (`code` plus JSON-Pointer `path`) and does not enter the
+Story fault normalizer. Use integer, plain, cycle-free command data and do not
+depend on object identity as command semantics.
 
-Likewise, finalization does not retain or itself freeze the upstream identities
-produced by Story domain-event/rejection/Debug-error normalizers; a schema
-helper may
-already have frozen its output. Evidence arrays use one captured own `length`
-data descriptor, so Proxy virtual length cannot alter their item vector.
-Finalization projects and freezes the Snapshot-free canonical data;
-the returned attempt and CommandLog share that admitted projection. Snapshot
-objects themselves remain the authoritative identity and are not cloned by this
-evidence boundary.
+Finalization validates result kind, candidate Snapshot RNG and run-integrity data, non-commit Snapshot
+identity, declared event/rejection/Debug-error schemas, RNG evidence, and
+Snapshot-free canonical representability once. The Session-owned CommandLog
+trusts that result; the public low-level log performs the same admission at its
+own boundary. Snapshot identities are not cloned by evidence admission. Runtime
+values otherwise follow ordinary JavaScript semantics: `DeepReadonly` is the
+supported author contract, while deliberate mutation through casts or Proxy
+tricks is unsupported rather than defended by recursive freezing.
 
 For module wiring, `createGameAuthoringKitV1` captures the Game type family once and provides `defineCapability` (typed tokens), `defineStatefulModule`/`defineStatelessModule` helpers (omit absent command/query surfaces; a stateful module declares a `reducers` map from domain-event kinds to folds over its own slice), `provides` factories that build narrow read-only ports from the module's own State slice, `requires` declarations that feed the validated capability DAG and the module's serialized dependency vector (`transaction.read(token)` resolves any composed provider; the declaration documents and validates the dependency, it does not gate the read), and `initializesAfter` for startup order. `composeModules` validates disjoint State-slot ownership, the capability DAG, and the lifecycle DAG with stable diagnostic codes, compiles event kinds directly to their ordered subscribers, and emits ordinary low-level bindings for `defineGameSimulation`, so kit and hand-written modules never form two authorities.
 

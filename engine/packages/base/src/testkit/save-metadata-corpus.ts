@@ -15,7 +15,7 @@ import { normalizeVersionStampInternalV1 } from "../contracts/version-stamp.ts";
 import type { DeepReadonly, Digest, RuntimeSchemaV1 } from "../contracts/values.ts";
 import { encodeSaveRecordV1 } from "../runtime/persistence/save-codec.ts";
 
-export const saveMetadataCorpusRevisionV1 = 1 as const;
+export const saveMetadataCorpusRevisionV1 = 2 as const;
 
 export type SaveMetadataCompactRecordIdV1 =
   | "unstamped"
@@ -51,8 +51,6 @@ export interface SaveMetadataCompactVectorsV1 {
     readonly fullDirty: VersionStampV1;
     readonly statusUnavailable: VersionStampV1;
     readonly malformed: null;
-    readonly accessor: null;
-    readonly hostileProxy: null;
   };
   readonly stateDigest: Digest;
   readonly records: Readonly<
@@ -194,8 +192,6 @@ export const saveMetadataCompactExpectedV1: SaveMetadataCompactVectorsV1 = Objec
     fullDirty: fullDirtyStampV1,
     statusUnavailable: statusUnavailableStampV1,
     malformed: null,
-    accessor: null,
-    hostileProxy: null,
   }),
   stateDigest: "sha256:c87eeea0469bd353df29a97b84e773fbffa5b0a661888342e4620353839379a5" as Digest,
   records: Object.freeze({
@@ -338,30 +334,6 @@ export function evaluateSaveMetadataCompactVectorsV1(): SaveMetadataCompactVecto
     }),
     "malformed version stamp",
   );
-  let accessorReads = 0;
-  const accessorStamp = Object.create(null) as Record<string, unknown>;
-  Object.defineProperty(accessorStamp, "applicationVersion", {
-    enumerable: true,
-    get() {
-      accessorReads += 1;
-      return "must-not-run";
-    },
-  });
-  const normalizedAccessorStamp = requireNullV1(
-    normalizedStampV1(accessorStamp),
-    "accessor version stamp",
-  );
-  if (accessorReads !== 0) throw new TypeError("version stamp accessor was invoked");
-  const hostileProxyStamp = requireNullV1(
-    normalizedStampV1(
-      new Proxy({}, {
-        getOwnPropertyDescriptor() {
-          throw new Error("hostile descriptor trap");
-        },
-      }),
-    ),
-    "hostile Proxy version stamp",
-  );
   const summaryOnly = Object.freeze({ summary: validSummary, note: null });
   const noteOnly = Object.freeze({
     summary: null,
@@ -388,8 +360,6 @@ export function evaluateSaveMetadataCompactVectorsV1(): SaveMetadataCompactVecto
       fullDirty: fullDirtyStamp,
       statusUnavailable: statusUnavailableStamp,
       malformed: malformedStamp,
-      accessor: normalizedAccessorStamp,
-      hostileProxy: hostileProxyStamp,
     }),
     stateDigest: baseRecordV1().stateDigest,
     records: Object.freeze({

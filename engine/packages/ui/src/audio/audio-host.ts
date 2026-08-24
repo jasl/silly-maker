@@ -37,8 +37,7 @@ export interface AudioHostDiagnosticV1 {
   readonly code:
     | "audio.autoplay_denied"
     | "audio.decode_failed"
-    | "audio.asset_missing"
-    | "audio.integrity_mismatch";
+    | "audio.asset_missing";
   readonly assetId: string | null;
   readonly detail: string;
 }

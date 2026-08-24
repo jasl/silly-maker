@@ -83,7 +83,6 @@ function persistenceCountsV1(counts: SnapshotWorkCountsV1): SnapshotPersistenceW
   return Object.freeze({
     canonicalTraversals: counts.canonicalTraversals,
     canonicalDigests: counts.canonicalDigests,
-    deepFreezeTraversals: counts.deepFreezeTraversals,
     commandLogContinuityVerifications: counts.commandLogContinuityVerifications,
     saveCanonicalSerializations: counts.saveCanonicalSerializations,
     strictJsonParses: counts.strictJsonParses,
@@ -98,7 +97,6 @@ function addCountsV1(
   return Object.freeze({
     canonicalTraversals: left.canonicalTraversals + right.canonicalTraversals,
     canonicalDigests: left.canonicalDigests + right.canonicalDigests,
-    deepFreezeTraversals: left.deepFreezeTraversals + right.deepFreezeTraversals,
     commandLogContinuityVerifications: left.commandLogContinuityVerifications +
       right.commandLogContinuityVerifications,
     saveCanonicalSerializations: left.saveCanonicalSerializations +

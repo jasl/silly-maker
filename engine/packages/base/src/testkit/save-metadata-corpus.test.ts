@@ -19,7 +19,7 @@ function bytesFromBase64V1(encoded: string): Uint8Array {
 
 describe("shared Save metadata corpus", () => {
   it("publishes one revisioned compact corpus for later runtime and Host consumers", () => {
-    expect(saveMetadataCorpusRevisionV1).toBe(1);
+    expect(saveMetadataCorpusRevisionV1).toBe(2);
     expect(evaluateSaveMetadataCompactVectorsV1()).toEqual(saveMetadataCompactExpectedV1);
   });
 
@@ -57,7 +57,7 @@ describe("shared Save metadata corpus", () => {
     }
   });
 
-  it("normalizes and freezes compact summary and version-stamp values", () => {
+  it("normalizes compact summary and version-stamp values", () => {
     const actual = evaluateSaveMetadataCompactVectorsV1();
 
     expect(actual.summaries).toEqual({
@@ -66,11 +66,7 @@ describe("shared Save metadata corpus", () => {
       empty: null,
       valid: ["Checkpoint 7", "Neutral scene"],
     });
-    expect(Object.isFrozen(actual.summaries.valid)).toBe(true);
     expect(actual.versionStamps).toEqual(saveMetadataCompactExpectedV1.versionStamps);
-    for (const stamp of Object.values(actual.versionStamps)) {
-      if (stamp !== null) expect(Object.isFrozen(stamp)).toBe(true);
-    }
   });
 
   it("returns fresh exact Host payload bytes without claiming filename uniqueness", () => {

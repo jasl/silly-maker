@@ -7,12 +7,7 @@ import type {
 } from "../../contracts/execution.ts";
 import type { BuildProvenanceV1 } from "../../contracts/provenance.ts";
 import type { RunIntegrityV1 } from "../../contracts/snapshot.ts";
-import {
-  commitCanonicalCommandAdmissionInternalV1,
-  type CanonicalCommandAdmissionInternalV1,
-  prepareCanonicalCommandAdmissionInternalV1,
-  withCanonicalCommandHandoffInternalV1,
-} from "../../internal/canonical-command-admission.ts";
+import { admitCanonicalCommandInternalV1 } from "../../internal/canonical-command-admission.ts";
 import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import type {
   DeepReadonly,
@@ -45,7 +40,7 @@ export type ReplayLoggedCommandShapeV1 = ReplayLoggedCommandV1<ReplayCommandSour
 
 interface PreparedAuthoritativeCommandInternalV1 {
   readonly source: ReplayCommandSourceV1;
-  readonly admission: CanonicalCommandAdmissionInternalV1<unknown>;
+  readonly command: DeepReadonly<unknown>;
 }
 
 function assertReplayCommandSourceV1(source: unknown): asserts source is ReplayCommandSourceV1 {
@@ -65,19 +60,13 @@ function prepareAuthoritativeCommandVectorV1(
     source: entry.source,
     command: entry.command,
   }));
-  const prepared = captured.map(({ source, command }) => {
+  return Object.freeze(captured.map(({ source, command }) => {
     assertReplayCommandSourceV1(source);
-    return {
+    return Object.freeze({
       source,
-      admission: prepareCanonicalCommandAdmissionInternalV1(command, instrumentation),
-    };
-  });
-  for (const { admission } of prepared) {
-    commitCanonicalCommandAdmissionInternalV1(admission, instrumentation);
-  }
-  return Object.freeze(
-    prepared.map(({ source, admission }) => Object.freeze({ source, admission })),
-  );
+      command: admitCanonicalCommandInternalV1(command, instrumentation),
+    });
+  }));
 }
 
 export type ReplayRecordedOutcomeV1<TEvent, TRejection, TFault> =
@@ -426,17 +415,9 @@ async function compareReplayV1<
     const preparedCommand = authoritativeCommands?.[entryIndex];
     const command = Object.freeze({
       source: preparedCommand === undefined ? entry.source : preparedCommand.source,
-      command: preparedCommand === undefined ? entry.command : preparedCommand.admission.value,
+      command: preparedCommand === undefined ? entry.command : preparedCommand.command,
     }) as DeepReadonly<TLoggedCommand>;
-    const admission = preparedCommand?.admission;
-    const attempt = await (admission === undefined
-      ? driver.submit(command)
-      : withCanonicalCommandHandoffInternalV1(
-        admission,
-        command.source === "debug" ? "simulation_debug_execute" : "simulation_game_execute",
-        () =>
-          driver.submit(command),
-      ));
+    const attempt = await driver.submit(command);
     executedEntries += 1;
     const after = attempt.result.snapshot as DeepReadonly<TSnapshot>;
 

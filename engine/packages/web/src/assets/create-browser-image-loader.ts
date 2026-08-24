@@ -20,7 +20,7 @@ const decodeFailedResultV1 = Object.freeze({
 });
 
 /**
- * Creates the browser-only adapter that resolves and decodes one exact runtime image request.
+ * Creates the browser-only adapter that resolves and decodes one runtime image request.
  * Every pending image owns an isolated settlement path so caller abort and loader disposal can
  * synchronously detach browser handlers before the returned Promise settles.
  */
@@ -32,7 +32,7 @@ export function createBrowserImageLoaderV1(
 
   const loader: RuntimeAssetLoaderV1 = Object.freeze({
     cacheKey(request: RuntimeAssetLoadRequestV1) {
-      return `${environment.resolveRuntimeUrl(request.runtimePath)}#${request.sha256}`;
+      return environment.resolveRuntimeUrl(request.runtimePath);
     },
 
     load(request: RuntimeAssetLoadRequestV1, signal: AbortSignal) {

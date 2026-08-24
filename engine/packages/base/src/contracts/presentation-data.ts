@@ -170,17 +170,6 @@ export function parseNullableAt<TValue>(
   return value === null ? null : parseAt(parser, value, path, reason);
 }
 
-export function deepFreezeData<TValue>(value: TValue): TValue {
-  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
-    for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(value))) {
-      if (descriptor.get === undefined && descriptor.set === undefined) {
-        deepFreezeData(descriptor.value);
-      }
-    }
-    Object.freeze(value);
-  }
-  return value;
-}
 function cloneStrictJsonValue(
   value: unknown,
   path: string,

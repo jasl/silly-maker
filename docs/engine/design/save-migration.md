@@ -213,8 +213,9 @@ phase），随后按下列顺序裁决；更晚阶段不得覆盖更早失败：
 2. historical engine-owned Snapshot shell；非法返回 `envelope.schema_invalid`；
 3. each synchronous callback；显式拒绝为 `migration.rejected`，throw 为
    `migration.callback_threw`；
-4. exact result envelope 与 per-step canonical/limit admission；thenable、非法 union、
-   non-canonical 或 over-limit output 均为 `migration.output_invalid`；
+4. callback result 的普通 discriminant/field admission 与 per-step canonical/limit admission；
+   缺失/非法 union、非法 reason code、non-canonical 或 over-limit output 均为
+   `migration.output_invalid`；
 5. final current Snapshot/RNG/schema 与 migrated digest derivation；
 6. compatibility/adoption、references、invariants；
 7. replacement prepare，然后执行不可抛错、无 publication 中间态的 logical commit。
@@ -232,7 +233,7 @@ inspect-only 结果。
 
 上述 precedence 要求 package-internal protocol 显式拆为：resolve exact non-empty chain →
 M2c historical Snapshot shell admission → execute State callbacks → M2c reconstruct/validate final
-Snapshot并派生其 digest → finalize receipt。M2b executor只返回 detached/frozen migrated State与
+Snapshot并派生其 digest → finalize receipt。M2b executor只返回 detached admitted migrated State与
 opaque completed path；它不能读取 RNG/commandSequence/integrity，也不能把 State-only digest
 冒充 receipt 的 `migratedStateDigest`。M2b 提供的 pure receipt finalizer必须由 M2c 传入最终
 normalized whole-Snapshot digest。
@@ -312,12 +313,15 @@ interface SaveStateMigrationStepV1 {
 - migration registration 的 source entry 必须进入已经落地的 authoritative
   import-closure static guard 与 isolated test tripwire；“文档写着 pure”不能替代
   可执行 evidence；
-- migrator 只接收 raw-digest-verified historical Snapshot 的 `state`，经 package-owned
-  detached canonical projection 与 deep-freeze 后交付；每步 migrated output 再执行
-  descriptor-safe capture、canonical/limits admission、detached projection 与 deep-freeze；
-  limits 在 capture 时 fail fast，不得先复制/编码完整 over-limit tree；exact own-key vector
-  只捕获一次。Promise/thenable、accessor、custom prototype、alias mutation 与非 exact result
-  均不能穿透；kernel不 await、不继续 migration，也不读取或调用 arbitrary `.then`；
+- migrator 只接收 raw-digest-verified historical Snapshot 的 `state`；package-owned canonical
+  encoding 与 Strict JSON parser 对 historical State 和每步 migrated output 各执行一次
+  canonical/limits admission，并交付 detached plain data。callback result 使用普通 JavaScript
+  discriminant/field 读取；无同步合法 union 的 Promise、缺失字段与非法 reason code fail closed，
+  但不做 prototype、descriptor、accessor 或 exact-key authenticity 认证，也不把额外字段当成
+  authority。runtime 不递归冻结 State；`DeepReadonly` 是受支持用法，callback 若绕过类型约束
+  修改已交付对象，后果由 callback 自身承担。kernel 不 await，也不读取或调用 arbitrary
+  `.then`；每个成功 output 在交给下一步前重新 detached admission，因此 callback 持有的 raw
+  input/output alias 不能在返回后改变后续 migrated State；
 - callback 不接收整个 Save、arbitrary context、Host、Session、clock、RNG、network、
   renderer、database 或 mutable resource client；
 - content/reference rename/delete 是显式、可验证的 declaration 与诊断义务，不是 engine
@@ -407,8 +411,8 @@ stored 值，再执行既有 compatibility/adoption。因此 migration 不得以
 
 M2 使用 package-internal prepare/commit，不把公开 `GameSessionRuntimeControlV1` 扩张成
 通用 transaction-participant framework。prepare 在任何 mutation 前完成 final validation/
-freeze/digest、empty CommandLog/replay anchor、next ordinal、lineage copy/freeze、exact immutable
-receipt admission/capture、autosave next-epoch admission、repair/bookkeeping plan、lease fence 与
+digest、empty CommandLog/replay anchor、next ordinal、lineage copy、receipt admission/capture、
+autosave next-epoch admission、repair/bookkeeping plan、lease fence 与
 所有 allocation；不得清 map、推进 epoch、调用 Host write/observer/Story callback 或发布
 Snapshot。
 

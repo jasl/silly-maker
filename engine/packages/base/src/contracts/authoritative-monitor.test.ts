@@ -52,9 +52,6 @@ describe("monitor declaration admission", () => {
     expect(declarations.map((entry) => entry.id)).toEqual(["watch.alert", "watch.charge"]);
     expect(Object.isFrozen(declarations)).toBe(true);
     expect(Object.isFrozen(declarations[0])).toBe(true);
-    // The payload is emitted by reference once per crossing, so admission
-    // freezes it against post-admission mutation.
-    expect(Object.isFrozen(declarations[0]?.event)).toBe(true);
   });
 
   const validEntry = {

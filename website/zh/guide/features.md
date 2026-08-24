@@ -42,5 +42,6 @@
   以本次启动的精确 origin 和页面 capability 隔离私有本地路由；原生关闭时会先
   取消未完成的非权威下载，再排空本地 HTTP server。签名/公证与 durable store
   仍有明确发布门槛。
-  Player HTML 链接到 [SillyMaker 项目许可证](/zh/reference/licenses)；技术
-  Artifact manifest 仍只是可选的完整性工具。
+  Player HTML 链接到 [SillyMaker 项目许可证](/zh/reference/licenses)；项目法律
+  文件也可以复制到显式选择的离线输出目录。打包、签名与完整性检查由目标平台
+  工具负责。

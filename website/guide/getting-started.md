@@ -104,9 +104,9 @@ Publish ⟨app directory⟩ to Cloudflare Workers:
 
 For GitHub Pages instead: one repository hosts one Pages site, so give the game
 its own repository — publish the built `dist-web/` contents from it and enable
-Pages. The relative-base bundle works unchanged from any path. A technical
-Artifact manifest is optional for offline/integrity/signing/store handoffs, not
-a hosted-deployment prerequisite. Details for both targets live in
+Pages. The relative-base bundle works unchanged from any path. Offline
+packaging, signing, integrity, and store handoffs use the selected target's
+tools; they are not hosted-deployment prerequisites. Details for both targets live in
 [Build and release](https://github.com/jasl/silly-maker/blob/main/docs/engine/build-and-release.md).
 
 ## Advice that improves results

@@ -469,7 +469,7 @@ describe("shared Save metadata lifecycle", () => {
     }
   });
 
-  it("fails hostile or throwing stamp collectors closed once for the whole service", async () => {
+  it("fails malformed or throwing stamp collectors closed once for the whole service", async () => {
     const baselineRecords = createMemoryHostRecordStoreV1();
     const baseline = await createSnapshotPersistenceWorkloadV1({
       entityCount: 100,
@@ -480,20 +480,6 @@ describe("shared Save metadata lifecycle", () => {
     const baselineQuick = await storedSaveV1(baselineRecords, "quick");
     await baseline.dispose();
 
-    let accessorReads = 0;
-    const accessor = Object.create(null) as Record<string, unknown>;
-    Object.defineProperty(accessor, "applicationVersion", {
-      enumerable: true,
-      get() {
-        accessorReads += 1;
-        return "must-not-run";
-      },
-    });
-    const hostileProxy = new Proxy({}, {
-      getOwnPropertyDescriptor() {
-        throw new Error("hostile descriptor trap");
-      },
-    });
     const cases = [
       {
         id: "malformed",
@@ -504,8 +490,6 @@ describe("shared Save metadata lifecycle", () => {
           engineCommit: undefined,
         } as unknown as VersionStampV1),
       },
-      { id: "accessor", collect: () => accessor as unknown as VersionStampV1 },
-      { id: "hostile_proxy", collect: () => hostileProxy as VersionStampV1 },
       {
         id: "throw",
         collect: (): VersionStampV1 => {
@@ -548,7 +532,6 @@ describe("shared Save metadata lifecycle", () => {
         await workload.dispose();
       }
     }
-    expect(accessorReads).toBe(0);
   });
 
   it("fails every summary capture surface before any physical Save write", async () => {

@@ -31,7 +31,6 @@ import {
 } from "./desktop-dev.ts";
 import {
   copyRuntimeAssetsV1,
-  parseRuntimeAssetContentTypesV1,
   resolveRuntimeAssetPathV1,
   runtimeAssetContentTypeV1,
 } from "./runtime-assets.ts";
@@ -76,10 +75,7 @@ function loadBuildIdentityModuleV1(
  * under the same relative path (the desktop shell then serves dist
  * verbatim).
  */
-function runtimeAssetsPluginV1(
-  appRoot: string,
-  contentTypes?: Readonly<Record<string, string>>,
-): Plugin {
+function runtimeAssetsPluginV1(appRoot: string): Plugin {
   const assetsDir = resolve(appRoot, "assets");
   const urlPrefix = "/assets/";
   return {
@@ -109,7 +105,7 @@ function runtimeAssetsPluginV1(
         }
         response.setHeader(
           "content-type",
-          runtimeAssetContentTypeV1(resolution.filePath, contentTypes),
+          runtimeAssetContentTypeV1(resolution.filePath),
         );
         response.setHeader("x-content-type-options", "nosniff");
         response.end(readFileSync(resolution.filePath));
@@ -151,13 +147,6 @@ export interface CreateSillymakerAppViteConfigInputV1 {
    * assembly closure statically analyzable.
    */
   readonly config: SillymakerAppConfigV1;
-  /**
-   * Optional dev-server content-type overrides for runtime assets
-   * (`".ext"` → media type). Entries are merged over the engine defaults with
-   * the application winning, so a Story can serve formats the engine does not
-   * list yet. Production hosting assigns its own types; builds are unaffected.
-   */
-  readonly runtimeAssetContentTypes?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -181,9 +170,6 @@ export async function createSillymakerAppViteConfigV1(
     throw new TypeError(`application "${config.applicationId}" declares no web target`);
   }
 
-  const runtimeAssetContentTypes = input.runtimeAssetContentTypes === undefined
-    ? undefined
-    : parseRuntimeAssetContentTypesV1(input.runtimeAssetContentTypes);
   const desktopDevIntent = parseDesktopDevIntentEnvironmentInternalV1(
     process.env[desktopDevIntentEnvironmentKeyInternalV1],
   );
@@ -208,7 +194,7 @@ export async function createSillymakerAppViteConfigV1(
   plugins.push(
     react(),
     applicationRuntimeBootstrapPluginInternalV1({ applicationLabel: config.label }),
-    runtimeAssetsPluginV1(appRoot, runtimeAssetContentTypes),
+    runtimeAssetsPluginV1(appRoot),
     storyMetadataPluginV1(appRoot),
     // Human-facing version stamp (package versions + git commits, all
     // soft-failing) — shown in the debug dock and readable by Stories

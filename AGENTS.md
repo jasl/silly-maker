@@ -170,7 +170,13 @@ Read only the documents relevant to the change:
   one exact-rebootstrap Session command preserve Browser R2 authoritative
   continuity while reconciling paint order. The retained authoring index's
   1,000-scene/50,000-object profile remains metadata-only and path-incremental.
-  M5 Inspector replacement and closure is the only next task.
+  The owner-requested runtime-boundary Complexity Reset delivered 2026-08-24:
+  recursive Snapshot/semantic-publication/admission-tree freezing, repeated admission/handoff stacks,
+  implementation-shape tests, dead BuildIdentity consumers, and local
+  attestation tooling were removed while real schema/digest/Save/replay/CAS/
+  currentness/RPC boundaries remain. The paused M5 implementation stays isolated
+  in its stash pending owner review; M5 Inspector replacement is the only next
+  engine task after that review.
   This lane does not activate
   State Format V2, ECS, a final Blueprint/Timeline editor, public Mod ABI, or
   Desktop HMR. AR4/AR5 did not add
@@ -491,11 +497,29 @@ documented migration path.
   and other observable identity contracts. Preserve generation fencing, CAS,
   single authority, atomic commit, and deterministic replay where those are
   observable product invariants.
+- Runtime Snapshot, bootstrap, command, evidence, plan, and semantic projection
+  values follow ordinary JavaScript semantics. `DeepReadonly` is the supported
+  TypeScript contract; do not recursively freeze engine-owned trees or build a
+  custom immutability runtime. Deliberate casts, mutation, Proxy tricks, or
+  monkey-patching of trusted values are unsupported and outside the threat
+  model. This does not relax schema/digest/Save/replay/CAS/generation/RPC
+  boundaries. Cold authoring definitions and resolved graphs may remain sealed
+  where that preserves validated registration/digest identity; this is not a
+  general runtime immutability policy.
 - Treat the delivered authoritative-determinism checker as scope-frozen. Do not
   extend syntax proofs, diagnostic precedence, or hypothetical capability
   escapes unless authoritative code exposes a reproducible false negative or
   false positive. A concrete regression may justify the smallest correction;
   completeness alone does not.
+- Treat the source-level BuildIdentity import-closure collector as a
+  scope-frozen transitional owner for the Engine Lab and Cat Cafe only. Do not
+  add resolver heuristics or attach it to products that do not consume an
+  admitted R2 boundary. Replacing it requires one actual Host-graph owner plus
+  an explicit identity/Save transition; ordinary applications use explicit
+  authoritative seeds and normal Vite propagation. Likewise, do not grow the
+  retained `/assets/**` adapter with MIME override registries, symlink
+  attestation, or another static-file framework; a future `publicDir` migration
+  must first preserve the importable authoring-content contract.
 - Stop an implementation goal for unresolved public/wire compatibility,
   Save/digest/replay semantics, authority/atomicity, an actual security boundary,
   conflicting real consumers, or a measured production-performance failure. Private

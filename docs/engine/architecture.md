@@ -634,84 +634,37 @@ and Story-owned behavior:
 - bootstrap and initial-State factories;
 - gameplay and debug command executors;
 - `createQueries(State)`;
-- immutable game ViewModel projection.
+- read-only typed game ViewModel projection.
 
 Story-owned `createBootstrapInput` is a composition-root/Host ingress adapter,
-not an authoritative transition callback. Standard Core uses one
-package-internal admission path that traverses the complete raw return once and
-constructs a path-local ordinary-data projection. Core neither
-retains nor freezes the raw adapter output: shared aliases expand independently
-at each canonical path, and Proxy-, private-field-, or WeakMap-backed hidden
-identity state cannot cross the boundary. Only after the projection succeeds
-does Core recursively freeze that engine-owned value, descriptor-read and parse
-its RNG seed once, and pass the frozen projection to the resolved root and
-stateful-module initializers. Construction, queued restart, and the extension
-initial-Snapshot helper share this admission. Canonical failure precedes seed
-and Story validation; failed construction acquires no Session or persistence
-ownership, while failed restart/extension never replaces the installed
-Snapshot, replay base, or persistence anchor. Queued restart retains its
-pre-operation, post-operation, and catch HMR fences: an invalidated outcome can
-win before admission or after transient bootstrap work, but never install the
-candidate. This internal mode does not change public canonical JSON, digest,
-Snapshot, Save, or replay bytes.
+not an authoritative transition callback. Standard Core creates one detached
+canonical projection, parses its RNG seed, and passes that admitted typed value
+to the root and stateful-module initializers. Construction, queued restart, and
+the extension initial-Snapshot helper share this path. A failure cannot acquire
+or replace Session, replay-base, or persistence ownership; queued restart also
+retains its HMR/currentness fences. Internal consumers trust the admitted value
+without a second validation or recursive freeze.
 
-Every public Simulation command callback has an engine-owned Strict Canonical
-Data gate. The command-admission canonical traversal adds package-internal
-container-shape checks that reject symbol-keyed members, extra own array
-properties, and custom array prototypes before encoding that container's
-children. A represented accessor is instead rejected without invocation when
-the ordinary index/key traversal reaches that member, so an earlier child
-failure can retain precedence over a later accessor. These values could
-otherwise be observed through the caller's identity even though canonical
-command bytes, CommandLog, and replay do not represent them. From the same
-descriptor-safe traversal, the gate constructs byte-identical canonical bytes
-and a new path-local ordinary-object/array projection, then recursively freezes
-only that projection before a Story executor or Debug domain validator sees it.
-The admission step neither retains nor freezes the upstream normalized identity;
-schema helpers may already have frozen their own output under their separate
-contract. Shared aliases expand per canonical path, cycles still reject, and
-Proxy virtual reads, private elements, and raw-identity side tables do not cross
-the ingress.
-A Session operation reuses one package-internal exact-projection admission
-receipt through Simulation and CommandLog, so the operation traverses the
-command once without creating a second normalized authority. Direct Simulation
-and CommandLog calls cannot bypass the gate. Authoritative replay captures every
-source/command slot once, checks the closed source kind, then supplies only the
-admitted command projection to its driver. This stricter traversal does not
-change public `canonicalJsonBytes`, digest, Save, or Debug Bundle encoding
-behavior.
+Commands are canonicalized once at real runtime ingresses: public Session
+dispatch/Debug control, public `CommandLog`, and authoritative replay. The
+Session passes the resulting detached command to its trusted Simulation
+callback and internal CommandLog. Direct calls to package-internal resolved
+Simulation collaborators are ordinary typed calls, not a separate hostile-input
+surface. Authoritative replay preflights the complete source/command vector
+before driver creation. These gates do not change public canonical JSON,
+digest, Save, Debug Bundle, or replay bytes.
 
-Finalized attempt evidence has a separate package-internal admission boundary.
-After an executor returns, Standard Core captures the attempt envelope without
-invoking accessors, validates the candidate Snapshot RNG, then normalizes Story
-domain events/rejections and Debug validation errors through their declared
-schemas.
-Evidence collections capture their own array `length` data descriptor once and
-validate every represented index against that fixed length; a Proxy's virtual
-`get("length")` cannot truncate or expand the admitted vector.
-The complete Snapshot-free evidence candidate is converted into an engine-owned
-Strict Canonical Data projection before any candidate Snapshot integrity
-mutation, whole-tree freeze, digest, CommandLog continuity check, installation,
-or publication. One exact admitted-attempt handoff lets the Session append the
-projection carried by that attempt without a second traversal. Evidence
-admission itself neither retains nor freezes upstream normalized identities;
-an upstream schema may already have frozen its output. Result/pre-attempt
-Snapshots deliberately preserve authoritative identity and are not projected.
-Independent CommandLog calls still self-admit,
-while direct
-Simulation results are admitted only when their opaque generic result is
-structurally attempt-shaped (`result` plus `diagnostics`). A finalization failure
-uses the existing unexpected-fault normalizer once; an invalid fallback is not
-normalized recursively and leaves the stable Snapshot and log unchanged.
-
-Additional enumerable fields on a direct generic CommandLog command are a
-separate conditional ingress after continuity and before ordinal/publication.
-They are descriptor-captured, projected, frozen, and retain their public field
-enumeration order; symbol/accessor metadata rejects without invoking a getter.
-An enumerable collision with an engine-owned entry field is rejected
-synchronously, also without invoking an accessor, rather than being silently
-overwritten or masquerading as a generic field in the returned type.
-The ordinary Session `{source, command}` path performs no metadata traversal.
+After an executor returns, Session finalization validates the result branch,
+candidate Snapshot RNG and run-integrity data, non-commit Snapshot identity, declared event/rejection
+or Debug-error schemas, RNG evidence, and Snapshot-free canonical evidence once.
+Only then may integrity finalization, digesting, CommandLog append, installation,
+or publication proceed. The Session-owned log trusts that finalized attempt;
+the public low-level `CommandLog` independently admits commands and evidence and
+keeps its full digest audit. Both paths retain source/Debug-outcome rules,
+Snapshot identity, digest continuity, ordinals, and eviction. Additional public
+CommandLog metadata is canonicalized once after rejecting engine-field
+collisions. Internal typed records use ordinary JavaScript field access rather
+than descriptor authentication or one-shot global handoff stacks.
 
 The current validator checks disjoint State ownership (including parent/child
 overlap) and an acyclic module dependency graph. A Story's aggregate State
@@ -797,7 +750,9 @@ continuity. Low-level Debug control applies its capability/session/HMR preflight
 before admission and rechecks the live fence at queue front. Authoritative
 replay preflights its complete recorded-command vector before Snapshot digest
 or driver construction: it first captures every source/command identity once,
-then prepares each captured command and freezes none until all pass. The driver
+then admits every captured command before constructing the driver. The engine
+does not recursively freeze these admitted command/replay trees or installed
+Snapshot/publication trees. The driver
 does not reread mutable entry slots. Best-effort inspection remains permissive. Stable
 canonical-error compatibility fields are `code` and JSON-Pointer `path` (root
 `""`), not the diagnostic message. A command-only unrepresented member uses
@@ -810,7 +765,7 @@ Read and presentation flow:
 ```text
 GameSimulation
   -> GameQueries over Gameplay State
-  -> immutable SemanticPublication
+  -> read-only typed SemanticPublication
   -> RuntimePresentationPublication
   -> React renderer
 ```
@@ -1065,6 +1020,15 @@ appearance and content:
 Story presentation code maps its immutable semantic publication and catalogs
 into these generic surfaces. Missing assets or renderer contributions can
 degrade to a visible fallback without changing authoritative gameplay.
+
+Image and audio providers identify logical runtime locations rather than
+author-maintained byte receipts. Image pack identity covers provider topology
+(ID/path/type/dimensions); ordinary same-path media edits neither require
+length/SHA metadata churn nor authenticate a publisher. The Web Host derives
+its image cache key from the resolved URL, decodes media using platform APIs,
+and preserves the existing missing/decode fallback behavior. Build or
+distribution tooling that needs content-addressed output derives that identity
+from the actual Host graph or artifact.
 
 Workspace Overlay, System dialogs, Narrative/History, and WholeCanvas are the
 live Managed Surface families. For each application epoch, composition creates

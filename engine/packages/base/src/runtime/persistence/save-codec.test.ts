@@ -274,7 +274,6 @@ describe("Save record codec", () => {
     expect(counter.snapshot()).toEqual({
       canonicalTraversals: 1,
       canonicalDigests: 1,
-      deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 0,
       strictJsonParses: 1,
@@ -292,7 +291,6 @@ describe("Save record codec", () => {
     expect(counter.snapshot()).toEqual({
       canonicalTraversals: 2,
       canonicalDigests: 1,
-      deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 1,
       strictJsonParses: 0,
@@ -306,7 +304,6 @@ describe("Save record codec", () => {
     expect(counter.snapshot()).toEqual({
       canonicalTraversals: 2,
       canonicalDigests: 2,
-      deepFreezeTraversals: 0,
       commandLogContinuityVerifications: 0,
       saveCanonicalSerializations: 0,
       strictJsonParses: 1,

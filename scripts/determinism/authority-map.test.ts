@@ -534,12 +534,23 @@ describe("authoritative determinism authority map", () => {
       )).toBe(false);
     }
 
-    expect(map.applications.find(({ directory }) => directory === "template")?.dependencySource)
-      .toBe("explicit_dependency_seed");
     expect(
-      map.applications.filter(({ directory }) => directory !== "template").every(
-        ({ dependencySource }) => dependencySource === "managed_build_identity",
-      ),
+      map.applications
+        .filter(({ directory }) =>
+          ["template", "examples/bookshop", "examples/silly-os"].includes(directory)
+        )
+        .every(({ dependencySource }) => dependencySource === "explicit_dependency_seed"),
+    ).toBe(true);
+    expect(
+      map.applications
+        .filter(({ directory }) =>
+          ![
+            "template",
+            "examples/bookshop",
+            "examples/silly-os",
+          ].includes(directory)
+        )
+        .every(({ dependencySource }) => dependencySource === "managed_build_identity"),
     ).toBe(true);
     expect(map.saveProjectors).toEqual([]);
     expect(map.saveStateMigrations).toEqual([

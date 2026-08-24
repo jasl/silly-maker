@@ -92,7 +92,6 @@ describe("Snapshot commit workload", () => {
     expect(prepared.setupCounts).toEqual({
       canonicalTraversals: 1,
       canonicalDigests: 1,
-      deepFreezeTraversals: 1,
       commandLogContinuityVerifications: 0,
     });
     await expect(prepared.runOnce()).resolves.toMatchObject({
@@ -100,7 +99,6 @@ describe("Snapshot commit workload", () => {
       counts: {
         canonicalTraversals: 3,
         canonicalDigests: 1,
-        deepFreezeTraversals: 3,
         commandLogContinuityVerifications: 1,
       },
     });
@@ -138,10 +136,6 @@ describe("Snapshot commit workload", () => {
           commandClass === "single_field_committed" || commandClass === "multi_slice_committed"
             ? 1
             : 0,
-        deepFreezeTraversals:
-          commandClass === "single_field_committed" || commandClass === "multi_slice_committed"
-            ? 3
-            : 2,
         commandLogContinuityVerifications: 1,
         saveCanonicalSerializations: 0,
         strictJsonParses: 0,
@@ -165,13 +159,9 @@ describe("Snapshot commit workload", () => {
       const committed = commandClass.endsWith("committed");
       expect(counter.snapshot()).toEqual({
         snapshotDigestTraversals: committed ? 1 : 0,
-        snapshotFreezeTraversals: committed ? 1 : 0,
         bootstrapAdmissionCanonicalTraversals: 0,
-        bootstrapHandoffFreezeTraversals: 0,
         commandAdmissionCanonicalTraversals: 1,
-        commandHandoffFreezeTraversals: 1,
         commandLogMetadataAdmissionCanonicalTraversals: 0,
-        commandLogMetadataFreezeTraversals: 0,
         evidenceAdmissionCanonicalTraversals: 1,
         replayComparisonTraversals: 0,
         totalPhysicalCanonicalTraversals: (committed ? 1 : 0) + 2,

@@ -55,43 +55,32 @@ function boundedPrintableFieldV1(value: string): string | null {
   return nonPrintableVersionStampPatternV1.test(trimmed) ? null : trimmed;
 }
 
-function fieldDescriptorValueV1(
-  descriptors: PropertyDescriptorMap,
-  key: keyof CollectedVersionStampV1,
-): unknown {
-  const descriptor = descriptors[key];
-  return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value")
-    ? descriptor.value
-    : null;
-}
-
 /**
- * @internal Normalizes a process-boundary receipt without invoking accessors.
+ * @internal Normalizes one parsed process-boundary receipt with ordinary field reads.
  */
 export function normalizeCollectedVersionStampInternalV1(
   source: unknown,
 ): CollectedVersionStampV1 | null {
-  if (source === null || (typeof source !== "object" && typeof source !== "function")) return null;
-  let descriptors: PropertyDescriptorMap;
-  try {
-    descriptors = Object.getOwnPropertyDescriptors(source);
-  } catch {
-    return null;
-  }
+  if (source === null || typeof source !== "object" || Array.isArray(source)) return null;
+  const fields = source as Readonly<Record<string, unknown>>;
   const versionV1 = (key: "applicationVersion" | "engineVersion"): string | null => {
-    const value = fieldDescriptorValueV1(descriptors, key);
+    const value = fields[key];
     return typeof value === "string" ? boundedPrintableFieldV1(value) : null;
   };
   const commitV1 = (key: "applicationCommit" | "engineCommit"): string | null => {
-    const value = fieldDescriptorValueV1(descriptors, key);
+    const value = fields[key];
     return typeof value === "string" && fullGitCommitPatternV1.test(value) ? value : null;
   };
-  return Object.freeze({
-    applicationVersion: versionV1("applicationVersion"),
-    applicationCommit: commitV1("applicationCommit"),
-    engineVersion: versionV1("engineVersion"),
-    engineCommit: commitV1("engineCommit"),
-  });
+  try {
+    return Object.freeze({
+      applicationVersion: versionV1("applicationVersion"),
+      applicationCommit: commitV1("applicationCommit"),
+      engineVersion: versionV1("engineVersion"),
+      engineCommit: commitV1("engineCommit"),
+    });
+  } catch {
+    return null;
+  }
 }
 
 /** @internal Serializes one already-collected Desktop build receipt. */

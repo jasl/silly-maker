@@ -895,13 +895,17 @@ export function claimWholeCanvasSurfaceHostedAdapterInternalV1<TSemanticPublicat
   const unwrapResolvedPresentationView = (
     view: DeepReadonly<StrictJsonValueV1>,
   ): DeepReadonly<StrictJsonValueV1> => {
-    const captured = captureFrozenPlainExactRecordInternalV1(view, [
-      "publicViewInternalV1",
-      "presentationRevisionInternalV1",
-    ]);
-    return captured === null
-      ? view
-      : captured.values.get("publicViewInternalV1") as DeepReadonly<StrictJsonValueV1>;
+    if (view === null || typeof view !== "object" || Array.isArray(view)) return view;
+    const record = view as Readonly<Record<string, DeepReadonly<StrictJsonValueV1>>>;
+    const keys = Object.keys(record);
+    if (
+      keys.length !== 2 ||
+      !Object.hasOwn(record, "publicViewInternalV1") ||
+      !Object.hasOwn(record, "presentationRevisionInternalV1")
+    ) {
+      return view;
+    }
+    return record.publicViewInternalV1!;
   };
   const adapter: WholeCanvasSurfaceHostedAdapterInternalV1<TSemanticPublication> = Object.freeze({
     familyInternalV1: binding.family,

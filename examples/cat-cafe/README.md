@@ -48,13 +48,13 @@ deno task story diff saveA.json saveB.json
 
 ## 美术与素材
 
-全套 23 张运行时美术（4 背景 + 9 只小雨立绘 + 3 对手 + 7 图鉴插画）采用统一水粉绘本风格，webp 格式、声明字节与 sha256 摘要、密封槽位；code-native 渲染器保留为降级路径。桌面图标为 `icon.png`。
+全套 23 张运行时美术（4 背景 + 9 只小雨立绘 + 3 对手 + 7 图鉴插画）采用统一水粉绘本风格，以 webp 格式放入声明了用途与尺寸的密封槽位；code-native 渲染器保留为降级路径。桌面图标为 `icon.png`。
 
 ## 目录
 
 ```text
 examples/cat-cafe/
-├── assets/          # 运行时美术（webp；digests 在 presentation.ts 声明）
+├── assets/          # 运行时美术（webp；逻辑槽位在 presentation.ts 声明）
 ├── icon.png         # 桌面打包图标
 ├── DESIGN.md        # 设计规格（数值、事件、结局）
 ├── src/

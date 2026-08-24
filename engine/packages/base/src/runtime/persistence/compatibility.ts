@@ -35,7 +35,7 @@ import {
   parsePositiveSafeInteger,
 } from "../../contracts/values.ts";
 import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
-import { projectFrozenStrictCanonicalJsonInternalV1 } from "../../internal/strict-canonical-projection.ts";
+import { projectStrictCanonicalJsonInternalV1 } from "../../internal/strict-canonical-projection.ts";
 import {
   createSaveStateMigrationAttemptInternalV1,
   createSaveStateMigrationReceiptInternalV1,
@@ -1102,7 +1102,7 @@ export function resumeSaveImportCandidateInternalV1<
   }) as SaveRecordEnvelopeShellInternalV1<TSaveRecord>;
   let schemaInput: SaveRecordEnvelopeShellInternalV1<TSaveRecord>;
   try {
-    schemaInput = projectFrozenStrictCanonicalJsonInternalV1(
+    schemaInput = projectStrictCanonicalJsonInternalV1(
       migratedShell,
       saveJsonLimitsV1,
     ) as unknown as SaveRecordEnvelopeShellInternalV1<TSaveRecord>;
@@ -1121,7 +1121,7 @@ export function resumeSaveImportCandidateInternalV1<
   let normalizedRecord: DeepReadonly<TSaveRecord> | null = null;
   if (parsed.kind !== "rejected") {
     try {
-      normalizedRecord = projectFrozenStrictCanonicalJsonInternalV1(
+      normalizedRecord = projectStrictCanonicalJsonInternalV1(
         parsed.record,
         saveJsonLimitsV1,
       ) as unknown as DeepReadonly<TSaveRecord>;

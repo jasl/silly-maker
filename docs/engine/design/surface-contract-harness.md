@@ -30,7 +30,7 @@ shapes、fixed bounds、stable code precedence 与 exact source/runtime delta ta
 package-internal dormant contract；S1-R.1 已进一步固定 composition-owned publisher
 registry、opaque lease、source/occurrence issuance、immutable accepted-occurrence high-water、
 dispose/ABA 与 bounded churn；S1-R.1a corrective 又补上 exact accepted-cursor-bound、
-capture-time occurrence issuance proof，使 R2 admission 在 Proxy/schema reentry 后仍只按
+capture-time occurrence issuance proof，使 R2 admission 在 schema callback reentry 后仍只按
 stage-2 precondition分类并延迟派生 next cursor。S1-R.1b composition-bound disposal
 authority corrective 进一步补上 exact registry 的 claim-once authority 与 exact receiver
 admission，使后续 owner commit 能区分同一 authority 的重复 dispose、legacy direct dispose
@@ -43,13 +43,18 @@ canonical seam、UI stable-vector admission 三个独立批次推进，仍不进
 family。同日 S1-R.2a 已修正 R0 unique semantic code inventory、named ordered checks、
 per-target first-event policy 与 exact zero-delta rows；它仍是 dormant package-internal
 contract，不是 stable-vector admission capability。
-同日 S1-R.2b 已在既有 Base runtime/internal 边界交付 descriptor-safe bounded
-canonical projection、detached deep-frozen value、exact bytes 与 first-event hard-stop；
+同日 S1-R.2b 已在既有 Base runtime/internal 边界交付 bounded canonical projection、
+detached value、exact bytes 与 first-event hard-stop；
 public canonical、Save/Persistence 与 live Surface authority均未改变。
 同日 S1-R.2c 已交付 dormant、source-relative UI stable-vector admission authority：finite
 definition/slot catalog、same-factory baseline/reservation/proposal provenance、R1a proof-time
 occurrence classification、opaque canonical bytes与precondition-bound exact proposal均已闭合，
 但尚未提交accepted/runtime state或调用Coordinator。
+2026-08-24 runtime-boundary Complexity Reset 删除了 stable publication、target、R1
+classification 与 schema callable 的 prototype/descriptor/accessor authenticity 检查；这些
+package-owned same-process values 现在按普通字段与值域读取。Lease、source revision、occurrence
+proof/high-water、same-factory baseline/reservation/proposal provenance、canonical parameter bytes
+与 apply-time CAS/currentness 保持不变。
 同日 S1-R.3.0 已把apply-time proposal/lease/baseline/reservation ordered precondition、closed stale
 taxonomy与exact zero delta，以及stable-only readiness envelope/precedence固化为R0 pure contract；
 它不执行proposal、reservation phase aggregation、Coordinator mutation或readiness settlement。
@@ -451,7 +456,7 @@ package-internal shape/语义，但其首次 disposer provenance 为 legacy/glob
 不改变 R1 issuance/cursor 语义，也不自行退休 composite source/runtime state。
 
 Stable publication 在任何 identity allocation 或 Coordinator mutation 前完成 bounded
-exact admission。R2 evaluator 每次只消费三份 per-evaluation value input：untrusted raw
+schema/value admission。R2 evaluator 每次只消费三份 per-evaluation value input：package-owned
 publication、由同一 R2 factory 创建并以 private provenance 证明的 exact accepted
 baseline，以及同一 factory/application domain 创建的 subject-bound root-reservation
 snapshot；evaluator 还闭包 factory-captured immutable definition/slot catalogs 与 exact R1
@@ -466,25 +471,22 @@ zero delta。
 
 Admission check precedence 固定为：
 
-1. outer publication 只 descriptor-capture exact own data fields
-   `{ publisherLease, sourceRevision, targets }`；prototype 只能是 `Object.prototype` 或
-   `null`，ordinary shape failure 为 `surface.stable_publication_envelope_invalid`，package-
-   owned reflection throw 为 `surface.stable_admission_faulted`；此时只捕获 `targets` value，
-   不对它调用 array/prototype/length/own-key operation；
+1. outer publication 以普通字段读取 `{ publisherLease, sourceRevision, targets }`；非 object/
+   Array envelope 为 `surface.stable_publication_envelope_invalid`，字段读取 throw 为
+   `surface.stable_admission_faulted`；不认证 prototype、descriptor、accessor 或 extra keys；
 2. exact current publisher lease、positive-safe且不超过该 lease issuance high-water 的 source
    revision，以及 exact baseline provenance；fresh unpublished baseline 的首次 revision 必须为
    `1`；随后从baseline的exact accepted cursor捕获R1 occurrence admission proof，后续不再读取
    live occurrence issuance/currentness；
 3. lower revision 立即 stale，且对 `targets`、definition/schema/canonical/reservation 保持
    zero touch；
-4. equal/greater 才检查 target vector header。它必须是真 Array、exact
-   `Array.prototype` 与 ordinary own length descriptor；ordinary malformed vector 使用新增
-   `surface.stable_target_shape_invalid`，reflection throw 为 admission fault；
-5. 先比较 package-owned `64` target bound。Ordinary length `65` 在任何 ownKeys、item
-   descriptor 或 schema call 前返回 `surface.stable_target_limit_exceeded`；
-6. bounded capture exact dense vector 与 exact四字段 data-only target record。Sparse、
-   accessor、symbol、extra/missing field、custom prototype 使用
-   `surface.stable_target_shape_invalid`；
+4. equal/greater 才检查 target vector header。它必须通过 `Array.isArray`；ordinary malformed
+   vector 使用 `surface.stable_target_shape_invalid`，字段读取 throw 为 admission fault；
+5. 先比较 package-owned `64` target bound。Length `65` 在任何 item 或 schema call 前返回
+   `surface.stable_target_limit_exceeded`；
+6. 按 index 读取 dense vector 与四个 target 字段；occurrence/definition/parent 的字段和值域
+   不合法使用 `surface.stable_target_shape_invalid`。不认证 target prototype、descriptor、
+   accessor、symbol 或 extra keys；
 7. full-vector identity graph：duplicate、基于stage-2 R1 proof的unissued/gap-burn、definition/owner、root-null、
    parent exists/before-child、slot/cardinality、structural reuse 与 scope-local order。先计算
    definition/revision/parent/scope 均未变化的 `structurallyStableRetained` set；retained
@@ -519,13 +521,11 @@ own-key snapshot、key validation与canonical sort，再按 opening brace、每�
 按相同byte sink计数。Depth `32`、nodes `4,096`与bytes `65,536`均可接受，进入
 `33`/`4,097`/`65,537`分别返回对应limit code；flat code-array order不冒充全局precedence。
 
-Hard bound约束 R2 发起的 child descriptor/value reads、projected nodes 与 emitted byte
-storage；它不是对 Story schema、一次 `Reflect.ownKeys` snapshot、key sorting或 Proxy trap
-的 sandbox/绝对 CPU-memory证明。Schema只保证 `parameters`字段本身是 captured data
-property；nested raw value由 schema决定是否读取，schema throw（含其读取 getter/Proxy 的
-throw）归 `schema_invalid`。Schema parse callable与 exact receiver在 stable sidecar catalog
-construction时一次性 descriptor-capture，但不要求通用 `RuntimeSchemaV1` object frozen；
-schema purity/determinism仍是 author obligation，其主动 side effect 不属于 R2 delta。
+Hard bound约束 R2 发起的 parameter projection nodes 与 emitted byte storage；它不是 Story
+schema 或任意 JavaScript callback 的 sandbox/绝对 CPU-memory证明。Schema sidecar 在 catalog
+construction 时只检查普通 `parse` 字段为 callable，后续作为 typed collaborator 直接调用；
+schema throw 归 `schema_invalid`。Schema purity/determinism仍是 author obligation，其主动 side
+effect 不属于 R2 delta。
 
 R2 canonical safe-set采用 fully-represented descriptor-safe projection；public
 `canonicalJsonBytes(detachedProjection)` 只作为该 safe-set 上的 byte oracle，不要求对任意
@@ -1325,24 +1325,22 @@ S4.1b.1b.1b.1验证通过focused `7 files / 204 tests`、UI `79 files / 1022 tes
 Base resolution形状`{ kind: "custom", payload }`，并由Base queue-front按current occurrence、pending kind与
 Story-owned custom schema重新验证。Source-relative physical admission现以Host-owned narrow custom callback
 floor签发attempt，而不接受raw `InteractionResolutionV1`：payload先经`parseInteractionResolutionV1`的custom
-分支投影为detached、canonical-keyed、deep-frozen `StrictJsonObjectV1`。因为payload getter可以reenter或
-dispose admission，parse后必须先重验same exact admission claim，再重新capture exact direct target、source revision、
-admitted frame和captured semantic port；在mint前final check中上述target/source/frame/port与claim仍必须
-exact current。旧admission不能在getter中dispose并安装fresh successor后为新authority签发attempt。
+分支校验大小、深度和值域，并投影为detached、canonical-keyed `StrictJsonObjectV1`。随后 Base 与 UI 把该
+typed data 当作普通 JavaScript 值使用；主动 getter/reentry、cast 后 mutation 或 intrinsic monkey-patching 不在
+支持边界内。Story queue-front仍按current occurrence、pending kind与Story-owned custom schema重新验证。
 
 Attempt是frozen zero-key、same-admission one-shot capability。只有authenticated `narrative.custom`可在既有
 Surface/publication/gesture fence后进入route；wrong/unmapped/cross-kind在spend前返回。正确route先不可逆地
 spend attempt，再完成最后一次exact direct-target/source/frame/port proof才调用captured semantic receiver/
 callable。Semantic callable的sync throw规范化为rejected completion `Promise`，不回滚attempt spend或Surface
-state。Narrative module在payload getter前捕获exact `Object.freeze`，并用它冻结attempt、resolution、request与
-dispatched result，使Base→UI handoff不能留下mutable action evidence。Story queue-front仍是custom payload的最终
-schema authority；UI不预判Story-owned payload schema。
+state。Attempt的一次性消费与admission currentness仍由真实owner token保护；payload、resolution 与 request
+tree 不再通过freeze、descriptor或captured intrinsic建立第二套运行时真实性。UI不预判Story-owned payload schema。
 
 本delivery同时修正Base bounded interaction `StrictJsonObjectV1` projection：投影按canonical key order
-保留enumerable `__proto__`、`constructor`与`prototype` own-data member，并使用module-initialization时
-captured exact `Object.defineProperty`与`Object.freeze`完成member install和deep-freeze。Payload getter后续篡改
-global intrinsic不能改变本次projection或留下mutable result。Ordinary maintained input的值、canonical bytes与
-failure mapping保持不变；`InteractionResolutionV1` union、evaluator、queue语义、Save format/wire均未改变。
+保留enumerable `__proto__`、`constructor`与`prototype` own-data member。2026-08-24 Complexity Reset
+删除了曾用于该路径的captured `Object.defineProperty`、递归freeze和intrinsic monkey-patch测试；ordinary
+maintained input的值、canonical bytes、failure mapping、`InteractionResolutionV1` union、evaluator、queue
+语义与Save format/wire均未改变。
 
 该admission authority不暴露给Story renderer；S4.2 Host只能把当次admission收窄为narrow bound
 custom callback。本delivery不新增renderer-generation identity，不改变Base/generic Surface result或receipt，也不接
@@ -5536,10 +5534,10 @@ Port的单一exact state machine因此是`unbound | bound_unclaimed | claimed | 
 restart/load/import/HMR successor复用同一`claimed` token，不release/reclaim；true composition dispose进入`terminal`，definition永久不可reclaim，后续
 `replacePrimary`/`closePrimary`两个void方法对任意input永久no-op。Publication selection必须是frozen plain exact
 `{ primary }`；application initial/replace target与非null selected target都必须是frozen plain exact
-`{ targetId, parameters }`，target须在catalog且允许`primary`，parameters须通过Strict Canonical Data的descriptor-safe、bounded、deep-frozen
+`{ targetId, parameters }`，target须在catalog且允许`primary`，parameters须通过Strict Canonical Data的bounded、detached canonical
 `StrictJsonValueV1` admission。每个current/pending primary/detail再以frozen exact
 `{ publication, placement, target }`调用pure `resolveTarget`；结果必须是frozen plain exact
-`{ accessibleNameTextId, view, actions }`。Dynamic accessible-name text ID必须满足stable module-ID grammar，`view`必须是admitted deep-frozen Strict JSON；`actions`须与row的
+`{ accessibleNameTextId, view, actions }`。Dynamic accessible-name text ID必须满足stable module-ID grammar，`view`必须是admitted detached Strict JSON；`actions`须与row的
 `actionIds` exact length/order/set，每行是frozen exact `{ actionId, status, reasonTextIds, intent }`，enabled reasons必须empty，disabled至少一个valid text ID。
 Intent是closed union：`replace_primary(target) | open_detail(target) | back | close_primary | owner(payload)`；target/payload都须Strict JSON + catalog
 placement admission。`replace_primary` target必须允许primary；`open_detail` target必须允许detail，current detail存在时仍只做depth-one replacement；`back`在detail
@@ -6452,7 +6450,7 @@ initial focus target。result summary 不得在同一 completion 后抢占 focus
 在同一 commit 中退休，则不得先把 focus 恢复到即将退休的 parent/opener；由 root/subtree
 transition 的既有 restore plan 一次完成最终恢复。
 
-### 4.5 Lifecycle restart admission
+### 4.5 Lifecycle restart result
 
 `DefaultGameRootV1.lifecycle` 保持 optional，但 absence 不是隐式成功。programmatic
 `returnToTitle` 始终返回 Promise且不得同步抛错；没有 lifecycle 时，它在任何 title、System、
@@ -6460,27 +6458,15 @@ Overlay、focus、input、gesture、revision、allocation或notification mutatio
 `Error("ui.lifecycle_restart_unavailable")`。同步 restart throw 与异步 rejection都保持为
 Promise rejection。
 
-settled lifecycle result 必须由 UI-owned package-internal parser执行 descriptor-safe exact
-runtime admission，不以 TypeScript shape代替检查：
+标准 composed Web path 的 restart provider 是 Base-owned
+`PreparedCoreApplicationRestartInternalV1.run(): Promise<SessionAnchorResultV1>`；Web 在 exact
+replacement token 上完成 successor acknowledgment 后，把该 typed result 原样交给 UI。Web 与
+UI 不再重复做 descriptor/exact admission。`anchored` 继续要求 matching installed receipt；
+`rejected`/`faulted` 继续走 non-anchored acknowledgment，raw Promise rejection保留原始失败；
+acknowledgment mismatch 仍 terminal。任意 cast、getter、Proxy 或伪造 package-owned result 属于
+不支持的 same-process mutation，不扩展公开 `SessionAnchorResultV1` 或 Save/Persistence wire。
 
-- anchored 只有 exact own data fields `{ kind: "anchored", commandSequence }`，且 sequence
-  是 non-negative safe integer；
-- rejected 只有 exact own data fields `{ kind: "rejected", code }`，code 为 Base closed set
-  `busy | fault_paused | hmr_invalidated | validation_failed`；
-- faulted 只有 exact own data fields `{ kind: "faulted", code }`，code 是 primitive string；
-- accessor、inherited/extra string field、symbol、sparse/Proxy failure、unknown kind 与 malformed
-  known kind均 invalid，异步 reject `Error("ui.lifecycle_restart_result_invalid")`。
-
-descriptor getter-zero只约束最终 settled result 的 `kind/code/commandSequence` admission。
-JavaScript Promise resolution在 consumer观察前可能已 assimilate fulfilled thenable并访问其
-`.then`；本合同不声称能逆转该语言行为，也不新增 Promise-constructor identity 的公开
-约束。标准 composed Web path把 malformed/unknown result视为 terminal invariant fault：先按
-前节完成 fence/teardown，再以 `ui.lifecycle_restart_result_invalid` reject；合法 rejected/
-faulted与 raw Promise rejection不因此 terminal。bare Root 对注入 result使用同一 parser，但只负责 unavailable/invalid/rejected/faulted
-的异步映射：合法 rejected/faulted仍为既有
-`ui.lifecycle_restart_<kind>:<code>` error；它不拥有 terminal latch或 composition ack。
-
-只有标准 composed Web wrapper得到 exact composed anchored 后才能显示 title。successful
+只有标准 composed Web wrapper得到 composed anchored 后才能显示 title。successful
 restart已经由 application anchor安装 shared-Coordinator successor；Root 不得随后调用 System
 close或 Overlay `closeAll`。New Game使用相同 admission：没有 lifecycle时保留 title、不调用
 `beginNewGame`，沿用现有 failure UI code `unavailable`；DevDock 在 lifecycle缺失时不贡献
@@ -6972,8 +6958,6 @@ definitions、创建新 instance/topology revision；不得反序列化旧 live 
 - teardown promise无法在任一 cleanup callback前发布，cleanup throw/reentry会跳过其他资源或
   Core/Persistence release、替换 terminal primary error，或 terminal unmount必然恢复 predecessor
   focus且只能通过新增 public DOM/Root evidence阻止；
-- exact lifecycle result admission必须执行 accessor/Proxy getter才能分类，或必须改变 public
-  result union才能拒绝 malformed value。
 
 ## 15. Acceptance
 

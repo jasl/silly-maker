@@ -1,11 +1,5 @@
 // SPDX-License-Identifier: MIT
-import {
-  dataFailure,
-  deepFreezeData,
-  pointerSegment,
-  readArray,
-  readExactRecord,
-} from "./presentation-data.ts";
+import { dataFailure, pointerSegment, readArray, readExactRecord } from "./presentation-data.ts";
 import { isPaceHintV1 } from "./pending-interaction.ts";
 import type { PaceHintV1 } from "./pending-interaction.ts";
 import { countThresholdCrossingsV1 } from "./time-tick.ts";
@@ -162,10 +156,9 @@ export function parseMonitorDeclarationsV1<TState, TEvent>(
       everyMs: record.everyMs,
       retention,
       pace: declaresPace ? record.pace as PaceHintV1 : "cinematic",
-      // Frozen at admission: settlement emits this same reference once per
-      // crossing, so a mutable payload would silently rewrite every future
-      // emission (the Story eventSchema still re-validates at emit).
-      event: deepFreezeData(record.event) as TEvent,
+      // Settlement emits this typed declaration value once per crossing; the
+      // Story eventSchema re-validates it at emit like every other event.
+      event: record.event as TEvent,
       activeWhen: record.activeWhen as MonitorDeclarationV1<TState, TEvent>["activeWhen"],
     });
   });

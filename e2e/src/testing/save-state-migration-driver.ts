@@ -841,12 +841,7 @@ const throwingRegistryV1 = conformanceRegistryV1(
 );
 const invalidOutputRegistryV1 = conformanceRegistryV1(
   "migration.engine-lab.conformance.invalid-output",
-  (() =>
-    Object.freeze({
-      kind: "migrated",
-      state: historicalStateRevision4V1,
-      extra: true,
-    })) as SaveStateMigrationStepV1["migrate"],
+  (() => ({ kind: "migrated" })) as unknown as SaveStateMigrationStepV1["migrate"],
 );
 
 /** Executes all M2e cases through the real migration integration path. */

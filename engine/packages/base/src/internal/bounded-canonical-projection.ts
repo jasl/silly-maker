@@ -42,30 +42,22 @@ type ProjectionStepInternalV1 =
   | { readonly kind: "value"; readonly value: StrictJsonValueV1 }
   | BoundedCanonicalJsonRejectionInternalV1;
 
-const canonicalInvalidInternalV1 = Object.freeze(
-  {
-    kind: "rejected",
-    code: "canonical.invalid",
-  } as const,
-);
-const bytesExceededInternalV1 = Object.freeze(
-  {
-    kind: "rejected",
-    code: "limit.bytes",
-  } as const,
-);
-const depthExceededInternalV1 = Object.freeze(
-  {
-    kind: "rejected",
-    code: "limit.depth",
-  } as const,
-);
-const nodesExceededInternalV1 = Object.freeze(
-  {
-    kind: "rejected",
-    code: "limit.nodes",
-  } as const,
-);
+const canonicalInvalidInternalV1 = {
+  kind: "rejected",
+  code: "canonical.invalid",
+} as const;
+const bytesExceededInternalV1 = {
+  kind: "rejected",
+  code: "limit.bytes",
+} as const;
+const depthExceededInternalV1 = {
+  kind: "rejected",
+  code: "limit.depth",
+} as const;
+const nodesExceededInternalV1 = {
+  kind: "rejected",
+  code: "limit.nodes",
+} as const;
 
 function isCanonicalArrayIndexInternalV1(value: string, length: number): boolean {
   if (value.length === 0 || value.length > 10) return false;
@@ -224,7 +216,6 @@ export function projectBoundedCanonicalJsonInternalV1(
           );
         }
         if (!writeByte(0x5d)) return bytesExceededInternalV1;
-        Object.freeze(projection);
         return { kind: "value", value: projection };
       }
 
@@ -267,7 +258,6 @@ export function projectBoundedCanonicalJsonInternalV1(
         defineCanonicalJsonProjectionMemberInternalV1(projection, key, child.value);
       }
       if (!writeByte(0x7d)) return bytesExceededInternalV1;
-      Object.freeze(projection);
       return { kind: "value", value: projection };
     } finally {
       active.delete(current);
@@ -279,9 +269,9 @@ export function projectBoundedCanonicalJsonInternalV1(
   nodes += 1;
   const projected = projectEnteredValue(value, 1);
   if (projected.kind === "rejected") return projected;
-  return Object.freeze({
+  return {
     kind: "projected",
     value: projected.value as DeepReadonly<StrictJsonValueV1>,
     bytes: Uint8Array.from(output),
-  });
+  };
 }

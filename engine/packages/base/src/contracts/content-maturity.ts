@@ -2,7 +2,6 @@
 import {
   ContentMaturityDuplicateIdError,
   PresentationDataError,
-  deepFreezeData,
   parseAt,
   readArray,
   readExactRecord,
@@ -155,7 +154,7 @@ function parseContentMaturityPolicyData(value: unknown): ContentMaturityPolicyV1
 
 export function parseContentMaturityPolicyV1(value: unknown): ContentMaturityPolicyV1 {
   try {
-    return deepFreezeData(parseContentMaturityPolicyData(value));
+    return parseContentMaturityPolicyData(value);
   } catch (error) {
     if (error instanceof PresentationDataError) {
       throw new TypeError(`content_maturity.policy at ${error.path}`, { cause: error });

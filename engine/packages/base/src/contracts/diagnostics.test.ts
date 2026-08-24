@@ -179,7 +179,7 @@ describe("diagnostic contracts", () => {
     });
   });
 
-  it("round-trips a bounded Debug UI context as a detached deep-frozen value", () => {
+  it("round-trips a bounded Debug UI context as detached plain data", () => {
     const input = createValidDebugUiContextV1();
     const parsed = createDebugUiContextSchemaV1().parse(input);
 
@@ -193,16 +193,6 @@ describe("diagnostic contracts", () => {
     expect(parsed.session).not.toBe(input.session);
     expect(parsed.session.devDock).not.toBe(input.session.devDock);
     expect(createDebugUiContextSchemaV1().parse(parsed)).toEqual(parsed);
-
-    expect(Object.isFrozen(parsed)).toBe(true);
-    expect(Object.isFrozen(parsed.presentation)).toBe(true);
-    expect(Object.isFrozen(parsed.presentation?.renderers)).toBe(true);
-    expect(Object.isFrozen(parsed.presentation?.renderers[0])).toBe(true);
-    expect(Object.isFrozen(parsed.presentation?.renderers[0]?.appearanceLayerIds)).toBe(true);
-    expect(Object.isFrozen(parsed.presentation?.visibleInteractionSurfaceIds)).toBe(true);
-    expect(Object.isFrozen(parsed.session)).toBe(true);
-    expect(Object.isFrozen(parsed.session.detailOverlayIds)).toBe(true);
-    expect(Object.isFrozen(parsed.session.devDock)).toBe(true);
 
     input.presentation.renderers[0]?.appearanceLayerIds.splice(
       0,
@@ -221,9 +211,6 @@ describe("diagnostic contracts", () => {
     const parsed = createDebugUiContextSchemaV1().parse({ ...input, presentation: null });
 
     expect(parsed).toEqual({ ...input, presentation: null });
-    expect(Object.isFrozen(parsed)).toBe(true);
-    expect(Object.isFrozen(parsed.session)).toBe(true);
-    expect(Object.isFrozen(parsed.session.devDock)).toBe(true);
   });
 
   it.each(

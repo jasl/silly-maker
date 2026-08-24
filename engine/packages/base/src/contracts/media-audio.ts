@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 import { dataFailure, readArray, readExactRecord } from "./presentation-data.ts";
-import type { Digest, PositiveSafeInteger } from "./values.ts";
-import { parseDigest, parsePositiveSafeInteger } from "./values.ts";
+import type { PositiveSafeInteger } from "./values.ts";
+import { parsePositiveSafeInteger } from "./values.ts";
 
 /**
  * Typed audio media contracts. Audio kinds keep their own contract instead
  * of masquerading as images: an audio slot declares semantic identity and a
- * silence fallback; an audio provider entry declares the actual runtime
- * bytes with size and digest so hosts can verify responses before
- * registering them ready. Saves and Stage/Audio intents reference stable
+ * silence fallback; an audio provider entry declares the logical runtime
+ * location and media type. Saves and Stage/Audio intents reference stable
  * asset IDs only — never URLs, decoded buffers, or audio nodes.
  */
 
@@ -42,8 +41,6 @@ export interface AudioProviderEntryV1 {
   readonly assetId: string;
   readonly runtimePath: string;
   readonly mediaType: AudioMediaTypeV1;
-  readonly byteLength: PositiveSafeInteger;
-  readonly sha256: Digest;
   readonly durationMs: PositiveSafeInteger | null;
 }
 
@@ -92,7 +89,7 @@ export function parseAudioProviderEntryV1(
 ): AudioProviderEntryV1 {
   const record = readExactRecord(
     value,
-    ["assetId", "runtimePath", "mediaType", "byteLength", "sha256", "durationMs"],
+    ["assetId", "runtimePath", "mediaType", "durationMs"],
     path,
   );
   if (
@@ -110,15 +107,13 @@ export function parseAudioProviderEntryV1(
     assetId: parseAudioAssetIdV1(record.assetId, `${path}/assetId`),
     runtimePath: record.runtimePath,
     mediaType: record.mediaType,
-    byteLength: parsePositiveSafeInteger(record.byteLength),
-    sha256: parseDigest(record.sha256),
     durationMs: record.durationMs === null ? null : parsePositiveSafeInteger(record.durationMs),
   });
 }
 
 /**
  * Resolves audio slots against provider entries: every slot resolves either
- * to verified runtime audio or to the silence fallback. Unknown provider
+ * to runtime audio or to the silence fallback. Unknown provider
  * asset IDs and duplicate slots fail structurally.
  */
 export function resolveAudioManifestV1(

@@ -8,16 +8,6 @@ import type {
 } from "../contracts/gameplay-module.ts";
 import { canonicalJsonBytes } from "../contracts/canonical-json.ts";
 import { parseModuleId, parsePositiveSafeInteger, parseStateSlotId } from "../contracts/values.ts";
-import {
-  admitCanonicalCommandForTargetInternalV1,
-  withCanonicalCommandHandoffInternalV1,
-} from "../internal/canonical-command-admission.ts";
-import {
-  admitCommandAttemptEvidenceInternalV1,
-  admitDebugValidationResultInternalV1,
-  consumeSimulationEvidenceDeferralInternalV1,
-  isCommandAttemptEnvelopeCandidateInternalV1,
-} from "../internal/finalized-evidence-admission.ts";
 import { compareUtf16CodeUnitsInternalV1 } from "../internal/utf16-code-unit-order.ts";
 import { deepFreezeAuthoringValueV1, moduleDefinitionErrorV1 } from "./define-gameplay-module.ts";
 
@@ -357,105 +347,8 @@ function validateRuntimeSimulationV1(simulationValue: unknown): unknown {
   requireFunction(simulation.createQueries, "GameSimulation createQueries");
   requireFunction(simulation.projectGameView, "GameSimulation projectGameView");
 
-  const executeCommandAttempt = commandExecutor.executeAttempt as (...args: unknown[]) => unknown;
-  const validateDebugCommand = debugCommandExecutor.validate as (...args: unknown[]) => unknown;
-  const executeDebugCommandAttempt = debugCommandExecutor.executeAttempt as (
-    ...args: unknown[]
-  ) => unknown;
-
   const validated = {
     ...simulation,
-    commandExecutor: {
-      ...commandExecutor,
-      executeAttempt(snapshot: unknown, command: unknown, context: unknown): unknown {
-        const admission = admitCanonicalCommandForTargetInternalV1(
-          command,
-          "simulation_game_execute",
-        );
-        const deferred = consumeSimulationEvidenceDeferralInternalV1("simulation_game_execute");
-        const candidate = withCanonicalCommandHandoffInternalV1(
-          admission,
-          "simulation_game_execute",
-          () =>
-            Reflect.apply(executeCommandAttempt, commandExecutor, [
-              snapshot,
-              admission.value,
-              context,
-            ]),
-        );
-        if (deferred) return candidate;
-        if (!isCommandAttemptEnvelopeCandidateInternalV1(candidate)) return candidate;
-        return admitCommandAttemptEvidenceInternalV1(
-          snapshot as never,
-          candidate as never,
-          {
-            parseEvent: (value: unknown) =>
-              parseSchema(simulation.eventSchema, value, "Event Schema"),
-            parseRejection: (value: unknown) =>
-              parseSchema(simulation.rejectionSchema, value, "Rejection Schema"),
-          },
-        );
-      },
-    },
-    debugCommandExecutor: {
-      ...debugCommandExecutor,
-      validate(snapshot: unknown, command: unknown, context: unknown): unknown {
-        const admission = admitCanonicalCommandForTargetInternalV1(
-          command,
-          "simulation_debug_validate",
-        );
-        const deferred = consumeSimulationEvidenceDeferralInternalV1("simulation_debug_validate");
-        const validation = withCanonicalCommandHandoffInternalV1(
-          admission,
-          "simulation_debug_validate",
-          () =>
-            Reflect.apply(validateDebugCommand, debugCommandExecutor, [
-              snapshot,
-              admission.value,
-              context,
-            ]),
-        );
-        if (deferred) return validation;
-        return admitDebugValidationResultInternalV1(
-          validation,
-          (value: unknown) =>
-            parseSchema(
-              simulation.debugValidationErrorSchema,
-              value,
-              "Debug validation error Schema",
-            ),
-        );
-      },
-      executeAttempt(snapshot: unknown, command: unknown, context: unknown): unknown {
-        const admission = admitCanonicalCommandForTargetInternalV1(
-          command,
-          "simulation_debug_execute",
-        );
-        const deferred = consumeSimulationEvidenceDeferralInternalV1("simulation_debug_execute");
-        const candidate = withCanonicalCommandHandoffInternalV1(
-          admission,
-          "simulation_debug_execute",
-          () =>
-            Reflect.apply(executeDebugCommandAttempt, debugCommandExecutor, [
-              snapshot,
-              admission.value,
-              context,
-            ]),
-        );
-        if (deferred) return candidate;
-        if (!isCommandAttemptEnvelopeCandidateInternalV1(candidate)) return candidate;
-        return admitCommandAttemptEvidenceInternalV1(
-          snapshot as never,
-          candidate as never,
-          {
-            parseEvent: (value: unknown) =>
-              parseSchema(simulation.eventSchema, value, "Event Schema"),
-            parseRejection: (value: unknown) =>
-              parseSchema(simulation.rejectionSchema, value, "Rejection Schema"),
-          },
-        );
-      },
-    },
     createInitialState(bootstrap: unknown): unknown {
       const state = parseSchema(
         simulation.stateSchema,

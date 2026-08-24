@@ -385,7 +385,6 @@ describe("Debug Bundle codec", () => {
     });
     expect(decoded.bundle.currentSnapshot.integrity.mode).toBe("normal");
     expect(Object.isFrozen(decoded.bundle)).toBe(true);
-    expect(Object.isFrozen(decoded.bundle.runtimeFailures)).toBe(true);
   });
 
   it("preserves valid diagnostic timestamp bytes and rejects malformed timestamps", () => {

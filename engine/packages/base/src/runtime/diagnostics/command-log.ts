@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { digestCanonicalInternalV1 } from "../../contracts/digest.ts";
-import {
-  CanonicalJsonError,
-  projectCanonicalJsonInternalV1,
-} from "../../contracts/canonical-json.ts";
+import { projectCanonicalJsonInternalV1 } from "../../contracts/canonical-json.ts";
 import type { CommandExecutionAttemptEnvelopeV1 } from "../../contracts/execution.ts";
 import type {
   DeepReadonly,
@@ -14,11 +11,8 @@ import type {
 import { parsePositiveSafeInteger } from "../../contracts/values.ts";
 import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
 import { recordSnapshotWorkV1 } from "../../internal/snapshot-work-instrumentation.ts";
-import { admitCanonicalCommandForTargetInternalV1 } from "../../internal/canonical-command-admission.ts";
-import {
-  admitFinalizedCommandAttemptEvidenceInternalV1,
-  captureFinalizedCommandAttemptResultKindInternalV1,
-} from "../../internal/finalized-evidence-admission.ts";
+import { admitCanonicalCommandInternalV1 } from "../../internal/canonical-command-admission.ts";
+import { admitFinalizedCommandAttemptEvidenceInternalV1 } from "../../internal/finalized-evidence-admission.ts";
 
 interface CommandLogSnapshotV1 {
   readonly rng: unknown;
@@ -154,75 +148,24 @@ const commandLogReservedFieldsV1 = new Set<PropertyKey>([
   "outcome",
 ]);
 
-function pointerSegmentV1(value: string): string {
-  return value.replaceAll("~", "~0").replaceAll("/", "~1");
-}
-
-function freezeAdditionalLoggedCommandFieldsV1(
-  value: object,
-  instrumentation?: SnapshotWorkInstrumentationV1,
-): void {
-  recordSnapshotWorkV1(
-    instrumentation,
-    "deep_freeze_traversal",
-    "command_log_metadata_freeze",
-  );
-  const visited = new Set<object>();
-  const freeze = (current: unknown): void => {
-    if (current === null || typeof current !== "object" || visited.has(current)) return;
-    visited.add(current);
-    for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(current))) {
-      if (descriptor.get === undefined && descriptor.set === undefined) freeze(descriptor.value);
-    }
-    Object.freeze(current);
-  };
-  freeze(value);
-}
-
 function projectAdditionalLoggedCommandFieldsV1(
   loggedCommand: object,
   instrumentation?: SnapshotWorkInstrumentationV1,
 ): Readonly<Record<string, unknown>> | undefined {
-  const fields = {} as Record<string, unknown>;
-  let fieldCount = 0;
-  for (const key of Reflect.ownKeys(loggedCommand)) {
+  const entries: Array<readonly [string, unknown]> = [];
+  for (const [key, value] of Object.entries(loggedCommand)) {
     if (key === "source" || key === "command") continue;
-    const descriptor = Object.getOwnPropertyDescriptor(loggedCommand, key);
-    if (descriptor?.enumerable !== true) continue;
     if (commandLogReservedFieldsV1.has(key)) {
-      throw new TypeError(`CommandLog logged-command field ${String(key)} is engine-owned`);
+      throw new TypeError(`CommandLog logged-command field ${key} is engine-owned`);
     }
-    if (typeof key === "symbol") {
-      throw new CanonicalJsonError("value.unrepresented_property", "");
-    }
-    if (descriptor.get !== undefined || descriptor.set !== undefined) {
-      throw new CanonicalJsonError("value.getter", `/${pointerSegmentV1(key)}`);
-    }
-    Object.defineProperty(fields, key, {
-      configurable: true,
-      enumerable: true,
-      writable: true,
-      value: descriptor.value,
-    });
-    fieldCount += 1;
+    entries.push([key, value]);
   }
-  if (fieldCount === 0) return undefined;
-  const projection = projectCanonicalJsonInternalV1(
-    fields,
+  if (entries.length === 0) return undefined;
+  return projectCanonicalJsonInternalV1(
+    Object.fromEntries(entries),
     instrumentation,
     "command_log_metadata_admission",
   ).value;
-  const orderedProjection = {} as Record<string, unknown>;
-  for (const key of Object.keys(fields)) {
-    Object.defineProperty(orderedProjection, key, {
-      configurable: true,
-      enumerable: true,
-      writable: true,
-      value: projection[key],
-    });
-  }
-  freezeAdditionalLoggedCommandFieldsV1(orderedProjection, instrumentation);
-  return orderedProjection;
 }
 
 function createOutcomeV1<
@@ -324,6 +267,7 @@ export function createCommandLogInternalV1<
     readonly replayBaseStateDigest?: Digest;
     readonly limit: number;
     readonly auditStateDigests: boolean;
+    readonly admitExternalInputs?: boolean;
   },
   instrumentation?: SnapshotWorkInstrumentationV1,
 ): CommandLogV1<TSnapshot, TLoggedCommand, TEvent, TRejection, TFault, TRngState, TRngDrawTrace> {
@@ -369,20 +313,16 @@ export function createCommandLogInternalV1<
       }
       if (
         source === "debug" &&
-        captureFinalizedCommandAttemptResultKindInternalV1(finalizedAttempt) === "rejected"
+        finalizedAttempt.result.kind === "rejected"
       ) {
         throw new TypeError("Debug CommandLog entries cannot be rejected");
       }
-      const command = loggedCommand.command;
-      const admission = admitCanonicalCommandForTargetInternalV1(
-        command,
-        "command_log_append",
-        instrumentation,
-      );
-      const admittedAttempt = admitFinalizedCommandAttemptEvidenceInternalV1(
-        finalizedAttempt,
-        instrumentation,
-      );
+      const command = input.admitExternalInputs === true
+        ? admitCanonicalCommandInternalV1(loggedCommand.command, instrumentation)
+        : loggedCommand.command;
+      const admittedAttempt = input.admitExternalInputs === true
+        ? admitFinalizedCommandAttemptEvidenceInternalV1(finalizedAttempt, instrumentation)
+        : finalizedAttempt;
       const preAttemptSnapshot = internalEntries.at(-1)?.postAttemptSnapshot ?? replayBase;
       const preAttemptStateDigest = internalEntries.at(-1)?.entry.postStateDigest ??
         replayBaseDigest;
@@ -402,7 +342,7 @@ export function createCommandLogInternalV1<
       const diagnostics = admittedAttempt.diagnostics;
       const entry = Object.freeze({
         source,
-        command: admission.value,
+        command,
         ...additionalLoggedCommandFields,
         logOrdinal: nextOrdinal,
         preStateDigest: admittedAttempt.preStateDigest,
@@ -479,5 +419,6 @@ export function createCommandLogV1<
     replayBase: input.replayBase,
     limit: input.limit,
     auditStateDigests: true,
+    admitExternalInputs: true,
   });
 }

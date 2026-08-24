@@ -91,8 +91,12 @@ DevDock/preset settings/Inspector/Agent，focused reference subpaths 与真实 f
 IR/compiler 输出既有低层 runtime plan 与独立 inspection/source-map facets；Story 显式选择
 `authoring_scene`/`low_level_scene` authority，普通 Stage mutation + exact-rebootstrap Session command
 协调 Browser R2 successor 的 layer/z 顺序而不替换 adopted Snapshot。增量 index 的
-1,000-scene/50,000-object profile 保持 metadata-only 与单文件失效。本车道没有启用 Desktop HMR；
-当前唯一下一项为 M5 Inspector replacement 与收口。
+1,000-scene/50,000-object profile 保持 metadata-only 与单文件失效。本车道没有启用 Desktop HMR。
+2026-08-24 所有者在 M5 实现提交前暂停该里程碑并插入的独立 runtime-boundary
+Complexity Reset 已交付：Snapshot/Semantic 整树冻结、Bootstrap/Command/Evidence 的重复 admission/
+handoff/descriptor 防御、只保护实现形状的测试、dead BuildIdentity consumer 与本地 attestation
+tooling 已删除；schema、digest、Save/replay、CAS、generation/currentness 与 RPC 边界保留。暂停的
+M5 实现继续隔离在 stash 中等待所有者复核；复核后唯一下一项为 M5 Inspector replacement 与收口。
 首个经 release
 source/行为确认包含目标路径的 stable（2.9.6 只是预期候选）仍须重跑同一分层验收，全部通过后才
 正式打开 maintained Desktop development workflow。此前 adapter 保持 package-private、explicit、

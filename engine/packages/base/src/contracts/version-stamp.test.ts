@@ -60,24 +60,26 @@ describe("readVersionStampV1", () => {
     expect(readVersionStampV1()).toMatchObject({ applicationVersion: "1.2.0" });
   });
 
-  it("does not invoke accessors and contains hostile Proxy failures", () => {
+  it("uses ordinary field reads and soft-fails when a read throws", () => {
     let getterCalls = 0;
     const accessor = Object.create(null) as Record<string, unknown>;
     Object.defineProperty(accessor, "applicationVersion", {
       enumerable: true,
       get() {
         getterCalls += 1;
-        return "1.2.0";
+        return " 1.2.0 ";
       },
     });
-    expect(normalizeVersionStampInternalV1(accessor)).toBeNull();
-    expect(getterCalls).toBe(0);
+    expect(normalizeVersionStampInternalV1(accessor)).toMatchObject({
+      applicationVersion: "1.2.0",
+    });
+    expect(getterCalls).toBe(1);
 
     const hostile = new Proxy(
       {},
       {
-        getOwnPropertyDescriptor() {
-          throw new Error("hostile descriptor trap");
+        get() {
+          throw new Error("synthetic field-read failure");
         },
       },
     );
@@ -89,11 +91,19 @@ describe("readVersionStampV1", () => {
       configurable: true,
       get() {
         globalGetterCalls += 1;
-        return { applicationVersion: "must-not-run" };
+        return { applicationVersion: "1.2.0" };
+      },
+    });
+    expect(readVersionStampV1()).toMatchObject({ applicationVersion: "1.2.0" });
+    expect(globalGetterCalls).toBe(1);
+
+    Object.defineProperty(globalThis, versionStampGlobalKeyV1, {
+      configurable: true,
+      get() {
+        throw new Error("synthetic injected-stamp failure");
       },
     });
     expect(readVersionStampV1()).toEqual(emptyVersionStampV1);
-    expect(globalGetterCalls).toBe(0);
   });
 
   it("accepts only bounded printable diagnostic fields", () => {

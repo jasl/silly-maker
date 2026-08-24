@@ -242,7 +242,6 @@ async function transformHtmlV1(plugin: Plugin, html: string): Promise<string> {
 
 function createViteServerHarnessV1(): ViteServerHarnessV1 {
   const middlewares: ConnectMiddlewareV1[] = [];
-  const websocketClients = new Set<unknown>();
   const httpServer = createServer((request, response) => {
     let index = 0;
     const next = (error?: unknown): void => {
@@ -278,7 +277,6 @@ function createViteServerHarnessV1(): ViteServerHarnessV1 {
         middlewares.push(middleware);
       },
     },
-    ws: { clients: websocketClients },
     close: closeCalls,
   } as unknown as ViteDevServer;
   const harness: ViteServerHarnessV1 = {
@@ -799,29 +797,4 @@ describe("Desktop-dev process coordinator", () => {
       body: "desktop host unavailable",
     });
   });
-
-  it.each(["http", "websocket"] as const)(
-    "does not exit when Vite resolves close with an open %s transport",
-    async (transport) => {
-      const runtime = createRuntimeHarnessV1();
-      const plugin = createDesktopDevVitePluginInternalV1({
-        applicationId: "e2e",
-        applicationLabel: "Engine Lab",
-        intent: intentV1(),
-        runtime: runtime.runtime,
-      });
-      const vite = createViteServerHarnessV1();
-      await configurePluginV1(plugin, vite.server);
-      await vite.listen();
-      const incompleteClose = vi.fn(async () => {});
-      if (transport === "http") Object.assign(vite.server, { close: incompleteClose });
-      else vite.server.ws.clients.add({} as never);
-
-      runtime.window.instance().emitClose();
-      await vi.waitFor(() => {
-        expect(transport === "http" ? incompleteClose : vite.closeCalls).toHaveBeenCalledOnce();
-      });
-      expect(runtime.exits).toEqual([]);
-    },
-  );
 });
