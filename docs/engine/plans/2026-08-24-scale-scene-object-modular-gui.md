@@ -1,8 +1,8 @@
 # Scale、Scene/Object 与模块化 GUI V1 实施计划
 
 状态：**2026-08-24 经所有者接受并开启；M0–M4 与独立 runtime-boundary Complexity Reset
-已于同日交付。2026-08-25 repository-wide trust/performance reset 已完成公开能力审计与全量验证并
-进入收口提交；暂停的 M5 实现仍隔离在 stash 中，不在本次删除工作中恢复或提前实现。**
+已于同日交付。2026-08-25 repository-wide trust/performance reset 已完成公开能力审计与全量验证；
+M5 Inspector-first clean replacement 也已交付并关闭。**
 
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 仍是唯一跨计划排序入口；
 本计划接在已关闭的 Browser R2 authoritative handoff 之后。Deno Desktop candidate 继续
@@ -16,7 +16,7 @@ package-private、explicit、default-off，等待含目标实现的 stable Deno 
 本次插入的 Complexity Reset 没有改变本计划产品方向：它删除了 Snapshot、semantic publication 与
 admission data 的递归freeze、重复admission/handoff/descriptor 防御、实现形状测试、dead BuildIdentity consumer 与本地 attestation
 tooling，保留 schema、digest、Save/replay、CAS、generation/currentness 与 RPC 等真实边界。
-暂停的 M5 实现没有混入清理提交。
+当时暂停的 M5 实现没有混入清理提交；公开能力审计确认后才作为独立后续切片恢复。
 
 2026-08-25 的 repository-wide trust/performance reset 以删除为主收缩 Debug Bundle、Save 写路径、
 Game package/simulation authoring、State transaction、Stage/Timeline/input、UI family、Managed Surface
@@ -123,6 +123,9 @@ Extension Runtime 不因仓内消费者变化而误删。
 - Authoring Scene source 只经一次 bounded JSON parse/schema/value admission，随后信任 normalized
   typed representation。pack bytes 作为 Host 边界输入也只 admission 一次。parser、admission、
   compiler、consumer 不重复 prototype/property descriptor/accessor authenticity 防御。
+- build-known runtime plan 与 package-internal object 遵循普通 JavaScript 语义；不为阻止使用者绕过
+  supported API 篡改对象而 deep-freeze、Proxy、clone、brand 或发明第二套 JS Runtime。此类 deliberate
+  tampering 不在威胁模型内；真实 Snapshot/Save/wire/CAS/generation 边界不因此放宽。
 - Save/digest/replay、CAS、generation/currentness、跨进程 RPC 继续保留真实 exact 边界；不得借性能
   优化削弱它们。反过来，不用 exact source text、完整 DOM/object inventory、命令顺序、机器/进程
   身份证明实现性能或 Inspector 验收。
@@ -561,9 +564,10 @@ Stage/Save/replay 结果等价。
   cached sweep `0.052 ms`、single-file invalidate-to-current `0.710 ms`；结构计数分别为
   `1 walk/1000 reads/1000 parses`、全零、`0 walk/1 read/1 parse/1 invalidation`。报告仍只提供原始趋势，
   不做 promotion 裁决或保留完整 IR/AST。
-- M4 没有实现最终 Inspector、可写 HitShape/Interaction、Blueprint/curve editor、公共 Mod ABI、第二 clock/
-  scheduler，也没有启用或提升 Deno Desktop HMR/persistence。M5 继续复用同一个 Authoring Host、document
-  session、CAS/operations 与 M2 index，交付 Inspector-first replacement surface 并清除旧 Studio UI。
+- M4 关闭时没有实现最终 Inspector、可写 HitShape/Interaction、Blueprint/curve editor、公共 Mod ABI、
+  第二 clock/scheduler，也没有启用或提升 Deno Desktop HMR/persistence；随后交付的 M5 继续复用同一个
+  Authoring Host、document session、CAS/operations 与 M2 index，交付 Inspector-first replacement
+  surface 并清除旧 Studio UI。
 - 独立复核无剩余 blocker。canonical `deno task check` 为 `370 files / 5659 tests`，Composition benchmark
   tests `6 passed`；migration authority-map `14/14`、release dependency receipt `8/8`、受影响的 Chromium/WebKit
   Browser R2 `8/8`、typecheck、docs build 与 `git diff --check` 全绿。React Doctor changed-scope advisory 的
@@ -601,6 +605,49 @@ Stage/Save/replay 结果等价。
 channel scrub、intent/provenance 可用并满足 §2 预算；Studio UI 无 live route/build reachability/专属
 测试残留；普通 Player 无 Inspector/source write；所有 retained authoring primitives 都有合同级测试或
 真实 consumer。
+
+**M5 交付记录（2026-08-25；已关闭）：**
+
+- `@sillymaker/studio` 当前只提供 Inspector-first 产品面：standalone
+  `/__sillymaker/inspector/` 与 lazy embedded shell 共用 `InspectorAppV1`、一个 Authoring Host、一个
+  persistent R1 publication、Authoring Scene IO、document session、CAS/history 与 package-private
+  structured-operation executor。应用以 `inspector: { module, exportName }` 和小型
+  `InspectorBindingV1` 显式选择。
+- project scene list 与当前 layer/object tree 都使用固定行 windowing；tree 与真实
+  `SemanticStageHostV1` preview 共享 selection。authoring inspection bounds 让 off-canvas、transparent
+  与 group object 保持 ghost-selectable；selected hit region 以真实 rectangle/polygon geometry 叠加。
+- 可写面只包括 local transform、visual content、既有 appearance value、sibling object order 与 layer
+  order。Motion、Timeline、hit-region、interaction/GUI intent、compiled layer、diagnostics 与 JSON-pointer
+  provenance 是只读 facet；detached scrub 支持 parallel disjoint channels，不创建第二 clock、Stage 或
+  gameplay Session writer。
+- save 走 Authoring Scene CAS；`digest_conflict` 刷新 saved baseline/digest 并保留 dirty draft/history
+  供显式 retry。UI 与非 UI caller 复用同一 document identity/draft revision fence 和 reducer/executor，
+  admission 后的 typed collaborator 不再重复 descriptor/prototype authenticity 防御。
+- 旧 `/__sillymaker/studio/` route、`StudioAppV1`、`StudioBindingV1`、Scene/Motion/Regions/Chrome/Flow
+  React workspaces、Story workspace bindings、旧 launcher/meta 与只保护旧 UI 的 tests 已删除，不保留
+  alias、wrapper 或双轨入口。Host/session/CAS/R1/Agent companion seam、low-level Scene source IO、
+  Narrative Flow public types + Story-side projector/tooling copy、Motion Workbench、Regions/Chrome document
+  families/index/lints/CAS 和其他已接受的可复用能力保留；它们不等于当前 Inspector workspace。
+- final-output receipt 以 Inspector/authoring semantic facet 证明显式 Author entry，并继续证明 ordinary
+  Player 排除 Inspector/source-write；Template Author graph 排除 Agent/RPC，Engine Lab 只通过 private
+  single-companion entry 显式选择 Agent。没有新增 public Mod/Agent ABI。
+- focused unit/integration、低层 Scene IO 与 Narrative Flow projector 合同均通过；canonical
+  `deno task check` 全绿（`363 files / 5,286 tests`，另有 Composition/State 规模矩阵 `6/6`、资产、
+  全部 Story checks 与 E2E Story production build）。Chromium/WebKit Inspector behavior 为 `2/2`，
+  embedded authoring 为 `8/8`，Template/Cat Cafe examples 为 `54 passed / 2 matrix-skipped`；Player bundle
+  receipt 继续证明普通 Player graph 排除 Inspector/source write。
+- 50,000-object Scale Lab 的 cached scene-list sweep、scene metadata search、selected-source
+  read/admit/compile、current-facet projection 与 single-path invalidate-to-facets p95 分别约
+  `0.070/0.208/0.666/2.125/2.172 ms`；cold 1,000-scene/50,000-object index build p95 约
+  `195.23 ms`。结果低于本计划预算，且 path invalidation 只读取并解析一个 source。
+- exact-base React Doctor advisory（base
+  `6b4f17ca4840e6082f7e894e6a0cfae882033820`）共分类为 `2 confirmed / 6 rejected / 1 needs-evidence`：
+  confirmed 的 dialog accessibility 与异步错误处理均已修复并由 Inspector E2E 覆盖；唯一
+  needs-evidence 是 Inspector coordinator 体积，不因静态分数拆散单一 Host/session ownership。
+- `deno task docs:build` 与 final diff/format audit 随同本交付通过；测试和 E2E 默认静音，没有为 M5
+  增加一次性 evidence harness、第二 authoring runtime 或 Desktop promotion。
+- Desktop adapter 保持 package-private、explicit、default-off。本交付没有激活 Desktop authoring、
+  `deno desktop --hmr` maintained workflow、persistence、packaging 或 production promotion。
 
 ## 4. 每个里程碑的验证纪律
 

@@ -1,142 +1,205 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { admitSceneAuthoringOperationV1 } from "./admission.ts";
+import { admitSceneAuthoringEnvelopeV1, admitSceneAuthoringOperationV1 } from "./admission.ts";
 
-const placementV1 = Object.freeze({
+const transformV1 = {
   x: 10,
-  y: 20,
-  scalePermille: 1000,
-  opacityPermille: 1000,
+  y: -20,
+  scalePermille: 1_000,
+  opacityPermille: 900,
   mirrored: false,
-});
+};
 
-describe("Scene authoring operation admission", () => {
-  it("admits and normalizes the closed V1 operation vocabulary", () => {
-    const values = [
+describe("Authoring Scene operation admission", () => {
+  it("admits the closed revision 2 object and layer operation set", () => {
+    const operations = [
       {
-        schemaRevision: 1,
-        kind: "scene.entry.set_placement",
-        tag: "tag.hero",
-        placement: placementV1,
+        schemaRevision: 2,
+        kind: "scene.object.set_local_transform",
+        objectId: "tag.test.hero",
+        localTransform: transformV1,
       },
       {
-        schemaRevision: 1,
-        kind: "scene.entry.add",
-        entry: {
-          layerId: "layer.actors",
-          tag: "tag.friend",
-          contentId: "content.friend",
-          placement: placementV1,
-        },
+        schemaRevision: 2,
+        kind: "scene.object.set_visual_content",
+        objectId: "tag.test.hero",
+        contentId: "content.test.hero-alt",
       },
-      { schemaRevision: 1, kind: "scene.entry.remove", tag: "tag.hero" },
-      { schemaRevision: 1, kind: "scene.entry.set_z_order", tag: "tag.hero", zOrder: 3 },
       {
-        schemaRevision: 1,
-        kind: "scene.entry.set_appearance",
-        tag: "tag.hero",
-        key: "pose",
+        schemaRevision: 2,
+        kind: "scene.object.set_appearance",
+        objectId: "tag.test.hero",
+        key: "expression",
         value: "happy",
       },
       {
-        schemaRevision: 1,
-        kind: "scene.entry.set_ambient",
-        tag: "tag.hero",
-        motionId: "motion.test.breathe",
+        schemaRevision: 2,
+        kind: "scene.object.move_before",
+        objectId: "tag.test.hero",
+        beforeObjectId: "tag.test.friend",
       },
       {
-        schemaRevision: 1,
-        kind: "scene.cue.add",
-        cue: { cueId: "cue.test.friend", kind: "show", tag: "tag.friend" },
+        schemaRevision: 2,
+        kind: "scene.object.move_before",
+        objectId: "tag.test.hero",
+        beforeObjectId: null,
       },
-      { schemaRevision: 1, kind: "scene.cue.remove", cueId: "cue.test.hero" },
       {
-        schemaRevision: 1,
-        kind: "scene.cue.set_motion",
-        cueId: "cue.test.hero",
-        motionId: null,
+        schemaRevision: 2,
+        kind: "scene.layer.move_before",
+        layerId: "layer.test.actors",
+        beforeLayerId: null,
       },
     ];
 
-    for (const value of values) {
-      expect(admitSceneAuthoringOperationV1(value)).toMatchObject({ kind: "admitted" });
+    for (const operation of operations) {
+      expect(admitSceneAuthoringOperationV1(operation)).toMatchObject({ kind: "admitted" });
     }
   });
 
-  it("rejects unknown revisions, kinds, extra keys, and invalid payloads", () => {
-    const invalid = [
-      {
-        value: { schemaRevision: 2, kind: "scene.entry.remove", tag: "tag.hero" },
+  it("rejects old entry/cue kinds and unsupported schema revisions", () => {
+    expect(admitSceneAuthoringOperationV1({
+      schemaRevision: 1,
+      kind: "scene.entry.set_placement",
+      tag: "tag.test.hero",
+      placement: transformV1,
+    })).toEqual({
+      kind: "rejected",
+      diagnostic: {
         code: "scene_authoring.operation_schema_unsupported",
+        path: "/operation/schemaRevision",
       },
-      {
-        value: { schemaRevision: 1, kind: "scene.unknown" },
+    });
+    expect(admitSceneAuthoringOperationV1({
+      schemaRevision: 2,
+      kind: "scene.entry.set_placement",
+      tag: "tag.test.hero",
+      placement: transformV1,
+    })).toEqual({
+      kind: "rejected",
+      diagnostic: {
         code: "scene_authoring.operation_kind_unknown",
+        path: "/operation/kind",
+      },
+    });
+  });
+
+  it("checks ordinary record fields and values without object-authenticity rules", () => {
+    const ordinary = Object.assign(Object.create(null) as Record<string, unknown>, {
+      schemaRevision: 2,
+      kind: "scene.object.set_visual_content",
+      objectId: "tag.test.hero",
+      contentId: "content.test.hero-alt",
+    });
+    expect(admitSceneAuthoringOperationV1(ordinary)).toMatchObject({ kind: "admitted" });
+
+    const invalid = [
+      null,
+      [],
+      {
+        schemaRevision: 2,
+        kind: "scene.object.set_visual_content",
+        objectId: "hero",
+        contentId: "content.test.hero-alt",
       },
       {
-        value: {
-          schemaRevision: 1,
-          kind: "scene.entry.remove",
-          tag: "tag.hero",
-          extra: true,
-        },
-        code: "scene_authoring.operation_payload_invalid",
+        schemaRevision: 2,
+        kind: "scene.object.set_local_transform",
+        objectId: "tag.test.hero",
+        localTransform: { ...transformV1, scalePermille: 0 },
       },
       {
-        value: JSON.parse(
-          '{"schemaRevision":1,"kind":"scene.entry.remove","tag":"tag.hero","__proto__":{}}',
-        ) as unknown,
-        code: "scene_authoring.operation_payload_invalid",
+        schemaRevision: 2,
+        kind: "scene.object.set_appearance",
+        objectId: "tag.test.hero",
+        key: "Bad-Key",
+        value: "happy",
       },
       {
-        value: {
-          schemaRevision: 1,
-          kind: "scene.entry.set_placement",
-          tag: "tag.hero",
-          placement: { ...placementV1, scalePermille: 0 },
-        },
-        code: "scene_authoring.operation_payload_invalid",
+        schemaRevision: 2,
+        kind: "scene.object.move_before",
+        objectId: "tag.test.hero",
+        beforeObjectId: "friend",
       },
       {
-        value: {
-          schemaRevision: 1,
-          kind: "scene.cue.set_motion",
-          cueId: "cue.test.hero",
-          motionId: "not-a-motion-id",
-        },
-        code: "scene_authoring.operation_payload_invalid",
+        schemaRevision: 2,
+        kind: "scene.layer.move_before",
+        layerId: "layer.test.actors",
+        beforeLayerId: null,
+        extra: true,
       },
     ];
-
-    for (const entry of invalid) {
-      expect(admitSceneAuthoringOperationV1(entry.value)).toMatchObject({
+    for (const operation of invalid) {
+      expect(admitSceneAuthoringOperationV1(operation)).toMatchObject({
         kind: "rejected",
-        diagnostic: { code: entry.code },
+        diagnostic: { code: "scene_authoring.operation_payload_invalid" },
       });
     }
   });
 
-  it("reports appearance key and value failures at their exact fields", () => {
-    expect(admitSceneAuthoringOperationV1({
-      schemaRevision: 1,
-      kind: "scene.entry.set_appearance",
-      tag: "tag.hero",
-      key: "Bad",
-      value: "happy",
-    })).toMatchObject({
+  it("admits a current envelope and limits coalescing to continuous fields", () => {
+    const operation = {
+      schemaRevision: 2 as const,
+      kind: "scene.object.set_local_transform" as const,
+      objectId: "tag.test.hero",
+      localTransform: transformV1,
+    };
+    expect(admitSceneAuthoringEnvelopeV1({
+      documentIdentity: "authoring-document:1:1",
+      expectedDraftRevision: 4,
+      operation,
+      coalesceKey: "drag:tag.test.hero:4",
+    })).toMatchObject({ kind: "admitted" });
+
+    expect(admitSceneAuthoringEnvelopeV1({
+      documentIdentity: "authoring-document:1:1",
+      expectedDraftRevision: 4,
+      operation: {
+        schemaRevision: 2,
+        kind: "scene.object.move_before",
+        objectId: "tag.test.hero",
+        beforeObjectId: null,
+      },
+      coalesceKey: "not-continuous",
+    })).toEqual({
       kind: "rejected",
-      diagnostic: { path: "/operation/key" },
+      diagnostic: { code: "scene_authoring.envelope_invalid", path: "/envelope/coalesceKey" },
     });
-    expect(admitSceneAuthoringOperationV1({
-      schemaRevision: 1,
-      kind: "scene.entry.set_appearance",
-      tag: "tag.hero",
-      key: "pose",
-      value: "Not Valid",
+  });
+
+  it("rejects malformed execution currentness fields atomically", () => {
+    const operation = {
+      schemaRevision: 2,
+      kind: "scene.object.set_appearance",
+      objectId: "tag.test.hero",
+      key: "expression",
+      value: null,
+    };
+    expect(admitSceneAuthoringEnvelopeV1({
+      documentIdentity: "",
+      expectedDraftRevision: 1,
+      operation,
     })).toMatchObject({
       kind: "rejected",
-      diagnostic: { path: "/operation/value" },
+      diagnostic: { path: "/envelope/documentIdentity" },
+    });
+    expect(admitSceneAuthoringEnvelopeV1({
+      documentIdentity: "authoring-document:1:1",
+      expectedDraftRevision: -1,
+      operation,
+    })).toMatchObject({
+      kind: "rejected",
+      diagnostic: { path: "/envelope/expectedDraftRevision" },
+    });
+    expect(admitSceneAuthoringEnvelopeV1({
+      documentIdentity: "authoring-document:1:1",
+      expectedDraftRevision: 1,
+      operation,
+      unexpected: true,
+    })).toMatchObject({
+      kind: "rejected",
+      diagnostic: { code: "scene_authoring.envelope_invalid" },
     });
   });
 });

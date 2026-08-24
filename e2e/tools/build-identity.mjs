@@ -20,8 +20,8 @@ const repositoryRootV1 = resolve(dirname(fileURLToPath(import.meta.url)), "../..
 // Match Vite's forward-slash module-graph keys without importing Vite into the
 // deterministic BuildIdentity collector closure.
 const normalizeViteModulePathV1 = (path) => posix.normalize(path.replaceAll("\\", "/"));
-const studioBindingModulePathV1 = normalizeViteModulePathV1(
-  resolve(repositoryRootV1, "e2e/src/tooling/studio-binding.tsx"),
+const inspectorBindingModulePathV1 = normalizeViteModulePathV1(
+  resolve(repositoryRootV1, "e2e/src/tooling/inspector-binding.ts"),
 );
 const procedureAuthoringSourcePathV1 = "e2e/src/scenes/procedure/procedure.authoring-scene.json";
 
@@ -177,13 +177,15 @@ export function createE2eBuildIdentityVirtualPluginV1(input) {
         }
         // Engine Lab alone has a sibling Authoring Host. Its R2 path starts at
         // the virtual identity while the shared changed module is retained only
-        // when its live importer graph reaches the Studio binding.
-        const studioBindingModules = context.server.moduleGraph.getModulesByFile(
-          studioBindingModulePathV1,
+        // when its live importer graph reaches the Inspector binding.
+        const inspectorBindingModules = context.server.moduleGraph.getModulesByFile(
+          inspectorBindingModulePathV1,
         ) ?? new Set();
-        const authoringPropagationModules = studioBindingModules.size === 0
+        const authoringPropagationModules = inspectorBindingModules.size === 0
           ? []
-          : context.modules.filter((module) => reachesLoadedModuleV1(module, studioBindingModules));
+          : context.modules.filter((module) =>
+            reachesLoadedModuleV1(module, inspectorBindingModules)
+          );
         return [...new Set([identityModule, ...authoringPropagationModules])];
       });
       refreshTail = refresh.then(

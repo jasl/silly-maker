@@ -19,10 +19,10 @@ import { EmbeddedAgentSurfaceInternalV1 } from "./embedded-agent-surface.tsx";
 
 const actionIdInternalV1 = "engine-lab.scene.move-alpha";
 const operationInternalV1 = Object.freeze({
-  schemaRevision: 1 as const,
-  kind: "scene.entry.set_placement" as const,
-  tag: "tag.e2e.alpha",
-  placement: Object.freeze({
+  schemaRevision: 2 as const,
+  kind: "scene.object.set_local_transform" as const,
+  objectId: "tag.e2e.alpha" as never,
+  localTransform: Object.freeze({
     x: 640,
     y: 620,
     scalePermille: 1_000,

@@ -10,50 +10,44 @@ import {
 import type { CompositionSnapshotV1 } from "@sillymaker/composition";
 import type { MotionSourceIoV1 } from "@sillymaker/ui/debug";
 
-import type { StudioBindingV1 } from "./core/binding.ts";
-import type { ChromeLayoutSourceIoV1 } from "./core/chrome-layout-io.ts";
-import type { RegionsSourceIoV1 } from "./core/regions-io.ts";
-import type { SceneSourceIoV1 } from "./core/scene-io.ts";
+import type { AuthoringSceneSourceIoV1 } from "./core/authoring-scene-io.ts";
+import type { InspectorBindingV1 } from "./core/binding.ts";
 import {
-  createStudioToolingHmrCoordinatorV1,
-  createStudioToolingLiveCompositionV1,
+  createInspectorToolingHmrCoordinatorV1,
+  createInspectorToolingLiveCompositionV1,
 } from "./composition.ts";
 import type {
-  StudioToolingLiveCompositionV1,
-  StudioToolingLiveRootInputV1,
+  InspectorToolingLiveCompositionV1,
+  InspectorToolingLiveRootInputV1,
 } from "./composition.ts";
 
-const sceneIoV1 = Object.freeze({}) as SceneSourceIoV1;
+const sceneIoV1 = {} as AuthoringSceneSourceIoV1;
 const motionIoV1 = Object.freeze({}) as MotionSourceIoV1;
-const regionsIoV1 = Object.freeze({}) as RegionsSourceIoV1;
-const chromeIoV1 = Object.freeze({}) as ChromeLayoutSourceIoV1;
 
-function bindingV1(label: string): StudioBindingV1 {
-  return Object.freeze({ label }) as unknown as StudioBindingV1;
+function bindingV1(label: string): InspectorBindingV1 {
+  return { label } as unknown as InspectorBindingV1;
 }
 
 function rootInputV1(
   revision: number,
-  binding: StudioBindingV1,
-): StudioToolingLiveRootInputV1 {
-  return Object.freeze({
+  binding: InspectorBindingV1,
+): InspectorToolingLiveRootInputV1 {
+  return {
     revision,
     binding,
     sceneIo: sceneIoV1,
     motionIo: motionIoV1,
-    regionsIo: regionsIoV1,
-    chromeIo: chromeIoV1,
-  });
+  };
 }
 
 const unsupportedEffectsInputV1 = {
   ...rootInputV1(1, bindingV1("unsupported-effects")),
-  // @ts-expect-error Studio live roots do not accept arbitrary pre-publication effects.
+  // @ts-expect-error Inspector live roots do not accept arbitrary pre-publication effects.
   effects: Object.freeze([]),
-} satisfies StudioToolingLiveRootInputV1;
+} satisfies InspectorToolingLiveRootInputV1;
 void unsupportedEffectsInputV1;
 
-describe("Studio tooling live composition", () => {
+describe("Inspector tooling live composition", () => {
   it("reloads an isolated live root without changing an authoritative plan, Session, or digest", async () => {
     const authorityToken = createCompositionServiceTokenV1<{
       readonly session: object;
@@ -84,8 +78,8 @@ describe("Studio tooling live composition", () => {
 
     const oldBinding = bindingV1("old");
     const newBinding = bindingV1("new");
-    const live = createStudioToolingLiveCompositionV1({
-      profileId: "studio.test.live",
+    const live = createInspectorToolingLiveCompositionV1({
+      profileId: "inspector.test.live",
     });
     const oldPlan = await live.mount(rootInputV1(1, oldBinding));
     const oldLiveSnapshot = live.getSnapshot();
@@ -95,9 +89,6 @@ describe("Studio tooling live composition", () => {
     expect(newPlan.binding).toBe(newBinding);
     expect(newPlan.sceneIo).toBe(sceneIoV1);
     expect(newPlan.motionIo).toBe(motionIoV1);
-    expect(newPlan.regionsIo).toBe(regionsIoV1);
-    expect(oldPlan.chromeIo).toBe(chromeIoV1);
-    expect(newPlan.chromeIo).toBe(chromeIoV1);
     expect(live.getSnapshot()).not.toBe(oldLiveSnapshot);
     expect(authoritativeKernel.getSnapshot()).toBe(authoritativeSnapshot);
     expect(authoritativePlan).toBe(authority);
@@ -109,23 +100,23 @@ describe("Studio tooling live composition", () => {
   });
 
   it("keeps the old snapshot and UI commit when an HMR publisher rejects, then commits a valid successor", async () => {
-    type BindingModule = { readonly binding: StudioBindingV1 };
+    type BindingModule = { readonly binding: InspectorBindingV1 };
     const oldBinding = bindingV1("old");
     const rejectedBinding = bindingV1("rejected");
     const newBinding = bindingV1("new");
-    const commits: StudioBindingV1[] = [];
+    const commits: InspectorBindingV1[] = [];
     const failures: unknown[] = [];
     let revision = 1;
-    const live = createStudioToolingLiveCompositionV1({
-      profileId: "studio.test.hmr",
+    const live = createInspectorToolingLiveCompositionV1({
+      profileId: "inspector.test.hmr",
     });
     const initial = await live.mount(rootInputV1(revision, oldBinding));
     commits.push(initial.binding);
     const oldSnapshot = live.getSnapshot() as CompositionSnapshotV1;
-    const coordinator = createStudioToolingHmrCoordinatorV1<BindingModule>({
+    const coordinator = createInspectorToolingHmrCoordinatorV1<BindingModule>({
       composition: live,
       resolveRoot(module) {
-        if (module === undefined) throw new TypeError("accepted Studio module missing");
+        if (module === undefined) throw new TypeError("accepted Inspector module missing");
         revision += 1;
         return rootInputV1(revision, module.binding);
       },
@@ -159,9 +150,9 @@ describe("Studio tooling live composition", () => {
   it.each(["synchronous", "asynchronous"] as const)(
     "rolls back a mounted candidate after %s consumer publication failure",
     async (failureKind) => {
-      const publicationFailure = new Error(`${failureKind} Studio publication failed`);
-      const live = createStudioToolingLiveCompositionV1({
-        profileId: `studio.test.publication-${failureKind}`,
+      const publicationFailure = new Error(`${failureKind} Inspector publication failed`);
+      const live = createInspectorToolingLiveCompositionV1({
+        profileId: `inspector.test.publication-${failureKind}`,
       });
       await live.mount(rootInputV1(1, bindingV1("old")));
       const oldSnapshot = live.getSnapshot() as CompositionSnapshotV1;
@@ -187,15 +178,15 @@ describe("Studio tooling live composition", () => {
   );
 
   it("rejects a bare synchronous render return instead of treating it as a commit acknowledgement", async () => {
-    const live = createStudioToolingLiveCompositionV1({
-      profileId: "studio.test.publication-acknowledgement",
+    const live = createInspectorToolingLiveCompositionV1({
+      profileId: "inspector.test.publication-acknowledgement",
     });
     await live.mount(rootInputV1(1, bindingV1("old")));
     const oldSnapshot = live.getSnapshot();
 
     await expect(live.reload(
       rootInputV1(2, bindingV1("candidate")),
-      (() => undefined) as unknown as Parameters<StudioToolingLiveCompositionV1["reload"]>[1],
+      (() => undefined) as unknown as Parameters<InspectorToolingLiveCompositionV1["reload"]>[1],
     )).rejects.toThrow("layout-commit acknowledgement Promise");
 
     expect(live.getSnapshot()).toBe(oldSnapshot);
@@ -207,11 +198,13 @@ describe("Studio tooling live composition", () => {
     const failures: unknown[] = [];
     let enterPublication!: () => void;
     const publicationEntered = new Promise<void>((resolve) => enterPublication = resolve);
-    const live = createStudioToolingLiveCompositionV1({
-      profileId: "studio.test.concurrent-dispose",
+    const live = createInspectorToolingLiveCompositionV1({
+      profileId: "inspector.test.concurrent-dispose",
     });
     await live.mount(rootInputV1(1, bindingV1("old")));
-    const coordinator = createStudioToolingHmrCoordinatorV1<{ readonly binding: StudioBindingV1 }>({
+    const coordinator = createInspectorToolingHmrCoordinatorV1<{
+      readonly binding: InspectorBindingV1;
+    }>({
       composition: live,
       resolveRoot: (module) => rootInputV1(2, module!.binding),
       publish(_plan, signal) {
@@ -243,7 +236,7 @@ describe("Studio tooling live composition", () => {
   });
 
   it("fire-and-reports both HMR disposal failures after removing the UI consumer first", async () => {
-    type BindingModule = { readonly binding: StudioBindingV1 };
+    type BindingModule = { readonly binding: InspectorBindingV1 };
     const disposeFailure = new Error("async kernel disposal failed");
     const rootFailure = new Error("UI root disposal failed");
     const order: string[] = [];
@@ -262,7 +255,7 @@ describe("Studio tooling live composition", () => {
         throw disposeFailure;
       }),
     });
-    const coordinator = createStudioToolingHmrCoordinatorV1<BindingModule>({
+    const coordinator = createInspectorToolingHmrCoordinatorV1<BindingModule>({
       composition,
       resolveRoot: (module) => rootInputV1(2, module!.binding),
       async publish() {},

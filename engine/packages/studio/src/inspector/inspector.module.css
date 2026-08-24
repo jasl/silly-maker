@@ -1,0 +1,433 @@
+/* SPDX-License-Identifier: MIT */
+
+.host {
+  min-block-size: 100%;
+}
+
+.app {
+  min-block-size: 100vh;
+  box-sizing: border-box;
+  padding: 0.75rem;
+  background: Canvas;
+  color: CanvasText;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block-end: 0.75rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid color-mix(in srgb, currentcolor 18%, transparent);
+  border-radius: 12px;
+}
+
+.section-header > div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.toolbar > div:first-child {
+  display: grid;
+  gap: 0.15rem;
+  min-inline-size: 0;
+}
+
+.toolbar span {
+  overflow: hidden;
+  color: color-mix(in srgb, currentcolor 60%, transparent);
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(15rem, 20rem) minmax(30rem, 1fr) minmax(17rem, 23rem);
+  align-items: start;
+  gap: 0.75rem;
+}
+
+.navigator,
+.center,
+.properties {
+  display: grid;
+  gap: 0.75rem;
+  min-inline-size: 0;
+}
+
+.notice,
+.error,
+.diagnostics {
+  margin: 0 0 0.75rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid color-mix(in srgb, currentcolor 18%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, Highlight 8%, Canvas);
+  font-size: 0.8rem;
+}
+
+.error {
+  border-color: color-mix(in srgb, red 45%, transparent);
+}
+
+.diagnostics ul {
+  margin-block-end: 0;
+}
+
+.scrub-bar {
+  display: grid;
+  grid-template-columns: minmax(14rem, auto) minmax(12rem, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid color-mix(in srgb, currentcolor 18%, transparent);
+  border-radius: 10px;
+}
+
+.scrub-bar label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.scrub-bar select {
+  max-inline-size: 22rem;
+}
+
+.scrub-bar output {
+  min-inline-size: 8rem;
+  font: 0.72rem ui-monospace, monospace;
+  text-align: end;
+}
+
+.modal {
+  margin: auto;
+  max-inline-size: 30rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background: Canvas;
+  color: CanvasText;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 35%);
+}
+
+.modal::backdrop {
+  background: rgb(0 0 0 / 48%);
+}
+
+@media (width < 1100px) {
+  .layout {
+    grid-template-columns: minmax(14rem, 18rem) minmax(24rem, 1fr);
+  }
+
+  .properties {
+    grid-column: 1 / -1;
+  }
+}
+
+.preview-section,
+.panel {
+  min-inline-size: 0;
+  border: 1px solid color-mix(in srgb, currentcolor 18%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, Canvas 96%, currentcolor 4%);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-block-end: 1px solid color-mix(in srgb, currentcolor 14%, transparent);
+}
+
+.section-header span,
+.hint,
+.muted {
+  color: color-mix(in srgb, currentcolor 64%, transparent);
+  font-size: 0.78rem;
+}
+
+.inline-control {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+}
+
+.inline-control select,
+.inline-control input {
+  min-block-size: 2rem;
+}
+
+.preview-viewport {
+  overflow: auto;
+  min-block-size: 28rem;
+  max-block-size: 70vh;
+  background:
+    linear-gradient(45deg, rgb(127 127 127 / 8%) 25%, transparent 25%) 0 0 / 20px 20px,
+    linear-gradient(-45deg, rgb(127 127 127 / 8%) 25%, transparent 25%) 0 10px / 20px 20px,
+    Canvas;
+}
+
+.preview-sizer,
+.preview-world,
+.preview-canvas,
+.preview-overlay {
+  position: relative;
+}
+
+.preview-world,
+.preview-canvas,
+.preview-overlay {
+  position: absolute;
+  inset: 0 auto auto 0;
+}
+
+.preview-canvas {
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 25%), 0 12px 36px rgb(0 0 0 / 24%);
+  background: rgb(15 23 42);
+}
+
+.preview-overlay {
+  inline-size: 100%;
+  block-size: 100%;
+  pointer-events: none;
+}
+
+.object-overlay {
+  position: absolute;
+  z-index: 10;
+  box-sizing: border-box;
+  overflow: visible;
+  padding: 0;
+  border: 1px dashed rgb(56 189 248 / 75%);
+  background: rgb(56 189 248 / 5%);
+  color: rgb(224 242 254);
+  cursor: crosshair;
+  pointer-events: auto;
+}
+
+.object-overlay:hover,
+.object-overlay[data-inspector-selected="true"] {
+  border: 2px solid rgb(250 204 21);
+  background: rgb(250 204 21 / 12%);
+}
+
+.object-overlay[data-inspector-ghost="true"] {
+  border-style: dotted;
+  background: repeating-linear-gradient(
+    135deg,
+    rgb(244 114 182 / 12%) 0 6px,
+    transparent 6px 12px
+  );
+}
+
+.object-overlay span,
+.hit-region-overlay span {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  max-inline-size: 16rem;
+  overflow: hidden;
+  padding: 1px 4px;
+  background: rgb(2 132 199 / 88%);
+  color: white;
+  font: 10px/1.5 ui-monospace, monospace;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.hit-region-overlay {
+  position: absolute;
+  z-index: 20;
+  box-sizing: border-box;
+  border: 2px dashed rgb(45 212 191);
+  background: rgb(45 212 191 / 20%);
+  pointer-events: none;
+}
+
+.hit-region-overlay span {
+  background: rgb(13 148 136 / 90%);
+}
+
+.hint {
+  margin: 0;
+  padding: 0.5rem 1rem 0.75rem;
+}
+
+.search-field {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  font-size: 0.78rem;
+}
+
+.search-field input {
+  inline-size: 100%;
+  min-block-size: 2.25rem;
+  box-sizing: border-box;
+}
+
+.virtual-list {
+  position: relative;
+  overflow: auto;
+  border-block-start: 1px solid color-mix(in srgb, currentcolor 12%, transparent);
+}
+
+.virtual-list-sizer {
+  position: relative;
+}
+
+.layer-row,
+.object-row,
+.scene-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(5rem, auto);
+  align-items: center;
+  gap: 0.5rem;
+  inline-size: 100%;
+  box-sizing: border-box;
+  border: 0;
+  border-block-end: 1px solid color-mix(in srgb, currentcolor 8%, transparent);
+  background: transparent;
+  color: inherit;
+  text-align: start;
+}
+
+.layer-row {
+  padding-inline: 0.75rem;
+  background: color-mix(in srgb, currentcolor 6%, Canvas);
+}
+
+.object-row {
+  cursor: pointer;
+}
+
+.scene-row {
+  grid-template-columns: minmax(0, 1fr) minmax(7rem, auto);
+  grid-template-rows: auto auto;
+  padding-inline: 0.75rem;
+  cursor: pointer;
+}
+
+.scene-row small {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  color: color-mix(in srgb, currentcolor 55%, transparent);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.object-row:hover,
+.object-row[aria-current="true"],
+.scene-row:hover,
+.scene-row[aria-current="true"] {
+  background: color-mix(in srgb, Highlight 16%, Canvas);
+}
+
+.layer-row code,
+.object-row code,
+.scene-row code {
+  overflow: hidden;
+  color: color-mix(in srgb, currentcolor 55%, transparent);
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  margin: 0;
+  padding: 0.75rem;
+  color: color-mix(in srgb, currentcolor 62%, transparent);
+  font-size: 0.8rem;
+}
+
+.inspector-body {
+  display: grid;
+  gap: 0.9rem;
+  max-block-size: 70vh;
+  overflow: auto;
+  padding: 0.85rem;
+}
+
+.property-group {
+  display: grid;
+  gap: 0.6rem;
+  padding-block-end: 0.85rem;
+  border-block-end: 1px solid color-mix(in srgb, currentcolor 10%, transparent);
+}
+
+.property-group:last-child {
+  border-block-end: 0;
+}
+
+.property-group h3,
+.facet-group h4 {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.25rem;
+  min-inline-size: 0;
+  font-size: 0.72rem;
+}
+
+.field input,
+.field select {
+  min-inline-size: 0;
+  min-block-size: 2.15rem;
+  box-sizing: border-box;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.button-row button {
+  min-block-size: 2rem;
+}
+
+.facet-group {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.facet-group ul {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.facet-group li {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, currentcolor 5%, Canvas);
+  font-size: 0.7rem;
+}

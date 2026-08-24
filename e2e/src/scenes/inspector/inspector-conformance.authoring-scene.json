@@ -1,0 +1,94 @@
+{
+  "format": "sillymaker.authoring-scene",
+  "version": 1,
+  "sceneId": "scene.e2e.inspector-conformance",
+  "label": "Inspector conformance",
+  "canvas": { "width": 1600, "height": 1000 },
+  "layers": [
+    {
+      "layerId": "layer.e2e.background",
+      "label": "背景",
+      "roots": [
+        {
+          "objectId": "tag.e2e.inspector-bg",
+          "label": "实验室背景",
+          "visual": { "contentId": "content.e2e.bg.lab" }
+        }
+      ]
+    },
+    {
+      "layerId": "layer.e2e.characters",
+      "label": "角色",
+      "roots": [
+        {
+          "objectId": "tag.e2e.inspector-ghost",
+          "label": "场外透明研究员",
+          "localTransform": {
+            "x": -520,
+            "y": 620,
+            "scalePermille": 1000,
+            "opacityPermille": 0,
+            "mirrored": false
+          },
+          "visual": {
+            "contentId": "content.e2e.char.alpha",
+            "appearance": { "pose": "standing", "expression": "neutral" }
+          },
+          "bindings": { "motionIds": ["motion.e2e.char-enter"] }
+        }
+      ]
+    },
+    {
+      "layerId": "layer.e2e.props",
+      "label": "道具与交互",
+      "roots": [
+        {
+          "objectId": "tag.e2e.inspector-crate",
+          "label": "可交互样本箱",
+          "localTransform": {
+            "x": 660,
+            "y": 650,
+            "scalePermille": 1000,
+            "opacityPermille": 1000,
+            "mirrored": false
+          },
+          "visual": { "contentId": "content.e2e.prop.crate" },
+          "bindings": {
+            "hitRegionIds": ["zone.crate.collect"],
+            "interactions": [
+              {
+                "regionId": "zone.crate.collect",
+                "intentId": "intent.e2e.collect-crate"
+              }
+            ]
+          }
+        },
+        {
+          "objectId": "tag.e2e.beacon",
+          "label": "并行信标",
+          "localTransform": {
+            "x": 1040,
+            "y": 650,
+            "scalePermille": 1000,
+            "opacityPermille": 1000,
+            "mirrored": false
+          },
+          "visual": {
+            "contentId": "content.e2e.prop.beacon",
+            "appearance": { "mode": "idle" }
+          },
+          "bindings": {
+            "timelineIds": ["cue.e2e.beacon-pulse"],
+            "guiControls": [
+              {
+                "controlId": "control.e2e.beacon-toggle",
+                "intentId": "intent.e2e.toggle-beacon"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "cues": []
+}

@@ -5,7 +5,7 @@ import {
   accessibleApplicationBootShellHtmlV1,
   type ApplicationBootstrapHtmlConfigV1,
 } from "../desktop/application-bootstrap-html.mts";
-import { studioPageUrlV1 } from "./studio.ts";
+import { inspectorPageUrlV1 } from "./inspector.ts";
 
 export const applicationRuntimeBootShellElementIdInternalV1 = "sillymaker-application-boot-shell";
 
@@ -55,7 +55,7 @@ export function injectApplicationRuntimeBootstrapHtmlInternalV1(input: {
   return `${input.html.slice(0, insertionIndex)}\n${shell}\n${input.html.slice(insertionIndex)}`;
 }
 
-/** @internal Build-known runtime entry producer; Studio owns its Author page. */
+/** @internal Build-known runtime entry producer; Inspector owns its Author page. */
 export function applicationRuntimeBootstrapPluginInternalV1(input: {
   readonly applicationLabel: string;
 }): Plugin {
@@ -65,8 +65,8 @@ export function applicationRuntimeBootstrapPluginInternalV1(input: {
       order: "pre",
       handler(html, context) {
         if (
-          context.path === studioPageUrlV1 ||
-          context.path === studioPageUrlV1.slice(0, -1)
+          context.path === inspectorPageUrlV1 ||
+          context.path === inspectorPageUrlV1.slice(0, -1)
         ) {
           return html;
         }

@@ -1,76 +1,62 @@
 // SPDX-License-Identifier: MIT
-import type { SceneCueV1, SceneDocumentV1, SceneEntryV1, StagePlacementV1 } from "@sillymaker/base";
+import type {
+  StageContentIdV1,
+  StageLayerIdV1,
+  StagePlacementV1,
+  StageTagV1,
+} from "@sillymaker/base";
+import type { AdmittedAuthoringSceneV1 } from "@sillymaker/base/authoring/scene";
 
-/** Package-private AR2 schema revision for every admitted Scene operation. */
-export const sceneAuthoringOperationSchemaRevisionV1 = 1;
+/** Package-private schema revision for every admitted Authoring Scene operation. */
+export const sceneAuthoringOperationSchemaRevisionV1 = 2;
 
 interface SceneAuthoringOperationBaseV1 {
   readonly schemaRevision: typeof sceneAuthoringOperationSchemaRevisionV1;
 }
 
-export interface SceneEntrySetPlacementOperationV1 extends SceneAuthoringOperationBaseV1 {
-  readonly kind: "scene.entry.set_placement";
-  readonly tag: string;
-  readonly placement: StagePlacementV1;
+export interface SceneObjectSetLocalTransformOperationV1 extends SceneAuthoringOperationBaseV1 {
+  readonly kind: "scene.object.set_local_transform";
+  readonly objectId: StageTagV1;
+  readonly localTransform: StagePlacementV1;
 }
 
-export interface SceneEntryAddOperationV1 extends SceneAuthoringOperationBaseV1 {
-  readonly kind: "scene.entry.add";
-  readonly entry: SceneEntryV1;
+export interface SceneObjectSetVisualContentOperationV1 extends SceneAuthoringOperationBaseV1 {
+  readonly kind: "scene.object.set_visual_content";
+  readonly objectId: StageTagV1;
+  /** Changes an existing Visual; it never turns a group into a renderable object. */
+  readonly contentId: StageContentIdV1;
 }
 
-export interface SceneEntryRemoveOperationV1 extends SceneAuthoringOperationBaseV1 {
-  readonly kind: "scene.entry.remove";
-  readonly tag: string;
-}
-
-export interface SceneEntrySetZOrderOperationV1 extends SceneAuthoringOperationBaseV1 {
-  readonly kind: "scene.entry.set_z_order";
-  readonly tag: string;
-  readonly zOrder: number;
-}
-
-export interface SceneEntrySetAppearanceOperationV1 extends SceneAuthoringOperationBaseV1 {
-  readonly kind: "scene.entry.set_appearance";
-  readonly tag: string;
+export interface SceneObjectSetAppearanceOperationV1 extends SceneAuthoringOperationBaseV1 {
+  readonly kind: "scene.object.set_appearance";
+  readonly objectId: StageTagV1;
   readonly key: string;
   readonly value: string | null;
 }
 
-export interface SceneEntrySetAmbientOperationV1 extends SceneAuthoringOperationBaseV1 {
-  readonly kind: "scene.entry.set_ambient";
-  readonly tag: string;
-  readonly motionId: string | null;
+export interface SceneObjectMoveBeforeOperationV1 extends SceneAuthoringOperationBaseV1 {
+  readonly kind: "scene.object.move_before";
+  readonly objectId: StageTagV1;
+  /** Same sibling list only; null moves the object to the end. */
+  readonly beforeObjectId: StageTagV1 | null;
 }
 
-export interface SceneCueAddOperationV1 extends SceneAuthoringOperationBaseV1 {
-  readonly kind: "scene.cue.add";
-  readonly cue: SceneCueV1;
-}
-
-export interface SceneCueRemoveOperationV1 extends SceneAuthoringOperationBaseV1 {
-  readonly kind: "scene.cue.remove";
-  readonly cueId: string;
-}
-
-export interface SceneCueSetMotionOperationV1 extends SceneAuthoringOperationBaseV1 {
-  readonly kind: "scene.cue.set_motion";
-  readonly cueId: string;
-  readonly motionId: string | null;
+export interface SceneLayerMoveBeforeOperationV1 extends SceneAuthoringOperationBaseV1 {
+  readonly kind: "scene.layer.move_before";
+  readonly layerId: StageLayerIdV1;
+  /** Null moves the layer to the end. */
+  readonly beforeLayerId: StageLayerIdV1 | null;
 }
 
 export type SceneAuthoringOperationV1 =
-  | SceneEntrySetPlacementOperationV1
-  | SceneEntryAddOperationV1
-  | SceneEntryRemoveOperationV1
-  | SceneEntrySetZOrderOperationV1
-  | SceneEntrySetAppearanceOperationV1
-  | SceneEntrySetAmbientOperationV1
-  | SceneCueAddOperationV1
-  | SceneCueRemoveOperationV1
-  | SceneCueSetMotionOperationV1;
+  | SceneObjectSetLocalTransformOperationV1
+  | SceneObjectSetVisualContentOperationV1
+  | SceneObjectSetAppearanceOperationV1
+  | SceneObjectMoveBeforeOperationV1
+  | SceneLayerMoveBeforeOperationV1;
 
 export type SceneAuthoringDiagnosticCodeV1 =
+  | "scene_authoring.envelope_invalid"
   | "scene_authoring.operation_schema_unsupported"
   | "scene_authoring.operation_kind_unknown"
   | "scene_authoring.operation_payload_invalid"
@@ -92,7 +78,7 @@ export type SceneAuthoringOperationAdmissionResultV1 =
   | { readonly kind: "rejected"; readonly diagnostic: SceneAuthoringDiagnosticV1 };
 
 export type SceneAuthoringReductionResultV1 =
-  | { readonly kind: "reduced"; readonly document: SceneDocumentV1 }
+  | { readonly kind: "reduced"; readonly scene: AdmittedAuthoringSceneV1 }
   | { readonly kind: "rejected"; readonly diagnostic: SceneAuthoringDiagnosticV1 };
 
 export interface SceneAuthoringExecutionEnvelopeV1 {
@@ -101,6 +87,10 @@ export interface SceneAuthoringExecutionEnvelopeV1 {
   readonly operation: SceneAuthoringOperationV1;
   readonly coalesceKey?: string;
 }
+
+export type SceneAuthoringEnvelopeAdmissionResultV1 =
+  | { readonly kind: "admitted"; readonly envelope: SceneAuthoringExecutionEnvelopeV1 }
+  | { readonly kind: "rejected"; readonly diagnostic: SceneAuthoringDiagnosticV1 };
 
 export type SceneAuthoringExecutionResultV1 =
   | {

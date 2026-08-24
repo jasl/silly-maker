@@ -3,15 +3,10 @@ import type { SceneDocumentV1 } from "@sillymaker/base";
 import { parseSceneDocumentV1 } from "@sillymaker/base";
 
 /**
- * The browser half of the Scene write-back port: list enumerates the
- * app's scene sources, read fetches one saved Document plus its CAS
- * digest, and write sends the edited Document back under that digest.
- * Structured results let the Studio distinguish a digest conflict
- * (someone else changed the file) from validation failures and a missing
- * endpoint (production preview). Drafts live only in Studio memory until
- * a write succeeds.
+ * Browser client for the retained low-level Scene advanced port. Authoring
+ * Scene is the recommended Inspector authority; this independent typed port
+ * remains available for tools that intentionally own `*.scene.json`.
  */
-
 export type SceneIoErrorCodeV1 =
   | "unavailable"
   | "bad_request"
@@ -36,7 +31,6 @@ export type SceneIoListResultV1 =
   | {
     readonly kind: "ok";
     readonly scenes: readonly SceneIoListEntryV1[];
-    /** `*.scene.json` files the index could not admit, named with the reason. */
     readonly skipped: readonly SceneIoListSkipV1[];
   }
   | { readonly kind: "error"; readonly code: SceneIoErrorCodeV1 };
@@ -57,7 +51,6 @@ export interface SceneSourceIoV1 {
     readonly expectedDigest: string;
     readonly sceneDocument: SceneDocumentV1;
   }): Promise<SceneIoWriteResultV1>;
-  /** Creates a brand-new document; the expected prior state is "no file". */
   create(input: {
     readonly path: string;
     readonly sceneDocument: SceneDocumentV1;
@@ -154,17 +147,10 @@ export function createDevServerSceneIoV1(): SceneSourceIoV1 {
         return { kind: "error", code: "unavailable" };
       }
     },
-    async write(input: {
-      readonly path: string;
-      readonly expectedDigest: string;
-      readonly sceneDocument: SceneDocumentV1;
-    }): Promise<SceneIoWriteResultV1> {
+    async write(input): Promise<SceneIoWriteResultV1> {
       return await postSceneV1(input);
     },
-    async create(input: {
-      readonly path: string;
-      readonly sceneDocument: SceneDocumentV1;
-    }): Promise<SceneIoWriteResultV1> {
+    async create(input): Promise<SceneIoWriteResultV1> {
       return await postSceneV1({ ...input, expectedDigest: null });
     },
   };

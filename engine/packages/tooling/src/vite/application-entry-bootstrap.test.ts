@@ -21,7 +21,7 @@ import {
 } from "./application-entry-bootstrap.ts";
 import { createSillymakerAppViteConfigV1 } from "./app-vite-config.ts";
 import { desktopDevIntentEnvironmentKeyInternalV1 } from "./desktop-dev.ts";
-import { studioPageUrlV1 } from "./studio.ts";
+import { inspectorPageUrlV1 } from "./inspector.ts";
 
 const repositoryRootV1 = resolve(process.cwd());
 
@@ -102,7 +102,7 @@ describe("runtime application entry bootstrap HTML", () => {
     ).toThrow(`application_entry_bootstrap.${code}`);
   });
 
-  it("leaves the generated Studio Author page under its own entry policy", () => {
+  it("leaves the generated Inspector Author page under its own entry policy", () => {
     const plugin = applicationRuntimeBootstrapPluginInternalV1({
       applicationLabel: "Runtime",
     });
@@ -110,11 +110,15 @@ describe("runtime application entry bootstrap HTML", () => {
     if (typeof transform !== "object" || transform === null) {
       throw new TypeError("runtime bootstrap HTML transform missing");
     }
-    const studioHtml = '<html><body><div id="sillymaker-studio-root"></div></body></html>';
+    const inspectorHtml = '<html><body><div id="sillymaker-inspector-root"></div></body></html>';
 
-    expect(transform.handler.call({} as never, studioHtml, { path: studioPageUrlV1 } as never))
+    expect(
+      transform.handler.call({} as never, inspectorHtml, {
+        path: inspectorPageUrlV1,
+      } as never),
+    )
       .toBe(
-        studioHtml,
+        inspectorHtml,
       );
   });
 

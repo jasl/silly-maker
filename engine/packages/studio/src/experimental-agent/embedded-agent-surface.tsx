@@ -11,7 +11,7 @@ import {
 import type { SceneAuthoringExecutionEnvelopeV1 } from "../core/scene-operations/contract.ts";
 import type { SceneAuthoringLocalAdapterV1 } from "../core/scene-operations/contract.ts";
 import type { ExperimentalEmbeddedAgentBindingInternalV1 } from "./binding.ts";
-import styles from "../studio-app.module.css";
+import styles from "../embedded-authoring.module.css";
 
 interface ArtifactActionBindingInternalV1 {
   readonly envelopes: Readonly<Record<string, SceneAuthoringExecutionEnvelopeV1>>;

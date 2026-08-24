@@ -33,7 +33,7 @@ import {
   shellFilesPathPrefixInternalV1,
   shellRecordsPathPrefixInternalV1,
 } from "../desktop/shell-http-admission.mts";
-import { studioPageMetaNameV1, studioPageUrlV1 } from "./studio.ts";
+import { inspectorPageMetaNameV1, inspectorPageUrlV1 } from "./inspector.ts";
 
 const desktopDevCoordinatorKeyInternalV1 = Symbol.for(
   "@sillymaker/tooling/vite/desktop-dev-coordinator/v1",
@@ -251,10 +251,10 @@ function privatePathV1(rawUrl: string | undefined): boolean {
   );
 }
 
-function standaloneStudioPathV1(rawUrl: string | undefined): boolean {
+function standaloneInspectorPathV1(rawUrl: string | undefined): boolean {
   if (rawUrl === undefined || !rawUrl.startsWith("/") || rawUrl.startsWith("//")) return false;
   const pathname = rawUrl.split("?", 1)[0] ?? "";
-  return pathname === studioPageUrlV1 || pathname === studioPageUrlV1.slice(0, -1);
+  return pathname === inspectorPageUrlV1 || pathname === inspectorPageUrlV1.slice(0, -1);
 }
 
 function htmlAttributeValueV1(source: string, name: string): string | null {
@@ -265,11 +265,11 @@ function htmlAttributeValueV1(source: string, name: string): string | null {
   return match?.[2] ?? null;
 }
 
-function removeStandaloneStudioAdvertisementV1(html: string): string {
+function removeStandaloneInspectorAdvertisementV1(html: string): string {
   return html.replaceAll(/<meta(?:\s[^<>]*)?>/giu, (element) => {
     const attributes = element.slice("<meta".length, -1);
-    return htmlAttributeValueV1(attributes, "name") === studioPageMetaNameV1 &&
-        htmlAttributeValueV1(attributes, "content") === studioPageUrlV1
+    return htmlAttributeValueV1(attributes, "name") === inspectorPageMetaNameV1 &&
+        htmlAttributeValueV1(attributes, "content") === inspectorPageUrlV1
       ? ""
       : element;
   });
@@ -488,11 +488,11 @@ function sendMisdirectedV1(response: ServerResponse): void {
   response.end("misdirected request");
 }
 
-function sendStandaloneStudioUnavailableV1(response: ServerResponse): void {
+function sendStandaloneInspectorUnavailableV1(response: ServerResponse): void {
   response.statusCode = 404;
   response.setHeader("cache-control", "no-store");
   response.setHeader("content-type", "text/plain; charset=utf-8");
-  response.end("standalone Studio unavailable in Desktop");
+  response.end("standalone Inspector unavailable in Desktop");
 }
 
 function createPrivateMiddlewareV1(
@@ -502,8 +502,8 @@ function createPrivateMiddlewareV1(
 ) {
   return (request: IncomingMessage, response: ServerResponse, next: (error?: unknown) => void) => {
     const privatePath = privatePathV1(request.url);
-    const standaloneStudioPath = standaloneStudioPathV1(request.url);
-    if (!privatePath && !standaloneStudioPath) {
+    const standaloneInspectorPath = standaloneInspectorPathV1(request.url);
+    if (!privatePath && !standaloneInspectorPath) {
       next();
       return;
     }
@@ -520,8 +520,8 @@ function createPrivateMiddlewareV1(
       sendMisdirectedV1(response);
       return;
     }
-    if (standaloneStudioPath) {
-      sendStandaloneStudioUnavailableV1(response);
+    if (standaloneInspectorPath) {
+      sendStandaloneInspectorUnavailableV1(response);
       return;
     }
 
@@ -708,7 +708,7 @@ function createCoordinatorV1(
         identity.intent.bootstrap,
         false,
       ).text();
-      return removeStandaloneStudioAdvertisementV1(desktopHtml);
+      return removeStandaloneInspectorAdvertisementV1(desktopHtml);
     },
   };
   return coordinator;

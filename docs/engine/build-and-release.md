@@ -48,9 +48,10 @@ engine suite and the example browser suite.
 ```sh
 deno task dev          # repository root: Engine Lab via --mode dispatch
 deno task dev          # inside an application directory: that application
+deno task author <application-id> # repository root: dev server + standalone Inspector URL
 ```
 
-The development server uses the application root and supports normal Vite development behavior. Development capability switches and HMR are not separate production build flavors; capability checks remain runtime behavior. Runtime Story assets live at `<appRoot>/assets/**` and are addressed app-root-relative (`assets/x.webp`): the dev server serves them at `/assets/**`, builds copy them into `dist-web/assets/**`.
+The development server uses the application root and supports normal Vite development behavior. An application that declares `inspector: { module, exportName }` receives the dev-only standalone `/__sillymaker/inspector/` page and lazy embedded launcher; its Authoring Host/source-write graph is never part of the static Player. Development capability switches and HMR are not separate production build flavors; capability checks remain runtime behavior. Runtime Story assets live at `<appRoot>/assets/**` and are addressed app-root-relative (`assets/x.webp`): the dev server serves them at `/assets/**`, builds copy them into `dist-web/assets/**`.
 
 ## Build a Player
 
@@ -92,7 +93,7 @@ implementation only under the `development` export condition; default/release
 resolution receives a fail-closed unavailable stub. Engine Lab is both a
 development positive control and a release negative control: Vite dev may inject
 the lightweight embedded-author launcher and lazy Host runtime, while its final
-production graph contains neither the Studio binding/Host/workspaces nor
+production graph contains neither the Inspector binding/Host/source-write implementation nor
 embedded-author/dev-source virtual entries. Engine Lab explicitly selects the
 reference outer UI; its selected Direct backend still appears only in lazy
 DevDock contribution outputs and never in entry. These

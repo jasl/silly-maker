@@ -390,9 +390,9 @@ export function defineSillymakerProjectV1(
         ? null
         : admitModuleRefV1(application.simulate, `${pointer}/simulate`),
       web: application.web === null ? null : admitWebTargetV1(application.web, `${pointer}/web`),
-      studio: application.studio === null
+      inspector: application.inspector === null
         ? null
-        : admitModuleRefV1(application.studio, `${pointer}/studio`),
+        : admitModuleRefV1(application.inspector, `${pointer}/inspector`),
       sceneSources: admitSceneSourcesV1(application.sceneSources, `${pointer}/sceneSources`),
     };
   });
@@ -472,9 +472,9 @@ export function defineSillymakerAppV1(config: SillymakerAppConfigV1): Sillymaker
     simulate: config.simulate === undefined || config.simulate === null
       ? null
       : admitModuleRefV1(config.simulate, `${pointer}/simulate`),
-    studio: config.studio === undefined || config.studio === null
+    inspector: config.inspector === undefined || config.inspector === null
       ? null
-      : admitModuleRefV1(config.studio, `${pointer}/studio`),
+      : admitModuleRefV1(config.inspector, `${pointer}/inspector`),
     sceneSources: admitSceneSourcesV1(config.sceneSources, `${pointer}/sceneSources`),
     web: web === null ? null : {
       applicationHtml: requireRepositoryPathV1(
@@ -583,9 +583,9 @@ export function deriveStoryApplicationV1(
       module: joinAppPathV1(directory, app.simulate.module),
       exportName: app.simulate.exportName,
     },
-    studio: app.studio === null || app.studio === undefined ? null : {
-      module: joinAppPathV1(directory, app.studio.module),
-      exportName: app.studio.exportName,
+    inspector: app.inspector === null || app.inspector === undefined ? null : {
+      module: joinAppPathV1(directory, app.inspector.module),
+      exportName: app.inspector.exportName,
     },
     sceneSources: sceneSources.map((source) =>
       source.sourceKind === "authoring_scene"

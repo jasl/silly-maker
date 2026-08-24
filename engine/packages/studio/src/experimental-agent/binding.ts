@@ -28,18 +28,19 @@ function admitSceneActionsInternalV1(
   readonly actionIds: readonly string[];
   readonly actions: Readonly<Record<string, SceneAuthoringOperationV1>>;
 } {
-  const entries = Object.entries(value).toSorted(([left], [right]) =>
-    left < right ? -1 : left > right ? 1 : 0
-  );
-  if (entries.length === 0 || entries.length > 32) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError("Experimental Agent scene actions must be a record");
+  }
+  const actionIds = Object.keys(value).toSorted();
+  if (actionIds.length === 0 || actionIds.length > 32) {
     throw new TypeError("Experimental Agent scene actions must contain 1-32 string keys");
   }
   const actions: Record<string, SceneAuthoringOperationV1> = {};
-  for (const [actionId, operation] of entries) {
+  for (const actionId of actionIds) {
     if (actionId.length > 128 || !actionIdPatternInternalV1.test(actionId)) {
       throw new TypeError(`Experimental Agent action ID is invalid: ${actionId}`);
     }
-    const admitted = admitSceneAuthoringOperationV1(operation);
+    const admitted = admitSceneAuthoringOperationV1(value[actionId]);
     if (admitted.kind === "rejected") {
       throw new TypeError(
         `Experimental Agent action ${actionId} is invalid: ${admitted.diagnostic.code}`,
@@ -47,7 +48,7 @@ function admitSceneActionsInternalV1(
     }
     actions[actionId] = admitted.operation;
   }
-  return { actionIds: Object.keys(actions), actions };
+  return { actionIds, actions };
 }
 
 /**

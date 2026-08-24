@@ -6,8 +6,8 @@ import type { Locator, Page } from "@playwright/test";
 
 import { expect, gotoLabV1, test } from "./fixtures.ts";
 
-const studioBindingFileV1 = fileURLToPath(
-  new URL("../../../../../e2e/src/tooling/studio-binding.tsx", import.meta.url),
+const inspectorBindingFileV1 = fileURLToPath(
+  new URL("../../../../../e2e/src/tooling/inspector-binding.ts", import.meta.url),
 );
 const presentationFileV1 = fileURLToPath(
   new URL("../../../../../e2e/src/presentation.ts", import.meta.url),
@@ -159,20 +159,21 @@ async function openDirtyAuthoringV1(page: Page): Promise<DirtyAuthoringViewV1> {
   const panel = page.getByRole("region", { name: "内嵌创作" });
   await expect(panel).toBeVisible();
 
-  // One stable hook identifies the Scene entry selector; its accessible name
-  // includes option text because the label wraps the select.
-  const entry = panel.locator('[data-studio-entry-select="true"]');
-  await expect(entry).toBeEnabled();
-  await entry.selectOption("tag.e2e.alpha");
-  const xInput = panel.getByLabel("x", { exact: true });
+  await panel.getByLabel("搜索当前应用的 Scene").fill("储藏室实验流程");
+  await panel.locator('[data-inspector-scene="scene.e2e.procedure"]').click();
+  const alpha = panel.locator('[data-inspector-object="tag.e2e.alpha"]');
+  await expect(alpha).toBeEnabled();
+  await alpha.click();
+  const xInput = panel.getByLabel("X", { exact: true });
   await expect(xInput).toBeVisible();
   const sourceX = Number(await xInput.inputValue());
   if (!Number.isSafeInteger(sourceX)) throw new Error("Authoring x value is unavailable");
   const editedX = sourceX + 67;
   await xInput.fill(String(editedX));
+  await xInput.blur();
 
-  const undo = panel.locator('[data-studio-undo="true"]');
-  const save = panel.locator('[data-studio-save="true"]');
+  const undo = panel.getByRole("button", { name: "撤销", exact: true });
+  const save = panel.getByRole("button", { name: "保存", exact: true });
   await expect(undo).toBeEnabled();
   await expect(save).toBeEnabled();
   return Object.freeze({ panel, xInput, undo, save, sourceX, editedX });
@@ -322,7 +323,8 @@ test.describe("Engine Lab Browser module updates", () => {
   });
 
   test("@dev-source-io rejects an incompatible Authoring R1 candidate and accepts a compatible retry", async ({ page, pageDiagnostics }) => {
-    const originalBytes = readFileSync(studioBindingFileV1, "utf8");
+    const originalBytes = readFileSync(inspectorBindingFileV1, "utf8");
+    const originalPresentationBytes = readFileSync(presentationFileV1, "utf8");
     const rejectedBytes = requireSourceMutationV1(
       originalBytes,
       originalBytes.replace(
@@ -332,9 +334,9 @@ test.describe("Engine Lab Browser module updates", () => {
       "incompatible Agent companion candidate",
     );
     const retryBytes = requireSourceMutationV1(
-      originalBytes,
-      originalBytes.replace(
-        /(contentId:\s*"content\.e2e\.char\.alpha",\s*\n\s*label:\s*)"[^"\n]+"/u,
+      originalPresentationBytes,
+      originalPresentationBytes.replace(
+        /(case labStageContentIdsV1\.characterAlpha:[\s\S]*?\n\s*accessibleName:\s*)"[^"\n]+"/u,
         `$1${JSON.stringify("研究员甲 retry")}`,
       ),
       "compatible Authoring candidate",
@@ -347,6 +349,11 @@ test.describe("Engine Lab Browser module updates", () => {
       // Engine Lab is the explicit positive Agent selection. The build receipt
       // owns the corresponding no-Agent Authoring graph assertion.
       const agent = await startHeldAgentV1(authoring.panel);
+      const gameHost = page.getByTestId("overlay-host");
+      const predecessorEpoch = Number(
+        await gameHost.getAttribute("data-overlay-application-epoch"),
+      );
+      expect(Number.isSafeInteger(predecessorEpoch)).toBe(true);
       page.on("load", () => {
         pageLoads += 1;
       });
@@ -356,29 +363,50 @@ test.describe("Engine Lab Browser module updates", () => {
         predicate: (message) =>
           message.type() === "error" && message.text().includes(failureFragment),
       });
-      writeFileSync(studioBindingFileV1, rejectedBytes);
+      writeFileSync(inspectorBindingFileV1, rejectedBytes);
       await expectedFailure;
       consumeExpectedConsoleFailureV1(pageDiagnostics, failureFragment);
 
-      await expect(authoring.panel.getByText("研究员甲", { exact: true }).first()).toBeVisible();
-      await expectAuthoringAndAgentUsableV1(authoring, agent);
-
-      writeFileSync(studioBindingFileV1, retryBytes);
-      await expect(authoring.panel.getByText("研究员甲 retry", { exact: true }).first())
+      await expect(authoring.panel.getByRole("img", { name: "研究员甲", exact: true }))
         .toBeVisible();
       await expectAuthoringAndAgentUsableV1(authoring, agent);
 
-      writeFileSync(studioBindingFileV1, originalBytes);
-      await expect(authoring.panel.getByText("研究员甲 retry", { exact: true })).toHaveCount(0);
-      await expect(authoring.panel.getByText("研究员甲", { exact: true }).first()).toBeVisible();
+      const retryUpdate = page.waitForEvent("console", {
+        predicate: (message) =>
+          message.text().includes("hot updated") && message.text().includes("inspector-binding"),
+      });
+      writeFileSync(inspectorBindingFileV1, originalBytes);
+      await retryUpdate;
+      await expectAuthoringAndAgentUsableV1(authoring, agent);
+
+      writeFileSync(presentationFileV1, retryBytes);
+      await expect(authoring.panel.getByRole("img", { name: "研究员甲 retry", exact: true }))
+        .toBeVisible();
+      await expect(gameHost).toHaveAttribute(
+        "data-overlay-application-epoch",
+        String(predecessorEpoch + 1),
+      );
+      await expectAuthoringAndAgentUsableV1(authoring, agent);
+
+      writeFileSync(presentationFileV1, originalPresentationBytes);
+      await expect(authoring.panel.getByRole("img", { name: "研究员甲 retry", exact: true }))
+        .toHaveCount(0);
+      await expect(authoring.panel.getByRole("img", { name: "研究员甲", exact: true }))
+        .toBeVisible();
+      await expect(gameHost).toHaveAttribute(
+        "data-overlay-application-epoch",
+        String(predecessorEpoch + 2),
+      );
       await expectAuthoringAndAgentUsableV1(authoring, agent);
       expect(pageLoads).toBe(0);
 
       await finishAuthoringV1(authoring, agent);
     } finally {
-      restoreSourceV1(studioBindingFileV1, originalBytes);
+      restoreSourceV1(inspectorBindingFileV1, originalBytes);
+      restoreSourceV1(presentationFileV1, originalPresentationBytes);
     }
-    expect(readFileSync(studioBindingFileV1, "utf8")).toBe(originalBytes);
+    expect(readFileSync(inspectorBindingFileV1, "utf8")).toBe(originalBytes);
+    expect(readFileSync(presentationFileV1, "utf8")).toBe(originalPresentationBytes);
   });
 
   test("@dev-source-io publishes a shared presentation change as Player R2 plus Authoring R1", async ({ page }) => {

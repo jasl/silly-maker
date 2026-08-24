@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import type { ReactElement } from "react";
 
-import type { StudioBindingV1 } from "./binding.ts";
+import type { InspectorBindingV1 } from "./binding.ts";
 import type { SceneAuthoringLocalAdapterV1 } from "./scene-operations/contract.ts";
 
 export interface EmbeddedAuthoringCompanionRenderInputInternalV1 {
@@ -30,23 +30,23 @@ export interface EmbeddedAuthoringCompanionDefinitionInternalV1 {
 }
 
 const companionDefinitionsInternalV1 = new WeakMap<
-  StudioBindingV1,
+  InspectorBindingV1,
   EmbeddedAuthoringCompanionDefinitionInternalV1
 >();
 
 export function defineEmbeddedAuthoringCompanionInternalV1(
-  binding: StudioBindingV1,
+  binding: InspectorBindingV1,
   definition: EmbeddedAuthoringCompanionDefinitionInternalV1,
-): StudioBindingV1 {
+): InspectorBindingV1 {
   if (companionDefinitionsInternalV1.has(binding)) {
-    throw new TypeError("Studio binding already has an embedded Authoring companion");
+    throw new TypeError("Inspector binding already has an embedded Authoring companion");
   }
   companionDefinitionsInternalV1.set(binding, definition);
   return binding;
 }
 
 export function resolveEmbeddedAuthoringCompanionInternalV1(
-  binding: StudioBindingV1,
+  binding: InspectorBindingV1,
 ): EmbeddedAuthoringCompanionDefinitionInternalV1 | null {
   return companionDefinitionsInternalV1.get(binding) ?? null;
 }

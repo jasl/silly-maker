@@ -12,10 +12,11 @@ lifetime/performance promotion 与 AR6 closure 已于 2026-08-23 交付关闭，
 标注实现状态的部分才是 live capability，其他目标仍不因
 设计存在而自动生效。
 
-本文扩展[统一创作架构](authoring-architecture.md)与
-[场景创作模型和 Studio](scene-authoring-and-studio.md)：Scene、Motion、Project
-Authoring Index、共享文档会话、CAS、undo/redo 和 workspace 领域合同保持不变；
-“Studio 只能是独立 dev 页面”是当前 V1 实现，不是永久产品边界。
+本文扩展[统一创作架构](authoring-architecture.md)与历史
+[场景创作模型和 Studio](scene-authoring-and-studio.md)。其中 Authoring Host、Project Authoring
+Index、共享文档会话、CAS、undo/redo、structured operations 与 standalone/embedded placement 已
+被 M5 Inspector clean break 保留；旧 Studio route、rail、五 workspace 与 binding 已退出 live 产品面，
+不形成兼容层。
 
 ## 1. Product position
 
@@ -23,7 +24,7 @@ SillyMaker 的下一阶段定位是 **game-first GUI application runtime**：
 
 - 游戏继续提供确定性、Save/replay、表现、输入和真实内容规模压力；
 - GUI 应用可以拥有自己的窗口、任务、文档、Artifact 和交互领域；
-- authoring 可以嵌入应用，也可以由独立 Studio route 承载；
+- authoring 可以嵌入应用，也可以由独立 Inspector route 承载；
 - Agent 产品可以把 Agent UI 与会话作为正式产品领域，但依赖的 LLM/后台服务在进程外；
 - 可选 UI、workspace 和调试能力按需激活，不阻塞不依赖它们的核心产品；
 - 共用的是 Application Host、Surface、authoring、typed intent 和生命周期机制，不是把所有
@@ -48,7 +49,7 @@ Node.js server、通用 CLI 和 headless runtime 不作为产品 target；Deno �
 capability 不等于 in-process plugin：外部 LLM、配套后台和 companion service 统一经 RPC 连接。
 
 本文的“普通 runtime release/Player”指没有显式 author 或 dynamic-extension capability 的 GUI
-entry。它可以按产品需要包含其他正式能力，但绝不因此包含 Studio、dev source IO、编译器、
+entry。它可以按产品需要包含其他正式能力，但绝不因此包含 Inspector、dev source IO、编译器、
 source-write authority 或未选择的 RPC client。
 
 ## 2. Authority, persistence, and RPC domains
@@ -248,102 +249,85 @@ small admitted metadata
 这不是 public Mod ABI。首轮不支持运行期任意路径 import、目录扫描发现 plugin、远端 executable
 code、安装后修改 build graph、第三方 manifest、resolver 或 distribution。
 
-## 5. One Authoring Host, multiple shells
+## 5. One Authoring Host, Inspector-first shells
 
-2026-08-24 接受的
-[Scale, Scene Object, and Modular GUI](../proposals/scale-scene-object-and-modular-gui.md)
-只取代本节的旧 Studio 产品形态，不取代 one Host / standalone-and-embedded placement、document
-session、CAS、dirty/history、selection/navigation 或 R1 continuity。M5 将以一个 Inspector-first
-implementation 同时服务两种 placement；当前五 workspace rail、`StudioAppV1` 与旧 route/bundle 在达到
-M5 accepted replacement surface 后原子删除或替换，不作为 migration wrapper、兼容层或功能 parity
-要求。以下 AR3 implementation status 在 M5 前仍如实描述 live V1。
-
-统一创作架构的“一个外壳”演进为“一个 **Authoring Host**、多个承载方式”：
+2026-08-25 的 Scale/Scene Object/Modular GUI M5 以 clean break 取代旧 Studio 产品外形，
+但保留本设计的 one Host / standalone-and-embedded placement、document session、CAS、
+dirty/history、structured operations、source IO、selection 和 R1 continuity。当前 live surface
+是 Inspector；旧 `/__sillymaker/studio/` route、五 workspace rail、`StudioAppV1`、
+`StudioBindingV1`、Story workspace bindings 和只保护旧 UI 的测试已删除，不保留 migration
+wrapper 或 feature-parity 双轨。
 
 ```text
 Authoring Host
-  project index / navigation / selection / diagnostics
-  shared document sessions / dirty gate / undo-redo / CAS
-  workspace metadata + lazy implementation loaders
-  preview and publication coordination
+  Authoring Scene source IO / document session / CAS
+  dirty gate / undo-redo / selection / diagnostics
+  package-private structured operations
+  persistent publication + optional private companion
         |                         |
         v                         v
-standalone author surface    embedded author surface
+standalone Inspector       embedded Inspector
 ```
 
-两种 placement 必须消费同一 Host contract、同一 accepted author surface implementation、同一文档
-session 和同一 source IO；不得各自复制 dirty、undo、save 或 conflict 语义。AR3 已证明 embedded
-consumer 的 GUI、R1、dirty draft 和输入/焦点行为；standalone placement 是同一作者产品的完整页面，
-不是第二套编辑器。
+两种 placement 消费同一 Host contract、同一 `InspectorAppV1` implementation 和同一类 source
+IO；每个 mount 拥有自己的 in-memory lifetime，独立 tab 不声称共享 draft。应用以
+`inspector: { module, exportName }` 显式选择，并导出小型 `InspectorBindingV1`：content
+catalog、真实 Stage renderers，以及可选 assets、Motion 和 Timeline catalogs。binding 不携带
+source paths、FilePort、GameSession writer、workspace registry 或任意插件输入。
 
-Authoring Host 与 Application Host 下其他 Application Domain 是相互独立的 sibling。其他领域的
-R1 presentation/tool/workspace successor 与 R2 authoritative Application Domain successor 的
-成功、失败或 rollback 都不能重建 Authoring Host，也不能丢失 document identity、dirty draft、
-undo/redo、selection 或 workspace state；游戏 conformance 以 Game/Session successor 证明这一
-合同。Agent 完全缺席时，编辑器仍须是完整可用的 authoring 产品；Agent 只是可选
-sibling/client。
+当前 Inspector 只交付有持续价值的 bounded workflow：
 
-嵌入应用不等于把源码编辑器发给玩家：
+- project Authoring Scene 搜索与 fixed-row virtualization；
+- 当前 scene 的 layer/object hierarchy 搜索与 fixed-row virtualization；
+- tree 与真实 `SemanticStageHostV1` preview 的共享选择；
+- 对 off-canvas、transparent 和 non-visual group object 的 selectable ghost/inspection bounds；
+- local transform、visual content、既有 appearance value、sibling object order 和 layer order 的
+  package-private revision-fenced edits；
+- hit-region（含 polygon overlay）、Motion、Timeline、interaction/GUI intent、compiled layer、
+  diagnostics 和 JSON-pointer source provenance 的只读 facets；
+- Motion/Timeline 的 detached scrub，包括 parallel disjoint channels；
+- Authoring Scene CAS save；`digest_conflict` 刷新 saved baseline/digest，同时保留 dirty draft
+  与 history 供显式 retry。
 
-- Browser trusted author surface 当前只经 dev-server source IO 写回；
-- Deno Desktop 的 Host/lifecycle 可以在本计划验证，但 source write、persistence、packaging 与
-  production claim 仍由独立 Desktop lane promotion；
-- 普通 release 不含 dev source endpoint、source-write IO、Studio 或编译器；
-- playtest inspector 只读或只发明确调试 intent；
-- 未来重型 code editor、搜索/index worker 或更多 workspace 可以作为 lazy contribution，但本轮
-  不激活通用 IDE、任意 TS compiler 或 VS Code extension host；
-- 未来玩家 UGC editor 只编辑产品定义的数据，经自己的 schema/command/persistence，属于独立
-  产品设计。
+Inspector 不创建 component，不把 group 转换为 visual，不写 standalone Regions/Chrome 文档，不
+编辑 Blueprint/任意 TypeScript，也不取得活动 gameplay Session writer。low-level Scene source IO、
+Regions/Chrome document families、Motion Workbench 与 Narrative Flow projection 继续作为底层或
+专门工具能力保留，但它们不是 Inspector workspace。未来专门 editor、code editor、search/index
+worker 或 UGC surface 需要自己的真实 consumer 与合同，不恢复旧 rail。
 
-Authoring Host 不接收 `GameSession` writer，不建立第二 Stage reconciler。预览继续消费
-detached/read-only target；保存仍走 source CAS，再由正常 module-update/publication 路径使 runtime
-看到 successor。workspace 对连接后 geometry 有需求时必须提供显式 mounted/readiness 证据；
-offscreen connected staging 的 layout acknowledgement 不自动证明 user-visible paint 或精确
-on-screen geometry。
+Authoring Host 与 Application Host 下其他 Application Domain 是 sibling。Game/Session R2
+successor、Player R3 recovery 或 Agent absence 不能重建 Authoring Host 或丢失其 admitted document
+identity、dirty draft、history、selection；Authoring 也不取得 gameplay authority。保存只走 source
+CAS，再由正常 module-update/publication path 让 runtime 看见 successor。ordinary release 排除
+Inspector、Host、dev-source endpoint、source-write IO、authoring compiler/facets 和 Agent/RPC；
+release 只保留选定 Authoring Scene 的 virtual runtime plan。
 
-实现状态（2026-08-22，AR3）：`@sillymaker/studio` 已抽出一个 package-private Authoring Host，
-统一协调 Project Authoring Index-facing navigation，并拥有 Scene/Regions document sessions、Motion
-store、Flow activation、dirty close participants 和 CAS conflict handling；persistent surface 保留
-scene selection、diagnostics 与兼容的 local workspace state。standalone
-Studio route 与 dev-only embedded shell 渲染同一个 closed workspace manifest 和实现；embedded
-页面只常驻轻量 launcher，首次打开才加载 Host、workspaces 与真实 dev-source client。这里的“同一
-Host/session”是同一 private factory、contract 和状态机；每个 shell mount 拥有自己的 Host lifetime，
-独立 browser tab 不声称共享 in-memory draft instance。
-Engine Lab 不再在 Game root 的 DevDock 中挂第二个可写 Motion Workbench：DevDock 舞台溯源保持
-只读，真实 Scene cue 在 standalone/embedded Authoring Host 内产生唯一受维护的 Motion case。这样
-`debug_tools` 撤销、Game R2 换代或 R3 重启都不能绕过 Host 的 dirty participant 后销毁另一份
-component-local 编辑会话。
+R1 publication 保留一个 visible React root。candidate 先在 inert、`aria-hidden`、
+visibility-hidden、offscreen 但 document-connected 的 staging root 完成 layout-effect
+acknowledgement；失败在触碰 visible predecessor 前拒绝，成功才进入同一 visible root。该合同保留
+Host/session/selection/兼容的 local Inspector state，不承诺任意 visible side effect 可逆，也不把
+connected staging 当作真实 paint/geometry evidence。standalone/embedded teardown 先 unmount React
+descendants，再 dispose optional companion 和 Host。
 
-R1 publication 现在保留一个 visible React root；candidate 先在 inert、`aria-hidden`、
-visibility-hidden、offscreen 但 document-connected 的 staging root 完成 layout acknowledgement，
-connected layout failure 因而在触碰 visible root 前拒绝。accepted candidate 再进入同一 visible root，
-保留 Host、文档 identity、dirty/history、selection 与兼容的 component-local state；同步 visible
-render-factory failure 可重渲 predecessor plan 而不替换该 state，candidate/rollback factory 双失败才
-terminal dispose。这一窄证明不泛化为“任意 nondeterministic visible effect 都可无损 rollback”；
-connected staging 也不等于 user-visible paint 或精确 on-screen geometry。409/CAS conflict 刷新 saved
-bytes/digest 而保留 draft，embedded dirty close 复用同一 save/discard/cancel participants；独立 focus
-owner 与 pointer/context-menu/wheel fencing 阻止 editor keyboard 和 author chrome 的 secondary input
-泄漏给 gameplay。
+embedded mode 仍可选择正好一个 package-private neutral companion。core publication 只看
+compatibility identity、content signature、owner/renderer/disposer；Agent types 只从
+`@sillymaker/studio/internal/agent` 进入。Engine Lab 显式选择 deterministic fake companion，
+Template 的完整 Author graph 则排除 Agent/RPC。Artifact action 必须与 current Authoring Scene
+document identity/draft revision receipt 配对后才可用，并通过同一 structured-operation executor；
+它不能保存文件、改 Game State 或调用 external effect。这是 private Agent seam，不是 public
+plugin/Mod ABI。
 
-Engine Lab 提供一个被 runtime 和 authoring 共同消费的真实
-`src/scenes/procedure/procedure.scene.json` 及对应 Studio binding，不存在隐藏 test-only document。
-它的 Vite owner 把 live collector 产生的真实 `BuildIdentity` 注入 composition self-accept candidate；
-普通 Scene/Motion R2 变化折叠到该 composition module。若同一个原始 changed module 的 live importer
-graph 也到达已加载 Studio binding，则只额外保留该 module 为 Authoring R1 propagation root，其他深层
-Scene/simulation module 仍被过滤。Chromium 与 WebKit 的物理证据只保留用户可观察与架构合同：
-Studio-binding R1 incompatible rejection + compatible retry 期间 dirty Authoring 和显式 Agent 仍可用且
-page load 为零；共享 `presentation.ts` edit 分别到达 Game R2 与 Authoring R1 并保留 dirty draft；
-Application identity edit 走 R3 reload 后 GUI 恢复可操作。Browser 不认证完整 Host/DOM identity inventory；
-被改 source 的 teardown 只负责等待 reverse update 并恢复原始 bytes。
-Browser 的 Game/Session restart 与 composition R2 纵切把 Authoring 作为 Game root 外的 sibling：
-success 与 replacement 前 fault 都不重建 Authoring Host。当前 Web R2 在 predecessor retirement 后
-若 successor start 失败进入 terminal recovery，不承诺恢复 gameplay predecessor；这里不得写成
-transactional Game rollback。macOS arm64 / Deno 2.9.5 的原生 common-runtime smoke 已用最新
-Engine Lab static Player 证明 GUI ready、权威操作、同窗口 Game/Session restart、restart 后继续
-操作，以及 native close acknowledgement 后 autosave flush 与正常退出。它没有装入 embedded
-author、source CAS、R0–R2 update source 或 `deno desktop --hmr`，也不证明 packaged artifact、
-多平台、crash durability 或 Desktop persistence/packaging/signing production readiness；这些仍留给
-单独的 Desktop HMR revalidation 或 production promotion lane。
+Browser Chromium/WebKit evidence 只保护合同级行为：standalone/embedded Inspector 可用，
+virtualized list/tree 与真实 preview/ghost/facets 可观察，有限编辑通过 Authoring Scene CAS，
+incompatible R1 reject + compatible retry 保留 dirty Authoring/selected companion，shared
+presentation change 形成 Player R2 + Authoring R1，Application identity change 走 R3 recovery。
+unit/headless suites继续保护 operation stale fencing、CAS conflict、Agent generation/sequence/cancel；
+Browser 不逐项认证完整 DOM/object identity inventory。
+
+Deno Desktop 的静态 Player/common-runtime 与 selected-canary characterization 仍不等于 live
+Desktop authoring。Inspector/source CAS、Desktop R0–R2、maintained `deno desktop --hmr` workflow、
+packaging/persistence/signing promotion 均未激活；private adapter 继续 package-private、explicit、
+default-off，并等待符合既定条件的 stable revalidation。
 
 ## 6. Structured authoring operations
 
@@ -426,28 +410,27 @@ completion 保留 exact predecessor，remote `run_failed` 终结 active run 和 
 retained revision 不调用 RPC、模型或 tool。
 `UiArtifact` 的 live closed vocabulary 只有 `column`、`text` 和 `action`；renderer 把 text 当普通
 文字并只发出带 current Host/Artifact/node/action identity 的 admitted `UiIntent`。Engine Lab 的
-dev-only Studio adapter 必须在 action 变为 interactive 前让 Artifact 与 exact AR2 Scene receipt
+dev-only Inspector companion 必须在 action 变为 interactive 前让 Artifact 与 current Authoring Scene receipt
 配对；Artifact 先到而 Scene 尚未 ready 时保持 inert，后续 Authoring revision 可为同一 Artifact 补配。
 human edit 后的旧 action 稳定 stale-reject；有效 action 只改现有 in-memory draft，未保存文件、未改
 Game State、未调用网络。service unavailable/retry、valid successor、invalid successor、late
 cancellation 和隐藏/重开 Host 的 jsdom 与 Chromium/WebKit evidence 已落地。ordinary Template/
-Engine Lab Player release graph 显式排除 Agent/RPC implementation modules；AR4 关闭时 Studio/
-Agent source graph 仍静态耦合，authoring-only/no-Agent build graph 尚未证明，该缺口不追溯计入
-AR4。
+Engine Lab Player release graph 显式排除 Agent/RPC implementation modules；AR4 关闭时 authoring/
+Agent source graph 仍静态耦合，后续 AR5/M5 已通过 neutral companion split 与 Inspector graph
+negative control 关闭该结构缺口。
 
 这些实现形状仍是 provisional internal seam：没有 root/public Agent export，也没有 real transport、
 backend/LLM、具体 wire protocol、Agent/session/artifact persistence、tool execution、permission UI、
-OpenUI/A2UI adapter、Effect Broker 或 Desktop HMR。它不进入 `features.md`，直到真实第二消费者与
-后续 promotion 证明稳定合同。
+OpenUI/A2UI adapter、Effect Broker 或 Desktop HMR。`features.md` 只记录这条 private seam 的现状，
+真实第二消费者与后续 promotion 之前不得表述为 public Agent ABI。
 
-实现状态（2026-08-23，AR5 已交付关闭）：Studio core publication/embedded surface 已改为
-只依赖 package-private 的 neutral single-companion bridge；Agent client/Host/renderer 只从显式
+实现状态（2026-08-25，AR5 保留、M5 已吸收）：Inspector core publication/embedded surface 只
+依赖 package-private 的 neutral single-companion bridge；Agent client/Host/renderer 只从显式
 `@sillymaker/studio/internal/agent` 选择路径进入。Template 的完整 generated Author-entry measurement
-保留 Authoring Host、workspaces 与 dev-source implementation，同时排除 Agent package、RPC/fake 和
-experimental Agent surface；Engine Lab 显式选择图包含这些模块作为 positive control。Studio
-manifest 仍为该 private opt-in entry 保留 `@sillymaker/agent` workspace dependency，因此这项事实只
-是 final module/source graph structural exclusion，不是 public ABI、独立 package installation 或
-Desktop author-build claim。
+保留 Authoring Host、Inspector 与 dev-source implementation，同时排除 Agent package、RPC/fake 和
+experimental Agent surface；Engine Lab 显式选择 private companion 图包含这些模块作为 positive
+control。该事实只是 final module/source graph structural exclusion，不是 public ABI、独立 package
+installation 或 Desktop author-build claim。
 
 Browser physical HMR 在 Chromium 与 WebKit 只保留三组合同级行为：合法不兼容
 `configurationId` 的 Authoring R1 candidate rejection + compatible retry，同时 dirty Authoring sibling
@@ -494,7 +477,7 @@ workflow，没有阻塞已关闭的 AR5/AR6，也不阻塞其他工作。
 
 ## 8. Promotion and deferred evidence
 
-本设计先由 Engine Lab、现有 DevDock 和 Studio 提供中性/开发期消费者。已完成的 AR6 把已验证能力、
+本设计先由 Engine Lab、现有 DevDock 和 Inspector 提供中性/开发期消费者。已完成的 AR6 把已验证能力、
 唯一 extension backend 选择和未满足边界交还 owner；后续小作品、examples 重做或其他产品压力源
 由 owner 另行讨论、选择和立案，不在本计划预先列清单或排序。外部 workload 只提供匿名需求和
 对比证据；可泛化合同仍需在 Engine Lab 做最小中性复现。

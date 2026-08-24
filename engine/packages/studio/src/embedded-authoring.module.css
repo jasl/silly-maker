@@ -1,0 +1,111 @@
+/* SPDX-License-Identifier: MIT */
+.embedded-panel {
+  position: fixed;
+  z-index: 2147483000;
+  inset: 1rem;
+  overflow: auto;
+  border: 1px solid #4a5060;
+  border-radius: 0.75rem;
+  box-shadow: 0 1rem 4rem rgb(0 0 0 / 55%);
+  background: #14161c;
+}
+
+.embedded-toolbar {
+  position: sticky;
+  z-index: 2;
+  inset-block-start: 0;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.625rem 0.75rem;
+  border-block-end: 1px solid #4a5060;
+  background: #1d2029;
+}
+
+.embedded-toolbar span {
+  flex: 1 1 auto;
+  opacity: 0.7;
+}
+
+.embedded-launcher {
+  position: fixed;
+  z-index: 2147482999;
+  inset-inline-end: 1rem;
+  inset-block-end: 1rem;
+}
+
+.embedded-close-confirm {
+  position: fixed;
+  z-index: 2147483001;
+  inset: 50% auto auto 50%;
+  inline-size: min(28rem, calc(100vw - 2rem));
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid #8a6a3e;
+  border-radius: 0.625rem;
+  color: #e8e4dc;
+  background: #2c2214;
+  box-shadow: 0 1rem 4rem rgb(0 0 0 / 65%);
+  transform: translate(-50%, -50%);
+}
+
+.embedded-close-confirm::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+
+.agent-panel {
+  display: grid;
+  gap: 0.625rem;
+  margin: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid #3a3f4b;
+  border-radius: 0.5rem;
+  background: #10131a;
+}
+
+.agent-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.agent-toolbar span {
+  color: #9aa4bc;
+  font-size: 0.8rem;
+}
+
+.agent-prompt {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.agent-prompt label {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.agent-prompt textarea {
+  min-block-size: 4.5rem;
+  resize: vertical;
+}
+
+.agent-draft {
+  overflow: auto;
+  max-block-size: 8rem;
+  margin: 0;
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  background: #080a0f;
+  white-space: pre-wrap;
+}
+
+.agent-panel [data-ui-artifact-kind="column"] {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.agent-panel [data-ui-artifact-kind="text"] {
+  margin: 0;
+}

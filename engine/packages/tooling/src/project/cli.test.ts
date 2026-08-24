@@ -31,7 +31,7 @@ const projectV1 = defineSillymakerProjectV1({
       storyEntry: { module: "test/synthetic-story.ts", exportName: "entryV1" },
       assetVerification: false,
       simulate: { module: "test/synthetic-simulate.ts", exportName: "targetV1" },
-      studio: null,
+      inspector: null,
       web: {
         storyRoot: "test",
         applicationHtml: "test/index.html",

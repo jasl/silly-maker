@@ -35,7 +35,7 @@ import {
   runtimeAssetContentTypeV1,
 } from "./runtime-assets.ts";
 import { devSourcesPluginV1 } from "./dev-sources.ts";
-import { studioPluginV1 } from "./studio.ts";
+import { inspectorPluginV1 } from "./inspector.ts";
 
 interface BuildIdentityModuleV1 {
   collect(): Promise<unknown>;
@@ -207,9 +207,9 @@ export async function createSillymakerAppViteConfigV1(
   if (desktopDev !== null) {
     plugins.push(desktopDev);
   }
-  if (config.studio !== null && config.studio !== undefined) {
-    // Dev-server-only Studio page for scene authoring; never in builds.
-    plugins.push(studioPluginV1(config.studio));
+  if (config.inspector !== null && config.inspector !== undefined) {
+    // Dev-server-only Inspector page for scene authoring; never in builds.
+    plugins.push(inspectorPluginV1(config.inspector));
   }
   const buildDependencyMeasurement = parseBuildDependencyMeasurementRequestInternalV1(
     process.env[buildDependencyMeasurementEnvironmentKeyInternalV1],

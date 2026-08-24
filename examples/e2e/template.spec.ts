@@ -139,30 +139,12 @@ test("the mist ambient loop drifts, freezes with the presentation clock, and res
     .not.toBe(frozen);
 });
 
-test("the scene-first starter advertises Studio from the debug dock", async ({ page }) => {
+test("the scene-first starter advertises Inspector from the debug dock", async ({ page }) => {
   await page.goto(templateTargetUrlV1("reference.html?capability=debug_tools"));
   await page.getByRole("button", { name: "调试" }).click();
-  const studio = page.getByRole("group", { name: "调试" }).getByRole("link", { name: "Studio" });
-  await expect(studio).toHaveAttribute("href", "/__sillymaker/studio/");
-  await expect(studio).toHaveAttribute("target", "_blank");
-});
-
-test("the starter Studio renders the read-only narrative flow with source jump (S5)", async ({ page }) => {
-  await page.goto(templateTargetUrlV1("__sillymaker/studio/"));
-
-  // The resident Studio shell loads the Flow implementation only on demand.
-  const flow = page.locator("[data-studio-flow]");
-  await expect(flow).toHaveCount(0);
-  await page.getByRole("button", { name: "Narrative 流程", exact: true }).click();
-  await expect(flow).toBeVisible();
-  await expect(flow.locator('[data-studio-flow-doc="doc.template.opening"]'))
-    .toHaveAttribute("aria-pressed", "true");
-
-  // Clicking a node reveals its source reference — the read-only
-  // "go to source document" loop; labeled edges carry the choice names.
-  await flow.locator('[data-studio-flow-node="node.template.greeting"]').click();
-  await expect(flow.locator("[data-studio-flow-source]")).toHaveText(
-    "interaction-doc:doc.template.opening#greeting",
-  );
-  await expect(flow.getByText("flag flag.template.cat_found", { exact: true })).toBeVisible();
+  const inspector = page.getByRole("group", { name: "调试" }).getByRole("link", {
+    name: "Inspector",
+  });
+  await expect(inspector).toHaveAttribute("href", "/__sillymaker/inspector/");
+  await expect(inspector).toHaveAttribute("target", "_blank");
 });

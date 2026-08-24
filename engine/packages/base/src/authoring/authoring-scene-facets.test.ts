@@ -191,6 +191,16 @@ describe("Authoring Scene authoring-only facet projection", () => {
     const bottom = projection.objects["tag.test.bottom"];
     const top = projection.objects["tag.test.top"];
 
+    expect(projection.previewTarget.stageId).toBe("stage.authoring.preview");
+    expect(
+      projection.previewTarget.layers.map((layer) => ({
+        layerId: layer.layerId,
+        entryTags: layer.entries.map((entry) => entry.tag),
+      })),
+    ).toEqual([
+      { layerId: "layer.test.back", entryTags: ["tag.test.bottom"] },
+      { layerId: "layer.test.front", entryTags: ["tag.test.top"] },
+    ]);
     expect(bottom?.hitRegions).toEqual([
       {
         regionId: "body",

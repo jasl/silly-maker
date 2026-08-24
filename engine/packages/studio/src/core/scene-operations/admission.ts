@@ -1,27 +1,21 @@
 // SPDX-License-Identifier: MIT
-import {
-  parseSceneDocumentV1,
-  parseStageAppearanceV1,
-  parseStagePlacementV1,
-  parseStageTagV1,
-} from "@sillymaker/base";
-import type {
-  SceneCueV1,
-  SceneEntryV1,
-  StageAppearanceV1,
-  StagePlacementV1,
-} from "@sillymaker/base";
+import { parseStageContentIdV1, parseStageLayerIdV1, parseStageTagV1 } from "@sillymaker/base";
+import type { StagePlacementV1 } from "@sillymaker/base";
 
 import type {
   SceneAuthoringDiagnosticCodeV1,
   SceneAuthoringDiagnosticV1,
+  SceneAuthoringEnvelopeAdmissionResultV1,
+  SceneAuthoringExecutionEnvelopeV1,
   SceneAuthoringOperationAdmissionResultV1,
   SceneAuthoringOperationV1,
 } from "./contract.ts";
 import { sceneAuthoringOperationSchemaRevisionV1 } from "./contract.ts";
 
-const operationIdPatternV1 = /^(?:cue|motion)\.[a-z0-9_.-]+$/u;
-const operationIdMaxLengthV1 = 96;
+const coalesceKeyMaxLengthV1 = 256;
+const documentIdentityMaxLengthV1 = 200;
+const appearanceKeyPatternV1 = /^[a-z][a-z0-9_]*$/u;
+const appearanceValuePatternV1 = /^[a-z0-9][a-z0-9_.-]*$/u;
 
 class SceneAuthoringAdmissionFailureV1 extends Error {
   readonly diagnostic: SceneAuthoringDiagnosticV1;
@@ -32,10 +26,7 @@ class SceneAuthoringAdmissionFailureV1 extends Error {
   }
 }
 
-function rejectV1(
-  code: SceneAuthoringDiagnosticCodeV1,
-  path: string,
-): never {
+function rejectV1(code: SceneAuthoringDiagnosticCodeV1, path: string): never {
   throw new SceneAuthoringAdmissionFailureV1(code, path);
 }
 
@@ -46,34 +37,24 @@ function rejectionV1(
 ): { readonly kind: "rejected"; readonly diagnostic: SceneAuthoringDiagnosticV1 } {
   return error instanceof SceneAuthoringAdmissionFailureV1
     ? { kind: "rejected", diagnostic: error.diagnostic }
-    : {
-      kind: "rejected",
-      diagnostic: { code: fallbackCode, path: fallbackPath },
-    };
+    : { kind: "rejected", diagnostic: { code: fallbackCode, path: fallbackPath } };
 }
 
-function normalizeRecordV1(
+/** Ordinary JSON-record admission. Parsed data is not an object-authenticity boundary. */
+function recordV1(
   value: unknown,
-  path: string,
-  code: SceneAuthoringDiagnosticCodeV1,
-): Record<string, unknown> {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return rejectV1(code, path);
-  }
-  const source = value as Record<string, unknown>;
-  return Object.fromEntries(Object.keys(source).map((key) => [key, source[key]]));
-}
-
-function requireExactFieldsV1(
-  record: Record<string, unknown>,
   expectedKeys: readonly string[],
   path: string,
   code: SceneAuthoringDiagnosticCodeV1,
-): Record<string, unknown> {
-  const actualKeys = Object.keys(record);
+): Readonly<Record<string, unknown>> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return rejectV1(code, path);
+  }
+  const record = value as Readonly<Record<string, unknown>>;
+  const keys = Object.keys(record);
   if (
-    actualKeys.length !== expectedKeys.length ||
-    !expectedKeys.every((key) => Object.hasOwn(record, key))
+    keys.length !== expectedKeys.length ||
+    expectedKeys.some((key) => !Object.hasOwn(record, key))
   ) {
     return rejectV1(code, path);
   }
@@ -92,249 +73,167 @@ function parseAtV1<TValue>(
   }
 }
 
-function parseOperationIdV1(value: unknown, prefix: "cue" | "motion", path: string): string {
+function parseAppearanceFieldV1(
+  keyValue: unknown,
+  value: unknown,
+): { readonly key: string; readonly value: string | null } {
   if (
-    typeof value !== "string" || value.length > operationIdMaxLengthV1 ||
-    !operationIdPatternV1.test(value) || !value.startsWith(`${prefix}.`)
+    typeof keyValue !== "string" || keyValue.length > 64 ||
+    !appearanceKeyPatternV1.test(keyValue)
+  ) {
+    return rejectV1("scene_authoring.operation_payload_invalid", "/operation/key");
+  }
+  if (value === null) return { key: keyValue, value: null };
+  if (
+    typeof value !== "string" || value.length > 64 ||
+    !appearanceValuePatternV1.test(value)
+  ) {
+    return rejectV1("scene_authoring.operation_payload_invalid", "/operation/value");
+  }
+  return { key: keyValue, value };
+}
+
+function boundedIntegerV1(
+  value: unknown,
+  minimum: number,
+  maximum: number,
+  path: string,
+): number {
+  if (
+    typeof value !== "number" || !Number.isSafeInteger(value) || value < minimum ||
+    value > maximum
   ) {
     return rejectV1("scene_authoring.operation_payload_invalid", path);
   }
   return value;
 }
 
-function parseZOrderV1(value: unknown, path: string): number {
-  if (typeof value !== "number" || !Number.isSafeInteger(value) || Math.abs(value) > 1_000_000) {
-    return rejectV1("scene_authoring.operation_payload_invalid", path);
-  }
-  return value;
-}
-
-function parseNullableMotionIdV1(value: unknown, path: string): string | null {
-  return value === null ? null : parseOperationIdV1(value, "motion", path);
-}
-
-function parseEntryV1(value: unknown, path: string): SceneEntryV1 {
-  try {
-    const entry = normalizeRecordV1(
-      value,
-      path,
-      "scene_authoring.operation_payload_invalid",
-    );
-    const document = parseSceneDocumentV1({
-      format: "sillymaker.scene",
-      version: 1,
-      sceneId: "scene.operation",
-      label: "Operation",
-      canvas: { width: 1, height: 1 },
-      entries: [entry],
-      cues: [],
-    }, path);
-    const admitted = document.entries[0];
-    if (admitted === undefined) return rejectV1("scene_authoring.operation_payload_invalid", path);
-    return admitted;
-  } catch {
-    return rejectV1("scene_authoring.operation_payload_invalid", path);
-  }
-}
-
-function parseCueV1(value: unknown, path: string): SceneCueV1 {
-  const cueRecord = normalizeRecordV1(
+function parseLocalTransformV1(value: unknown): StagePlacementV1 {
+  const input = recordV1(
     value,
-    path,
+    ["x", "y", "scalePermille", "opacityPermille", "mirrored"],
+    "/operation/localTransform",
     "scene_authoring.operation_payload_invalid",
   );
-  const keys = ["cueId", "kind", "tag"];
-  if (Object.hasOwn(cueRecord, "motionId")) keys.push("motionId");
-  if (Object.hasOwn(cueRecord, "cut")) keys.push("cut");
-  requireExactFieldsV1(
-    cueRecord,
-    keys,
-    path,
-    "scene_authoring.operation_payload_invalid",
-  );
-  const tag = parseAtV1(parseStageTagV1, cueRecord.tag, `${path}/tag`);
-  try {
-    const document = parseSceneDocumentV1({
-      format: "sillymaker.scene",
-      version: 1,
-      sceneId: "scene.operation",
-      label: "Operation",
-      canvas: { width: 1, height: 1 },
-      entries: [{
-        layerId: "layer.operation",
-        tag,
-        contentId: "content.operation",
-      }],
-      cues: [cueRecord],
-    }, path);
-    const cue = document.cues[0];
-    if (cue === undefined) return rejectV1("scene_authoring.operation_payload_invalid", path);
-    return cue;
-  } catch {
-    return rejectV1("scene_authoring.operation_payload_invalid", path);
+  if (typeof input.mirrored !== "boolean") {
+    return rejectV1(
+      "scene_authoring.operation_payload_invalid",
+      "/operation/localTransform/mirrored",
+    );
   }
+  return {
+    x: boundedIntegerV1(input.x, -1_000_000, 1_000_000, "/operation/localTransform/x"),
+    y: boundedIntegerV1(input.y, -1_000_000, 1_000_000, "/operation/localTransform/y"),
+    scalePermille: boundedIntegerV1(
+      input.scalePermille,
+      1,
+      100_000,
+      "/operation/localTransform/scalePermille",
+    ),
+    opacityPermille: boundedIntegerV1(
+      input.opacityPermille,
+      0,
+      1_000,
+      "/operation/localTransform/opacityPermille",
+    ),
+    mirrored: input.mirrored,
+  };
 }
 
-function parseAppearanceFieldV1(
-  keyValue: unknown,
+function nullableTagV1(value: unknown, path: string): ReturnType<typeof parseStageTagV1> | null {
+  return value === null ? null : parseAtV1(parseStageTagV1, value, path);
+}
+
+function nullableLayerIdV1(
   value: unknown,
-): { readonly key: string; readonly value: string | null } {
-  if (typeof keyValue !== "string") {
-    return rejectV1("scene_authoring.operation_payload_invalid", "/operation/key");
-  }
-  let keyAppearance: StageAppearanceV1;
-  try {
-    keyAppearance = parseStageAppearanceV1({ [keyValue]: "value" }, "/operation");
-  } catch {
-    return rejectV1("scene_authoring.operation_payload_invalid", "/operation/key");
-  }
-  const key = Object.keys(keyAppearance)[0];
-  if (key === undefined) {
-    return rejectV1("scene_authoring.operation_payload_invalid", "/operation/key");
-  }
-  if (value === null) return { key, value: null };
-  let appearance: StageAppearanceV1;
-  try {
-    appearance = parseStageAppearanceV1({ [key]: value }, "/operation");
-  } catch {
-    return rejectV1("scene_authoring.operation_payload_invalid", "/operation/value");
-  }
-  return { key, value: appearance[key] ?? null };
+  path: string,
+): ReturnType<typeof parseStageLayerIdV1> | null {
+  return value === null ? null : parseAtV1(parseStageLayerIdV1, value, path);
 }
 
-function admitKnownOperationV1(
-  value: Record<string, unknown>,
-  kind: string,
-): SceneAuthoringOperationV1 {
+function operationAllowsCoalescingV1(operation: SceneAuthoringOperationV1): boolean {
+  return operation.kind === "scene.object.set_local_transform" ||
+    operation.kind === "scene.object.set_appearance";
+}
+
+function admitKnownOperationV1(value: unknown, kind: string): SceneAuthoringOperationV1 {
   const schemaRevision = sceneAuthoringOperationSchemaRevisionV1;
   switch (kind) {
-    case "scene.entry.set_placement": {
-      const record = requireExactFieldsV1(
+    case "scene.object.set_local_transform": {
+      const input = recordV1(
         value,
-        ["schemaRevision", "kind", "tag", "placement"],
+        ["schemaRevision", "kind", "objectId", "localTransform"],
         "/operation",
         "scene_authoring.operation_payload_invalid",
       );
-      const placement = parseAtV1<StagePlacementV1>(
-        parseStagePlacementV1,
-        record.placement,
-        "/operation/placement",
-      );
+      const localTransform = parseLocalTransformV1(input.localTransform);
       return {
         schemaRevision,
         kind,
-        tag: parseAtV1(parseStageTagV1, record.tag, "/operation/tag") as string,
-        placement,
+        objectId: parseAtV1(parseStageTagV1, input.objectId, "/operation/objectId"),
+        localTransform,
       };
     }
-    case "scene.entry.add": {
-      const record = requireExactFieldsV1(
+    case "scene.object.set_visual_content": {
+      const input = recordV1(
         value,
-        ["schemaRevision", "kind", "entry"],
+        ["schemaRevision", "kind", "objectId", "contentId"],
         "/operation",
         "scene_authoring.operation_payload_invalid",
       );
       return {
         schemaRevision,
         kind,
-        entry: parseEntryV1(record.entry, "/operation/entry"),
+        objectId: parseAtV1(parseStageTagV1, input.objectId, "/operation/objectId"),
+        contentId: parseAtV1(
+          parseStageContentIdV1,
+          input.contentId,
+          "/operation/contentId",
+        ),
       };
     }
-    case "scene.entry.remove": {
-      const record = requireExactFieldsV1(
+    case "scene.object.set_appearance": {
+      const input = recordV1(
         value,
-        ["schemaRevision", "kind", "tag"],
+        ["schemaRevision", "kind", "objectId", "key", "value"],
         "/operation",
         "scene_authoring.operation_payload_invalid",
       );
+      const appearance = parseAppearanceFieldV1(input.key, input.value);
       return {
         schemaRevision,
         kind,
-        tag: parseAtV1(parseStageTagV1, record.tag, "/operation/tag") as string,
-      };
-    }
-    case "scene.entry.set_z_order": {
-      const record = requireExactFieldsV1(
-        value,
-        ["schemaRevision", "kind", "tag", "zOrder"],
-        "/operation",
-        "scene_authoring.operation_payload_invalid",
-      );
-      return {
-        schemaRevision,
-        kind,
-        tag: parseAtV1(parseStageTagV1, record.tag, "/operation/tag") as string,
-        zOrder: parseZOrderV1(record.zOrder, "/operation/zOrder"),
-      };
-    }
-    case "scene.entry.set_appearance": {
-      const record = requireExactFieldsV1(
-        value,
-        ["schemaRevision", "kind", "tag", "key", "value"],
-        "/operation",
-        "scene_authoring.operation_payload_invalid",
-      );
-      const appearance = parseAppearanceFieldV1(record.key, record.value);
-      return {
-        schemaRevision,
-        kind,
-        tag: parseAtV1(parseStageTagV1, record.tag, "/operation/tag") as string,
+        objectId: parseAtV1(parseStageTagV1, input.objectId, "/operation/objectId"),
         key: appearance.key,
         value: appearance.value,
       };
     }
-    case "scene.entry.set_ambient": {
-      const record = requireExactFieldsV1(
+    case "scene.object.move_before": {
+      const input = recordV1(
         value,
-        ["schemaRevision", "kind", "tag", "motionId"],
+        ["schemaRevision", "kind", "objectId", "beforeObjectId"],
         "/operation",
         "scene_authoring.operation_payload_invalid",
       );
       return {
         schemaRevision,
         kind,
-        tag: parseAtV1(parseStageTagV1, record.tag, "/operation/tag") as string,
-        motionId: parseNullableMotionIdV1(record.motionId, "/operation/motionId"),
+        objectId: parseAtV1(parseStageTagV1, input.objectId, "/operation/objectId"),
+        beforeObjectId: nullableTagV1(input.beforeObjectId, "/operation/beforeObjectId"),
       };
     }
-    case "scene.cue.add": {
-      const record = requireExactFieldsV1(
+    case "scene.layer.move_before": {
+      const input = recordV1(
         value,
-        ["schemaRevision", "kind", "cue"],
+        ["schemaRevision", "kind", "layerId", "beforeLayerId"],
         "/operation",
         "scene_authoring.operation_payload_invalid",
       );
       return {
         schemaRevision,
         kind,
-        cue: parseCueV1(record.cue, "/operation/cue"),
-      };
-    }
-    case "scene.cue.remove": {
-      const record = requireExactFieldsV1(
-        value,
-        ["schemaRevision", "kind", "cueId"],
-        "/operation",
-        "scene_authoring.operation_payload_invalid",
-      );
-      return {
-        schemaRevision,
-        kind,
-        cueId: parseOperationIdV1(record.cueId, "cue", "/operation/cueId"),
-      };
-    }
-    case "scene.cue.set_motion": {
-      const record = requireExactFieldsV1(
-        value,
-        ["schemaRevision", "kind", "cueId", "motionId"],
-        "/operation",
-        "scene_authoring.operation_payload_invalid",
-      );
-      return {
-        schemaRevision,
-        kind,
-        cueId: parseOperationIdV1(record.cueId, "cue", "/operation/cueId"),
-        motionId: parseNullableMotionIdV1(record.motionId, "/operation/motionId"),
+        layerId: parseAtV1(parseStageLayerIdV1, input.layerId, "/operation/layerId"),
+        beforeLayerId: nullableLayerIdV1(input.beforeLayerId, "/operation/beforeLayerId"),
       };
     }
     default:
@@ -346,24 +245,78 @@ export function admitSceneAuthoringOperationV1(
   value: unknown,
 ): SceneAuthoringOperationAdmissionResultV1 {
   try {
-    const record = normalizeRecordV1(
-      value,
-      "/operation",
-      "scene_authoring.operation_payload_invalid",
-    );
-    const schemaRevision = record.schemaRevision;
-    if (schemaRevision !== sceneAuthoringOperationSchemaRevisionV1) {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      return rejectV1("scene_authoring.operation_payload_invalid", "/operation");
+    }
+    const input = value as Readonly<Record<string, unknown>>;
+    if (input.schemaRevision !== sceneAuthoringOperationSchemaRevisionV1) {
       return rejectV1(
         "scene_authoring.operation_schema_unsupported",
         "/operation/schemaRevision",
       );
     }
-    const kind = record.kind;
-    if (typeof kind !== "string") {
+    if (typeof input.kind !== "string") {
       return rejectV1("scene_authoring.operation_kind_unknown", "/operation/kind");
     }
-    return { kind: "admitted", operation: admitKnownOperationV1(record, kind) };
+    return { kind: "admitted", operation: admitKnownOperationV1(value, input.kind) };
   } catch (error) {
     return rejectionV1(error, "scene_authoring.operation_payload_invalid", "/operation");
+  }
+}
+
+export function admitSceneAuthoringEnvelopeV1(
+  value: unknown,
+): SceneAuthoringEnvelopeAdmissionResultV1 {
+  try {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      return rejectV1("scene_authoring.envelope_invalid", "/envelope");
+    }
+    const candidate = value as Readonly<Record<string, unknown>>;
+    const hasCoalesceKey = Object.hasOwn(candidate, "coalesceKey");
+    const input = recordV1(
+      candidate,
+      [
+        "documentIdentity",
+        "expectedDraftRevision",
+        "operation",
+        ...(hasCoalesceKey ? ["coalesceKey"] : []),
+      ],
+      "/envelope",
+      "scene_authoring.envelope_invalid",
+    );
+    if (
+      typeof input.documentIdentity !== "string" || input.documentIdentity.length === 0 ||
+      input.documentIdentity.length > documentIdentityMaxLengthV1
+    ) {
+      return rejectV1("scene_authoring.envelope_invalid", "/envelope/documentIdentity");
+    }
+    if (
+      typeof input.expectedDraftRevision !== "number" ||
+      !Number.isSafeInteger(input.expectedDraftRevision) || input.expectedDraftRevision < 0
+    ) {
+      return rejectV1("scene_authoring.envelope_invalid", "/envelope/expectedDraftRevision");
+    }
+    const coalesceKey = input.coalesceKey;
+    if (
+      coalesceKey !== undefined &&
+      (typeof coalesceKey !== "string" || coalesceKey.length === 0 ||
+        coalesceKey.length > coalesceKeyMaxLengthV1)
+    ) {
+      return rejectV1("scene_authoring.envelope_invalid", "/envelope/coalesceKey");
+    }
+    const operation = admitSceneAuthoringOperationV1(input.operation);
+    if (operation.kind === "rejected") return operation;
+    if (coalesceKey !== undefined && !operationAllowsCoalescingV1(operation.operation)) {
+      return rejectV1("scene_authoring.envelope_invalid", "/envelope/coalesceKey");
+    }
+    const envelope: SceneAuthoringExecutionEnvelopeV1 = {
+      documentIdentity: input.documentIdentity,
+      expectedDraftRevision: input.expectedDraftRevision,
+      operation: operation.operation,
+      ...(coalesceKey === undefined ? {} : { coalesceKey }),
+    };
+    return { kind: "admitted", envelope };
+  } catch (error) {
+    return rejectionV1(error, "scene_authoring.envelope_invalid", "/envelope");
   }
 }

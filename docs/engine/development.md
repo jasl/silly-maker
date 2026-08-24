@@ -45,6 +45,7 @@ engine/packages/agent    experimental workspace-private Agent/RPC/UiArtifact sea
 engine/packages/composition maintained internal cold-path plugin façade
 engine/packages/state    experimental neutral State Runtime facade over Base
 engine/packages/tooling  non-browser CLI, Vite/identity, JSONL, and Desktop preview tools
+engine/packages/studio   dev-only Inspector, Authoring Host, and private Agent companion seam
 engine/packages/ui       generic React presentation, Narrative/WholeCanvas surfaces, and input
 engine/packages/web      browser Host and application adapters
 e2e/                     neutral Engine Conformance Story (MIT test consumer)
@@ -114,7 +115,7 @@ typed tokens; no dynamic lifecycle Context is exported. Compile services and
 registries into direct plans before Session creation. State-backed legacy
 applications use `activateStateApplicationV1` from the `./state` entry so this
 ordering is enforced rather than left to caller convention. Authoritative mount
-is permanently sealed; use a separate kernel for reloadable Studio/
+is permanently sealed; use a separate kernel for reloadable Inspector/
 presentation/tooling profiles. Lifecycle cleanup covers in-process resources
 only. A live candidate's effects are installed before consumer publication and
 coexist with predecessor effects during acknowledgement; they must be
@@ -140,23 +141,24 @@ looking up Context or a registry. Remove a published UI consumer before
 retiring its lifecycle. External services remain future typed RPC consumers,
 not local extension bindings.
 
-The generated dev-only standalone Studio entry and embedded author runtime both
-use `@sillymaker/studio/composition` and the same private Authoring Host. The
-Host owns the closed typed workspace contract, active/visited focus, shared
-Scene/Regions/Chrome sessions, Motion store, Flow activation, and dirty-close
-participants; shells render the same closed workspace manifest and must not
-create their own document/undo/save/conflict state machines. The game
-page receives only a lightweight launcher; its embedded implementation and real
-dev-source client load on first open.
+The generated dev-only standalone Inspector entry and embedded author runtime
+both use `@sillymaker/studio/composition` and the same private Authoring Host.
+Applications opt in with `inspector: { module, exportName }`; the exported
+`InspectorBindingV1` supplies the content catalog, real renderers, and optional
+assets/Motion/Timeline catalogs that a source scan cannot provide. The Host owns
+the selected Authoring Scene document session, selection, dirty/undo/redo state,
+CAS/conflict handling, source IO and close participant. The shells must not create
+another document, save, history, Stage, or gameplay Session authority. The game
+page keeps only a lightweight launcher; embedded Inspector and real dev-source
+client load on first open.
 
-The visible surface is the only workspace-focus transition owner. It renders one
-named panel, leaves an unvisited workspace unmounted, and keeps a visited inactive
-panel `hidden` and inert so local state and dirty-close participation survive a
-switch. A publication probe must render only the existing active panel, inert and
-non-interactive; it must not list/open documents, expand visited, perform Flow's
-first activation, or register a writable close participant. Keep these as
-behavior tests on the Host and maintained Browser shells, not a DOM-inventory or
-publication-inspection harness.
+The current product surface is one Inspector, not a workspace rail. Project scene
+search and the current layer/object tree use fixed-row virtualization; mounted
+rows follow the visible window plus bounded overscan. Tree and real Stage preview
+share selection. Authoring inspection bounds keep off-canvas, transparent and
+group objects selectable as ghosts; selected hit-region geometry is an overlay,
+not a second hit-test authority. Keep tests at these user-observable contracts,
+not a complete DOM/object/source inventory.
 
 The publication retains one connected visible React root. A live R1 candidate
 first renders in an inert, `aria-hidden`, visibility-hidden, offscreen but
@@ -170,44 +172,48 @@ disposal is terminal. Do not generalize that narrow case into a promise that
 arbitrary nondeterministic visible effects are reversible. Never use the return
 from `root.render()` as publication evidence or move rendering into plugin
 setup. Connected staging proves DOM connection and layout-effect success, not
-visible paint or exact screen geometry; stronger workspace readiness still
+visible paint or exact screen geometry; stronger tool readiness still
 needs its own browser evidence.
 
-Embedded close delegates save/discard/cancel to Host participants. Scene,
-Regions, and Motion saves share the same conflict rule: on `digest_conflict`,
+Embedded close delegates save/discard/cancel to the Host participant. Authoring
+Scene save uses the existing conflict rule: on `digest_conflict`,
 refresh the saved baseline/digest while preserving the dirty draft and history,
 then let the author retry. The embedded shell is an independent application
 focus owner and native-text scope; focused editor keys must not reach gameplay.
-Standalone/embedded teardown unmounts descendants before disposing Flow and the
-Host. Neither shell receives a Game Session writer.
+Standalone/embedded teardown unmounts descendants before disposing the Host and
+optional private companion. Neither shell receives a Game Session writer.
 
-### Structured Scene operation workflow
+### Structured Authoring Scene operation workflow
 
-The current Studio Scene canvas, inspector, construction, and cue/motion edits
-operate on the explicit `low_level_scene` authority and must use the
+The current Inspector's limited edits operate on the explicit `authoring_scene`
+authority and use the
 package-private `engine/packages/studio/src/core/scene-operations/` stack. Add or
-change an edit by updating its revisioned contract, getter-free admission, pure
+change an edit by updating its revisioned contract, once-only boundary admission, pure
 reducer, and behavior tests together. The reducer must return a completely
-re-admitted Scene document or a stable diagnostic; it must not receive a
+re-admitted Authoring Scene document or a stable diagnostic; it must not receive a
 session, path, `FilePort`, save callback, or HMR capability. UI code and non-UI
 local/dev callers use the same executor and document identity/revision receipt.
 Capture the receipt that corresponds to the draft used to build an operation;
 do not sample a newer receipt at dispatch time for an older rendered payload.
-Do not reintroduce Scene clone-and-mutate callbacks beside that path.
+After that boundary, internal collaborators trust the typed envelope; do not add
+descriptor/prototype authenticity or repeated admission at parser, executor and
+consumer layers. Do not reintroduce clone-and-mutate callbacks beside this path.
 
 `AuthoringDocumentSessionV1` remains the only draft, dirty, coalescing,
 undo/redo, CAS, and saved-digest authority. Use its conditional replacement for
 operation results; stale work, failures, and no-ops leave revision/history
-unchanged. Only placement, z-order, and appearance support coalescing, and their
-keys must identify one focus/gesture run from its starting draft revision.
-Structural and reference edits are separate undo steps. Fitting/try-on previews
-may clone a document only as an explicitly ephemeral render override and must
-never enter the session or save path.
+unchanged. Local transform, visual content/existing appearance, sibling object
+order and layer order are the bounded edit set; coalescing keys must identify one
+focus/gesture run from its starting draft revision. Component creation,
+group-to-visual conversion, writable hit-region/interaction, Blueprint and
+editable Timeline operations are not part of this surface. Motion, Timeline,
+interaction/GUI intent, compiled-layer and source-provenance facets are read-only.
+Scrub is detached presentation sampling and never enters the session or save path.
 
-Focused AR2 checks are:
+Focused operation/Inspector checks include:
 
 ```sh
-deno run -A npm:vitest run engine/packages/studio/src/core/scene-operations engine/packages/ui/src/debug/authoring-session.test.ts engine/packages/studio/src/studio-app.test.tsx
+deno run -A npm:vitest run engine/packages/studio/src/core/scene-operations engine/packages/studio/src/core/authoring-scene-io.test.ts engine/packages/studio/src/inspector
 deno task typecheck
 ```
 
@@ -232,9 +238,9 @@ export const sillymakerAppConfigV1 = {
 the ordinary package module and must not declare `source`. Do not infer or switch
 authority because both suffixes exist. The Project Authoring Index admits
 `*.authoring-scene.json` and `*.scene.json` into the same metadata snapshot with
-their source kinds, but the existing Scene list/read/write/create CAS port
-intentionally exposes only `low_level_scene`. Until M5 lands, edit Authoring Scene
-JSON directly; the old Studio product surface is not its editor.
+their source kinds. The Inspector Authoring Scene port lists/reads/writes the
+selected `authoring_scene` source through CAS; low-level Scene remains an advanced
+hand-edited/code path and is never synchronized or silently migrated.
 
 Map the same `specifier` under the application's `package.json#imports`. For an
 Authoring Scene, that mapping points to a small local fallback which reads the
@@ -282,8 +288,8 @@ AR4 is implemented only through `@sillymaker/agent/internal` and
 `@sillymaker/studio/internal/agent`. These are workspace-private engine seams, not Story-facing
 public APIs. Do not add a root Agent export, provider-specific protocol type, raw Session/
 `FilePort`/document-session writer, or direct source/game mutation to them. A product-side
-binding admits an allowlist of inert action IDs and AR2 Scene operations once; a remote
-Artifact carries only those IDs, and the embedded surface executes an exact captured Scene
+binding admits an allowlist of inert action IDs and structured Authoring Scene operations once; a remote
+Artifact carries only those IDs, and the embedded surface executes a captured Authoring Scene
 document/revision envelope through the existing Scene executor.
 
 Core Authoring publication and the embedded surface import only the package-private neutral
@@ -304,7 +310,7 @@ request-failed connection must close the predecessor. Local cancel must retire t
 stream acceptance before awaiting the RPC response, and remote `run_failed` must terminate
 both the active run and streaming draft. Invalid completion, unknown nodes/actions,
 old-run/old-connection records, and cancellation-late completion must leave the predecessor
-Artifact exact.
+Artifact unchanged.
 
 `UiArtifact` remains closed data, currently `column`, `text`, and `action`. Add a node kind only
 with bounded admission, inert renderer behavior, intent currentness, and a
@@ -338,9 +344,9 @@ Keep the private seam out of `features.md` until a later promotion has a real se
 Every maintained runtime Vite entry receives a dependency-free accessible boot
 shell and one inert serialized `runtime`/`browser` bootstrap config before its
 module executes. The Web reader later parses and admits a fresh typed receipt.
-The Desktop HTML response replaces the exact serialized config with
+The Desktop HTML response replaces the serialized config with
 `runtime`/`deno_desktop`; Web admission rejects a target that disagrees with the
-Desktop Host marker. The dev-only Studio page owns the corresponding
+Desktop Host marker. The dev-only Inspector page owns the corresponding
 `author`/`browser` config/read receipt and a separate React mount root. Desktop
 author entry is intentionally unsupported.
 
@@ -367,22 +373,18 @@ accepted active-registry publication, never backend activation alone.
 
 Current R0–R3 characterization:
 
-| Class | Browser                                                                                                                                                                                                                                                                                                                                                                             | Deno Desktop                                                                                                                                                         |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R0    | Low-level Scene/Motion/Regions/Chrome read, refresh, and CAS admission update one authoring document session; Engine Lab's retained low-level Scene fixture is detached from Player composition. An Authoring Scene source change recompiles its configured virtual module and then follows the product's ordinary R2/R3 module-update boundary; M4 adds no editor/CAS path for it. | The static Player shell has no author/source update path.                                                                                                            |
-| R1    | Standalone/embedded Authoring binding HMR uses inert/offscreen, document-connected staging and one persistent visible root. Eligible component-only Player modules may also use Vite React Fast Refresh without SillyMaker atomic publication.                                                                                                                                      | Not wired.                                                                                                                                                           |
-| R2    | Engine Lab's Vite identity owner injects current real `BuildIdentity` into a literal-self-accepting composition candidate; the Web composer replaces Game/Session on the same Host/root and preserves the sibling Authoring Host.                                                                                                                                                   | Not wired.                                                                                                                                                           |
-| R3    | Product applications without an admitted R2 boundary, config changes, Fast Refresh-ineligible changes, and otherwise unclassified changes use full-page reload. Persisted Save may recover; in-process identity is not promised.                                                                                                                                                    | Built `dist/` changes require rebuild and Host relaunch. Preview records may recover Save; durable draft, author entry, and production persistence are not promised. |
+| Class | Browser                                                                                                                                                                                                                                                                                                                                                          | Deno Desktop                                                                                                                                                         |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R0    | Inspector Authoring Scene read, refresh, and CAS admission update one authoring document session; Motion sources feed read-only scrub. A saved Authoring Scene also recompiles its configured virtual module and follows the product's ordinary R2/R3 update boundary. Low-level Scene/Regions/Chrome ports remain tooling paths, not current Studio workspaces. | The static Player shell has no author/source update path.                                                                                                            |
+| R1    | Standalone/embedded Inspector-binding HMR uses inert/offscreen, document-connected staging and one persistent visible root. Eligible component-only Player modules may also use Vite React Fast Refresh without SillyMaker atomic publication.                                                                                                                   | Not wired.                                                                                                                                                           |
+| R2    | Engine Lab's Vite identity owner injects current real `BuildIdentity` into a literal-self-accepting composition candidate; the Web composer replaces Game/Session on the same Host/root and preserves the sibling Authoring Host.                                                                                                                                | Not wired.                                                                                                                                                           |
+| R3    | Product applications without an admitted R2 boundary, config changes, Fast Refresh-ineligible changes, and otherwise unclassified changes use full-page reload. Persisted Save may recover; in-process identity is not promised.                                                                                                                                 | Built `dist/` changes require rebuild and Host relaunch. Preview records may recover Save; durable draft, author entry, and production persistence are not promised. |
 
-The focused Chromium/WebKit dev-source cases physically edit the real Engine Lab
-Studio binding, Scene, and Motion. The binding-only R1 update preserves the
-dirty Host DOM/identity, focused input, selection, and undo with zero page loads.
-Scene and Motion CAS each change the Game application epoch through R2, also
-with zero page loads and the sibling Host retained. A shared `presentation.ts`
-edit proves the same physical change can reach the Game composition R2 boundary
-and the loaded Authoring binding R1 boundary without replacing the Host. Every
-teardown waits for the reverse update and restores the source file byte-for-byte.
-The focused matrix is five cases in each browser (10/10).
+The focused Chromium/WebKit Inspector cases protect contract-level user behavior:
+standalone/embedded opening, virtualized navigation and selection, bounded edit +
+Authoring Scene CAS/conflict recovery, and compatible R1 continuity while Player
+R2 replaces the Game/Session. They do not inventory every DOM identity, repeat
+unit-level operation/currentness cases, or claim Desktop HMR.
 
 The AR3 native common-runtime smoke uses the latest Engine Lab static Player on
 macOS arm64 with Deno 2.9.5. It proves GUI ready, authoritative operations, an
@@ -393,7 +395,7 @@ launch test, or a persistence durability promotion gate.
 
 The Engine Lab identity owner normally collapses an R2 facet change to the
 composition candidate. If one of the original changed Vite modules also reaches
-the already-loaded Studio binding through the live importer graph, the owner
+the already-loaded Inspector binding through the live importer graph, the owner
 returns that exact changed module beside the composition candidate: Vite then
 refreshes its bytes through the Authoring R1 boundary while Game still cuts over
 through R2. Unrelated deep Scene/simulation modules remain filtered. Application-
@@ -424,7 +426,7 @@ Desktop HMR or predecessor rollback.
 
 The AR5 headless seam keeps an in-flight Agent snapshot, request count, and RPC
 connection exact across a post-retirement successor UI-start failure and later
-valid retry. Studio jsdom tests separately require terminal candidate-plus-rollback
+valid retry. Inspector publication jsdom tests separately require terminal candidate-plus-rollback
 failure to dispose the companion owner once, and the Agent Host test repeats ten
 activate/dispose cycles with one close per connection and no accepted late
 publication. Keep these failure/resource claims separate from the physical
@@ -447,7 +449,7 @@ Focused startup checks are:
 deno run -A npm:vitest run e2e/src/test/application-startup.test.tsx
 deno run -A npm:vitest run engine/packages/web/src/application/application-startup-diagnostics.test.ts
 deno run -A npm:vitest run engine/packages/tooling/src/vite/application-entry-bootstrap.test.ts
-deno run -A npm:vitest run engine/packages/tooling/src/vite/studio.test.ts
+deno run -A npm:vitest run engine/packages/tooling/src/vite/inspector.test.ts
 deno task story build template --profile release
 ```
 
@@ -457,8 +459,8 @@ Focused AR1 activation and placement checks are:
 deno run -A npm:vitest run engine/packages/composition/src/extension-runtime/extension-runtime.conformance.test.ts
 deno run -A npm:vitest run engine/packages/ui/src/composer/default-game-root.test.tsx
 deno run -A npm:vitest run e2e/src/test/dev-dock-extension.test.tsx
-deno run -A npm:vitest run engine/packages/studio/src/workspaces/flow/flow-workspace-activation.test.tsx
 deno run -A npm:vitest run engine/packages/studio/src/react-publication.test.tsx
+deno run -A npm:vitest run engine/packages/studio/src/inspector
 deno run -A npm:vitest run engine/packages/tooling/src/vite/build-dependency-receipt.test.ts
 deno task typecheck
 ```
@@ -466,14 +468,14 @@ deno task typecheck
 Focused AR3 Host, R1, R2, release-graph, and browser checks are:
 
 ```sh
-deno run -A npm:vitest run engine/packages/studio/src/react-publication.test.tsx engine/packages/studio/src/studio-app.test.tsx
-deno run -A npm:vitest run e2e/src/test/authoring-host-lifetime.test.tsx e2e/src/test/application-hmr.test.tsx e2e/src/test/build-identity-owner.test.ts e2e/src/test/studio-binding.test.ts
-deno run -A npm:vitest run engine/packages/tooling/src/vite/studio.test.ts engine/packages/tooling/src/vite/build-dependency-receipt.test.ts
+deno run -A npm:vitest run engine/packages/studio/src/react-publication.test.tsx engine/packages/studio/src/inspector engine/packages/studio/src/core/authoring-scene-io.test.ts
+deno run -A npm:vitest run e2e/src/test/authoring-host-lifetime.test.tsx e2e/src/test/application-hmr.test.tsx e2e/src/test/build-identity-owner.test.ts e2e/src/test/inspector-binding.test.ts
+deno run -A npm:vitest run engine/packages/tooling/src/vite/inspector.test.ts engine/packages/tooling/src/vite/authoring-scene-port.test.ts engine/packages/tooling/src/vite/build-dependency-receipt.test.ts
 deno task story build e2e --profile release
-deno run -A npm:@playwright/test/playwright test --config engine/packages/web/playwright.engine.config.ts engine/packages/web/e2e/engine/embedded-authoring.spec.ts engine/packages/web/e2e/engine/workbench.spec.ts --project=chromium --project=webkit
+deno run -A npm:@playwright/test/playwright test --config engine/packages/web/playwright.engine.config.ts engine/packages/web/e2e/engine/embedded-authoring.spec.ts engine/packages/web/e2e/engine/inspector.spec.ts --project=chromium --project=webkit
 ```
 
-The Playwright case writes the real Engine Lab Scene through the dev-only CAS
+The Playwright case writes the real Engine Lab Authoring Scene through the dev-only CAS
 port and restores its original bytes in teardown. Run it only against a dev
 server and keep its `@dev-source-io` tag out of prebuilt/release projects.
 
@@ -488,7 +490,7 @@ deno run -A npm:vitest run engine/packages/composition/src/kernel.test.ts
 deno run -A npm:vitest run engine/packages/composition/src/state.test.ts
 deno run -A npm:vitest run e2e/src/test/experimental-composition-equivalence.test.ts
 deno run -A npm:vitest run engine/packages/studio/src/composition.test.ts
-deno run -A npm:vitest run engine/packages/tooling/src/vite/studio.test.ts
+deno run -A npm:vitest run engine/packages/tooling/src/vite/inspector.test.ts
 deno task test:composition-state-bench
 deno task typecheck
 ```
@@ -1149,7 +1151,7 @@ Lab Author entries remain the Inspector and Agent structural controls. The
 `@sillymaker/ui/debug/dev-source-client` subpath
 resolves to the fetch/write implementation only under the `development` condition; the default
 and release graph receive a fail-closed unavailable stub. Engine Lab's release
-graph also excludes its dev-only Studio binding plus embedded-author virtual
+graph also excludes its dev-only Inspector binding plus embedded-author virtual
 entries. The
 measurement receipt and default report stay in OS temp and never enter the
 Player. The task accepts `--application`, `--out-dir`, and `--output`; defaults
@@ -1158,14 +1160,13 @@ duration is machine-specific. None of these tasks adds a normal per-commit CI
 threshold. Review at least three comparable samples before proposing a product
 budget, and never commit raw local reports.
 
-AR5 adds a generated Author-entry measurement for both standalone Studio and the embedded
-Author runtime. Template is the negative control: its complete measured Author graph retains
-the Authoring Host, all maintained workspaces, and the real development source client while
-excluding `engine/packages/agent/**`, Agent RPC/fake, and Studio's experimental Agent runtime/
-surface. Engine Lab explicitly selects the Agent companion and is the positive control for
-those same modules. This is final module/source graph structural exclusion, not removal of the
-Studio manifest's `@sillymaker/agent` workspace dependency, independent package-installation
-evidence, or a Desktop author build.
+AR5's generated Author-entry measurement now covers standalone and embedded Inspector
+composition. Template is the negative control: its complete measured Author graph retains the
+Authoring Host, Inspector, and real development source client while excluding
+`engine/packages/agent/**`, Agent RPC/fake, and the experimental Agent runtime/surface. Engine
+Lab explicitly selects the private Agent companion and is the positive control for those same
+modules. This is final module/source graph structural exclusion, not package-installation
+evidence or a Desktop author build.
 
 `deno task bench:gui:startup --application e2e --samples 3` runs the maintained generic GUI
 startup benchmark. It resolves the selected application through the workspace config, builds it

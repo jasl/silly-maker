@@ -2,7 +2,7 @@
 
 > Prefer to delegate? [Getting started with AI](/guide/getting-started) covers the same flow driven by an AI agent.
 
-The `template/` package is a minimal playable, scene-first game kept working by CI. New games start as a copy of it. Before touching any TypeScript, try the visual loop: `deno task dev`, enable developer tools in Settings, open **调试 → 工具 → Studio**, and drag the character — saving writes only `src/scenes/opening/opening.scene.json` and the running game hot-updates. The scene document owns placements and cue→motion bindings; the script references cues.
+The `template/` package is a minimal playable, scene-first game kept working by CI. New games start as a copy of it. Before touching any TypeScript, try the bounded visual loop: from the repository root run `deno task author template` to start the Template dev server, then open its same-origin `/__sillymaker/inspector/` page (the reference DevDock also advertises it). The standalone Inspector lists Authoring Scenes, renders the real Stage with a Layer/Object hierarchy, and edits local transforms, visual content/appearance, and paint order through the dev-only CAS port. Saving writes `src/scenes/opening/opening.authoring-scene.json`; object creation, cue/Motion definitions, and other unsupported fields remain direct source edits. The scene document owns composition and cue bindings; the script references cues.
 
 ## Copy and rename
 
@@ -16,20 +16,22 @@ Then register the application in the root `project.config.ts` (copy the template
 
 ## The files that matter
 
-| File                               | Role                                                                           |
-| ---------------------------------- | ------------------------------------------------------------------------------ |
-| `src/scenes/opening/*.scene.json`  | Scene composition: placements, appearance, cue→motion binding (edit in Studio) |
-| `src/story/narrative.ts`           | The script: say/choice/stage/branch/hold/end nodes and story flags             |
-| `src/content/presentation.ts`      | Text catalogs (all display text behind textIds), stage content, transitions    |
-| `src/ui/stage-renderers.tsx`       | Stage renderers shared by the game and the Studio canvas                       |
-| `src/game/state.ts`                | Module state shapes, schemas, and initial values                               |
-| `src/game/simulation.ts`           | Modules, commands, and rules                                                   |
-| `src/application/semantic.ts`      | The action catalog and availability rules                                      |
-| `src/application/ui.tsx`           | React components: HUD and the passive Narrative renderer                       |
-| `src/application/composition.tsx`  | Projector, slots, application declaration, and Narrative binding (Advanced)    |
-| `src/tooling/simulation-target.ts` | Named headless scenarios for `story simulate`                                  |
+| File                                        | Role                                                                                               |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `src/scenes/opening/*.authoring-scene.json` | Scene hierarchy, placement, appearance, and cue bindings (bounded Inspector + direct source edits) |
+| `src/story/narrative.ts`                    | The script: say/choice/stage/branch/hold/end nodes and story flags                                 |
+| `src/content/presentation.ts`               | Text catalogs (all display text behind textIds), stage content, transitions                        |
+| `src/ui/stage-renderers.tsx`                | Stage renderers shared by the game and the Inspector preview                                       |
+| `src/game/state.ts`                         | Module state shapes, schemas, and initial values                                                   |
+| `src/game/simulation.ts`                    | Modules, commands, and rules                                                                       |
+| `src/application/semantic.ts`               | The action catalog and availability rules                                                          |
+| `src/application/ui.tsx`                    | React components: HUD and the passive Narrative renderer                                           |
+| `src/application/composition.tsx`           | Projector, slots, application declaration, and Narrative binding (Advanced)                        |
+| `src/tooling/simulation-target.ts`          | Named headless scenarios for `story simulate`                                                      |
 
 The template declares its sole production Narrative writer as `application.ui().narrative`. `defineNarrativeSurfaceV1` packages five Story contributions into an opaque `NarrativeSurfaceDefinitionV1`: select the Narrative projection, dispatch a semantic resolution, render passive UI, resolve localized text, and optionally replay the current voice. The engine-owned composition supplies playback, History, profile, clock, input, focus, and Stage lifecycle; do not mount a second dialogue player beside it.
+
+The Inspector is intentionally a limited editing surface, not the former five-workspace Studio. Dedicated Flow, Chrome, and Regions editing UIs are no longer present. Narrative Flow projections, `*.chrome-layout.json`, `*.regions.json`, and their runtime contracts remain supported data/code surfaces; edit them directly and validate them with Story checks and tests.
 
 ## The loop
 

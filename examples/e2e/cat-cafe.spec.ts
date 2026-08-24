@@ -328,13 +328,13 @@ test("the stage scales uniformly on small viewports and hit regions still work",
   expect((box?.width ?? 0) / 80).toBeCloseTo(scale, 1);
 });
 
-test("the DevDock advertises Studio as a same-origin shortcut", async ({ page }) => {
+test("the DevDock omits Inspector without an Authoring Scene binding", async ({ page }) => {
   await page.goto(catcafeTargetUrlV1("?capability=debug_tools"));
   await dismissSplashV1(page);
   await page.getByRole("button", { name: "调试" }).click();
-  const studio = page.getByRole("group", { name: "调试" }).getByRole("link", { name: "Studio" });
-  await expect(studio).toHaveAttribute("href", "/__sillymaker/studio/");
-  await expect(studio).toHaveAttribute("target", "_blank");
+  await expect(
+    page.getByRole("group", { name: "调试" }).getByRole("link", { name: "Inspector" }),
+  ).toHaveCount(0);
 });
 
 test("debug dock inputs accept keyboard while the title screen owns focus", async ({ page }) => {

@@ -24,13 +24,13 @@ describe("application bootstrap HTML", () => {
 
   it("renders an accessible static shell inside the future mount container", () => {
     const html = accessibleApplicationBootShellHtmlV1({
-      containerId: "sillymaker-studio-root",
+      containerId: "sillymaker-inspector-root",
       accessibleName: 'Studio "Author"',
       statusText: "正在启动 <Studio>",
       bootstrap: { revision: 1, entry: "author", target: "browser" },
     });
 
-    expect(html).toContain('<div id="sillymaker-studio-root">');
+    expect(html).toContain('<div id="sillymaker-inspector-root">');
     expect(html).toContain(
       'role="status" aria-live="polite" aria-busy="true" aria-label="Studio &quot;Author&quot;"',
     );

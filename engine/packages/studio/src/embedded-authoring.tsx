@@ -2,21 +2,19 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 
-import type { StudioBindingV1 } from "./core/binding.ts";
+import type { InspectorBindingV1 } from "./core/binding.ts";
 import type { AuthoringHostInternalV1 } from "./core/authoring-host.ts";
 import { resolveAuthoringHostOwnerInternalV1 } from "./core/authoring-host.ts";
 import type {
   EmbeddedAuthoringCompanionDefinitionInternalV1,
   EmbeddedAuthoringCompanionOwnerInternalV1,
 } from "./core/embedded-authoring-companion.ts";
-import { AuthoringHostSurfaceInternalV1 } from "./studio-app.tsx";
-import type { AuthoringWorkspaceManifestEntryInternalV1 } from "./workspaces/workspace-manifest.ts";
-import styles from "./studio-app.module.css";
+import { InspectorHostSurfaceInternalV1 } from "./inspector/inspector-app.tsx";
+import styles from "./embedded-authoring.module.css";
 
 export interface EmbeddedAuthoringSurfacePropsInternalV1 {
   readonly host: AuthoringHostInternalV1;
-  readonly binding: StudioBindingV1;
-  readonly workspaceManifest: readonly AuthoringWorkspaceManifestEntryInternalV1[];
+  readonly binding: InspectorBindingV1;
   readonly publicationRole: "visible" | "probe";
   readonly viewId: number;
   readonly companion?: {
@@ -98,7 +96,7 @@ export function EmbeddedAuthoringSurfaceInternalV1(
       >
         <header className={styles["embedded-toolbar"]}>
           <strong>Authoring Host</strong>
-          <span>与独立 Studio 共享实现</span>
+          <span>与独立 Inspector 共享实现</span>
           <button
             type="button"
             data-embedded-authoring-close="true"
@@ -108,10 +106,9 @@ export function EmbeddedAuthoringSurfaceInternalV1(
             关闭
           </button>
         </header>
-        <AuthoringHostSurfaceInternalV1
+        <InspectorHostSurfaceInternalV1
           host={props.host}
           binding={props.binding}
-          workspaceManifest={props.workspaceManifest}
           mode="embedded"
           publicationRole={props.publicationRole}
           viewId={props.viewId}

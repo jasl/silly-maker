@@ -170,7 +170,7 @@ describe("createDevSourcesOriginGuardV1", () => {
 
   it("stays out of the way for every non-dev-sources url", () => {
     for (
-      const url of ["/assets/x.webp", "/__sillymaker/studio/", "/src/main.tsx", undefined]
+      const url of ["/assets/x.webp", "/__sillymaker/inspector/", "/src/main.tsx", undefined]
     ) {
       let forwarded = false;
       const { response } = fakeResponseV1();

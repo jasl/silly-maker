@@ -46,9 +46,9 @@ function stageSummaryV1(
 
 /**
  * Projects admitted runtime nodes plus their Story-owned source document into
- * the read-only Flow shape consumed by Studio. This is not a second compiler:
- * runtime targets and ids come from `compiled`, while copy/source annotations
- * come from `doc`.
+ * the retained read-only Flow shape. This is not a second compiler: runtime
+ * targets and ids come from `compiled`, while copy/source annotations come
+ * from `doc`.
  */
 export function projectTemplateNarrativeFlowV1(
   compiled: TemplateCompiledInteractionV1,
@@ -172,11 +172,7 @@ export function projectTemplateNarrativeFlowV1(
             summary: stageSummaryV1(stage, block.ops),
             source,
           });
-          graphEdges.push({
-            from: stageId,
-            to: id,
-            label: { kind: "next" as const },
-          });
+          graphEdges.push({ from: stageId, to: id, label: { kind: "next" as const } });
         }
         const node = compiledNodeV1<"hold">(nodesById, id);
         graphNodes.push({
@@ -194,10 +190,7 @@ export function projectTemplateNarrativeFlowV1(
           graphEdges.push({
             from: id,
             to: compiledArm.next,
-            label: {
-              kind: "branch" as const,
-              condition: `when ${arm.when.flag}`,
-            },
+            label: { kind: "branch" as const, condition: `when ${arm.when.flag}` },
           });
         }
         nextEdge(id, block.next, node.next);
@@ -221,10 +214,7 @@ export function projectTemplateNarrativeFlowV1(
     }
   }
 
-  return ({
-    nodes: graphNodes,
-    edges: graphEdges,
-  });
+  return { nodes: graphNodes, edges: graphEdges };
 }
 
 export const templateFlowGraphV1 = projectTemplateNarrativeFlowV1(

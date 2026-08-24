@@ -28,9 +28,9 @@ export const sillymakerAppConfigV1 = {
     module: "src/tooling/simulation-target.ts",
     exportName: "createTemplateSimulationTargetV1",
   },
-  studio: {
-    module: "src/tooling/studio-binding.tsx",
-    exportName: "templateStudioBindingV1",
+  inspector: {
+    module: "src/tooling/inspector-binding.ts",
+    exportName: "templateInspectorBindingV1",
   },
   web: {
     applicationHtml: "index.html",

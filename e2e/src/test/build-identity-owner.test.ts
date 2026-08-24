@@ -16,9 +16,9 @@ const {
 } = buildIdentityOwnerV1;
 
 const repositoryRootV1 = resolve(import.meta.dirname, "../../..");
-const studioBindingModulePathV1 = resolve(
+const inspectorBindingModulePathV1 = resolve(
   repositoryRootV1,
-  "e2e/src/tooling/studio-binding.tsx",
+  "e2e/src/tooling/inspector-binding.ts",
 );
 const resolvedIdentityModuleV1 = `\0${e2eBuildIdentityVirtualSpecifierV1}`;
 
@@ -259,7 +259,7 @@ describe("Engine Lab BuildIdentity composition owner", () => {
     expect(virtualSource).toContain(JSON.stringify(nextIdentity));
   });
 
-  it("routes a shared R2 update through the Game root and the exact Studio dependency", async () => {
+  it("routes a shared R2 update through the Game root and the Inspector dependency", async () => {
     const initialIdentity = await collectE2eBuildIdentityV1();
     const nextIdentity = presentationSuccessorIdentityV1(initialIdentity);
     const plugin = createE2eBuildIdentityVirtualPluginV1({
@@ -267,13 +267,13 @@ describe("Engine Lab BuildIdentity composition owner", () => {
       collectIdentity: () => Promise.resolve(nextIdentity),
     });
     const identityModule = Object.freeze({ id: resolvedIdentityModuleV1 });
-    const studioBindingModule = Object.freeze({
-      id: studioBindingModulePathV1,
+    const inspectorBindingModule = Object.freeze({
+      id: inspectorBindingModulePathV1,
       importers: new Set(),
     });
     const changedPresentationModule = Object.freeze({
       id: resolve(repositoryRootV1, "e2e/src/presentation.ts"),
-      importers: new Set([studioBindingModule]),
+      importers: new Set([inspectorBindingModule]),
     });
     const invalidateModule = vi.fn();
     const context = {
@@ -285,7 +285,9 @@ describe("Engine Lab BuildIdentity composition owner", () => {
           getModuleById: (id: string) =>
             id === resolvedIdentityModuleV1 ? identityModule : undefined,
           getModulesByFile: (path: string) => {
-            if (path === studioBindingModulePathV1) return new Set([studioBindingModule]);
+            if (path === inspectorBindingModulePathV1) {
+              return new Set([inspectorBindingModule]);
+            }
             return undefined;
           },
           invalidateModule,
@@ -296,7 +298,7 @@ describe("Engine Lab BuildIdentity composition owner", () => {
     const candidates = await plugin.handleHotUpdate(context);
 
     expect(candidates).toEqual([identityModule, changedPresentationModule]);
-    expect(candidates).not.toContain(studioBindingModule);
+    expect(candidates).not.toContain(inspectorBindingModule);
     expect(invalidateModule).toHaveBeenCalledWith(
       identityModule,
       expect.any(Set),

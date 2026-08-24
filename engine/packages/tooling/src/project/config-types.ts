@@ -81,8 +81,8 @@ export interface StoryApplicationConfigV1 {
   readonly simulate: ProjectModuleRefV1 | null;
   /** Dev/build target; null for headless-only applications. */
   readonly web: StoryWebTargetV1 | null;
-  /** Module exporting a Studio binding; null when the app opts out of Studio. */
-  readonly studio: ProjectModuleRefV1 | null;
+  /** Module exporting an Inspector binding; null when the app opts out. */
+  readonly inspector: ProjectModuleRefV1 | null;
   /** Explicit scene source authorities; omitted when the application has none. */
   readonly sceneSources?: readonly StorySceneSourceV1[];
 }
@@ -123,13 +123,12 @@ export interface SillymakerAppConfigV1 {
   readonly simulate?: ProjectModuleRefV1 | null;
   readonly web?: SillymakerAppWebTargetV1 | null;
   /**
-   * Module exporting a `StudioBindingV1` (catalog + renderers + optional
-   * asset registry; scene/motion documents are enumerated by the Project
-   * Authoring Index, not registered here) for the dev-only SillyMaker
-   * Studio page (`/__sillymaker/studio/`). Studio code never enters the
-   * player bundle; omit to opt out.
+   * Module exporting an `InspectorBindingV1` (catalog + renderers + optional
+   * asset/timeline registries) for the dev-only SillyMaker Inspector page
+   * (`/__sillymaker/inspector/`). Inspector code never enters the player
+   * bundle; omit to opt out.
    */
-  readonly studio?: ProjectModuleRefV1 | null;
+  readonly inspector?: ProjectModuleRefV1 | null;
   /**
    * Explicit scene source authorities. Tooling never infers these from files
    * or the import graph.

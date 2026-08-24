@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { SceneDocumentV1 } from "@sillymaker/base";
+import type { AdmittedAuthoringSceneV1 } from "@sillymaker/base/authoring/scene";
 import type { AuthoringDocumentSessionV1 } from "@sillymaker/ui/debug";
 
 import type {
@@ -31,7 +31,7 @@ function unreachableV1(value: never): never {
  * a second identity/revision CAS before the single history commit.
  */
 export function createSceneAuthoringOperationExecutorV1(
-  session: AuthoringDocumentSessionV1<SceneDocumentV1>,
+  session: AuthoringDocumentSessionV1<AdmittedAuthoringSceneV1>,
 ): SceneAuthoringOperationExecutorV1 {
   return {
     execute(envelope: SceneAuthoringExecutionEnvelopeV1): SceneAuthoringExecutionResultV1 {
@@ -52,7 +52,7 @@ export function createSceneAuthoringOperationExecutorV1(
       const replaced = session.replaceDraftIfCurrent({
         documentIdentity: envelope.documentIdentity,
         expectedDraftRevision: envelope.expectedDraftRevision,
-        document: reduction.document,
+        document: reduction.scene,
         ...(envelope.coalesceKey === undefined ? {} : { coalesceKey: envelope.coalesceKey }),
       });
       switch (replaced.kind) {

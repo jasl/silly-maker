@@ -26,9 +26,9 @@ import {
 } from "./desktop-dev.ts";
 import {
   embeddedAuthorEntryIdInternalV1,
-  studioPageMetaNameV1,
-  studioPageUrlV1,
-} from "./studio.ts";
+  inspectorPageMetaNameV1,
+  inspectorPageUrlV1,
+} from "./inspector.ts";
 
 type ConnectMiddlewareV1 = (
   request: IncomingMessage,
@@ -427,7 +427,7 @@ describe("Desktop-dev process coordinator", () => {
     const advertisedRuntime = browserRuntimeHtmlV1()
       .replace(
         "<head>",
-        `<head><meta name="preserved" content="yes"><meta content="${studioPageUrlV1}" name="${studioPageMetaNameV1}">`,
+        `<head><meta name="preserved" content="yes"><meta content="${inspectorPageUrlV1}" name="${inspectorPageMetaNameV1}">`,
       )
       .replace(
         "</body>",
@@ -437,7 +437,7 @@ describe("Desktop-dev process coordinator", () => {
     expect(runtime).toContain('{"revision":1,"entry":"runtime","target":"deno_desktop"}');
     expect(capabilityFromHtmlV1(runtime)).toBe("A".repeat(43));
     expect(runtime).not.toContain("content-security-policy");
-    expect(runtime).not.toContain(studioPageMetaNameV1);
+    expect(runtime).not.toContain(inspectorPageMetaNameV1);
     expect(runtime).toContain('<meta name="preserved" content="yes">');
     expect(runtime).toContain(`src="${embeddedAuthorEntryIdInternalV1}"`);
 
@@ -487,10 +487,10 @@ describe("Desktop-dev process coordinator", () => {
 
     await expect(rawRequestV1({
       origin,
-      path: `${studioPageUrlV1}?source=desktop`,
+      path: `${inspectorPageUrlV1}?source=desktop`,
     })).resolves.toEqual({
       status: 404,
-      body: "standalone Studio unavailable in Desktop",
+      body: "standalone Inspector unavailable in Desktop",
     });
     await expect(rawRequestV1({
       origin,

@@ -35,7 +35,7 @@ deno run -A npm:vitest run examples/cat-cafe  # 单元/语义测试
 
 游戏内「设置 → 开发者工具」打开 DevDock（默认关闭，不属于游戏 UI）：
 
-- **Studio**：调试坞「场景」分组。同源新标签打开场景工作区（`/__sillymaker/studio/`）；进行中的会话继续跑，保存后 HMR 生效。生产构建没有这项。
+- **Inspector**：Cat Cafe 当前没有在 `sillymaker.config.ts` 中声明 Inspector binding，因此 DevDock 不显示 Inspector 入口。它继续作为完整 Player/产品能力示例，而独立 Inspector 与 Authoring Scene 的写入验收由 Engine Lab 承担；生产构建同样不包含创作工具。
 - **状态查看 / 状态编辑**：引擎内置，都在「状态」。JSON 查看权威 `snapshot.state`；状态编辑写入已有数字/布尔/字符串叶子，提交走 `sillymaker.debug.patch_state`（与玩法同一条原子提交/回放通道）。**刷新状态** 用当前（含编辑过的）权威状态重新加载会话。
 - **作弊**：Cat Cafe 专用——直接设数值（信任/活力/技艺/声誉/整洁/金钱）、快进天数、强制触发常客事件——全部走权威调试命令通道，提交进命令日志（`source: "debug"`），回放可复现。
 

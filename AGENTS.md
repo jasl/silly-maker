@@ -174,9 +174,16 @@ Read only the documents relevant to the change:
   recursive Snapshot/semantic-publication/admission-tree freezing, repeated admission/handoff stacks,
   implementation-shape tests, dead BuildIdentity consumers, and local
   attestation tooling were removed while real schema/digest/Save/replay/CAS/
-  currentness/RPC boundaries remain. The paused M5 implementation stays isolated
-  in its stash pending owner review; M5 Inspector replacement is the only next
-  engine task after that review.
+  currentness/RPC boundaries remain. M5 then delivered the Inspector-first clean
+  replacement: one standalone/embedded Authoring Host now exposes virtualized
+  Authoring Scene and object/layer navigation, real Stage preview with selectable
+  off-canvas/transparent ghost targets, bounded transform/appearance/order edits,
+  read-only interaction/Motion/Timeline/intent/source facets and scrub, and the
+  existing revision/CAS/history conflict path. The old Studio route, five-workspace
+  shell, Story bindings and UI-only tests were removed without deleting the shared
+  Host, document session, structured operations, source IO, R1 publication, or
+  private Agent companion seam. Ordinary Player graphs continue to exclude the
+  Inspector and authoring source writers.
   This lane does not activate
   State Format V2, ECS, a final Blueprint/Timeline editor, public Mod ABI, or
   Desktop HMR. AR4/AR5 did not add
@@ -210,8 +217,9 @@ Read only the documents relevant to the change:
   `docs/engine/plans/2026-08-24-scale-scene-object-modular-gui.md` — the accepted
   target contract and only current execution plan. M0 scale characterization,
   M1 static content/runtime/authoring separation, M2 sparse State hot plans plus
-  incremental authoring indexing, M3 modular GUI composition, and M4's first
-  Authoring Scene hierarchy/compiler are delivered; M5 is next. M0–M5 own scale
+  incremental authoring indexing, M3 modular GUI composition, M4's first
+  Authoring Scene hierarchy/compiler, and M5's Inspector-first clean replacement
+  are delivered. M0–M5 own scale
   evidence, content/runtime separation, sparse State
   hot plans, incremental authoring indexing, GUI module boundaries, the first
   Authoring Scene object hierarchy, and the Inspector-first clean replacement of
@@ -393,8 +401,9 @@ accepted.
   executor, or external-effect authority. Ordinary Template/Engine Lab Player
   graphs exclude it. AR5's neutral single-companion split and generated negative
   measurement also prove that a complete Authoring final graph excludes Agent/RPC;
-  the Studio manifest keeps a workspace Agent dependency only to serve its explicit
-  private opt-in entry, not as a final graph requirement or public ABI.
+  Engine Lab's Inspector binding selects the private single Agent companion only
+  through its explicit opt-in entry, not as an Inspector or final-graph requirement
+  and not as a public ABI.
 - `@sillymaker/ui` owns reusable React presentation, input, interaction,
   overlays, diagnostics UI, assets, characters, stages, and semantic-publication
   bridges.
@@ -481,6 +490,14 @@ documented migration path.
   implementation, export, dedicated tests, and live documentation together;
   compatibility requires an explicit product promise rather than a default
   alias or wrapper.
+- The maintained dev-only author product is the standalone/embedded Inspector
+  over one Authoring Host and Authoring Scene CAS/session. Do not restore the old
+  Studio route, five-workspace rail, `StudioBindingV1`, or UI compatibility
+  wrappers. This clean break does not authorize deleting reusable accepted
+  capabilities such as low-level Scene source IO, Narrative Flow types/projector,
+  Motion Workbench, Regions/Chrome document families, structured operations,
+  CAS/R1 publication, or the private Agent companion seam merely because the
+  current Inspector does not surface them.
 - Apply defensive validation in proportion to the trust boundary:
   - bytes, files, URLs, HTTP payloads, Save data, cross-process records, and
     other untrusted input keep strict bounds, canonical validation, atomic

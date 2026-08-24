@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: MIT
-import { parseSceneDocumentV1 } from "@sillymaker/base";
-import type { SceneCueV1, SceneDocumentV1, SceneEntryV1 } from "@sillymaker/base";
+import {
+  compileAuthoringSceneV1,
+  reindexAuthoringSceneDocumentV1,
+} from "@sillymaker/base/authoring/scene";
+import type {
+  AdmittedAuthoringSceneV1,
+  AuthoringSceneDocumentV1,
+  AuthoringSceneObjectV1,
+} from "@sillymaker/base/authoring/scene";
 
 import type {
   SceneAuthoringDiagnosticCodeV1,
@@ -22,165 +29,307 @@ function unreachableV1(value: never): never {
   throw new TypeError("Unreachable Scene authoring operation");
 }
 
-function finalizeV1(candidate: unknown): SceneAuthoringReductionResultV1 {
-  let next: SceneDocumentV1;
-  try {
-    next = parseSceneDocumentV1(candidate);
-  } catch {
-    return rejectedV1("scene_authoring.result_invalid", "/document");
+interface ObjectLocationV1 {
+  readonly layerIndex: number;
+  /** Root index followed by zero or more child indexes. */
+  readonly objectPath: readonly number[];
+  readonly object: AuthoringSceneObjectV1;
+}
+
+function findObjectInSiblingsV1(
+  siblings: readonly AuthoringSceneObjectV1[],
+  objectId: string,
+  layerIndex: number,
+  parentPath: readonly number[],
+): ObjectLocationV1 | null {
+  for (const [index, object] of siblings.entries()) {
+    const objectPath = [...parentPath, index];
+    if ((object.objectId as string) === objectId) return { layerIndex, objectPath, object };
+    const nested = findObjectInSiblingsV1(
+      object.children,
+      objectId,
+      layerIndex,
+      objectPath,
+    );
+    if (nested !== null) return nested;
   }
-  return { kind: "reduced", document: next };
+  return null;
 }
 
-function replaceEntryV1(
-  document: SceneDocumentV1,
-  tag: string,
-  replace: (entry: SceneEntryV1) => SceneEntryV1,
-): readonly SceneEntryV1[] | null {
-  let found = false;
-  const entries = document.entries.map((entry) => {
-    if ((entry.tag as string) !== tag) return entry;
-    found = true;
-    return replace(entry);
-  });
-  return found ? entries : null;
+function findObjectV1(
+  document: AuthoringSceneDocumentV1,
+  objectId: string,
+): ObjectLocationV1 | null {
+  for (const [layerIndex, layer] of document.layers.entries()) {
+    const found = findObjectInSiblingsV1(layer.roots, objectId, layerIndex, []);
+    if (found !== null) return found;
+  }
+  return null;
 }
 
-function replaceCueV1(
-  document: SceneDocumentV1,
-  cueId: string,
-  replace: (cue: SceneCueV1) => SceneCueV1,
-): readonly SceneCueV1[] | null {
-  let found = false;
-  const cues = document.cues.map((cue) => {
-    if (cue.cueId !== cueId) return cue;
-    found = true;
-    return replace(cue);
-  });
-  return found ? cues : null;
+function samePathV1(left: readonly number[], right: readonly number[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function replaceObjectAtPathV1(
+  siblings: readonly AuthoringSceneObjectV1[],
+  objectPath: readonly number[],
+  replace: (object: AuthoringSceneObjectV1) => AuthoringSceneObjectV1,
+): readonly AuthoringSceneObjectV1[] {
+  const [index, ...childPath] = objectPath;
+  if (index === undefined) throw new TypeError("Object path is empty");
+  const object = siblings[index];
+  if (object === undefined) throw new TypeError("Object path is invalid");
+  const nextObject = childPath.length === 0
+    ? replace(object)
+    : { ...object, children: replaceObjectAtPathV1(object.children, childPath, replace) };
+  const next = [...siblings];
+  next[index] = nextObject;
+  return next;
+}
+
+function replaceObjectV1(
+  document: AuthoringSceneDocumentV1,
+  location: ObjectLocationV1,
+  replace: (object: AuthoringSceneObjectV1) => AuthoringSceneObjectV1,
+): AuthoringSceneDocumentV1 {
+  const layer = document.layers[location.layerIndex];
+  if (layer === undefined) throw new TypeError("Object layer is invalid");
+  const layers = [...document.layers];
+  layers[location.layerIndex] = {
+    ...layer,
+    roots: replaceObjectAtPathV1(layer.roots, location.objectPath, replace),
+  };
+  return { ...document, layers };
+}
+
+function siblingsAtParentV1(
+  document: AuthoringSceneDocumentV1,
+  layerIndex: number,
+  parentPath: readonly number[],
+): readonly AuthoringSceneObjectV1[] {
+  const layer = document.layers[layerIndex];
+  if (layer === undefined) throw new TypeError("Object layer is invalid");
+  if (parentPath.length === 0) return layer.roots;
+  let siblings = layer.roots;
+  let parent: AuthoringSceneObjectV1 | undefined;
+  for (const index of parentPath) {
+    parent = siblings[index];
+    if (parent === undefined) throw new TypeError("Object parent path is invalid");
+    siblings = parent.children;
+  }
+  return parent?.children ?? layer.roots;
+}
+
+function replaceSiblingsAtParentV1(
+  document: AuthoringSceneDocumentV1,
+  layerIndex: number,
+  parentPath: readonly number[],
+  siblings: readonly AuthoringSceneObjectV1[],
+): AuthoringSceneDocumentV1 {
+  const layer = document.layers[layerIndex];
+  if (layer === undefined) throw new TypeError("Object layer is invalid");
+  const layers = [...document.layers];
+  layers[layerIndex] = parentPath.length === 0 ? { ...layer, roots: siblings } : {
+    ...layer,
+    roots: replaceObjectAtPathV1(layer.roots, parentPath, (parent) => ({
+      ...parent,
+      children: siblings,
+    })),
+  };
+  return { ...document, layers };
+}
+
+function diagnosticPathV1(error: unknown): string {
+  if (error !== null && typeof error === "object" && "path" in error) {
+    const path = (error as { readonly path?: unknown }).path;
+    if (typeof path === "string") return path;
+  }
+  return "/document";
+}
+
+function finalizeV1(
+  candidate: AuthoringSceneDocumentV1,
+): SceneAuthoringReductionResultV1 {
+  let next: AdmittedAuthoringSceneV1;
+  try {
+    next = reindexAuthoringSceneDocumentV1(candidate);
+    compileAuthoringSceneV1(next);
+  } catch (error) {
+    return rejectedV1("scene_authoring.result_invalid", diagnosticPathV1(error));
+  }
+  return { kind: "reduced", scene: next };
+}
+
+function reorderV1<TValue>(
+  values: readonly TValue[],
+  fromIndex: number,
+  beforeIndex: number | null,
+): readonly TValue[] {
+  const moved = values[fromIndex];
+  if (moved === undefined) throw new TypeError("Move source is invalid");
+  const remaining = values.filter((_, index) => index !== fromIndex);
+  if (beforeIndex === null) return [...remaining, moved];
+  const adjustedBeforeIndex = beforeIndex > fromIndex ? beforeIndex - 1 : beforeIndex;
+  return [
+    ...remaining.slice(0, adjustedBeforeIndex),
+    moved,
+    ...remaining.slice(adjustedBeforeIndex),
+  ];
+}
+
+function orderUnchangedV1<TValue>(
+  before: readonly TValue[],
+  after: readonly TValue[],
+): boolean {
+  return before.length === after.length && before.every((value, index) => after[index] === value);
+}
+
+function transformUnchangedV1(
+  before: AuthoringSceneObjectV1["localTransform"],
+  after: AuthoringSceneObjectV1["localTransform"],
+): boolean {
+  return before.x === after.x && before.y === after.y &&
+    before.scalePermille === after.scalePermille &&
+    before.opacityPermille === after.opacityPermille && before.mirrored === after.mirrored;
 }
 
 /**
- * Pure Scene reducer. It owns no Session, IO, save, HMR, clock, or runtime
- * authority; every successful candidate is re-admitted as SceneDocumentV1.
+ * Pure Authoring Scene reducer. It owns no Session, IO, save, HMR, clock,
+ * runtime object, or alternate scene authority.
  */
 export function reduceSceneAuthoringOperationV1(
-  document: SceneDocumentV1,
+  current: AdmittedAuthoringSceneV1,
   operation: SceneAuthoringOperationV1,
 ): SceneAuthoringReductionResultV1 {
+  const document = current.document;
   switch (operation.kind) {
-    case "scene.entry.set_placement": {
-      const entries = replaceEntryV1(
-        document,
-        operation.tag,
-        (entry) => ({ ...entry, placement: operation.placement }),
+    case "scene.object.set_local_transform": {
+      const location = findObjectV1(document, operation.objectId as string);
+      if (location === null) {
+        return rejectedV1("scene_authoring.target_missing", "/operation/objectId");
+      }
+      if (transformUnchangedV1(location.object.localTransform, operation.localTransform)) {
+        return rejectedV1("scene_authoring.no_change", "/operation");
+      }
+      return finalizeV1(
+        replaceObjectV1(document, location, (object) => ({
+          ...object,
+          localTransform: operation.localTransform,
+        })),
       );
-      if (entries === null) {
-        return rejectedV1("scene_authoring.target_missing", "/operation/tag");
-      }
-      return finalizeV1({ ...document, entries });
     }
-    case "scene.entry.add": {
-      if (document.entries.some((entry) => entry.tag === operation.entry.tag)) {
-        return rejectedV1("scene_authoring.target_conflict", "/operation/entry/tag");
+    case "scene.object.set_visual_content": {
+      const location = findObjectV1(document, operation.objectId as string);
+      if (location === null) {
+        return rejectedV1("scene_authoring.target_missing", "/operation/objectId");
       }
-      return finalizeV1({
-        ...document,
-        entries: [...document.entries, operation.entry],
-      });
-    }
-    case "scene.entry.remove": {
-      if (!document.entries.some((entry) => (entry.tag as string) === operation.tag)) {
-        return rejectedV1("scene_authoring.target_missing", "/operation/tag");
+      if (location.object.visual === undefined) {
+        return rejectedV1("scene_authoring.target_conflict", "/operation/objectId");
       }
-      return finalizeV1({
-        ...document,
-        entries: document.entries.filter((entry) => (entry.tag as string) !== operation.tag),
-        cues: document.cues.filter((cue) => (cue.tag as string) !== operation.tag),
-      });
-    }
-    case "scene.entry.set_z_order": {
-      const entries = replaceEntryV1(
-        document,
-        operation.tag,
-        (entry) => ({ ...entry, zOrder: operation.zOrder }),
+      if (location.object.visual.contentId === operation.contentId) {
+        return rejectedV1("scene_authoring.no_change", "/operation");
+      }
+      return finalizeV1(
+        replaceObjectV1(document, location, (object) => ({
+          ...object,
+          visual: { ...object.visual!, contentId: operation.contentId },
+        })),
       );
-      if (entries === null) {
-        return rejectedV1("scene_authoring.target_missing", "/operation/tag");
-      }
-      return finalizeV1({ ...document, entries });
     }
-    case "scene.entry.set_appearance": {
-      const entries = replaceEntryV1(document, operation.tag, (entry) => {
-        const appearance: Record<string, string> = { ...entry.appearance };
-        if (operation.value === null) delete appearance[operation.key];
-        else appearance[operation.key] = operation.value;
-        const mutable: Record<string, unknown> = { ...entry };
-        if (Object.keys(appearance).length === 0) delete mutable.appearance;
-        else mutable.appearance = appearance;
-        return mutable as unknown as SceneEntryV1;
-      });
-      if (entries === null) {
-        return rejectedV1("scene_authoring.target_missing", "/operation/tag");
+    case "scene.object.set_appearance": {
+      const location = findObjectV1(document, operation.objectId as string);
+      if (location === null) {
+        return rejectedV1("scene_authoring.target_missing", "/operation/objectId");
       }
-      return finalizeV1({ ...document, entries });
-    }
-    case "scene.entry.set_ambient": {
-      const entries = replaceEntryV1(document, operation.tag, (entry) => {
-        const mutable: Record<string, unknown> = { ...entry };
-        if (operation.motionId === null) delete mutable.ambient;
-        else {
-          const phaseMs = entry.ambient?.phaseMs;
-          mutable.ambient = {
-            motionId: operation.motionId,
-            ...(phaseMs === undefined ? {} : { phaseMs }),
+      if (location.object.visual === undefined) {
+        return rejectedV1("scene_authoring.target_conflict", "/operation/objectId");
+      }
+      const currentValue = location.object.visual.appearance[operation.key];
+      if (
+        currentValue === operation.value ||
+        (currentValue === undefined && operation.value === null)
+      ) {
+        return rejectedV1("scene_authoring.no_change", "/operation");
+      }
+      return finalizeV1(
+        replaceObjectV1(document, location, (object) => {
+          const appearance: Record<string, string> = { ...object.visual!.appearance };
+          if (operation.value === null) delete appearance[operation.key];
+          else appearance[operation.key] = operation.value;
+          return {
+            ...object,
+            visual: { ...object.visual!, appearance },
           };
+        }),
+      );
+    }
+    case "scene.object.move_before": {
+      const location = findObjectV1(document, operation.objectId as string);
+      if (location === null) {
+        return rejectedV1("scene_authoring.target_missing", "/operation/objectId");
+      }
+      const parentPath = location.objectPath.slice(0, -1);
+      const siblings = siblingsAtParentV1(document, location.layerIndex, parentPath);
+      const fromIndex = location.objectPath.at(-1)!;
+      let beforeIndex: number | null = null;
+      if (operation.beforeObjectId !== null) {
+        const before = findObjectV1(document, operation.beforeObjectId as string);
+        if (before === null) {
+          return rejectedV1(
+            "scene_authoring.target_missing",
+            "/operation/beforeObjectId",
+          );
         }
-        return mutable as unknown as SceneEntryV1;
-      });
-      if (entries === null) {
-        return rejectedV1("scene_authoring.target_missing", "/operation/tag");
+        if (
+          before.layerIndex !== location.layerIndex ||
+          !samePathV1(before.objectPath.slice(0, -1), parentPath)
+        ) {
+          return rejectedV1(
+            "scene_authoring.target_conflict",
+            "/operation/beforeObjectId",
+          );
+        }
+        beforeIndex = before.objectPath.at(-1)!;
       }
-      return finalizeV1({ ...document, entries });
+      const reordered = reorderV1(siblings, fromIndex, beforeIndex);
+      if (orderUnchangedV1(siblings, reordered)) {
+        return rejectedV1("scene_authoring.no_change", "/operation");
+      }
+      return finalizeV1(
+        replaceSiblingsAtParentV1(
+          document,
+          location.layerIndex,
+          parentPath,
+          reordered,
+        ),
+      );
     }
-    case "scene.cue.add": {
-      if (document.cues.some((cue) => cue.cueId === operation.cue.cueId)) {
-        return rejectedV1("scene_authoring.target_conflict", "/operation/cue/cueId");
+    case "scene.layer.move_before": {
+      const fromIndex = document.layers.findIndex((layer) => layer.layerId === operation.layerId);
+      if (fromIndex === -1) {
+        return rejectedV1("scene_authoring.target_missing", "/operation/layerId");
       }
-      if (!document.entries.some((entry) => entry.tag === operation.cue.tag)) {
-        return rejectedV1("scene_authoring.target_missing", "/operation/cue/tag");
+      let beforeIndex: number | null = null;
+      if (operation.beforeLayerId !== null) {
+        beforeIndex = document.layers.findIndex(
+          (layer) => layer.layerId === operation.beforeLayerId,
+        );
+        if (beforeIndex === -1) {
+          return rejectedV1(
+            "scene_authoring.target_missing",
+            "/operation/beforeLayerId",
+          );
+        }
       }
-      return finalizeV1({ ...document, cues: [...document.cues, operation.cue] });
-    }
-    case "scene.cue.remove": {
-      if (!document.cues.some((cue) => cue.cueId === operation.cueId)) {
-        return rejectedV1("scene_authoring.target_missing", "/operation/cueId");
+      const reordered = reorderV1(document.layers, fromIndex, beforeIndex);
+      if (orderUnchangedV1(document.layers, reordered)) {
+        return rejectedV1("scene_authoring.no_change", "/operation");
       }
       return finalizeV1({
         ...document,
-        cues: document.cues.filter((cue) => cue.cueId !== operation.cueId),
+        layers: reordered,
       });
-    }
-    case "scene.cue.set_motion": {
-      const cues = replaceCueV1(document, operation.cueId, (cue) => {
-        const mutable = { ...cue } as {
-          cueId: string;
-          kind: SceneCueV1["kind"];
-          tag: SceneCueV1["tag"];
-          motionId?: string;
-          cut?: true;
-        };
-        // The selector owns this cue's complete edge presentation: choosing
-        // a motion replaces cut; choosing none clears either representation.
-        delete mutable.motionId;
-        delete mutable.cut;
-        if (operation.motionId !== null) mutable.motionId = operation.motionId;
-        return mutable;
-      });
-      if (cues === null) {
-        return rejectedV1("scene_authoring.target_missing", "/operation/cueId");
-      }
-      return finalizeV1({ ...document, cues });
     }
   }
   return unreachableV1(operation);

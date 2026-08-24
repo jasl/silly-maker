@@ -31,7 +31,7 @@ import {
   type SessionMaintenanceLabelsV1,
 } from "./session-maintenance-panel.tsx";
 import { engineStateInspectorPanelIdV1, engineStateTunerPanelIdV1 } from "./state-tuner.ts";
-import { resolveStudioPageHrefV1 } from "./studio-page-href.ts";
+import { resolveInspectorPageHrefV1 } from "./inspector-page-href.ts";
 import styles from "./story-debug-dock.module.css";
 
 export interface StoryDebugDockToolV1 {
@@ -72,8 +72,8 @@ export interface StoryDebugDockLabelsV1 extends SessionMaintenanceLabelsV1 {
   readonly sectionSceneLabel: string;
   readonly sectionToolsLabel: string;
   readonly sectionCheatLabel: string;
-  readonly studioLabel: string;
-  readonly studioOpenedNote: string;
+  readonly inspectorLabel: string;
+  readonly inspectorOpenedNote: string;
   readonly cheatLockReason: string;
   readonly faultCauseLabel: string;
 }
@@ -117,8 +117,8 @@ export const defaultStoryDebugDockLabelsV1: StoryDebugDockLabelsV1 = {
   sectionSceneLabel: "场景",
   sectionToolsLabel: "工具",
   sectionCheatLabel: "作弊",
-  studioLabel: "Studio",
-  studioOpenedNote: "已在新标签页打开 Studio（游戏会话继续运行）。",
+  inspectorLabel: "Inspector",
+  inspectorOpenedNote: "已在新标签页打开 Inspector（游戏会话继续运行）。",
   cheatLockReason: "需要启用作弊功能",
   faultCauseLabel: "最近故障",
 };
@@ -171,12 +171,12 @@ export interface StoryDebugDockPropsV1 {
    */
   readonly grantCapabilitiesOnOpen?: boolean;
   /**
-   * Same-origin Studio page. When omitted, the dock reads
-   * `meta[name="sillymaker-studio"]` (injected by the Vite plugin during
+   * Same-origin Inspector page. When omitted, the dock reads
+   * `meta[name="sillymaker-inspector"]` (injected by the Vite plugin during
    * `vite dev`). Pass `""` to hide the link even when the meta is present.
    * Absolute and protocol-relative URLs are ignored.
    */
-  readonly studioHref?: string;
+  readonly inspectorHref?: string;
   /** Chip/menu corner; defaults to `top_right`. */
   readonly position?: DevDockPositionV1;
   readonly expanded?: boolean;
@@ -321,7 +321,7 @@ function dockToolSectionV1(tool: StoryDebugDockToolV1): StoryDebugDockToolGroupV
   const authority = tool.authority ?? "read_only";
   switch (authority) {
     case "read_only":
-      return tool.panelId.includes("workbench") || tool.panelId.includes("studio")
+      return tool.panelId.includes("workbench") || tool.panelId.includes("inspector")
         ? "tools"
         : "scene";
     case "cheat":
@@ -464,7 +464,7 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
   const storyCheatsLocked = cheatTools.length > 0 && cheatCapabilityLocked;
   const stateTunerLockReason = cheatCapabilityLocked &&
     stateTools.some((tool) => tool.panelId === engineStateTunerPanelIdV1);
-  const studioHref = resolveStudioPageHrefV1(props.studioHref);
+  const inspectorHref = resolveInspectorPageHrefV1(props.inspectorHref);
   const hasStateSection = props.savePort !== undefined ||
     props.onReloadCurrentState !== undefined ||
     props.onReinitialize !== undefined ||
@@ -472,7 +472,7 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
     stateTools.length > 0;
   const hasSceneSection = props.presentationFreeze !== undefined || sceneTools.length > 0;
   const hasRateSection = props.presentationRate !== undefined;
-  const hasToolsSection = toolTools.length > 0 || studioHref !== undefined;
+  const hasToolsSection = toolTools.length > 0 || inspectorHref !== undefined;
 
   const { clearAllSaves, onWiped, onExpandedChange } = props;
   const setExpanded = useCallback((next: boolean): void => {
@@ -804,16 +804,16 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
                       title={labels.sectionToolsLabel}
                     >
                       {toolTools.map((tool) => renderToolButtonV1(tool, false))}
-                      {studioHref === undefined ? null : (
+                      {inspectorHref === undefined ? null : (
                         <a
-                          className={styles["story-debug-dock__studio"]}
-                          href={studioHref}
+                          className={styles["story-debug-dock__inspector"]}
+                          href={inspectorHref}
                           target="_blank"
                           rel="noopener noreferrer"
-                          data-debug-dock-action="studio"
-                          onClick={() => setNote(labels.studioOpenedNote)}
+                          data-debug-dock-action="inspector"
+                          onClick={() => setNote(labels.inspectorOpenedNote)}
                         >
-                          {labels.studioLabel}
+                          {labels.inspectorLabel}
                         </a>
                       )}
                     </StoryDebugDockSectionV1>

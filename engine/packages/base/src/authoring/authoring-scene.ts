@@ -140,6 +140,48 @@ export interface AdmittedAuthoringSceneV1 {
   readonly sourceMap: AuthoringSceneSourceMapV1;
 }
 
+/**
+ * Rebuilds JSON-pointer provenance for an already admitted typed document.
+ * Structured authoring operations preserve the schema and identities but may
+ * reorder layers or siblings, so they refresh this sidecar without repeating
+ * source admission.
+ */
+export function reindexAuthoringSceneDocumentV1(
+  document: AuthoringSceneDocumentV1,
+): AdmittedAuthoringSceneV1 {
+  const layers: AuthoringSceneLayerSourceV1[] = [];
+  const objects: AuthoringSceneObjectSourceV1[] = [];
+  const visit = (
+    entries: readonly AuthoringSceneObjectV1[],
+    layerId: StageLayerIdV1,
+    parentPointer: string,
+  ): void => {
+    for (const [index, object] of entries.entries()) {
+      const jsonPointer = `${parentPointer}/${String(index)}`;
+      objects.push({ objectId: object.objectId, layerId, jsonPointer });
+      visit(object.children, layerId, `${jsonPointer}/children`);
+    }
+  };
+  for (const [index, layer] of document.layers.entries()) {
+    const jsonPointer = `/layers/${String(index)}`;
+    layers.push({ layerId: layer.layerId, jsonPointer });
+    visit(layer.roots, layer.layerId, `${jsonPointer}/roots`);
+  }
+  return {
+    document,
+    sourceMap: {
+      sceneJsonPointer: "",
+      layers,
+      objects,
+      cues: document.cues.map((cue, index) => ({
+        cueId: cue.cueId,
+        objectId: cue.objectId,
+        jsonPointer: `/cues/${String(index)}`,
+      })),
+    },
+  };
+}
+
 const authoringSceneMaxIdLengthV1 = 96;
 const authoringSceneMaxLabelLengthV1 = 120;
 const authoringSceneCanvasLimitV1 = 1_000_000;
@@ -517,13 +559,10 @@ interface AdmissionStateV1 {
   readonly active: Set<object>;
   readonly objectIds: Set<string>;
   readonly visualObjectIds: Set<string>;
-  readonly layerSources: AuthoringSceneLayerSourceV1[];
-  readonly objectSources: AuthoringSceneObjectSourceV1[];
 }
 
 function parseObjectV1(
   value: unknown,
-  layerId: StageLayerIdV1,
   path: string,
   depth: number,
   state: AdmissionStateV1,
@@ -553,8 +592,6 @@ function parseObjectV1(
       return dataFailure(`${path}/objectId`, "authoring_scene_object_id_duplicate");
     }
     state.objectIds.add(objectId as string);
-    state.objectSources.push({ objectId, layerId, jsonPointer: path });
-
     const visual = Object.hasOwn(record, "visual")
       ? parseVisualV1(record.visual, `${path}/visual`)
       : undefined;
@@ -572,7 +609,7 @@ function parseObjectV1(
       ? arrayV1(record.children, `${path}/children`)
       : [];
     const children = rawChildren.map((child, index) =>
-      parseObjectV1(child, layerId, `${path}/children/${String(index)}`, depth + 1, state)
+      parseObjectV1(child, `${path}/children/${String(index)}`, depth + 1, state)
     );
     return ({
       objectId,
@@ -597,12 +634,11 @@ function parseLayerV1(
   const record = exactRecordV1(value, ["layerId", "label", "roots"], path);
   const layerId = parseStageLayerIdV1(record.layerId, `${path}/layerId`);
   const rawRoots = arrayV1(record.roots, `${path}/roots`);
-  state.layerSources.push({ layerId, jsonPointer: path });
   return ({
     layerId,
     label: boundedLabelV1(record.label, `${path}/label`),
     roots: rawRoots.map((root, index) =>
-      parseObjectV1(root, layerId, `${path}/roots/${String(index)}`, 0, state)
+      parseObjectV1(root, `${path}/roots/${String(index)}`, 0, state)
     ),
   });
 }
@@ -674,8 +710,6 @@ export function admitAuthoringSceneDocumentV1(value: unknown): AdmittedAuthoring
     active: new Set(),
     objectIds: new Set(),
     visualObjectIds: new Set(),
-    layerSources: [],
-    objectSources: [],
   };
   const layers = rawLayers.map((layer, index) =>
     parseLayerV1(layer, `/layers/${String(index)}`, state)
@@ -693,7 +727,6 @@ export function admitAuthoringSceneDocumentV1(value: unknown): AdmittedAuthoring
     return dataFailure("/cues", "authoring_scene_cue_count_invalid");
   }
   const cues: AuthoringSceneCueV1[] = [];
-  const cueSources: AuthoringSceneCueSourceV1[] = [];
   const seenCueIds = new Set<string>();
   for (const [index, rawCue] of rawCues.entries()) {
     const path = `/cues/${String(index)}`;
@@ -709,7 +742,6 @@ export function admitAuthoringSceneDocumentV1(value: unknown): AdmittedAuthoring
       return dataFailure(`${path}/objectId`, "authoring_scene_cue_object_not_visual");
     }
     cues.push(cue);
-    cueSources.push({ cueId: cue.cueId, objectId: cue.objectId, jsonPointer: path });
   }
 
   const document: AuthoringSceneDocumentV1 = {
@@ -721,15 +753,7 @@ export function admitAuthoringSceneDocumentV1(value: unknown): AdmittedAuthoring
     layers: layers,
     cues: cues,
   };
-  return ({
-    document,
-    sourceMap: {
-      sceneJsonPointer: "" as const,
-      layers: state.layerSources,
-      objects: state.objectSources,
-      cues: cueSources,
-    },
-  });
+  return reindexAuthoringSceneDocumentV1(document);
 }
 
 /**

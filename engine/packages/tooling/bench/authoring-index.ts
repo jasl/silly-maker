@@ -1,9 +1,17 @@
 // SPDX-License-Identifier: MIT
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import type { StageContentCatalogV1 } from "@sillymaker/base";
+import {
+  admitAuthoringSceneSourceBytesV1,
+  compileAuthoringSceneV1,
+  type CompiledAuthoringSceneV1,
+  projectAuthoringSceneFacetsV1,
+} from "@sillymaker/base/authoring/scene";
 
 import {
   type AuthoringProjectIndexCountersV1,
@@ -14,7 +22,7 @@ import {
 import { listChromeLayoutSourceFilesV1 } from "../src/vite/chrome-layout-port.ts";
 import { listMotionSourceFilesV1 } from "../src/vite/motion-port.ts";
 import { listRegionsSourceFilesV1 } from "../src/vite/regions-port.ts";
-import { listSceneSourceFilesV1 } from "../src/vite/scene-port.ts";
+import { listAuthoringSceneSourceFilesV1 } from "../src/vite/authoring-scene-port.ts";
 
 declare const Deno: {
   readonly args: readonly string[];
@@ -116,6 +124,7 @@ function sourceBytesV1(
           roots: Array.from({ length: objectsPerAuthoringScene }, (_, objectIndex) => ({
             objectId: `tag.scale.s${serial}.object-${String(objectIndex).padStart(3, "0")}`,
             label: `Object ${String(objectIndex)}`,
+            visual: { contentId: "content.scale.object" },
           })),
         },
       ],
@@ -341,7 +350,7 @@ function measureListSweepV1(
     }
     return { authoringScene, lowLevelScene };
   });
-  const lowLevelScenePort = measureV1(() => listSceneSourceFilesV1(index));
+  const authoringScenePort = measureV1(() => listAuthoringSceneSourceFilesV1(index));
   const motion = measureV1(() => listMotionSourceFilesV1(index));
   const regions = measureV1(() => listRegionsSourceFilesV1(index));
   const chromeLayout = measureV1(() => listChromeLayoutSourceFilesV1(index));
@@ -356,9 +365,9 @@ function measureListSweepV1(
     fixture.sceneSourceCounts.lowLevelScene,
   );
   assertCountV1(
-    "legacy scene list count",
-    lowLevelScenePort.value.scenes.length,
-    fixture.sceneSourceCounts.lowLevelScene,
+    "Authoring Scene list count",
+    authoringScenePort.value.scenes.length,
+    fixture.sceneSourceCounts.authoringScene,
   );
   assertCountV1("motion list count", motion.value.motions.length, fixture.counts.motion);
   assertCountV1(
@@ -373,7 +382,7 @@ function measureListSweepV1(
   );
   assertCountV1(
     "list skipped count",
-    lowLevelScenePort.value.skipped.length + motion.value.skipped.length +
+    authoringScenePort.value.skipped.length + motion.value.skipped.length +
       regions.value.skipped.length + chromeLayout.value.skipped.length,
     0,
   );
@@ -387,10 +396,150 @@ function measureListSweepV1(
   return {
     total: performance.now() - startedAt,
     sceneIndex: sceneIndex.durationMs,
-    lowLevelScenePort: lowLevelScenePort.durationMs,
+    authoringScenePort: authoringScenePort.durationMs,
     motion: motion.durationMs,
     regions: regions.durationMs,
     chromeLayout: chromeLayout.durationMs,
+    work,
+  };
+}
+
+function readAdmitCompileCurrentSceneV1(
+  fixture: FixtureV1,
+  expectedLabel?: string,
+): CompiledAuthoringSceneV1 {
+  if (fixture.changedSceneSourceKind !== "authoring_scene") {
+    throw new Error("Inspector scale measurement requires an Authoring Scene source");
+  }
+  const compiled = compileAuthoringSceneV1(
+    admitAuthoringSceneSourceBytesV1(readFileSync(fixture.changedScenePath)),
+  );
+  if (compiled.inspection.sceneId !== "scene.scale.s000000") {
+    throw new Error("selected source compiled to an unexpected Scene identity");
+  }
+  if (
+    expectedLabel !== undefined &&
+    compiled.runtimePlan.sceneDocument.label !== expectedLabel
+  ) {
+    throw new Error("selected source compile did not observe the current file revision");
+  }
+  assertCountV1(
+    "selected current Scene object count",
+    compiled.inspection.objects.length,
+    fixture.objectsPerAuthoringScene,
+  );
+  return compiled;
+}
+
+function measureSceneMetadataSearchV1(
+  fixture: FixtureV1,
+  index: AuthoringProjectIndexV1,
+) {
+  const measured = measureV1(() => {
+    const query = "scene 000000";
+    return index.scenes.filter((scene) =>
+      scene.sceneId.toLowerCase().includes(query) ||
+      scene.label.toLowerCase().includes(query) ||
+      scene.path.toLowerCase().includes(query)
+    );
+  });
+  assertCountV1("Scene metadata search rows", index.scenes.length, fixture.counts.scene);
+  assertCountV1("Scene metadata search matches", measured.value.length, 1);
+  return measured.durationMs;
+}
+
+function measureCurrentObjectSearchV1(
+  fixture: FixtureV1,
+  compiled: CompiledAuthoringSceneV1,
+) {
+  const measured = measureV1(() => {
+    const query = "object-049";
+    return compiled.inspection.objects.filter((object) =>
+      (object.objectId as string).toLowerCase().includes(query) ||
+      object.label.toLowerCase().includes(query)
+    );
+  });
+  assertCountV1(
+    "current Scene object search rows",
+    compiled.inspection.objects.length,
+    fixture.objectsPerAuthoringScene,
+  );
+  assertCountV1("current Scene object search matches", measured.value.length, 1);
+  return measured.durationMs;
+}
+
+function projectCurrentSceneFacetsV1(
+  fixture: FixtureV1,
+  compiled: CompiledAuthoringSceneV1,
+) {
+  let catalogResolutions = 0;
+  const catalog: StageContentCatalogV1 = {
+    resolveContent(contentId) {
+      catalogResolutions += 1;
+      if (contentId !== "content.scale.object") return null;
+      return {
+        rendererId: "renderer.scale.object",
+        assetIds: [],
+        accessibleName: "Scale object",
+        props: {},
+        geometry: {
+          width: 16,
+          height: 16,
+          anchorXPermille: 500,
+          anchorYPermille: 500,
+        },
+      };
+    },
+  };
+  const projection = projectAuthoringSceneFacetsV1(compiled, catalog);
+  const previewEntries = projection.previewTarget.layers.reduce(
+    (count, layer) => count + layer.entries.length,
+    0,
+  );
+  assertCountV1(
+    "current Scene facet objects",
+    Object.keys(projection.objects).length,
+    fixture.objectsPerAuthoringScene,
+  );
+  assertCountV1(
+    "current Scene preview entries",
+    previewEntries,
+    fixture.objectsPerAuthoringScene,
+  );
+  assertCountV1(
+    "current Scene catalog resolutions",
+    catalogResolutions,
+    fixture.objectsPerAuthoringScene,
+  );
+  return { previewEntries, catalogResolutions };
+}
+
+function measureInspectorReadSideV1(
+  fixture: FixtureV1,
+  owner: AuthoringProjectIndexOwnerV1,
+) {
+  const before = owner.counters();
+  const index = owner.snapshot();
+  const sceneMetadataSearch = measureSceneMetadataSearchV1(fixture, index);
+  const selectedScene = measureV1(() => readAdmitCompileCurrentSceneV1(fixture));
+  const currentObjectSearch = measureCurrentObjectSearchV1(fixture, selectedScene.value);
+  const facetProjection = measureV1(() =>
+    projectCurrentSceneFacetsV1(fixture, selectedScene.value)
+  );
+  const work = counterDeltaV1(before, owner.counters());
+  assertWorkV1("Inspector cached read side", work, {
+    treeWalks: 0,
+    fileReads: 0,
+    parses: 0,
+    invalidations: 0,
+  });
+  return {
+    sceneMetadataSearchMs: sceneMetadataSearch,
+    selectedSourceReadAdmitCompileMs: selectedScene.durationMs,
+    currentObjectSearchMs: currentObjectSearch,
+    facetProjectionMs: facetProjection.durationMs,
+    previewEntries: facetProjection.value.previewEntries,
+    catalogResolutions: facetProjection.value.catalogResolutions,
     work,
   };
 }
@@ -401,28 +550,34 @@ function measureSingleFileChangeV1(
   sampleIndex: number,
 ) {
   const labelSuffix = ` revision-${String(sampleIndex)}`;
+  const expectedLabel = `scene 000000${labelSuffix}`;
   const before = owner.counters();
-  const startedAt = performance.now();
-  writeFileSync(
-    fixture.changedScenePath,
-    sourceBytesV1(
-      "scene",
-      0,
-      labelSuffix,
-      fixture.changedSceneSourceKind,
-      fixture.objectsPerAuthoringScene,
-    ),
-  );
-  owner.invalidate(fixture.changedSceneRelativePath);
-  const result = owner.snapshot();
-  const durationMs = performance.now() - startedAt;
-  const changed = result.scenes.find((scene) => scene.sceneId === "scene.scale.s000000");
-  if (changed?.label !== `scene 000000${labelSuffix}`) {
-    throw new Error("single-file change was not visible through the current scene list contract");
-  }
-  if (changed.sourceKind !== fixture.changedSceneSourceKind) {
-    throw new Error("single-file change moved between scene source authorities");
-  }
+  const measured = measureV1(() => {
+    writeFileSync(
+      fixture.changedScenePath,
+      sourceBytesV1(
+        "scene",
+        0,
+        labelSuffix,
+        fixture.changedSceneSourceKind,
+        fixture.objectsPerAuthoringScene,
+      ),
+    );
+    owner.invalidate(fixture.changedSceneRelativePath);
+    const result = owner.snapshot();
+    const changed = result.scenes.find((scene) => scene.sceneId === "scene.scale.s000000");
+    if (changed?.label !== expectedLabel) {
+      throw new Error("single-file change was not visible through the current scene list contract");
+    }
+    if (changed.sourceKind !== fixture.changedSceneSourceKind) {
+      throw new Error("single-file change moved between scene source authorities");
+    }
+    if (fixture.changedSceneSourceKind !== "authoring_scene") return null;
+    return projectCurrentSceneFacetsV1(
+      fixture,
+      readAdmitCompileCurrentSceneV1(fixture, expectedLabel),
+    );
+  });
   const work = counterDeltaV1(before, owner.counters());
   assertWorkV1("single-file change", work, {
     treeWalks: 0,
@@ -430,7 +585,12 @@ function measureSingleFileChangeV1(
     parses: 1,
     invalidations: 1,
   });
-  return { durationMs, work };
+  return {
+    durationMs: measured.durationMs,
+    previewEntries: measured.value?.previewEntries ?? null,
+    catalogResolutions: measured.value?.catalogResolutions ?? null,
+    work,
+  };
 }
 
 function measureProfileV1(profile: IndexProfileV1) {
@@ -439,10 +599,14 @@ function measureProfileV1(profile: IndexProfileV1) {
     const warmup = measureColdBuildV1(fixture);
     measureListSweepV1(fixture, warmup.owner);
     measureSingleFileChangeV1(fixture, warmup.owner, 0);
+    if (profile.kind === "authoring-object-scale") {
+      measureInspectorReadSideV1(fixture, warmup.owner);
+    }
 
     const coldBuildMs: number[] = [];
     const listPortSweepMs: ReturnType<typeof measureListSweepV1>[] = [];
     const singleFileChangeToCurrent: ReturnType<typeof measureSingleFileChangeV1>[] = [];
+    const inspectorReadSide: ReturnType<typeof measureInspectorReadSideV1>[] = [];
     const coldBuildWork: AuthoringProjectIndexCountersV1[] = [];
     for (let sampleIndex = 1; sampleIndex <= sampleCountV1; sampleIndex += 1) {
       const build = measureColdBuildV1(fixture);
@@ -452,7 +616,50 @@ function measureProfileV1(profile: IndexProfileV1) {
       singleFileChangeToCurrent.push(
         measureSingleFileChangeV1(fixture, build.owner, sampleIndex),
       );
+      if (profile.kind === "authoring-object-scale") {
+        inspectorReadSide.push(measureInspectorReadSideV1(fixture, build.owner));
+      }
     }
+    const inspectorScale = profile.kind === "authoring-object-scale"
+      ? {
+        scope: {
+          sceneMetadataSearchRows: fixture.counts.scene,
+          currentSceneObjectSearchRows: fixture.objectsPerAuthoringScene,
+          selectedSource: fixture.changedSceneRelativePath,
+        },
+        measuredWork: {
+          cachedReadSideIndexOwner: inspectorReadSide.map((sample) => sample.work),
+          singleFileInvalidateToCurrentFacetIndexOwner: singleFileChangeToCurrent.map((sample) =>
+            sample.work
+          ),
+          facetCatalogResolutions: inspectorReadSide.map((sample) => sample.catalogResolutions),
+          invalidatedFacetCatalogResolutions: singleFileChangeToCurrent.map((sample) =>
+            sample.catalogResolutions
+          ),
+          previewEntries: inspectorReadSide.map((sample) => sample.previewEntries),
+          invalidatedPreviewEntries: singleFileChangeToCurrent.map((sample) =>
+            sample.previewEntries
+          ),
+        },
+        durationMs: {
+          sceneMetadataSearch: distributionV1(
+            inspectorReadSide.map((sample) => sample.sceneMetadataSearchMs),
+          ),
+          selectedSourceReadAdmitCompile: distributionV1(
+            inspectorReadSide.map((sample) => sample.selectedSourceReadAdmitCompileMs),
+          ),
+          currentSceneObjectSearch: distributionV1(
+            inspectorReadSide.map((sample) => sample.currentObjectSearchMs),
+          ),
+          currentSceneFacetProjection: distributionV1(
+            inspectorReadSide.map((sample) => sample.facetProjectionMs),
+          ),
+          singleFileInvalidateToCurrentFacet: distributionV1(
+            singleFileChangeToCurrent.map((sample) => sample.durationMs),
+          ),
+        },
+      }
+      : null;
     return {
       profile: profile.profile,
       documentCount: profile.documentCount,
@@ -460,6 +667,7 @@ function measureProfileV1(profile: IndexProfileV1) {
       sceneSourceCounts: fixture.sceneSourceCounts,
       generatedObjectCount: fixture.generatedObjectCount,
       samples: sampleCountV1,
+      inspectorScale,
       measuredWork: {
         source: "project-index-owner-counters",
         coldBuild: coldBuildWork,
@@ -473,8 +681,8 @@ function measureProfileV1(profile: IndexProfileV1) {
           sceneIndex: distributionV1(
             listPortSweepMs.map((sample) => sample.sceneIndex),
           ),
-          lowLevelScenePort: distributionV1(
-            listPortSweepMs.map((sample) => sample.lowLevelScenePort),
+          authoringScenePort: distributionV1(
+            listPortSweepMs.map((sample) => sample.authoringScenePort),
           ),
           motion: distributionV1(listPortSweepMs.map((sample) => sample.motion)),
           regions: distributionV1(listPortSweepMs.map((sample) => sample.regions)),
@@ -520,8 +728,8 @@ function repositoryStateV1() {
 
 const outputPath = outputPathV1(Deno.args);
 const report = {
-  schemaVersion: 3,
-  workload: "authoring-index-incremental-v2",
+  schemaVersion: 4,
+  workload: "authoring-index-incremental-v3",
   generatedAt: new Date().toISOString(),
   repository: repositoryStateV1(),
   environment: {
@@ -536,8 +744,14 @@ const report = {
     generatedDocumentsAreTemporary: true,
     scaleProfileContainsOneThousandAuthoringScenesAndFiftyThousandObjects: true,
     coldBuildMeansFreshIndexInstanceAfterWarmup: true,
-    cachedListSweepUsesOneSharedSnapshotAcrossIndexAndLegacyFamilyViews: true,
+    cachedListSweepUsesOneSharedSnapshotAcrossIndexAndFamilyViews: true,
     singleFileChangeInvalidatesOnePathOnTheSameOwner: true,
+    scaleSceneSearchReadsOnlyOneThousandProjectMetadataRows: true,
+    scaleObjectSearchReadsOnlyTheSelectedFiftyObjectScene: true,
+    selectedSceneSourceIsReadAdmittedAndCompiledOnlyAfterSelection: true,
+    selectedSceneFacetProjectionUsesTheDetachedStageTarget: true,
+    scaleSingleFileRefreshRebuildsOnlyTheCurrentSceneResult: true,
+    scaleSingleFileChangeTimingIncludesReadAdmitCompileAndFacetProjection: true,
     counterDeltasAreMeasuredByTheProjectIndexOwner: true,
     counterDeltasAreStructuralAcceptanceNotMachineTimingThresholds: true,
   },

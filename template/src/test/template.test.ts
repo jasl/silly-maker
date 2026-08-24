@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
+import { parseTextCatalogSetV1 } from "@sillymaker/base";
 import { lintNarrativeGraph, sampleMotionAt } from "@sillymaker/base/story";
 import { createGameHarnessV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
 
@@ -11,7 +12,6 @@ import type { TemplateInteractionDocV1 } from "../story/narrative-kit.ts";
 import { compileTemplateInteractionDocV1 } from "../story/narrative-kit.ts";
 import { projectTemplateNarrativeGraphV1 } from "../story/narrative-graph.ts";
 import { templateCompiledOpeningV1, templateScriptV1 } from "../story/narrative.ts";
-import { projectTemplateNarrativeFlowV1, templateFlowGraphV1 } from "../tooling/narrative-flow.ts";
 import {
   templateStageContentCatalogV1,
   templateStageTransitionCatalogV1,
@@ -20,8 +20,13 @@ import {
 import { templateOpeningAmbientCatalogV1 } from "../scenes/opening/index.ts";
 import { templateSemanticAdapterV1 } from "../application/semantic.ts";
 import { templateStoryEntryV1 } from "../story.ts";
-import { templateAuthoringTextForLocaleV1 } from "../tooling/text-content.ts";
 import { templateTextContentManifestV1 } from "../content/text-content.ts";
+import endingPackDocumentV1 from "../../assets/content/ending.text-pack.json" with {
+  type: "json",
+};
+import openingPackDocumentV1 from "../../assets/content/opening.text-pack.json" with {
+  type: "json",
+};
 
 function probeDocV1(
   doc: Omit<TemplateInteractionDocV1, "prefix" | "docId">,
@@ -33,17 +38,6 @@ function compileDocV1(
   doc: Omit<TemplateInteractionDocV1, "prefix" | "docId">,
 ): ReturnType<typeof compileTemplateInteractionDocV1> {
   return compileTemplateInteractionDocV1({ doc: probeDocV1(doc) });
-}
-
-function compileDocWithFlowV1(
-  doc: Omit<TemplateInteractionDocV1, "prefix" | "docId">,
-) {
-  const sourceDoc = probeDocV1(doc);
-  const compiled = compileTemplateInteractionDocV1({ doc: sourceDoc });
-  return ({
-    compiled,
-    flowGraph: projectTemplateNarrativeFlowV1(compiled, sourceDoc),
-  });
 }
 
 function currentOccurrenceIdV1(
@@ -108,36 +102,29 @@ describe("template story baseline", () => {
   });
 
   it("resolves every referenced textId from bootstrap or authoring packs", () => {
-    const catalog = templateTextCatalogsV1.catalogs.find(
-      (candidate) => candidate.locale === templateTextCatalogsV1.defaultLocale,
+    const catalogSets = [
+      templateTextCatalogsV1,
+      parseTextCatalogSetV1(openingPackDocumentV1.textCatalogs),
+      parseTextCatalogSetV1(endingPackDocumentV1.textCatalogs),
+    ];
+    const known = new Set(
+      catalogSets.flatMap((catalogSet) =>
+        catalogSet.catalogs.flatMap((catalog) =>
+          catalog.entries.map((entry) => entry.textId as string)
+        )
+      ),
     );
-    const known = new Set(catalog?.entries.map((entry) => entry.textId as string));
     for (const node of templateScriptV1) {
       if (node.kind === "say") {
-        expect(
-          known.has(node.textId) || templateAuthoringTextForLocaleV1(null, node.textId) !== null,
-          node.nodeId,
-        ).toBe(true);
+        expect(known.has(node.textId), node.nodeId).toBe(true);
         if (node.speakerTextId !== null) {
-          expect(
-            known.has(node.speakerTextId) ||
-              templateAuthoringTextForLocaleV1(null, node.speakerTextId) !== null,
-            node.nodeId,
-          ).toBe(true);
+          expect(known.has(node.speakerTextId), node.nodeId).toBe(true);
         }
       }
       if (node.kind === "choice") {
-        expect(
-          known.has(node.promptTextId) ||
-            templateAuthoringTextForLocaleV1(null, node.promptTextId) !== null,
-          node.nodeId,
-        ).toBe(true);
+        expect(known.has(node.promptTextId), node.nodeId).toBe(true);
         for (const option of node.options) {
-          expect(
-            known.has(option.textId) ||
-              templateAuthoringTextForLocaleV1(null, option.textId) !== null,
-            option.choiceId,
-          ).toBe(true);
+          expect(known.has(option.textId), option.choiceId).toBe(true);
         }
       }
     }
@@ -168,7 +155,7 @@ describe("template story baseline", () => {
   });
 
   it("keeps external text references out of the runtime compiler's inline entries", () => {
-    const { compiled, flowGraph } = compileDocWithFlowV1({
+    const compiled = compileDocV1({
       speakers: {
         inline: "内联姓名",
         mei: { textId: "text.shared.speaker.mei" },
@@ -209,12 +196,10 @@ describe("template story baseline", () => {
       promptTextId: "text.shared.prompt",
       options: [{ textId: "text.shared.choice.go" }],
     });
-    expect(flowGraph.nodes[0]).toMatchObject({ summary: "text.shared.line" });
-    expect(flowGraph.nodes[1]).toMatchObject({ summary: "text.shared.prompt / go" });
   });
 
   it("compiles hold blocks with an opening stage batch and jump redirection", () => {
-    const { compiled, flowGraph } = compileDocWithFlowV1({
+    const compiled = compileDocV1({
       entry: "wait",
       blocks: [
         {
@@ -251,16 +236,10 @@ describe("template story baseline", () => {
       skippable: true,
       next: "node.template.again",
     });
-    expect(flowGraph.nodes.find((node) => node.nodeId === "node.template.wait"))
-      .toMatchObject({ kind: "hold", summary: "hold 500ms skippable" });
-    // The stage→hold edge keeps the flow projection connected.
-    expect(flowGraph.edges).toContainEqual(
-      expect.objectContaining({ from: "node.template.wait-stage", to: "node.template.wait" }),
-    );
   });
 
   it("compiles a bare hold without ops onto the current stage picture", () => {
-    const { compiled, flowGraph } = compileDocWithFlowV1({
+    const compiled = compileDocV1({
       entry: "beat",
       blocks: [
         { kind: "hold", name: "beat", durationMs: 240, next: "close" },
@@ -274,12 +253,10 @@ describe("template story baseline", () => {
       skippable: false,
       when: [],
     });
-    expect(flowGraph.nodes.find((node) => node.nodeId === "node.template.beat"))
-      .toMatchObject({ kind: "hold", summary: "hold 240ms" });
   });
 
-  it("compiles hold `when` arms with resolved targets and labeled reroute edges", () => {
-    const { compiled, flowGraph } = compileDocWithFlowV1({
+  it("compiles hold `when` arms with resolved targets", () => {
+    const compiled = compileDocV1({
       entry: "watch",
       blocks: [
         {
@@ -322,20 +299,6 @@ describe("template story baseline", () => {
       ],
       next: "node.template.close",
     });
-    // Reroute edges precede the expiry edge, in declaration order.
-    const outgoing = flowGraph.edges.filter((edge) => edge.from === "node.template.watch");
-    expect(outgoing).toEqual([
-      expect.objectContaining({
-        to: "node.template.caught",
-        label: { kind: "branch", condition: "when flag.template.spotted" },
-      }),
-      expect.objectContaining({
-        to: "node.template.rest-stage",
-        label: { kind: "branch", condition: "when flag.template.tired" },
-      }),
-      expect.objectContaining({ to: "node.template.close", label: { kind: "next" } }),
-    ]);
-
     // Admission rejects empty arm lists, blank flags, unresolved targets.
     expect(() =>
       compileDocV1({
@@ -516,69 +479,6 @@ describe("template story baseline", () => {
         ],
       })
     ).not.toThrow();
-  });
-
-  it("projects the labeled flow graph with document grouping", () => {
-    const stageNode = templateFlowGraphV1.nodes.find(
-      (node) => node.nodeId === "node.template.opening",
-    );
-    expect(stageNode).toMatchObject({
-      kind: "stage",
-      docId: "doc.template.opening",
-      blockName: "opening",
-      summary: "cue:scene.template.opening/courtyard + cue:scene.template.opening/mist",
-      source: "interaction-doc:doc.template.opening#opening",
-    });
-    const lookEdge = templateFlowGraphV1.edges.find(
-      (edge) =>
-        edge.from === "node.template.first-choice" &&
-        edge.label.kind === "choice" &&
-        edge.label.choiceId === "choice.template.look",
-    );
-    expect(lookEdge).toMatchObject({
-      to: "node.template.cat-line",
-      label: {
-        kind: "choice",
-        textId: "text.template.choice.look",
-        text: "去看看檐下的动静",
-        gates: [],
-      },
-    });
-    const gateEdge = templateFlowGraphV1.edges.find(
-      (edge) =>
-        edge.from === "node.template.ending-gate" && edge.to === "node.template.ending-warm",
-    );
-    expect(gateEdge).toMatchObject({
-      label: { kind: "branch", condition: "flag flag.template.cat_found" },
-    });
-    // The choice block projects with the shared flow vocabulary ("menu").
-    const menuNode = templateFlowGraphV1.nodes.find(
-      (node) => node.nodeId === "node.template.first-choice",
-    );
-    expect(menuNode?.kind).toBe("menu");
-    expect(menuNode?.summary).toBe(
-      "接下来做什么？ / 去看看檐下的动静 / 小跑过去看个究竟 / 先回屋里",
-    );
-    // The hold beat projects its authoritative duration; its opening ops
-    // stage node precedes it in the same document.
-    const holdNode = templateFlowGraphV1.nodes.find(
-      (node) => node.nodeId === "node.template.mei-fetches",
-    );
-    expect(holdNode).toMatchObject({ kind: "hold", summary: "hold 600ms" });
-    expect(templateFlowGraphV1.edges).toContainEqual(
-      expect.objectContaining({
-        from: "node.template.mei-fetches-stage",
-        to: "node.template.mei-fetches",
-      }),
-    );
-    // The declared-condition reroute projects as a labeled edge off the
-    // hold, so Flow shows the abort path next to the expiry path.
-    const rerouteEdge = templateFlowGraphV1.edges.find(
-      (edge) => edge.from === "node.template.mei-fetches" && edge.to === "node.template.hurry-line",
-    );
-    expect(rerouteEdge).toMatchObject({
-      label: { kind: "branch", condition: "when flag.template.hurried" },
-    });
   });
 
   it("keeps branch choosers inside their static successor annotations", () => {

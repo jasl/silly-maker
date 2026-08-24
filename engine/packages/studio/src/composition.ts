@@ -13,43 +13,37 @@ import type {
 } from "@sillymaker/composition";
 import type { MotionSourceIoV1 } from "@sillymaker/ui/debug";
 
-import type { StudioBindingV1 } from "./core/binding.ts";
-import type { ChromeLayoutSourceIoV1 } from "./core/chrome-layout-io.ts";
-import type { RegionsSourceIoV1 } from "./core/regions-io.ts";
-import type { SceneSourceIoV1 } from "./core/scene-io.ts";
+import type { AuthoringSceneSourceIoV1 } from "./core/authoring-scene-io.ts";
+import type { InspectorBindingV1 } from "./core/binding.ts";
 
-export { createStudioToolingReactPublicationV1 } from "./react-publication.tsx";
+export { createInspectorToolingReactPublicationV1 } from "./react-publication.tsx";
 export type {
-  CreateStudioToolingReactPublicationInputV1,
-  StudioToolingReactPublicationV1,
+  CreateInspectorToolingReactPublicationInputV1,
+  InspectorToolingReactPublicationV1,
 } from "./react-publication.tsx";
 
 /**
- * The direct, Context-free inputs consumed by one mounted Studio shell.
+ * The direct, Context-free inputs consumed by one mounted Inspector shell.
  * They are tooling and presentation ports only; no State Runtime or Session
  * authority is admitted into this live profile.
  */
-export interface StudioToolingPlanV1 {
-  readonly binding: StudioBindingV1;
-  readonly sceneIo: SceneSourceIoV1;
+export interface InspectorToolingPlanV1 {
+  readonly binding: InspectorBindingV1;
+  readonly sceneIo: AuthoringSceneSourceIoV1;
   readonly motionIo: MotionSourceIoV1;
-  /** Optional outside Vite Studio; when present its identity is stable across successors. */
-  readonly regionsIo?: RegionsSourceIoV1;
-  /** Optional outside Vite Studio; when present its identity is stable across successors. */
-  readonly chromeIo?: ChromeLayoutSourceIoV1;
 }
 
-export interface StudioToolingLiveRootInputV1 extends StudioToolingPlanV1 {
+export interface InspectorToolingLiveRootInputV1 extends InspectorToolingPlanV1 {
   /** Positive safe integer advanced by the HMR owner for each candidate. */
   readonly revision: number;
 }
 
-export interface StudioToolingLiveCompositionV1 {
-  mount(input: StudioToolingLiveRootInputV1): Promise<StudioToolingPlanV1>;
+export interface InspectorToolingLiveCompositionV1 {
+  mount(input: InspectorToolingLiveRootInputV1): Promise<InspectorToolingPlanV1>;
   reload(
-    input: StudioToolingLiveRootInputV1,
-    publish: StudioToolingPlanPublisherV1,
-  ): Promise<StudioToolingPlanV1>;
+    input: InspectorToolingLiveRootInputV1,
+    publish: InspectorToolingPlanPublisherV1,
+  ): Promise<InspectorToolingPlanV1>;
   getSnapshot(): CompositionSnapshotV1 | null;
   getDiagnostics(): readonly CompositionCleanupDiagnosticV1[];
   dispose(): Promise<void>;
@@ -60,37 +54,35 @@ export interface StudioToolingLiveCompositionV1 {
  * observable. React callers must acknowledge an actual layout commit; the
  * synchronous return from `root.render()` is not an acknowledgement.
  */
-export type StudioToolingPlanPublisherV1 = (
-  plan: StudioToolingPlanV1,
+export type InspectorToolingPlanPublisherV1 = (
+  plan: InspectorToolingPlanV1,
 ) => PromiseLike<void>;
 
-export interface CreateStudioToolingLiveCompositionOptionsV1 {
+export interface CreateInspectorToolingLiveCompositionOptionsV1 {
   readonly profileId: string;
   readonly onDiagnostic?: CompositionKernelOptionsV1["onDiagnostic"];
 }
 
-const studioToolingRootPluginIdV1 = "sillymaker.studio.tooling-root";
-const studioToolingRootTokenV1 = createCompositionServiceTokenV1<StudioToolingPlanV1>(
-  "sillymaker.studio.tooling-root",
+const inspectorToolingRootPluginIdV1 = "sillymaker.inspector.tooling-root";
+const inspectorToolingRootTokenV1 = createCompositionServiceTokenV1<InspectorToolingPlanV1>(
+  "sillymaker.inspector.tooling-root",
 );
 
 function profileV1(
   profileId: string,
-  input: StudioToolingLiveRootInputV1,
+  input: InspectorToolingLiveRootInputV1,
 ) {
   const plan = {
     binding: input.binding,
     sceneIo: input.sceneIo,
     motionIo: input.motionIo,
-    ...(input.regionsIo === undefined ? {} : { regionsIo: input.regionsIo }),
-    ...(input.chromeIo === undefined ? {} : { chromeIo: input.chromeIo }),
   };
   const plugin = defineCompositionPluginV1({
-    id: studioToolingRootPluginIdV1,
+    id: inspectorToolingRootPluginIdV1,
     revision: input.revision,
-    provides: [studioToolingRootTokenV1],
+    provides: [inspectorToolingRootTokenV1],
     setup(scope) {
-      scope.provide(studioToolingRootTokenV1, plan);
+      scope.provide(inspectorToolingRootTokenV1, plan);
     },
   });
   return defineCompositionProfileV1({
@@ -100,32 +92,32 @@ function profileV1(
   });
 }
 
-function compilePlanV1(snapshot: CompositionSnapshotV1): StudioToolingPlanV1 {
-  return snapshot.compileDirectPlan((resolve) => resolve.use(studioToolingRootTokenV1));
+function compilePlanV1(snapshot: CompositionSnapshotV1): InspectorToolingPlanV1 {
+  return snapshot.compileDirectPlan((resolve) => resolve.use(inspectorToolingRootTokenV1));
 }
 
 /**
- * Creates the Studio page's independent live composition root. Candidate
+ * Creates the Inspector page's independent live composition root. Candidate
  * setup settles before publication. Reload keeps the previous snapshot live
  * until the consumer acknowledges the candidate plan, then retires the
  * previous providers and returns the published plan. Arbitrary lifecycle
- * effects are intentionally not accepted by this Studio root.
+ * effects are intentionally not accepted by this Inspector root.
  */
-export function createStudioToolingLiveCompositionV1(
-  options: CreateStudioToolingLiveCompositionOptionsV1,
-): StudioToolingLiveCompositionV1 {
+export function createInspectorToolingLiveCompositionV1(
+  options: CreateInspectorToolingLiveCompositionOptionsV1,
+): InspectorToolingLiveCompositionV1 {
   const kernel: CompositionKernelV1 = createCompositionKernelV1(
     options.onDiagnostic === undefined ? {} : { onDiagnostic: options.onDiagnostic },
   );
   return {
-    async mount(input: StudioToolingLiveRootInputV1): Promise<StudioToolingPlanV1> {
+    async mount(input: InspectorToolingLiveRootInputV1): Promise<InspectorToolingPlanV1> {
       return compilePlanV1(await kernel.mount(profileV1(options.profileId, input)));
     },
     async reload(
-      input: StudioToolingLiveRootInputV1,
-      publish: StudioToolingPlanPublisherV1,
-    ): Promise<StudioToolingPlanV1> {
-      let publishedPlan: StudioToolingPlanV1 | null = null;
+      input: InspectorToolingLiveRootInputV1,
+      publish: InspectorToolingPlanPublisherV1,
+    ): Promise<InspectorToolingPlanV1> {
+      let publishedPlan: InspectorToolingPlanV1 | null = null;
       await kernel.reload(profileV1(options.profileId, input), async (candidate) => {
         const plan = compilePlanV1(candidate);
         const acknowledgement = publish(plan);
@@ -134,19 +126,19 @@ export function createStudioToolingLiveCompositionV1(
           typeof acknowledgement !== "function"
         ) {
           throw new TypeError(
-            "Studio publication must return a layout-commit acknowledgement Promise",
+            "Inspector publication must return a layout-commit acknowledgement Promise",
           );
         }
         if (typeof (acknowledgement as { readonly then?: unknown }).then !== "function") {
           throw new TypeError(
-            "Studio publication must return a layout-commit acknowledgement Promise",
+            "Inspector publication must return a layout-commit acknowledgement Promise",
           );
         }
         await acknowledgement;
         publishedPlan = plan;
       });
       if (publishedPlan === null) {
-        throw new TypeError("Studio candidate completed without consumer publication");
+        throw new TypeError("Inspector candidate completed without consumer publication");
       }
       return publishedPlan;
     },
@@ -156,7 +148,7 @@ export function createStudioToolingLiveCompositionV1(
   };
 }
 
-export interface StudioToolingHmrCoordinatorV1<TModule> {
+export interface InspectorToolingHmrCoordinatorV1<TModule> {
   /** Queues one module accepted by the generated Vite boundary. */
   accept(module: TModule | undefined): void;
   /** Resolves after every transition queued before this call has settled. */
@@ -165,14 +157,14 @@ export interface StudioToolingHmrCoordinatorV1<TModule> {
   dispose(): Promise<void>;
 }
 
-export interface CreateStudioToolingHmrCoordinatorInputV1<TModule> {
-  readonly composition: StudioToolingLiveCompositionV1;
-  resolveRoot(module: TModule | undefined): StudioToolingLiveRootInputV1;
+export interface CreateInspectorToolingHmrCoordinatorInputV1<TModule> {
+  readonly composition: InspectorToolingLiveCompositionV1;
+  resolveRoot(module: TModule | undefined): InspectorToolingLiveRootInputV1;
   /**
    * Resolves only after the candidate consumer has committed. It must observe
    * `signal` and reject promptly with `signal.reason` when closing aborts it.
    */
-  publish(plan: StudioToolingPlanV1, signal: AbortSignal): PromiseLike<void>;
+  publish(plan: InspectorToolingPlanV1, signal: AbortSignal): PromiseLike<void>;
   disposeRoot(): void;
   reportFailure?(error: unknown): void;
 }
@@ -183,9 +175,9 @@ export interface CreateStudioToolingHmrCoordinatorInputV1<TModule> {
  * literal `import.meta.hot.accept("/module", ...)` call that Vite must analyze.
  * Every asynchronous failure is reported observationally and absorbed.
  */
-export function createStudioToolingHmrCoordinatorV1<TModule>(
-  input: CreateStudioToolingHmrCoordinatorInputV1<TModule>,
-): StudioToolingHmrCoordinatorV1<TModule> {
+export function createInspectorToolingHmrCoordinatorV1<TModule>(
+  input: CreateInspectorToolingHmrCoordinatorInputV1<TModule>,
+): InspectorToolingHmrCoordinatorV1<TModule> {
   let transition: Promise<void> = Promise.resolve();
   let closing = false;
   let activePublication: AbortController | null = null;
@@ -238,7 +230,7 @@ export function createStudioToolingHmrCoordinatorV1<TModule>(
   const requestDispose = (): void => {
     if (closing) return;
     closing = true;
-    activePublication?.abort(new DOMException("Studio HMR is closing", "AbortError"));
+    activePublication?.abort(new DOMException("Inspector HMR is closing", "AbortError"));
     enqueue(async () => {
       try {
         input.disposeRoot();

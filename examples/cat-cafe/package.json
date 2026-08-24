@@ -31,7 +31,6 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "@sillymaker/studio": "workspace:*",
     "@sillymaker/tooling": "workspace:*",
     "@testing-library/jest-dom": "7.0.1",
     "@types/node": "26.2.0",

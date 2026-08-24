@@ -4,18 +4,13 @@ import type { ReactElement, ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 
-import type { StudioToolingPlanV1 } from "./composition.ts";
+import type { InspectorToolingPlanV1 } from "./composition.ts";
 import { createAuthoringHostInternalV1 } from "./core/authoring-host.ts";
 import type { AuthoringHostInternalV1 } from "./core/authoring-host.ts";
 import { EmbeddedAuthoringSurfaceInternalV1 } from "./embedded-authoring.tsx";
 import { resolveEmbeddedAuthoringCompanionInternalV1 } from "./core/embedded-authoring-companion.ts";
 import type { EmbeddedAuthoringCompanionOwnerInternalV1 } from "./core/embedded-authoring-companion.ts";
-import { AuthoringHostSurfaceInternalV1 } from "./studio-app.tsx";
-import type { FlowWorkspaceLoaderInternalV1 } from "./workspaces/flow/flow-workspace-activation.tsx";
-import {
-  authoringWorkspaceContractInternalV1,
-  authoringWorkspaceManifestInternalV1,
-} from "./workspaces/workspace-manifest.ts";
+import { InspectorHostSurfaceInternalV1 } from "./inspector/inspector-app.tsx";
 
 interface LayoutCommitV1Props {
   readonly children: ReactNode;
@@ -200,7 +195,7 @@ export function createPersistentReactLayoutPublicationInternalV1<TPlan>(
   ): Promise<ManagedPersistentReactRootInternalV1> => {
     const ownerDocument = input.container.ownerDocument ?? document;
     const host = ownerDocument.createElement("div");
-    host.dataset.sillymakerStudioEpoch = "probe";
+    host.dataset.sillymakerAuthoringEpoch = "probe";
     host.setAttribute("aria-hidden", "true");
     host.setAttribute("inert", "");
     host.style.position = "fixed";
@@ -252,7 +247,7 @@ export function createPersistentReactLayoutPublicationInternalV1<TPlan>(
       busy = true;
       const ownerDocument = input.container.ownerDocument ?? document;
       const host = ownerDocument.createElement("div");
-      host.dataset.sillymakerStudioEpoch = "current";
+      host.dataset.sillymakerAuthoringEpoch = "current";
       const managed = createManagedRoot(host);
       try {
         // The initial commit must observe its real connected layout. Unlike a
@@ -339,41 +334,34 @@ export function createPersistentReactLayoutPublicationInternalV1<TPlan>(
   };
 }
 
-export interface StudioToolingReactPublicationV1 {
-  mount(plan: StudioToolingPlanV1): Promise<void>;
-  publish(plan: StudioToolingPlanV1, signal: AbortSignal): Promise<void>;
+export interface InspectorToolingReactPublicationV1 {
+  mount(plan: InspectorToolingPlanV1): Promise<void>;
+  publish(plan: InspectorToolingPlanV1, signal: AbortSignal): Promise<void>;
   dispose(): void;
 }
 
-export interface CreateStudioToolingReactPublicationInputV1 {
+export interface CreateInspectorToolingReactPublicationInputV1 {
   readonly container: Element | DocumentFragment;
   /** Standalone route by default; the dev game entry selects the embedded shell. */
   readonly mode?: "standalone" | "embedded";
   readonly reportFailure?: (error: unknown) => void;
 }
 
-export interface CreateStudioToolingReactPublicationInputInternalV1
-  extends CreateStudioToolingReactPublicationInputV1 {
-  /** Focused-test seam; production always uses the build-known literal loader. */
-  readonly loadFlowWorkspace?: FlowWorkspaceLoaderInternalV1;
-}
+export type CreateInspectorToolingReactPublicationInputInternalV1 =
+  CreateInspectorToolingReactPublicationInputV1;
 
 /**
  * Owns one Authoring Host and one persistent visible React root. Every R1
  * successor first proves itself in an inert, document-connected probe, then
  * re-renders the same visible root. The Host, document sessions, selection,
- * workspace state and compatible component-local editor state therefore
+ * selection and compatible component-local Inspector state therefore
  * survive both rejected and accepted candidates.
  */
-export function createStudioToolingReactPublicationInternalV1(
-  input: CreateStudioToolingReactPublicationInputInternalV1,
-): StudioToolingReactPublicationV1 {
-  let sceneIo: StudioToolingPlanV1["sceneIo"] | null = null;
-  let motionIo: StudioToolingPlanV1["motionIo"] | null = null;
-  let regionsIoInitialized = false;
-  let regionsIo: StudioToolingPlanV1["regionsIo"];
-  let chromeIoInitialized = false;
-  let chromeIo: StudioToolingPlanV1["chromeIo"];
+export function createInspectorToolingReactPublicationInternalV1(
+  input: CreateInspectorToolingReactPublicationInputInternalV1,
+): InspectorToolingReactPublicationV1 {
+  let sceneIo: InspectorToolingPlanV1["sceneIo"] | null = null;
+  let motionIo: InspectorToolingPlanV1["motionIo"] | null = null;
   let host: AuthoringHostInternalV1 | null = null;
   let companionOwner: EmbeddedAuthoringCompanionOwnerInternalV1 | null = null;
   let companionConfigurationInitialized = false;
@@ -402,55 +390,24 @@ export function createStudioToolingReactPublicationInternalV1(
       }
     });
   };
-  const publication = createPersistentReactLayoutPublicationInternalV1<StudioToolingPlanV1>({
+  const publication = createPersistentReactLayoutPublicationInternalV1<InspectorToolingPlanV1>({
     container: input.container,
     ...(input.reportFailure === undefined ? {} : { reportFailure: input.reportFailure }),
     onTerminalFailure: disposeOwners,
     render(plan, target) {
-      const workspaceManifest = authoringWorkspaceManifestInternalV1({
-        hasFlow: plan.binding.flow !== undefined,
-        hasRegionsIo: plan.regionsIo !== undefined,
-        hasChromeIo: plan.chromeIo !== undefined,
-      });
-      if (
-        host !== null &&
-        host.getSnapshot().workspaceContractSignature !==
-          authoringWorkspaceContractInternalV1(workspaceManifest).signature
-      ) {
-        throw new TypeError("Studio live publication cannot replace its workspace contract");
-      }
       if (sceneIo === null) {
         sceneIo = plan.sceneIo;
       } else if (plan.sceneIo !== sceneIo) {
-        throw new TypeError("Studio live publication cannot replace its scene IO owner");
+        throw new TypeError("Inspector live publication cannot replace its scene IO owner");
       }
       if (motionIo === null) {
         motionIo = plan.motionIo;
       } else if (plan.motionIo !== motionIo) {
-        throw new TypeError("Studio live publication cannot replace its motion IO owner");
-      }
-      if (!regionsIoInitialized) {
-        regionsIoInitialized = true;
-        regionsIo = plan.regionsIo;
-      } else if (plan.regionsIo !== regionsIo) {
-        throw new TypeError("Studio live publication cannot replace its regions IO owner");
-      }
-      if (!chromeIoInitialized) {
-        chromeIoInitialized = true;
-        chromeIo = plan.chromeIo;
-      } else if (plan.chromeIo !== chromeIo) {
-        throw new TypeError("Studio live publication cannot replace its chrome IO owner");
+        throw new TypeError("Inspector live publication cannot replace its motion IO owner");
       }
       host ??= createAuthoringHostInternalV1({
-        workspaceManifest,
         sceneIo: plan.sceneIo,
         motionIo: plan.motionIo,
-        ...(plan.regionsIo === undefined ? {} : { regionsIo: plan.regionsIo }),
-        ...(plan.chromeIo === undefined ? {} : { chromeIo: plan.chromeIo }),
-        ...(input.loadFlowWorkspace === undefined
-          ? {}
-          : { loadFlowWorkspace: input.loadFlowWorkspace }),
-        ...(input.reportFailure === undefined ? {} : { reportFailure: input.reportFailure }),
       });
       const companionDefinition = mode === "embedded"
         ? resolveEmbeddedAuthoringCompanionInternalV1(plan.binding)
@@ -467,7 +424,7 @@ export function createStudioToolingReactPublicationInternalV1(
         (companionDefinition?.contentSignature ?? null) !== companionContentSignature
       ) {
         throw new TypeError(
-          "Studio live publication cannot replace its embedded companion owner or contract",
+          "Inspector live publication cannot replace its embedded companion owner or contract",
         );
       }
       const viewId = target === "visible" ? visibleViewId : nextProbeViewId++;
@@ -476,7 +433,6 @@ export function createStudioToolingReactPublicationInternalV1(
           <EmbeddedAuthoringSurfaceInternalV1
             host={host}
             binding={plan.binding}
-            workspaceManifest={workspaceManifest}
             publicationRole={target}
             viewId={viewId}
             {...(companionDefinition === null || companionOwner === null ? {} : {
@@ -488,10 +444,9 @@ export function createStudioToolingReactPublicationInternalV1(
           />
         )
         : (
-          <AuthoringHostSurfaceInternalV1
+          <InspectorHostSurfaceInternalV1
             host={host}
             binding={plan.binding}
-            workspaceManifest={workspaceManifest}
             mode="standalone"
             publicationRole={target}
             viewId={viewId}
@@ -500,8 +455,9 @@ export function createStudioToolingReactPublicationInternalV1(
     },
   });
   return {
-    mount: (plan: StudioToolingPlanV1) => publication.mount(plan),
-    publish: (plan: StudioToolingPlanV1, signal: AbortSignal) => publication.publish(plan, signal),
+    mount: (plan: InspectorToolingPlanV1) => publication.mount(plan),
+    publish: (plan: InspectorToolingPlanV1, signal: AbortSignal) =>
+      publication.publish(plan, signal),
     dispose(): void {
       publication.dispose();
       disposeOwners();
@@ -509,8 +465,8 @@ export function createStudioToolingReactPublicationInternalV1(
   };
 }
 
-export function createStudioToolingReactPublicationV1(
-  input: CreateStudioToolingReactPublicationInputV1,
-): StudioToolingReactPublicationV1 {
-  return createStudioToolingReactPublicationInternalV1(input);
+export function createInspectorToolingReactPublicationV1(
+  input: CreateInspectorToolingReactPublicationInputV1,
+): InspectorToolingReactPublicationV1 {
+  return createInspectorToolingReactPublicationInternalV1(input);
 }

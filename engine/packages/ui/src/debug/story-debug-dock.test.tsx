@@ -325,7 +325,7 @@ describe("StoryDebugDockV1", () => {
       listFromRegistry: true,
       capabilities: fakeCapabilitiesV1({ debugTools: true, cheats: false }),
       grantCapabilitiesOnOpen: false,
-      studioHref: "/__sillymaker/studio/",
+      inspectorHref: "/__sillymaker/inspector/",
       presentationRate: createPresentationRatePortV1({
         inner: createManualPresentationClockV1(),
       }),
@@ -361,7 +361,7 @@ describe("StoryDebugDockV1", () => {
       .toBeVisible();
     const tools = screen.getByRole("group", { name: "工具" });
     expect(within(tools).getByRole("button", { name: "Motion 工坊" })).toBeVisible();
-    expect(within(tools).getByRole("link", { name: "Studio" })).toBeVisible();
+    expect(within(tools).getByRole("link", { name: "Inspector" })).toBeVisible();
     expect(
       within(screen.getByRole("group", { name: "作弊" })).getByRole("button", { name: "作弊" }),
     ).toBeDisabled();
@@ -372,21 +372,21 @@ describe("StoryDebugDockV1", () => {
     expect(screen.queryByRole("group", { name: "危险" })).not.toBeInTheDocument();
   });
 
-  it("opens Studio in a new tab when the page is advertised", async () => {
-    renderDockV1({ studioHref: "/__sillymaker/studio/" });
+  it("opens Inspector in a new tab when the page is advertised", async () => {
+    renderDockV1({ inspectorHref: "/__sillymaker/inspector/" });
     await userEvent.setup().click(screen.getByText("调试"));
-    const studio = within(screen.getByRole("group", { name: "工具" })).getByRole("link", {
-      name: "Studio",
+    const inspector = within(screen.getByRole("group", { name: "工具" })).getByRole("link", {
+      name: "Inspector",
     });
-    expect(studio).toHaveAttribute("href", "/__sillymaker/studio/");
-    expect(studio).toHaveAttribute("target", "_blank");
-    expect(studio).toHaveAttribute("rel", "noopener noreferrer");
+    expect(inspector).toHaveAttribute("href", "/__sillymaker/inspector/");
+    expect(inspector).toHaveAttribute("target", "_blank");
+    expect(inspector).toHaveAttribute("rel", "noopener noreferrer");
   });
 
-  it("ignores unsafe Studio hrefs", async () => {
-    renderDockV1({ studioHref: "javascript:alert(1)" });
+  it("ignores unsafe Inspector hrefs", async () => {
+    renderDockV1({ inspectorHref: "javascript:alert(1)" });
     await userEvent.setup().click(screen.getByText("调试"));
-    expect(screen.queryByRole("link", { name: "Studio" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Inspector" })).not.toBeInTheDocument();
   });
 
   it("grants debug_tools and cheats when the chip expands before tools exist", async () => {

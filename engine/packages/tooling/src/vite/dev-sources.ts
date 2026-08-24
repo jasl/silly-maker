@@ -7,6 +7,7 @@ import launchEditor from "launch-editor";
 import type { Plugin } from "vite";
 
 import { createAuthoringProjectIndexOwnerV1 } from "../project/authoring-index.ts";
+import { createAuthoringScenePortMiddlewareV1 } from "./authoring-scene-port.ts";
 import { createChromeLayoutPortMiddlewareV1 } from "./chrome-layout-port.ts";
 import { createMotionPortMiddlewareV1 } from "./motion-port.ts";
 import { createRegionsPortMiddlewareV1 } from "./regions-port.ts";
@@ -222,7 +223,8 @@ export function createDevSourcesMiddlewareV1(
 
 /**
  * The `vite dev`-only plugin registering the origin guard ahead of the
- * dev-sources open, motion, regions, chrome-layout, and scene ports.
+ * dev-sources open, motion, regions, chrome-layout, Authoring Scene, and
+ * low-level Scene ports.
  */
 export function devSourcesPluginV1(appRoot: string): Plugin {
   return {
@@ -244,6 +246,9 @@ export function devSourcesPluginV1(appRoot: string): Plugin {
       server.middlewares.use(createMotionPortMiddlewareV1({ appRoot, projectIndexOwner }));
       server.middlewares.use(createRegionsPortMiddlewareV1({ appRoot, projectIndexOwner }));
       server.middlewares.use(createChromeLayoutPortMiddlewareV1({ appRoot, projectIndexOwner }));
+      server.middlewares.use(
+        createAuthoringScenePortMiddlewareV1({ appRoot, projectIndexOwner }),
+      );
       server.middlewares.use(createScenePortMiddlewareV1({ appRoot, projectIndexOwner }));
     },
   };

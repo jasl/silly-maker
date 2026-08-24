@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { SceneDocumentV1 } from "@sillymaker/base";
+import type { AdmittedAuthoringSceneV1 } from "@sillymaker/base/authoring/scene";
 import type { AuthoringDocumentSessionV1 } from "@sillymaker/ui/debug";
 
 import type {
@@ -15,7 +15,7 @@ import { createSceneAuthoringOperationExecutorV1 } from "./executor.ts";
  * it exposes no path, IO, save, or Session.
  */
 export function createSceneAuthoringLocalAdapterV1(
-  session: AuthoringDocumentSessionV1<SceneDocumentV1>,
+  session: AuthoringDocumentSessionV1<AdmittedAuthoringSceneV1>,
 ): SceneAuthoringLocalAdapterV1 {
   const executor = createSceneAuthoringOperationExecutorV1(session);
   return {

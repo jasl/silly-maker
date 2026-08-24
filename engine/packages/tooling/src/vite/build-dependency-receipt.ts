@@ -525,7 +525,7 @@ export function classifyStaticGameDependencyFacetsInternalV1(
     moduleId === "engine/packages/ui/src/debug/dev-source-client.ts"
   );
   const inspectorAuthoringImplementation = uniqueModuleIds.filter((moduleId) =>
-    moduleId.startsWith("engine/packages/studio/src/workspaces/scene/scene-inspector")
+    moduleId.startsWith("engine/packages/studio/src/inspector/")
   );
   const devDockImplementation = uniqueModuleIds.filter((moduleId) =>
     moduleId.startsWith("engine/packages/ui/src/reference/reference-dev-dock") ||

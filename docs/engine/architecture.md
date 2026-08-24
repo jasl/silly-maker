@@ -23,13 +23,13 @@ package-private、explicit、default-off 的 HMR candidate 并通过指定 canar
 maintained Desktop HMR workflow 仍独立 defer 到首个包含目标语义的 stable 上重新验收；Desktop
 Authoring/Agent Host 的 R1/R2 也仍未接线。该条件性 Desktop activation defer 不排序或阻塞其他
 engine/product lane。
-同日交付的 Authoring Workspace Focus & Navigation 将 closed manifest 收口为 Host-owned
-active/visited focus、accessible rail 与单一可见 workspace；它没有改变各领域 session/State
-authority，也没有激活 Desktop HMR。
-Scale/Scene Object/Modular GUI 轮现已交付 M0–M4：静态 content plane、State hot plan、增量
-authoring index、core/outer GUI 边界和第一阶 Authoring Scene source/compiler 已落地。M5 的
-Inspector-first replacement 与旧 Studio UI 清理尚未实现；不能把 M4 的 authoring-side
-inspection projection 当成已交付的编辑器产品面。
+Authoring Workspace Focus & Navigation 曾交付 closed manifest、Host-owned focus 与单一可见
+workspace；Scale/Scene Object/Modular GUI M5 已以 clean break 取代该产品外形。当前维护面是
+standalone/embedded Inspector：它复用 Authoring Host、document session、structured operations、
+CAS/history、source IO、persistent R1 publication 与 private companion seam，但不保留旧 Studio
+route、rail、五 workspace、binding 或兼容层。M0–M5 的静态 content plane、State hot plan、增量
+authoring index、core/outer GUI 边界、Authoring Scene source/compiler 与 Inspector-first surface
+均已落地；该轮没有激活 Desktop HMR。
 
 ## 1. System context
 
@@ -57,28 +57,28 @@ Story；UI 和 Web 可以依赖 Base；具体 Story/application 可以依赖三�
 Composition profile/state bridge 尚未进入上图的 Story/application production flow；Composition 的
 workspace-only private extension runtime 只进入产品显式选择的 first-party lazy contribution graph，
 ordinary no-extension application 会从最终依赖图完全排除它。实验性的 `@sillymaker/agent` 只依赖
-Base 和 React peer，只有 workspace-private `./internal` entry。Studio core publication 与 embedded
+Base 和 React peer，只有 workspace-private `./internal` entry。Inspector core publication 与 embedded
 surface 只依赖中立的 package-private single-companion bridge；显式
 `@sillymaker/studio/internal/agent` entry 才引入 Agent client/Host/renderer。Template 的完整 generated
-Author-entry graph 保留 Authoring Host、workspaces 与 dev-source implementation，同时排除 Agent/
-RPC/experimental Agent modules；Engine Lab 的 selected graph 包含它们作为 positive control。Studio
-manifest 为该 private opt-in entry 仍声明 `@sillymaker/agent` workspace dependency，因此这项保证是
+Author-entry graph 保留 Authoring Host、Inspector 与 dev-source implementation，同时排除 Agent/
+RPC/experimental Agent modules；Engine Lab 的 selected private companion graph 包含它们作为 positive control。
+Studio package 为该 private opt-in entry 仍声明 `@sillymaker/agent` workspace dependency，因此这项保证是
 final module/source graph structural exclusion，不是 package installation 或 public ABI 保证。
 
 ## 2. Package responsibilities
 
-| Package                   | Workspace public entries                                                                                                                                                                                     | Responsibility                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@sillymaker/base`        | `.`, `./authoring`, `./runtime`, `./story`, `./testkit` + testkit subentries; workspace-only `./runtime/internal`                                                                                            | Contracts, the Story prelude and authoring kit, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, fixed static-text manifests, strict pack admission and the synchronous loaded-text session, the agent port, and reusable behavior-test helpers.                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `@sillymaker/agent`       | workspace-only `./internal`                                                                                                                                                                                  | Experimental transport-neutral RPC client and deterministic fake, bounded cross-process admission, observable Agent GUI/session Host, retained `UiArtifact` revisions, admitted `UiIntent`, and the closed React renderer. It has no root/public entry and owns no real backend/protocol, persistence, tool execution, source/Game writer, OpenUI/A2UI adapter, or external effect.                                                                                                                                                                                                                                                                                                                                              |
-| `@sillymaker/composition` | `.`, `./legacy`, `./state`; workspace-only `./internal/extension-runtime`                                                                                                                                    | Maintained internal cold-path façade for typed plugins, profiles, services, registries, direct-plan compilation, authoritative registration sealing, live reload, reversible staging-safe in-process lifecycle effects, and the neutral State-module registry bridge. Its selected private Direct extension runtime owns build-known factory activation and disposal for explicit lazy contributions. It is not a stable public Mod SDK, and no dynamic Context is part of a supported entry.                                                                                                                                                                                                                                    |
-| `@sillymaker/state`       | `.`, `./legacy`                                                                                                                                                                                              | Experimental neutral State Runtime, StateModule, StateTransaction, and StateWorkflow compatibility façade. Runtime and authoring adapters reuse the exact Base Session and transaction runner; `./legacy` exposes the same raw composition/runtime control for migration equivalence work. It is not a production Story runtime or a second persistence/replay owner.                                                                                                                                                                                                                                                                                                                                                            |
-| `@sillymaker/tooling`     | `.`, `./project` + subentries, `./vite` + subentries, `./identity/*`                                                                                                                                         | Non-browser project and Story CLI, Vite assembly, build identity, JSONL agent protocol/client, dev-only source/motion/scene write-back ports and the Studio page plugin, and package-internal Desktop preview packaging/local-server tools. Never imported by Base or browser bundles.                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `@sillymaker/studio`      | `.`, `./composition`; workspace-only `./internal/agent`                                                                                                                                                      | The dev-only Authoring Host and standalone/embedded shells: closed workspace navigation, Host-owned focus/visited state, shared Scene/Regions/Chrome sessions, Host-owned Motion, dirty/undo/redo/CAS/conflict, Scene construction, real-renderer preview, lazy Flow, and a package-private neutral single-companion bridge. `./internal/agent` explicitly selects Engine Lab's experimental Agent and is absent from the core Authoring graph. `./composition` owns live tooling and its persistent visible publication. Vite serves the standalone route and a lazy embedded launcher; Player and ordinary runtime never import Studio. It retains exact source IO owner and loads embedded implementation only on first open. |
-| `@sillymaker/ui`          | `.`, `./assets`, `./debug`, `./debug/dev-source-client`, `./diagnostics`, `./reference`, `./reference/dev-dock`, `./reference/settings`, `./styles.css`; workspace-only `./internal`, `./reference/internal` | React shell, GameViewport, UI composition and default GameRoot, stage, characters, assets, interaction/input, overlays, Narrative/WholeCanvas presentation, generic System/settings hosts, semantic/presentation bridges, recovery UI, the development-conditional source client, and the published global theme stylesheet. The focused `./reference/*` entries form the explicit copy/eject-friendly DevDock plus preset settings surface; neither implementation is re-exported from the core entry.                                                                                                                                                                                                                          |
-| `@sillymaker/web`         | `.`, `./reference`; workspace-only `./internal/application-startup`, `./internal/application-build-identity`, `./internal/application-hmr`                                                                   | Browser Host, IndexedDB record storage, files/images, Desktop-channel HTTP record/file adapters, admitted Browser/Deno Desktop startup, same-origin build-known text-pack loading and pre-dispatch readiness, `startWebGameApplicationV1`, mounting, routing, pointer input, capabilities, automation, neutral build-known outer-UI binding, and private opt-in BuildIdentity/HMR rebootstrap coordination. `./reference` explicitly binds the reference DevDock/settings surface and its lazy Direct-backed contributions; core Web never imports it.                                                                                                                                                                           |
-| `@sillymaker/story-e2e`   | `.`                                                                                                                                                                                                          | The neutral Engine Conformance Story (Engine Lab, `e2e/`): gameplay modules, narrative script, presentation catalogs, semantic actions, and application composition used to validate engine contracts.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| Story packages            | `.` per package                                                                                                                                                                                              | `template/` (the minimal starter, MIT) and `examples/*` (bookshop, cat-cafe, silly-os) each compose one self-contained application project (`sillymaker.config.ts` + `vite.config.ts`); the root `project.config.ts` only lists their directories for repository-level aggregation.                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Package                   | Workspace public entries                                                                                                                                                                                     | Responsibility                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@sillymaker/base`        | `.`, `./authoring`, `./runtime`, `./story`, `./testkit` + testkit subentries; workspace-only `./runtime/internal`                                                                                            | Contracts, the Story prelude and authoring kit, deterministic resolution, authoritative sessions, persistence orchestration, replay, diagnostics, fixed static-text manifests, strict pack admission and the synchronous loaded-text session, the agent port, and reusable behavior-test helpers.                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `@sillymaker/agent`       | workspace-only `./internal`                                                                                                                                                                                  | Experimental transport-neutral RPC client and deterministic fake, bounded cross-process admission, observable Agent GUI/session Host, retained `UiArtifact` revisions, admitted `UiIntent`, and the closed React renderer. It has no root/public entry and owns no real backend/protocol, persistence, tool execution, source/Game writer, OpenUI/A2UI adapter, or external effect.                                                                                                                                                                                                                                                                                                                                                            |
+| `@sillymaker/composition` | `.`, `./legacy`, `./state`; workspace-only `./internal/extension-runtime`                                                                                                                                    | Maintained internal cold-path façade for typed plugins, profiles, services, registries, direct-plan compilation, authoritative registration sealing, live reload, reversible staging-safe in-process lifecycle effects, and the neutral State-module registry bridge. Its selected private Direct extension runtime owns build-known factory activation and disposal for explicit lazy contributions. It is not a stable public Mod SDK, and no dynamic Context is part of a supported entry.                                                                                                                                                                                                                                                  |
+| `@sillymaker/state`       | `.`, `./legacy`                                                                                                                                                                                              | Experimental neutral State Runtime, StateModule, StateTransaction, and StateWorkflow compatibility façade. Runtime and authoring adapters reuse the exact Base Session and transaction runner; `./legacy` exposes the same raw composition/runtime control for migration equivalence work. It is not a production Story runtime or a second persistence/replay owner.                                                                                                                                                                                                                                                                                                                                                                          |
+| `@sillymaker/tooling`     | `.`, `./project` + subentries, `./vite` + subentries, `./identity/*`                                                                                                                                         | Non-browser project and Story CLI, Vite assembly, build identity, JSONL agent protocol/client, the dev-only Authoring Scene/Motion/source ports and Inspector page plugin, and package-internal Desktop preview packaging/local-server tools. Never imported by Base or ordinary Player bundles.                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `@sillymaker/studio`      | `.`, `./composition`; workspace-only `./internal/agent`                                                                                                                                                      | The dev-only Inspector, Authoring Host, and standalone/embedded shells. It owns virtualized Authoring Scene and layer/object navigation, real-renderer preview plus authoring ghost overlays, bounded transform/appearance/order edits over the shared document session/CAS/history, read-only facets and Motion/Timeline scrub, persistent R1 publication, and a package-private neutral single-companion bridge. `./internal/agent` explicitly selects Engine Lab's experimental Agent and is absent from the core Authoring graph. Vite serves the standalone Inspector route and a lazy embedded launcher; Player and ordinary runtime never import Inspector/source-write implementation. The old Studio workspace shell is not retained. |
+| `@sillymaker/ui`          | `.`, `./assets`, `./debug`, `./debug/dev-source-client`, `./diagnostics`, `./reference`, `./reference/dev-dock`, `./reference/settings`, `./styles.css`; workspace-only `./internal`, `./reference/internal` | React shell, GameViewport, UI composition and default GameRoot, stage, characters, assets, interaction/input, overlays, Narrative/WholeCanvas presentation, generic System/settings hosts, semantic/presentation bridges, recovery UI, the development-conditional source client, and the published global theme stylesheet. The focused `./reference/*` entries form the explicit copy/eject-friendly DevDock plus preset settings surface; neither implementation is re-exported from the core entry.                                                                                                                                                                                                                                        |
+| `@sillymaker/web`         | `.`, `./reference`; workspace-only `./internal/application-startup`, `./internal/application-build-identity`, `./internal/application-hmr`                                                                   | Browser Host, IndexedDB record storage, files/images, Desktop-channel HTTP record/file adapters, admitted Browser/Deno Desktop startup, same-origin build-known text-pack loading and pre-dispatch readiness, `startWebGameApplicationV1`, mounting, routing, pointer input, capabilities, automation, neutral build-known outer-UI binding, and private opt-in BuildIdentity/HMR rebootstrap coordination. `./reference` explicitly binds the reference DevDock/settings surface and its lazy Direct-backed contributions; core Web never imports it.                                                                                                                                                                                         |
+| `@sillymaker/story-e2e`   | `.`                                                                                                                                                                                                          | The neutral Engine Conformance Story (Engine Lab, `e2e/`): gameplay modules, narrative script, presentation catalogs, semantic actions, and application composition used to validate engine contracts.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Story packages            | `.` per package                                                                                                                                                                                              | `template/` (the minimal starter, MIT) and `examples/*` (bookshop, cat-cafe, silly-os) each compose one self-contained application project (`sillymaker.config.ts` + `vite.config.ts`); the root `project.config.ts` only lists their directories for repository-level aggregation.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 Cross-package imports use package exports and declared `workspace:*`
 dependencies. Application-only composition may stay internal to a Story package
@@ -96,7 +96,7 @@ Dependencies point downward; a lower entry never imports a higher one:
 2. **GUI/game runtime** — presentation, Stage, input/focus, assets, the maintained
    Browser Host, and the package-private Desktop-preview ports needed by an
    application or game.
-3. **Outer capabilities** — Studio/Inspector and source IO, reference DevDock
+3. **Outer capabilities** — Inspector and source IO, reference DevDock
    and settings UI, Agent/RPC adapters, and other product-selectable support.
    Products may compose, replace, or copy these without moving their lifecycle
    or UI implementation into the kernel.
@@ -104,7 +104,7 @@ Dependencies point downward; a lower entry never imports a higher one:
 In the current graph, `@sillymaker/base` and the experimental State facade form
 the platform-neutral floor; the core `@sillymaker/ui` and `@sillymaker/web`
 entries form the GUI/game runtime. `@sillymaker/ui/debug`, the focused
-`@sillymaker/ui/reference/*` and `@sillymaker/web/reference` entries, Studio,
+`@sillymaker/ui/reference/*` and `@sillymaker/web/reference` entries, Inspector,
 Agent internals, and Tooling are outer capabilities. Composition is a selected
 cold lifecycle service: it can build a direct plan for a GUI or outer product,
 but its lifecycle/registry machinery does not enter command, reducer, input, or
@@ -200,32 +200,25 @@ Direct and Cordis-core-derived implementations both passed the same historical
 17-case suite; Direct was selected as the only maintained backend, and the
 Cordis adapter/vendor were deleted.
 
-The first runtime consumer is Engine Lab's lazy DevDock contribution: its
+The maintained runtime consumer is Engine Lab's lazy DevDock contribution: its
 explicit `@sillymaker/web/reference` outer composition keeps a literal loader,
 while the dynamic facade imports the contribution implementation and Direct
 backend together. The reference DevDock publishes the accepted registry before
 announcing optional-ready and removes a visible contribution before retiring its
-lifecycle. The second is Studio Flow:
-the resident shell keeps only manifest metadata and a literal loader; the
-dynamic facade imports Flow plus the backend on the first visible selection of
-the Narrative Flow rail button. Both failure
-surfaces preserve the core shell and unrelated siblings.
+lifecycle. The old Studio Flow lazy workspace was removed with M5; this does not
+remove the accepted Direct extension runtime or Narrative Flow projection.
 
-The dev-only Studio Vite entry and embedded author surface consume the same
+The dev-only Inspector Vite entry and embedded author surface consume the same
 private Authoring Host implementation. Each mounted shell has one Host owner;
-separate browser tabs do not pretend to share an in-memory instance. That Host
-owns the closed typed workspace contract, active/visited focus, shared
-Scene/Regions/Chrome document sessions, Motion store, Flow activation, and close
-participants; the workspace manifest is a closed, build-known metadata set rather
-than a plugin registry. It drives a native-button rail and one named visible
-panel. Unvisited workspaces do not mount; visited inactive workspaces stay mounted
-but `hidden` and inert, retaining local drafts/history while their dirty marker
-and participant remain in the unified close gate. The R1 probe renders only the
-existing active panel, inert and non-interactive: it cannot change focus/visited,
-start workspace IO or Flow, or register a writable participant. The standalone
-route and embedded shell render the same workspace implementation and retain
-their exact source IO owners across R1 candidates. Neither shell receives an
-authoritative Session or State writer.
+separate browser tabs do not pretend to share an in-memory instance. The Host owns
+the current Authoring Scene document session, selection, dirty/undo/redo state,
+CAS/conflict handling, source IO and close participant. The Inspector owns only
+view-local search, scroll/zoom and virtualization state. Its fixed-row scene and
+layer/object windows keep mounted rows proportional to the visible window plus
+bounded overscan rather than project size. The standalone route and lazy embedded
+shell render the same Inspector implementation and retain their source IO owners
+across compatible R1 candidates. Neither shell receives an authoritative gameplay
+Session or State writer.
 
 The Vite dev-sources layer owns one separate, lazy Project Authoring Index per
 configured application server. Its first list request performs one all-family
@@ -234,9 +227,10 @@ low-level Scene (`*.scene.json`), Motion, Regions, or Chrome document once,
 retaining only path/id/label/source-kind metadata or a named skip. All list
 consumers share that stable snapshot; app-root watcher events and successful
 CAS/create writes invalidate only the affected path. Selected document GET/CAS
-operations continue reading the complete payload directly from disk. The legacy
-Scene CAS/list port deliberately filters the shared index to `low_level_scene`;
-it neither rewrites nor pretends to edit an `authoring_scene` source. One-shot
+operations continue reading the complete payload directly from disk. The current
+Inspector Authoring Scene port filters the shared index to `authoring_scene` and
+reads/writes that selected source through its CAS boundary. Lower-level family
+ports may serve code/data workflows, but no current Studio workspace is implied. One-shot
 Story CLI checks reuse the enumeration/admission implementation without sharing
 the dev-server instance. This is tooling discovery, not another Story, document,
 or runtime authority.
@@ -248,9 +242,9 @@ An application chooses exactly one source authority per scene in
 package-import specifier, while `low_level_scene` keeps an ordinary
 `SceneDocumentV1` module. Tooling does not infer authority from file existence or
 the import graph, and the two paths are not synchronized. The starter Template
-opening is the first release consumer of `authoring_scene`; the existing Studio
-Scene workspace and its structured operations remain on the low-level path until
-M5 replaces that product surface.
+opening is the first release consumer of `authoring_scene`; the current Inspector
+opens that authority directly. Low-level Scene remains the advanced hand-authored
+source authority and is not synchronized or silently migrated.
 
 The Authoring Scene source boundary reads bounded bytes, performs one Strict JSON
 and schema/value admission, and returns a normalized hierarchy plus JSON-pointer
@@ -286,30 +280,30 @@ set or missing entry rejects the complete batch. Browser R2 may run that ordinar
 command only after exact Save + lease adoption, preserving hidden cue targets and
 gameplay-owned placement/appearance. No DOM-only reorder becomes authoritative.
 
-Engine Lab's DevDock provenance panel is read-only; the duplicate writable
-Game-root Motion panel was retired. A real Scene cue supplies the maintained
-Motion case inside this Host, so capability revocation and Game R2/R3 teardown
-cannot bypass the Host's dirty-close authority.
+Inspector preview renders the compiled scene through the real
+`SemanticStageHostV1`. Authoring inspection bounds keep off-canvas, transparent,
+and non-visual group objects selectable through dashed ghost overlays; selecting
+an object can also reveal its projected rectangular or polygon hit regions. This
+overlay is not a second Stage or runtime geometry authority.
 
-The publication owns one persistent visible React root. Every R1 binding/
-workspace candidate first renders in an inert, `aria-hidden`, visibility-hidden,
+The publication owns one persistent visible React root. Every R1 Inspector-binding
+candidate first renders in an inert, `aria-hidden`, visibility-hidden,
 offscreen but document-connected staging root and acknowledges an exact layout-
 effect commit; synchronous `root.render()` is never acceptance. A connected
 layout failure is therefore rejected before the visible root is touched. Only
 an accepted candidate is rendered into that existing visible root, preserving
-its DOM, compatible component-local editor state, Host identity, document
-sessions, active/visited focus, selection, and workspace state. A synchronous visible render-factory
+its DOM, compatible component-local Inspector state, Host identity, document
+session, selection, and dirty history. A synchronous visible render-factory
 failure can rerender the predecessor plan without replacing that local state;
 candidate plus rollback failure poisons and disposes. This narrow proof does not
 promise that arbitrary nondeterministic visible effects can always be reversed.
 The staging root proves document connection and layout-effect success, not
-user-visible paint or exact on-screen geometry; future geometry-sensitive
-workspaces must still declare and test their stronger readiness. Flow activation
-remains Host-owned across rejected and accepted candidates; standalone/embedded
-teardown removes descendants before lifecycle disposal.
+user-visible paint or exact on-screen geometry; future geometry-sensitive tools
+must still declare and test their stronger readiness. Standalone/embedded teardown
+removes descendants before lifecycle disposal.
 
 Embedded mode may select exactly one package-private companion definition on its
-typed Studio binding. Core publication sees only a neutral compatibility ID,
+typed Inspector binding. Core publication sees only a neutral compatibility ID,
 content signature, owner factory, renderer, and async disposer; Agent types stay
 behind the explicit private Agent entry. Compatible R1 candidates reuse the same
 companion owner, while a changed compatibility ID or content signature rejects
@@ -321,29 +315,31 @@ surface, or Mod ABI.
 The embedded shell is activated from the resident dev-only launcher and stays
 mounted while merely hidden. Its independent application-focus owner keeps
 editable keyboard/input out of gameplay, and dirty close uses the same Host
-participants for save/discard/cancel across Scene, Regions, Chrome, and Motion. A CAS
+Authoring Scene participant for save/discard/cancel. A CAS
 `digest_conflict` refreshes the saved bytes/digest while preserving the current
 draft and history for explicit retry. This does not add another source writer:
-all saves still use the existing dev-source ports and the source document remains
+all saves still use the existing dev-source port and the source document remains
 the single authoring authority.
 
-Rail focus only selects a workspace. Typed navigation from a runtime object or
-one workspace's scene/cue/motion/region/chrome/flow selection into another
-workspace remains unimplemented and requires a separately accepted contract.
-
-Low-level Scene editing inside that shared session passes through Studio's
-package-private structured-operation stack. A getter-free exact admission layer
-accepts revisioned data records; a pure reducer produces a fully re-admitted
-Scene document or a stable diagnostic; one executor then conditionally installs
+Authoring Scene editing inside that shared session passes through the package-
+private structured-operation stack. One revisioned operation boundary normalizes
+and admits UI or non-UI requests; internal collaborators trust that typed envelope.
+A pure reducer produces a re-admitted Authoring Scene document or a stable
+diagnostic; one executor then conditionally installs
 the result into the existing session/history. The session exposes an opaque,
 session-local document-successor identity and monotonic draft revision so both
 UI and non-UI local callers reject stale work atomically before reduction and
 again at installation. UI envelopes carry the receipt matching their rendered
 draft: a canvas gesture advances only through its own successful receipts and
-stops when a sibling edit wins. Placement, z-order, and appearance may coalesce
+stops when a sibling edit wins. Transform, existing appearance values, visual
+content, sibling object order, and layer order may coalesce
 only inside one focus/gesture run identified by its starting revision;
 structural and reference edits remain individual steps. The local adapter
-exposes neither source paths nor IO/save/HMR capability. This seam is not a
+exposes neither source paths nor IO/save/HMR capability. Component creation,
+group-to-visual conversion, writable hit-region/interaction authoring and an
+editable Blueprint/Timeline remain outside this bounded surface. Read-only source,
+compiled-layer, hit-region, Motion, Timeline and intent facets plus scrub consume
+the compiler sidecar without entering State or Save. This seam is not a
 package export, remote protocol, persisted operation log, gameplay command bus,
 or second document/State authority.
 
@@ -381,7 +377,7 @@ The current `UiArtifact` vocabulary is closed to admitted plain-data `column`, `
 `action` data with unique node IDs and product-allowlisted action IDs. The React renderer does
 not resolve HTML, JavaScript, arbitrary components, functions, or module URLs. It emits an
 exact Host/Artifact/node/action `UiIntent`, which is re-admitted against the current revision.
-Engine Lab's explicit private Agent companion decorates its typed Studio binding with one fake
+Engine Lab's explicit private Agent companion decorates its typed Inspector binding with one fake
 client factory and pre-admitted AR2 Scene operations. The embedded surface keeps Artifact actions
 inert until it captures the Scene document identity and draft revision; if Artifact arrives first, a later
 Authoring revision may pair that same Artifact before enabling interaction. Applying a current
@@ -876,7 +872,7 @@ entry producer installs a dependency-free static shell plus one inert serialized
 application module runs. The Web reader parses and admits a fresh typed receipt
 after module execution begins. The Desktop response replaces the exact
 serialized config with `target: "deno_desktop"`; runtime admission rejects a
-target/Host-marker mismatch. Studio owns the corresponding `author`/`browser`
+target/Host-marker mismatch. Inspector owns the corresponding `author`/`browser`
 config/read receipt and a mount root separate from its startup shell;
 `author`/`deno_desktop` is not supported.
 
@@ -895,7 +891,7 @@ the first maintained, deliberately dev-only R2 consumer. Its Vite identity owner
 injects the current real `BuildIdentity` into the composition module. When an
 owned R2 input changes, the plugin refreshes that identity and returns the
 invalidated, literal-self-accepting composition module. If the original changed
-module also reaches the loaded Studio binding through Vite's live importer graph,
+module also reaches the loaded Inspector binding through Vite's live importer graph,
 that exact module remains a second propagation root so its new bytes reach the
 Authoring R1 boundary; unrelated deep Scene/simulation modules remain filtered.
 The plugin normalizes every compared and looked-up module path at the Vite
@@ -909,12 +905,12 @@ propagation; if such a change reaches composition with an unchanged R2 tuple,
 the boundary requests R3 instead of silently swallowing it.
 The current module-update classification is:
 
-| Class | Browser                                                                                                                                                                                                                                                                                                                                                                                      | Deno Desktop                                                                                                                                                                    |
-| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R0    | Low-level Scene/Motion/Regions/Chrome read, refresh, and CAS admission update one existing authoring document session; Engine Lab's retained low-level Scene fixture is detached from Player composition. An Authoring Scene source change recompiles its configured virtual module and then follows the product's ordinary R2/R3 module-update boundary; M4 adds no editor/CAS path for it. | The static Player shell has no author/source update path.                                                                                                                       |
-| R1    | Standalone and embedded Authoring binding/workspace HMR use an inert/offscreen, document-connected staging root followed by one persistent visible root. Eligible component-only Player modules may also use Vite React Fast Refresh.                                                                                                                                                        | Not wired.                                                                                                                                                                      |
-| R2    | Engine Lab and Cat Cafe each own a literal composition self-accept boundary with real owner-injected `BuildIdentity`; the Web composer transfers an exact Save + lease pair and replaces Game/Session on the same Host/root. Engine Lab's sibling Authoring Host remains mounted.                                                                                                            | Not wired.                                                                                                                                                                      |
-| R3    | Product applications without an admitted R2 boundary, config changes, Fast Refresh-ineligible changes, and otherwise unclassified changes use Vite full-page reload. A normal persisted Save may recover; in-process identity is not retained.                                                                                                                                               | Built static `dist/` changes require rebuild and Host relaunch. Preview records may recover Save; durable drafts, an author entry, and production persistence are not promised. |
+| Class | Browser                                                                                                                                                                                                                                                                                                                                                                                     | Deno Desktop                                                                                                                                                                    |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R0    | Inspector Authoring Scene read, refresh, and CAS admission update one existing authoring document session; Motion sources feed read-only scrub. Low-level Scene/Regions/Chrome ports remain tooling data paths but have no current Studio workspace. A saved Authoring Scene change also recompiles its configured virtual module and follows the product's ordinary R2/R3 update boundary. | The static Player shell has no author/source update path.                                                                                                                       |
+| R1    | Standalone and embedded Inspector-binding HMR use an inert/offscreen, document-connected staging root followed by one persistent visible root. Eligible component-only Player modules may also use Vite React Fast Refresh.                                                                                                                                                                 | Not wired.                                                                                                                                                                      |
+| R2    | Engine Lab and Cat Cafe each own a literal composition self-accept boundary with real owner-injected `BuildIdentity`; the Web composer transfers an exact Save + lease pair and replaces Game/Session on the same Host/root. Engine Lab's sibling Authoring Host remains mounted.                                                                                                           | Not wired.                                                                                                                                                                      |
+| R3    | Product applications without an admitted R2 boundary, config changes, Fast Refresh-ineligible changes, and otherwise unclassified changes use Vite full-page reload. A normal persisted Save may recover; in-process identity is not retained.                                                                                                                                              | Built static `dist/` changes require rebuild and Host relaunch. Preview records may recover Save; durable drafts, an author entry, and production persistence are not promised. |
 
 The current Web R2 coordinator invalidates and retires the predecessor before it
 starts the admitted successor. A failure before replacement leaves the existing

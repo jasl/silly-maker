@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: MIT
-export { StudioAppV1 } from "./studio-app.tsx";
-export type { StudioAppPropsV1 } from "./studio-app.tsx";
+export { InspectorAppV1 } from "./inspector/inspector-app.tsx";
+export type { InspectorAppPropsV1 } from "./inspector/inspector-app.tsx";
 export type {
+  InspectorBindingV1,
   NarrativeFlowEdgeLabelV1,
   NarrativeFlowGraphEdgeV1,
   NarrativeFlowGraphNodeV1,
   NarrativeFlowGraphV1,
-  StudioAppearanceFieldV1,
-  StudioAssetRegistryPortV1,
-  StudioBindingV1,
-  StudioChromeFixtureV1,
-  StudioContentDescriptorV1,
 } from "./core/binding.ts";
+
 export { createDevServerSceneIoV1 } from "./core/scene-io.ts";
 export type {
   SceneIoErrorCodeV1,
@@ -22,6 +19,18 @@ export type {
   SceneIoWriteResultV1,
   SceneSourceIoV1,
 } from "./core/scene-io.ts";
+
+export { createDevServerAuthoringSceneIoV1 } from "./core/authoring-scene-io.ts";
+export type {
+  AuthoringSceneIoErrorCodeV1,
+  AuthoringSceneIoListEntryV1,
+  AuthoringSceneIoListResultV1,
+  AuthoringSceneIoListSkipV1,
+  AuthoringSceneIoReadResultV1,
+  AuthoringSceneIoWriteResultV1,
+  AuthoringSceneSourceIoV1,
+} from "./core/authoring-scene-io.ts";
+
 export { createDevServerRegionsIoV1 } from "./core/regions-io.ts";
 export type {
   RegionsIoErrorCodeV1,
@@ -32,6 +41,7 @@ export type {
   RegionsIoWriteResultV1,
   RegionsSourceIoV1,
 } from "./core/regions-io.ts";
+
 export { createDevServerChromeLayoutIoV1 } from "./core/chrome-layout-io.ts";
 export type {
   ChromeLayoutIoErrorCodeV1,

@@ -21,10 +21,8 @@ import { parseStageMutation } from "@sillymaker/base/story";
  * compiler validates everything at admission (unknown speakers, duplicate
  * names, unresolved jumps, bad stage ops fail construction loudly), emits the
  * exact node objects the hand-written script used, and collects only copy the
- * document actually keeps inline. Studio's read-only Flow projection is a
- * tooling-only concern in
- * `../tooling/narrative-flow.ts`; the Player compiler never constructs source
- * metadata or a graph.
+ * document actually keeps inline. The Player compiler never constructs
+ * tooling-only source metadata or a second graph.
  *
  * Behavior stays in TypeScript: stage composition is referenced through
  * scene documents (open/cue by short key) or a closed mutation vocabulary

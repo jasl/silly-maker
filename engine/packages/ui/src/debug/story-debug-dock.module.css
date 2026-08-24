@@ -139,7 +139,7 @@
   font-weight: 600;
 }
 
-.story-debug-dock__studio {
+.story-debug-dock__inspector {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -154,7 +154,7 @@
   text-decoration: none;
 }
 
-.story-debug-dock__studio:hover {
+.story-debug-dock__inspector:hover {
   filter: brightness(1.06);
 }
 

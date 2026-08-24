@@ -10,6 +10,7 @@ export {
   admitAuthoringSceneSourceBytesV1,
   authoringSceneDocumentFormatV1,
   authoringSceneDocumentVersionV1,
+  reindexAuthoringSceneDocumentV1,
 } from "./authoring-scene.ts";
 export type {
   AdmittedAuthoringSceneV1,

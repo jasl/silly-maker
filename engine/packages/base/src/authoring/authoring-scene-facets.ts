@@ -14,6 +14,7 @@ import type {
   StageContentCatalogV1,
   StageContentGeometryV1,
   StageHitRegionPointV1,
+  StageRenderTargetV1,
 } from "../contracts/stage-render-target.ts";
 import { projectStageRenderTargetV1 } from "../contracts/stage-render-target.ts";
 import type {
@@ -98,6 +99,8 @@ export interface AuthoringScenePointerPickV1 {
 
 export interface AuthoringSceneFacetProjectionV1 {
   readonly objects: Readonly<Record<string, AuthoringSceneObjectFacetsV1>>;
+  /** Detached projection rendered by the ordinary Stage host in Inspector. */
+  readonly previewTarget: StageRenderTargetV1;
   /** Real catalog regions in explicit topmost-first pointer order. */
   readonly pointerPickOrder: readonly AuthoringScenePointerPickV1[];
   /** Existing Stage projection diagnostics, not a second authoring diagnostic system. */
@@ -361,6 +364,7 @@ export function projectAuthoringSceneFacetsV1(
   );
 
   return ({
+    previewTarget: rendered.target,
     objects: Object.fromEntries(objectEntries),
     pointerPickOrder: paintPickOrder.toReversed(),
     renderDiagnostics: rendered.diagnostics,

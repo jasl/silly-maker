@@ -35,7 +35,8 @@
 ## 给人与给 AI 的工具
 
 - `story check` / `story simulate` 输出结构化 JSON：agent（或 CI）可以校验叙事图、headless 玩通每条路线。`--trace` 打印逐步数值轨迹；`story diff` 结构化对比两份存档或报告。
-- **DevDock** 是唯一的能力门控调试 UI（绝不混进玩家 UI）。「调试」启动器分组为 **状态**（导出/导入、引擎 **状态查看** / **状态编辑**、刷新状态、初始化、带确认的清空存储）、**场景**（冻结画面、dev server 宣告时出现 Studio、其他只读场景工具）、以及 Story 专用 **作弊**。cheat 级工具在 `cheats` 开启前保持禁用。
+- **DevDock** 是唯一的能力门控调试 UI（绝不混进玩家 UI）。「调试」启动器分组为 **状态**（导出/导入、引擎 **状态查看** / **状态编辑**、刷新状态、初始化、带确认的清空存储）、**场景**（冻结画面、应用 opt-in 且 dev server 宣告时出现 Inspector、其他只读场景工具）、以及 Story 专用 **作弊**。cheat 级工具在 `cheats` 开启前保持禁用。
+- 仅开发期的 **Inspector** 是 Inspector-first 的有界创作面：项目 Scene 搜索、Layer/Object 层级、真实 Stage 预览、local transform/content/appearance/order 编辑、只读 facet 汇合、Motion/Timeline scrub、撤销/重做和 CAS 保存。它不重建旧 Studio 的 Flow、Chrome、Regions workspace；对应数据与运行合同仍可直接编辑源文件。Template 与 Engine Lab 声明了 Inspector binding，Cat Cafe 刻意没有声明。
 - 交付：`deno task build:web` 产出可直接静态托管的 `dist-web/`，`site:build`
   负责组合文档站。声明了 `build:desktop` 的应用可产出本机或交叉目标 Desktop
   preview（`.app`、Windows `.msi` 安装包、`.AppImage`）；shell 领取启动窗口，

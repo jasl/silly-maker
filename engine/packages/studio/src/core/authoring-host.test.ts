@@ -1,295 +1,238 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  parseChromeLayoutDocumentV1,
-  parseRegionsDocumentV1,
-  parseSceneDocumentV1,
-} from "@sillymaker/base";
-import type { ChromeLayoutDocumentV1, RegionsDocumentV1, SceneDocumentV1 } from "@sillymaker/base";
+import { admitAuthoringSceneDocumentV1 } from "@sillymaker/base/authoring/scene";
+import type { AdmittedAuthoringSceneV1 } from "@sillymaker/base/authoring/scene";
 import type { MotionSourceIoV1 } from "@sillymaker/ui/debug";
 
-import type { ChromeLayoutSourceIoV1 } from "./chrome-layout-io.ts";
+import type { AuthoringSceneSourceIoV1 } from "./authoring-scene-io.ts";
 import {
   createAuthoringHostInternalV1,
   resolveAuthoringHostOwnerInternalV1,
 } from "./authoring-host.ts";
-import type { AuthoringCloseParticipantInternalV1 } from "./authoring-host.ts";
-import type { RegionsSourceIoV1 } from "./regions-io.ts";
-import type { SceneSourceIoV1 } from "./scene-io.ts";
-import {
-  authoringWorkspaceContractInternalV1,
-  authoringWorkspaceManifestInternalV1,
-} from "../workspaces/workspace-manifest.ts";
-import type {
-  AuthoringWorkspaceManifestEntryInternalV1,
-} from "../workspaces/workspace-manifest.ts";
+import type { SceneAuthoringOperationV1 } from "./scene-operations/contract.ts";
 
-const allWorkspacesV1 = authoringWorkspaceManifestInternalV1({
-  hasFlow: true,
-  hasRegionsIo: true,
-  hasChromeIo: true,
-});
-const unavailableResultV1 = Object.freeze({
-  kind: "error" as const,
-  code: "unavailable" as const,
-});
+const scenePathV1 = "src/scenes/opening.authoring-scene.json";
 
-const unavailableSceneIoV1: SceneSourceIoV1 = Object.freeze({
-  list: () => Promise.resolve(unavailableResultV1),
-  read: () => Promise.resolve(unavailableResultV1),
-  write: () => Promise.resolve(unavailableResultV1),
-  create: () => Promise.resolve(unavailableResultV1),
-});
+const unavailableMotionIoV1: MotionSourceIoV1 = {
+  list: () => Promise.resolve({ kind: "error", code: "unavailable" }),
+  read: () => Promise.resolve({ kind: "error", code: "unavailable" }),
+  write: () => Promise.resolve({ kind: "error", code: "unavailable" }),
+  create: () => Promise.resolve({ kind: "error", code: "unavailable" }),
+};
 
-const unavailableMotionIoV1: MotionSourceIoV1 = Object.freeze({
-  list: () => Promise.resolve(unavailableResultV1),
-  read: () => Promise.resolve(unavailableResultV1),
-  write: () => Promise.resolve(unavailableResultV1),
-  create: () => Promise.resolve(unavailableResultV1),
-});
-
-const unavailableRegionsIoV1: RegionsSourceIoV1 = Object.freeze({
-  list: () => Promise.resolve(unavailableResultV1),
-  read: () => Promise.resolve(unavailableResultV1),
-  write: () => Promise.resolve(unavailableResultV1),
-  create: () => Promise.resolve(unavailableResultV1),
-});
-
-const unavailableChromeIoV1: ChromeLayoutSourceIoV1 = Object.freeze({
-  list: () => Promise.resolve(unavailableResultV1),
-  read: () => Promise.resolve(unavailableResultV1),
-  write: () => Promise.resolve(unavailableResultV1),
-  create: () => Promise.resolve(unavailableResultV1),
-});
-
-function createHostV1(
-  workspaceManifest: readonly AuthoringWorkspaceManifestEntryInternalV1[] = allWorkspacesV1,
-) {
-  return createAuthoringHostInternalV1({
-    workspaceManifest,
-    sceneIo: unavailableSceneIoV1,
-    motionIo: unavailableMotionIoV1,
-    ...(workspaceManifest.some((workspace) => workspace.id === "regions")
-      ? { regionsIo: unavailableRegionsIoV1 }
-      : {}),
-    ...(workspaceManifest.some((workspace) => workspace.id === "chrome")
-      ? { chromeIo: unavailableChromeIoV1 }
-      : {}),
-  });
+function placementV1(x: number) {
+  return {
+    x,
+    y: 200,
+    scalePermille: 1_000,
+    opacityPermille: 1_000,
+    mirrored: false,
+  };
 }
 
-function sceneDocumentV1(label: string): SceneDocumentV1 {
-  return parseSceneDocumentV1({
-    format: "sillymaker.scene",
+function sceneV1(label = "Opening", alphaX = 100): AdmittedAuthoringSceneV1 {
+  return admitAuthoringSceneDocumentV1({
+    format: "sillymaker.authoring-scene",
     version: 1,
-    sceneId: "scene.test.host",
+    sceneId: "scene.test.opening",
     label,
-    canvas: { width: 1280, height: 720 },
-    entries: [],
+    canvas: { width: 1_280, height: 720 },
+    layers: [{
+      layerId: "layer.test.actors",
+      label: "Actors",
+      roots: [{
+        objectId: "tag.test.alpha",
+        label: "Alpha",
+        localTransform: placementV1(alphaX),
+        visual: { contentId: "content.test.alpha" },
+      }],
+    }],
     cues: [],
   });
 }
 
-function regionsDocumentV1(label: string): RegionsDocumentV1 {
-  return parseRegionsDocumentV1({
-    format: "sillymaker.regions",
-    version: 1,
-    regionsId: "regions.test.host",
-    label,
-    regions: [],
+function sceneIoHarnessV1() {
+  let stored = sceneV1();
+  let digest = "sha256:1";
+  let writeCount = 0;
+  const io: AuthoringSceneSourceIoV1 = {
+    list: () =>
+      Promise.resolve({
+        kind: "ok",
+        scenes: [{
+          path: scenePathV1,
+          sceneId: stored.document.sceneId,
+          label: stored.document.label,
+        }],
+        skipped: [],
+      }),
+    read: (path) =>
+      Promise.resolve(
+        path === scenePathV1
+          ? { kind: "ok", digest, admittedScene: stored }
+          : { kind: "error", code: "not_found" },
+      ),
+    write: (input) => {
+      writeCount += 1;
+      if (input.path !== scenePathV1) {
+        return Promise.resolve({ kind: "error", code: "not_found" });
+      }
+      if (input.expectedDigest !== digest) {
+        return Promise.resolve({ kind: "error", code: "digest_conflict" });
+      }
+      stored = input.admittedScene;
+      digest = `sha256:${String(writeCount + 1)}`;
+      return Promise.resolve({ kind: "ok", digest });
+    },
+  };
+  return {
+    io,
+    externalReplace(next: AdmittedAuthoringSceneV1, nextDigest: string): void {
+      stored = next;
+      digest = nextDigest;
+    },
+    stored: () => stored,
+    writeCount: () => writeCount,
+  };
+}
+
+function executeCurrentV1(
+  host: ReturnType<typeof createAuthoringHostInternalV1>,
+  operation: SceneAuthoringOperationV1,
+) {
+  const operations = resolveAuthoringHostOwnerInternalV1(host).sceneOperations;
+  const current = operations.current();
+  if (current === null) throw new TypeError("missing current scene");
+  return operations.execute({
+    documentIdentity: current.documentIdentity,
+    expectedDraftRevision: current.draftRevision,
+    operation,
   });
 }
 
-function chromeDocumentV1(label: string): ChromeLayoutDocumentV1 {
-  return parseChromeLayoutDocumentV1({
-    format: "sillymaker.chrome-layout",
-    version: 1,
-    layoutId: "layout.test.host",
-    label,
-    canvas: { width: 1280, height: 720 },
-    boxes: {},
-    anchors: {},
-    offsets: {},
-  });
+function moveAlphaV1(x: number): SceneAuthoringOperationV1 {
+  return {
+    schemaRevision: 2,
+    kind: "scene.object.set_local_transform",
+    objectId: "tag.test.alpha" as never,
+    localTransform: placementV1(x),
+  };
 }
 
-function controllableParticipantV1() {
-  let dirty = false;
-  const listeners = new Set<() => void>();
-  const participant: AuthoringCloseParticipantInternalV1 = Object.freeze({
-    getState: () => Object.freeze({ dirty, busy: false, canSave: true }),
-    subscribe(listener: () => void): () => void {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    save: () => Promise.resolve(true),
-    discard: () => {
-      dirty = false;
-    },
-  });
-  return Object.freeze({
-    participant,
-    setDirty(next: boolean): void {
-      dirty = next;
-      for (const listener of [...listeners]) listener();
-    },
-  });
+function alphaXv1(host: ReturnType<typeof createAuthoringHostInternalV1>): number {
+  return resolveAuthoringHostOwnerInternalV1(host).sceneSession.getSnapshot()
+    .draft?.document.layers[0]?.roots[0]?.localTransform.x ?? -1;
 }
 
-describe("Authoring Host workspace focus", () => {
-  it("owns bounded active and visited state for one Host lifetime", async () => {
-    const host = createHostV1();
+describe("Authoring Host", () => {
+  it("owns one Authoring Scene session, operation port, connection set, and selection", async () => {
+    const sceneIo = sceneIoHarnessV1();
+    const host = createAuthoringHostInternalV1({
+      sceneIo: sceneIo.io,
+      motionIo: unavailableMotionIoV1,
+    });
     const owner = resolveAuthoringHostOwnerInternalV1(host);
     const listener = vi.fn();
     host.subscribe(listener);
 
-    const initial = host.getSnapshot();
-    expect(initial.activeWorkspaceId).toBe("scene");
-    expect(initial.visitedWorkspaceIds).toEqual(["scene"]);
-    expect(initial.workspaceIds).toEqual(["scene", "motion", "regions", "chrome", "flow"]);
+    expect(owner.sceneIo).toBe(sceneIo.io);
+    expect(owner.motionIo).toBe(unavailableMotionIoV1);
+    expect(host.getSnapshot()).toMatchObject({
+      connected: false,
+      dirty: false,
+      selectedObjectId: null,
+      scene: { documentIdentity: null, path: null },
+    });
 
-    expect(owner.focusWorkspace("chrome")).toBe(true);
-    const focused = host.getSnapshot();
-    expect(focused.activeWorkspaceId).toBe("chrome");
-    expect(focused.visitedWorkspaceIds).toEqual(["scene", "chrome"]);
-    expect(focused.revision).toBe(initial.revision + 1);
-    expect(listener).toHaveBeenCalledTimes(1);
+    await expect(owner.sceneSession.open(scenePathV1)).resolves.toEqual({ kind: "ok" });
+    expect(owner.selectObject("tag.test.missing" as never)).toBe(false);
+    const beforeSelection = host.getSnapshot();
+    expect(owner.selectObject("tag.test.alpha" as never)).toBe(true);
+    expect(host.getSnapshot().selectedObjectId).toBe("tag.test.alpha");
+    expect(host.getSnapshot().revision).toBe(beforeSelection.revision + 1);
 
-    expect(owner.focusWorkspace("chrome")).toBe(true);
-    expect(host.getSnapshot()).toBe(focused);
-    expect(listener).toHaveBeenCalledTimes(1);
-
-    for (const workspaceId of initial.workspaceIds) owner.focusWorkspace(workspaceId);
-    expect(host.getSnapshot().visitedWorkspaceIds).toEqual(initial.workspaceIds);
-
-    const beforeHide = host.getSnapshot();
     owner.markViewConnected(1, true);
+    owner.markViewConnected(2, true);
     owner.markViewConnected(1, false);
-    expect(host.getSnapshot().activeWorkspaceId).toBe(beforeHide.activeWorkspaceId);
-    expect(host.getSnapshot().visitedWorkspaceIds).toEqual(beforeHide.visitedWorkspaceIds);
+    expect(host.getSnapshot().connected).toBe(true);
+    owner.markViewConnected(2, false);
+    expect(host.getSnapshot().connected).toBe(false);
 
-    const limitedHost = createHostV1(authoringWorkspaceManifestInternalV1({
-      hasFlow: false,
-      hasRegionsIo: false,
-      hasChromeIo: false,
-    }));
-    const limitedOwner = resolveAuthoringHostOwnerInternalV1(limitedHost);
-    const limitedSnapshot = limitedHost.getSnapshot();
-    expect(limitedOwner.focusWorkspace("flow")).toBe(false);
-    expect(limitedHost.getSnapshot()).toBe(limitedSnapshot);
-
-    const freshHost = createHostV1();
-    expect(freshHost.getSnapshot().activeWorkspaceId).toBe("scene");
-    expect(freshHost.getSnapshot().visitedWorkspaceIds).toEqual(["scene"]);
-    await Promise.all([host.dispose(), limitedHost.dispose(), freshHost.dispose()]);
-  });
-
-  it("derives dirty workspace ids from their actual authorities in manifest order", async () => {
-    const host = createHostV1();
-    const owner = resolveAuthoringHostOwnerInternalV1(host);
-    const motion = controllableParticipantV1();
-    const sceneParticipant = controllableParticipantV1();
-    const unregisterMotion = owner.registerCloseParticipant("motion", motion.participant);
-    owner.registerCloseParticipant("scene", sceneParticipant.participant);
-    const regionsSession = owner.regionsSession;
-    const chromeSession = owner.chromeSession;
-    if (regionsSession === null || chromeSession === null) {
-      throw new TypeError("Full Host fixture must own Regions and Chrome sessions");
-    }
-
-    sceneParticipant.setDirty(true);
-    expect(host.getSnapshot().dirtyWorkspaceIds).toEqual([]);
+    expect(executeCurrentV1(host, moveAlphaV1(240))).toMatchObject({ kind: "applied" });
+    expect(host.getSnapshot().selectedObjectId).toBe("tag.test.alpha");
 
     owner.sceneSession.installSaved({
-      path: "scene.json",
-      document: sceneDocumentV1("Saved scene"),
-      digest: "sha256:scene",
+      path: scenePathV1,
+      document: sceneV1("Successor", 320),
+      digest: "sha256:successor",
     });
-    owner.sceneSession.replaceDraft(sceneDocumentV1("Draft scene"));
-    expect(host.getSnapshot().dirtyWorkspaceIds).toEqual(["scene"]);
+    expect(host.getSnapshot().selectedObjectId).toBeNull();
 
-    regionsSession.installSaved({
-      path: "regions.json",
-      document: regionsDocumentV1("Saved regions"),
-      digest: "sha256:regions",
+    const captured = host.getSnapshot();
+    await host.dispose();
+    await host.dispose();
+    owner.markViewConnected(3, true);
+    expect(owner.selectObject("tag.test.alpha" as never)).toBe(false);
+    owner.sceneSession.replaceDraft(sceneV1("After dispose", 400));
+    expect(host.getSnapshot()).toBe(captured);
+    expect(listener).toHaveBeenCalled();
+  });
+
+  it("preserves session history and saves or discards only the current scene", async () => {
+    const sceneIo = sceneIoHarnessV1();
+    const host = createAuthoringHostInternalV1({
+      sceneIo: sceneIo.io,
+      motionIo: unavailableMotionIoV1,
     });
-    regionsSession.replaceDraft(regionsDocumentV1("Draft regions"));
-    motion.setDirty(true);
-    expect(host.getSnapshot().dirtyWorkspaceIds).toEqual(["scene", "motion", "regions"]);
+    const owner = resolveAuthoringHostOwnerInternalV1(host);
+    await owner.sceneSession.open(scenePathV1);
 
-    chromeSession.installSaved({
-      path: "chrome.json",
-      document: chromeDocumentV1("Saved chrome"),
-      digest: "sha256:chrome",
+    expect(executeCurrentV1(host, moveAlphaV1(240))).toMatchObject({ kind: "applied" });
+    expect(host.getSnapshot()).toMatchObject({ dirty: true, scene: { canUndo: true } });
+    expect(owner.getCloseState()).toEqual({ dirty: true, busy: false, canSave: true });
+
+    owner.sceneSession.undo();
+    expect(alphaXv1(host)).toBe(100);
+    expect(host.getSnapshot()).toMatchObject({ dirty: false, scene: { canRedo: true } });
+    owner.sceneSession.redo();
+    expect(alphaXv1(host)).toBe(240);
+
+    await expect(owner.saveAndClose()).resolves.toBe(true);
+    expect(sceneIo.writeCount()).toBe(1);
+    expect(sceneIo.stored().document.layers[0]?.roots[0]?.localTransform.x).toBe(240);
+    expect(host.getSnapshot().dirty).toBe(false);
+
+    expect(executeCurrentV1(host, moveAlphaV1(360))).toMatchObject({ kind: "applied" });
+    owner.discardAndClose();
+    expect(alphaXv1(host)).toBe(240);
+    expect(host.getSnapshot().dirty).toBe(false);
+    await expect(owner.saveAndClose()).resolves.toBe(true);
+    expect(sceneIo.writeCount()).toBe(1);
+    await host.dispose();
+  });
+
+  it("refreshes the CAS base after a conflict and does not report a dirty close", async () => {
+    const sceneIo = sceneIoHarnessV1();
+    const host = createAuthoringHostInternalV1({
+      sceneIo: sceneIo.io,
+      motionIo: unavailableMotionIoV1,
     });
-    chromeSession.replaceDraft(chromeDocumentV1("Draft chrome"));
-    expect(host.getSnapshot().dirtyWorkspaceIds).toEqual([
-      "scene",
-      "motion",
-      "regions",
-      "chrome",
-    ]);
-    expect(host.getSnapshot().dirty).toBe(true);
+    const owner = resolveAuthoringHostOwnerInternalV1(host);
+    await owner.sceneSession.open(scenePathV1);
+    expect(executeCurrentV1(host, moveAlphaV1(240))).toMatchObject({ kind: "applied" });
 
-    unregisterMotion();
-    expect(host.getSnapshot().dirtyWorkspaceIds).toEqual(["scene", "regions", "chrome"]);
-    owner.sceneSession.discard();
-    regionsSession.discard();
-    chromeSession.discard();
-    expect(host.getSnapshot().dirtyWorkspaceIds).toEqual([]);
+    sceneIo.externalReplace(sceneV1("External", 700), "sha256:external");
+    await expect(owner.saveAndClose()).resolves.toBe(false);
+    expect(owner.sceneSession.getSnapshot()).toMatchObject({
+      digest: "sha256:external",
+      dirty: true,
+    });
+    expect(alphaXv1(host)).toBe(240);
+
+    await expect(owner.saveAndClose()).resolves.toBe(true);
+    expect(sceneIo.stored().document.layers[0]?.roots[0]?.localTransform.x).toBe(240);
     expect(host.getSnapshot().dirty).toBe(false);
     await host.dispose();
-  });
-
-  it("freezes observable navigation after disposal", async () => {
-    const host = createHostV1();
-    const owner = resolveAuthoringHostOwnerInternalV1(host);
-    const motion = controllableParticipantV1();
-    owner.registerCloseParticipant("motion", motion.participant);
-    owner.focusWorkspace("chrome");
-    motion.setDirty(true);
-    const listener = vi.fn();
-    host.subscribe(listener);
-    const captured = host.getSnapshot();
-
-    await host.dispose();
-    await host.dispose();
-    expect(owner.focusWorkspace("flow")).toBe(false);
-    owner.markViewConnected(1, true);
-    motion.setDirty(false);
-    owner.sceneSession.installSaved({
-      path: "scene.json",
-      document: sceneDocumentV1("Saved scene"),
-      digest: "sha256:scene",
-    });
-    owner.sceneSession.replaceDraft(sceneDocumentV1("Draft scene"));
-
-    expect(host.getSnapshot()).toBe(captured);
-    expect(listener).not.toHaveBeenCalled();
-  });
-
-  it("treats order and lifecycle metadata, but not labels, as R1 identity", () => {
-    const base = allWorkspacesV1;
-    const baseSignature = authoringWorkspaceContractInternalV1(base).signature;
-    const relabeled = Object.freeze(
-      base.map((workspace) => Object.freeze({ ...workspace, label: `${workspace.label}!` })),
-    );
-    expect(authoringWorkspaceContractInternalV1(relabeled).signature).toBe(baseSignature);
-
-    const reordered = Object.freeze([base[1]!, base[0]!, ...base.slice(2)]);
-    const activationChanged = Object.freeze([
-      Object.freeze({ ...base[0]!, activation: "progressive" as const }),
-      ...base.slice(1),
-    ]);
-    const readinessChanged = Object.freeze([
-      Object.freeze({ ...base[0]!, readiness: "connected" as const }),
-      ...base.slice(1),
-    ]);
-    for (const incompatible of [reordered, activationChanged, readinessChanged]) {
-      expect(authoringWorkspaceContractInternalV1(incompatible).signature).not.toBe(
-        baseSignature,
-      );
-    }
   });
 });

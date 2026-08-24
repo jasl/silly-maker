@@ -1,6 +1,6 @@
 # SillyMaker engine roadmap
 
-状态：2026-07-19 接受，最近审查修订 2026-08-24。已 promotion 的稳定能力以
+状态：2026-07-19 接受，最近审查修订 2026-08-25。已 promotion 的稳定能力以
 [features](features.md) 为准；已交付但仍 provisional/package-private 的实验 seam 以对应 active
 plan closure 与 [architecture](architecture.md) 为准；历史交付见
 [roadmap archive](roadmap-archive.md)。当前执行入口只有
@@ -140,8 +140,9 @@ fencing、Artifact-before-interaction AR2 pairing 与 invalid-successor predeces
 Agent/RPC implementation。它没有实现真实 backend/transport/protocol、public Agent ABI、
 OpenUI/A2UI、Agent persistence 或 Desktop HMR。AR5 已于 2026-08-23 交付关闭：neutral
 single-companion split 与 generated Author-entry measurement 已证明 Template 的完整 Author graph
-排除 Agent/RPC/experimental Agent，同时 Engine Lab 显式选择图包含它们；Studio manifest 的
-workspace Agent edge 仍在，因此只形成 final module/source graph structural exclusion。Chromium 与
+排除 Agent/RPC/experimental Agent，同时 Engine Lab 显式选择图包含它们；当时 Studio package 的
+workspace Agent dependency 说明该证据只形成 final module/source graph structural exclusion。M5 后
+由 Engine Lab Inspector binding 的 private single-companion entry 保留这一显式选择。Chromium 与
 WebKit 的 physical Browser evidence 只保留合同级 R1 rejection/retry、shared-presentation
 Player R2 + Authoring R1、Application R3 reload/recovery，并保留 dirty Authoring sibling 与显式选择的
 held Agent，不再维护内部 DOM/Host/session/run/connection/Artifact 身份库存；
@@ -218,9 +219,15 @@ compiler 将 ordered layer/object hierarchy 降为既有低层 Scene/runtime pla
 interaction facets 留在 authoring sidecar；显式 `authoring_scene`/`low_level_scene` authority 不猜测或双写。
 普通 Stage reconcile 与 exact-rebootstrap Session command 把 paint-order 变化带入 Browser R2 successor，
 不替换 adopted Snapshot 或新增 writer。保留的 index-scale profile 已覆盖 1,000 scenes/50,000 objects，
-仍只保留 metadata 与 path-local invalidation；该交付没有提升 Desktop HMR。当前唯一下一项为 M5
-Inspector replacement 与本计划收口。i18n/message-catalog 与 pack unload 在 M0–M5
-关闭后再按作品重写证据评估，不插入当前顺序。
+仍只保留 metadata 与 path-local invalidation；该交付没有提升 Desktop HMR。M5 于 2026-08-25
+交付 Inspector-first replacement：standalone 与 embedded shell 共用一个 Authoring Host，按需列出并
+virtualize Authoring Scene 与 layer/object 层级，以真实 Stage preview 呈现场外/透明对象的可选择 ghost，
+通过既有 structured operations、document session、history 与 CAS 完成有限的 transform、appearance 和
+顺序编辑，并提供只读 hit-region、Motion、Timeline、interaction/GUI intent、source provenance facet 与
+parallel-channel scrub。旧 Studio route、五 workspace shell、Story binding 与只保护旧 UI 的测试已退出
+维护面；Host、CAS、R1 publication 和 private Agent companion seam 保留，普通 Player 仍排除 Inspector/
+source writer。该交付没有提升 Desktop HMR。M0–M5 现已完成，i18n/message-catalog 与 pack unload 只在
+后续作品重写证据与 owner checkpoint 下独立评估，不自动进入下一顺序。
 
 排序与交付记录以
 [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md) §1
@@ -458,7 +465,7 @@ Editor/project/asset index
 
 Prisma 风格只借鉴可发现、type-safe 的 query ergonomics；runtime 不引入通用 ORM/SQL transaction authority。SQLite 可用于 editor/project index 或 authoring backend，正式 runtime 优先消费编译后只读 pack。
 
-### Tooling status and Studio workspaces
+### Tooling status and Inspector authoring
 
 已交付的基础包括 `story check/inspect`、Narrative graph viewer、通过
 `story simulate` 运行 named scenario（含 `--trace`）与 `story diff`，以及
@@ -467,36 +474,33 @@ capability-gated debug command 合同和 DevDock 面板。它们不再作为未�
 分别由 [Authorable Motion Workbench](plans/2026-08-13-authorable-motion-workbench.md)
 与 [VN Scene Workspace](plans/2026-08-14-vn-scene-workspace.md) 以窄纵切交付。
 
-2026-08-18 起，未来编辑器不再是并列产品清单，而是统一 Authoring Host 内的
-workspace；现有独立 Studio route 与未来应用内 author surface 是同一 Host 的不同 shell
-（[统一创作架构](design/authoring-architecture.md)、
-[Application Runtime and Embedded Authoring](design/application-runtime-and-embedded-authoring.md)；
-"deferred"表示 workspace 未激活，不表示未来另做不共享会话/命令的编辑器产品）：
+2026-08-25 起，当前维护的作者产品面是一个聚焦的 **Inspector**，不是旧 Studio 的 workspace
+rail，也不追求旧五 workspace 的 feature parity。standalone `/__sillymaker/inspector/` 与应用内 lazy
+surface 是同一 Authoring Host 的两个 shell；每个 mount 拥有自己的内存会话，但复用同一 Host、
+Authoring Scene source IO、document session、structured operations、CAS/history 和 persistent R1
+publication。Inspector 当前只承担有持续价值的最小工作流：
 
-- **Live**：Scene composition、Scene construction / Content browser
-  （Authoring Architecture S4：新建场景/条目/cue、结构化外观、新建与克隆
-  motion）、Motion、Runtime/State diagnostics（点击溯源、hit-region 显示、
-  状态调试入口）、Narrative Flow workspace（只读投影——
-  [interaction-table 提案](proposals/interaction-table-authoring.md) 升格判据
-  于 2026-08-15 满足后随 Authoring Architecture S5 交付；可编辑写回仍按设计 §6
-  的载体分级另行裁决）；
-- **Evidence-gated**：Scene Timing Sheet、gameplay data grid、UI layout、
-  Save/migration inspector、卡牌/SLG/战棋域工具；`story doctor` 只在现有
-  check/inspect 无法承载新的修复型诊断时另立。
+- scene 搜索与固定窗口 virtualization，当前 scene 的 layer/object hierarchy 搜索与 virtualization；
+- tree/真实 Stage preview 双向选择，以及场外、透明、group 对象的可见 ghost/inspection bounds；
+- package-private revision-fenced operations 上的 transform、visual content/已有 appearance key、同级
+  object 与 layer 顺序有限编辑；
+- 只读 hit-region、Motion、Timeline、interaction/GUI intent、JSON-pointer source provenance 与
+  compiled-layer facet，以及 Motion/Timeline parallel-channel scrub；
+- 通过现有 Authoring Scene CAS 保存；冲突刷新 saved baseline，保留 dirty draft/history 供显式重试。
 
-已交付的外壳统一化、project authoring index、共享文档会话与 Story 包目录 locality 由
-[Authoring Architecture 计划](plans/2026-08-15-authoring-architecture.md) 拥有；workspace
-progressive activation 已由 Application Runtime AR1 交付，结构化人机共用 operation 由 AR2
-交付；AR3 已把 standalone Studio 与 dev-only embedded surface 收口到同一 private Authoring
-Host/session/workspace/source-IO owner，并以 Engine Lab 的真实 Scene 与 Game/Session successor
-验证稳定 sibling lifetime。AR4 又以同一 embedded shell 交付 private deterministic fake RPC →
-admitted `UiArtifact` → current `UiIntent` → captured AR2 Scene operation，并证明 unavailable/retry、
-stale/invalid/cancelled-late 拒绝和 Chromium/WebKit ordinary-Player evidence。AR5 已完成 Browser/build/
-lifetime/performance promotion 并交付关闭；AR6 closure/owner checkpoint 也已完成，记录仍由
-[Application Runtime plan](plans/2026-08-18-application-runtime-embedded-authoring.md) 拥有。
-[Workspace focus/navigation 计划](plans/2026-08-23-authoring-workspace-focus-navigation.md) 已于
-2026-08-23 交付本节第一层导航，不改变各 workspace 的领域 authority，也未启用 Desktop HMR；
-后继项仍需 owner checkpoint。
+旧 Studio route、Scene/Motion/Regions/Chrome/Flow workspace、Story `StudioBindingV1` 和只保护旧 UI
+的测试已删除。其已经证明并仍有消费者的中立 substrate 没有删除：Authoring Host、project index、
+shared document session、source IO/CAS、structured operations、persistent R1 publication 与 private
+single-Agent-companion seam 继续存在。Regions/Chrome 文档、Motion Workbench 和 Narrative Flow 投影可
+作为底层/专门工具能力保留，但它们不是当前 Inspector workspace；若未来重新提供可写专门编辑器，
+必须由真实作品证据和单独合同激活，不恢复兼容 shell。Scene Timing Sheet、gameplay data grid、UI
+layout、Save/migration inspector、卡牌/SLG/战棋域工具与 `story doctor` 继续 evidence-gated。
+
+这一 clean break 吸收了已完成的 Authoring Architecture、Application Runtime AR1–AR5、Workspace
+Focus 与 Scale M5 的可复用结果，而不否认其历史交付。普通 Player final graph 排除 Inspector、
+Authoring Host/source-write 与 Agent/RPC；只有 Engine Lab 的显式 private Inspector companion entry
+选择 Agent seam。Desktop adapter 仍 package-private、explicit、default-off，本节没有启用 Desktop
+HMR 或 production promotion。
 
 Editor 写普通 TS 或被 TS 引用的稳定数据（JSON 文档经严格 admission），不形成另一
 种运行时语言。
@@ -596,8 +600,9 @@ service 不是 plugin，也不取得 Session/FilePort authority。AR5 只 promot
 GUI Host/build/lifetime/performance evidence，不把上述 defer 偷渡为 live capability。已关闭的
 AR5 用 neutral single-companion split 和正/负 Author-entry measurement 完成 authoring-only/no-Agent
 final module/source graph 的 structural exclusion，并取得 Browser physical lifecycle 与日期化同机
-performance evidence；该里程碑 runner 已删除，长期 benchmark 只输出原始测量。Studio manifest 的
-workspace Agent edge 仍服务 private opt-in，
+performance evidence；该里程碑 runner 已删除，长期 benchmark 只输出原始测量。Engine Lab 的
+Inspector binding 通过 private single-companion entry 显式选择 Agent，普通 Inspector/Author graph
+不因此包含 Agent/RPC，
 Deno Desktop private inactive adapter、bounded preflight 与 selected-canary characterization 也已完成。verified-stable
 revalidation/activation 保持独立、条件性 defer：首个经
 release source/行为确认包含目标路径的 stable 必须重跑中立合同 tests + 约数百行内的 explicit-binary/

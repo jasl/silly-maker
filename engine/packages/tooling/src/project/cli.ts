@@ -548,8 +548,8 @@ export async function runProjectCliV1(input: ProjectCliInputV1): Promise<number>
         return report.ok ? 0 : 1;
       }
       case "author": {
-        // Boots the application's own Vite dev server. Humans open Studio
-        // from the in-game 调试 dock (场景 → Studio). The Studio itself
+        // Boots the application's own Vite dev server. Humans open Inspector
+        // from the in-game 调试 dock. Inspector itself
         // is a dev-only plugin surface.
         const deps = processDeps();
         if (deps === null) return 2;
@@ -558,10 +558,10 @@ export async function runProjectCliV1(input: ProjectCliInputV1): Promise<number>
           input.writeErr(`application "${selector}" has no web target`);
           return 1;
         }
-        if (application.studio === null) {
+        if (application.inspector === null) {
           input.writeErr(
-            `application "${selector}" declares no studio binding; ` +
-              "add `studio: { module, exportName }` to its sillymaker.config.ts",
+            `application "${selector}" declares no inspector binding; ` +
+              "add `inspector: { module, exportName }` to its sillymaker.config.ts",
           );
           return 1;
         }
