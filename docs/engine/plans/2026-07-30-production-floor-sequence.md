@@ -83,7 +83,9 @@ reachability、full-module dispatch/whole-State 工作和重复 index scan。M1 
 initial-bundle separation 也已于同日交付：build-known text packs 与 tooling-only Flow/source 已离开
 ordinary Player initial graph 和 Snapshot/Save，Web 通过单一 semantic-invocation/Snapshot-replacement
 readiness boundary 按候选需求准备内容。M2 State hot plan 与 single-owner incremental project index
-是唯一下一项。
+也已于 2026-08-24 交付：cold reducer direct plan/touched-only State materialization 与一个 lazy、
+metadata-only、path-incremental dev-server authoring index 满足结构预算；当前唯一下一项为 M3
+core/outer GUI capability reorganization。
 首个经 release
 source/行为确认包含目标路径的 stable（2.9.6 只是预期候选）仍须重跑同一分层验收，全部通过后才
 正式打开 maintained Desktop development workflow。此前 adapter 保持 package-private、explicit、

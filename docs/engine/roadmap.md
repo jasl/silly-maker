@@ -208,8 +208,10 @@ pack 仍接受一次 bounded Strict JSON/schema admission，实际 entry count �
 1,000/100,000-entry profiles 保持相同 60-byte State/
 digest、都只加载首个 1,000-entry pack；M1 corrective 后的最终 modified-worktree 复测将
 initial JavaScript gzip 从 `361,006 B` 增到 `361,664 B`（`+658 B`），内容 payload 仍作为
-独立 pack assets 计量。M2 State hot plan 与
-single-owner incremental project index 是唯一下一项。i18n/message-catalog 与 pack unload 在 M0–M5
+独立 pack assets 计量。M2 也已于 2026-08-24 交付：State cold compile 生成 reducer direct plan，
+hot commit 只访问 subscribers/touched owners 并一次 materialize aggregate State；每个 Vite dev server
+又共享一个 lazy metadata-only authoring index，cached lists 零读盘，单文件失效只重读/admission 该
+record。当前唯一下一项为 M3 core/outer GUI capability reorganization。i18n/message-catalog 与 pack unload 在 M0–M5
 关闭后再按作品重写证据评估，不插入当前顺序。
 
 排序与交付记录以

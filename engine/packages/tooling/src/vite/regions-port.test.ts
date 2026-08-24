@@ -5,6 +5,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  createAuthoringProjectIndexOwnerV1,
+  type AuthoringProjectIndexOwnerV1,
+} from "../project/authoring-index.ts";
+import {
   createRegionsSourceFileV1,
   formatRegionsDocumentV1,
   listRegionsSourceFilesV1,
@@ -39,11 +43,13 @@ const regionsJsonV1 = {
 } as const;
 
 let appRoot = "";
+let projectIndexOwner: AuthoringProjectIndexOwnerV1;
 
 beforeEach(() => {
   appRoot = mkdtempSync(join(tmpdir(), "sillymaker-regions-port-"));
   mkdirSync(join(appRoot, "src", "regions"), { recursive: true });
   writeFileSync(join(appRoot, regionsPathV1), `${JSON.stringify(regionsJsonV1, null, 2)}\n`);
+  projectIndexOwner = createAuthoringProjectIndexOwnerV1(appRoot);
 });
 
 afterEach(() => {
@@ -53,13 +59,16 @@ afterEach(() => {
 describe("listRegionsSourceFilesV1", () => {
   it("lists admissible documents and names inadmissible files with a reason", () => {
     writeFileSync(join(appRoot, "src", "regions", "broken.regions.json"), "{ nope\n");
-    const listed = listRegionsSourceFilesV1(appRoot);
+    const index = projectIndexOwner.snapshot();
+    const countersBeforeList = projectIndexOwner.counters();
+    const listed = listRegionsSourceFilesV1(index);
     expect(listed.regionsDocuments).toEqual([
       { path: regionsPathV1, regionsId: "regions.test.body", label: "身体部位" },
     ]);
     expect(listed.skipped).toHaveLength(1);
     expect(listed.skipped[0]?.path).toBe("src/regions/broken.regions.json");
     expect(listed.skipped[0]?.reason.length).toBeGreaterThan(0);
+    expect(projectIndexOwner.counters()).toEqual(countersBeforeList);
   });
 });
 
@@ -159,49 +168,57 @@ describe("writeRegionsSourceFileV1", () => {
 
 describe("createRegionsSourceFileV1", () => {
   it("creates a new document (missing directories included) and indexes it", () => {
-    const created = createRegionsSourceFileV1(appRoot, {
+    const created = createRegionsSourceFileV1(appRoot, projectIndexOwner.snapshot(), {
       path: "src/scenes/opening/regions/mei.regions.json",
       regionsDocument: { ...regionsJsonV1, regionsId: "regions.test.mei" },
     });
     if (created.kind !== "ok") throw new Error(`create failed: ${created.code}`);
+    projectIndexOwner.invalidate("src/scenes/opening/regions/mei.regions.json");
     const reread = readRegionsSourceFileV1(
       appRoot,
       "src/scenes/opening/regions/mei.regions.json",
     );
     if (reread.kind !== "ok") throw new Error("reread failed");
     expect(reread.digest).toBe(created.digest);
-    expect(listRegionsSourceFilesV1(appRoot).regionsDocuments.map((entry) => entry.regionsId))
+    expect(
+      listRegionsSourceFilesV1(projectIndexOwner.snapshot()).regionsDocuments.map((entry) =>
+        entry.regionsId
+      ),
+    )
       .toEqual(["regions.test.body", "regions.test.mei"]);
   });
 
   it("rejects existing files, duplicate regions ids, and id-stem mismatches", () => {
     expect(
-      createRegionsSourceFileV1(appRoot, { path: regionsPathV1, regionsDocument: regionsJsonV1 }),
+      createRegionsSourceFileV1(appRoot, projectIndexOwner.snapshot(), {
+        path: regionsPathV1,
+        regionsDocument: regionsJsonV1,
+      }),
     ).toMatchObject({ code: "already_exists" });
 
     expect(
-      createRegionsSourceFileV1(appRoot, {
+      createRegionsSourceFileV1(appRoot, projectIndexOwner.snapshot(), {
         path: "src/regions/body2.regions.json",
         regionsDocument: regionsJsonV1,
       }),
     ).toMatchObject({ code: "regions_id_mismatch" });
 
     expect(
-      createRegionsSourceFileV1(appRoot, {
+      createRegionsSourceFileV1(appRoot, projectIndexOwner.snapshot(), {
         path: "src/scenes/opening/regions/body.regions.json",
         regionsDocument: regionsJsonV1,
       }),
     ).toMatchObject({ code: "already_exists" });
 
     expect(
-      createRegionsSourceFileV1(appRoot, {
+      createRegionsSourceFileV1(appRoot, projectIndexOwner.snapshot(), {
         path: "src/regions/broken2.regions.json",
         regionsDocument: { nope: true },
       }),
     ).toMatchObject({ code: "regions_invalid" });
 
     expect(
-      createRegionsSourceFileV1(appRoot, {
+      createRegionsSourceFileV1(appRoot, projectIndexOwner.snapshot(), {
         path: "../outside/outside.regions.json",
         regionsDocument: regionsJsonV1,
       }),

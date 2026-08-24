@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { buildAuthoringProjectIndexV1 } from "./authoring-index.ts";
+import {
+  buildAuthoringProjectIndexV1,
+  createAuthoringProjectIndexOwnerV1,
+} from "./authoring-index.ts";
 import { collectChromeLayoutSourceDiagnosticsV1 } from "./chrome-layout-diagnostics.ts";
 import { collectMotionSourceDiagnosticsV1 } from "./motion-diagnostics.ts";
 import { collectRegionsSourceDiagnosticsV1 } from "./regions-diagnostics.ts";
@@ -242,5 +245,182 @@ describe("buildAuthoringProjectIndexV1", () => {
       "scenes/opening/motions/enter.motion.json",
       "scenes/opening/opening.scene.json",
     ]);
+  });
+});
+
+describe("createAuthoringProjectIndexOwnerV1", () => {
+  it("lazily builds every family with one walk and serves cached snapshots without IO", () => {
+    writeFileSync(
+      join(sourceRoot, "scenes", "opening", "opening.scene.json"),
+      sceneJsonV1("scene.app.opening"),
+    );
+    writeFileSync(
+      join(sourceRoot, "scenes", "opening", "motions", "enter.motion.json"),
+      motionJsonV1("motion.app.enter"),
+    );
+    writeFileSync(
+      join(sourceRoot, "scenes", "opening", "mei.regions.json"),
+      regionsJsonV1("regions.app.mei"),
+    );
+    writeFileSync(
+      join(sourceRoot, "scenes", "main-hud.chrome-layout.json"),
+      chromeLayoutJsonV1("layout.app.main-hud"),
+    );
+
+    const owner = createAuthoringProjectIndexOwnerV1(sourceRoot);
+    expect(owner.counters()).toEqual({
+      treeWalks: 0,
+      fileReads: 0,
+      parses: 0,
+      invalidations: 0,
+    });
+
+    const first = owner.snapshot();
+    expect(first.scenes).toHaveLength(1);
+    expect(first.motions).toHaveLength(1);
+    expect(first.regions).toHaveLength(1);
+    expect(first.chromeLayouts).toHaveLength(1);
+    expect(owner.counters()).toEqual({
+      treeWalks: 1,
+      fileReads: 4,
+      parses: 4,
+      invalidations: 0,
+    });
+
+    expect(owner.snapshot()).toBe(first);
+    expect(owner.counters()).toEqual({
+      treeWalks: 1,
+      fileReads: 4,
+      parses: 4,
+      invalidations: 0,
+    });
+  });
+
+  it("re-reads and admits only the invalidated source record", () => {
+    const scenePath = join(sourceRoot, "scenes", "opening", "opening.scene.json");
+    writeFileSync(scenePath, sceneJsonV1("scene.app.opening", "开场"));
+    writeFileSync(
+      join(sourceRoot, "scenes", "opening", "motions", "enter.motion.json"),
+      motionJsonV1("motion.app.enter"),
+    );
+    const owner = createAuthoringProjectIndexOwnerV1(sourceRoot);
+    owner.snapshot();
+
+    writeFileSync(scenePath, sceneJsonV1("scene.app.opening", "新开场"));
+    owner.invalidate("scenes/opening/opening.scene.json");
+    expect(owner.counters()).toEqual({
+      treeWalks: 1,
+      fileReads: 2,
+      parses: 2,
+      invalidations: 1,
+    });
+
+    const next = owner.snapshot();
+    expect(next.scenes).toEqual([
+      { path: "scenes/opening/opening.scene.json", sceneId: "scene.app.opening", label: "新开场" },
+    ]);
+    expect(next.motions).toHaveLength(1);
+    expect(owner.counters()).toEqual({
+      treeWalks: 1,
+      fileReads: 3,
+      parses: 3,
+      invalidations: 1,
+    });
+  });
+
+  it("recovers the same record across valid, invalid, and valid revisions", () => {
+    const scenePath = join(sourceRoot, "scenes", "opening", "opening.scene.json");
+    const relativePath = "scenes/opening/opening.scene.json";
+    writeFileSync(scenePath, sceneJsonV1("scene.app.opening", "开场"));
+    const owner = createAuthoringProjectIndexOwnerV1(sourceRoot);
+    owner.snapshot();
+
+    writeFileSync(scenePath, "{ nope\n");
+    owner.invalidate(relativePath);
+    const invalid = owner.snapshot();
+    expect(invalid.scenes).toEqual([]);
+    expect(invalid.skipped.map((entry) => `${entry.kind}@${entry.path}`)).toEqual([
+      `scene@${relativePath}`,
+    ]);
+
+    writeFileSync(scenePath, sceneJsonV1("scene.app.opening", "恢复"));
+    owner.invalidate(relativePath);
+    const recovered = owner.snapshot();
+    expect(recovered.scenes).toEqual([
+      { path: relativePath, sceneId: "scene.app.opening", label: "恢复" },
+    ]);
+    expect(recovered.skipped).toEqual([]);
+    expect(owner.counters()).toEqual({
+      treeWalks: 1,
+      fileReads: 3,
+      parses: 3,
+      invalidations: 2,
+    });
+  });
+
+  it("adds and unlinks one record without another tree walk", () => {
+    const owner = createAuthoringProjectIndexOwnerV1(sourceRoot);
+    expect(owner.snapshot().scenes).toEqual([]);
+
+    const scenePath = join(sourceRoot, "scenes", "opening", "opening.scene.json");
+    const relativePath = "scenes/opening/opening.scene.json";
+    writeFileSync(scenePath, sceneJsonV1("scene.app.opening"));
+    owner.invalidate(relativePath);
+    expect(owner.snapshot().scenes).toHaveLength(1);
+
+    unlinkSync(scenePath);
+    owner.invalidate(relativePath);
+    expect(owner.snapshot().scenes).toEqual([]);
+    expect(owner.counters()).toEqual({
+      treeWalks: 1,
+      fileReads: 1,
+      parses: 1,
+      invalidations: 2,
+    });
+  });
+
+  it("keeps invalidated records behind symlinked directories outside the project", () => {
+    const outsideRoot = mkdtempSync(join(tmpdir(), "sillymaker-authoring-index-outside-"));
+    try {
+      writeFileSync(
+        join(outsideRoot, "outside.scene.json"),
+        sceneJsonV1("scene.outside", "外部"),
+      );
+      symlinkSync(outsideRoot, join(sourceRoot, "linked"));
+
+      const owner = createAuthoringProjectIndexOwnerV1(sourceRoot);
+      expect(owner.snapshot().scenes).toEqual([]);
+      owner.invalidate("linked/outside.scene.json");
+      expect(owner.snapshot().scenes).toEqual([]);
+      expect(owner.counters()).toEqual({
+        treeWalks: 1,
+        fileReads: 0,
+        parses: 0,
+        invalidations: 1,
+      });
+    } finally {
+      rmSync(outsideRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("coalesces repeated watcher events for one path and reads the latest file contents", () => {
+    const scenePath = join(sourceRoot, "scenes", "opening", "opening.scene.json");
+    const relativePath = "scenes/opening/opening.scene.json";
+    writeFileSync(scenePath, sceneJsonV1("scene.app.opening", "开场"));
+    const owner = createAuthoringProjectIndexOwnerV1(sourceRoot);
+    owner.snapshot();
+
+    writeFileSync(scenePath, sceneJsonV1("scene.app.opening", "中间"));
+    owner.invalidate(relativePath);
+    writeFileSync(scenePath, sceneJsonV1("scene.app.opening", "最终"));
+    owner.invalidate(relativePath);
+
+    expect(owner.snapshot().scenes[0]?.label).toBe("最终");
+    expect(owner.counters()).toEqual({
+      treeWalks: 1,
+      fileReads: 2,
+      parses: 2,
+      invalidations: 2,
+    });
   });
 });

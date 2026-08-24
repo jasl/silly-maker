@@ -6,7 +6,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ChromeLayoutDocumentV1 } from "@sillymaker/base";
 import { parseChromeLayoutDocumentV1 } from "@sillymaker/base";
 
-import { buildAuthoringProjectIndexV1 } from "../project/authoring-index.ts";
+import type {
+  AuthoringProjectIndexOwnerV1,
+  AuthoringProjectIndexV1,
+} from "../project/authoring-index.ts";
 import { resolveDevSourceCreatePathV1, resolveDevSourcePathV1 } from "./dev-sources.ts";
 
 /**
@@ -81,8 +84,9 @@ function chromeLayoutDigestV1(bytes: Uint8Array): string {
 }
 
 /** The Project Authoring Index's chrome-layout view: catalog rows + named skips. */
-export function listChromeLayoutSourceFilesV1(appRoot: string): ChromeLayoutListResultV1 {
-  const index = buildAuthoringProjectIndexV1(appRoot);
+export function listChromeLayoutSourceFilesV1(
+  index: AuthoringProjectIndexV1,
+): ChromeLayoutListResultV1 {
   return Object.freeze({
     chromeLayouts: index.chromeLayouts,
     skipped: Object.freeze(
@@ -233,6 +237,7 @@ export interface CreateChromeLayoutSourceInputV1 {
  */
 export function createChromeLayoutSourceFileV1(
   appRoot: string,
+  index: AuthoringProjectIndexV1,
   input: CreateChromeLayoutSourceInputV1,
 ): ChromeLayoutWriteResultV1 {
   if (!input.path.endsWith(chromeLayoutFileSuffixV1)) return { kind: "error", code: "bad_request" };
@@ -259,7 +264,6 @@ export function createChromeLayoutSourceFileV1(
     };
   }
 
-  const index = buildAuthoringProjectIndexV1(appRoot);
   const existing = index.chromeLayouts.find((entry) => entry.layoutId === incoming.layoutId);
   if (existing !== undefined) {
     return {
@@ -330,7 +334,10 @@ async function readRequestBodyV1(request: IncomingMessage): Promise<string | nul
 }
 
 /** Connect-style handler; exported separately so tests can drive it. */
-export function createChromeLayoutPortMiddlewareV1(input: { readonly appRoot: string }): (
+export function createChromeLayoutPortMiddlewareV1(input: {
+  readonly appRoot: string;
+  readonly projectIndexOwner: AuthoringProjectIndexOwnerV1;
+}): (
   request: IncomingMessage,
   response: ServerResponse,
   next: () => void,
@@ -344,7 +351,11 @@ export function createChromeLayoutPortMiddlewareV1(input: { readonly appRoot: st
         response.end("method not allowed");
         return;
       }
-      sendJsonV1(response, 200, listChromeLayoutSourceFilesV1(input.appRoot));
+      sendJsonV1(
+        response,
+        200,
+        listChromeLayoutSourceFilesV1(input.projectIndexOwner.snapshot()),
+      );
       return;
     }
 
@@ -401,7 +412,7 @@ export function createChromeLayoutPortMiddlewareV1(input: { readonly appRoot: st
         // `expectedDigest: null` is the create form of CAS: the expected
         // prior state is "no file". A string digest is the ordinary update.
         const result = record.expectedDigest === null
-          ? createChromeLayoutSourceFileV1(input.appRoot, {
+          ? createChromeLayoutSourceFileV1(input.appRoot, input.projectIndexOwner.snapshot(), {
             path: record.path,
             chromeLayoutDocument: record.chromeLayoutDocument,
           })
@@ -417,6 +428,7 @@ export function createChromeLayoutPortMiddlewareV1(input: { readonly appRoot: st
           });
           return;
         }
+        input.projectIndexOwner.invalidate(record.path);
         sendJsonV1(response, 200, { digest: result.digest });
       });
       return;

@@ -6,7 +6,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MotionDocumentV1 } from "@sillymaker/base";
 import { parseMotionDocumentV1 } from "@sillymaker/base";
 
-import { buildAuthoringProjectIndexV1 } from "../project/authoring-index.ts";
+import type {
+  AuthoringProjectIndexOwnerV1,
+  AuthoringProjectIndexV1,
+} from "../project/authoring-index.ts";
 import { resolveDevSourceCreatePathV1, resolveDevSourcePathV1 } from "./dev-sources.ts";
 
 /**
@@ -72,8 +75,7 @@ function motionDigestV1(bytes: Uint8Array): string {
 }
 
 /** The Project Authoring Index's motion view: catalog rows + named skips. */
-export function listMotionSourceFilesV1(appRoot: string): MotionListResultV1 {
-  const index = buildAuthoringProjectIndexV1(appRoot);
+export function listMotionSourceFilesV1(index: AuthoringProjectIndexV1): MotionListResultV1 {
   return Object.freeze({
     motions: index.motions,
     skipped: Object.freeze(
@@ -222,6 +224,7 @@ export interface CreateMotionSourceInputV1 {
  */
 export function createMotionSourceFileV1(
   appRoot: string,
+  index: AuthoringProjectIndexV1,
   input: CreateMotionSourceInputV1,
 ): MotionWriteResultV1 {
   if (!input.path.endsWith(motionFileSuffixV1)) return { kind: "error", code: "bad_request" };
@@ -248,7 +251,6 @@ export function createMotionSourceFileV1(
     };
   }
 
-  const index = buildAuthoringProjectIndexV1(appRoot);
   const existing = index.motions.find((motion) => motion.motionId === incoming.motionId);
   if (existing !== undefined) {
     return {
@@ -319,7 +321,10 @@ async function readRequestBodyV1(request: IncomingMessage): Promise<string | nul
 }
 
 /** Connect-style handler; exported separately so tests can drive it. */
-export function createMotionPortMiddlewareV1(input: { readonly appRoot: string }): (
+export function createMotionPortMiddlewareV1(input: {
+  readonly appRoot: string;
+  readonly projectIndexOwner: AuthoringProjectIndexOwnerV1;
+}): (
   request: IncomingMessage,
   response: ServerResponse,
   next: () => void,
@@ -333,7 +338,7 @@ export function createMotionPortMiddlewareV1(input: { readonly appRoot: string }
         response.end("method not allowed");
         return;
       }
-      sendJsonV1(response, 200, listMotionSourceFilesV1(input.appRoot));
+      sendJsonV1(response, 200, listMotionSourceFilesV1(input.projectIndexOwner.snapshot()));
       return;
     }
 
@@ -390,7 +395,7 @@ export function createMotionPortMiddlewareV1(input: { readonly appRoot: string }
         // `expectedDigest: null` is the create form of CAS: the expected
         // prior state is "no file". A string digest is the ordinary update.
         const result = record.expectedDigest === null
-          ? createMotionSourceFileV1(input.appRoot, {
+          ? createMotionSourceFileV1(input.appRoot, input.projectIndexOwner.snapshot(), {
             path: record.path,
             motionDocument: record.motionDocument,
           })
@@ -406,6 +411,7 @@ export function createMotionPortMiddlewareV1(input: { readonly appRoot: string }
           });
           return;
         }
+        input.projectIndexOwner.invalidate(record.path);
         sendJsonV1(response, 200, { digest: result.digest });
       });
       return;

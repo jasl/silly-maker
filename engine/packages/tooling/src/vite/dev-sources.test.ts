@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   createDevSourcesMiddlewareV1,
   createDevSourcesOriginGuardV1,
+  devSourcesPluginV1,
   resolveDevSourcePathV1,
 } from "./dev-sources.ts";
 
@@ -182,5 +183,111 @@ describe("createDevSourcesOriginGuardV1", () => {
       );
       expect(forwarded).toBe(true);
     }
+  });
+});
+
+type DevMiddlewareV1 = (
+  request: IncomingMessage,
+  response: ServerResponse,
+  next: () => void,
+) => void;
+
+async function createPluginHarnessV1() {
+  const middlewares: DevMiddlewareV1[] = [];
+  const watchers = new Map<string, (filePath: string) => void>();
+  const watcher = {
+    on(event: string, handler: (filePath: string) => void) {
+      watchers.set(event, handler);
+      return watcher;
+    },
+  };
+  const plugin = devSourcesPluginV1(appRoot);
+  const configureServer = plugin.configureServer;
+  if (typeof configureServer !== "function") throw new Error("configureServer hook missing");
+  await configureServer.call({} as never, {
+    middlewares: { use: (middleware: DevMiddlewareV1) => middlewares.push(middleware) },
+    watcher,
+  } as never);
+
+  return {
+    emit(event: "add" | "change" | "unlink", filePath: string): void {
+      const handler = watchers.get(event);
+      if (handler === undefined) throw new Error(`${event} watcher missing`);
+      handler(filePath);
+    },
+    getJson(url: string): unknown {
+      let body = "";
+      let statusCode = 0;
+      const response = {
+        set statusCode(value: number) {
+          statusCode = value;
+        },
+        get statusCode(): number {
+          return statusCode;
+        },
+        setHeader: () => {},
+        end: (value?: unknown) => {
+          body = value === undefined ? "" : String(value);
+        },
+      } as unknown as ServerResponse;
+      let index = 0;
+      const next = (): void => {
+        const middleware = middlewares[index];
+        index += 1;
+        if (middleware === undefined) throw new Error(`no middleware handled ${url}`);
+        middleware({ method: "GET", url, headers: {} } as IncomingMessage, response, next);
+      };
+      next();
+      expect(statusCode).toBe(200);
+      return JSON.parse(body) as unknown;
+    },
+  };
+}
+
+function sceneJsonV1(label: string): string {
+  return `${
+    JSON.stringify({
+      format: "sillymaker.scene",
+      version: 1,
+      sceneId: "scene.test.live",
+      label,
+      canvas: { width: 1280, height: 720 },
+      entries: [],
+      cues: [],
+    })
+  }\n`;
+}
+
+describe("devSourcesPluginV1", () => {
+  it("keeps list responses current through project watcher invalidation", async () => {
+    const sceneDirectory = join(appRoot, "src", "scenes");
+    const scenePath = join(sceneDirectory, "live.scene.json");
+    mkdirSync(sceneDirectory, { recursive: true });
+    rmSync(scenePath, { force: true });
+    const harness = await createPluginHarnessV1();
+
+    expect(harness.getJson("/__sillymaker/dev-sources/scenes")).toEqual({
+      scenes: [],
+      skipped: [],
+    });
+
+    writeFileSync(scenePath, sceneJsonV1("Added"));
+    harness.emit("add", scenePath);
+    expect(harness.getJson("/__sillymaker/dev-sources/scenes")).toMatchObject({
+      scenes: [{ path: "src/scenes/live.scene.json", label: "Added" }],
+    });
+
+    writeFileSync(scenePath, sceneJsonV1("Changed"));
+    harness.emit("change", scenePath);
+    expect(harness.getJson("/__sillymaker/dev-sources/scenes")).toMatchObject({
+      scenes: [{ path: "src/scenes/live.scene.json", label: "Changed" }],
+    });
+
+    rmSync(scenePath);
+    harness.emit("unlink", scenePath);
+    expect(harness.getJson("/__sillymaker/dev-sources/scenes")).toEqual({
+      scenes: [],
+      skipped: [],
+    });
   });
 });

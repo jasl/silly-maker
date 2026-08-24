@@ -995,15 +995,16 @@ p50/p95 `0.348/0.363 ms` versus `0.899/0.934 ms`, first-pack admission
 temporary owner-review evidence.
 
 `deno task bench:authoring-index` generates 10- and 1,000-document profiles from
-the four current authoring document families. It measures a fresh unified index,
-one sweep through the four real list ports, and one changed Scene becoming
-visible through the current contract. The M0 report derives the current
-`4 walks + N reads/parses`, `16 walks + 4N reads/parses`, and
-`4 walks + N reads/parses` work respectively and marks those counts as a
-pre-change observation, not a product contract. M2 must replace that observation
-with the real single-owner incremental counters; no normal test protects the
-old repeated scans. Generated documents are removed and the JSON report defaults
-to OS temp; `--output <path>` selects an artifact location.
+the four current authoring document families. It measures a fresh lazy project
+owner, one sweep through the four real list views over its cached snapshot, and
+one changed Scene becoming current after path invalidation. The report records
+raw timing plus the owner's real `treeWalks/fileReads/parses/invalidations`
+deltas. For N valid documents the maintained structural expectations are
+`1/N/N/0`, `0/0/0/0`, and `0/1/1/1`; the last case is one direct logical
+invalidation, not a claim that a Vite watcher and an explicit CAS write can
+never both signal the same physical edit. The benchmark reports measurements
+and does not make a promotion decision. Generated documents are removed and the
+JSON report defaults to OS temp; `--output <path>` selects an artifact location.
 
 The bundle axis uses the real Template Player entry and the maintained
 SillyMaker Vite config, while holding its GUI and selected first 1,000-entry

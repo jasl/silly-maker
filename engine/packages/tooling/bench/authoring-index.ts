@@ -5,7 +5,12 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { buildAuthoringProjectIndexV1 } from "../src/project/authoring-index.ts";
+import {
+  type AuthoringProjectIndexCountersV1,
+  type AuthoringProjectIndexOwnerV1,
+  type AuthoringProjectIndexV1,
+  createAuthoringProjectIndexOwnerV1,
+} from "../src/project/authoring-index.ts";
 import { listChromeLayoutSourceFilesV1 } from "../src/vite/chrome-layout-port.ts";
 import { listMotionSourceFilesV1 } from "../src/vite/motion-port.ts";
 import { listRegionsSourceFilesV1 } from "../src/vite/regions-port.ts";
@@ -23,6 +28,7 @@ type DocumentFamilyV1 = "scene" | "motion" | "regions" | "chrome-layout";
 interface FixtureV1 {
   readonly root: string;
   readonly changedScenePath: string;
+  readonly changedSceneRelativePath: string;
   readonly counts: Readonly<Record<DocumentFamilyV1, number>>;
 }
 
@@ -145,6 +151,7 @@ function createFixtureV1(documentCount: number): FixtureV1 {
   return {
     root,
     changedScenePath: sourcePathV1(root, "scene", 0),
+    changedSceneRelativePath: "sources/bucket-000/s000000.scene.json",
     counts: Object.freeze(counts),
   };
 }
@@ -168,7 +175,7 @@ function assertCountV1(subject: string, actual: number, expected: number): void 
   }
 }
 
-function assertIndexV1(fixture: FixtureV1, index: ReturnType<typeof buildAuthoringProjectIndexV1>) {
+function assertIndexV1(fixture: FixtureV1, index: AuthoringProjectIndexV1) {
   assertCountV1("scene count", index.scenes.length, fixture.counts.scene);
   assertCountV1("motion count", index.motions.length, fixture.counts.motion);
   assertCountV1("regions count", index.regions.length, fixture.counts.regions);
@@ -180,12 +187,56 @@ function assertIndexV1(fixture: FixtureV1, index: ReturnType<typeof buildAuthori
   assertCountV1("skipped count", index.skipped.length, 0);
 }
 
-function measureListSweepV1(fixture: FixtureV1) {
+function counterDeltaV1(
+  before: AuthoringProjectIndexCountersV1,
+  after: AuthoringProjectIndexCountersV1,
+): AuthoringProjectIndexCountersV1 {
+  return Object.freeze({
+    treeWalks: after.treeWalks - before.treeWalks,
+    fileReads: after.fileReads - before.fileReads,
+    parses: after.parses - before.parses,
+    invalidations: after.invalidations - before.invalidations,
+  });
+}
+
+function assertWorkV1(
+  subject: string,
+  actual: AuthoringProjectIndexCountersV1,
+  expected: AuthoringProjectIndexCountersV1,
+): void {
+  for (const key of ["treeWalks", "fileReads", "parses", "invalidations"] as const) {
+    assertCountV1(`${subject} ${key}`, actual[key], expected[key]);
+  }
+}
+
+function measureColdBuildV1(fixture: FixtureV1) {
+  const owner = createAuthoringProjectIndexOwnerV1(fixture.root);
+  const before = owner.counters();
+  const measured = measureV1(() => owner.snapshot());
+  const work = counterDeltaV1(before, owner.counters());
+  assertIndexV1(fixture, measured.value);
+  assertWorkV1("cold build", work, {
+    treeWalks: 1,
+    fileReads: fixture.counts.scene + fixture.counts.motion + fixture.counts.regions +
+      fixture.counts["chrome-layout"],
+    parses: fixture.counts.scene + fixture.counts.motion + fixture.counts.regions +
+      fixture.counts["chrome-layout"],
+    invalidations: 0,
+  });
+  return { owner, durationMs: measured.durationMs, work };
+}
+
+function measureListSweepV1(
+  fixture: FixtureV1,
+  owner: AuthoringProjectIndexOwnerV1,
+) {
+  const index = owner.snapshot();
+  const before = owner.counters();
   const startedAt = performance.now();
-  const scene = measureV1(() => listSceneSourceFilesV1(fixture.root));
-  const motion = measureV1(() => listMotionSourceFilesV1(fixture.root));
-  const regions = measureV1(() => listRegionsSourceFilesV1(fixture.root));
-  const chromeLayout = measureV1(() => listChromeLayoutSourceFilesV1(fixture.root));
+  const scene = measureV1(() => listSceneSourceFilesV1(index));
+  const motion = measureV1(() => listMotionSourceFilesV1(index));
+  const regions = measureV1(() => listRegionsSourceFilesV1(index));
+  const chromeLayout = measureV1(() => listChromeLayoutSourceFilesV1(index));
   assertCountV1("scene list count", scene.value.scenes.length, fixture.counts.scene);
   assertCountV1("motion list count", motion.value.motions.length, fixture.counts.motion);
   assertCountV1(
@@ -204,64 +255,79 @@ function measureListSweepV1(fixture: FixtureV1) {
       chromeLayout.value.skipped.length,
     0,
   );
+  const work = counterDeltaV1(before, owner.counters());
+  assertWorkV1("cached list-port sweep", work, {
+    treeWalks: 0,
+    fileReads: 0,
+    parses: 0,
+    invalidations: 0,
+  });
   return {
     total: performance.now() - startedAt,
     scene: scene.durationMs,
     motion: motion.durationMs,
     regions: regions.durationMs,
     chromeLayout: chromeLayout.durationMs,
+    work,
   };
 }
 
-function measureSingleFileChangeV1(fixture: FixtureV1, sampleIndex: number): number {
+function measureSingleFileChangeV1(
+  fixture: FixtureV1,
+  owner: AuthoringProjectIndexOwnerV1,
+  sampleIndex: number,
+) {
   const labelSuffix = ` revision-${String(sampleIndex)}`;
+  const before = owner.counters();
   const startedAt = performance.now();
   writeFileSync(fixture.changedScenePath, sourceBytesV1("scene", 0, labelSuffix));
-  const result = listSceneSourceFilesV1(fixture.root);
+  owner.invalidate(fixture.changedSceneRelativePath);
+  const result = listSceneSourceFilesV1(owner.snapshot());
   const durationMs = performance.now() - startedAt;
   const changed = result.scenes.find((scene) => scene.sceneId === "scene.scale.s000000");
   if (changed?.label !== `scene 000000${labelSuffix}`) {
     throw new Error("single-file change was not visible through the current scene list contract");
   }
-  return durationMs;
+  const work = counterDeltaV1(before, owner.counters());
+  assertWorkV1("single-file change", work, {
+    treeWalks: 0,
+    fileReads: 1,
+    parses: 1,
+    invalidations: 1,
+  });
+  return { durationMs, work };
 }
 
 function measureProfileV1(profile: string, documentCount: number) {
   const fixture = createFixtureV1(documentCount);
   try {
-    assertIndexV1(fixture, buildAuthoringProjectIndexV1(fixture.root));
-    measureListSweepV1(fixture);
-    measureSingleFileChangeV1(fixture, 0);
+    const warmup = measureColdBuildV1(fixture);
+    measureListSweepV1(fixture, warmup.owner);
+    measureSingleFileChangeV1(fixture, warmup.owner, 0);
 
     const coldBuildMs: number[] = [];
     const listPortSweepMs: ReturnType<typeof measureListSweepV1>[] = [];
-    const singleFileChangeToCurrentMs: number[] = [];
+    const singleFileChangeToCurrent: ReturnType<typeof measureSingleFileChangeV1>[] = [];
+    const coldBuildWork: AuthoringProjectIndexCountersV1[] = [];
     for (let sampleIndex = 1; sampleIndex <= sampleCountV1; sampleIndex += 1) {
-      const build = measureV1(() => buildAuthoringProjectIndexV1(fixture.root));
-      assertIndexV1(fixture, build.value);
+      const build = measureColdBuildV1(fixture);
       coldBuildMs.push(build.durationMs);
-      listPortSweepMs.push(measureListSweepV1(fixture));
-      singleFileChangeToCurrentMs.push(measureSingleFileChangeV1(fixture, sampleIndex));
+      coldBuildWork.push(build.work);
+      listPortSweepMs.push(measureListSweepV1(fixture, build.owner));
+      singleFileChangeToCurrent.push(
+        measureSingleFileChangeV1(fixture, build.owner, sampleIndex),
+      );
     }
     return {
       profile,
       documentCount,
       familyCounts: fixture.counts,
       samples: sampleCountV1,
-      currentImplementationWork: {
-        status: "structural_pre_change_baseline",
-        productContract: false,
-        coldBuild: { treeWalks: 4, fileReads: documentCount, parses: documentCount },
-        listPortSweep: {
-          treeWalks: 16,
-          fileReads: 4 * documentCount,
-          parses: 4 * documentCount,
-        },
-        singleFileChangeToCurrent: {
-          treeWalks: 4,
-          fileReads: documentCount,
-          parses: documentCount,
-        },
+      measuredWork: {
+        source: "project-index-owner-counters",
+        coldBuild: coldBuildWork,
+        listPortSweep: listPortSweepMs.map((sample) => sample.work),
+        singleFileChangeToCurrent: singleFileChangeToCurrent.map((sample) => sample.work),
       },
       durationMs: {
         coldBuild: distributionV1(coldBuildMs),
@@ -272,7 +338,9 @@ function measureProfileV1(profile: string, documentCount: number) {
           regions: distributionV1(listPortSweepMs.map((sample) => sample.regions)),
           chromeLayout: distributionV1(listPortSweepMs.map((sample) => sample.chromeLayout)),
         },
-        singleFileChangeToCurrent: distributionV1(singleFileChangeToCurrentMs),
+        singleFileChangeToCurrent: distributionV1(
+          singleFileChangeToCurrent.map((sample) => sample.durationMs),
+        ),
       },
     };
   } finally {
@@ -310,8 +378,8 @@ function repositoryStateV1() {
 
 const outputPath = outputPathV1(Deno.args);
 const report = {
-  schemaVersion: 1,
-  workload: "authoring-index-current-contract-v1",
+  schemaVersion: 2,
+  workload: "authoring-index-incremental-v1",
   generatedAt: new Date().toISOString(),
   repository: repositoryStateV1(),
   environment: {
@@ -325,10 +393,10 @@ const report = {
     trendOnly: true,
     generatedDocumentsAreTemporary: true,
     coldBuildMeansFreshIndexInstanceAfterWarmup: true,
-    listPortSweepUsesTheFourCurrentFamilyListContracts: true,
-    singleFileChangeUsesCurrentFullRebuildPath: true,
-    incrementalInvalidationAvailable: false,
-    readAndParseCountsExposedByCurrentApi: false,
+    listPortSweepUsesOneSharedSnapshotAcrossFourFamilyViews: true,
+    singleFileChangeInvalidatesOnePathOnTheSameOwner: true,
+    counterDeltasAreMeasuredByTheProjectIndexOwner: true,
+    counterDeltasAreStructuralAcceptanceNotMachineTimingThresholds: true,
   },
   profiles: profilesV1.map(({ profile, documentCount }) =>
     measureProfileV1(profile, documentCount)

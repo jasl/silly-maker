@@ -6,6 +6,7 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 import launchEditor from "launch-editor";
 import type { Plugin } from "vite";
 
+import { createAuthoringProjectIndexOwnerV1 } from "../project/authoring-index.ts";
 import { createChromeLayoutPortMiddlewareV1 } from "./chrome-layout-port.ts";
 import { createMotionPortMiddlewareV1 } from "./motion-port.ts";
 import { createRegionsPortMiddlewareV1 } from "./regions-port.ts";
@@ -228,12 +229,22 @@ export function devSourcesPluginV1(appRoot: string): Plugin {
     name: "sillymaker:dev-sources",
     apply: "serve",
     configureServer(server) {
+      const root = resolve(appRoot);
+      const projectIndexOwner = createAuthoringProjectIndexOwnerV1(root);
+      const invalidateProjectPath = (filePath: string): void => {
+        const candidate = isAbsolute(filePath) ? resolve(filePath) : resolve(root, filePath);
+        if (escapesRootV1(root, candidate)) return;
+        projectIndexOwner.invalidate(relative(root, candidate).split(sep).join("/"));
+      };
+      server.watcher.on("add", invalidateProjectPath);
+      server.watcher.on("change", invalidateProjectPath);
+      server.watcher.on("unlink", invalidateProjectPath);
       server.middlewares.use(createDevSourcesOriginGuardV1());
       server.middlewares.use(createDevSourcesMiddlewareV1({ appRoot }));
-      server.middlewares.use(createMotionPortMiddlewareV1({ appRoot }));
-      server.middlewares.use(createRegionsPortMiddlewareV1({ appRoot }));
-      server.middlewares.use(createChromeLayoutPortMiddlewareV1({ appRoot }));
-      server.middlewares.use(createScenePortMiddlewareV1({ appRoot }));
+      server.middlewares.use(createMotionPortMiddlewareV1({ appRoot, projectIndexOwner }));
+      server.middlewares.use(createRegionsPortMiddlewareV1({ appRoot, projectIndexOwner }));
+      server.middlewares.use(createChromeLayoutPortMiddlewareV1({ appRoot, projectIndexOwner }));
+      server.middlewares.use(createScenePortMiddlewareV1({ appRoot, projectIndexOwner }));
     },
   };
 }

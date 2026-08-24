@@ -5,6 +5,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  createAuthoringProjectIndexOwnerV1,
+  type AuthoringProjectIndexOwnerV1,
+} from "../project/authoring-index.ts";
+import {
   createChromeLayoutSourceFileV1,
   formatChromeLayoutDocumentV1,
   listChromeLayoutSourceFilesV1,
@@ -29,11 +33,13 @@ const layoutJsonV1 = {
 } as const;
 
 let appRoot = "";
+let projectIndexOwner: AuthoringProjectIndexOwnerV1;
 
 beforeEach(() => {
   appRoot = mkdtempSync(join(tmpdir(), "sillymaker-chrome-layout-port-"));
   mkdirSync(join(appRoot, "src", "chrome"), { recursive: true });
   writeFileSync(join(appRoot, layoutPathV1), `${JSON.stringify(layoutJsonV1, null, 2)}\n`);
+  projectIndexOwner = createAuthoringProjectIndexOwnerV1(appRoot);
 });
 
 afterEach(() => {
@@ -43,13 +49,16 @@ afterEach(() => {
 describe("listChromeLayoutSourceFilesV1", () => {
   it("lists admissible documents and names inadmissible files with a reason", () => {
     writeFileSync(join(appRoot, "src", "chrome", "broken.chrome-layout.json"), "{ nope\n");
-    const listed = listChromeLayoutSourceFilesV1(appRoot);
+    const index = projectIndexOwner.snapshot();
+    const countersBeforeList = projectIndexOwner.counters();
+    const listed = listChromeLayoutSourceFilesV1(index);
     expect(listed.chromeLayouts).toEqual([
       { path: layoutPathV1, layoutId: "layout.test.main-hud", label: "主场景 HUD" },
     ]);
     expect(listed.skipped).toHaveLength(1);
     expect(listed.skipped[0]?.path).toBe("src/chrome/broken.chrome-layout.json");
     expect(listed.skipped[0]?.reason.length).toBeGreaterThan(0);
+    expect(projectIndexOwner.counters()).toEqual(countersBeforeList);
   });
 });
 
@@ -147,52 +156,57 @@ describe("writeChromeLayoutSourceFileV1", () => {
 
 describe("createChromeLayoutSourceFileV1", () => {
   it("creates a new document (missing directories included) and indexes it", () => {
-    const created = createChromeLayoutSourceFileV1(appRoot, {
+    const created = createChromeLayoutSourceFileV1(appRoot, projectIndexOwner.snapshot(), {
       path: "src/chrome/sheets/album-sheet.chrome-layout.json",
       chromeLayoutDocument: { ...layoutJsonV1, layoutId: "layout.test.album-sheet" },
     });
     if (created.kind !== "ok") throw new Error(`create failed: ${created.code}`);
+    projectIndexOwner.invalidate("src/chrome/sheets/album-sheet.chrome-layout.json");
     const reread = readChromeLayoutSourceFileV1(
       appRoot,
       "src/chrome/sheets/album-sheet.chrome-layout.json",
     );
     if (reread.kind !== "ok") throw new Error("reread failed");
     expect(reread.digest).toBe(created.digest);
-    expect(listChromeLayoutSourceFilesV1(appRoot).chromeLayouts.map((entry) => entry.layoutId))
+    expect(
+      listChromeLayoutSourceFilesV1(projectIndexOwner.snapshot()).chromeLayouts.map((entry) =>
+        entry.layoutId
+      ),
+    )
       .toEqual(["layout.test.main-hud", "layout.test.album-sheet"]);
   });
 
   it("rejects existing files, duplicate layout ids, and id-stem mismatches", () => {
     expect(
-      createChromeLayoutSourceFileV1(appRoot, {
+      createChromeLayoutSourceFileV1(appRoot, projectIndexOwner.snapshot(), {
         path: layoutPathV1,
         chromeLayoutDocument: layoutJsonV1,
       }),
     ).toMatchObject({ code: "already_exists" });
 
     expect(
-      createChromeLayoutSourceFileV1(appRoot, {
+      createChromeLayoutSourceFileV1(appRoot, projectIndexOwner.snapshot(), {
         path: "src/chrome/main-hud2.chrome-layout.json",
         chromeLayoutDocument: layoutJsonV1,
       }),
     ).toMatchObject({ code: "chrome_layout_id_mismatch" });
 
     expect(
-      createChromeLayoutSourceFileV1(appRoot, {
+      createChromeLayoutSourceFileV1(appRoot, projectIndexOwner.snapshot(), {
         path: "src/sheets/main-hud.chrome-layout.json",
         chromeLayoutDocument: layoutJsonV1,
       }),
     ).toMatchObject({ code: "already_exists" });
 
     expect(
-      createChromeLayoutSourceFileV1(appRoot, {
+      createChromeLayoutSourceFileV1(appRoot, projectIndexOwner.snapshot(), {
         path: "src/chrome/broken2.chrome-layout.json",
         chromeLayoutDocument: { nope: true },
       }),
     ).toMatchObject({ code: "chrome_layout_invalid" });
 
     expect(
-      createChromeLayoutSourceFileV1(appRoot, {
+      createChromeLayoutSourceFileV1(appRoot, projectIndexOwner.snapshot(), {
         path: "../outside/outside.chrome-layout.json",
         chromeLayoutDocument: layoutJsonV1,
       }),

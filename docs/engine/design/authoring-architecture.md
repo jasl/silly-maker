@@ -103,8 +103,9 @@ project-index/document-session/commands/diagnostics/selection/navigation/preview
 ## 3. Project Authoring Index：一处发现，处处消费
 
 接线成本的根源是同一份内容要在多处登记（import、runtime binding、studio
-binding、catalog、barrel）。目标合同：tooling 按目录约定扫描项目并构造统一索引，
-Studio、`story check` 与内容浏览消费同一份索引：
+binding、catalog、barrel）。目标合同：tooling 按目录约定扫描项目并构造统一索引；
+Studio、`story check` 与内容浏览消费同一份枚举/admission 实现。长期 dev server 共享一个
+project-scoped owner，one-shot CLI 不假装共享它的进程内实例：
 
 ```text
 scenes/**/*.scene.json
@@ -138,6 +139,9 @@ interface AuthoringProjectIndexV1 {
   确定性闭包与 build identity 继续看到这些文档；索引服务 tooling/Studio 的枚举
   与发现，不成为第二权威；
 - 枚举顺序确定、诊断结构化（文件被移动/重名/坏文档要点名，不静默消失）；
+- dev-server owner 构造时不做 IO；第一次 list 一次扫描/admission 四个已实现文档族，只保留
+  `path/id/label` metadata 或 named skip。后续 list 不读盘，watcher 只失效发生变化的 path；选中文档
+  仍通过既有 CAS port 直接读盘，不建立完整文档缓存；
 - `StudioBindingV1` 收窄为文件扫描得不到的部分：content authoring manifest、真实
   renderers、asset registry、可选的 Story 专属预览适配——不再手工枚举 motion/
   scene 文件路径。

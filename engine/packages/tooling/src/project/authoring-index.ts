@@ -12,11 +12,11 @@ import {
 /**
  * The Project Authoring Index (Authoring Architecture S2): one
  * directory-convention scan constructs the authoring-source enumeration
- * every tooling consumer shares — the `story check` source lints walk the
- * same files through `listAuthoringSourceFilesV1`, and the dev-server list
- * endpoints (and through them Studio's scene navigator and motion catalog)
- * consume `buildAuthoringProjectIndexV1`. The index is built at
- * dev/build/check time and never written to disk. It is discovery
+ * every tooling consumer shares — the `story check` source lints retain their
+ * source-family walk through `listAuthoringSourceFilesV1`, while one lazy
+ * project owner serves every dev-server list endpoint and incrementally admits
+ * watcher changes. One-shot CLI consumers use `buildAuthoringProjectIndexV1`.
+ * The index is never written to disk. It is discovery
  * infrastructure, not a second configuration authority: narrative code
  * keeps referencing scene and motion documents through explicit imports,
  * so the deterministic closure and build identity still see the documents
@@ -75,6 +75,55 @@ export interface AuthoringProjectIndexV1 {
   readonly skipped: readonly AuthoringIndexSkipV1[];
 }
 
+/** Logical filesystem work performed by one project-scoped index owner. */
+export interface AuthoringProjectIndexCountersV1 {
+  readonly treeWalks: number;
+  readonly fileReads: number;
+  readonly parses: number;
+  readonly invalidations: number;
+}
+
+/**
+ * A lazy project-scoped metadata index. Dev-server list consumers share its
+ * immutable snapshot; watcher events invalidate one root-relative source path.
+ */
+export interface AuthoringProjectIndexOwnerV1 {
+  snapshot(): AuthoringProjectIndexV1;
+  invalidate(path: string): void;
+  counters(): AuthoringProjectIndexCountersV1;
+}
+
+type AuthoringSourceKindV1 = AuthoringIndexSkipV1["kind"];
+
+type AdmittedAuthoringRecordV1 =
+  | { readonly kind: "scene"; readonly entry: AuthoringSceneSourceV1 }
+  | { readonly kind: "motion"; readonly entry: AuthoringMotionSourceV1 }
+  | { readonly kind: "regions"; readonly entry: AuthoringRegionsSourceV1 }
+  | { readonly kind: "chrome-layout"; readonly entry: AuthoringChromeLayoutSourceV1 }
+  | { readonly kind: "skipped"; readonly entry: AuthoringIndexSkipV1 };
+
+interface MutableAuthoringProjectIndexCountersV1 {
+  treeWalks: number;
+  fileReads: number;
+  parses: number;
+  invalidations: number;
+}
+
+const authoringKindOrderV1: Readonly<Record<AuthoringSourceKindV1, number>> = Object.freeze({
+  scene: 0,
+  motion: 1,
+  regions: 2,
+  "chrome-layout": 3,
+});
+
+function authoringSourceKindV1(path: string): AuthoringSourceKindV1 | undefined {
+  if (path.endsWith(".scene.json")) return "scene";
+  if (path.endsWith(".motion.json")) return "motion";
+  if (path.endsWith(".regions.json")) return "regions";
+  if (path.endsWith(".chrome-layout.json")) return "chrome-layout";
+  return undefined;
+}
+
 function walkFilesV1(root: string, suffix: string, collected: string[]): void {
   let names: string[];
   try {
@@ -124,90 +173,96 @@ function reasonV1(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/**
- * Scans one source root into the unified scene + motion + regions +
- * chrome-layout enumeration.
- */
-export function buildAuthoringProjectIndexV1(sourceRoot: string): AuthoringProjectIndexV1 {
+function skippedRecordV1(
+  path: string,
+  kind: AuthoringSourceKindV1,
+  error: unknown,
+): AdmittedAuthoringRecordV1 {
+  return Object.freeze({
+    kind: "skipped",
+    entry: Object.freeze({ path, kind, reason: reasonV1(error) }),
+  });
+}
+
+function admitAuthoringRecordV1(
+  path: string,
+  kind: AuthoringSourceKindV1,
+  bytes: string,
+): AdmittedAuthoringRecordV1 {
+  try {
+    const parsed = JSON.parse(bytes) as unknown;
+    switch (kind) {
+      case "scene": {
+        const document = parseSceneDocumentV1(parsed, `/${path}`);
+        return Object.freeze({
+          kind,
+          entry: Object.freeze({ path, sceneId: document.sceneId, label: document.label }),
+        });
+      }
+      case "motion": {
+        const document = parseMotionDocumentV1(parsed, `/${path}`);
+        return Object.freeze({
+          kind,
+          entry: Object.freeze({ path, motionId: document.motionId, label: document.label }),
+        });
+      }
+      case "regions": {
+        const document = parseRegionsDocumentV1(parsed, `/${path}`);
+        return Object.freeze({
+          kind,
+          entry: Object.freeze({ path, regionsId: document.regionsId, label: document.label }),
+        });
+      }
+      case "chrome-layout": {
+        const document = parseChromeLayoutDocumentV1(parsed, `/${path}`);
+        return Object.freeze({
+          kind,
+          entry: Object.freeze({ path, layoutId: document.layoutId, label: document.label }),
+        });
+      }
+    }
+    throw new TypeError("unsupported authoring source kind");
+  } catch (error) {
+    return skippedRecordV1(path, kind, error);
+  }
+}
+
+function snapshotFromRecordsV1(
+  records: ReadonlyMap<string, AdmittedAuthoringRecordV1>,
+): AuthoringProjectIndexV1 {
   const scenes: AuthoringSceneSourceV1[] = [];
   const motions: AuthoringMotionSourceV1[] = [];
   const regions: AuthoringRegionsSourceV1[] = [];
   const chromeLayouts: AuthoringChromeLayoutSourceV1[] = [];
   const skipped: AuthoringIndexSkipV1[] = [];
+  const ordered = [...records.entries()].sort(([left], [right]) =>
+    left < right ? -1 : left > right ? 1 : 0
+  );
 
-  for (const file of listAuthoringSourceFilesV1(sourceRoot, ".scene.json")) {
-    try {
-      const sceneDocument = parseSceneDocumentV1(
-        JSON.parse(readFileSync(file.filePath, "utf8")) as unknown,
-        `/${file.path}`,
-      );
-      scenes.push(
-        Object.freeze({
-          path: file.path,
-          sceneId: sceneDocument.sceneId,
-          label: sceneDocument.label,
-        }),
-      );
-    } catch (error) {
-      skipped.push(Object.freeze({ path: file.path, kind: "scene", reason: reasonV1(error) }));
+  for (const [, record] of ordered) {
+    switch (record.kind) {
+      case "scene":
+        scenes.push(record.entry);
+        break;
+      case "motion":
+        motions.push(record.entry);
+        break;
+      case "regions":
+        regions.push(record.entry);
+        break;
+      case "chrome-layout":
+        chromeLayouts.push(record.entry);
+        break;
+      case "skipped":
+        skipped.push(record.entry);
+        break;
     }
   }
-
-  for (const file of listAuthoringSourceFilesV1(sourceRoot, ".motion.json")) {
-    try {
-      const motionDocument = parseMotionDocumentV1(
-        JSON.parse(readFileSync(file.filePath, "utf8")) as unknown,
-        `/${file.path}`,
-      );
-      motions.push(
-        Object.freeze({
-          path: file.path,
-          motionId: motionDocument.motionId,
-          label: motionDocument.label,
-        }),
-      );
-    } catch (error) {
-      skipped.push(Object.freeze({ path: file.path, kind: "motion", reason: reasonV1(error) }));
-    }
-  }
-
-  for (const file of listAuthoringSourceFilesV1(sourceRoot, ".regions.json")) {
-    try {
-      const regionsDocument = parseRegionsDocumentV1(
-        JSON.parse(readFileSync(file.filePath, "utf8")) as unknown,
-        `/${file.path}`,
-      );
-      regions.push(
-        Object.freeze({
-          path: file.path,
-          regionsId: regionsDocument.regionsId,
-          label: regionsDocument.label,
-        }),
-      );
-    } catch (error) {
-      skipped.push(Object.freeze({ path: file.path, kind: "regions", reason: reasonV1(error) }));
-    }
-  }
-
-  for (const file of listAuthoringSourceFilesV1(sourceRoot, ".chrome-layout.json")) {
-    try {
-      const layoutDocument = parseChromeLayoutDocumentV1(
-        JSON.parse(readFileSync(file.filePath, "utf8")) as unknown,
-        `/${file.path}`,
-      );
-      chromeLayouts.push(
-        Object.freeze({
-          path: file.path,
-          layoutId: layoutDocument.layoutId,
-          label: layoutDocument.label,
-        }),
-      );
-    } catch (error) {
-      skipped.push(
-        Object.freeze({ path: file.path, kind: "chrome-layout", reason: reasonV1(error) }),
-      );
-    }
-  }
+  skipped.sort((left, right) => {
+    const kindOrder = authoringKindOrderV1[left.kind] - authoringKindOrderV1[right.kind];
+    if (kindOrder !== 0) return kindOrder;
+    return left.path < right.path ? -1 : left.path > right.path ? 1 : 0;
+  });
 
   return Object.freeze({
     scenes: Object.freeze(scenes),
@@ -216,4 +271,140 @@ export function buildAuthoringProjectIndexV1(sourceRoot: string): AuthoringProje
     chromeLayouts: Object.freeze(chromeLayouts),
     skipped: Object.freeze(skipped),
   });
+}
+
+function normalizedInvalidationPathV1(path: string): string | undefined {
+  const normalized = path.split("\\").join("/");
+  if (normalized.length === 0 || normalized.startsWith("/")) return undefined;
+  const segments = normalized.split("/");
+  if (
+    segments.some((segment) =>
+      segment.length === 0 || segment === "." || segment === ".." || segment === "node_modules" ||
+      segment.startsWith(".")
+    )
+  ) return undefined;
+  return authoringSourceKindV1(normalized) === undefined ? undefined : normalized;
+}
+
+function readAuthoringRecordV1(
+  root: string,
+  path: string,
+  kind: AuthoringSourceKindV1,
+  counters: MutableAuthoringProjectIndexCountersV1,
+): AdmittedAuthoringRecordV1 | undefined {
+  const segments = path.split("/");
+  let filePath = root;
+  for (let index = 0; index < segments.length; index += 1) {
+    filePath = resolve(filePath, segments[index]!);
+    let stat;
+    try {
+      stat = lstatSync(filePath);
+    } catch {
+      return undefined;
+    }
+    if (stat.isSymbolicLink()) return undefined;
+    const isLast = index === segments.length - 1;
+    if (isLast ? !stat.isFile() : !stat.isDirectory()) return undefined;
+  }
+
+  counters.fileReads += 1;
+  let bytes: string;
+  try {
+    bytes = readFileSync(filePath, "utf8");
+  } catch (error) {
+    return skippedRecordV1(path, kind, error);
+  }
+  counters.parses += 1;
+  return admitAuthoringRecordV1(path, kind, bytes);
+}
+
+function walkAllAuthoringSourceFilesV1(root: string): readonly AuthoringSourceFileV1[] {
+  const files: string[] = [];
+  walkFilesV1(root, ".json", files);
+  const entries = files
+    .map((filePath) =>
+      Object.freeze({
+        path: relative(root, filePath).split(sep).join("/"),
+        filePath,
+      })
+    )
+    .filter((entry) => authoringSourceKindV1(entry.path) !== undefined);
+  entries.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
+  return Object.freeze(entries);
+}
+
+/**
+ * Creates the dev-server/project owner. Construction is IO-free; the first
+ * snapshot performs one all-family walk and admits each matching source once.
+ */
+export function createAuthoringProjectIndexOwnerV1(
+  sourceRoot: string,
+): AuthoringProjectIndexOwnerV1 {
+  const root = resolve(sourceRoot);
+  const records = new Map<string, AdmittedAuthoringRecordV1>();
+  const pendingInvalidations = new Set<string>();
+  const work: MutableAuthoringProjectIndexCountersV1 = {
+    treeWalks: 0,
+    fileReads: 0,
+    parses: 0,
+    invalidations: 0,
+  };
+  let initialized = false;
+  let cachedSnapshot: AuthoringProjectIndexV1 | undefined;
+
+  const initializeV1 = (): AuthoringProjectIndexV1 => {
+    work.treeWalks += 1;
+    for (const file of walkAllAuthoringSourceFilesV1(root)) {
+      const kind = authoringSourceKindV1(file.path);
+      if (kind === undefined) continue;
+      const record = readAuthoringRecordV1(root, file.path, kind, work);
+      if (record !== undefined) records.set(file.path, record);
+    }
+    pendingInvalidations.clear();
+    initialized = true;
+    cachedSnapshot = snapshotFromRecordsV1(records);
+    return cachedSnapshot;
+  };
+
+  return Object.freeze({
+    snapshot(): AuthoringProjectIndexV1 {
+      if (!initialized) return initializeV1();
+      if (cachedSnapshot !== undefined) return cachedSnapshot;
+
+      const pending = [...pendingInvalidations].sort((left, right) =>
+        left < right ? -1 : left > right ? 1 : 0
+      );
+      pendingInvalidations.clear();
+      for (const path of pending) {
+        const kind = authoringSourceKindV1(path);
+        if (kind === undefined) continue;
+        const record = readAuthoringRecordV1(root, path, kind, work);
+        if (record === undefined) records.delete(path);
+        else records.set(path, record);
+      }
+      cachedSnapshot = snapshotFromRecordsV1(records);
+      return cachedSnapshot;
+    },
+
+    invalidate(path: string): void {
+      const normalized = normalizedInvalidationPathV1(path);
+      if (normalized === undefined) return;
+      work.invalidations += 1;
+      if (!initialized) return;
+      pendingInvalidations.add(normalized);
+      cachedSnapshot = undefined;
+    },
+
+    counters(): AuthoringProjectIndexCountersV1 {
+      return Object.freeze({ ...work });
+    },
+  });
+}
+
+/**
+ * Scans one source root into the unified scene + motion + regions +
+ * chrome-layout enumeration.
+ */
+export function buildAuthoringProjectIndexV1(sourceRoot: string): AuthoringProjectIndexV1 {
+  return createAuthoringProjectIndexOwnerV1(sourceRoot).snapshot();
 }

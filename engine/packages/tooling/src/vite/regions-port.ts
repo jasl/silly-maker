@@ -6,7 +6,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { RegionsDocumentV1 } from "@sillymaker/base";
 import { parseRegionsDocumentV1 } from "@sillymaker/base";
 
-import { buildAuthoringProjectIndexV1 } from "../project/authoring-index.ts";
+import type {
+  AuthoringProjectIndexOwnerV1,
+  AuthoringProjectIndexV1,
+} from "../project/authoring-index.ts";
 import { resolveDevSourceCreatePathV1, resolveDevSourcePathV1 } from "./dev-sources.ts";
 
 /**
@@ -72,8 +75,7 @@ function regionsDigestV1(bytes: Uint8Array): string {
 }
 
 /** The Project Authoring Index's regions view: catalog rows + named skips. */
-export function listRegionsSourceFilesV1(appRoot: string): RegionsListResultV1 {
-  const index = buildAuthoringProjectIndexV1(appRoot);
+export function listRegionsSourceFilesV1(index: AuthoringProjectIndexV1): RegionsListResultV1 {
   return Object.freeze({
     regionsDocuments: index.regions,
     skipped: Object.freeze(
@@ -221,6 +223,7 @@ export interface CreateRegionsSourceInputV1 {
  */
 export function createRegionsSourceFileV1(
   appRoot: string,
+  index: AuthoringProjectIndexV1,
   input: CreateRegionsSourceInputV1,
 ): RegionsWriteResultV1 {
   if (!input.path.endsWith(regionsFileSuffixV1)) return { kind: "error", code: "bad_request" };
@@ -247,7 +250,6 @@ export function createRegionsSourceFileV1(
     };
   }
 
-  const index = buildAuthoringProjectIndexV1(appRoot);
   const existing = index.regions.find((entry) => entry.regionsId === incoming.regionsId);
   if (existing !== undefined) {
     return {
@@ -318,7 +320,10 @@ async function readRequestBodyV1(request: IncomingMessage): Promise<string | nul
 }
 
 /** Connect-style handler; exported separately so tests can drive it. */
-export function createRegionsPortMiddlewareV1(input: { readonly appRoot: string }): (
+export function createRegionsPortMiddlewareV1(input: {
+  readonly appRoot: string;
+  readonly projectIndexOwner: AuthoringProjectIndexOwnerV1;
+}): (
   request: IncomingMessage,
   response: ServerResponse,
   next: () => void,
@@ -332,7 +337,7 @@ export function createRegionsPortMiddlewareV1(input: { readonly appRoot: string 
         response.end("method not allowed");
         return;
       }
-      sendJsonV1(response, 200, listRegionsSourceFilesV1(input.appRoot));
+      sendJsonV1(response, 200, listRegionsSourceFilesV1(input.projectIndexOwner.snapshot()));
       return;
     }
 
@@ -389,7 +394,7 @@ export function createRegionsPortMiddlewareV1(input: { readonly appRoot: string 
         // `expectedDigest: null` is the create form of CAS: the expected
         // prior state is "no file". A string digest is the ordinary update.
         const result = record.expectedDigest === null
-          ? createRegionsSourceFileV1(input.appRoot, {
+          ? createRegionsSourceFileV1(input.appRoot, input.projectIndexOwner.snapshot(), {
             path: record.path,
             regionsDocument: record.regionsDocument,
           })
@@ -405,6 +410,7 @@ export function createRegionsPortMiddlewareV1(input: { readonly appRoot: string 
           });
           return;
         }
+        input.projectIndexOwner.invalidate(record.path);
         sendJsonV1(response, 200, { digest: result.digest });
       });
       return;

@@ -157,7 +157,11 @@ Read only the documents relevant to the change:
   style local edits; bounded wire/schema admission remains and entry count is derived after
   admission. Pack unload and a separate i18n/message-catalog lane remain deferred
   until M0–M5 closes. M2 State hot plans and the single-owner incremental project
-  index are the only next task.
+  index delivered 2026-08-24: command execution uses a cold-compiled reducer
+  direct plan plus touched-only batched State materialization, and each Vite dev
+  server owns one lazy metadata-only authoring index with cached list views and
+  path-local invalidation. M3 core/outer GUI capability reorganization is the
+  only next task.
   This lane does not activate
   State Format V2, ECS, a final Blueprint/Timeline editor, public Mod ABI, or
   Desktop HMR. AR4/AR5 did not add

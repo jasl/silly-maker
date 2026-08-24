@@ -6,7 +6,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { SceneDocumentV1 } from "@sillymaker/base";
 import { parseSceneDocumentV1 } from "@sillymaker/base";
 
-import { buildAuthoringProjectIndexV1 } from "../project/authoring-index.ts";
+import type {
+  AuthoringProjectIndexOwnerV1,
+  AuthoringProjectIndexV1,
+} from "../project/authoring-index.ts";
 import { resolveDevSourceCreatePathV1, resolveDevSourcePathV1 } from "./dev-sources.ts";
 
 /**
@@ -89,8 +92,7 @@ function resolveSceneFileV1(
 }
 
 /** The Project Authoring Index's scene view: navigator rows + named skips. */
-export function listSceneSourceFilesV1(appRoot: string): SceneListResultV1 {
-  const index = buildAuthoringProjectIndexV1(appRoot);
+export function listSceneSourceFilesV1(index: AuthoringProjectIndexV1): SceneListResultV1 {
   return Object.freeze({
     scenes: index.scenes,
     skipped: Object.freeze(
@@ -218,6 +220,7 @@ export interface CreateSceneSourceInputV1 {
  */
 export function createSceneSourceFileV1(
   appRoot: string,
+  index: AuthoringProjectIndexV1,
   input: CreateSceneSourceInputV1,
 ): SceneWriteResultV1 {
   if (!input.path.endsWith(sceneFileSuffixV1)) return { kind: "error", code: "bad_request" };
@@ -244,7 +247,6 @@ export function createSceneSourceFileV1(
     };
   }
 
-  const index = buildAuthoringProjectIndexV1(appRoot);
   const existing = index.scenes.find((scene) => scene.sceneId === incoming.sceneId);
   if (existing !== undefined) {
     return {
@@ -315,7 +317,10 @@ async function readRequestBodyV1(request: IncomingMessage): Promise<string | nul
 }
 
 /** Connect-style handler; exported separately so tests can drive it. */
-export function createScenePortMiddlewareV1(input: { readonly appRoot: string }): (
+export function createScenePortMiddlewareV1(input: {
+  readonly appRoot: string;
+  readonly projectIndexOwner: AuthoringProjectIndexOwnerV1;
+}): (
   request: IncomingMessage,
   response: ServerResponse,
   next: () => void,
@@ -329,7 +334,7 @@ export function createScenePortMiddlewareV1(input: { readonly appRoot: string })
         response.end("method not allowed");
         return;
       }
-      sendJsonV1(response, 200, listSceneSourceFilesV1(input.appRoot));
+      sendJsonV1(response, 200, listSceneSourceFilesV1(input.projectIndexOwner.snapshot()));
       return;
     }
 
@@ -386,7 +391,7 @@ export function createScenePortMiddlewareV1(input: { readonly appRoot: string })
         // `expectedDigest: null` is the create form of CAS: the expected
         // prior state is "no file". A string digest is the ordinary update.
         const result = record.expectedDigest === null
-          ? createSceneSourceFileV1(input.appRoot, {
+          ? createSceneSourceFileV1(input.appRoot, input.projectIndexOwner.snapshot(), {
             path: record.path,
             sceneDocument: record.sceneDocument,
           })
@@ -402,6 +407,7 @@ export function createScenePortMiddlewareV1(input: { readonly appRoot: string })
           });
           return;
         }
+        input.projectIndexOwner.invalidate(record.path);
         sendJsonV1(response, 200, { digest: result.digest });
       });
       return;

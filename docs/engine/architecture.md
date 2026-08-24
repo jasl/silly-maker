@@ -148,6 +148,18 @@ start workspace IO or Flow, or register a writable participant. The standalone
 route and embedded shell render the same workspace implementation and retain
 their exact source IO owners across R1 candidates. Neither shell receives an
 authoritative Session or State writer.
+
+The Vite dev-sources layer owns one separate, lazy Project Authoring Index per
+configured application server. Its first list request performs one all-family
+tree walk and admits each matching Scene/Motion/Regions/Chrome document once,
+retaining only path/id/label metadata or a named skip. All four list ports share
+that immutable snapshot; app-root watcher events and successful CAS/create
+writes invalidate only the affected path. Selected document GET/CAS operations
+continue reading the complete payload directly from disk. One-shot Story CLI
+checks reuse the enumeration/admission implementation without sharing the
+dev-server instance. This is tooling discovery, not another Story, document, or
+runtime authority.
+
 Engine Lab's DevDock provenance panel is read-only; the duplicate writable
 Game-root Motion panel was retired. A real Scene cue supplies the maintained
 Motion case inside this Host, so capability revocation and Game R2/R3 teardown

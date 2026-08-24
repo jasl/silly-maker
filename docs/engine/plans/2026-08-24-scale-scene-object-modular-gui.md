@@ -1,6 +1,6 @@
 # Scale、Scene/Object 与模块化 GUI V1 实施计划
 
-状态：**2026-08-24 经所有者接受并开启；M0、M1、M2.1 已于同日交付，当前下一项为 M2.2；
+状态：**2026-08-24 经所有者接受并开启；M0–M2 已于同日交付，当前下一项为 M3；
 M0–M5 必须按序交付，每个里程碑独立复核后再进入下一项。**
 
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 仍是唯一跨计划排序入口；
@@ -341,11 +341,38 @@ aggregate State 与共享祖先、每个 touched slot 只写一次。其后的 w
 
 **M2.2 Incremental project index**
 
-- project authoring index 改为一个 project/dev-server owner：一次 walk 得到 metadata，按 `(path,
-  digest/revision)` 缓存 parse/admission，list ports 共享 snapshot，单文件 watcher 只失效对应 record；
-  Inspector 打开时才读取完整 document/preview。
+- project authoring index 改为一个 project/dev-server owner：一次 walk 读取并 admission 各匹配文档，
+  只按 path 缓存 navigator 所需 metadata/named skip，不保留完整 document/AST/bytes；list ports 共享
+  snapshot，单文件 watcher 只失效对应 record。选中后的 GET/CAS 仍直接从磁盘重新物化完整
+  document/preview。
 - 给 reducer visits、slot materializations、walk/read/parse/invalidation 加 package-internal deterministic
   counters；它们只服务长期预算，不扩大公共 API，也不围绕 GC/object allocation 搭建证明框架。
+
+**M2.2 交付记录（2026-08-24）：** `@sillymaker/tooling` 现在为每个 Vite dev server 创建一个
+IO-free lazy Project Authoring Index owner。第一次 list 对四个文档族做一次统一 tree walk，读取/admission
+每个匹配文件一次后只保留 `path + id + label` 或 named skip；Scene/Motion/Regions/Chrome 四个 list port
+都只是同一冻结 snapshot 的视图。Vite watcher 的 `add/change/unlink` 把 app-root 内路径归一为 POSIX
+relative path 并失效一个 record；成功的本地 CAS/create 也立即失效自己的路径。重复 watcher signal 在下次
+snapshot 前合并，但本记录不宣称一次物理写入在真实 Vite 中必然只产生一个 signal。
+
+- selected GET/CAS 仍从磁盘直接读完整文档，duplicate-id create 只消费共享 metadata snapshot；没有完整
+  document cache、SQLite/Worker、process-global singleton、第二 watcher 或持久 index。`story check` 继续是
+  one-shot CLI consumer，复用同一枚举/admission 实现而不假装共享 dev-server 内存实例。
+- 增量读取与 cold walk、GET/CAS 一样逐段拒绝 symlink ancestor；独立复核复现并关闭了一个可能在
+  `invalidate()` 后把 root 外文档纳入索引的路径不一致。复核同时删除了不参与 currentness 的 record
+  revision/sequence，只保留 path-set invalidation。
+- 1,000-document、Deno 2.9.5、同机、1 warmup + 5 samples 的 final-worktree raw p95 为：cold
+  `79.427 ms`、同 owner 四 list sweep `0.014 ms`、single-file write + invalidate-to-current `0.521 ms`，均低于 §2.4 owner-review
+  预算。每个 sample 的真实 counter delta 分别为 `1 walk / 1000 reads / 1000 parses / 0 invalidations`、
+  `0/0/0/0`、`0/1/1/1`；这些是 runner 直接观察的逻辑结构，不是 promotion decision 或对 watcher
+  signal 数量的认证。
+- focused project/CLI 与六个 owner/port/watcher files 共 `12 files / 105 tests`、`6 files / 49 tests`
+  通过；canonical `deno task check` 为 `366 files / 5614 tests` 全绿，Composition benchmark tests
+  `6 passed`，docs build、typecheck、lint、format 与 benchmark 实跑通过。独立复核在上述 symlink 修正后
+  无剩余 blocker。本切片没有修改 React/TSX，不触发 React Doctor。tooling implementation + benchmark
+  约 `+449/-149 LOC`，focused tests `+386/-41 LOC`，rules/live docs `+74/-24 LOC`；保留的复杂度是一个
+  project owner、四个既有 port 的显式依赖、一个小型 watcher bridge 与原始测量 runner，没有新 cache/
+  watcher/test framework。
 
 M2.1 与 M2.2 独立复核，不以其中一项的 wall-clock trend 阻塞另一项的正确性提交。
 
