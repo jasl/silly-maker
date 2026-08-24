@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it, vi } from "vitest";
 
-import { digestBytes } from "./digest.ts";
 import { parseLocaleId, parseTextId } from "./presentation-ids.ts";
 import { parseTextCatalogSetV1 } from "./text-catalog.ts";
 import {
@@ -9,6 +8,7 @@ import {
   createTextContentSessionV1,
   defineTextContentManifestV1,
   parseTextContentPackIdV1,
+  textContentPackJsonLimitsV1,
 } from "./text-content.ts";
 import type { TextCatalogSetV1 } from "./text-catalog.ts";
 
@@ -44,13 +44,10 @@ function packBytesV1(packId: string, textCatalogs: TextCatalogSetV1): Uint8Array
   }));
 }
 
-function descriptorInputV1(packId: string, bytes: Uint8Array, entryCount: number) {
+function descriptorInputV1(packId: string) {
   return {
     packId,
     runtimePath: `assets/${packId}.json`,
-    byteLength: bytes.byteLength,
-    sha256: digestBytes(bytes),
-    entryCount,
   };
 }
 
@@ -59,10 +56,8 @@ describe("text content manifest", () => {
     expect(parseTextContentPackIdV1("text.chapter-one")).toBe("text.chapter-one");
     expect(() => parseTextContentPackIdV1("chapter one")).toThrow("invalid TextContentPackIdV1");
 
-    const alphaBytes = packBytesV1("text.alpha", catalogsV1({ en: { "text.alpha": "A" } }));
-    const betaBytes = packBytesV1("text.beta", catalogsV1({ en: { "text.beta": "B" } }));
-    const alpha = descriptorInputV1("text.alpha", alphaBytes, 1);
-    const beta = descriptorInputV1("text.beta", betaBytes, 1);
+    const alpha = descriptorInputV1("text.alpha");
+    const beta = descriptorInputV1("text.beta");
     const manifest = defineTextContentManifestV1({ revision: 1, packs: [beta, alpha] });
     const reordered = defineTextContentManifestV1({ revision: 1, packs: [alpha, beta] });
 
@@ -101,7 +96,7 @@ describe("text content manifest", () => {
 });
 
 describe("text content pack admission", () => {
-  it("admits the exact wire shape after length, SHA, strict JSON, and catalog checks", () => {
+  it("admits the exact wire shape after bounded strict JSON and catalog checks", () => {
     const catalogs = catalogsV1({
       en: { "text.chapter.greeting": "Hello" },
       zh: { "text.chapter.greeting": "你好" },
@@ -109,7 +104,7 @@ describe("text content pack admission", () => {
     const bytes = packBytesV1("text.chapter", catalogs);
     const manifest = defineTextContentManifestV1({
       revision: 1,
-      packs: [descriptorInputV1("text.chapter", bytes, 2)],
+      packs: [descriptorInputV1("text.chapter")],
     });
     const pack = admitTextContentPackV1(manifest.packs[0]!, bytes);
 
@@ -123,30 +118,51 @@ describe("text content pack admission", () => {
     expect(Object.isFrozen(pack.textCatalogs)).toBe(true);
   });
 
-  it("rejects length and digest mismatches before parsing", () => {
-    const bytes = packBytesV1("text.chapter", catalogsV1({ en: { "text.chapter.a": "A" } }));
+  it("accepts valid user edits without changing logical manifest identity", () => {
+    const original = packBytesV1(
+      "text.chapter",
+      catalogsV1({
+        en: { "text.chapter.a": "A" },
+      }),
+    );
+    const edited = packBytesV1(
+      "text.chapter",
+      catalogsV1({
+        en: { "text.chapter.a": "Localized", "text.chapter.b": "Added" },
+      }),
+    );
     const manifest = defineTextContentManifestV1({
       revision: 1,
-      packs: [descriptorInputV1("text.chapter", bytes, 1)],
+      packs: [descriptorInputV1("text.chapter")],
     });
     const descriptor = manifest.packs[0]!;
-    expect(() => admitTextContentPackV1(descriptor, bytes.slice(1))).toThrow(
-      "text_content.pack_length_mismatch:text.chapter",
-    );
-    const changed = bytes.slice();
-    changed[changed.length - 2] = changed[changed.length - 2] === 65 ? 66 : 65;
-    expect(() => admitTextContentPackV1(descriptor, changed)).toThrow(
-      "text_content.pack_digest_mismatch:text.chapter",
+    expect(admitTextContentPackV1(descriptor, original).entryCount).toBe(1);
+    expect(admitTextContentPackV1(descriptor, edited).entryCount).toBe(2);
+    expect(manifest.digest).toBe(
+      defineTextContentManifestV1({ revision: 1, packs: [descriptorInputV1("text.chapter")] })
+        .digest,
     );
   });
 
-  it("rejects duplicate-key JSON, non-exact documents, identity drift, and bad counts", () => {
+  it("rejects packs outside the shared resource budget", () => {
+    const descriptor = defineTextContentManifestV1({
+      revision: 1,
+      packs: [descriptorInputV1("text.chapter")],
+    }).packs[0]!;
+    const oversized = new Uint8Array(Number(textContentPackJsonLimitsV1.maxBytes) + 1);
+
+    expect(() => admitTextContentPackV1(descriptor, oversized)).toThrow(
+      "text_content.pack_json_invalid:limit.bytes",
+    );
+  });
+
+  it("rejects duplicate-key JSON, non-exact documents, and identity drift", () => {
     const duplicateKey = encoder.encode(
       '{"format":"sillymaker.text-content-pack","format":"sillymaker.text-content-pack","version":1,"packId":"text.chapter","textCatalogs":{}}',
     );
     const duplicateDescriptor = defineTextContentManifestV1({
       revision: 1,
-      packs: [descriptorInputV1("text.chapter", duplicateKey, 0)],
+      packs: [descriptorInputV1("text.chapter")],
     }).packs[0]!;
     expect(() => admitTextContentPackV1(duplicateDescriptor, duplicateKey)).toThrow(
       "text_content.pack_json_invalid:object.duplicate_key",
@@ -162,7 +178,7 @@ describe("text content pack admission", () => {
     }));
     const extraDescriptor = defineTextContentManifestV1({
       revision: 1,
-      packs: [descriptorInputV1("text.chapter", extraKey, 1)],
+      packs: [descriptorInputV1("text.chapter")],
     }).packs[0]!;
     expect(() => admitTextContentPackV1(extraDescriptor, extraKey)).toThrow(
       "text_content.pack_shape_invalid:text.chapter",
@@ -171,19 +187,10 @@ describe("text content pack admission", () => {
     const foreignBytes = packBytesV1("text.foreign", catalogs);
     const foreignDescriptor = defineTextContentManifestV1({
       revision: 1,
-      packs: [descriptorInputV1("text.chapter", foreignBytes, 1)],
+      packs: [descriptorInputV1("text.chapter")],
     }).packs[0]!;
     expect(() => admitTextContentPackV1(foreignDescriptor, foreignBytes)).toThrow(
       "text_content.pack_identity_mismatch:text.chapter",
-    );
-
-    const validBytes = packBytesV1("text.chapter", catalogs);
-    const countDescriptor = defineTextContentManifestV1({
-      revision: 1,
-      packs: [descriptorInputV1("text.chapter", validBytes, 2)],
-    }).packs[0]!;
-    expect(() => admitTextContentPackV1(countDescriptor, validBytes)).toThrow(
-      "text_content.pack_entry_count_mismatch:text.chapter",
     );
   });
 });
@@ -195,7 +202,7 @@ describe("text content session", () => {
     const chapterBytes = packBytesV1("text.chapter", chapterCatalogs);
     const manifest = defineTextContentManifestV1({
       revision: 1,
-      packs: [descriptorInputV1("text.chapter", chapterBytes, 1)],
+      packs: [descriptorInputV1("text.chapter")],
     });
     let release!: (bytes: Uint8Array) => void;
     const pending = new Promise<Uint8Array>((resolve) => release = resolve);
@@ -264,10 +271,10 @@ describe("text content session", () => {
     const manifest = defineTextContentManifestV1({
       revision: 1,
       packs: [
-        descriptorInputV1("text.first", sources.get("text.first")!, 1),
-        descriptorInputV1("text.cross-duplicate", sources.get("text.cross-duplicate")!, 2),
-        descriptorInputV1("text.bootstrap-duplicate", sources.get("text.bootstrap-duplicate")!, 1),
-        descriptorInputV1("text.topology", sources.get("text.topology")!, 1),
+        descriptorInputV1("text.first"),
+        descriptorInputV1("text.cross-duplicate"),
+        descriptorInputV1("text.bootstrap-duplicate"),
+        descriptorInputV1("text.topology"),
       ],
     });
     const session = createTextContentSessionV1({
@@ -303,7 +310,7 @@ describe("text content session", () => {
     corrupt[corrupt.length - 2] = corrupt[corrupt.length - 2] === 65 ? 66 : 65;
     const manifest = defineTextContentManifestV1({
       revision: 1,
-      packs: [descriptorInputV1("text.retry", bytes, 1)],
+      packs: [descriptorInputV1("text.retry")],
     });
     const loadPackBytes = vi.fn()
       .mockRejectedValueOnce(new Error("missing"))
@@ -322,7 +329,7 @@ describe("text content session", () => {
     expect(session.loadedPackIds()).toEqual([]);
     expect(session.loadedEntryCount()).toBe(0);
     await expect(session.ensure(packId)).rejects.toThrow(
-      "text_content.pack_digest_mismatch:text.retry",
+      "text_content.pack_json_invalid:syntax.invalid",
     );
     expect(session.loadedPackIds()).toEqual([]);
     expect(session.loadedEntryCount()).toBe(0);

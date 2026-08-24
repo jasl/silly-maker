@@ -200,11 +200,17 @@ pack admission 和只解析已加载文本的同步 session；Web 从当前 GUI 
 pack，并在单一 semantic-invocation/Snapshot-replacement readiness boundary 按候选需求完成 content gate。
 Template 将开场/结尾 dialogue 分成两个
 `assets/content` pack，Player control plan 只保留 stable text IDs，Flow/source projection 和 authoring copy 只在
-`src/tooling/**` 可达。manifest 参与 presentation identity，payload 不进入 Snapshot/Save；文本更新仍使用
-现有 warning-level story/presentation compatibility。1,000/100,000-entry profiles 保持相同 60-byte State/
-digest、都只加载首个 1,000-entry pack；最终 modified worktree 复测的 initial JavaScript gzip 只从
-`361,312 B` 增到 `366,431 B`（`+5,119 B`），内容 payload 作为独立 pack assets 计量。M2 State hot plan 与
-single-owner incremental project index 是唯一下一项。
+`src/tooling/**` 可达。M1 corrective 将 manifest descriptor 收缩为 `packId`/`runtimePath`，其 revision +
+sorted logical topology 参与 presentation identity；被动 payload 不进入 Snapshot/Save，同一 logical
+location 的直接文本编辑也不改变 presentation identity 或增加 Save compatibility warning，refresh/restart
+后由新的 immutable session 读取。精确 byte length、SHA、声明式 entry count 及其拟议 generator 被删除；
+pack 仍接受一次 bounded Strict JSON/schema admission，实际 entry count 从 admitted catalogs 派生。
+1,000/100,000-entry profiles 保持相同 60-byte State/
+digest、都只加载首个 1,000-entry pack；M1 corrective 后的最终 modified-worktree 复测将
+initial JavaScript gzip 从 `361,006 B` 增到 `361,664 B`（`+658 B`），内容 payload 仍作为
+独立 pack assets 计量。M2 State hot plan 与
+single-owner incremental project index 是唯一下一项。i18n/message-catalog 与 pack unload 在 M0–M5
+关闭后再按作品重写证据评估，不插入当前顺序。
 
 排序与交付记录以
 [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md) §1

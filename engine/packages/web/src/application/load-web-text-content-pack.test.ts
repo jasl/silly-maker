@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // SPDX-License-Identifier: MIT
-import { defineTextContentManifestV1, digestBytes } from "@sillymaker/base";
+import { defineTextContentManifestV1 } from "@sillymaker/base";
 import { describe, expect, it, vi } from "vitest";
 
 import { loadWebTextContentPackBytesInternalV1 } from "./load-web-text-content-pack.ts";
@@ -11,9 +11,6 @@ const descriptorV1 = defineTextContentManifestV1({
   packs: [{
     packId: "text-pack.web.test",
     runtimePath: "assets/content/test.text-pack.json",
-    byteLength: packBytesV1.byteLength,
-    sha256: digestBytes(packBytesV1),
-    entryCount: 0,
   }],
 }).packs[0]!;
 

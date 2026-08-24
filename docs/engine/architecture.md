@@ -401,15 +401,22 @@ A Story package supplies a `GamePackageV1` with two facets:
 Large immutable text is presentation content, not authoritative State. A Story
 may put a `TextContentManifestV1` in its resolved presentation and declare the
 same manifest plus bootstrap catalogs and build-known initial/required pack IDs
-on `WebGameApplicationV1`. Each descriptor contains one app-root-relative
-`assets/**` runtime path, exact byte length, SHA-256 digest and localized-entry
-count; manifest revision plus the sorted descriptor vector form its digest.
+on `WebGameApplicationV1`. Each descriptor contains one stable `packId` and one
+app-root-relative `assets/**` runtime path; manifest revision plus the sorted
+logical-topology descriptor vector form its digest. Exact payload byte length,
+SHA-256 and a declared localized-entry count are deliberately not descriptor
+fields: a sibling receipt cannot authenticate an editable passive payload and
+would turn ordinary translation or local content edits into metadata churn.
 The wire file is an exact `sillymaker.text-content-pack` V1 object containing
 `format`, `version`, `packId`, and `textCatalogs`.
 
-Base owns this data boundary. `admitTextContentPackV1` checks descriptor length
-and digest, performs one bounded Strict JSON parse, then one shape/catalog/count
-admission. `createTextContentSessionV1` fixes one immutable manifest for the
+Base owns this data boundary. `admitTextContentPackV1` performs one bounded
+Strict JSON parse, then one wire shape, pack identity, schema/value and catalog
+admission; it derives the actual localized-entry count from the admitted
+catalogs. The exported `textContentPackJsonLimitsV1` sets a 16 MiB per-pack byte
+ceiling plus structural limits; larger content should be split along ordinary
+pack/load boundaries instead of maintaining an exact expected-size receipt.
+`createTextContentSessionV1` fixes one immutable manifest for the
 runtime session, single-flights each pack, permits retry after a failed flight,
 rejects locale-topology or cross-pack text-ID conflicts before committing its
 private indexes, and exposes only synchronous lookup over bootstrap plus already
@@ -439,16 +446,21 @@ parallel content gate. This is one Web-to-Core readiness binding over the
 existing semantic, Persistence, R2, and debug authorities, not a new facade,
 public Base Host/loading API, or raw Base State dependency.
 
-The complete manifest participates in the resolved presentation digest, while
-pack payload and loaded-session indexes do not enter Snapshot or Save. Changing
-text or a descriptor therefore produces the existing presentation-identity
-digest change (and a rebuilt presentation source may also change the Story
-digest); both use the existing warning-level compatibility classification
-without changing simulation compatibility when the State contract and
-simulation digest are unchanged. There is no additional Save field
-or migration path. During development, `deno task check:assets` resolves each
+The complete manifest's revision and sorted `packId`/`runtimePath` topology
+participate in the resolved presentation digest, while pack payload and
+loaded-session indexes do not enter Snapshot or Save. Changing manifest topology
+therefore produces the existing presentation-identity digest change. Editing
+passive text bytes at the same logical location does not change that identity or
+add a Save compatibility warning; a rebuilt presentation source may still change
+the Story digest through its existing source identity. There is no additional
+Save field or migration path. A loaded pack remains immutable for that runtime
+session, so a refresh/restart creates a new session and reads edited bytes.
+During development, `deno task check:assets` resolves each
 opted-in Story and admits all of its declared packs from that application's own
 root; Vite serves and copies them through the existing `/assets/**` pipeline.
+There is no generated payload-receipt/currentness workflow. Pack unload and a
+separate i18n/message-catalog lane remain deferred until the accepted M0–M5 plan
+closes and a later product rewrite supplies evidence.
 
 Repository applications keep the simulation definition in a dedicated
 simulation-definition module (`src/game/simulation-definition.ts` in the

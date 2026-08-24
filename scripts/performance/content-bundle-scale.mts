@@ -8,7 +8,6 @@ import { promisify } from "node:util";
 
 import { createSillymakerAppViteConfigV1 } from "@sillymaker/tooling/vite";
 import { build } from "vite";
-import { digestBytes } from "@sillymaker/base";
 
 import {
   contentBundleScaleFixtureV1,
@@ -193,9 +192,6 @@ void fetch(selectedPack.runtimePath).then(async (response) => {
     descriptors.push(Object.freeze({
       packId: `text-pack.scale.${suffix}`,
       runtimePath: `assets/content/pack-${suffix}.json`,
-      byteLength: bytes.byteLength,
-      sha256: digestBytes(bytes),
-      entryCount: fixture.entriesPerPack,
     }));
   }
   await writeFile(

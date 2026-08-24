@@ -9,7 +9,6 @@ import {
   canonicalJsonBytes,
   createTextContentSessionV1,
   defineTextContentManifestV1,
-  digestBytes,
   digestCanonical,
   parseTextCatalogSetV1,
   parseTextContentPackIdV1,
@@ -89,7 +88,7 @@ export interface ContentScaleCorrectnessV1 {
   readonly runtimeNodeCount: number;
   readonly inlineTextEntryCount: number;
   readonly manifestPackCount: number;
-  readonly declaredTextEntryCount: number;
+  readonly fixtureTextEntryCount: number;
   readonly loadedPackCount: number;
   readonly loadedTextEntryCount: number;
   readonly firstTextId: string;
@@ -179,23 +178,16 @@ function packBytesV1(packIndex: number): Uint8Array {
 }
 
 function generateContentV1(fixture: ContentScaleFixtureV1): GeneratedContentV1 {
-  const descriptors = [];
-  let firstPackBytes: Uint8Array | undefined;
-  for (let packIndex = 0; packIndex < fixture.packCount; packIndex += 1) {
-    const bytes = packBytesV1(packIndex);
-    if (packIndex === 0) firstPackBytes = bytes;
-    descriptors.push(Object.freeze({
+  // This benchmark retains the logical manifest and initially demanded payload;
+  // the bundle benchmark separately materializes every external pack.
+  const descriptors = Array.from({ length: fixture.packCount }, (_, packIndex) =>
+    Object.freeze({
       packId: packIdV1(packIndex),
       runtimePath: `assets/content/scale-${String(packIndex).padStart(3, "0")}.json`,
-      byteLength: bytes.byteLength,
-      sha256: digestBytes(bytes),
-      entryCount: contentScaleEntriesPerPackV1,
     }));
-  }
-  if (firstPackBytes === undefined) throw new TypeError("content scale first pack missing");
   return Object.freeze({
     manifest: defineTextContentManifestV1({ revision: 1, packs: descriptors }),
-    firstPackBytes,
+    firstPackBytes: packBytesV1(0),
   });
 }
 
@@ -240,10 +232,7 @@ export async function compileContentScaleFixtureV1(
       runtimeNodeCount: compiled.nodes.length,
       inlineTextEntryCount: compiled.textEntries.length,
       manifestPackCount: content.manifest.packs.length,
-      declaredTextEntryCount: content.manifest.packs.reduce(
-        (total, pack) => total + pack.entryCount,
-        0,
-      ),
+      fixtureTextEntryCount: fixture.entryCount,
       loadedPackCount: session.loadedPackIds().length,
       loadedTextEntryCount: session.loadedEntryCount(),
       firstTextId,
@@ -413,7 +402,7 @@ async function mainV1(): Promise<void> {
   await collectGarbageV1(gc);
   const afterInitialPack = readMemoryUsageV1();
   const report = Object.freeze({
-    schemaVersion: 2,
+    schemaVersion: 3,
     generatedAt: new Date().toISOString(),
     profile: fixture.profile,
     packCount: fixture.packCount,

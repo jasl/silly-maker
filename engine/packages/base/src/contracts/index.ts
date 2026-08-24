@@ -8,6 +8,7 @@ export {
   createTextContentSessionV1,
   defineTextContentManifestV1,
   parseTextContentPackIdV1,
+  textContentPackJsonLimitsV1,
   TextContentErrorV1,
 } from "./text-content.ts";
 export type {

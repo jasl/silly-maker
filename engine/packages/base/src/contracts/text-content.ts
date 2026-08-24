@@ -1,26 +1,17 @@
 // SPDX-License-Identifier: MIT
-import { digestBytes, digestCanonical } from "./digest.ts";
+import { digestCanonical } from "./digest.ts";
 import type { LocaleId, TextId } from "./presentation-ids.ts";
 import type { TextCatalogSetV1 } from "./text-catalog.ts";
 import { parseTextCatalogSetV1 } from "./text-catalog.ts";
 import { parseStrictJson, parseStrictJsonLimitsV1 } from "./strict-json.ts";
 import type { Brand, Digest, NonNegativeSafeInteger, PositiveSafeInteger } from "./values.ts";
-import {
-  parseDigest,
-  parseModuleId,
-  parseNonNegativeSafeInteger,
-  parsePositiveSafeInteger,
-} from "./values.ts";
+import { parseModuleId, parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "./values.ts";
 
 export type TextContentPackIdV1 = Brand<string, "TextContentPackIdV1">;
 
 export interface TextContentPackDescriptorV1 {
   readonly packId: TextContentPackIdV1;
   readonly runtimePath: string;
-  readonly byteLength: PositiveSafeInteger;
-  readonly sha256: Digest;
-  /** Total localized entries across every catalog in the pack. */
-  readonly entryCount: NonNegativeSafeInteger;
 }
 
 export interface TextContentManifestV1 {
@@ -40,13 +31,10 @@ export interface AdmittedTextContentPackV1 {
 export type TextContentErrorCodeV1 =
   | "text_content.manifest_invalid"
   | "text_content.manifest_pack_duplicate"
-  | "text_content.pack_length_mismatch"
-  | "text_content.pack_digest_mismatch"
   | "text_content.pack_json_invalid"
   | "text_content.pack_shape_invalid"
   | "text_content.pack_identity_mismatch"
   | "text_content.pack_catalog_invalid"
-  | "text_content.pack_entry_count_mismatch"
   | "text_content.pack_unknown"
   | "text_content.pack_load_failed"
   | "text_content.locale_topology_mismatch"
@@ -91,9 +79,6 @@ function parseManifestDescriptorV1(
   value: {
     readonly packId: string;
     readonly runtimePath: string;
-    readonly byteLength: number;
-    readonly sha256: string;
-    readonly entryCount: number;
   },
   index: number,
 ): TextContentPackDescriptorV1 {
@@ -101,9 +86,6 @@ function parseManifestDescriptorV1(
     return Object.freeze({
       packId: parseTextContentPackIdV1(value.packId),
       runtimePath: parseTextContentRuntimePathV1(value.runtimePath),
-      byteLength: parsePositiveSafeInteger(value.byteLength),
-      sha256: parseDigest(value.sha256),
-      entryCount: parseNonNegativeSafeInteger(value.entryCount),
     });
   } catch {
     return fail("text_content.manifest_invalid", String(index));
@@ -130,9 +112,6 @@ export function defineTextContentManifestV1(input: {
   readonly packs: readonly {
     readonly packId: string;
     readonly runtimePath: string;
-    readonly byteLength: number;
-    readonly sha256: string;
-    readonly entryCount: number;
   }[];
 }): TextContentManifestV1 {
   let revision: PositiveSafeInteger;
@@ -151,14 +130,6 @@ export function defineTextContentManifestV1(input: {
       return fail("text_content.manifest_pack_duplicate", packs[index]?.packId ?? null);
     }
   }
-  let declaredEntryCount = 0;
-  for (const pack of packs) {
-    declaredEntryCount += pack.entryCount;
-    if (!Number.isSafeInteger(declaredEntryCount)) {
-      return fail("text_content.manifest_invalid", "entryCount");
-    }
-  }
-
   const frozenPacks = Object.freeze(packs);
   const digest = digestCanonical("sillymaker:text-content-manifest:v1", {
     revision,
@@ -171,35 +142,25 @@ function countCatalogEntriesV1(catalogs: TextCatalogSetV1): NonNegativeSafeInteg
   let count = 0;
   for (const catalog of catalogs.catalogs) {
     count += catalog.entries.length;
-    if (!Number.isSafeInteger(count)) {
-      return fail("text_content.pack_entry_count_mismatch");
-    }
   }
   return parseNonNegativeSafeInteger(count);
 }
+
+/** Resource budget for one user-editable, data-only text pack. */
+export const textContentPackJsonLimitsV1 = parseStrictJsonLimitsV1({
+  maxBytes: 16_777_216,
+  maxDepth: 8,
+  maxArrayItems: 200_000,
+  maxObjectMembers: 16,
+  maxNodes: 1_500_000,
+  maxStringBytes: 1_048_576,
+});
 
 export function admitTextContentPackV1(
   descriptor: TextContentPackDescriptorV1,
   bytes: Uint8Array,
 ): AdmittedTextContentPackV1 {
-  if (bytes.byteLength !== descriptor.byteLength) {
-    return fail("text_content.pack_length_mismatch", descriptor.packId);
-  }
-  if (digestBytes(bytes) !== descriptor.sha256) {
-    return fail("text_content.pack_digest_mismatch", descriptor.packId);
-  }
-
-  const parsed = parseStrictJson(
-    bytes,
-    parseStrictJsonLimitsV1({
-      maxBytes: descriptor.byteLength,
-      maxDepth: 8,
-      maxArrayItems: descriptor.byteLength,
-      maxObjectMembers: descriptor.byteLength,
-      maxNodes: descriptor.byteLength,
-      maxStringBytes: descriptor.byteLength,
-    }),
-  );
+  const parsed = parseStrictJson(bytes, textContentPackJsonLimitsV1);
   if (!parsed.ok) return fail("text_content.pack_json_invalid", parsed.error.code);
   if (parsed.value === null || typeof parsed.value !== "object" || Array.isArray(parsed.value)) {
     return fail("text_content.pack_shape_invalid", descriptor.packId);
@@ -228,9 +189,6 @@ export function admitTextContentPackV1(
     return fail("text_content.pack_catalog_invalid", descriptor.packId);
   }
   const entryCount = countCatalogEntriesV1(textCatalogs);
-  if (entryCount !== descriptor.entryCount) {
-    return fail("text_content.pack_entry_count_mismatch", descriptor.packId);
-  }
   return Object.freeze({
     format: "sillymaker.text-content-pack",
     version: 1,
@@ -312,9 +270,6 @@ export function createTextContentSessionV1(input: {
       }
     }
     const nextEntryCount = loadedEntries + pack.entryCount;
-    if (!Number.isSafeInteger(nextEntryCount)) {
-      return fail("text_content.pack_entry_count_mismatch", packId);
-    }
 
     // Every reachable refusal is decided above. This synchronous commit is
     // not observable mid-loop, so mutating the private indexes avoids an

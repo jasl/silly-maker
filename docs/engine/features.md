@@ -260,10 +260,12 @@ incremental authoring index 仍是下一项，本能力不激活 Desktop HMR、C
 
 ## Static text content
 
-- Static text-content packs: `TextContentManifestV1` declares a sorted, immutable revision/digest
-  over build-known descriptors (`packId`, app-root-relative `assets/**` path, byte length, SHA-256,
-  localized-entry count). `admitTextContentPackV1` validates one exact
-  `sillymaker.text-content-pack` V1 byte payload once; `createTextContentSessionV1` single-flights
+- Static text-content packs: `TextContentManifestV1` declares a sorted, immutable logical-topology
+  revision/digest over build-known descriptors (`packId` and app-root-relative `assets/**` path).
+  Exact payload byte length/SHA-256/declared-entry receipts are intentionally absent, so passive
+  translation and local content edits do not require synchronized metadata. `admitTextContentPackV1`
+  performs one bounded Strict JSON plus exact `sillymaker.text-content-pack` V1 wire/schema/value
+  admission and derives the actual entry count; `createTextContentSessionV1` single-flights
   loads, rejects locale-topology/text-ID collisions atomically, retries failed loads explicitly,
   and resolves bootstrap plus admitted text synchronously. The Web application composer verifies
   resolved-presentation/declared-manifest identity and fetches from the current GUI origin. Its one
@@ -273,12 +275,14 @@ incremental authoring index 仍是下一项，本能力不激活 Desktop HMR、C
   load/import retain the Persistence replacement boundary; R2 prepares before takeover/install. A
   content failure preserves the old State, while the capability-gated DevDock State tuner may
   conservatively prepare the whole manifest before patching. No new facade or raw Base State
-  dependency is introduced. Packs and loaded indexes never enter State/Save; the manifest remains
-  presentation identity, so text-only changes use the existing warning-level story/presentation
-  Save compatibility while an unchanged simulation contract remains loadable.
-  `deno task check:assets` admits every declared pack from its application root. Template's opening
-  and ending packs are the first product path; its Flow/source join is tooling-only and absent from
-  the ordinary Player graph.
+  dependency is introduced. Packs and loaded indexes never enter State/Save; only manifest revision
+  and sorted `packId`/`runtimePath` topology form presentation identity. A payload-only text edit at
+  the same logical location therefore adds no Save warning and appears after refresh/restart; topology
+  or ordinary presentation-source changes retain their existing identity behavior.
+  `deno task check:assets` bounded-admits every declared pack from its application root without a
+  sibling receipt generator. Template's opening and ending packs are the first product path; its
+  Flow/source join is tooling-only and absent from the ordinary Player graph. Pack unload and a
+  separate i18n/message-catalog lane remain deferred until the active M0–M5 plan closes.
 
 ## Content database
 

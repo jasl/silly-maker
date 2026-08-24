@@ -114,10 +114,12 @@ entry during Player module evaluation. Keep only small startup/UI copy in the
 resident `TextCatalogSetV1`. Put each payload under the application's
 `assets/content/` tree as the exact `sillymaker.text-content-pack` V1 wire
 (`format`, `version`, `packId`, `textCatalogs`), and declare its app-relative
-runtime path, byte length, SHA-256 and localized-entry count in one
-`TextContentManifestV1`. The same manifest belongs in the materialized
-presentation and the application's `textContent` declaration, alongside
-bootstrap catalogs and build-known initial/required pack IDs.
+runtime path plus stable `packId` in one `TextContentManifestV1`. The same
+manifest belongs in the materialized presentation and the application's
+`textContent` declaration, alongside bootstrap catalogs and build-known
+initial/required pack IDs. Do not add or generate sibling byte-length, SHA or
+declared-entry receipts for these passive payloads; admission derives the actual
+entry count after one bounded Strict JSON/schema/value check.
 
 Declare `initialPackIds`, `requiredPackIdsForInvocation(admittedInvocation)`,
 and `requiredPackIdsForSnapshot(validatedSnapshot)` next to the application
@@ -136,17 +138,22 @@ or corrupt content must report a Host/application failure and leave the current
 semantic and Stage publication unchanged. Do not build a second content facade
 or couple the planner to raw Base State.
 
-Treat the manifest as presentation identity and its bytes as static payload:
-neither packs nor loaded-session indexes enter State, Snapshot, Save, CommandLog,
-or replay. A text-only change can therefore warn about presentation identity
-while an otherwise simulation-compatible Save still loads. Keep source-aware
+Treat manifest revision plus sorted `packId`/`runtimePath` topology as
+presentation identity and its bytes as static payload: neither packs nor
+loaded-session indexes enter State, Snapshot, Save, CommandLog, or replay.
+Directly editing text at an existing logical location does not change that
+identity or add a Save compatibility warning; changing topology or ordinary
+presentation source retains its existing identity behavior. An already loaded
+pack stays immutable for the current session, so refresh/restart after editing
+to load the new payload. Keep source-aware
 Flow summaries, source maps, and complete authoring copy in a tooling-only
 module; the ordinary Player graph should import only the control plan, compact
 manifest, bootstrap copy, and runtime resolver. The starter template demonstrates
 this split with opening/ending packs and `src/tooling/narrative-flow.ts`. Run
-`deno task check:assets` after changing any pack or descriptor; it reads every
-declared pack from its own application root and exercises the same Base
-admission contract.
+`deno task check:assets` after changing any pack or manifest topology; it reads
+every declared pack from its own application root and exercises the same Base
+bounded admission contract. Pack unload and a separate i18n/message-catalog lane
+remain deferred until the active M0–M5 plan closes.
 
 Narrative entrance/exit animation is authored as Motion assets: `sillymaker.motion` JSON documents (strictly admitted integer keyframes with per-segment easing), bound to stage edges through `motionStageTransition` in the transition catalog — or, for a scene-managed scene, through its Scene document's cue bindings. Motions compose over the settled placement (layout stays authoritative) and never enter authoritative State, Saves, digests, or replay. They are the human tuning surface — the DevDock provenance panel may locate them from the running picture, while the standalone/embedded Authoring Host owns the maintained Motion Workbench that edits and saves them (a save marks `authoring.status: "human_tuned"`; agents must not overwrite human-tuned or locked assets — see the collaboration contract in `authoring-quickstart.md`). `story check` lints every motion file: admission, unique ids, and filename↔id agreement.
 

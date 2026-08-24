@@ -148,9 +148,15 @@ Read only the documents relevant to the change:
   loading through one semantic-invocation/Snapshot-replacement readiness boundary,
   Template's opening/ending packs, runtime-asset verification, and the
   ordinary-Player separation from tooling-only Flow/source metadata. Static
-  payload stays outside State/Save and initial JavaScript; the compact manifest is
-  presentation identity, so text-only changes retain the existing warning-level
-  Save compatibility. M2 State hot plans and the single-owner incremental project
+  payload stays outside State/Save and initial JavaScript. The compact manifest's
+  revision plus sorted `packId`/`runtimePath` topology is presentation identity;
+  editing passive text bytes at an existing logical location does not change that
+  identity or add a Save compatibility warning, and a refresh/restart creates the
+  new immutable content session. Exact byte-length/SHA/declared-entry receipts and
+  their proposed generator were removed as hostile to ordinary translation/Mod
+  style local edits; bounded wire/schema admission remains and entry count is derived after
+  admission. Pack unload and a separate i18n/message-catalog lane remain deferred
+  until M0–M5 closes. M2 State hot plans and the single-owner incremental project
   index are the only next task.
   This lane does not activate
   State Format V2, ECS, a final Blueprint/Timeline editor, public Mod ABI, or

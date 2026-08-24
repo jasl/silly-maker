@@ -57,9 +57,6 @@ export function contentBundleScalePackJsonV1(input: {
 export interface ContentBundleScalePackDescriptorV1 {
   readonly packId: string;
   readonly runtimePath: string;
-  readonly byteLength: number;
-  readonly sha256: string;
-  readonly entryCount: number;
 }
 
 export function contentBundleScaleManifestSourceV1(

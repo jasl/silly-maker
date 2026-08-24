@@ -173,6 +173,7 @@ export {
   parseTextContentPackIdV1,
   rejectAttemptV1,
   parseTextId,
+  textContentPackJsonLimitsV1,
   requireContentPreferencePresetV1,
   rngStateV1Schema,
   runtimeOperationFaultSchemaV1,

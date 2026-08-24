@@ -4,7 +4,6 @@ import { resolve, sep } from "node:path";
 
 import {
   defineTextContentManifestV1,
-  digestBytes,
   parseTextCatalogSetV1,
   type ResolvedAssetManifestV1,
 } from "../../engine/packages/base/src/index.ts";
@@ -88,7 +87,7 @@ describe("closed runtime asset verification", () => {
 
   it("verifies the live Template content packs and cat-cafe runtime art", async () => {
     // e2e/bookshop stay code-native. Template text packs and cat-cafe art
-    // are both runtime files and pass through their exact byte admissions.
+    // are both runtime files and pass through their format-specific admissions.
     const reads: string[] = [];
     const root = resolve(import.meta.dirname, "../..");
     await expect(
@@ -123,7 +122,7 @@ describe("closed runtime asset verification", () => {
     ).toBe(true);
   }, 30_000);
 
-  it("admits optional text packs through the application-root environment", async () => {
+  it("admits optional and independently edited text packs through the application root", async () => {
     const bootstrapCatalogs = parseTextCatalogSetV1({
       defaultLocale: "en",
       catalogs: [{ locale: "en", fallbackLocale: null, entries: [] }],
@@ -149,9 +148,6 @@ describe("closed runtime asset verification", () => {
       packs: [{
         packId,
         runtimePath,
-        byteLength: bytes.byteLength,
-        sha256: digestBytes(bytes),
-        entryCount: 1,
       }],
     });
     const reads: string[] = [];
@@ -185,8 +181,19 @@ describe("closed runtime asset verification", () => {
     ).resolves.toEqual(["story.test.content"]);
     expect(reads).toEqual([runtimePath]);
 
-    const corrupt = bytes.slice();
-    corrupt[corrupt.length - 2] = corrupt[corrupt.length - 2] === 65 ? 66 : 65;
+    const editedBytes = new TextEncoder().encode(JSON.stringify({
+      format: "sillymaker.text-content-pack",
+      version: 1,
+      packId,
+      textCatalogs: parseTextCatalogSetV1({
+        defaultLocale: "en",
+        catalogs: [{
+          locale: "en",
+          fallbackLocale: null,
+          entries: [{ textId: "text.test.line", text: "Edited localization" }],
+        }],
+      }),
+    }));
     await expect(
       verifyRuntimeAssetStoryChecksV1(
         [story],
@@ -194,7 +201,24 @@ describe("closed runtime asset verification", () => {
           Object.freeze({
             repositoryRoot: "/repo/content",
             readFile() {
-              return Promise.resolve(corrupt);
+              return Promise.resolve(editedBytes);
+            },
+            realpath(path: string) {
+              return Promise.resolve(path);
+            },
+          }),
+        () => Promise.resolve(Object.freeze({ errors: Object.freeze([]) })),
+      ),
+    ).resolves.toEqual(["story.test.content"]);
+
+    await expect(
+      verifyRuntimeAssetStoryChecksV1(
+        [story],
+        () =>
+          Object.freeze({
+            repositoryRoot: "/repo/content",
+            readFile() {
+              return Promise.resolve(new TextEncoder().encode("{"));
             },
             realpath(path: string) {
               return Promise.resolve(path);
@@ -203,7 +227,7 @@ describe("closed runtime asset verification", () => {
         () => Promise.resolve(Object.freeze({ errors: Object.freeze([]) })),
       ),
     ).rejects.toThrow(
-      "story.test.content:text-pack.test.runtime:text_content.pack_digest_mismatch",
+      "story.test.content:text-pack.test.runtime:text_content.pack_json_invalid",
     );
   });
 

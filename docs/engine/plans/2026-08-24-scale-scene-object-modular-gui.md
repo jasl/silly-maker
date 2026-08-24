@@ -108,7 +108,8 @@ checkout/A-B 编排、机器身份或长期 report coordinator。
   Save 可因 build/simulation identity 不同而有不同 metadata，但不得包含 text、Scene source、Flow、
   asset 或 pack payload。
 - `content-scale` 的首次 GUI ready 前只加载 manifest + 第一个 content pack；已加载 text entries 不超过该
-  pack 声明量。100 倍未选择内容不得被 module evaluation 构造。
+  pack admission 后派生的实际 entry count（Scale profile 为 1,000）。100 倍未选择内容不得被
+  module evaluation 构造。
 - `bundle-scale - bundle-reference` 的 initial transitive Player JavaScript gzip 增量不超过 32 KiB；
   生成内容作为独立 pack assets 计量。M0 记录完整 initial dependency set 的绝对 gzip baseline；M3
   开始实现前由 owner 基于该证据接受持续绝对预算，M3 closure 只证明是否满足，不得事后移动阈值。
@@ -207,7 +208,8 @@ scan 四个独立来源。M1 因而按原排序先拆静态内容面；M0 的 St
   metadata/source map。普通 Player graph 不可到达后者。
 - 只实现本轮有证据的 text/content pack compiler/manifest，不在 M4 前冻结 Scene/object pack，也不激活
   通用 Content DB/ORM、任意 JSON/YAML/CSV importer、patch distribution 或远程 streaming。pack 使用
-  build-known IDs/URLs；复用现有 build identity/integrity 能力，不新建签名/provenance 系统。
+  build-known IDs/URLs；manifest 只表达 build-known logical topology，不把与 payload 同处、可一起编辑的
+  byte receipt 伪装成来源或反修改证明，也不新建签名/provenance 系统。
 - 每个 Session 固定一个不可变 manifest revision/digest；一个 pack ID 在该 Session 生命周期内只对应
   一份 admitted bytes。Host 在启动/interaction 边界显式加载并一次 admission pack，必需 pack ready 后
   才允许 dispatch 会引用它的 authoritative command；Session 只接收同步、已 admitted resolver。
@@ -223,11 +225,13 @@ pack；ordinary Player final-output receipt 的负面对照通过；corrupt/miss
 `eb718bcaa6683785634cbfd6efb9ce637efafbd1` 上明确记录为 modified 的最终工作树完成同机复测；
 raw reports 仍只作 owner-review evidence，不进入仓库。
 
-- `@sillymaker/base` 新增了只读 `TextContentManifestV1`/pack/session 合同。manifest
-  descriptor 只包含 build-known `packId`/`runtimePath`/`byteLength`/`sha256`/`entryCount`，
-  revision 与完整 descriptor vector 共同形成 digest。pack wire 严格为
-  `sillymaker.text-content-pack` V1 的 `format + version + packId + textCatalogs`；Host bytes 在边界只做一次长度、
-  SHA、Strict JSON、schema/值域和 entry-count admission。Session 固定一个 immutable
+- `@sillymaker/base` 新增了只读 `TextContentManifestV1`/pack/session 合同。经 M1 corrective
+  收口后，manifest descriptor 只包含 build-known `packId`/`runtimePath`，revision 与按 `packId`
+  排序的 logical-topology vector 共同形成 digest。pack wire 严格为
+  `sillymaker.text-content-pack` V1 的 `format + version + packId + textCatalogs`；Host bytes 在边界只做一次
+  bounded Strict JSON 与 schema/字段/值域 admission，entry count 从 admitted catalogs 派生。
+  `byteLength`、`sha256` 和声明式 `entryCount` receipt 及其拟议 generator/currentness workflow 均删除：
+  它们不能证明可编辑 payload 的发布者或反修改属性，反而会阻碍直接汉化和本地内容修改。Session 固定一个 immutable
   manifest，对同 pack single-flight，失败后可显式重试，并对已 admitted 的文本提供同步
   locale-fallback resolver；内部 consumer 不重复 admission。
 - `@sillymaker/web` 在真实 application start 中对比 resolved presentation 与 application 声明的
@@ -245,32 +249,46 @@ raw reports 仍只作 owner-review evidence，不进入仓库。
   text IDs，不再常驻 dialogue copy；完整 Flow/source projection 与 authoring copy 移入
   `src/tooling/**`，ordinary Player final graph 不可达。这是 runtime/authoring 责任分离，不是第二套
   narrative compiler。
-- manifest 是 resolved presentation identity 的一部分：文本/pack 变更会改变 presentation digest，
-  同步的 presentation source 变更也可改变 story digest。旧 Save 因此得到既有 warning-level
-  story/presentation compatibility 证据，但在 simulation/state contract
-  未变时仍可加载。pack payload、Flow/source graph 和 loaded-pack cache 都不进入 Snapshot/Save，
-  没有新 Save field 或 migration framework。
+- manifest 是 resolved presentation identity 的一部分，但该 identity 只覆盖 revision 与 sorted
+  `packId`/`runtimePath` topology。增删/改 manifest topology 会改变 presentation digest；在同一 logical
+  location 直接修改被动文本 payload 不改变该 digest，也不凭空产生 Save compatibility warning。若同时修改
+  presentation source，story digest 仍可因既有 source identity 改变。pack payload、Flow/source graph 和
+  loaded-pack cache 都不进入 Snapshot/Save，没有新 Save field 或 migration framework。一个已加载 pack 在
+  当前 immutable session 内不热替换；开发者或玩家 refresh/restart 后读取新 bytes。
 - `deno task check:assets` 现在会解析每个启用 runtime-asset verification 的 Story，除既有
-  asset manifest 外，还用同一 Base session 从该 application root 读取并 admission 所有声明的
-  text packs。实际 Template release build 保留两个独立 pack assets；build receipt 同时证明
+  asset manifest 外，还用同一 Base session 从该 application root 读取并 bounded-admit 所有声明的
+  text packs，验证 wire/schema、logical pack identity、catalog topology/IDs 与跨 pack 冲突，不要求
+  payload 与可共同编辑的 length/hash/count receipt 同步。实际 Template release build 保留两个独立 pack assets；build receipt 同时证明
   Player 排除 tooling Flow/source，Author graph 仍可显式到达它。
 - 同机五样本 Scale Lab 保持 1/100 packs、1,000/100,000 declared entries 的相同两节点
   control plan 与相同 60-byte State/digest。manifest build p50/p95 为
   `0.505/1.970 ms` 与 `35.872/37.205 ms`；两者只加载首个 1,000-entry pack，首 pack
   admission p50/p95 为 `7.679/8.303 ms` 与 `7.227/7.903 ms`，session retained-heap
-  delta 为 `186,864 B` 与 `212,264 B`。全部未选内容只体现在 compact manifest 和独立
-  pack assets，不在已加载 text index 中。
+  delta 为 `186,864 B` 与 `212,264 B`。这些数字是 corrective slice 前、包含旧 receipt 字段的原始
+  M1 checkpoint；继续作为静态 payload 已分离的历史证据，不伪装成新 descriptor shape 的重测值。
+  全部未选内容只体现在 compact manifest 和独立 pack assets，不在已加载 text index 中。
 - 真实 Vite/Template GUI 的 bundle profiles 将 initial transitive JavaScript gzip 从
   `361,312 B` 增至 `366,431 B`，100 倍内容的增量仅 `5,119 B`，低于 `32 KiB`
   结构预算；独立 content-pack assets gzip 从 `5,850 B` 增至 `585,737 B`。这与 M0
   的 `+556,838 B` initial-JS 缺口相比，证明静态 payload 已移出初始 module graph，
   没有用另一个 JavaScript chunk 隐藏总量。
+- M1 corrective 在同一 base HEAD 的 modified worktree 上重新跑两组五样本 compile profiles：
+  logical manifest build 的 1/100-pack p50/p95 为 `0.348/0.363 ms` 与
+  `0.899/0.934 ms`，首个 1,000-entry pack admission 为 `7.797/9.107 ms` 与
+  `7.884/8.954 ms`；两者仍只有一个 loaded pack 和 1,000 个 loaded entries，State 均为
+  60 bytes/同一 digest。一次 retained-session trend 为 `217,760 B` 与 `747,328 B`，只作
+  non-portable owner review，不建立 heap promotion threshold。重跑真实 bundle profiles 后，1/100-pack
+  initial JavaScript 为 `1,421,028/361,006 B` 与 `1,428,354/361,664 B`（raw/gzip），增量缩至
+  `7,326 B raw / 658 B gzip`；独立 pack assets 仍为 `1/100` 个、`102,186/10,218,600 B raw`
+  与 `5,850/585,737 B gzip`。因此删除 receipt 没有削弱 M1 裁决，并移除了原 benchmark 为未选择
+  packs 预构造 payload/hash 的伪工作。retained-heap 单点结果不具备可重复比较性，不参与该裁决。
 
 收口验证包括 Base/Web/Template focused tests、`deno task check:assets`、Template release
 build/final-output receipt、Template Chromium/WebKit 实际从首 pack 进入第二 pack 的可观察路径，
 以及两组 `bench:content:compile`/`bench:content:bundle` profiles。本里程未添加 Content
 DB/ORM、remote streaming、Worker/SQLite、第二 State/cache authority、异步 command I/O、签名或
-provenance 系统。
+provenance 系统。i18n/message-catalog 与 pack unload 继续 defer 到 M0–M5 全部完成后的独立实证评估；
+可能由后续作品重写触发，但不插入当前既定顺序。
 
 统一 readiness 边界的实际 focused 复验命令为：
 

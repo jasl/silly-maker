@@ -980,7 +980,15 @@ worktree over base HEAD `eb718bcaa6683785634cbfd6efb9ce637efafbd1`. It measured
 manifest-build p50/p95 `0.505/1.970 ms` versus `35.872/37.205 ms`, first-pack
 admission `7.679/8.303 ms` versus `7.227/7.903 ms`, and session retained-heap
 delta `186,864 B` versus `212,264 B` for 1,000/100,000 declared entries. These
-are raw review evidence, not portable thresholds.
+are raw review evidence, not portable thresholds. They predate the corrective
+removal of exact length/SHA/declared-entry receipt fields and remain historical
+evidence for payload separation, not a remeasurement of the smaller logical
+descriptor. The corrective modified-worktree rerun measured logical manifest-build
+p50/p95 `0.348/0.363 ms` versus `0.899/0.934 ms`, first-pack admission
+`7.797/9.107 ms` versus `7.884/8.954 ms`, and 1/100-pack initial JavaScript
+`361,006 B` versus `361,664 B` gzip (`+658 B`). Both profiles still load one
+1,000-entry pack and retain the same 60-byte State/digest; raw reports remain
+temporary owner-review evidence.
 
 `deno task bench:authoring-index` generates 10- and 1,000-document profiles from
 the four current authoring document families. It measures a fresh unified index,
@@ -1024,10 +1032,13 @@ deno task check:assets
 
 It resolves each application that opted into runtime-asset verification, checks
 its ordinary asset manifest, then creates one Base text-content session and
-reads and admits every declared pack from that application's root. Descriptor length,
-SHA, exact V1 wire shape, pack identity, text-catalog topology/IDs, and entry
-count are checked through the runtime contract. Vite development/build serving
-and copying continue to use the existing `assets/**` pipeline.
+reads and bounded-admits every declared pack from that application's root. The
+runtime contract checks the exact V1 wire shape, logical pack identity,
+text-catalog topology/IDs and cross-pack conflicts, and derives the actual entry
+count. It does not compare editable payloads with sibling length/hash/count
+receipts or require a generator/currentness step. Vite development/build serving
+and copying continue to use the existing `assets/**` pipeline; refresh/restart a
+running immutable content session after a direct text edit.
 
 The CR3 Player baselines follow the same policy. `deno task bench:surfaces`
 runs 1/4/16-target Stable publication workloads with small and medium parameters
